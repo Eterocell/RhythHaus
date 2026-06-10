@@ -32,14 +32,16 @@ The system SHALL implement playback through platform-specific engines hidden beh
 #### Scenario: Android playback engine
 - **WHEN** the Android app plays a supported local track
 - **THEN** playback is handled by the Android-specific engine while shared UI and state remain platform-neutral
+- **AND** the product-grade Android backend SHOULD use Media3/ExoPlayer rather than platform `MediaPlayer`
 
 #### Scenario: iOS playback engine
 - **WHEN** the iOS app plays a supported local track
-- **THEN** playback is handled by the iOS-specific engine while shared UI and state remain platform-neutral
+- **THEN** playback is handled by an iOS-native Apple audio backend while shared UI and state remain platform-neutral
 
 #### Scenario: macOS playback engine
 - **WHEN** the macOS desktop app plays a supported local track
-- **THEN** playback is handled by the JVM/macOS-specific engine while shared UI and state remain platform-neutral
+- **THEN** playback is handled by a macOS-specific engine while shared UI and state remain platform-neutral
+- **AND** the product-grade macOS backend SHOULD use native macOS audio APIs or a native bridge rather than Java Sound
 
 ### Requirement: Foreground playback lifecycle
 The system SHALL support foreground in-app playback for the first implementation and SHALL handle app/screen lifecycle events enough to avoid leaking platform player resources.

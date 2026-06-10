@@ -40,12 +40,10 @@ State source of truth: OpenSpec for durable product changes; Superpowers for cla
 
 ## Next steps
 
-1. Manually validate foreground play/pause/seek on Android device/emulator and macOS using real local audio files imported through the new UI.
-2. Plan the iOS document-picker bridge so iOS can import local files instead of showing the current unsupported-state message.
-3. Decide richer codec/dependency upgrades after scanner/import requirements are specified:
-   - Android: Media3/ExoPlayer for robust content URI/background support.
-   - iOS: Swift bridge or MusicKit/media-library integration if AVAudioPlayer is too limited.
-   - macOS/JVM: JavaFX/VLCJ or another library for MP3/AAC/FLAC beyond Java Sound's WAV/AIFF/AU baseline.
+1. Migrate Android playback from the current `MediaPlayer` spike to Media3/ExoPlayer before treating Android playback as product-grade.
+2. Replace the current macOS/JVM Java Sound playback spike with a native macOS audio backend/bridge after choosing the packaging-safe approach.
+3. Keep iOS playback on native Apple audio APIs; decide whether the existing Kotlin/Native `AVAudioPlayer`, AVFoundation `AVPlayer`, or a Swift bridge best fits the iOS import/media-library path.
+4. Plan the iOS document-picker bridge so iOS can import local files instead of showing the current unsupported-state message.
 
 ## Decisions
 
@@ -53,6 +51,7 @@ State source of truth: OpenSpec for durable product changes; Superpowers for cla
 - Windows/Linux support is future scope only.
 - Use shared-first Compose Multiplatform UI.
 - OpenSpec owns durable requirements/specs/tasks because `openspec/` exists.
+- Playback backend direction: Android should use Media3/ExoPlayer, iOS should use native Apple audio APIs, and macOS should use a native macOS backend/bridge rather than Java Sound for product-grade playback.
 - Superpowers owns clarification, brainstorming, task execution discipline, and TDD-style implementation loops for durable work.
 - Do not create `feature_list.json` for OpenSpec-owned tasks.
 - Completed OpenSpec + Superpowers workflow changes should be committed by default unless the user explicitly says not to commit.

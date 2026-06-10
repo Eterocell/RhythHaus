@@ -15,24 +15,26 @@
 
 ## 3. Android playback spike and implementation
 
-- [x] 3.1 Decide Android engine candidate for first slice: platform `MediaPlayer` for minimal dependency while scanner/import decisions are pending; Media3 remains a likely upgrade when background playback and library integration are planned.
+- [x] 3.1 Decide Android engine direction: current spike uses platform `MediaPlayer`, but product-grade Android playback should migrate to Media3/ExoPlayer.
 - [x] 3.2 Add Android-specific engine implementation for one supported local/sample audio source.
 - [x] 3.3 Wire Android lifecycle/resource release enough to avoid player leaks during Activity/app disposal.
-- [ ] 3.4 Verify Android debug build and, when device/emulator is available, manually confirm foreground play/pause/seek.
+- [ ] 3.4 Replace Android `MediaPlayer` spike with Media3/ExoPlayer behind the shared playback engine contract.
+- [ ] 3.5 Verify Android debug build and, when device/emulator is available, manually confirm foreground play/pause/seek.
 
 ## 4. iOS playback spike and implementation
 
-- [x] 4.1 Decide iOS implementation path: Kotlin/Native AVFAudio `AVAudioPlayer` interop for first local-file foreground playback slice; Swift bridge can be reconsidered if media-library/MusicKit integration requires it.
+- [x] 4.1 Decide iOS implementation path: native Apple audio backend. Current Kotlin/Native AVFAudio `AVAudioPlayer` interop is native and acceptable for simple imported local-file foreground playback; AVFoundation `AVPlayer` or Swift bridge remains a follow-up decision for richer document/media-library integration.
 - [x] 4.2 Add iOS-specific engine implementation for one supported local/sample audio source.
 - [x] 4.3 Configure foreground audio-session behavior needed for in-app playback without claiming background playback support.
 - [ ] 4.4 Verify iOS simulator shared tests and, when simulator/device playback is available, manually confirm foreground play/pause/seek.
 
 ## 5. macOS/JVM playback spike and implementation
 
-- [x] 5.1 Decide macOS/JVM engine candidate: Java Sound `Clip` for dependency-free WAV/AIFF first-slice playback; richer codecs may require a later JavaFX/VLCJ decision.
+- [x] 5.1 Decide macOS engine direction: current JVM spike uses Java Sound `Clip`, but product-grade macOS playback should move to a native macOS audio backend.
 - [x] 5.2 Add JVM/macOS-specific engine implementation for one supported local/sample audio source.
 - [x] 5.3 Verify desktop compile/run behavior and check whether chosen dependency affects macOS DMG packaging.
-- [ ] 5.4 Manually confirm foreground play/pause/seek on macOS.
+- [ ] 5.4 Select and implement a native macOS playback backend/bridge behind the shared playback engine contract.
+- [ ] 5.5 Manually confirm foreground play/pause/seek on macOS.
 
 ## 6. Cross-platform integration and acceptance
 

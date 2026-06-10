@@ -96,33 +96,33 @@ Alternatives considered:
 - Use plain file paths everywhere: simple on macOS, often wrong for Android MediaStore and iOS.
 - Use plain URI strings everywhere: may work for some cases, but hides permission/lifetime semantics.
 
-### Decision 5: First-slice engine choices and supported local handles
+### Decision 5: Playback backend direction and supported local handles
 
-Use lightweight platform engines for the first foreground playback slice:
+Use platform-native or platform-preferred media backends for the production direction:
 
-- Android: platform `MediaPlayer`, chosen to avoid introducing Media3/ExoPlayer before local scanner/import and background playback decisions are made.
-- iOS: Kotlin/Native interop with AVFAudio `AVAudioPlayer`, chosen for simple foreground playback of local file URLs without a Swift bridge.
-- macOS/desktop JVM: Java Sound `Clip`, chosen because it is dependency-free and does not change macOS DMG packaging.
+- Android: prefer Media3/ExoPlayer instead of platform `MediaPlayer` for robust content URI handling, lifecycle integration, future background playback, notification controls, and codec behavior.
+- iOS: use a native Apple audio backend. The current Kotlin/Native AVFAudio `AVAudioPlayer` implementation is native and acceptable for simple imported local-file foreground playback; AVFoundation/`AVPlayer` or a Swift bridge can be considered when iOS document/media-library access or richer playback behavior requires it.
+- macOS desktop: prefer a native macOS audio backend instead of Java Sound for production playback. Because the desktop app currently runs on JVM, this likely requires an explicit bridge/dependency decision, such as AVFoundation through a Kotlin/JVM bridge, a small Swift/Objective-C helper, or another macOS-native media layer that preserves DMG packaging.
 
 First-slice format support is intentionally conservative:
 
 - Android/iOS: platform-decoded local audio files supplied as file paths or URL strings.
-- macOS/JVM: Java Sound-supported local files, primarily WAV/AIFF/AU unless a later dependency adds MP3/AAC/FLAC.
-- Demo library tracks currently have metadata only. Pressing play before scanner/import provides a recoverable user-facing error instead of pretending bundled audio exists.
+- macOS: native-backend-supported local files supplied as file paths or file URLs.
+- No sample/demo playback fallback should be used; playback should load real imported or scanned local audio sources.
 
-Rationale: This gives the shared controller/UI and platform seams real code on Android, iOS, and macOS without broadening into scanner/import, background audio, or heavyweight codec dependencies.
+Rationale: The initial Java Sound and MediaPlayer choices were dependency-light first-slice spikes to prove the shared controller/UI seams. They are not the preferred long-term product backends. Media3 is the better Android product direction, iOS should stay on native Apple audio APIs, and macOS should use a native backend rather than Java Sound's limited codec surface.
 
-Future revisit triggers:
+Follow-up backend migration triggers:
 
-- Add Media3/ExoPlayer when Android background audio, notification controls, or robust MediaStore content URI playback are specified.
-- Reconsider Swift bridge or MusicKit/media-library integration when iOS local-library access is specified.
-- Reconsider JavaFX MediaPlayer, VLCJ, or another library when macOS MP3/AAC/FLAC support and packaging trade-offs are specified.
+- Migrate Android foreground playback from `MediaPlayer` to Media3/ExoPlayer before treating Android playback as product-grade.
+- Keep iOS playback on native Apple audio APIs; choose between the existing `AVAudioPlayer`, AVFoundation `AVPlayer`, or a Swift bridge based on import/media-library needs.
+- Replace macOS Java Sound playback with a native macOS backend after selecting the bridge/dependency approach and verifying DMG packaging.
 
 ## Risks / Trade-offs
 
 - iOS local file/media access may not match Android/macOS assumptions → Mitigation: keep source abstraction explicit and decide iOS discovery/import separately.
-- Desktop JVM audio dependency may complicate native DMG packaging → Mitigation: spike before committing to a library and verify `desktopApp` packaging impact.
-- Android Media3 adds dependency weight → Mitigation: compare against MediaPlayer for first local-file-only slice.
+- Desktop native audio integration may complicate JVM/macOS packaging → Mitigation: spike the bridge/dependency and verify `desktopApp` compile and DMG packaging impact before broadening feature scope.
+- Android Media3 adds dependency weight → Mitigation: accept the dependency for product-grade Android playback once the migration task starts, and keep the shared controller boundary unchanged.
 - Progress polling can leak coroutines/resources → Mitigation: lifecycle/release requirement and tests for controller disposal behavior.
 - Background playback expectations may surprise users → Mitigation: explicitly mark background playback as non-goal in UI/spec until implemented.
 - Codec support varies by platform → Mitigation: document supported formats for the first slice and expose user-visible errors.
@@ -144,7 +144,7 @@ Rollback strategy: keep playback behind new controller/UI state. If a platform e
 ## Open Questions
 
 - Which first audio formats are officially supported: mp3 only, or mp3/aac/flac/wav?
-- Should Android use Media3/ExoPlayer immediately, or start with platform MediaPlayer?
-- Should iOS playback be implemented directly in Kotlin/Native via AVFoundation, or via Swift bridge?
-- Which JVM/macOS playback library gives the best packaging/codecs trade-off?
-- What will provide initial playable local handles: bundled sample, manual file picker/import, or separate library scanner change?
+- Which Media3 subset and Android lifecycle integration should be used for the first product-grade Android playback slice?
+- Should iOS stay with Kotlin/Native `AVAudioPlayer`, move to AVFoundation `AVPlayer`, or use a Swift bridge when document/media-library integration is added?
+- Which macOS-native audio bridge/backend gives the best codec support and DMG packaging trade-off for a JVM desktop app?
+- What will provide persistent local handles after manual import: folder scanner, MediaStore/media-library integration, app-local copies, or bookmark/security-scoped URLs?
