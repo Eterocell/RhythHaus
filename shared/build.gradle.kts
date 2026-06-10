@@ -40,6 +40,10 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.media3.exoplayer)
+        }
+        jvmMain.dependencies {
+            implementation(libs.jna)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)

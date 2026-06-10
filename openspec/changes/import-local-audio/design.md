@@ -30,7 +30,7 @@ Rationale: ID3/metadata extraction differs by platform and codec. Playback with 
 
 - Android content URI permissions may not survive app restart until persistence is specified.
 - iOS import remains a visible limitation until a document-picker bridge is planned.
-- macOS Java Sound playback supports limited formats with the current dependency-free engine.
+- macOS native AVFoundation playback format/runtime behavior still needs packaged DMG/manual validation with representative files.
 - Imported tracks are in-memory only until persistence is planned.
 
 ## Verification

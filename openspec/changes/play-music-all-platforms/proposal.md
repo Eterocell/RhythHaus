@@ -22,8 +22,8 @@ RhythHaus needs a shared playback capability so users can play local music from 
 
 - Shared code under `shared/src/commonMain/kotlin/com/eterocell/rhythhaus` for playback models, state, controller interfaces, and UI integration.
 - Platform code under `shared/src/androidMain`, `shared/src/iosMain`, and `shared/src/jvmMain` for playback engines.
-- Android may use Media3/ExoPlayer or platform MediaPlayer after dependency decision.
-- iOS may use AVFoundation/AVPlayer through Kotlin/Native interop or Swift bridge after implementation spike.
-- macOS/desktop JVM may use a JVM audio library, JavaFX MediaPlayer, VLCJ, or another dependency after implementation spike.
+- Android uses Media3/ExoPlayer behind the shared playback engine contract.
+- iOS uses native Apple audio APIs through Kotlin/Native AVFAudio interop; AVFoundation `AVPlayer` or Swift bridge remains a later option for richer media-library/document-picker integration.
+- macOS desktop uses a native AVFoundation-backed bridge from the JVM layer; packaged DMG runtime behavior still needs manual validation.
 - `androidApp`, `iosApp`, and `desktopApp` may need thin lifecycle/audio-session wiring but should not duplicate product UI.
 - Future local-library discovery specs must provide playable track URIs/handles compatible with this playback contract.

@@ -110,13 +110,13 @@ First-slice format support is intentionally conservative:
 - macOS: native-backend-supported local files supplied as file paths or file URLs.
 - No sample/demo playback fallback should be used; playback should load real imported or scanned local audio sources.
 
-Rationale: The initial Java Sound and MediaPlayer choices were dependency-light first-slice spikes to prove the shared controller/UI seams. They are not the preferred long-term product backends. Media3 is the better Android product direction, iOS should stay on native Apple audio APIs, and macOS should use a native backend rather than Java Sound's limited codec surface.
+Rationale: The initial Java Sound and MediaPlayer choices were dependency-light first-slice spikes to prove the shared controller/UI seams. The implementation has now moved Android to Media3/ExoPlayer and macOS to a native AVFoundation-backed bridge while keeping the shared controller boundary unchanged. iOS continues to use native Apple audio APIs through Kotlin/Native AVFAudio interop.
 
 Follow-up backend migration triggers:
 
-- Migrate Android foreground playback from `MediaPlayer` to Media3/ExoPlayer before treating Android playback as product-grade.
+- Continue hardening the Android Media3/ExoPlayer engine before treating background playback or notification controls as supported.
 - Keep iOS playback on native Apple audio APIs; choose between the existing `AVAudioPlayer`, AVFoundation `AVPlayer`, or a Swift bridge based on import/media-library needs.
-- Replace macOS Java Sound playback with a native macOS backend after selecting the bridge/dependency approach and verifying DMG packaging.
+- Continue hardening the macOS AVFoundation/JNA bridge and verify packaged DMG runtime behavior.
 
 ## Risks / Trade-offs
 

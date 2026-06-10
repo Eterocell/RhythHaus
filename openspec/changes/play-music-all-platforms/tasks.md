@@ -15,10 +15,10 @@
 
 ## 3. Android playback spike and implementation
 
-- [x] 3.1 Decide Android engine direction: current spike uses platform `MediaPlayer`, but product-grade Android playback should migrate to Media3/ExoPlayer.
-- [x] 3.2 Add Android-specific engine implementation for one supported local/sample audio source.
+- [x] 3.1 Decide Android engine direction: use Media3/ExoPlayer for product-grade Android playback.
+- [x] 3.2 Add Android-specific Media3/ExoPlayer engine implementation for one supported local/imported audio source.
 - [x] 3.3 Wire Android lifecycle/resource release enough to avoid player leaks during Activity/app disposal.
-- [ ] 3.4 Replace Android `MediaPlayer` spike with Media3/ExoPlayer behind the shared playback engine contract.
+- [x] 3.4 Replace Android `MediaPlayer` spike with Media3/ExoPlayer behind the shared playback engine contract.
 - [ ] 3.5 Verify Android debug build and, when device/emulator is available, manually confirm foreground play/pause/seek.
 
 ## 4. iOS playback spike and implementation
@@ -30,10 +30,10 @@
 
 ## 5. macOS/JVM playback spike and implementation
 
-- [x] 5.1 Decide macOS engine direction: current JVM spike uses Java Sound `Clip`, but product-grade macOS playback should move to a native macOS audio backend.
-- [x] 5.2 Add JVM/macOS-specific engine implementation for one supported local/sample audio source.
+- [x] 5.1 Decide macOS engine direction: use a native macOS audio backend/bridge instead of Java Sound for product-grade playback.
+- [x] 5.2 Add JVM/macOS-specific native AVFoundation-backed engine implementation for one supported local/imported audio source.
 - [x] 5.3 Verify desktop compile/run behavior and check whether chosen dependency affects macOS DMG packaging.
-- [ ] 5.4 Select and implement a native macOS playback backend/bridge behind the shared playback engine contract.
+- [x] 5.4 Select and implement a native macOS playback backend/bridge behind the shared playback engine contract.
 - [ ] 5.5 Manually confirm foreground play/pause/seek on macOS.
 
 ## 6. Cross-platform integration and acceptance

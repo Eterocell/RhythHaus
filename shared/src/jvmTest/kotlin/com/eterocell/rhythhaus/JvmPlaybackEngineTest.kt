@@ -1,0 +1,88 @@
+package com.eterocell.rhythhaus
+
+import kotlin.io.path.createTempFile
+import kotlin.io.path.deleteIfExists
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.file.Files
+
+class JvmPlaybackEngineTest {
+    @Test
+    fun nativeMacPlaybackEngineLoadsGeneratedWavFile() {
+        val wavPath = createSilentWavFile()
+        val engine = createPlatformPlaybackEngine()
+        val events = mutableListOf<PlaybackStatus>()
+        var latestDuration: Long? = null
+        var latestError: PlaybackError? = null
+        engine.listener = object : PlaybackEngineListener {
+            override fun onPlaybackStatus(status: PlaybackStatus) {
+                events += status
+            }
+
+            override fun onPlaybackProgress(positionMillis: Long, durationMillis: Long?) {
+                latestDuration = durationMillis
+            }
+
+            override fun onPlaybackCompleted() = Unit
+
+            override fun onPlaybackError(error: PlaybackError) {
+                latestError = error
+            }
+        }
+
+        try {
+            engine.load(
+                PlayableTrack(
+                    id = "generated-wav",
+                    title = "Generated WAV",
+                    artist = "Test",
+                    album = null,
+                    durationMillis = null,
+                    source = AudioSource.FilePath(wavPath.toString()),
+                ),
+            )
+            engine.play()
+            engine.pause()
+            engine.seekTo(10L)
+            engine.stop()
+
+            assertEquals(null, latestError)
+            assertTrue(PlaybackStatus.Loading in events)
+            assertTrue(PlaybackStatus.Paused in events)
+            assertTrue(PlaybackStatus.Playing in events)
+            assertTrue(PlaybackStatus.Stopped in events)
+            assertNotNull(latestDuration)
+            assertTrue(latestDuration!! > 0L)
+        } finally {
+            engine.release()
+            wavPath.deleteIfExists()
+        }
+    }
+
+    private fun createSilentWavFile() = createTempFile(prefix = "rhythhaus-silence", suffix = ".wav").also { path ->
+        val sampleRate = 8_000
+        val durationMillis = 100
+        val sampleCount = sampleRate * durationMillis / 1_000
+        val dataSize = sampleCount * 2
+        val buffer = ByteBuffer.allocate(44 + dataSize).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.put("RIFF".toByteArray(Charsets.US_ASCII))
+        buffer.putInt(36 + dataSize)
+        buffer.put("WAVE".toByteArray(Charsets.US_ASCII))
+        buffer.put("fmt ".toByteArray(Charsets.US_ASCII))
+        buffer.putInt(16)
+        buffer.putShort(1) // PCM
+        buffer.putShort(1) // mono
+        buffer.putInt(sampleRate)
+        buffer.putInt(sampleRate * 2)
+        buffer.putShort(2)
+        buffer.putShort(16)
+        buffer.put("data".toByteArray(Charsets.US_ASCII))
+        buffer.putInt(dataSize)
+        repeat(sampleCount) { buffer.putShort(0) }
+        Files.write(path, buffer.array())
+    }
+}

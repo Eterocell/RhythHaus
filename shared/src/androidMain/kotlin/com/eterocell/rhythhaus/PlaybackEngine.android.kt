@@ -1,8 +1,11 @@
 package com.eterocell.rhythhaus
 
 import android.content.Context
-import android.media.MediaPlayer
 import android.net.Uri
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 
 private var rhythHausAndroidContext: Context? = null
 
@@ -14,69 +17,52 @@ actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = AndroidPlayb
 
 private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     override var listener: PlaybackEngineListener? = null
-    private var player: MediaPlayer? = null
+    private var player: ExoPlayer? = null
+    private var loadedTrackDurationMillis: Long? = null
 
     override fun load(track: PlayableTrack) {
         releasePlayer()
         listener?.onPlaybackStatus(PlaybackStatus.Loading)
-        val mediaPlayer = MediaPlayer()
-        player = mediaPlayer
-        mediaPlayer.setAudioSource(track.source)
-        mediaPlayer.setOnPreparedListener { prepared ->
-            listener?.onPlaybackProgress(
-                positionMillis = prepared.currentPosition.toLong(),
-                durationMillis = prepared.duration.takeIf { it > 0 }?.toLong() ?: track.durationMillis,
-            )
-            listener?.onPlaybackStatus(PlaybackStatus.Paused)
+        val context = requireNotNull(rhythHausAndroidContext) {
+            "Android playback context is not configured"
         }
-        mediaPlayer.setOnCompletionListener {
-            listener?.onPlaybackCompleted()
-        }
-        mediaPlayer.setOnErrorListener { _, what, extra ->
-            listener?.onPlaybackError(
-                PlaybackError(
-                    message = "Android could not play this audio file.",
-                    cause = "MediaPlayer error what=$what extra=$extra",
-                ),
-            )
-            true
-        }
-        mediaPlayer.prepare()
+        loadedTrackDurationMillis = track.durationMillis
+        val exoPlayer = ExoPlayer.Builder(context).build()
+        player = exoPlayer
+        exoPlayer.addListener(AndroidPlayerListener())
+        exoPlayer.setMediaItem(MediaItem.fromUri(track.source.androidUri()))
+        exoPlayer.prepare()
     }
 
     override fun play() {
-        val mediaPlayer = requireNotNull(player) { "No Android player has been loaded" }
-        mediaPlayer.start()
+        val exoPlayer = requireNotNull(player) { "No Android Media3 player has been loaded" }
+        exoPlayer.play()
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
-        listener?.onPlaybackProgress(
-            positionMillis = mediaPlayer.currentPosition.toLong(),
-            durationMillis = mediaPlayer.duration.takeIf { it > 0 }?.toLong(),
-        )
+        publishProgress(exoPlayer)
     }
 
     override fun pause() {
-        player?.let { mediaPlayer ->
-            if (mediaPlayer.isPlaying) mediaPlayer.pause()
-            listener?.onPlaybackProgress(
-                positionMillis = mediaPlayer.currentPosition.toLong(),
-                durationMillis = mediaPlayer.duration.takeIf { it > 0 }?.toLong(),
-            )
+        player?.let { exoPlayer ->
+            exoPlayer.pause()
+            publishProgress(exoPlayer)
         }
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
     }
 
     override fun stop() {
-        player?.let { mediaPlayer ->
-            if (mediaPlayer.isPlaying) mediaPlayer.pause()
-            mediaPlayer.seekTo(0)
-        }
-        listener?.onPlaybackProgress(0L, player?.duration?.takeIf { it > 0 }?.toLong())
+        player?.let { exoPlayer ->
+            exoPlayer.pause()
+            exoPlayer.seekTo(0L)
+            publishProgress(exoPlayer)
+        } ?: listener?.onPlaybackProgress(0L, loadedTrackDurationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Stopped)
     }
 
     override fun seekTo(positionMillis: Long) {
-        player?.seekTo(positionMillis.toInt())
-        listener?.onPlaybackProgress(positionMillis, player?.duration?.takeIf { it > 0 }?.toLong())
+        player?.let { exoPlayer ->
+            exoPlayer.seekTo(positionMillis)
+            publishProgress(exoPlayer)
+        }
     }
 
     override fun release() {
@@ -86,19 +72,47 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     private fun releasePlayer() {
         player?.release()
         player = null
+        loadedTrackDurationMillis = null
+    }
+
+    private fun publishProgress(exoPlayer: ExoPlayer) {
+        listener?.onPlaybackProgress(
+            positionMillis = exoPlayer.currentPosition.coerceAtLeast(0L),
+            durationMillis = exoPlayer.duration.takeIf { it > 0L } ?: loadedTrackDurationMillis,
+        )
+    }
+
+    private inner class AndroidPlayerListener : Player.Listener {
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            val exoPlayer = player ?: return
+            when (playbackState) {
+                Player.STATE_BUFFERING -> listener?.onPlaybackStatus(PlaybackStatus.Buffering)
+                Player.STATE_READY -> {
+                    publishProgress(exoPlayer)
+                    listener?.onPlaybackStatus(if (exoPlayer.playWhenReady) PlaybackStatus.Playing else PlaybackStatus.Paused)
+                }
+                Player.STATE_ENDED -> listener?.onPlaybackCompleted()
+                Player.STATE_IDLE -> Unit
+            }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            listener?.onPlaybackStatus(if (isPlaying) PlaybackStatus.Playing else PlaybackStatus.Paused)
+            player?.let(::publishProgress)
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            listener?.onPlaybackError(
+                PlaybackError(
+                    message = "Android could not play this audio file.",
+                    cause = error.message ?: error.errorCodeName,
+                ),
+            )
+        }
     }
 }
 
-private fun MediaPlayer.setAudioSource(source: AudioSource) {
-    when (source) {
-        is AudioSource.FilePath -> setDataSource(source.path)
-        is AudioSource.Uri -> {
-            val context = rhythHausAndroidContext
-            if (context != null) {
-                setDataSource(context, Uri.parse(source.value))
-            } else {
-                setDataSource(source.value)
-            }
-        }
-    }
+private fun AudioSource.androidUri(): Uri = when (this) {
+    is AudioSource.FilePath -> Uri.fromFile(java.io.File(path))
+    is AudioSource.Uri -> Uri.parse(value)
 }
