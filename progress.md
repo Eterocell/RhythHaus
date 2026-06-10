@@ -28,11 +28,18 @@ State source of truth: OpenSpec for durable product changes; this file for sessi
   - Tasks: `openspec/changes/play-music-all-platforms/tasks.md`
   - Implementation: shared playback model/controller/UI plus Android/iOS/JVM engines.
   - Validation: `./init.sh` -> BUILD SUCCESSFUL on 2026-06-10.
+- OpenSpec change `import-local-audio` has first manual import slice completed and validated.
+  - Proposal: `openspec/changes/import-local-audio/proposal.md`
+  - Design: `openspec/changes/import-local-audio/design.md`
+  - Spec: `openspec/changes/import-local-audio/specs/local-audio-import/spec.md`
+  - Tasks: `openspec/changes/import-local-audio/tasks.md`
+  - Implementation: shared import model/UI, Android document picker, macOS/JVM file chooser, iOS unsupported-state placeholder.
+  - Validation: `./init.sh` -> BUILD SUCCESSFUL on 2026-06-10; `openspec validate import-local-audio` -> valid.
 
 ## Next steps
 
-1. Add a local scanner/import feature so the playback controller receives real `AudioSource.FilePath` or `AudioSource.Uri` values instead of demo metadata-only tracks.
-2. Manually validate foreground play/pause/seek on Android device/emulator, iOS simulator/device, and macOS using real local audio files.
+1. Manually validate foreground play/pause/seek on Android device/emulator and macOS using real local audio files imported through the new UI.
+2. Plan the iOS document-picker bridge so iOS can import local files instead of showing the current unsupported-state message.
 3. Decide richer codec/dependency upgrades after scanner/import requirements are specified:
    - Android: Media3/ExoPlayer for robust content URI/background support.
    - iOS: Swift bridge or MusicKit/media-library integration if AVAudioPlayer is too limited.
@@ -70,15 +77,22 @@ Harness verification command to use going forward:
 ## Changed files in current playback work
 
 - `gradle/libs.versions.toml` - added shared coroutine dependency alias.
-- `shared/build.gradle.kts` - added `kotlinx-coroutines-core` to common code.
+- `shared/build.gradle.kts` - added `kotlinx-coroutines-core` to common code and Android Activity Compose to Android shared source set.
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt` - shared playback domain, controller, engine contract, fake engine, and formatting helper.
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt` - shared now-playing playback controls, seek display, status/error display, and accessibility content descriptions.
-- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.android.kt` - Android `MediaPlayer` engine.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/AudioImport.kt` - shared imported-audio model, import launcher contract, and imported-library mapping.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/MusicModels.kt` - added `AudioSource` to `Track` so imported rows are playable.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt` - shared now-playing playback controls, import card, seek display, status/error display, and accessibility content descriptions.
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.android.kt` - Android `MediaPlayer` engine with context-backed URI playback.
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/AudioImport.android.kt` - Android `OpenMultipleDocuments` audio picker.
+- `androidApp/src/main/kotlin/com/eterocell/rhythhaus/MainActivity.kt` - provides Android application context for content URI playback.
 - `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt` - iOS `AVAudioPlayer` engine and foreground audio session setup.
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/AudioImport.ios.kt` - iOS unsupported import placeholder with user-facing copy.
 - `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt` - JVM/macOS Java Sound `Clip` engine.
-- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/SharedCommonTest.kt` - playback state transition tests.
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/AudioImport.jvm.kt` - macOS/JVM Swing file chooser importer.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/SharedCommonTest.kt` - playback and import mapping tests.
 - `openspec/changes/play-music-all-platforms/design.md` - recorded first-slice engine and format decisions.
 - `openspec/changes/play-music-all-platforms/tasks.md` - marked implemented/verified tasks and remaining manual validation.
+- `openspec/changes/import-local-audio/*` - planned, specified, and task-tracked manual local audio import.
 - `progress.md` - updated handoff/evidence.
 
 ## Completion evidence checklist

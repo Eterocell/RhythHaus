@@ -1,6 +1,14 @@
 package com.eterocell.rhythhaus
 
+import android.content.Context
 import android.media.MediaPlayer
+import android.net.Uri
+
+private var rhythHausAndroidContext: Context? = null
+
+fun setRhythHausAndroidContext(context: Context) {
+    rhythHausAndroidContext = context.applicationContext
+}
 
 actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = AndroidPlaybackEngine()
 
@@ -11,10 +19,9 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     override fun load(track: PlayableTrack) {
         releasePlayer()
         listener?.onPlaybackStatus(PlaybackStatus.Loading)
-        val source = track.source.androidDataSource()
         val mediaPlayer = MediaPlayer()
         player = mediaPlayer
-        mediaPlayer.setDataSource(source)
+        mediaPlayer.setAudioSource(track.source)
         mediaPlayer.setOnPreparedListener { prepared ->
             listener?.onPlaybackProgress(
                 positionMillis = prepared.currentPosition.toLong(),
@@ -82,8 +89,17 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     }
 }
 
-private fun AudioSource.androidDataSource(): String = when (this) {
-    AudioSource.DemoTone -> error("Demo tracks do not include audio files yet. Import or scan a local file before playback.")
-    is AudioSource.FilePath -> path
-    is AudioSource.Uri -> value
+private fun MediaPlayer.setAudioSource(source: AudioSource) {
+    when (source) {
+        AudioSource.DemoTone -> error("Demo tracks do not include audio files yet. Import or scan a local file before playback.")
+        is AudioSource.FilePath -> setDataSource(source.path)
+        is AudioSource.Uri -> {
+            val context = rhythHausAndroidContext
+            if (context != null) {
+                setDataSource(context, Uri.parse(source.value))
+            } else {
+                setDataSource(source.value)
+            }
+        }
+    }
 }

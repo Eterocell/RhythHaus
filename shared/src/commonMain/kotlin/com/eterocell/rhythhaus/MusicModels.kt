@@ -9,6 +9,7 @@ data class Track(
     val album: String,
     val durationSeconds: Int,
     val accent: TrackAccent,
+    val source: AudioSource = AudioSource.DemoTone,
 )
 
 data class TrackAccent(

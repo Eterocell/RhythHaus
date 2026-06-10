@@ -96,6 +96,27 @@ class SharedCommonTest {
         assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
     }
 
+    @Test
+    fun importedFileDerivesDisplayTrackAndPlayableSource() {
+        val imported = ImportedAudioFile(
+            displayName = "Soft_Static.wav",
+            source = AudioSource.FilePath("/Music/Soft_Static.wav"),
+            durationMillis = 61_000L,
+        )
+
+        val snapshot = importedLibrarySnapshot(listOf(imported))
+
+        assertEquals("Soft Static", snapshot.tracks.single().title)
+        assertEquals("Local file", snapshot.tracks.single().artist)
+        assertEquals(61, snapshot.tracks.single().durationSeconds)
+        assertEquals(AudioSource.FilePath("/Music/Soft_Static.wav"), snapshot.tracks.single().source)
+    }
+
+    @Test
+    fun displayTitleFallsBackForBlankNames() {
+        assertEquals("Untitled audio", "...".toDisplayTitle())
+    }
+
     private fun testPlayableTrack(durationMillis: Long = 120_000L): PlayableTrack = PlayableTrack(
         id = "test-track",
         title = "Test Track",

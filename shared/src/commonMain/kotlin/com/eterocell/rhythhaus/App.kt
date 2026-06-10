@@ -66,14 +66,29 @@ private val HausPulse = Color(0xFFFF5E3A)
 @Preview
 fun App() {
     val controller = remember { PlaybackController() }
+    var importedFiles by remember { mutableStateOf(emptyList<ImportedAudioFile>()) }
+    var importMessage by remember { mutableStateOf<String?>(null) }
+    val importLauncher = rememberAudioImportLauncher { result ->
+        when (result) {
+            is AudioImportResult.Success -> {
+                importedFiles = mergeImportedFiles(importedFiles, result.files)
+                importMessage = if (result.files.isEmpty()) "No audio files selected" else "Imported ${result.files.size} local file(s)"
+            }
+            is AudioImportResult.Unavailable -> importMessage = result.message
+            is AudioImportResult.Failure -> importMessage = result.cause?.let { "${result.message}: $it" } ?: result.message
+        }
+    }
     DisposableEffect(controller) {
         onDispose { controller.release() }
     }
 
     RhythHausTheme {
         LibraryHomeScreen(
-            snapshot = demoLibrarySnapshot(),
+            snapshot = if (importedFiles.isEmpty()) demoLibrarySnapshot() else importedLibrarySnapshot(importedFiles),
             playbackController = controller,
+            importLauncher = importLauncher,
+            importMessage = importMessage,
+            isShowingDemoLibrary = importedFiles.isEmpty(),
         )
     }
 }
@@ -97,6 +112,9 @@ private fun RhythHausTheme(content: @Composable () -> Unit) {
 fun LibraryHomeScreen(
     snapshot: LibrarySnapshot,
     playbackController: PlaybackController,
+    importLauncher: AudioImportLauncher,
+    importMessage: String?,
+    isShowingDemoLibrary: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var selectedTrackId by remember(snapshot.nowPlayingTrackId) { mutableStateOf(snapshot.nowPlayingTrackId) }
@@ -113,6 +131,13 @@ fun LibraryHomeScreen(
         ) {
             item {
                 HeaderSection(snapshot)
+            }
+            item {
+                ImportAudioCard(
+                    importLauncher = importLauncher,
+                    importMessage = importMessage,
+                    isShowingDemoLibrary = isShowingDemoLibrary,
+                )
             }
             item {
                 selectedTrack?.let { track ->
@@ -203,6 +228,60 @@ private fun HeaderSection(snapshot: LibrarySnapshot) {
             lineHeight = 22.sp,
             fontWeight = FontWeight.Medium,
         )
+    }
+}
+
+@Composable
+private fun ImportAudioCard(
+    importLauncher: AudioImportLauncher,
+    importMessage: String?,
+    isShowingDemoLibrary: Boolean,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = HausPanel),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = if (isShowingDemoLibrary) "Import local audio" else "Add more local audio",
+                color = HausInk,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black,
+            )
+            Text(
+                text = importMessage ?: if (isShowingDemoLibrary) {
+                    "Demo rows are metadata-only. Import local files to create playable tracks."
+                } else {
+                    "Imported tracks use real local handles for playback."
+                },
+                color = HausMuted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Button(
+                onClick = importLauncher::launch,
+                enabled = importLauncher.isAvailable,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .semantics { contentDescription = "Import local audio files" },
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = HausInk,
+                    contentColor = HausPaper,
+                    disabledContainerColor = HausMuted.copy(alpha = 0.28f),
+                    disabledContentColor = HausMuted,
+                ),
+            ) {
+                Text(if (importLauncher.isAvailable) "Choose audio files" else "Import not available yet", fontWeight = FontWeight.Black)
+            }
+        }
     }
 }
 
@@ -479,6 +558,17 @@ private fun Track.toPlayableTrack(): PlayableTrack = PlayableTrack(
     title = title,
     artist = artist,
     album = album,
-    durationMillis = durationSeconds * 1_000L,
-    source = AudioSource.DemoTone,
+    durationMillis = durationSeconds.takeIf { it > 0 }?.times(1_000L),
+    source = source,
 )
+
+private fun mergeImportedFiles(
+    current: List<ImportedAudioFile>,
+    incoming: List<ImportedAudioFile>,
+): List<ImportedAudioFile> {
+    if (incoming.isEmpty()) return current
+    val bySource = LinkedHashMap<String, ImportedAudioFile>()
+    current.forEach { bySource[it.source.stableKey] = it }
+    incoming.forEach { bySource[it.source.stableKey] = it }
+    return bySource.values.toList()
+}
