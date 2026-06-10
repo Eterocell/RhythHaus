@@ -9,7 +9,8 @@ The system SHALL provide a first manual local-audio import path that can add pla
 
 #### Scenario: Imported tracks are playable
 - **WHEN** an imported track is selected and the user requests playback
-- **THEN** the shared playback controller loads the imported track source instead of a demo metadata-only source
+- **THEN** the shared playback controller loads the imported track source
+- **AND** no sample/demo audio source is used as a fallback
 
 ### Requirement: Platform import boundaries
 The system SHALL keep platform-specific picker and file-handle behavior behind a shared import contract.

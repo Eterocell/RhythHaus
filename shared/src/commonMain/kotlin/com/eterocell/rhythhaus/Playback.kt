@@ -17,10 +17,6 @@ data class PlayableTrack(
 sealed interface AudioSource {
     val stableKey: String
 
-    data object DemoTone : AudioSource {
-        override val stableKey: String = "demo-tone"
-    }
-
     data class FilePath(val path: String) : AudioSource {
         override val stableKey: String = path
     }

@@ -68,7 +68,6 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
 }
 
 private fun AudioSource.iosUrl(): NSURL = when (this) {
-    AudioSource.DemoTone -> error("Demo tracks do not include audio files yet. Import or scan a local file before playback.")
     is AudioSource.FilePath -> NSURL.fileURLWithPath(path)
     is AudioSource.Uri -> NSURL.URLWithString(value) ?: error("Invalid iOS audio URL: $value")
 }

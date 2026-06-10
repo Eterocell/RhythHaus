@@ -3,9 +3,9 @@
 ## Current state
 
 Last updated: 2026-06-10
-Current change: project harness creation and initial shared UI slice
-Workflow route: openspec-only
-State source of truth: OpenSpec for durable product changes; this file for session continuity and verification evidence.
+Current change: project harness creation and initial shared UI slice; harness route updated to openspec+superpowers
+Workflow route: openspec+superpowers
+State source of truth: OpenSpec for durable product changes; Superpowers for clarification/brainstorming/task execution discipline; this file for session continuity and verification evidence.
 
 ## Completed
 
@@ -33,8 +33,10 @@ State source of truth: OpenSpec for durable product changes; this file for sessi
   - Design: `openspec/changes/import-local-audio/design.md`
   - Spec: `openspec/changes/import-local-audio/specs/local-audio-import/spec.md`
   - Tasks: `openspec/changes/import-local-audio/tasks.md`
-  - Implementation: shared import model/UI, Android document picker, macOS/JVM file chooser, iOS unsupported-state placeholder.
+  - Implementation: shared import model/UI, Android document picker, macOS/JVM native Finder-style file dialog, iOS unsupported-state placeholder.
   - Validation: `./init.sh` -> BUILD SUCCESSFUL on 2026-06-10; `openspec validate import-local-audio` -> valid.
+  - Follow-up update: removed sample/demo library playback path and `AudioSource.DemoTone`; empty library now prompts for local import only. Replaced macOS/JVM Swing `JFileChooser` with native AWT `FileDialog` so macOS opens the system Finder-style panel.
+  - Follow-up validation: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` -> BUILD SUCCESSFUL; `/usr/bin/xcrun xcodebuild -version` -> Xcode 26.5 Build 17F42; `./gradlew :shared:iosSimulatorArm64Test --configuration-cache` -> BUILD SUCCESSFUL; `openspec validate import-local-audio` -> valid.
 
 ## Next steps
 
@@ -51,6 +53,7 @@ State source of truth: OpenSpec for durable product changes; this file for sessi
 - Windows/Linux support is future scope only.
 - Use shared-first Compose Multiplatform UI.
 - OpenSpec owns durable requirements/specs/tasks because `openspec/` exists.
+- Superpowers owns clarification, brainstorming, task execution discipline, and TDD-style implementation loops for durable work.
 - Do not create `feature_list.json` for OpenSpec-owned tasks.
 - Harness owns verification, acceptance, scope, lifecycle, and handoff evidence.
 
@@ -88,7 +91,7 @@ Harness verification command to use going forward:
 - `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt` - iOS `AVAudioPlayer` engine and foreground audio session setup.
 - `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/AudioImport.ios.kt` - iOS unsupported import placeholder with user-facing copy.
 - `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt` - JVM/macOS Java Sound `Clip` engine.
-- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/AudioImport.jvm.kt` - macOS/JVM Swing file chooser importer.
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/AudioImport.jvm.kt` - macOS/JVM native AWT file dialog importer.
 - `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/SharedCommonTest.kt` - playback and import mapping tests.
 - `openspec/changes/play-music-all-platforms/design.md` - recorded first-slice engine and format decisions.
 - `openspec/changes/play-music-all-platforms/tasks.md` - marked implemented/verified tasks and remaining manual validation.
@@ -97,7 +100,7 @@ Harness verification command to use going forward:
 
 ## Completion evidence checklist
 
-- [x] Workflow route recorded: `openspec-only`.
+- [x] Workflow route recorded: `openspec+superpowers`.
 - [x] Current owner recorded: harness-creator for harness files; OpenSpec for future durable product tasks.
 - [x] Fact source conflict avoided: no `feature_list.json` created because OpenSpec is initialized.
 - [x] Verification commands documented in `AGENTS.md`, `docs/harness-engineering.md`, and `init.sh`.
@@ -106,9 +109,9 @@ Harness verification command to use going forward:
 
 ## Handoff
 
-Route: openspec-only
+Route: openspec+superpowers
 Owner: harness-creator
-Input: user request to keep creating the agent harness
-Output: `AGENTS.md`, `docs/harness-engineering.md`, `init.sh`, `progress.md`
-Next owner: OpenSpec for durable feature planning, then implementation
+Input: user request to add the OpenSpec + Superpowers flow according to the harness-creator skill
+Output: `AGENTS.md`, `docs/harness-engineering.md`, and `progress.md` updated with OpenSpec + Superpowers route, ownership boundaries, and handoff rules
+Next owner: Superpowers for clarification/brainstorming when requirements are fuzzy; OpenSpec for durable feature planning; implementation owner for one OpenSpec task at a time; harness-creator for verification/acceptance/handoff
 Blockers: none currently; future iOS local music access strategy needs product decision

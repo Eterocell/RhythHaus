@@ -69,7 +69,6 @@ private class JvmPlaybackEngine : PlatformPlaybackEngine {
 }
 
 private fun AudioSource.jvmFile(): File = when (this) {
-    AudioSource.DemoTone -> error("Demo tracks do not include audio files yet. Import or scan a WAV/AIFF local file before playback.")
     is AudioSource.FilePath -> File(path)
     is AudioSource.Uri -> if (value.startsWith("file:")) File(java.net.URI(value)) else File(value)
 }

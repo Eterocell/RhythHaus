@@ -7,7 +7,7 @@
 ## 2. Platform importers
 
 - [x] 2.1 Add Android Activity Result document picker integration in `androidApp` and pass importer into shared `App`.
-- [x] 2.2 Add macOS/JVM Swing `JFileChooser` importer for audio files.
+- [x] 2.2 Add macOS/JVM native AWT `FileDialog` importer for audio files so macOS uses the system Finder-style open panel.
 - [x] 2.3 Add iOS unsupported importer state with clear UI copy and leave Swift/UIKit bridge as a follow-up.
 
 ## 3. Shared UI integration

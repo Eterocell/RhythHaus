@@ -2,9 +2,9 @@
 
 RhythHaus is a Kotlin Multiplatform + Compose Multiplatform local music application. The first supported platforms are Android, iOS, and macOS/desktop JVM. Windows and Linux may be supported later, but they are out of current scope.
 
-Current route: openspec-only
+Current route: openspec+superpowers
 
-OpenSpec is initialized in this repository via `openspec/`. Superpowers is not currently exposed as a project/runtime command. OpenSpec owns durable specs, changes, tasks, and archival. This harness owns startup, scope control, verification, acceptance, lifecycle, and handoff evidence.
+OpenSpec is initialized in this repository via `openspec/`. Use the OpenSpec + Superpowers flow for durable product or architecture work: Superpowers owns human-facing clarification, brainstorming, task execution discipline, and TDD-style implementation loops; OpenSpec owns durable specs, changes, tasks, task status, and archival; this harness owns startup, scope control, verification, acceptance, lifecycle, and handoff evidence.
 
 ## Startup workflow
 
@@ -45,9 +45,9 @@ Current product direction:
 - Real local scanner/player/storage work must be planned because platform behavior differs substantially.
 - Do not add Windows/Linux packaging or product support unless the user explicitly asks.
 
-## OpenSpec route
+## OpenSpec + Superpowers route
 
-Use OpenSpec for durable changes such as:
+Use the OpenSpec + Superpowers flow for durable changes such as:
 
 - local music scanning architecture;
 - playback abstraction;
@@ -55,6 +55,13 @@ Use OpenSpec for durable changes such as:
 - library persistence/cache;
 - navigation/state architecture;
 - platform-specific media integration.
+
+Superpowers responsibilities:
+
+- clarify user goals, non-goals, risks, and acceptance criteria before durable planning;
+- brainstorm and shape implementation approach when requirements are still fuzzy;
+- execute one OpenSpec task at a time with disciplined implementation and test/verification loops;
+- stay inside the task boundary handed off by OpenSpec unless the user explicitly changes scope.
 
 OpenSpec responsibilities:
 
@@ -73,6 +80,8 @@ Harness responsibilities:
 - `progress.md` handoff and evidence.
 
 Do not create `feature_list.json` for tasks already represented in OpenSpec. If a non-OpenSpec temporary task list is needed, use `progress.md` only.
+
+Handoff rule: Superpowers may produce clarified design input; OpenSpec consumes that input and creates/updates change specs/tasks; Superpowers or the implementation owner consumes one OpenSpec task; the harness verifies, performs code-review-grade acceptance, records evidence, and hands back to OpenSpec for archival when appropriate.
 
 ## Scope and safety rules
 
@@ -115,7 +124,7 @@ If iOS validation fails because `xcodebuild` is unavailable, record the blocker 
 
 A code-changing task is complete only when:
 
-- selected route is recorded or obvious from this file (`openspec-only` for durable changes);
+- selected route is recorded or obvious from this file (`openspec+superpowers` for durable changes);
 - files changed are within requested scope;
 - relevant verification commands were run, or blockers were recorded with exact command/output;
 - final diff was reviewed against the original request;
@@ -127,8 +136,8 @@ A code-changing task is complete only when:
 When switching owners/tools or ending a significant session, record in `progress.md` or OpenSpec task notes:
 
 ```text
-Route: openspec-only
-Owner: OpenSpec | harness-creator | implementation
+Route: openspec+superpowers
+Owner: Superpowers | OpenSpec | harness-creator | implementation
 Input: <artifact path or user request>
 Output: <artifact path, diff, verification result, or decision>
 Next owner: <who/what should act next>

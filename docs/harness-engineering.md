@@ -1,22 +1,30 @@
 # AI Harness Constraints
 
-This file defines reusable harness constraints for RhythHaus. Product requirements and durable feature tasks belong in OpenSpec. This file owns execution discipline, scope, verification, acceptance, and handoff expectations.
+This file defines reusable harness constraints for RhythHaus. Product requirements and durable feature tasks belong in OpenSpec. Superpowers provides human-facing clarification, brainstorming, task execution discipline, and TDD-style implementation loops. This file owns execution discipline, scope, verification, acceptance, and handoff expectations.
 
 ## Current route
 
-Route: `openspec-only`
+Route: `openspec+superpowers`
 
 Evidence:
 
 - `openspec/` exists in this repository.
 - `openspec/config.yaml` exists.
-- No Superpowers command/runtime marker was detected during harness creation.
+- The project harness intentionally routes durable work through the OpenSpec + Superpowers collaboration model from the `harness-creator` skill.
 
 Ownership:
 
+- Superpowers owns human-facing clarification, brainstorming, task execution discipline, and TDD-style implementation loops.
 - OpenSpec owns durable requirements, design, specs, task state, and archive.
 - The harness owns startup checks, scope control, verification, reviewer-level acceptance, lifecycle, and handoff evidence.
 - Compose/UI design skills can inform UI quality but must not become the source of product requirements.
+
+Collaboration rule:
+
+- Superpowers may clarify and shape the design input.
+- OpenSpec turns confirmed design into persistent changes/specs/tasks.
+- Superpowers or the implementation owner executes one OpenSpec task at a time.
+- The harness verifies, performs reviewer-level acceptance, records evidence, and hands back to OpenSpec for archival when appropriate.
 
 ## Five harness subsystems
 
@@ -81,7 +89,7 @@ Session start:
 
 - inspect `git status --short`;
 - read state artifacts;
-- identify route and owner;
+- identify route and owner; for durable work, record whether the current owner is Superpowers, OpenSpec, implementation, or harness-creator;
 - establish verification plan before large edits.
 
 Session end:
@@ -105,7 +113,7 @@ Session end:
 Stop before continuing when:
 
 - OpenSpec tasks conflict with `progress.md` or any other state artifact;
-- owner/next-owner is unclear;
+- owner/next-owner is unclear across Superpowers, OpenSpec, implementation, and harness responsibilities;
 - a task would expand product scope beyond the current request;
 - platform behavior requires a product decision, especially iOS local music access;
 - verification fails and the cause is not understood or recorded;
@@ -129,8 +137,8 @@ These must be planned through OpenSpec before implementation:
 Use this in `progress.md` or OpenSpec task notes:
 
 ```text
-Route: openspec-only
-Owner: <OpenSpec | harness-creator | implementation>
+Route: openspec+superpowers
+Owner: <Superpowers | OpenSpec | harness-creator | implementation>
 Scope: <files/feature touched>
 Verification:
 - <command>: pass | fail | skipped (<reason>)

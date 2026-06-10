@@ -2,9 +2,9 @@ package com.eterocell.rhythhaus
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import java.awt.FileDialog
+import java.awt.Frame
 import java.io.File
-import javax.swing.JFileChooser
-import javax.swing.filechooser.FileNameExtensionFilter
 
 @Composable
 actual fun rememberAudioImportLauncher(onResult: (AudioImportResult) -> Unit): AudioImportLauncher = remember(onResult) {
@@ -13,30 +13,8 @@ actual fun rememberAudioImportLauncher(onResult: (AudioImportResult) -> Unit): A
 
         override fun launch() {
             try {
-                val chooser = JFileChooser().apply {
-                    dialogTitle = "Import local audio"
-                    isMultiSelectionEnabled = true
-                    fileSelectionMode = JFileChooser.FILES_ONLY
-                    fileFilter = FileNameExtensionFilter(
-                        "Audio files (wav, aiff, au, mp3, m4a, flac, ogg)",
-                        "wav",
-                        "wave",
-                        "aif",
-                        "aiff",
-                        "au",
-                        "mp3",
-                        "m4a",
-                        "aac",
-                        "flac",
-                        "ogg",
-                    )
-                }
-                val selection = chooser.showOpenDialog(null)
-                if (selection != JFileChooser.APPROVE_OPTION) {
-                    onResult(AudioImportResult.Success(emptyList()))
-                    return
-                }
-                onResult(AudioImportResult.Success(chooser.selectedFiles.map { it.toImportedAudioFile() }))
+                val selectedFiles = openNativeAudioFileDialog()
+                onResult(AudioImportResult.Success(selectedFiles.map { it.toImportedAudioFile() }))
             } catch (throwable: Throwable) {
                 onResult(
                     AudioImportResult.Failure(
@@ -48,6 +26,34 @@ actual fun rememberAudioImportLauncher(onResult: (AudioImportResult) -> Unit): A
         }
     }
 }
+
+private fun openNativeAudioFileDialog(): List<File> {
+    val dialog = FileDialog(null as Frame?, "Import local audio", FileDialog.LOAD).apply {
+        isMultipleMode = true
+        filenameFilter = { _, name -> name.hasAudioExtension() }
+    }
+    dialog.isVisible = true
+
+    return dialog.files?.toList().orEmpty()
+}
+
+private fun String.hasAudioExtension(): Boolean {
+    val extension = substringAfterLast('.', missingDelimiterValue = "").lowercase()
+    return extension in supportedAudioExtensions
+}
+
+private val supportedAudioExtensions = setOf(
+    "wav",
+    "wave",
+    "aif",
+    "aiff",
+    "au",
+    "mp3",
+    "m4a",
+    "aac",
+    "flac",
+    "ogg",
+)
 
 private fun File.toImportedAudioFile(): ImportedAudioFile = ImportedAudioFile(
     displayName = name,

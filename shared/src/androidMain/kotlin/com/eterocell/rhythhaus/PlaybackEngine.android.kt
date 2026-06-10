@@ -91,7 +91,6 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
 
 private fun MediaPlayer.setAudioSource(source: AudioSource) {
     when (source) {
-        AudioSource.DemoTone -> error("Demo tracks do not include audio files yet. Import or scan a local file before playback.")
         is AudioSource.FilePath -> setDataSource(source.path)
         is AudioSource.Uri -> {
             val context = rhythHausAndroidContext

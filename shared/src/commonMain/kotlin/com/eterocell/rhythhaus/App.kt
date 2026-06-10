@@ -84,11 +84,10 @@ fun App() {
 
     RhythHausTheme {
         LibraryHomeScreen(
-            snapshot = if (importedFiles.isEmpty()) demoLibrarySnapshot() else importedLibrarySnapshot(importedFiles),
+            snapshot = importedLibrarySnapshot(importedFiles),
             playbackController = controller,
             importLauncher = importLauncher,
             importMessage = importMessage,
-            isShowingDemoLibrary = importedFiles.isEmpty(),
         )
     }
 }
@@ -114,7 +113,6 @@ fun LibraryHomeScreen(
     playbackController: PlaybackController,
     importLauncher: AudioImportLauncher,
     importMessage: String?,
-    isShowingDemoLibrary: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var selectedTrackId by remember(snapshot.nowPlayingTrackId) { mutableStateOf(snapshot.nowPlayingTrackId) }
@@ -136,7 +134,7 @@ fun LibraryHomeScreen(
                 ImportAudioCard(
                     importLauncher = importLauncher,
                     importMessage = importMessage,
-                    isShowingDemoLibrary = isShowingDemoLibrary,
+                    hasImportedTracks = snapshot.tracks.isNotEmpty(),
                 )
             }
             item {
@@ -235,7 +233,7 @@ private fun HeaderSection(snapshot: LibrarySnapshot) {
 private fun ImportAudioCard(
     importLauncher: AudioImportLauncher,
     importMessage: String?,
-    isShowingDemoLibrary: Boolean,
+    hasImportedTracks: Boolean,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -248,16 +246,16 @@ private fun ImportAudioCard(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = if (isShowingDemoLibrary) "Import local audio" else "Add more local audio",
+                text = if (hasImportedTracks) "Add more local audio" else "Import local audio",
                 color = HausInk,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Black,
             )
             Text(
-                text = importMessage ?: if (isShowingDemoLibrary) {
-                    "Demo rows are metadata-only. Import local files to create playable tracks."
-                } else {
+                text = importMessage ?: if (hasImportedTracks) {
                     "Imported tracks use real local handles for playback."
+                } else {
+                    "Choose audio files from this device to build your local library."
                 },
                 color = HausMuted,
                 fontSize = 13.sp,

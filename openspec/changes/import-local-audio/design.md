@@ -1,6 +1,6 @@
 ## Context
 
-RhythHaus now has a shared playback controller and platform playback engines, but the visible library still uses demo metadata with `AudioSource.DemoTone`. Pressing Play can exercise error handling, but cannot play user audio. A full local-library scanner is platform-sensitive and should be separate from this first import slice.
+RhythHaus now has a shared playback controller and platform playback engines. The visible library should be populated only by local audio imports, without sample/demo playback paths. A full local-library scanner is platform-sensitive and should be separate from this first import slice.
 
 ## Decisions
 
@@ -16,7 +16,7 @@ Add `AudioImportLauncher` in common code with platform implementations:
 
 - Android: Activity Result `OpenMultipleDocuments` supplied from `androidApp` as an injected launcher, returning content URI strings.
 - iOS: first slice returns unsupported from shared Kotlin because presenting `UIDocumentPickerViewController` cleanly needs a Swift/UIKit bridge decision.
-- macOS/JVM: Swing `JFileChooser` multi-select, returning absolute file paths.
+- macOS/JVM: native AWT `FileDialog` multi-select, returning absolute file paths. On macOS this presents the system Finder-style open panel instead of Swing's cross-platform chooser.
 
 Rationale: Android needs Activity-owned registration; desktop can use JVM APIs directly; iOS document picking requires view-controller/delegate lifecycle work that is too large to hide inside current shared entry without a bridge.
 

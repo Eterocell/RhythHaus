@@ -27,7 +27,7 @@ fun importedLibrarySnapshot(importedFiles: List<ImportedAudioFile>): LibrarySnap
     return LibrarySnapshot(
         title = "RhythHaus",
         subtitle = if (tracks.isEmpty()) {
-            "Import local files to start listening"
+            "Choose local audio files to start listening"
         } else {
             "${tracks.size} imported local ${if (tracks.size == 1) "track" else "tracks"}"
         },

@@ -24,11 +24,6 @@ class SharedCommonTest {
     }
 
     @Test
-    fun demoLibraryHasANowPlayingTrack() {
-        assertEquals("Midnight Index", demoLibrarySnapshot().nowPlaying?.title)
-    }
-
-    @Test
     fun controllerMovesFromLoadingToPlayingForSelectedTrack() {
         val controller = PlaybackController(FakePlaybackEngine())
         val tracks = listOf(testPlayableTrack())
