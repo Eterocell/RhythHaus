@@ -102,7 +102,7 @@ Use platform-native or platform-preferred media backends for the production dire
 
 - Android: prefer Media3/ExoPlayer instead of platform `MediaPlayer` for robust content URI handling, lifecycle integration, future background playback, notification controls, and codec behavior.
 - iOS: use a native Apple audio backend. The current Kotlin/Native AVFAudio `AVAudioPlayer` implementation is native and acceptable for simple imported local-file foreground playback; AVFoundation/`AVPlayer` or a Swift bridge can be considered when iOS document/media-library access or richer playback behavior requires it.
-- macOS desktop: prefer a native macOS audio backend instead of Java Sound for production playback. Because the desktop app currently runs on JVM, this likely requires an explicit bridge/dependency decision, such as AVFoundation through a Kotlin/JVM bridge, a small Swift/Objective-C helper, or another macOS-native media layer that preserves DMG packaging.
+- macOS desktop: use a native macOS audio backend instead of Java Sound for production playback. Because the desktop app currently runs on JVM, the implementation uses a small Objective-C++ helper library compiled with `clang++` and called from Kotlin/JVM through JNI. The helper owns AVFoundation/AVFAudio `AVAudioPlayer` calls, while Kotlin/JVM only sees a stable typed native bridge API.
 
 First-slice format support is intentionally conservative:
 
@@ -110,13 +110,13 @@ First-slice format support is intentionally conservative:
 - macOS: native-backend-supported local files supplied as file paths or file URLs.
 - No sample/demo playback fallback should be used; playback should load real imported or scanned local audio sources.
 
-Rationale: The initial Java Sound and MediaPlayer choices were dependency-light first-slice spikes to prove the shared controller/UI seams. The implementation has now moved Android to Media3/ExoPlayer and macOS to a native AVFoundation-backed bridge while keeping the shared controller boundary unchanged. iOS continues to use native Apple audio APIs through Kotlin/Native AVFAudio interop.
+Rationale: The initial Java Sound and MediaPlayer choices were dependency-light first-slice spikes to prove the shared controller/UI seams. The implementation has now moved Android to Media3/ExoPlayer and macOS to a native AVFoundation-backed Objective-C++/JNI helper while keeping the shared controller boundary unchanged. iOS continues to use native Apple audio APIs through Kotlin/Native AVFAudio interop.
 
 Follow-up backend migration triggers:
 
 - Continue hardening the Android Media3/ExoPlayer engine before treating background playback or notification controls as supported.
 - Keep iOS playback on native Apple audio APIs; choose between the existing `AVAudioPlayer`, AVFoundation `AVPlayer`, or a Swift bridge based on import/media-library needs.
-- Continue hardening the macOS AVFoundation/JNA bridge and verify packaged DMG runtime behavior.
+- Continue hardening the macOS Objective-C++/JNI helper and verify packaged DMG runtime behavior with representative imported files.
 
 ## Risks / Trade-offs
 

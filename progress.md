@@ -26,10 +26,10 @@ State source of truth: OpenSpec for durable product changes; Superpowers for cla
   - Design: `openspec/changes/play-music-all-platforms/design.md`
   - Spec: `openspec/changes/play-music-all-platforms/specs/audio-playback/spec.md`
   - Tasks: `openspec/changes/play-music-all-platforms/tasks.md`
-  - Implementation: shared playback model/controller/UI plus Android Media3, iOS AVFAudio, and macOS AVFoundation/JNA engines.
+  - Implementation: shared playback model/controller/UI plus Android Media3, iOS AVFAudio, and macOS AVFoundation Objective-C++/JNI engine.
   - Validation: `./init.sh` -> BUILD SUCCESSFUL on 2026-06-10.
-  - Follow-up backend implementation: Android playback migrated from platform `MediaPlayer` to Media3/ExoPlayer; macOS/JVM playback migrated from Java Sound `Clip` to native AVFoundation through a JNA bridge; iOS remains on native AVFAudio `AVAudioPlayer`.
-  - Follow-up validation: `openspec validate play-music-all-platforms` -> valid; `openspec validate import-local-audio` -> valid; `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` -> BUILD SUCCESSFUL; `/usr/bin/xcrun xcodebuild -version` -> Xcode 26.5 Build 17F42; `./gradlew :shared:iosSimulatorArm64Test --configuration-cache` -> BUILD SUCCESSFUL; `./gradlew :desktopApp:packageDmg --configuration-cache` -> BUILD SUCCESSFUL and produced `desktopApp/build/compose/binaries/main/dmg/RhythHaus-1.0.0.dmg`.
+  - Follow-up backend implementation: Android playback migrated from platform `MediaPlayer` to Media3/ExoPlayer; macOS/JVM playback migrated from Java Sound `Clip` to native AVFoundation through a temporary JNA bridge, then replaced with a small Objective-C++ helper called through JNI; iOS remains on native AVFAudio `AVAudioPlayer`.
+  - Follow-up validation: `openspec validate play-music-all-platforms` -> valid; `openspec validate import-local-audio` -> valid; `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` -> BUILD SUCCESSFUL; `/usr/bin/xcrun xcodebuild -version` -> Xcode 26.5 Build 17F42; `./gradlew :shared:iosSimulatorArm64Test :desktopApp:packageDmg --configuration-cache` -> BUILD SUCCESSFUL and produced `desktopApp/build/compose/binaries/main/dmg/RhythHaus-1.0.0.dmg`; `jar tf shared/build/libs/shared-jvm.jar | grep -E 'native/.*/librhythhaus_audio.dylib'` -> `native/macos-aarch64/librhythhaus_audio.dylib`.
 - OpenSpec change `import-local-audio` has first manual import slice completed and validated.
   - Proposal: `openspec/changes/import-local-audio/proposal.md`
   - Design: `openspec/changes/import-local-audio/design.md`
@@ -43,7 +43,7 @@ State source of truth: OpenSpec for durable product changes; Superpowers for cla
 ## Next steps
 
 1. Manually validate foreground play/pause/seek on Android device/emulator and macOS using real local audio files imported through the UI.
-2. Verify packaged macOS DMG runtime behavior for the native AVFoundation/JNA bridge.
+2. Verify packaged macOS DMG runtime behavior for the native AVFoundation Objective-C++/JNI helper.
 3. Keep iOS playback on native Apple audio APIs; decide whether the existing Kotlin/Native `AVAudioPlayer`, AVFoundation `AVPlayer`, or a Swift bridge best fits the iOS import/media-library path.
 4. Plan the iOS document-picker bridge so iOS can import local files instead of showing the current unsupported-state message.
 
@@ -53,7 +53,7 @@ State source of truth: OpenSpec for durable product changes; Superpowers for cla
 - Windows/Linux support is future scope only.
 - Use shared-first Compose Multiplatform UI.
 - OpenSpec owns durable requirements/specs/tasks because `openspec/` exists.
-- Playback backend direction: Android uses Media3/ExoPlayer, iOS uses native Apple audio APIs, and macOS uses a native AVFoundation/JNA bridge rather than Java Sound for product-grade playback.
+- Playback backend direction: Android uses Media3/ExoPlayer, iOS uses native Apple audio APIs, and macOS uses a native AVFoundation Objective-C++/JNI helper rather than Java Sound or JNA for product-grade playback.
 - Superpowers owns clarification, brainstorming, task execution discipline, and TDD-style implementation loops for durable work.
 - Do not create `feature_list.json` for OpenSpec-owned tasks.
 - Completed OpenSpec + Superpowers workflow changes should be committed by default unless the user explicitly says not to commit.
@@ -83,7 +83,7 @@ Harness verification command to use going forward:
 ## Changed files in current playback work
 
 - `gradle/libs.versions.toml` - added shared coroutine dependency alias.
-- `shared/build.gradle.kts` - added `kotlinx-coroutines-core` to common code, Android Activity Compose and Media3 to Android shared source set, and JNA to JVM source set.
+- `shared/build.gradle.kts` - added `kotlinx-coroutines-core` to common code, Android Activity Compose and Media3 to Android shared source set, and a macOS native audio helper build/resource task for JVM.
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt` - shared playback domain, controller, engine contract, fake engine, and formatting helper.
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/AudioImport.kt` - shared imported-audio model, import launcher contract, and imported-library mapping.
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/MusicModels.kt` - added `AudioSource` to `Track` so imported rows are playable.
@@ -93,7 +93,7 @@ Harness verification command to use going forward:
 - `androidApp/src/main/kotlin/com/eterocell/rhythhaus/MainActivity.kt` - provides Android application context for content URI playback.
 - `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt` - iOS `AVAudioPlayer` engine and foreground audio session setup.
 - `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/AudioImport.ios.kt` - iOS unsupported import placeholder with user-facing copy.
-- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt` - macOS native AVFoundation-backed playback engine through JNA.
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt` - macOS native AVFoundation-backed playback engine through an Objective-C++/JNI helper.
 - `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/AudioImport.jvm.kt` - macOS/JVM native AWT file dialog importer.
 - `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/SharedCommonTest.kt` - playback and import mapping tests.
 - `openspec/changes/play-music-all-platforms/design.md` - recorded first-slice engine and format decisions.
