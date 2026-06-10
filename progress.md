@@ -1,0 +1,100 @@
+# Session Progress
+
+## Current state
+
+Last updated: 2026-06-10
+Current change: project harness creation and initial shared UI slice
+Workflow route: openspec-only
+State source of truth: OpenSpec for durable product changes; this file for session continuity and verification evidence.
+
+## Completed
+
+- Initialized a first shared Compose Multiplatform product surface for RhythHaus.
+- Added shared demo music models and formatting tests.
+- Scoped desktop native packaging to macOS DMG only for current target scope.
+- Confirmed OpenSpec is initialized via `openspec/` and `openspec/config.yaml`.
+- Created project agent harness files:
+  - `AGENTS.md`
+  - `docs/harness-engineering.md`
+  - `init.sh`
+  - `progress.md`
+
+## In progress
+
+- OpenSpec change `play-music-all-platforms` has first implementation slice completed and validated.
+  - Proposal: `openspec/changes/play-music-all-platforms/proposal.md`
+  - Design: `openspec/changes/play-music-all-platforms/design.md`
+  - Spec: `openspec/changes/play-music-all-platforms/specs/audio-playback/spec.md`
+  - Tasks: `openspec/changes/play-music-all-platforms/tasks.md`
+  - Implementation: shared playback model/controller/UI plus Android/iOS/JVM engines.
+  - Validation: `./init.sh` -> BUILD SUCCESSFUL on 2026-06-10.
+
+## Next steps
+
+1. Add a local scanner/import feature so the playback controller receives real `AudioSource.FilePath` or `AudioSource.Uri` values instead of demo metadata-only tracks.
+2. Manually validate foreground play/pause/seek on Android device/emulator, iOS simulator/device, and macOS using real local audio files.
+3. Decide richer codec/dependency upgrades after scanner/import requirements are specified:
+   - Android: Media3/ExoPlayer for robust content URI/background support.
+   - iOS: Swift bridge or MusicKit/media-library integration if AVAudioPlayer is too limited.
+   - macOS/JVM: JavaFX/VLCJ or another library for MP3/AAC/FLAC beyond Java Sound's WAV/AIFF/AU baseline.
+
+## Decisions
+
+- First platform scope: Android, iOS, macOS/desktop JVM.
+- Windows/Linux support is future scope only.
+- Use shared-first Compose Multiplatform UI.
+- OpenSpec owns durable requirements/specs/tasks because `openspec/` exists.
+- Do not create `feature_list.json` for OpenSpec-owned tasks.
+- Harness owns verification, acceptance, scope, lifecycle, and handoff evidence.
+
+## Verification evidence
+
+Latest successful harness verification:
+
+```bash
+./init.sh
+```
+
+Result: BUILD SUCCESSFUL for both Gradle phases. Details from 2026-06-10 playback implementation:
+
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: BUILD SUCCESSFUL.
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.5, Build version 17F42.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: BUILD SUCCESSFUL.
+
+Harness verification command to use going forward:
+
+```bash
+./init.sh
+```
+
+## Changed files in current playback work
+
+- `gradle/libs.versions.toml` - added shared coroutine dependency alias.
+- `shared/build.gradle.kts` - added `kotlinx-coroutines-core` to common code.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt` - shared playback domain, controller, engine contract, fake engine, and formatting helper.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt` - shared now-playing playback controls, seek display, status/error display, and accessibility content descriptions.
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.android.kt` - Android `MediaPlayer` engine.
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt` - iOS `AVAudioPlayer` engine and foreground audio session setup.
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt` - JVM/macOS Java Sound `Clip` engine.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/SharedCommonTest.kt` - playback state transition tests.
+- `openspec/changes/play-music-all-platforms/design.md` - recorded first-slice engine and format decisions.
+- `openspec/changes/play-music-all-platforms/tasks.md` - marked implemented/verified tasks and remaining manual validation.
+- `progress.md` - updated handoff/evidence.
+
+## Completion evidence checklist
+
+- [x] Workflow route recorded: `openspec-only`.
+- [x] Current owner recorded: harness-creator for harness files; OpenSpec for future durable product tasks.
+- [x] Fact source conflict avoided: no `feature_list.json` created because OpenSpec is initialized.
+- [x] Verification commands documented in `AGENTS.md`, `docs/harness-engineering.md`, and `init.sh`.
+- [x] Known platform scope recorded.
+- [x] Next safe action recorded.
+
+## Handoff
+
+Route: openspec-only
+Owner: harness-creator
+Input: user request to keep creating the agent harness
+Output: `AGENTS.md`, `docs/harness-engineering.md`, `init.sh`, `progress.md`
+Next owner: OpenSpec for durable feature planning, then implementation
+Blockers: none currently; future iOS local music access strategy needs product decision

@@ -20,8 +20,9 @@ compose.desktop {
         mainClass = "com.eterocell.rhythhaus.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.eterocell.rhythhaus"
+            // Product scope for now: Android, iOS, and macOS. Keep Windows/Linux packaging for later.
+            targetFormats(TargetFormat.Dmg)
+            packageName = "RhythHaus"
             packageVersion = "1.0.0"
         }
     }
