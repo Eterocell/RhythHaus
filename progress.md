@@ -55,6 +55,8 @@ State source of truth: OpenSpec for durable product changes; Superpowers for cla
 - OpenSpec owns durable requirements/specs/tasks because `openspec/` exists.
 - Superpowers owns clarification, brainstorming, task execution discipline, and TDD-style implementation loops for durable work.
 - Do not create `feature_list.json` for OpenSpec-owned tasks.
+- Completed OpenSpec + Superpowers workflow changes should be committed by default unless the user explicitly says not to commit.
+- Commit messages should use semantic/conventional style such as `feat: ...`, `fix: ...`, `docs: ...`, `test: ...`, or `chore: ...`.
 - Harness owns verification, acceptance, scope, lifecycle, and handoff evidence.
 
 ## Verification evidence
@@ -111,7 +113,7 @@ Harness verification command to use going forward:
 
 Route: openspec+superpowers
 Owner: harness-creator
-Input: user request to add the OpenSpec + Superpowers flow according to the harness-creator skill
-Output: `AGENTS.md`, `docs/harness-engineering.md`, and `progress.md` updated with OpenSpec + Superpowers route, ownership boundaries, and handoff rules
-Next owner: Superpowers for clarification/brainstorming when requirements are fuzzy; OpenSpec for durable feature planning; implementation owner for one OpenSpec task at a time; harness-creator for verification/acceptance/handoff
+Input: user request to store commit-after-flow and semantic commit-message preferences in project instructions instead of Hermes memory
+Output: `AGENTS.md`, `docs/harness-engineering.md`, and `progress.md` updated with default commit behavior for completed OpenSpec + Superpowers workflows and semantic/conventional commit message requirement
+Next owner: harness-creator for validation and semantic commit of this project-instruction update
 Blockers: none currently; future iOS local music access strategy needs product decision

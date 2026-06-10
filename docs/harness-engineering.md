@@ -73,7 +73,8 @@ Default scope policy:
 - shared-first KMP implementation;
 - no unrelated refactors;
 - no dependency/toolchain changes without explicit approval;
-- no git commits unless explicitly requested;
+- no git commits unless explicitly requested, except completed OpenSpec + Superpowers workflows should be committed by default;
+- semantic/conventional commit messages are required for commits, such as `feat: ...`, `fix: ...`, `docs: ...`, `test: ...`, or `chore: ...`;
 - no Windows/Linux product or packaging work unless explicitly requested.
 
 Platform boundary policy:
@@ -119,7 +120,7 @@ Stop before continuing when:
 - verification fails and the cause is not understood or recorded;
 - existing project rules would be overwritten;
 - toolchain/dependency installation is required;
-- a git commit/worktree is needed but not authorized.
+- a git commit/worktree is needed but not authorized, except the authorization is implicit at the end of a completed OpenSpec + Superpowers workflow unless the user said not to commit.
 
 ## Local music platform decision points
 
@@ -150,4 +151,5 @@ Changed files:
 - <path>: <why>
 Next owner: <OpenSpec | implementation | user>
 Blockers: <none or exact blocker>
+Commit: <semantic commit hash/message, or skipped with reason>
 ```

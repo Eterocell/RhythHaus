@@ -86,7 +86,8 @@ Handoff rule: Superpowers may produce clarified design input; OpenSpec consumes 
 ## Scope and safety rules
 
 - User instructions override this file.
-- Do not commit unless the user explicitly asks.
+- Do not commit unless the user explicitly asks, except after completing an OpenSpec + Superpowers workflow where the expected default is to commit the resulting changes.
+- Use semantic/conventional commit messages for commits, for example `feat: ...`, `fix: ...`, `docs: ...`, `test: ...`, or `chore: ...`.
 - Do not install dependencies or change toolchains unless the user explicitly asks or the task cannot proceed and the user approves.
 - Do not overwrite existing project instructions or OpenSpec artifacts without inspecting and preserving current content.
 - Do not broaden product requirements while implementing a task.
@@ -129,7 +130,8 @@ A code-changing task is complete only when:
 - relevant verification commands were run, or blockers were recorded with exact command/output;
 - final diff was reviewed against the original request;
 - `progress.md` is updated with evidence and next safe action for multi-session work;
-- OpenSpec tasks/specs are updated when OpenSpec owns the change.
+- OpenSpec tasks/specs are updated when OpenSpec owns the change;
+- after an OpenSpec + Superpowers workflow is complete, the resulting changes are committed with a semantic/conventional commit message unless the user explicitly says not to commit.
 
 ## Handoff record format
 
