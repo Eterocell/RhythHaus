@@ -1,5 +1,14 @@
 package com.eterocell.rhythhaus.taglib
 
+interface TagLibReader {
+    fun readPath(path: String): TagReadResult
+}
+
+expect fun createTagLibReader(): TagLibReader
+
 object RhythHausTagLib {
-    fun read(bytes: ByteArray): TagReadResult = TagReadResult.Unsupported("No supported tag header found")
+    fun readPath(
+        path: String,
+        reader: TagLibReader = createTagLibReader(),
+    ): TagReadResult = reader.readPath(path)
 }

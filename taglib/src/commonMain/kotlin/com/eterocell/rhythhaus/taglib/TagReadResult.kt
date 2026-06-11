@@ -3,7 +3,6 @@ package com.eterocell.rhythhaus.taglib
 sealed interface TagReadResult {
     data class Found(
         val metadata: TagMetadata,
-        val format: TagFormat,
     ) : TagReadResult
 
     data class Unsupported(

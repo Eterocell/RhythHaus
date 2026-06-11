@@ -11,6 +11,10 @@ data class TagMetadata(
     val trackTotal: Int? = null,
     val discNumber: Int? = null,
     val discTotal: Int? = null,
+    val durationMillis: Long? = null,
+    val bitrate: Int? = null,
+    val sampleRate: Int? = null,
+    val channels: Int? = null,
     val artwork: EmbeddedArtwork? = null,
 )
 
