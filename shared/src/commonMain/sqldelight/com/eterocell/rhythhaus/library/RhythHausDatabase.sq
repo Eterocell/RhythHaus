@@ -96,10 +96,12 @@ UPDATE library_track SET
 WHERE id = ?;
 
 selectMissingTracks:
-SELECT * FROM library_track WHERE source_id = ? AND last_seen_scan_id != ?;
+SELECT * FROM library_track
+WHERE source_id = ? AND (last_seen_scan_id IS NULL OR last_seen_scan_id != ?);
 
 removeMissingTracks:
-DELETE FROM library_track WHERE source_id = ? AND last_seen_scan_id != ?;
+DELETE FROM library_track
+WHERE source_id = ? AND (last_seen_scan_id IS NULL OR last_seen_scan_id != ?);
 
 insertScanSession:
 INSERT INTO scan_session(
