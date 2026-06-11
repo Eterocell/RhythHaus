@@ -1,8 +1,12 @@
 package com.eterocell.rhythhaus
 
+import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.taglib.TagMetadata
+import com.eterocell.rhythhaus.taglib.TagReadResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SharedCommonTest {
@@ -108,6 +112,81 @@ class SharedCommonTest {
     }
 
     @Test
+    fun importedFileUsesTagLibMetadataWhenReaderFindsTags() {
+        val imported = ImportedAudioFile(
+            displayName = "Soft_Static.wav",
+            source = AudioSource.FilePath("/Music/Soft_Static.wav"),
+            durationMillis = 61_000L,
+        )
+        val fakeReader = FakeTagLibReader(
+            TagReadResult.Found(
+                TagMetadata(
+                    title = "Soft Static (Tagged)",
+                    artist = "Signal Artist",
+                    album = "Noise Collection",
+                    durationMillis = 125_000L,
+                ),
+            ),
+        )
+
+        val snapshot = importedLibrarySnapshot(
+            enrichImportedAudioFiles(listOf(imported), AudioMetadataReader(fakeReader)),
+        )
+        val track = snapshot.tracks.single()
+
+        assertEquals("/Music/Soft_Static.wav", fakeReader.lastPath)
+        assertEquals("Soft Static (Tagged)", track.title)
+        assertEquals("Signal Artist", track.artist)
+        assertEquals("Noise Collection", track.album)
+        assertEquals(125, track.durationSeconds)
+    }
+
+    @Test
+    fun importedFileFallsBackToDisplayNameWhenTagLibIsUnsupported() {
+        val imported = ImportedAudioFile(
+            displayName = "Soft_Static.wav",
+            source = AudioSource.FilePath("/Music/Soft_Static.wav"),
+            durationMillis = 61_000L,
+        )
+        val reader = AudioMetadataReader(FakeTagLibReader(TagReadResult.Unsupported("native reader unavailable")))
+
+        val snapshot = importedLibrarySnapshot(enrichImportedAudioFiles(listOf(imported), reader))
+        val track = snapshot.tracks.single()
+
+        assertEquals("Soft Static", track.title)
+        assertEquals("Local file", track.artist)
+        assertEquals("Imported audio", track.album)
+        assertEquals(61, track.durationSeconds)
+    }
+
+    @Test
+    fun importedFileFallsBackToDisplayNameWhenTagLibFails() {
+        val imported = ImportedAudioFile(
+            displayName = "Broken_Tag.mp3",
+            source = AudioSource.FilePath("/Music/Broken_Tag.mp3"),
+        )
+        val reader = AudioMetadataReader(FakeTagLibReader(TagReadResult.Failed("read failed")))
+
+        val snapshot = importedLibrarySnapshot(enrichImportedAudioFiles(listOf(imported), reader))
+        val track = snapshot.tracks.single()
+
+        assertEquals("Broken Tag", track.title)
+        assertEquals("Local file", track.artist)
+        assertEquals(0, track.durationSeconds)
+    }
+
+    @Test
+    fun metadataReaderDoesNotCallTagLibForUriSources() {
+        val fakeReader = FakeTagLibReader(TagReadResult.Failed("should not be called"))
+        val reader = AudioMetadataReader(fakeReader)
+
+        val metadata = reader.read(AudioSource.Uri("content://media/audio/1"))
+
+        assertNull(metadata)
+        assertNull(fakeReader.lastPath)
+    }
+
+    @Test
     fun displayTitleFallsBackForBlankNames() {
         assertEquals("Untitled audio", "...".toDisplayTitle())
     }
@@ -120,4 +199,16 @@ class SharedCommonTest {
         durationMillis = durationMillis,
         source = AudioSource.FilePath("/tmp/test.wav"),
     )
+
+    private class FakeTagLibReader(
+        private val result: TagReadResult,
+    ) : TagLibReader {
+        var lastPath: String? = null
+            private set
+
+        override fun readPath(path: String): TagReadResult {
+            lastPath = path
+            return result
+        }
+    }
 }

@@ -66,12 +66,13 @@ private val HausPulse = Color(0xFFFF5E3A)
 @Preview
 fun App() {
     val controller = remember { PlaybackController() }
+    val metadataReader = remember { AudioMetadataReader() }
     var importedFiles by remember { mutableStateOf(emptyList<ImportedAudioFile>()) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     val importLauncher = rememberAudioImportLauncher { result ->
         when (result) {
             is AudioImportResult.Success -> {
-                importedFiles = mergeImportedFiles(importedFiles, result.files)
+                importedFiles = mergeImportedFiles(importedFiles, enrichImportedAudioFiles(result.files, metadataReader))
                 importMessage = if (result.files.isEmpty()) "No audio files selected" else "Imported ${result.files.size} local file(s)"
             }
             is AudioImportResult.Unavailable -> importMessage = result.message

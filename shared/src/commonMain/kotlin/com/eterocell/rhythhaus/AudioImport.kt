@@ -12,6 +12,7 @@ data class ImportedAudioFile(
     val displayName: String,
     val source: AudioSource,
     val durationMillis: Long? = null,
+    val metadata: AudioMetadata? = null,
 )
 
 interface AudioImportLauncher {
@@ -37,13 +38,14 @@ fun importedLibrarySnapshot(importedFiles: List<ImportedAudioFile>): LibrarySnap
 }
 
 fun ImportedAudioFile.toTrack(index: Int): Track {
-    val title = displayName.toDisplayTitle()
+    val title = metadata?.title ?: displayName.toDisplayTitle()
+    val duration = metadata?.durationMillis ?: durationMillis
     return Track(
         id = "imported-${source.stableKey.stableHash()}-$index",
         title = title,
-        artist = "Local file",
-        album = "Imported audio",
-        durationSeconds = ((durationMillis ?: 0L) / 1_000L).toInt(),
+        artist = metadata?.artist ?: "Local file",
+        album = metadata?.album ?: "Imported audio",
+        durationSeconds = ((duration ?: 0L) / 1_000L).toInt(),
         accent = importedAccent(index),
         source = source,
     )

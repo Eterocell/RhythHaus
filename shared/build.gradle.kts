@@ -73,6 +73,7 @@ kotlin {
             resources.srcDir(nativeAudioResourceRoot)
         }
         commonMain.dependencies {
+            implementation(projects.taglib)
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
