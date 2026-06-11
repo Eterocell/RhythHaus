@@ -113,8 +113,28 @@ Harness verification command to use going forward:
 ## Handoff
 
 Route: openspec+superpowers
-Owner: harness-creator
-Input: user request to store commit-after-flow and semantic commit-message preferences in project instructions instead of Hermes memory
-Output: `AGENTS.md`, `docs/harness-engineering.md`, and `progress.md` updated with default commit behavior for completed OpenSpec + Superpowers workflows and semantic/conventional commit message requirement
-Next owner: harness-creator for validation and semantic commit of this project-instruction update
-Blockers: none currently; future iOS local music access strategy needs product decision
+Owner: implementation
+Input: corrected Task 7 request to record native TagLib wrapper architecture and current platform state in OpenSpec/progress/docs
+Output: `openspec/changes/import-local-audio/design.md` documents that rich import metadata flows through the native `:taglib` wrapper seam, not hand-written Kotlin parsers; `openspec/changes/import-local-audio/tasks.md` tracks the documentation follow-up and remaining native TagLib linking/packaging work; `docs/superpowers/plans/2026-06-11-taglib-metadata-module.md` is preserved as the corrected native-wrapper plan and points the next action at real TagLib library linking per platform.
+Next owner: implementation for platform native TagLib linking/packaging
+Blockers: real rich metadata support remains blocked until native TagLib is linked/packaged per platform: macOS/JVM helper currently supports skeleton unsupported behavior unless TagLib is available at build/link time; Android has JNI-shaped scaffold but no packaged native library; iOS has unsupported scaffold and documented expected native layout but no cinterop yet.
+
+## Handoff - 2026-06-11 native TagLib metadata docs
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: OpenSpec/progress/docs only; no source/build files changed.
+Verification:
+- `openspec validate import-local-audio --strict`: pass (`Change 'import-local-audio' is valid`).
+Acceptance:
+- Requirement matched: yes; docs record native TagLib wrapper architecture and reject hand-written Kotlin metadata parsing.
+- Scope controlled: yes; changes limited to import-local-audio OpenSpec docs, progress, and the corrected Superpowers plan.
+- Edge cases/risk reviewed: Android/iOS/macOS current support is documented honestly; no completed Android/iOS rich metadata support is claimed.
+Changed files:
+- `openspec/changes/import-local-audio/design.md`: native-wrapper metadata architecture, current platform state, and linking/packaging risks.
+- `openspec/changes/import-local-audio/tasks.md`: Task 5 documentation follow-up and remaining real TagLib linking task.
+- `docs/superpowers/plans/2026-06-11-taglib-metadata-module.md`: corrected plan included under docs and updated Task 7/current next action.
+- `progress.md`: handoff evidence for this docs task.
+Next owner: implementation
+Blockers: none for docs; real metadata support still requires linking/packaging native TagLib libraries per platform before claiming full support.
+Commit: docs task commit created after this handoff update with message `docs: record native taglib import metadata plan`.

@@ -22,14 +22,23 @@ Rationale: Android needs Activity-owned registration; desktop can use JVM APIs d
 
 ### Decision 3: Metadata-lite tracks
 
-For this slice, derive track title from the file name/display name and leave artist/album as local/import placeholders. Duration remains unknown until the platform player loads it.
+For the original import slice, derive track title from the file name/display name and leave artist/album as local/import placeholders when rich metadata is unavailable. Rich metadata now flows through a separate native TagLib wrapper seam: common code depends on normalized `AudioMetadata`, `:taglib` exposes a path-oriented `TagLibReader`, and platform-specific actuals call or scaffold native TagLib bindings. RhythHaus must not add hand-written Kotlin ID3/FLAC/MP4 parsers for this path.
 
-Rationale: ID3/metadata extraction differs by platform and codec. Playback with stable local handles is the immediate blocker.
+Current platform state:
+
+- macOS/JVM: a JNI-shaped native helper is built and loaded from JVM resources. It can return an explicit unsupported result from the skeleton when TagLib is not available/linked at build time; once Homebrew/system or packaged TagLib is linked, this same helper is the desktop metadata path.
+- Android: Kotlin/JNI call shape exists, but no Android TagLib source, CMake external native build, or per-ABI packaged native library is included yet. Android imports continue to work with filename fallback and do not claim real metadata reads.
+- iOS: the Kotlin actual honestly returns unsupported. The expected future layout is documented in `:taglib` Gradle comments (`taglib/native/include/rh_taglib.h`, `taglib/native/src/rh_taglib.cpp`, and a TagLib iOS static library/XCFramework); no Kotlin/Native cinterop is committed until those native inputs exist.
+
+Rationale: ID3/metadata extraction differs by platform and codec, and TagLib is the intended parser. Keeping Kotlin at the wrapper/API layer avoids duplicating brittle tag parsers while preserving stable local import/playback fallback behavior.
 
 ## Risks
 
 - Android content URI permissions may not survive app restart until persistence is specified.
+- Android metadata reads require a packaged native TagLib library and likely an app-cache file path handoff for content URIs before calling the path-oriented wrapper.
 - iOS import remains a visible limitation until a document-picker bridge is planned.
+- iOS metadata reads require a TagLib static library/XCFramework plus Kotlin/Native cinterop before support can be claimed.
+- macOS metadata reads require linking the JNI helper against real TagLib for non-skeleton results and later DMG packaging/codesigning review for native libraries.
 - macOS native AVFoundation playback format/runtime behavior still needs packaged DMG/manual validation with representative files.
 - Imported tracks are in-memory only until persistence is planned.
 
@@ -38,4 +47,5 @@ Rationale: ID3/metadata extraction differs by platform and codec. Playback with 
 - Shared/JVM tests for imported track mapping.
 - Desktop compile and Android debug build.
 - iOS simulator test must still pass even if iOS importer reports unsupported.
+- OpenSpec validation for the import-local-audio change.
 - Manual playback validation requires selecting real local audio files on a device/desktop.
