@@ -113,10 +113,14 @@ kotlin {
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 
-        // Android native TagLib packaging is intentionally not enabled yet: this checkout does not
-        // contain TagLib Android source or ABI prebuilts. When those inputs are added, wire this
-        // target to an Android NDK/CMake build that compiles native/src/rh_taglib.cpp together with
-        // native/jni/rh_taglib_jni.cpp and links TagLib for each supported ABI.
+        // Android native TagLib packaging is intentionally not enabled yet. The follow-up must build
+        // the same pinned upstream https://github.com/taglib/taglib source used by JVM/macOS
+        // (upstreamTagLibVersion=v2.3, upstreamTagLibPinnedCommit above), not a replacement parser
+        // or unrelated native library. Expected build layout: one Android NDK/CMake build directory
+        // per ABI under build/third-party/taglib-android-<abi>-build-v2.3, matching install outputs
+        // under build/third-party/taglib-android-<abi>-install-v2.3, then link those libtag.a files
+        // with native/src/rh_taglib.cpp and native/jni/rh_taglib_jni.cpp into packaged
+        // librhythhaus_taglib.so slices for the supported ABIs.
         compilerOptions {
             jvmTarget = JvmTarget.JVM_11
         }
@@ -126,15 +130,20 @@ kotlin {
         iosArm64(),
         iosSimulatorArm64(),
     )
-    // iOS native TagLib packaging is intentionally not enabled yet: this checkout has the
-    // RhythHaus C ABI header at native/include/rh_taglib.h but does not contain a TagLib
-    // iOS static library or XCFramework, so no src/nativeInterop/cinterop/*.def file is
-    // committed yet. Expected layout before adding a cinterop def and Gradle wiring:
+    // iOS native TagLib packaging is intentionally not enabled yet. The follow-up must build the
+    // same pinned upstream https://github.com/taglib/taglib source used by JVM/macOS
+    // (upstreamTagLibVersion=v2.3, upstreamTagLibPinnedCommit above), not a replacement parser or
+    // unrelated native library. This checkout has the RhythHaus C ABI header at
+    // native/include/rh_taglib.h but does not contain upstream TagLib v2.3 iOS static libraries or
+    // an XCFramework, so no src/nativeInterop/cinterop/*.def file is committed yet. Expected layout
+    // before adding a cinterop def and Gradle wiring:
     //   taglib/native/include/rh_taglib.h
     //   taglib/native/src/rh_taglib.cpp
+    //   taglib/build/third-party/taglib-ios-device-build-v2.3 -> static libtag.a from upstream v2.3
+    //   taglib/build/third-party/taglib-ios-simulator-build-v2.3 -> static libtag.a from upstream v2.3
     //   taglib/third_party/taglib-ios/TagLib.xcframework
-    //     ios-arm64/... device library/framework slice with TagLib headers
-    //     ios-arm64_x86_64-simulator/... simulator library/framework slice with TagLib headers
+    //     ios-arm64/... device static library/framework slice with upstream TagLib headers
+    //     ios-arm64_x86_64-simulator/... simulator static library/framework slice with upstream TagLib headers
     // Once those inputs are added, wire per-target cinterops here and keep iosMain returning
     // Unsupported until that link is verified.
 

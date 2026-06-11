@@ -26,19 +26,19 @@ For the original import slice, derive track title from the file name/display nam
 
 Current platform state:
 
-- macOS/JVM: a JNI-shaped native helper is built and loaded from JVM resources. It can return an explicit unsupported result from the skeleton when TagLib is not available/linked at build time; once Homebrew/system or packaged TagLib is linked, this same helper is the desktop metadata path.
-- Android: Kotlin/JNI call shape exists, but no Android TagLib source, CMake external native build, or per-ABI packaged native library is included yet. Android imports continue to work with filename fallback and do not claim real metadata reads.
-- iOS: the Kotlin actual honestly returns unsupported. The expected future layout is documented in `:taglib` Gradle comments (`taglib/native/include/rh_taglib.h`, `taglib/native/src/rh_taglib.cpp`, and a TagLib iOS static library/XCFramework); no Kotlin/Native cinterop is committed until those native inputs exist.
+- macOS/JVM: the JNI helper is built and loaded from JVM resources, links the RhythHaus shim against pinned upstream `github.com/taglib/taglib` v2.3 (`1b94b93762636ebe5733180c3e825be4621e4c7f`), and has a native fixture test for real metadata reads. Desktop runtime/DMG packaging remains a follow-up.
+- Android: Kotlin/JNI call shape exists, but Android native packaging is not enabled yet. The follow-up must build the same pinned upstream `github.com/taglib/taglib` v2.3 source with Android NDK/CMake per ABI and link those `libtag.a` outputs into packaged `librhythhaus_taglib.so` slices. Android imports continue to work with filename fallback and do not claim real metadata reads.
+- iOS: the Kotlin actual honestly returns unsupported. The expected future layout is documented in `:taglib` Gradle comments and must come from the same pinned upstream `github.com/taglib/taglib` v2.3 source: device and simulator static libraries assembled into a `TagLib.xcframework`, then Kotlin/Native cinterop. No Kotlin/Native cinterop is committed until those native inputs exist and linking is verified.
 
 Rationale: ID3/metadata extraction differs by platform and codec, and TagLib is the intended parser. Keeping Kotlin at the wrapper/API layer avoids duplicating brittle tag parsers while preserving stable local import/playback fallback behavior.
 
 ## Risks
 
 - Android content URI permissions may not survive app restart until persistence is specified.
-- Android metadata reads require a packaged native TagLib library and likely an app-cache file path handoff for content URIs before calling the path-oriented wrapper.
+- Android metadata reads require packaged native libraries built from pinned upstream `github.com/taglib/taglib` v2.3 and likely an app-cache file path handoff for content URIs before calling the path-oriented wrapper.
 - iOS import remains a visible limitation until a document-picker bridge is planned.
-- iOS metadata reads require a TagLib static library/XCFramework plus Kotlin/Native cinterop before support can be claimed.
-- macOS metadata reads require linking the JNI helper against real TagLib for non-skeleton results and later DMG packaging/codesigning review for native libraries.
+- iOS metadata reads require pinned upstream `github.com/taglib/taglib` v2.3 static libraries/XCFramework plus Kotlin/Native cinterop before support can be claimed.
+- macOS metadata reads use the pinned upstream TagLib v2.3 source build; later DMG packaging/codesigning review for native libraries remains.
 - macOS native AVFoundation playback format/runtime behavior still needs packaged DMG/manual validation with representative files.
 - Imported tracks are in-memory only until persistence is planned.
 

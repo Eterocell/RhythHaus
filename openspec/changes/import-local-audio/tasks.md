@@ -26,6 +26,6 @@
 ## 5. Native TagLib metadata wrapper follow-up
 
 - [x] 5.1 Record that import metadata is provided through the native `:taglib` wrapper seam, not hand-written Kotlin parsers.
-- [x] 5.2 Record current platform state: macOS/JVM JNI skeleton can load and return unsupported unless TagLib is linked, Android has JNI-shaped scaffold without packaged native library, and iOS has honest unsupported scaffold with expected native layout documented.
+- [x] 5.2 Record current platform state: macOS/JVM builds and tests pinned upstream `github.com/taglib/taglib` v2.3, Android has JNI-shaped scaffold without per-ABI upstream TagLib NDK packaging, and iOS has honest unsupported scaffold with pinned upstream TagLib v2.3 XCFramework/static-library layout documented.
 - [x] 5.3 Validate this OpenSpec change after the documentation update.
-- [ ] 5.4 Link and package real TagLib libraries per platform before claiming complete rich metadata support.
+- [ ] 5.4 Build/link/package pinned upstream `github.com/taglib/taglib` v2.3 for Android (NDK/CMake per ABI) and iOS (device/simulator static libs assembled into an XCFramework) before claiming mobile rich metadata support.

@@ -150,20 +150,18 @@ Artwork can be a follow-up because TagLib artwork extraction differs by format-s
 
 ## Platform strategy
 
+Current implementation note: JVM/macOS now fetches, pins, builds, and links upstream `https://github.com/taglib/taglib` v2.3 at commit `1b94b93762636ebe5733180c3e825be4621e4c7f`, then verifies the JNI path with a native fixture test. Android and iOS are still scaffolds; their next build work must reuse that same pinned upstream source rather than adding a TagLib replacement, custom metadata parser, or unrelated native library.
+
 ### Android
 
-Use Android NDK + CMake in `:taglib`.
-
-Options:
-
-1. Build TagLib from source as part of the Android native build.
-2. Vendor prebuilt TagLib static libraries per ABI.
+Use Android NDK + CMake in `:taglib` to build pinned upstream `github.com/taglib/taglib` v2.3 from source for each supported ABI.
 
 Recommended first implementation:
 
-- Add native shim and CMake scaffolding.
-- Support Android ABIs through CMake.
-- Prefer vendoring/building TagLib source in a controlled `third_party/taglib` location or documenting a reproducible fetch/build step.
+- Reuse the Gradle-pinned upstream TagLib version/commit (`v2.3`, `1b94b93762636ebe5733180c3e825be4621e4c7f`) and add an Android NDK toolchain CMake configure/build/install step per ABI.
+- Expected build/install layout: `taglib/build/third-party/taglib-android-<abi>-build-v2.3` and `taglib/build/third-party/taglib-android-<abi>-install-v2.3`, with upstream headers and `lib/libtag.a` produced from the upstream source.
+- Link each ABI's upstream `libtag.a` with `native/src/rh_taglib.cpp` and `native/jni/rh_taglib_jni.cpp` into the packaged `librhythhaus_taglib.so` slice for that ABI.
+- Keep Android metadata reads unsupported until those per-ABI builds are wired, packaged, loaded, and tested on device/emulator.
 - Kotlin Android actual calls JNI functions in `androidMain`.
 
 Kotlin surface:
@@ -181,12 +179,7 @@ taglib/native/jni/rh_taglib_jni.cpp
 
 ### macOS / desktop JVM
 
-Use JNI or JNA. Prefer JNI for consistency with Android and existing project native audio JNI precedent.
-
-Development options:
-
-- Link against Homebrew `taglib` for local builds.
-- Later package dylib with desktop app DMG.
+Use JNI or JNA. Prefer JNI for consistency with Android and existing project native audio JNI precedent. Current JVM/macOS wiring uses JNI, builds pinned upstream TagLib v2.3 from `github.com/taglib/taglib`, links the RhythHaus helper against the resulting static `libtag.a`, packages the helper in JVM resources, and has a native fixture test. Remaining desktop follow-up is runtime/DMG packaging and codesigning review, not parser implementation.
 
 Files:
 
@@ -195,15 +188,15 @@ taglib/src/jvmMain/kotlin/.../NativeTagLib.jvm.kt
 taglib/native/jni/rh_taglib_jni.cpp
 ```
 
-Gradle should compile a macOS native helper similarly to the existing desktop audio native helper pattern, or initially document a Homebrew prerequisite and load `librhythhaus_taglib` from build output.
+Gradle compiles a macOS native helper similarly to the existing desktop audio native helper pattern and does not require a Homebrew TagLib dependency for the tested JVM path.
 
 ### iOS
 
-Use Kotlin/Native cinterop against the C ABI shim and TagLib static library / xcframework.
+Use Kotlin/Native cinterop against the C ABI shim and an XCFramework/static libraries built from pinned upstream `github.com/taglib/taglib` v2.3.
 
 First iOS implementation may be staged:
 
-- Add `iosMain` actual that returns `Unsupported("Native TagLib iOS binding is not packaged yet")` until the TagLib iOS static library/xcframework build is defined.
+- Add `iosMain` actual that returns `Unsupported("Native TagLib iOS binding is not packaged yet")` until the pinned upstream TagLib v2.3 iOS static library/XCFramework build is defined.
 - Do not claim iOS metadata support until cinterop and packaging pass.
 
 Final iOS direction:
@@ -211,7 +204,9 @@ Final iOS direction:
 ```text
 taglib/src/nativeInterop/cinterop/rh_taglib.def
 taglib/native/include/rh_taglib.h
-taglib/third_party/taglib-ios/TagLib.xcframework or static lib
+taglib/build/third-party/taglib-ios-device-build-v2.3 -> static libtag.a from upstream v2.3
+taglib/build/third-party/taglib-ios-simulator-build-v2.3 -> static libtag.a from upstream v2.3
+taglib/third_party/taglib-ios/TagLib.xcframework with device/simulator slices and upstream headers
 ```
 
 ---
@@ -306,14 +301,15 @@ taglib/build.gradle.kts
 Steps:
 
 - [ ] Add Android actual reader using JNI.
-- [ ] Configure Android external native build if TagLib source/prebuilt path is available.
-- [ ] If TagLib source/prebuilt path is not available, keep Android actual returning Unsupported with clear message and document the packaging task.
+- [ ] Configure Android external native build to fetch/reuse pinned upstream `github.com/taglib/taglib` v2.3 at commit `1b94b93762636ebe5733180c3e825be4621e4c7f` and build/install it per ABI with the Android NDK CMake toolchain.
+- [ ] Link each ABI's upstream `libtag.a` with the RhythHaus shim/JNI sources into packaged `librhythhaus_taglib.so` outputs.
+- [ ] Until those upstream-source builds are packaged and verified, keep Android actual returning Unsupported with a clear message and document the remaining packaging task.
 - [ ] Run `./gradlew :taglib:assembleDebug --configuration-cache` or the correct Android multiplatform assemble/check task available in this project.
 - [ ] Commit: `feat: scaffold android taglib reader`.
 
 Acceptance:
 
-- Android API shape is ready for native TagLib.
+- Android API shape is ready for pinned upstream TagLib v2.3, but Android support is not claimed until NDK builds/package/tests pass.
 - No Kotlin metadata parser is introduced.
 
 ---
@@ -331,14 +327,15 @@ taglib/build.gradle.kts
 Steps:
 
 - [ ] Add iOS actual reader.
-- [ ] If native TagLib iOS library is not packaged yet, return Unsupported with clear message.
+- [ ] Build pinned upstream `github.com/taglib/taglib` v2.3 at commit `1b94b93762636ebe5733180c3e825be4621e4c7f` as iOS device and simulator static libraries, then assemble a `TagLib.xcframework` containing upstream headers.
+- [ ] If the pinned upstream TagLib iOS XCFramework/static libraries are not packaged yet, return Unsupported with clear message.
 - [ ] Add cinterop def only when headers/libs are available; otherwise document exact expected layout.
 - [ ] Run `./gradlew :taglib:iosSimulatorArm64Test --configuration-cache`.
 - [ ] Commit: `feat: scaffold ios taglib reader`.
 
 Acceptance:
 
-- iOS remains honest; no metadata support is claimed until native TagLib is linked.
+- iOS remains honest; no metadata support is claimed until pinned upstream TagLib v2.3 is linked through cinterop and verified on device/simulator.
 
 ---
 
@@ -374,7 +371,7 @@ Acceptance:
 
 ## Task 7: OpenSpec and progress updates
 
-Status: completed in docs/state. OpenSpec now records the native-wrapper architecture and current platform state; `progress.md` records verification evidence and the next safe action. The next engineering task is linking/packaging real TagLib libraries per platform, not adding Kotlin parsers.
+Status: completed in docs/state. OpenSpec now records the native-wrapper architecture and current platform state; `progress.md` records verification evidence and the next safe action. JVM/macOS now builds and tests pinned upstream TagLib v2.3. The next engineering task is Android/iOS source builds and packaging from the same pinned upstream `github.com/taglib/taglib` source, not adding Kotlin parsers.
 
 Files:
 
@@ -414,10 +411,7 @@ Record exact results in `progress.md`.
 
 ## Risks and open decisions
 
-- TagLib build sourcing:
-  - use system Homebrew on macOS for development,
-  - vendor source and build per platform,
-  - or vendor prebuilts/xcframeworks.
+- TagLib mobile source builds: Android and iOS must build from pinned upstream `github.com/taglib/taglib` v2.3 at commit `1b94b93762636ebe5733180c3e825be4621e4c7f`, matching the JVM/macOS source, instead of depending on ad hoc prebuilts or custom parsers.
 - Android ABIs and binary size.
 - iOS static library/xcframework build process.
 - macOS DMG bundling and dylib codesigning/notarization implications.
@@ -428,10 +422,10 @@ Record exact results in `progress.md`.
 
 ## Current next safe action
 
-Link and package real TagLib libraries per platform before claiming complete rich metadata support:
+Link and package pinned upstream TagLib v2.3 builds per platform before claiming complete rich metadata support:
 
-1. macOS/JVM: link `librhythhaus_taglib.dylib` against Homebrew/system or packaged TagLib and include the dependent library in desktop runtime/DMG packaging.
-2. Android: add TagLib source or ABI prebuilts plus Android NDK/CMake packaging for `librhythhaus_taglib.so`.
-3. iOS: add a TagLib static library/XCFramework, then commit Kotlin/Native cinterop wiring and replace the honest unsupported scaffold only after device/simulator linking is verified.
+1. macOS/JVM: keep building pinned upstream TagLib v2.3 into static `libtag.a`, link `librhythhaus_taglib.dylib`, and complete desktop runtime/DMG packaging review.
+2. Android: build the same pinned upstream TagLib v2.3 source with Android NDK/CMake per ABI, then package `librhythhaus_taglib.so` slices that link the upstream `libtag.a` outputs.
+3. iOS: build the same pinned upstream TagLib v2.3 source into device/simulator static libraries, assemble `TagLib.xcframework`, then commit Kotlin/Native cinterop wiring and replace the honest unsupported scaffold only after device/simulator linking is verified.
 
 Do not add Kotlin ID3/FLAC/MP4 parsers.
