@@ -11,21 +11,91 @@ val tagLibShimSourceFile = layout.projectDirectory.file("native/src/rh_taglib.cp
 val tagLibJniSourceFile = layout.projectDirectory.file("native/jni/rh_taglib_jni.cpp").asFile
 val tagLibIncludeDirectory = layout.projectDirectory.dir("native/include").asFile
 val javaHomePath = providers.systemProperty("java.home").get()
+
+val upstreamTagLibVersion = "v2.3"
+val upstreamTagLibPinnedCommit = "1b94b93762636ebe5733180c3e825be4621e4c7f"
+val upstreamTagLibSourceDirectory = layout.buildDirectory.dir("third-party/taglib-src-v2.3").get().asFile
+val upstreamTagLibBuildDirectory = layout.buildDirectory.dir("third-party/taglib-build-v2.3").get().asFile
+val upstreamTagLibInstallDirectory = layout.buildDirectory.dir("third-party/taglib-install-v2.3").get().asFile
+val upstreamTagLibInstalledLibrary = upstreamTagLibInstallDirectory.resolve("lib/libtag.a")
+val upstreamTagLibInstalledIncludeDirectory = upstreamTagLibInstallDirectory.resolve("include")
+
+val checkoutUpstreamTagLib by tasks.registering(Exec::class) {
+    outputs.dir(upstreamTagLibSourceDirectory)
+    outputs.upToDateWhen { false }
+    executable = "/bin/sh"
+    args(
+        "-c",
+        """
+        set -eu
+        if [ ! -d '${upstreamTagLibSourceDirectory.absolutePath}/.git' ]; then
+          mkdir -p '${upstreamTagLibSourceDirectory.parentFile.absolutePath}'
+          git clone --depth 1 --branch '$upstreamTagLibVersion' https://github.com/taglib/taglib.git '${upstreamTagLibSourceDirectory.absolutePath}'
+        fi
+        git -C '${upstreamTagLibSourceDirectory.absolutePath}' checkout --detach '$upstreamTagLibPinnedCommit'
+        git -C '${upstreamTagLibSourceDirectory.absolutePath}' submodule update --init --depth 1
+        actual_commit="$(git -C '${upstreamTagLibSourceDirectory.absolutePath}' rev-parse HEAD)"
+        if [ "${'$'}actual_commit" != '$upstreamTagLibPinnedCommit' ]; then
+          echo "Expected TagLib commit $upstreamTagLibPinnedCommit but found ${'$'}actual_commit" >&2
+          exit 1
+        fi
+        """.trimIndent(),
+    )
+}
+
+val configureUpstreamTagLib by tasks.registering(Exec::class) {
+    dependsOn(checkoutUpstreamTagLib)
+    inputs.dir(upstreamTagLibSourceDirectory)
+    outputs.file(upstreamTagLibBuildDirectory.resolve("CMakeCache.txt"))
+    executable = "cmake"
+    args(
+        "-S", upstreamTagLibSourceDirectory.absolutePath,
+        "-B", upstreamTagLibBuildDirectory.absolutePath,
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_INSTALL_PREFIX=${upstreamTagLibInstallDirectory.absolutePath}",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DBUILD_TESTING=OFF",
+        "-DBUILD_EXAMPLES=OFF",
+        "-DBUILD_BINDINGS=OFF",
+        "-DWITH_ZLIB=OFF",
+    )
+}
+
+val installUpstreamTagLib by tasks.registering(Exec::class) {
+    dependsOn(configureUpstreamTagLib)
+    inputs.file(upstreamTagLibBuildDirectory.resolve("CMakeCache.txt"))
+    outputs.file(upstreamTagLibInstalledLibrary)
+    outputs.dir(upstreamTagLibInstalledIncludeDirectory)
+    executable = "cmake"
+    args(
+        "--build", upstreamTagLibBuildDirectory.absolutePath,
+        "--target", "install",
+        "--config", "Release",
+        "--parallel",
+    )
+}
+
 val buildMacosTagLibHelper by tasks.registering(Exec::class) {
+    dependsOn(installUpstreamTagLib)
     inputs.file(tagLibShimSourceFile)
     inputs.file(tagLibJniSourceFile)
     inputs.dir(tagLibIncludeDirectory)
+    inputs.dir(upstreamTagLibInstalledIncludeDirectory)
+    inputs.file(upstreamTagLibInstalledLibrary)
     outputs.file(macosTagLibHelperOutputFile)
     macosTagLibHelperOutputFile.parentFile.mkdirs()
     executable = "clang++"
     args(
         "-dynamiclib",
         "-std=c++17",
+        "-DRH_TAGLIB_HAS_TAGLIB=1",
         "-I${tagLibIncludeDirectory.absolutePath}",
+        "-I${upstreamTagLibInstalledIncludeDirectory.absolutePath}",
         "-I$javaHomePath/include",
         "-I$javaHomePath/include/darwin",
         tagLibShimSourceFile.absolutePath,
         tagLibJniSourceFile.absolutePath,
+        upstreamTagLibInstalledLibrary.absolutePath,
         "-o", macosTagLibHelperOutputFile.absolutePath,
     )
 }
