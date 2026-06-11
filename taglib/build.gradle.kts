@@ -43,6 +43,10 @@ kotlin {
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 
+        // Android native TagLib packaging is intentionally not enabled yet: this checkout does not
+        // contain TagLib Android source or ABI prebuilts. When those inputs are added, wire this
+        // target to an Android NDK/CMake build that compiles native/src/rh_taglib.cpp together with
+        // native/jni/rh_taglib_jni.cpp and links TagLib for each supported ABI.
         compilerOptions {
             jvmTarget = JvmTarget.JVM_11
         }
