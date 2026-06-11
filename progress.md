@@ -193,3 +193,30 @@ Changed files:
 Next owner: implementation for Android/iOS upstream TagLib packaging and wiring.
 Blockers: none for JVM/macOS verification; remaining product limitation is mobile native TagLib packaging/wiring.
 Commit: docs verification commit with message `docs: record upstream taglib verification evidence`.
+
+## Handoff - 2026-06-11 CMake FetchContent TagLib final verification
+
+Route: openspec+superpowers
+Owner: harness-creator
+Scope: final verification and evidence recording for CMake FetchContent TagLib refactor at HEAD `f263e987db85e4dc70e9e69a00203e3d1f858426`; no source/build files changed.
+CMake FetchContent correction:
+- Upstream TagLib import/build now lives self-contained in `taglib/native/CMakeLists.txt` via CMake `FetchContent` pinned to `1b94b93762636ebe5733180c3e825be4621e4c7f`.
+- Gradle no longer performs upstream git clone/checkout; it invokes CMake and copies the generated helper dylib into JVM resources.
+Verification:
+- Initial `git status --short && git rev-parse HEAD`: pass; worktree was clean and HEAD was `f263e987db85e4dc70e9e69a00203e3d1f858426`.
+- `./gradlew :taglib:buildMacosTagLibHelper --rerun-tasks --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`; CMake configured/generated and built `librhythhaus_taglib.dylib`; output noted bundled utfcpp from TagLib source and non-fatal local shell startup noise from the user's bash profile.
+- `./gradlew :taglib:jvmTest --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`; `:taglib:jvmTest` was up-to-date with helper built/up-to-date.
+- `./gradlew :taglib:allTests --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`; JVM and iOS simulator taglib tests were up-to-date.
+- `openspec validate import-local-audio --strict`: pass; output `Change 'import-local-audio' is valid`.
+- Linkage check on `taglib/build/native/macosTagLibHelper-arm64/librhythhaus_taglib.dylib`: pass; `otool -L` showed only itself plus system `libc++.1.dylib` and `libSystem.B.dylib`; `nm -gU` showed exported JNI symbol `_Java_com_eterocell_rhythhaus_taglib_NativeTagLibBridge_readPathNative`.
+- Targeted Gradle search in `taglib/build.gradle.kts` for `git clone|checkoutUpstreamTagLib|Exec\(|git\s+checkout`: pass; no matches.
+- Targeted Kotlin parser search in `taglib/src` for parser signatures/ID3/MPEG/RandomAccessFile/ByteBuffer/synchsafe/readBytes: pass; no matches.
+Acceptance:
+- Requirement matched: yes; CMake-owned upstream TagLib import was freshly verified with build/test/OpenSpec/linkage/search evidence.
+- Scope controlled: yes; only `progress.md` evidence changed in this task.
+- No custom Kotlin parser claim: confirmed by targeted search; metadata remains through the native TagLib wrapper path.
+Changed files:
+- `progress.md`: added this CMake FetchContent final verification handoff/evidence.
+Next owner: implementation/user for any remaining Android/iOS native TagLib packaging/wiring beyond this macOS/JVM verification.
+Blockers: none for this verification.
+Commit: docs verification commit with message `docs: record cmake taglib import evidence`.
