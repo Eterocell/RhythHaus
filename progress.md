@@ -138,3 +138,26 @@ Changed files:
 Next owner: implementation
 Blockers: none for docs; real metadata support still requires linking/packaging native TagLib libraries per platform before claiming full support.
 Commit: docs task commit created after this handoff update with message `docs: record native taglib import metadata plan`.
+
+## Handoff - 2026-06-11 native TagLib wrapper full verification
+
+Route: openspec+superpowers
+Owner: harness-creator
+Scope: verification-only final review for native `:taglib` wrapper work at HEAD `e54d788`; no source changes.
+Verification:
+- Initial `git status --short && git rev-parse --short HEAD`: pass; worktree was clean and HEAD was `e54d788`.
+- `./init.sh`: pass; completed with `=== Harness verification complete ===` after Gradle reported `BUILD SUCCESSFUL` for the documented harness phases.
+- `./gradlew :taglib:jvmTest :taglib:assembleAndroidMain :taglib:iosSimulatorArm64Test --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL in 1s`, 30 actionable tasks, configuration cache entry stored.
+- `cmake -S taglib/native -B taglib/build/cmake-verify && cmake --build taglib/build/cmake-verify`: pass; CMake configured and built `librhythhaus_taglib.dylib`. Output also reported `TagLib was not found by CMake find_package(TagLib) or pkg-config; building unsupported shim skeleton only.` Shell startup emitted non-fatal local profile noise: `bash: ${candidate_name^^}: bad substitution` and missing broot launcher path.
+- `openspec validate import-local-audio --strict`: pass; output `Change 'import-local-audio' is valid`.
+- Targeted parser search `ID3|FLAC|MP4|parse|parser|TagFormat` under `taglib/src`: pass; no matches.
+- Targeted parser search `ID3|FLAC|MP4|parse|parser|TagFormat` under `shared/src`: pass; only `Uri.parse(value)` in Android playback URI conversion matched, not metadata parsing.
+Acceptance:
+- Requirement matched: yes; full harness, focused taglib Gradle tasks, CMake shim configure/build, OpenSpec validation, and no-Kotlin-parser search were executed successfully.
+- Scope controlled: yes; verification evidence only.
+- Edge cases/risk reviewed: real TagLib linkage/packaging remains incomplete per platform; current CMake build confirms the unsupported skeleton path when TagLib is not discoverable locally.
+Changed files:
+- `progress.md`: added this final verification evidence.
+Next owner: implementation or user for real TagLib linkage/packaging per platform.
+Blockers: none for verification; remaining product limitation is that rich metadata support still needs real TagLib library linkage/packaging on macOS/JVM, Android, and iOS before claiming full platform metadata support.
+Commit: docs verification commit with message `docs: record native taglib verification evidence`.
