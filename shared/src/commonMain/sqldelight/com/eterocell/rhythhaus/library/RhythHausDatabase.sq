@@ -68,7 +68,7 @@ selectTracks:
 SELECT * FROM library_track ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
 
 selectTracksForSource:
-SELECT * FROM library_track WHERE source_id = ? ORDER BY title COLLATE NOCASE ASC;
+SELECT * FROM library_track WHERE source_id = ? ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
 
 selectTrackBySourceKey:
 SELECT * FROM library_track WHERE source_id = ? AND source_local_key = ?;

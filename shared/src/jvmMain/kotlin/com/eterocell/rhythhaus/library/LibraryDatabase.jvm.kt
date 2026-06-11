@@ -7,8 +7,11 @@ import java.io.File
 actual class LibraryDatabaseDriverFactory(private val databaseFile: File = defaultDatabaseFile()) {
     actual fun createDriver(): SqlDriver {
         databaseFile.parentFile?.mkdirs()
+        val shouldCreateSchema = !databaseFile.exists() || databaseFile.length() == 0L
         return JdbcSqliteDriver("jdbc:sqlite:${databaseFile.absolutePath}").also { driver ->
-            RhythHausDatabase.Schema.create(driver)
+            if (shouldCreateSchema) {
+                RhythHausDatabase.Schema.create(driver)
+            }
         }
     }
 }
