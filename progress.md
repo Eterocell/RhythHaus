@@ -220,3 +220,27 @@ Changed files:
 Next owner: implementation/user for any remaining Android/iOS native TagLib packaging/wiring beyond this macOS/JVM verification.
 Blockers: none for this verification.
 Commit: docs verification commit with message `docs: record cmake taglib import evidence`.
+
+## Handoff - 2026-06-11 local folder scanning SQLDelight setup
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Task 2 only for `scan-local-audio-folders`: SQLDelight version catalog aliases, shared module SQLDelight plugin/database configuration, platform driver dependencies, and initial library schema/queries.
+Verification:
+- Initial `git status --short --branch`: pass; worktree was clean on `main...egl/main` before edits.
+- `./gradlew :shared:compileKotlinMetadata --configuration-cache`: initial fail in `:shared:generateCommonMainRhythHausDatabaseInterface` because default SQLDelight SQLite 3.18 dialect did not parse `INSERT ... ON CONFLICT ... DO UPDATE` from the approved plan schema.
+- `./gradlew :shared:compileKotlinMetadata --configuration-cache`: pass after configuring SQLDelight SQLite 3.38 dialect; Gradle reported `BUILD SUCCESSFUL in 5s`, with `:shared:generateCommonMainRhythHausDatabaseInterface` up-to-date and `:shared:compileKotlinMetadata SKIPPED`.
+- `openspec validate scan-local-audio-folders --strict`: pass; output `Change 'scan-local-audio-folders' is valid`.
+Acceptance:
+- Requirement matched: yes; SQLDelight 2.3.2 aliases/plugin/dependencies and `RhythHausDatabase` schema were added, with `resources.srcDir(nativeAudioResourceRoot)` preserved.
+- Scope controlled: yes; no feature code beyond database build setup/schema.
+- Edge cases/risk reviewed: explicit SQLite 3.38 dialect is required for planned upsert syntax.
+Changed files:
+- `gradle/libs.versions.toml`: SQLDelight version, runtime/coroutines/platform driver libraries, plugin alias.
+- `shared/build.gradle.kts`: SQLDelight plugin/database configuration, platform dependencies, preserved JVM native resource source dir.
+- `shared/src/commonMain/sqldelight/com/eterocell/rhythhaus/library/RhythHausDatabase.sq`: initial library source/track/scan schema and queries.
+- `openspec/changes/scan-local-audio-folders/tasks.md`: marked dependency setup and focused verification complete.
+- `progress.md`: recorded this handoff evidence.
+Next owner: implementation for Task 3 shared library domain models.
+Blockers: none.
+Commit: semantic commit with message `build: add library database setup`.

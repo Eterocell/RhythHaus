@@ -32,6 +32,16 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.sqldelight)
+}
+
+sqldelight {
+    databases {
+        create("RhythHausDatabase") {
+            packageName.set("com.eterocell.rhythhaus.library")
+            dialect("app.cash.sqldelight:sqlite-3-38-dialect:${libs.versions.sqldelight.get()}")
+        }
+    }
 }
 
 kotlin {
@@ -68,9 +78,13 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.media3.exoplayer)
+            implementation(libs.sqldelight.android.driver)
         }
         jvmMain {
             resources.srcDir(nativeAudioResourceRoot)
+            dependencies {
+                implementation(libs.sqldelight.sqlite.driver)
+            }
         }
         commonMain.dependencies {
             implementation(projects.taglib)
@@ -83,9 +97,14 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.coroutinesCore)
+            implementation(libs.sqldelight.runtime)
+            implementation(libs.sqldelight.coroutines)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+        }
+        iosMain.dependencies {
+            implementation(libs.sqldelight.native.driver)
         }
     }
 }

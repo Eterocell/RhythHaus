@@ -1,8 +1,8 @@
 ## 1. OpenSpec and dependency setup
 
 - [ ] 1.1 Validate this OpenSpec change before implementation starts.
-- [ ] 1.2 Add SQLDelight or equivalent KMP database dependencies and generated database configuration.
-- [ ] 1.3 Verify dependency setup with focused Gradle tasks before feature code.
+- [x] 1.2 Add SQLDelight or equivalent KMP database dependencies and generated database configuration.
+- [x] 1.3 Verify dependency setup with focused Gradle tasks before feature code.
 
 ## 2. Shared library domain and persistence
 
