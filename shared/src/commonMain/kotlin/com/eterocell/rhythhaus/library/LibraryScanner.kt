@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus.library
 
 import com.eterocell.rhythhaus.AudioMetadataReader
+import kotlin.coroutines.cancellation.CancellationException
 
 sealed interface PlatformScanEvent {
     data class FolderVisited(val displayPath: String) : PlatformScanEvent
@@ -59,15 +60,18 @@ class LibraryScanner(
             if (isCancelled()) {
                 session = session.cancelled()
             } else {
+                val completedAt = now()
+                repository.removeMissingTracks(source.id, scanId)
                 session = session.copy(
                     status = ScanStatus.Completed,
-                    completedAtEpochMillis = now(),
+                    completedAtEpochMillis = completedAt,
                 )
-                repository.upsertSource(source.copy(lastScanAtEpochMillis = session.completedAtEpochMillis))
-                repository.removeMissingTracks(source.id, scanId)
+                repository.upsertSource(source.copy(lastScanAtEpochMillis = completedAt))
             }
             repository.updateScanSession(session)
             session
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (throwable: Throwable) {
             session = session.copy(
                 status = ScanStatus.Failed,
