@@ -161,3 +161,35 @@ Changed files:
 Next owner: implementation or user for real TagLib linkage/packaging per platform.
 Blockers: none for verification; remaining product limitation is that rich metadata support still needs real TagLib library linkage/packaging on macOS/JVM, Android, and iOS before claiming full platform metadata support.
 Commit: docs verification commit with message `docs: record native taglib verification evidence`.
+
+## Handoff - 2026-06-11 upstream TagLib JVM/macOS verification
+
+Route: openspec+superpowers
+Owner: harness-creator
+Scope: verification and evidence recording for upstream TagLib JVM/macOS build/link correction at HEAD `3849c941769890862bba3da89fef3303ec679b8c`; no source/build files changed.
+Upstream TagLib correction commits:
+- `aa16f826` `feat: build upstream taglib for jvm reader`: Gradle fetches/builds pinned upstream `https://github.com/taglib/taglib` v2.3 commit `1b94b93762636ebe5733180c3e825be4621e4c7f`, statically links `libtag.a` into the macOS/JVM JNI helper, and builds with `RH_TAGLIB_HAS_TAGLIB=1`.
+- `ae30fd1` `test: verify jvm taglib reads real fixture`: JVM test generates a WAV RIFF/INFO fixture and asserts real `createTagLibReader`/`readPath` returns `Found` through JNI/C ABI/upstream TagLib.
+- `3849c94` `docs: plan upstream taglib mobile builds`: OpenSpec/docs clarify Android/iOS still need upstream TagLib builds packaged and wired from the same pinned source.
+Verification:
+- Initial `git status --short && git rev-parse HEAD`: pass; worktree was clean and HEAD was `3849c941769890862bba3da89fef3303ec679b8c`.
+- `./init.sh`: pass; completed with `=== Harness verification complete ===` after Gradle reported `BUILD SUCCESSFUL`.
+- `./gradlew :taglib:allTests --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`; `:taglib:checkoutUpstreamTagLib` output `HEAD is now at 1b94b93 Version 2.3`; `:taglib:jvmTest` and `:taglib:iosSimulatorArm64Test` passed/up-to-date.
+- `./gradlew :taglib:buildMacosTagLibHelper --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`; shell startup emitted non-fatal local profile noise `bash: ${candidate_name^^}: bad substitution` and missing broot launcher path.
+- `openspec validate import-local-audio --strict`: pass; output `Change 'import-local-audio' is valid`.
+- Targeted parser search `ID3|FLAC|MP4|parse|parser|TagFormat` under `taglib/src`: pass; no matches.
+- Targeted parser search `ID3|FLAC|MP4|parse|parser|TagFormat` under `shared/src`: pass; only Android playback URI conversion matched (`AudioSource.Uri -> Uri.parse(value)`), unrelated to metadata parsing.
+- Linkage check on `taglib/build/generated/nativeTagLibResources/jvmMain/native/macos-aarch64/librhythhaus_taglib.dylib`: pass; `file` reported `Mach-O 64-bit dynamically linked shared library arm64`; `otool -L` showed only system dylibs (`libc++.1.dylib`, `libSystem.B.dylib`) besides itself, consistent with static TagLib linkage; `nm -gU ... | grep -E 'TagLib|rh_taglib|Java_com_eterocell_rhythhaus_taglib'` showed `_Java_com_eterocell_rhythhaus_taglib_NativeTagLibBridge_readPathNative` and many `TagLib` symbols such as `__ZN6TagLib10ByteVector10fromBase64ERKS0_`.
+Acceptance:
+- Requirement matched: yes; JVM/macOS now actually builds, statically links, and tests upstream TagLib v2.3 from the pinned upstream commit.
+- Scope controlled: yes; only `progress.md` evidence changed in this task.
+- No custom Kotlin parser claim: confirmed; targeted source search did not find metadata parser implementation under `taglib/src` or `shared/src`.
+Remaining limitations:
+- Android still needs upstream TagLib v2.3 built for supported ABIs, packaged, and wired through JNI before Android rich metadata support can be claimed.
+- iOS still needs upstream TagLib v2.3 built/packaged, cinterop/native wiring completed, and tests before iOS rich metadata support can be claimed.
+- The project must not claim a custom Kotlin metadata parser; metadata support is through native TagLib wrapper/linkage.
+Changed files:
+- `progress.md`: added this upstream TagLib JVM/macOS verification handoff/evidence.
+Next owner: implementation for Android/iOS upstream TagLib packaging and wiring.
+Blockers: none for JVM/macOS verification; remaining product limitation is mobile native TagLib packaging/wiring.
+Commit: docs verification commit with message `docs: record upstream taglib verification evidence`.
