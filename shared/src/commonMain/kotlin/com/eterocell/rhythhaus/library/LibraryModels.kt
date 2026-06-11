@@ -38,7 +38,7 @@ data class LibraryTrack(
         title = title,
         artist = artist,
         album = album,
-        durationMillis = durationMillis ?: 0L,
+        durationMillis = durationMillis,
         source = audioSource,
     )
 }
