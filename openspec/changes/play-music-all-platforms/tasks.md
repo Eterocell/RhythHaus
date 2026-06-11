@@ -36,7 +36,8 @@
 - [x] 5.4 Select and implement a native macOS playback backend/bridge behind the shared playback engine contract.
 - [x] 5.5 Replace the temporary JNA bridge with a small Objective-C++/JNI helper library so JVM code calls a typed native C ABI surface instead of Objective-C runtime selectors.
 - [x] 5.6 Package the native macOS helper as a JVM resource and verify the shared JVM test loads it.
-- [ ] 5.7 Manually confirm foreground play/pause/seek on macOS.
+- [x] 5.7 Add regression coverage and fix macOS/JVM playback so progress is emitted periodically while audio is playing.
+- [ ] 5.8 Manually confirm foreground play/pause/seek on macOS.
 
 ## 6. Cross-platform integration and acceptance
 

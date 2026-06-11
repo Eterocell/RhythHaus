@@ -3,15 +3,24 @@ package com.eterocell.rhythhaus
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 
 actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = MacOSNativePlaybackEngine()
 
 private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
     override var listener: PlaybackEngineListener? = null
     private val bridge = MacAudioPlayerBridge()
+    private val progressExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { runnable ->
+        Thread(runnable, "rhythhaus-macos-playback-progress").apply { isDaemon = true }
+    }
+    private var progressTask: ScheduledFuture<*>? = null
     private var durationMillis: Long? = null
 
     override fun load(track: PlayableTrack) {
+        stopProgressUpdates()
         bridge.resetPlayer()
         listener?.onPlaybackStatus(PlaybackStatus.Loading)
         val loaded = bridge.load(track.source.jvmFile().absolutePath)
@@ -25,15 +34,18 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
         require(bridge.play()) { "No native macOS player has been loaded" }
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
         publishProgress()
+        startProgressUpdates()
     }
 
     override fun pause() {
+        stopProgressUpdates()
         bridge.pause()
         publishProgress()
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
     }
 
     override fun stop() {
+        stopProgressUpdates()
         bridge.stop()
         listener?.onPlaybackProgress(0L, durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Stopped)
@@ -45,8 +57,25 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
     }
 
     override fun release() {
+        stopProgressUpdates()
         bridge.releasePlayer()
+        progressExecutor.shutdownNow()
         durationMillis = null
+    }
+
+    private fun startProgressUpdates() {
+        stopProgressUpdates()
+        progressTask = progressExecutor.scheduleAtFixedRate(
+            { publishProgress() },
+            100L,
+            100L,
+            TimeUnit.MILLISECONDS,
+        )
+    }
+
+    private fun stopProgressUpdates() {
+        progressTask?.cancel(false)
+        progressTask = null
     }
 
     private fun publishProgress() {
