@@ -4,10 +4,10 @@
 #include <cstring>
 
 #ifdef RH_TAGLIB_HAS_TAGLIB
-#include <taglib/audioproperties.h>
-#include <taglib/fileref.h>
-#include <taglib/tag.h>
-#include <taglib/tstring.h>
+#include <audioproperties.h>
+#include <fileref.h>
+#include <tag.h>
+#include <tstring.h>
 #endif
 
 namespace {

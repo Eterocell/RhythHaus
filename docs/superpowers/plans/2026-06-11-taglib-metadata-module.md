@@ -150,7 +150,7 @@ Artwork can be a follow-up because TagLib artwork extraction differs by format-s
 
 ## Platform strategy
 
-Current implementation note: JVM/macOS now fetches, pins, builds, and links upstream `https://github.com/taglib/taglib` v2.3 at commit `1b94b93762636ebe5733180c3e825be4621e4c7f`, then verifies the JNI path with a native fixture test. Android and iOS are still scaffolds; their next build work must reuse that same pinned upstream source rather than adding a TagLib replacement, custom metadata parser, or unrelated native library.
+Current implementation note: JVM/macOS now uses native/CMake FetchContent to fetch, pin, build, and link upstream `https://github.com/taglib/taglib` v2.3 at commit `1b94b93762636ebe5733180c3e825be4621e4c7f`, then verifies the JNI path with a native fixture test. Android and iOS are still scaffolds; their next build work must reuse that same pinned upstream source rather than adding a TagLib replacement, custom metadata parser, or unrelated native library.
 
 ### Android
 
@@ -158,9 +158,9 @@ Use Android NDK + CMake in `:taglib` to build pinned upstream `github.com/taglib
 
 Recommended first implementation:
 
-- Reuse the Gradle-pinned upstream TagLib version/commit (`v2.3`, `1b94b93762636ebe5733180c3e825be4621e4c7f`) and add an Android NDK toolchain CMake configure/build/install step per ABI.
-- Expected build/install layout: `taglib/build/third-party/taglib-android-<abi>-build-v2.3` and `taglib/build/third-party/taglib-android-<abi>-install-v2.3`, with upstream headers and `lib/libtag.a` produced from the upstream source.
-- Link each ABI's upstream `libtag.a` with `native/src/rh_taglib.cpp` and `native/jni/rh_taglib_jni.cpp` into the packaged `librhythhaus_taglib.so` slice for that ABI.
+- Reuse the native/CMake FetchContent-pinned upstream TagLib version/commit (`v2.3`, `1b94b93762636ebe5733180c3e825be4621e4c7f`) and add an Android NDK toolchain CMake configure/build step per ABI.
+- Expected build layout: `taglib/build/native/taglib-android-<abi>-build-v2.3`, with upstream TagLib produced by the native CMake build.
+- Build and package each ABI's `librhythhaus_taglib.so` slice from upstream TagLib plus `native/src/rh_taglib.cpp` and `native/jni/rh_taglib_jni.cpp`.
 - Keep Android metadata reads unsupported until those per-ABI builds are wired, packaged, loaded, and tested on device/emulator.
 - Kotlin Android actual calls JNI functions in `androidMain`.
 
@@ -179,7 +179,7 @@ taglib/native/jni/rh_taglib_jni.cpp
 
 ### macOS / desktop JVM
 
-Use JNI or JNA. Prefer JNI for consistency with Android and existing project native audio JNI precedent. Current JVM/macOS wiring uses JNI, builds pinned upstream TagLib v2.3 from `github.com/taglib/taglib`, links the RhythHaus helper against the resulting static `libtag.a`, packages the helper in JVM resources, and has a native fixture test. Remaining desktop follow-up is runtime/DMG packaging and codesigning review, not parser implementation.
+Use JNI or JNA. Prefer JNI for consistency with Android and existing project native audio JNI precedent. Current JVM/macOS wiring uses JNI, asks native CMake to FetchContent-build pinned upstream TagLib v2.3 from `github.com/taglib/taglib`, links the RhythHaus helper against the resulting static TagLib target, packages the helper in JVM resources, and has a native fixture test. Remaining desktop follow-up is runtime/DMG packaging and codesigning review, not parser implementation.
 
 Files:
 
@@ -188,7 +188,7 @@ taglib/src/jvmMain/kotlin/.../NativeTagLib.jvm.kt
 taglib/native/jni/rh_taglib_jni.cpp
 ```
 
-Gradle compiles a macOS native helper similarly to the existing desktop audio native helper pattern and does not require a Homebrew TagLib dependency for the tested JVM path.
+Gradle invokes the native CMake build for the macOS helper similarly to the existing desktop audio native helper pattern and does not require a Homebrew TagLib dependency for the tested JVM path.
 
 ### iOS
 
@@ -204,8 +204,8 @@ Final iOS direction:
 ```text
 taglib/src/nativeInterop/cinterop/rh_taglib.def
 taglib/native/include/rh_taglib.h
-taglib/build/third-party/taglib-ios-device-build-v2.3 -> static libtag.a from upstream v2.3
-taglib/build/third-party/taglib-ios-simulator-build-v2.3 -> static libtag.a from upstream v2.3
+taglib/build/native/taglib-ios-device-build-v2.3 -> static libtag.a from upstream v2.3
+taglib/build/native/taglib-ios-simulator-build-v2.3 -> static libtag.a from upstream v2.3
 taglib/third_party/taglib-ios/TagLib.xcframework with device/simulator slices and upstream headers
 ```
 
