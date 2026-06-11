@@ -56,6 +56,17 @@ kotlin {
         iosArm64(),
         iosSimulatorArm64(),
     )
+    // iOS native TagLib packaging is intentionally not enabled yet: this checkout has the
+    // RhythHaus C ABI header at native/include/rh_taglib.h but does not contain a TagLib
+    // iOS static library or XCFramework, so no src/nativeInterop/cinterop/*.def file is
+    // committed yet. Expected layout before adding a cinterop def and Gradle wiring:
+    //   taglib/native/include/rh_taglib.h
+    //   taglib/native/src/rh_taglib.cpp
+    //   taglib/third_party/taglib-ios/TagLib.xcframework
+    //     ios-arm64/... device library/framework slice with TagLib headers
+    //     ios-arm64_x86_64-simulator/... simulator library/framework slice with TagLib headers
+    // Once those inputs are added, wire per-target cinterops here and keep iosMain returning
+    // Unsupported until that link is verified.
 
     sourceSets {
         jvmMain {

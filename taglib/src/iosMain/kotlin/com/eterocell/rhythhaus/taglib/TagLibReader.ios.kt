@@ -1,9 +1,14 @@
 package com.eterocell.rhythhaus.taglib
 
-actual fun createTagLibReader(): TagLibReader = UnlinkedNativeTagLibReader
+actual fun createTagLibReader(): TagLibReader = IosUnlinkedNativeTagLibReader
 
-private object UnlinkedNativeTagLibReader : TagLibReader {
+private object IosUnlinkedNativeTagLibReader : TagLibReader {
     override fun readPath(path: String): TagReadResult = TagReadResult.Unsupported(
-        "Native TagLib reader is not linked yet for iOS",
+        IOS_TAGLIB_NOT_PACKAGED_MESSAGE,
     )
 }
+
+private const val IOS_TAGLIB_NOT_PACKAGED_MESSAGE =
+    "Native TagLib iOS binding is scaffolded, but no iOS TagLib static library or XCFramework is packaged yet; " +
+        "add taglib/third_party/taglib-ios/TagLib.xcframework or equivalent device/simulator static libraries " +
+        "and wire Kotlin/Native cinterop before enabling metadata reads"
