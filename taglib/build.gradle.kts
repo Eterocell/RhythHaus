@@ -39,6 +39,60 @@ val buildMacosTagLibHelper by tasks.registering(Exec::class) {
     )
 }
 
+// Android NDK native TagLib builds per ABI
+
+val androidNdkVersion = System.getenv("ANDROID_NDK_VERSION") ?: "30.0.14904198"
+val androidHome = System.getenv("ANDROID_HOME") ?: "${System.getProperty("user.home")}/Library/Android/sdk"
+val androidNdkDir = file("$androidHome/ndk/$androidNdkVersion")
+val androidTagLibToolchainFile = file("$androidNdkDir/build/cmake/android.toolchain.cmake")
+
+val androidTagLibAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+val androidTagLibMinSdk = libs.versions.android.minSdk.get().toInt()
+
+val androidTagLibOutputRoot = layout.buildDirectory.dir("generated/androidNativeLibs").get().asFile
+
+val androidNativeBuildTasks = androidTagLibAbis.map { abi ->
+    val ndkAbi = when (abi) {
+        "arm64-v8a" -> "aarch64-linux-android"
+        "armeabi-v7a" -> "armv7a-linux-androideabi"
+        "x86_64" -> "x86_64-linux-android"
+        else -> error("unsupported ABI: $abi")
+    }
+    val ndkToolchain = "${ndkAbi}${androidTagLibMinSdk}"
+    val buildDir = layout.buildDirectory.dir("native/androidTagLibHelper-$abi").get().asFile
+    val outputSo = androidTagLibOutputRoot.resolve("$abi/librhythhaus_taglib.so")
+
+    abi to tasks.register("buildAndroidTagLibHelper-$abi", Exec::class) {
+        inputs.dir(nativeTagLibDirectory)
+        outputs.file(outputSo)
+        doFirst {
+            outputSo.parentFile.mkdirs()
+        }
+        executable = "/bin/sh"
+        args(
+            "-c",
+            """
+            set -eu
+            cmake -S '${nativeTagLibDirectory.absolutePath}' -B '${buildDir.absolutePath}' \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_TOOLCHAIN_FILE='${androidTagLibToolchainFile.absolutePath}' \
+              -DANDROID_ABI=$abi \
+              -DANDROID_PLATFORM=android-$androidTagLibMinSdk \
+              -DANDROID_STL=c++_static \
+              -DCMAKE_LIBRARY_OUTPUT_DIRECTORY='${buildDir.absolutePath}' \
+              -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+              -DRHYTHHAUS_TAGLIB_BUILD_JNI=ON
+            cmake --build '${buildDir.absolutePath}' --target rhythhaus_taglib --config Release --parallel
+            cmake -E copy_if_different '${buildDir.resolve("librhythhaus_taglib.so").absolutePath}' '${outputSo.absolutePath}'
+            """.trimIndent(),
+        )
+    }
+}.toMap()
+
+val buildAllAndroidTagLibHelpers by tasks.registering {
+    dependsOn(androidNativeBuildTasks.values)
+}
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
@@ -52,12 +106,11 @@ kotlin {
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 
-        // Android native TagLib packaging is intentionally not enabled yet. The follow-up should use
-        // native/CMake FetchContent for the same pinned upstream https://github.com/taglib/taglib
-        // source used by JVM/macOS (v2.3 commit 1b94b93762636ebe5733180c3e825be4621e4c7f), not a
-        // replacement parser or unrelated native library. Expected build layout: one Android
-        // NDK/CMake build directory per ABI, then package librhythhaus_taglib.so slices for the
-        // supported ABIs from native/src/rh_taglib.cpp and native/jni/rh_taglib_jni.cpp.
+        // Android native TagLib packaging uses the same native/CMake FetchContent-pinned upstream
+        // github.com/taglib/taglib source as JVM/macOS (v2.3 commit 1b94b93762636ebe5733180c3e825be4621e4c7f).
+        // Per-ABI .so slices are built by buildAndroidTagLibHelper-<abi> Exec tasks and output to
+        // build/generated/androidNativeLibs/<abi>/librhythhaus_taglib.so.
+
         compilerOptions {
             jvmTarget = JvmTarget.JVM_11
         }
@@ -96,4 +149,20 @@ kotlin {
 
 tasks.matching { it.name in setOf("jvmProcessResources", "processJvmMainResources") }.configureEach {
     dependsOn(buildMacosTagLibHelper)
+}
+
+// Wire Android native TagLib builds before AGP merges jniLibs.
+// AGP automatically packages jniLibs from build/generated/androidNativeLibs/<abi>/.
+tasks.matching { it.name.contains("merge") && it.name.contains("JniLibFolders") }.configureEach {
+    dependsOn(buildAllAndroidTagLibHelpers)
+}
+tasks.matching { it.name.contains("copy") && it.name.contains("JniLibsProjectOnly") }.configureEach {
+    dependsOn(buildAllAndroidTagLibHelpers)
+}
+
+// Point AGP at the build output directory for jniLibs instead of src/.
+afterEvaluate {
+    extensions.findByType<com.android.build.api.dsl.LibraryExtension>()?.sourceSets?.getByName("main") {
+        jniLibs.srcDir(layout.buildDirectory.dir("generated/androidNativeLibs"))
+    }
 }
