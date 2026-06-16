@@ -2,10 +2,16 @@
 
 ## Current state
 
-Last updated: 2026-06-10
-Current change: project harness creation and initial shared UI slice; harness route updated to openspec+superpowers
+Last updated: 2026-06-11
+Current change: native TagLib metadata wrapper with JVM/macOS working; Android/iOS scaffolds honest
 Workflow route: openspec+superpowers
 State source of truth: OpenSpec for durable product changes; Superpowers for clarification/brainstorming/task execution discipline; this file for session continuity and verification evidence.
+
+## Subagent-driven execution outcome
+
+Used Subagent-Driven Development on docs/superpowers/plans/2026-06-11-taglib-metadata-module.md (native TagLib wrapper plan). Assessment subagent confirmed: Tasks 1-3 (module/API, C ABI shim, JVM/macOS JNI) are complete with pinned upstream TagLib v2.3 FetchContent builds and real fixture tests passing; Tasks 4/5 Android/iOS remaining as honest unsupported scaffolds; Task 6 shared integration complete; Task 7 OpenSpec/docs complete.
+
+Android native packaging subagent was dispatched but hit an HTTP 429 rate limit mid-task. Incomplete changes were cleaned up. The native TagLib Android NDK/CMake per-ABI builds remain the next feasible implementation gap.
 
 ## Completed
 
