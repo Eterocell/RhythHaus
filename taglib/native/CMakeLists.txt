@@ -5,6 +5,7 @@ project(rhythhaus_taglib LANGUAGES CXX)
 include(FetchContent)
 
 option(RHYTHHAUS_TAGLIB_BUILD_JNI "Build the JVM JNI entrypoints into rhythhaus_taglib" OFF)
+option(RHYTHHAUS_TAGLIB_BUILD_STATIC "Build rhythhaus_taglib as a static library" OFF)
 
 # TagLib is linked into the RhythHaus shared library, so the upstream static
 # archive must be built as position-independent code.
@@ -38,7 +39,13 @@ if(RHYTHHAUS_TAGLIB_BUILD_JNI)
     list(APPEND RHYTHHAUS_TAGLIB_SOURCES jni/rh_taglib_jni.cpp)
 endif()
 
-add_library(rhythhaus_taglib SHARED
+if(RHYTHHAUS_TAGLIB_BUILD_STATIC)
+    set(RHYTHHAUS_TAGLIB_LIBRARY_TYPE STATIC)
+else()
+    set(RHYTHHAUS_TAGLIB_LIBRARY_TYPE SHARED)
+endif()
+
+add_library(rhythhaus_taglib ${RHYTHHAUS_TAGLIB_LIBRARY_TYPE}
     ${RHYTHHAUS_TAGLIB_SOURCES}
 )
 

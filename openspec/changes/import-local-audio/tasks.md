@@ -29,4 +29,4 @@
 - [x] 5.2 Record current platform state: macOS/JVM builds and tests pinned upstream `github.com/taglib/taglib` v2.3, Android builds/packages per-ABI upstream TagLib NDK helpers, and iOS has honest unsupported scaffold with pinned upstream TagLib v2.3 XCFramework/static-library layout documented.
 - [x] 5.3 Validate this OpenSpec change after the documentation update.
 - [x] 5.4 Build/link/package pinned upstream `github.com/taglib/taglib` v2.3 for Android with NDK/CMake per ABI and verify the resulting `librhythhaus_taglib.so` slices are packaged in the TagLib AAR and Android debug APK.
-- [ ] 5.5 Build/link/package pinned upstream `github.com/taglib/taglib` v2.3 for iOS device/simulator static libs assembled into an XCFramework before claiming iOS rich metadata support.
+- [x] 5.5 Build/link/package pinned upstream `github.com/taglib/taglib` v2.3 for iOS device/simulator static libs assembled into an XCFramework before claiming iOS rich metadata support.

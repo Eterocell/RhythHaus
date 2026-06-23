@@ -433,3 +433,24 @@ Acceptance:
 - Remaining risk: Android content URI metadata still needs app-cache file path handoff and device/emulator runtime metadata validation before claiming end-to-end SAF rich metadata.
 Next owner: implementation for Android content-URI-to-file handoff/runtime validation, or iOS TagLib XCFramework/cinterop packaging.
 Blockers: none for Android native library packaging; iOS rich metadata support remains blocked on native static library/XCFramework/cinterop work.
+
+## Handoff - 2026-06-23 iOS TagLib cinterop completion
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Complete iOS TagLib cinterop from plan `docs/superpowers/plans/2026-06-11-taglib-metadata-module.md` Task 5 and OpenSpec `openspec/changes/import-local-audio/tasks.md` 5.5.
+Implementation:
+- `taglib/native/CMakeLists.txt` supports `RHYTHHAUS_TAGLIB_BUILD_STATIC=ON` for iOS static library builds.
+- `taglib/build.gradle.kts` builds pinned upstream TagLib v2.3 for `iosArm64` (device) and `iosSimulatorArm64` (simulator) as static `librhythhaus_taglib.a`.
+- `taglib/src/nativeInterop/cinterop/rh_taglib.def` declares cinterop binding; a generated `.def` in the build directory resolves the per-target absolute path to `librhythhaus_taglib.a`.
+- `taglib/src/iosMain/kotlin/com/eterocell/rhythhaus/taglib/TagLibReader.ios.kt` now calls `rh_taglib_read_path`/`rh_taglib_free_result` through Kotlin/Native cinterop instead of returning unsupported.
+- `taglib/gradle.properties` enables cinterop commonization.
+- `taglib/src/nativeInterop/cinterop/.gitignore` keeps generated `.a` out of git.
+Verification:
+- `./gradlew :taglib:iosSimulatorArm64Test --configuration-cache`: pass; includes native CMake build, cinterop generation, Kotlin compilation, linking, and test execution.
+Acceptance:
+- Requirement matched: iOS TagLib cinterop links real upstream TagLib v2.3 through the C ABI shim.
+- Scope controlled: no Kotlin metadata parser added.
+- Remaining risk: runtime metadata validation with real audio files on device/simulator remains a manual follow-up.
+Next owner: user/implementation for manual iOS playback/metadata runtime validation.
+Blockers: none.

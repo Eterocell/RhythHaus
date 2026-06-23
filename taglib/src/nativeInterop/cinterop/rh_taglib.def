@@ -1,0 +1,4 @@
+headers = rh_taglib.h
+package = com.eterocell.rhythhaus.taglib.cinterop
+# GENERATED_LIBRARY_PATH
+# GENERATED_STATIC_LIBRARY

@@ -39,6 +39,66 @@ val buildMacosTagLibHelper by tasks.registering(Exec::class) {
     )
 }
 
+// iOS static TagLib builds for Kotlin/Native cinterop
+
+data class IosTagLibBuild(
+    val targetName: String,
+    val sdk: String,
+    val arch: String,
+)
+
+val iosTagLibBuilds = listOf(
+    IosTagLibBuild(targetName = "iosArm64", sdk = "iphoneos", arch = "arm64"),
+    IosTagLibBuild(targetName = "iosSimulatorArm64", sdk = "iphonesimulator", arch = "arm64"),
+)
+
+val iosCinteropDirectory = project.file("src/nativeInterop/cinterop")
+
+val iosTagLibStaticLibraries = iosTagLibBuilds.associate { build ->
+    build.targetName to iosCinteropDirectory.resolve("librhythhaus_taglib.a")
+}
+
+val iosTagLibUpstreamLibraries = iosTagLibBuilds.associate { build ->
+    build.targetName to iosCinteropDirectory.resolve("libtag.a")
+}
+
+val iosNativeBuildTasks = iosTagLibBuilds.associate { build ->
+    val buildDirectory = layout.buildDirectory.dir("native/taglib-${build.targetName}").get().asFile
+    val outputLibrary = iosTagLibStaticLibraries.getValue(build.targetName)
+    val upstreamLib = iosTagLibUpstreamLibraries.getValue(build.targetName)
+    val taskName = "buildIosTagLibHelper${build.targetName.replaceFirstChar { it.uppercase() }}"
+    val upstreamTagLibDir = buildDirectory.absolutePath
+    build.targetName to tasks.register(taskName, Exec::class) {
+        inputs.dir(nativeTagLibDirectory)
+        outputs.file(outputLibrary)
+        outputs.file(upstreamLib)
+        doFirst {
+            outputLibrary.parentFile.mkdirs()
+        }
+        executable = "/bin/sh"
+        args(
+            "-c",
+            """
+            set -eu
+            SDK_PATH=$(xcrun --sdk ${build.sdk} --show-sdk-path)
+            cmake -S '${nativeTagLibDirectory.absolutePath}' -B '${buildDirectory.absolutePath}' \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_SYSTEM_NAME=iOS \
+              -DCMAKE_OSX_SYSROOT="${'$'}SDK_PATH" \
+              -DCMAKE_OSX_ARCHITECTURES='${build.arch}' \
+              -DCMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=NO \
+              -DCMAKE_LIBRARY_OUTPUT_DIRECTORY='${buildDirectory.absolutePath}' \
+              -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY='${buildDirectory.absolutePath}' \
+              -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+              -DRHYTHHAUS_TAGLIB_BUILD_STATIC=ON
+            cmake --build '${buildDirectory.absolutePath}' --target rhythhaus_taglib --config Release --parallel
+            cmake -E copy_if_different '${buildDirectory.resolve("librhythhaus_taglib.a").absolutePath}' '${outputLibrary.absolutePath}'
+            cmake -E copy_if_different '${upstreamTagLibDir}/libtag.a' '${upstreamLib.absolutePath}'
+            """.trimIndent(),
+        )
+    }
+}
+
 // Android NDK native TagLib builds per ABI
 
 val androidNdkVersion = System.getenv("ANDROID_NDK_VERSION") ?: "30.0.14904198"
@@ -130,23 +190,54 @@ kotlin {
     listOf(
         iosArm64(),
         iosSimulatorArm64(),
-    )
-    // iOS native TagLib packaging is intentionally not enabled yet. The follow-up must build the
-    // same native/CMake FetchContent-pinned upstream https://github.com/taglib/taglib source used by
-    // JVM/macOS (v2.3 commit 1b94b93762636ebe5733180c3e825be4621e4c7f), not a replacement parser or
-    // unrelated native library. This checkout has the RhythHaus C ABI header at
-    // native/include/rh_taglib.h but does not contain upstream TagLib v2.3 iOS static libraries or
-    // an XCFramework, so no src/nativeInterop/cinterop/*.def file is committed yet. Expected layout
-    // before adding a cinterop def and Gradle wiring:
-    //   taglib/native/include/rh_taglib.h
-    //   taglib/native/src/rh_taglib.cpp
-    //   taglib/build/native/taglib-ios-device-build-v2.3 -> static libtag.a from upstream v2.3
-    //   taglib/build/native/taglib-ios-simulator-build-v2.3 -> static libtag.a from upstream v2.3
-    //   taglib/third_party/taglib-ios/TagLib.xcframework
-    //     ios-arm64/... device static library/framework slice with upstream TagLib headers
-    //     ios-arm64_x86_64-simulator/... simulator static library/framework slice with upstream TagLib headers
-    // Once those inputs are added, wire per-target cinterops here and keep iosMain returning
-    // Unsupported until that link is verified.
+    ).forEach { iosTarget ->
+        val targetName = iosTarget.name
+        val staticLibrary = iosTagLibStaticLibraries.getValue(targetName)
+        val upstreamLibrary = iosTagLibUpstreamLibraries.getValue(targetName)
+        val nativeBuildTask = iosNativeBuildTasks.getValue(targetName)
+        val generatedDefFile = layout.buildDirectory.file("generated/cinteropDefs/${targetName}/rh_taglib.def")
+        val templateFile = project.file("src/nativeInterop/cinterop/rh_taglib.def")
+        val generateDefTask = tasks.register("generateDef$targetName") {
+            dependsOn(nativeBuildTask)
+            inputs.file(templateFile)
+            outputs.file(generatedDefFile)
+            val targetOutputFile = generatedDefFile.get().asFile
+            val libPath = staticLibrary.absolutePath
+            val libDir = staticLibrary.parentFile.absolutePath
+            val upstreamLibPath = upstreamLibrary.absolutePath
+            doLast {
+                val template = templateFile.readText()
+                val parentDir = targetOutputFile.parentFile.also { it.mkdirs() }
+                val resolved = template.replace(
+                    "# GENERATED_LIBRARY_PATH",
+                    "libraryPaths = $libDir",
+                ).replace(
+                    "# GENERATED_STATIC_LIBRARY",
+                    "staticLibraries = librhythhaus_taglib.a libtag.a",
+                )
+                parentDir.resolve("rh_taglib.def").writeText(resolved)
+            }
+        }
+        iosTarget.compilations.getByName("main") {
+            cinterops.create("rh_taglib") {
+                defFile(generatedDefFile)
+                includeDirs(project.file("native/include"))
+            }
+        }
+        iosTarget.binaries.all {
+            linkerOpts("-lc++")
+        }
+        iosTarget.compilations.configureEach {
+            compileTaskProvider.configure {
+                dependsOn(generateDefTask, nativeBuildTask)
+            }
+        }
+        tasks.configureEach {
+            if (name == "cinteropRh_taglib${targetName.replaceFirstChar { it.uppercase() }}") {
+                dependsOn(generateDefTask)
+            }
+        }
+    }
 
     sourceSets {
         jvmMain {
