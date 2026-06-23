@@ -86,6 +86,7 @@ fun App() {
     RhythHausTheme {
         LibraryHomeScreen(
             snapshot = importedLibrarySnapshot(importedFiles),
+            importedFiles = importedFiles,
             playbackController = controller,
             importLauncher = importLauncher,
             importMessage = importMessage,
@@ -111,6 +112,7 @@ private fun RhythHausTheme(content: @Composable () -> Unit) {
 @Composable
 fun LibraryHomeScreen(
     snapshot: LibrarySnapshot,
+    importedFiles: List<ImportedAudioFile>,
     playbackController: PlaybackController,
     importLauncher: AudioImportLauncher,
     importMessage: String?,
@@ -119,6 +121,7 @@ fun LibraryHomeScreen(
     var selectedTrackId by remember(snapshot.nowPlayingTrackId) { mutableStateOf(snapshot.nowPlayingTrackId) }
     val selectedTrack = snapshot.tracks.firstOrNull { it.id == selectedTrackId } ?: snapshot.tracks.firstOrNull()
     val playbackState by playbackController.state.collectAsState()
+    var devPanelExpanded by remember { mutableStateOf(false) }
 
     Surface(modifier = modifier.fillMaxSize(), color = HausPaper) {
         LazyColumn(
@@ -136,6 +139,13 @@ fun LibraryHomeScreen(
                     importLauncher = importLauncher,
                     importMessage = importMessage,
                     hasImportedTracks = snapshot.tracks.isNotEmpty(),
+                )
+            }
+            item {
+                DeveloperPanel(
+                    importedFiles = importedFiles,
+                    expanded = devPanelExpanded,
+                    onToggle = { devPanelExpanded = !devPanelExpanded },
                 )
             }
             item {
@@ -430,6 +440,157 @@ private fun EqualizerStrip(active: Boolean) {
             )
         }
     }
+}
+
+@Composable
+private fun DeveloperPanel(
+    importedFiles: List<ImportedAudioFile>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = HausPanelStrong),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle)
+                    .semantics { contentDescription = if (expanded) "Collapse developer panel" else "Expand developer panel" },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "DEV · TagLib metadata",
+                        color = HausInk,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.6.sp,
+                    )
+                    Text(
+                        text = "${importedFiles.size} imported file(s) parsed natively",
+                        color = HausMuted,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                Text(
+                    text = if (expanded) "Hide" else "Show",
+                    color = HausPulse,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Black,
+                )
+            }
+
+            AnimatedVisibility(visible = expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (importedFiles.isEmpty()) {
+                        Text(
+                            text = "Import local audio to inspect TagLib output (title, artist, album, duration) parsed through the native :taglib wrapper.",
+                            color = HausMuted,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.semantics { contentDescription = "Developer panel empty state" },
+                        )
+                    } else {
+                        importedFiles.forEach { file ->
+                            DeveloperMetadataRow(file)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeveloperMetadataRow(file: ImportedAudioFile) {
+    val metadata = file.metadata
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(HausPaper)
+            .border(1.dp, HausLine, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = file.displayName,
+            color = HausInk,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = "source: ${file.source.devLabel}",
+            color = HausMuted,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (metadata == null) {
+            Text(
+                text = "metadata: unavailable (native reader returned no tags)",
+                color = HausPulse,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        } else {
+            metadataDevLines(metadata, file.durationMillis).forEach { (label, value) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = label,
+                        color = HausMuted,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        text = value,
+                        color = HausInk,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .weight(1f, fill = false),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val AudioSource.devLabel: String
+    get() = when (this) {
+        is AudioSource.FilePath -> "file:$path"
+        is AudioSource.Uri -> "uri:$value"
+    }
+
+private fun metadataDevLines(metadata: AudioMetadata, fallbackDurationMillis: Long?): List<Pair<String, String>> {
+    val durationMillis = metadata.durationMillis ?: fallbackDurationMillis
+    return listOf(
+        "title" to (metadata.title ?: "—"),
+        "artist" to (metadata.artist ?: "—"),
+        "album" to (metadata.album ?: "—"),
+        "duration" to (durationMillis?.let { formatMillis(it) } ?: "—"),
+    )
 }
 
 @Composable

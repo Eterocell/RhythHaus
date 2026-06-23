@@ -454,3 +454,22 @@ Acceptance:
 - Remaining risk: runtime metadata validation with real audio files on device/simulator remains a manual follow-up.
 Next owner: user/implementation for manual iOS playback/metadata runtime validation.
 Blockers: none.
+
+## Handoff - 2026-06-23 developer panel for TagLib metadata
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: shared Compose UI developer panel that displays native TagLib-parsed metadata on the main library page.
+Implementation:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt` adds a collapsible `DeveloperPanel` on the main `LibraryHomeScreen`, rendered between the import card and now-playing card.
+- The panel lists each imported file with its source handle and the parsed `AudioMetadata` (title, artist, album, duration) returned by the native `:taglib` wrapper, or a clear "metadata unavailable" line when the native reader returns no tags.
+- `LibraryHomeScreen` now receives `importedFiles` so the panel can show raw parsed results without altering the existing library/track models.
+Verification:
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: BUILD SUCCESSFUL.
+- `./init.sh`: BUILD SUCCESSFUL (JVM tests, desktop compile, Android debug build, iOS simulator shared tests).
+Acceptance:
+- Requirement matched: developer panel exists on the main page and displays TagLib-parsed metadata for imported files.
+- Scope controlled: shared UI only; no model/engine/native changes.
+- Remaining risk: real device/runtime metadata values still require manual import validation with real audio files.
+Next owner: user/implementation for manual import + metadata runtime validation.
+Blockers: none.
