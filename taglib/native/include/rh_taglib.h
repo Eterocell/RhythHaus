@@ -10,8 +10,12 @@ typedef struct RhTagLibMetadata {
     char* album;
     char* album_artist;
     char* genre;
+    char* comment;
     int year;
     int track;
+    int track_total;
+    int disc_number;
+    int disc_total;
     int duration_seconds;
     int bitrate;
     int sample_rate;

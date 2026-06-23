@@ -615,6 +615,7 @@ private fun rawTagLines(metadata: RawTagMetadata): List<Pair<String, String>> = 
     "album" to (metadata.album ?: "—"),
     "albumArtist" to (metadata.albumArtist ?: "—"),
     "genre" to (metadata.genre ?: "—"),
+    "comment" to (metadata.comment ?: "—"),
     "year" to (metadata.year?.toString() ?: "—"),
     "track" to trackDisplay(metadata.trackNumber, metadata.trackTotal),
     "disc" to trackDisplay(metadata.discNumber, metadata.discTotal),
