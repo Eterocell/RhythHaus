@@ -120,4 +120,4 @@ private object NativeTagLibLibrary {
     }
 }
 
-private class NativeTagLibUnavailableException(message: String) : RuntimeException(message)
+internal class NativeTagLibUnavailableException(message: String) : RuntimeException(message)

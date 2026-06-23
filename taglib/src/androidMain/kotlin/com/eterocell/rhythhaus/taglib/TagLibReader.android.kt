@@ -102,4 +102,4 @@ private const val ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE =
     "Native TagLib Android binding is scaffolded, but no Android TagLib source/prebuilt library is packaged yet; " +
         "add the Android TagLib build or ABI prebuilts before enabling metadata reads"
 
-private class NativeTagLibUnavailableException(message: String) : RuntimeException(message)
+internal class NativeTagLibUnavailableException(message: String) : RuntimeException(message)

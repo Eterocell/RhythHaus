@@ -50,6 +50,36 @@ typedef struct RhTagLibProperties {
 RhTagLibProperties rh_taglib_read_properties(const char* path);
 void rh_taglib_free_properties(RhTagLibProperties properties);
 
+// --- Write API: updates metadata and persists to disk ---
+
+typedef struct RhTagLibWriteMeta {
+    char* title;
+    char* artist;
+    char* album;
+    char* album_artist;
+    char* genre;
+    char* comment;
+    int year;
+    int track;
+    int track_total;
+    int disc_number;
+    int disc_total;
+    // Property map: parallel arrays, may be NULL/empty
+    int property_count;
+    char** property_keys;
+    char** property_values;
+} RhTagLibWriteMeta;
+
+// Write metadata to the file at path. Returns status:
+//   0  success — metadata written and saved to disk
+//   1  unsupported — file format not writable by TagLib
+//   2  failed — error during write
+// On error, *error_out receives a caller-owned message; pass NULL to ignore.
+int rh_taglib_write_path(const char* path, const RhTagLibWriteMeta* meta, char** error_out);
+
+// Frees heap-owned strings inside meta. Safe to call with NULL or zeroed fields.
+void rh_taglib_free_write_meta(RhTagLibWriteMeta* meta);
+
 #ifdef __cplusplus
 }
 #endif

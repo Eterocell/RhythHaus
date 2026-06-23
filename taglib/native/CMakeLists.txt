@@ -63,6 +63,7 @@ target_include_directories(rhythhaus_taglib
         ${taglib_SOURCE_DIR}/taglib/mpeg
         ${taglib_SOURCE_DIR}/taglib/mpeg/id3v2
         ${taglib_SOURCE_DIR}/taglib/mpeg/id3v1
+        ${taglib_SOURCE_DIR}/taglib/mpeg/id3v2/frames
         ${taglib_SOURCE_DIR}/taglib/mp4
         ${taglib_SOURCE_DIR}/taglib/ogg
         ${taglib_SOURCE_DIR}/taglib/ogg/vorbis
