@@ -14,7 +14,7 @@ sealed interface PlatformScanEvent {
     ) : PlatformScanEvent
 }
 
-interface PlatformAudioScanner {
+fun interface PlatformAudioScanner {
     fun scan(source: LibrarySource): Sequence<PlatformScanEvent>
 }
 
@@ -61,7 +61,6 @@ class LibraryScanner(
                 session = session.cancelled()
             } else {
                 val completedAt = now()
-                repository.removeMissingTracks(source.id, scanId)
                 session = session.copy(
                     status = ScanStatus.Completed,
                     completedAtEpochMillis = completedAt,
@@ -140,7 +139,7 @@ private fun AudioScanCandidate.toLibraryTrack(
     trackId: String,
     metadataReader: AudioMetadataReader,
 ): LibraryTrack {
-    val metadata = metadataReader.read(audioSource)
+    val metadata = runCatching { metadataReader.read(audioSource) }.getOrNull()
     return LibraryTrack(
         id = trackId,
         sourceId = sourceId,

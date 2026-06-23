@@ -244,3 +244,43 @@ Changed files:
 Next owner: implementation for Task 3 shared library domain models.
 Blockers: none.
 Commit: semantic commit with message `build: add library database setup`.
+
+## Handoff - 2026-06-23 subagent-driven scanner/source access slice
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: subagent-driven implementation slice for `scan-local-audio-folders` tasks 1.1, 3.1-3.5, and 4.1-4.3; no UI changes and no repository schema changes.
+Subagent inputs:
+- Scanner/source-access review found missing iOS actual, missing Android DocumentFile dependency, automatic remove-missing data-loss risk, and metadata-reader failure risk.
+- Gradle/database review confirmed SQLDelight setup tasks 1.2/1.3 were already complete and recommended `./gradlew :shared:compileKotlinMetadata --configuration-cache`.
+- Slice planning recommended scanner orchestration and platform source access as conflict-safe next tasks, reserving OpenSpec/progress updates for the coordinator.
+Implementation:
+- Added Android `androidx.documentfile:documentfile` dependency for SAF tree traversal.
+- Added iOS app-local folder picker/source scanner actual for `rememberPlatformFolderPickerLauncher` and `IOSAppLocalSourceAccess`.
+- Kept Android SAF and JVM folder source access seams compile-safe across targets.
+- Changed `LibraryScanner` to preserve already imported tracks after a completed scan instead of automatically deleting missing tracks; explicit remove-missing remains a later UI/action task.
+- Changed metadata enrichment to fall back to filename metadata if `AudioMetadataReader.read` throws.
+- Added common scanner tests for non-destructive completed scans and metadata-reader failure fallback.
+Verification:
+- `./gradlew :shared:compileKotlinMetadata --configuration-cache`: pass after source-access seam fixes; Gradle reported `BUILD SUCCESSFUL`.
+- `./gradlew :shared:jvmTest :shared:compileKotlinMetadata :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`.
+- `/usr/bin/xcrun xcodebuild -version`: pass; Xcode 26.5 Build 17F42.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: initial failures in the new iOS source-access actual, then pass after correcting enum/API usage; final Gradle run reported `BUILD SUCCESSFUL`.
+- `openspec validate scan-local-audio-folders --strict`: pass; output `Change 'scan-local-audio-folders' is valid`.
+Acceptance:
+- Requirement matched: yes for scanner contracts/orchestration/cancellation/metadata fallback and Android/JVM/iOS first source access implementations.
+- Scope controlled: yes; shared library manager UI, platform-focused source tests, full `./init.sh`, and archive remain open.
+- Edge cases/risk reviewed: unsupported-file accounting may still need product/UI tuning; iOS app-local source uses a deterministic `createdAtEpochMillis = 0L` until a shared clock/source factory is introduced; explicit remove-missing action is still pending.
+Changed files:
+- `gradle/libs.versions.toml`: Android DocumentFile alias.
+- `shared/build.gradle.kts`: Android DocumentFile dependency.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryScanner.kt`: metadata fallback and non-destructive scan completion.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.kt`: source picker/access contract and shared source-local key helpers.
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.android.kt`: Android SAF picker/source access.
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.jvm.kt`: macOS/JVM native folder picker/source access.
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.ios.kt`: iOS app-local folder source access.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryScannerTest.kt`: scanner regression coverage.
+- `openspec/changes/scan-local-audio-folders/tasks.md`: marked completed tasks for this slice only.
+- `progress.md`: recorded this handoff evidence.
+Next owner: implementation for platform-focused tests where practical and shared library manager UI tasks 5.1-5.4.
+Blockers: none for this slice; full completion still requires UI integration, platform-focused tests, full `./init.sh`, and final OpenSpec archival.

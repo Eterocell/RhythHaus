@@ -1,6 +1,8 @@
 package com.eterocell.rhythhaus.library
 
 import com.eterocell.rhythhaus.AudioSource
+import com.eterocell.rhythhaus.AudioMetadataReader
+import com.eterocell.rhythhaus.taglib.TagLibReader
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -95,17 +97,78 @@ class LibraryScannerTest {
     }
 
     @Test
-    fun sourceLastScanTimestampIsNotUpdatedWhenRemovingMissingTracksFails() {
-        val repository = RemoveMissingThrowingRepository()
+    fun completedScanDoesNotAutomaticallyRemoveMissingTracks() {
+        val repository = InMemoryLibraryRepository()
         val source = LibrarySource("source-1", LibraryPlatformKind.JvmFolder, "Music", "/Music", 1L)
-        val platform = FakePlatformAudioScanner(events = emptyList())
+        repository.upsertTrack(
+            LibraryTrack(
+                id = "existing-track",
+                sourceId = "source-1",
+                sourceLocalKey = "missing.mp3",
+                audioSource = AudioSource.FilePath("/Music/missing.mp3"),
+                displayName = "missing.mp3",
+                title = "Missing",
+                artist = "Local file",
+                album = "Imported audio",
+                durationMillis = null,
+                sizeBytes = null,
+                modifiedAtEpochMillis = null,
+                lastSeenScanId = "previous-scan",
+                createdAtEpochMillis = 1L,
+                updatedAtEpochMillis = 1L,
+            ),
+        )
+        val platform = FakePlatformAudioScanner(
+            events = listOf(
+                PlatformScanEvent.AudioCandidate(
+                    AudioScanCandidate(
+                        sourceId = "source-1",
+                        sourceLocalKey = "found.mp3",
+                        displayPath = "found.mp3",
+                        displayName = "found.mp3",
+                        audioSource = AudioSource.FilePath("/Music/found.mp3"),
+                    ),
+                ),
+            ),
+        )
         val scanner = LibraryScanner(repository, platform, now = { 100L }, idFactory = { prefix -> "$prefix-id" })
 
         val result = scanner.scan(source)
 
-        assertEquals(ScanStatus.Failed, result.status)
-        assertEquals(null, repository.sources().single().lastScanAtEpochMillis)
-        assertEquals("remove missing failed", result.terminalMessage)
+        assertEquals(ScanStatus.Completed, result.status)
+        assertEquals(listOf("found", "Missing"), repository.tracks().map { it.title })
+    }
+
+    @Test
+    fun metadataReaderFailureFallsBackToDisplayNameMetadata() {
+        val repository = InMemoryLibraryRepository()
+        val source = LibrarySource("source-1", LibraryPlatformKind.JvmFolder, "Music", "/Music", 1L)
+        val platform = FakePlatformAudioScanner(
+            events = listOf(
+                PlatformScanEvent.AudioCandidate(
+                    AudioScanCandidate(
+                        sourceId = "source-1",
+                        sourceLocalKey = "broken-tags.mp3",
+                        displayPath = "broken-tags.mp3",
+                        displayName = "broken-tags.mp3",
+                        audioSource = AudioSource.FilePath("/Music/broken-tags.mp3"),
+                    ),
+                ),
+            ),
+        )
+        val scanner = LibraryScanner(
+            repository = repository,
+            platformScanner = platform,
+            metadataReader = AudioMetadataReader(ThrowingTagLibReader),
+            now = { 100L },
+            idFactory = { prefix -> "$prefix-id" },
+        )
+
+        val result = scanner.scan(source)
+
+        assertEquals(ScanStatus.Completed, result.status)
+        assertEquals(listOf("broken tags"), repository.tracks().map { it.title })
+        assertEquals(emptyList(), repository.scanErrors("scan-id"))
     }
 }
 
@@ -121,20 +184,6 @@ private class FakePlatformAudioScanner(
     }
 }
 
-private class RemoveMissingThrowingRepository : LibraryRepository {
-    private val delegate = InMemoryLibraryRepository()
-
-    override fun upsertSource(source: LibrarySource) = delegate.upsertSource(source)
-    override fun sources(): List<LibrarySource> = delegate.sources()
-    override fun upsertTrack(track: LibraryTrack): TrackUpsertResult = delegate.upsertTrack(track)
-    override fun tracks(): List<LibraryTrack> = delegate.tracks()
-    override fun tracksForSource(sourceId: String): List<LibraryTrack> = delegate.tracksForSource(sourceId)
-    override fun insertScanSession(session: ScanSession) = delegate.insertScanSession(session)
-    override fun updateScanSession(session: ScanSession) = delegate.updateScanSession(session)
-    override fun insertScanError(error: ScanError) = delegate.insertScanError(error)
-    override fun scanErrors(scanId: String): List<ScanError> = delegate.scanErrors(scanId)
-
-    override fun removeMissingTracks(sourceId: String, latestScanId: String): Int {
-        throw IllegalStateException("remove missing failed")
-    }
+private object ThrowingTagLibReader : TagLibReader {
+    override fun readPath(path: String) = throw IllegalStateException("metadata failed")
 }

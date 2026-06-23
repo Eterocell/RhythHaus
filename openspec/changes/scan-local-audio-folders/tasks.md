@@ -1,6 +1,6 @@
 ## 1. OpenSpec and dependency setup
 
-- [ ] 1.1 Validate this OpenSpec change before implementation starts.
+- [x] 1.1 Validate this OpenSpec change before implementation starts.
 - [x] 1.2 Add SQLDelight or equivalent KMP database dependencies and generated database configuration.
 - [x] 1.3 Verify dependency setup with focused Gradle tasks before feature code.
 
@@ -13,17 +13,17 @@
 
 ## 3. Shared scanner orchestration
 
-- [ ] 3.1 Add platform scanner and folder/source picker contracts.
-- [ ] 3.2 Add recursive scan orchestration with progressive progress updates.
-- [ ] 3.3 Add cancellation behavior that preserves already imported tracks.
-- [ ] 3.4 Add metadata enrichment fallback through the existing metadata reader.
-- [ ] 3.5 Add scanner tests with fake platform scanners.
+- [x] 3.1 Add platform scanner and folder/source picker contracts.
+- [x] 3.2 Add recursive scan orchestration with progressive progress updates.
+- [x] 3.3 Add cancellation behavior that preserves already imported tracks.
+- [x] 3.4 Add metadata enrichment fallback through the existing metadata reader.
+- [x] 3.5 Add scanner tests with fake platform scanners.
 
 ## 4. Platform source implementations
 
-- [ ] 4.1 Add Android SAF tree source picker, persisted URI permission, and recursive document traversal.
-- [ ] 4.2 Add macOS/JVM native folder picker and recursive filesystem traversal.
-- [ ] 4.3 Add iOS app-local music folder provisioning and recursive scanner.
+- [x] 4.1 Add Android SAF tree source picker, persisted URI permission, and recursive document traversal.
+- [x] 4.2 Add macOS/JVM native folder picker and recursive filesystem traversal.
+- [x] 4.3 Add iOS app-local music folder provisioning and recursive scanner.
 - [ ] 4.4 Add platform-focused tests where practical.
 
 ## 5. Shared library manager UI
