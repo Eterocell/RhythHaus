@@ -50,6 +50,7 @@ val androidTagLibAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
 val androidTagLibMinSdk = libs.versions.android.minSdk.get().toInt()
 
 val androidTagLibOutputRoot = layout.buildDirectory.dir("generated/androidNativeLibs").get().asFile
+val androidTagLibPackagedJniLibsRoot = layout.projectDirectory.dir("src/androidMain/jniLibs").asFile
 
 val androidNativeBuildTasks = androidTagLibAbis.map { abi ->
     val ndkAbi = when (abi) {
@@ -93,6 +94,13 @@ val buildAllAndroidTagLibHelpers by tasks.registering {
     dependsOn(androidNativeBuildTasks.values)
 }
 
+val packageAndroidTagLibJniLibs by tasks.registering(Sync::class) {
+    dependsOn(buildAllAndroidTagLibHelpers)
+    from(androidTagLibOutputRoot)
+    into(androidTagLibPackagedJniLibsRoot)
+    include("**/librhythhaus_taglib.so")
+}
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
@@ -109,7 +117,10 @@ kotlin {
         // Android native TagLib packaging uses the same native/CMake FetchContent-pinned upstream
         // github.com/taglib/taglib source as JVM/macOS (v2.3 commit 1b94b93762636ebe5733180c3e825be4621e4c7f).
         // Per-ABI .so slices are built by buildAndroidTagLibHelper-<abi> Exec tasks and output to
-        // build/generated/androidNativeLibs/<abi>/librhythhaus_taglib.so.
+        // src/androidMain/jniLibs/<abi>/librhythhaus_taglib.so through packageAndroidTagLibJniLibs.
+        androidResources {
+            enable = true
+        }
 
         compilerOptions {
             jvmTarget = JvmTarget.JVM_11
@@ -154,15 +165,10 @@ tasks.matching { it.name in setOf("jvmProcessResources", "processJvmMainResource
 // Wire Android native TagLib builds before AGP merges jniLibs.
 // AGP automatically packages jniLibs from build/generated/androidNativeLibs/<abi>/.
 tasks.matching { it.name.contains("merge") && it.name.contains("JniLibFolders") }.configureEach {
-    dependsOn(buildAllAndroidTagLibHelpers)
+    dependsOn(packageAndroidTagLibJniLibs)
 }
 tasks.matching { it.name.contains("copy") && it.name.contains("JniLibsProjectOnly") }.configureEach {
-    dependsOn(buildAllAndroidTagLibHelpers)
+    dependsOn(packageAndroidTagLibJniLibs)
 }
 
-// Point AGP at the build output directory for jniLibs instead of src/.
-afterEvaluate {
-    extensions.findByType<com.android.build.api.dsl.LibraryExtension>()?.sourceSets?.getByName("main") {
-        jniLibs.srcDir(layout.buildDirectory.dir("generated/androidNativeLibs"))
-    }
-}
+

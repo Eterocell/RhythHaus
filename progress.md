@@ -250,3 +250,25 @@ Changed files:
 Next owner: implementation for Task 3 shared library domain models.
 Blockers: none.
 Commit: semantic commit with message `build: add library database setup`.
+
+## Handoff - 2026-06-23 Android TagLib native packaging completion
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Complete `feat/taglib-metadata-module` Android native TagLib packaging from the preserved Superpowers plan `docs/superpowers/plans/2026-06-11-taglib-metadata-module.md` and OpenSpec follow-up `openspec/changes/import-local-audio/tasks.md`.
+Implementation:
+- `taglib/build.gradle.kts` now builds pinned upstream `github.com/taglib/taglib` v2.3 commit `1b94b93762636ebe5733180c3e825be4621e4c7f` with Android NDK/CMake for `arm64-v8a`, `armeabi-v7a`, and `x86_64`.
+- Generated `librhythhaus_taglib.so` slices are copied into `taglib/src/androidMain/jniLibs/<abi>/` by `packageAndroidTagLibJniLibs`; `.gitignore` keeps generated binaries out of source control.
+- Android packaging hooks make TagLib Android JNI/native merge tasks depend on the native build/copy task.
+Verification:
+- `./gradlew :taglib:buildAllAndroidTagLibHelpers --configuration-cache`: pass; all three ABI helpers built.
+- `./gradlew :taglib:allTests --configuration-cache`: pass.
+- `./gradlew :taglib:assembleAndroidMain :androidApp:assembleDebug --configuration-cache`: pass.
+- `unzip -l taglib/build/outputs/aar/taglib.aar | grep 'librhythhaus_taglib.so'`: pass; AAR contains `jni/arm64-v8a`, `jni/armeabi-v7a`, and `jni/x86_64` slices.
+- `unzip -l androidApp/build/outputs/apk/debug/androidApp-debug.apk | grep 'librhythhaus_taglib.so'`: pass; APK contains `lib/arm64-v8a`, `lib/armeabi-v7a`, and `lib/x86_64` slices.
+Acceptance:
+- Requirement matched: Android native TagLib packaging from pinned upstream v2.3 is complete enough for AAR/APK packaging verification.
+- Scope controlled: no Kotlin metadata parser added; iOS remains honestly pending.
+- Remaining risk: Android content URI metadata still needs app-cache file path handoff and device/emulator runtime metadata validation before claiming end-to-end SAF rich metadata.
+Next owner: implementation for Android content-URI-to-file handoff/runtime validation, or iOS TagLib XCFramework/cinterop packaging.
+Blockers: none for Android native library packaging; iOS rich metadata support remains blocked on native static library/XCFramework/cinterop work.
