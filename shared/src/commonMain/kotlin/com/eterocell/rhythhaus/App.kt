@@ -53,6 +53,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.taglib.TagReadResult
+import com.eterocell.rhythhaus.taglib.TagMetadata as RawTagMetadata
+import com.eterocell.rhythhaus.taglib.createTagLibReader
 
 private val HausInk = Color(0xFF111018)
 private val HausPaper = Color(0xFFFFFAF1)
@@ -67,6 +71,7 @@ private val HausPulse = Color(0xFFFF5E3A)
 fun App() {
     val controller = remember { PlaybackController() }
     val metadataReader = remember { AudioMetadataReader() }
+    val tagLibReader = remember { createTagLibReader() }
     var importedFiles by remember { mutableStateOf(emptyList<ImportedAudioFile>()) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     val importLauncher = rememberAudioImportLauncher { result ->
@@ -87,6 +92,7 @@ fun App() {
         LibraryHomeScreen(
             snapshot = importedLibrarySnapshot(importedFiles),
             importedFiles = importedFiles,
+            tagLibReader = tagLibReader,
             playbackController = controller,
             importLauncher = importLauncher,
             importMessage = importMessage,
@@ -113,6 +119,7 @@ private fun RhythHausTheme(content: @Composable () -> Unit) {
 fun LibraryHomeScreen(
     snapshot: LibrarySnapshot,
     importedFiles: List<ImportedAudioFile>,
+    tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     importLauncher: AudioImportLauncher,
     importMessage: String?,
@@ -144,6 +151,7 @@ fun LibraryHomeScreen(
             item {
                 DeveloperPanel(
                     importedFiles = importedFiles,
+                    tagLibReader = tagLibReader,
                     expanded = devPanelExpanded,
                     onToggle = { devPanelExpanded = !devPanelExpanded },
                 )
@@ -445,6 +453,7 @@ private fun EqualizerStrip(active: Boolean) {
 @Composable
 private fun DeveloperPanel(
     importedFiles: List<ImportedAudioFile>,
+    tagLibReader: TagLibReader,
     expanded: Boolean,
     onToggle: () -> Unit,
 ) {
@@ -493,7 +502,7 @@ private fun DeveloperPanel(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (importedFiles.isEmpty()) {
                         Text(
-                            text = "Import local audio to inspect TagLib output (title, artist, album, duration) parsed through the native :taglib wrapper.",
+                            text = "Import local audio to inspect raw TagLib output (title, artist, album, albumArtist, genre, year, track, disc, duration, bitrate, sampleRate, channels, artwork presence).",
                             color = HausMuted,
                             fontSize = 13.sp,
                             lineHeight = 18.sp,
@@ -502,7 +511,7 @@ private fun DeveloperPanel(
                         )
                     } else {
                         importedFiles.forEach { file ->
-                            DeveloperMetadataRow(file)
+                            DeveloperMetadataRow(file, tagLibReader)
                         }
                     }
                 }
@@ -512,8 +521,13 @@ private fun DeveloperPanel(
 }
 
 @Composable
-private fun DeveloperMetadataRow(file: ImportedAudioFile) {
-    val metadata = file.metadata
+private fun DeveloperMetadataRow(file: ImportedAudioFile, tagLibReader: TagLibReader) {
+    val rawResult = remember(file.source.stableKey) {
+        when (file.source) {
+            is AudioSource.FilePath -> tagLibReader.readPath(file.source.path)
+            is AudioSource.Uri -> null
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -539,15 +553,15 @@ private fun DeveloperMetadataRow(file: ImportedAudioFile) {
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        if (metadata == null) {
+        if (rawResult == null) {
             Text(
-                text = "metadata: unavailable (native reader returned no tags)",
+                text = "URI source — TagLib requires a filesystem path",
                 color = HausPulse,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
-        } else {
-            metadataDevLines(metadata, file.durationMillis).forEach { (label, value) ->
+        } else when (rawResult) {
+            is TagReadResult.Found -> rawTagLines(rawResult.metadata).forEach { (label, value) ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -573,6 +587,18 @@ private fun DeveloperMetadataRow(file: ImportedAudioFile) {
                     )
                 }
             }
+            is TagReadResult.Unsupported -> Text(
+                text = "native: unsupported — ${rawResult.reason}",
+                color = HausPulse,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            is TagReadResult.Failed -> Text(
+                text = "native: failed — ${rawResult.reason}",
+                color = HausPulse,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
@@ -583,14 +609,31 @@ private val AudioSource.devLabel: String
         is AudioSource.Uri -> "uri:$value"
     }
 
-private fun metadataDevLines(metadata: AudioMetadata, fallbackDurationMillis: Long?): List<Pair<String, String>> {
-    val durationMillis = metadata.durationMillis ?: fallbackDurationMillis
-    return listOf(
-        "title" to (metadata.title ?: "—"),
-        "artist" to (metadata.artist ?: "—"),
-        "album" to (metadata.album ?: "—"),
-        "duration" to (durationMillis?.let { formatMillis(it) } ?: "—"),
-    )
+private fun rawTagLines(metadata: RawTagMetadata): List<Pair<String, String>> = listOf(
+    "title" to (metadata.title ?: "—"),
+    "artist" to (metadata.artist ?: "—"),
+    "album" to (metadata.album ?: "—"),
+    "albumArtist" to (metadata.albumArtist ?: "—"),
+    "genre" to (metadata.genre ?: "—"),
+    "year" to (metadata.year?.toString() ?: "—"),
+    "track" to trackDisplay(metadata.trackNumber, metadata.trackTotal),
+    "disc" to trackDisplay(metadata.discNumber, metadata.discTotal),
+    "duration" to (metadata.durationMillis?.let { formatMillis(it) } ?: "—"),
+    "bitrate" to (metadata.bitrate?.let { "${it}kbps" } ?: "—"),
+    "sampleRate" to (metadata.sampleRate?.let { "${it}Hz" } ?: "—"),
+    "channels" to (metadata.channels?.toString() ?: "—"),
+    "artwork" to artworkLabel(metadata.artwork),
+)
+
+private fun trackDisplay(number: Int?, total: Int?): String = when {
+    number != null && total != null -> "$number/$total"
+    number != null -> number.toString()
+    else -> "—"
+}
+
+private fun artworkLabel(artwork: com.eterocell.rhythhaus.taglib.EmbeddedArtwork?): String {
+    if (artwork == null) return "—"
+    return "${artwork.mimeType ?: "unknown"} · ${artwork.bytes.size}B"
 }
 
 @Composable
