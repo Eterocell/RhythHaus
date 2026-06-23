@@ -27,7 +27,7 @@ For the original import slice, derive track title from the file name/display nam
 Current platform state:
 
 - macOS/JVM: the JNI helper is built and loaded from JVM resources, links the RhythHaus shim against pinned upstream `github.com/taglib/taglib` v2.3 (`1b94b93762636ebe5733180c3e825be4621e4c7f`), and has a native fixture test for real metadata reads. Desktop runtime/DMG packaging remains a follow-up.
-- Android: Kotlin/JNI call shape exists, but Android native packaging is not enabled yet. The follow-up must build the same pinned upstream `github.com/taglib/taglib` v2.3 source with Android NDK/CMake per ABI and link those `libtag.a` outputs into packaged `librhythhaus_taglib.so` slices. Android imports continue to work with filename fallback and do not claim real metadata reads.
+- Android: Kotlin/JNI call shape exists and Android native packaging now builds the same pinned upstream `github.com/taglib/taglib` v2.3 source with Android NDK/CMake per ABI, links those `libtag.a` outputs into `librhythhaus_taglib.so` slices, and packages them into the TagLib AAR/Android debug APK. Content URI metadata still needs app-cache file handoff before rich metadata can be guaranteed for SAF imports.
 - iOS: the Kotlin actual honestly returns unsupported. The expected future layout is documented in `:taglib` Gradle comments and must come from the same pinned upstream `github.com/taglib/taglib` v2.3 source: device and simulator static libraries assembled into a `TagLib.xcframework`, then Kotlin/Native cinterop. No Kotlin/Native cinterop is committed until those native inputs exist and linking is verified.
 
 Rationale: ID3/metadata extraction differs by platform and codec, and TagLib is the intended parser. Keeping Kotlin at the wrapper/API layer avoids duplicating brittle tag parsers while preserving stable local import/playback fallback behavior.
@@ -35,7 +35,7 @@ Rationale: ID3/metadata extraction differs by platform and codec, and TagLib is 
 ## Risks
 
 - Android content URI permissions may not survive app restart until persistence is specified.
-- Android metadata reads require packaged native libraries built from pinned upstream `github.com/taglib/taglib` v2.3 and likely an app-cache file path handoff for content URIs before calling the path-oriented wrapper.
+- Android metadata reads now have packaged native libraries built from pinned upstream `github.com/taglib/taglib` v2.3, but still likely require an app-cache file path handoff for content URIs before calling the path-oriented wrapper.
 - iOS import remains a visible limitation until a document-picker bridge is planned.
 - iOS metadata reads require pinned upstream `github.com/taglib/taglib` v2.3 static libraries/XCFramework plus Kotlin/Native cinterop before support can be claimed.
 - macOS metadata reads use the pinned upstream TagLib v2.3 source build; later DMG packaging/codesigning review for native libraries remains.

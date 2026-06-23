@@ -2,10 +2,16 @@
 
 ## Current state
 
-Last updated: 2026-06-10
-Current change: project harness creation and initial shared UI slice; harness route updated to openspec+superpowers
+Last updated: 2026-06-11
+Current change: native TagLib metadata wrapper with JVM/macOS working; Android/iOS scaffolds honest
 Workflow route: openspec+superpowers
 State source of truth: OpenSpec for durable product changes; Superpowers for clarification/brainstorming/task execution discipline; this file for session continuity and verification evidence.
+
+## Subagent-driven execution outcome
+
+Used Subagent-Driven Development on docs/superpowers/plans/2026-06-11-taglib-metadata-module.md (native TagLib wrapper plan). Assessment subagent confirmed: Tasks 1-3 (module/API, C ABI shim, JVM/macOS JNI) are complete with pinned upstream TagLib v2.3 FetchContent builds and real fixture tests passing; Tasks 4/5 Android/iOS remaining as honest unsupported scaffolds; Task 6 shared integration complete; Task 7 OpenSpec/docs complete.
+
+Android native packaging subagent was dispatched but hit an HTTP 429 rate limit mid-task. Incomplete changes were cleaned up. The native TagLib Android NDK/CMake per-ABI builds remain the next feasible implementation gap.
 
 ## Completed
 
@@ -245,6 +251,7 @@ Next owner: implementation for Task 3 shared library domain models.
 Blockers: none.
 Commit: semantic commit with message `build: add library database setup`.
 
+
 ## Handoff - 2026-06-23 subagent-driven scanner/source access slice
 
 Route: openspec+superpowers
@@ -404,3 +411,25 @@ Changed files:
 - `progress.md`: recorded this runtime fix evidence.
 Next owner: user/implementation for manual macOS Control Center confirmation.
 Blockers: none for compile/test verification.
+
+## Handoff - 2026-06-23 Android TagLib native packaging completion
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Complete `feat/taglib-metadata-module` Android native TagLib packaging from the preserved Superpowers plan `docs/superpowers/plans/2026-06-11-taglib-metadata-module.md` and OpenSpec follow-up `openspec/changes/import-local-audio/tasks.md`.
+Implementation:
+- `taglib/build.gradle.kts` now builds pinned upstream `github.com/taglib/taglib` v2.3 commit `1b94b93762636ebe5733180c3e825be4621e4c7f` with Android NDK/CMake for `arm64-v8a`, `armeabi-v7a`, and `x86_64`.
+- Generated `librhythhaus_taglib.so` slices are copied into `taglib/src/androidMain/jniLibs/<abi>/` by `packageAndroidTagLibJniLibs`; `.gitignore` keeps generated binaries out of source control.
+- Android packaging hooks make TagLib Android JNI/native merge tasks depend on the native build/copy task.
+Verification:
+- `./gradlew :taglib:buildAllAndroidTagLibHelpers --configuration-cache`: pass; all three ABI helpers built.
+- `./gradlew :taglib:allTests --configuration-cache`: pass.
+- `./gradlew :taglib:assembleAndroidMain :androidApp:assembleDebug --configuration-cache`: pass.
+- `unzip -l taglib/build/outputs/aar/taglib.aar | grep 'librhythhaus_taglib.so'`: pass; AAR contains `jni/arm64-v8a`, `jni/armeabi-v7a`, and `jni/x86_64` slices.
+- `unzip -l androidApp/build/outputs/apk/debug/androidApp-debug.apk | grep 'librhythhaus_taglib.so'`: pass; APK contains `lib/arm64-v8a`, `lib/armeabi-v7a`, and `lib/x86_64` slices.
+Acceptance:
+- Requirement matched: Android native TagLib packaging from pinned upstream v2.3 is complete enough for AAR/APK packaging verification.
+- Scope controlled: no Kotlin metadata parser added; iOS remains honestly pending.
+- Remaining risk: Android content URI metadata still needs app-cache file path handoff and device/emulator runtime metadata validation before claiming end-to-end SAF rich metadata.
+Next owner: implementation for Android content-URI-to-file handoff/runtime validation, or iOS TagLib XCFramework/cinterop packaging.
+Blockers: none for Android native library packaging; iOS rich metadata support remains blocked on native static library/XCFramework/cinterop work.

@@ -150,7 +150,7 @@ Artwork can be a follow-up because TagLib artwork extraction differs by format-s
 
 ## Platform strategy
 
-Current implementation note: JVM/macOS now uses native/CMake FetchContent to fetch, pin, build, and link upstream `https://github.com/taglib/taglib` v2.3 at commit `1b94b93762636ebe5733180c3e825be4621e4c7f`, then verifies the JNI path with a native fixture test. Android and iOS are still scaffolds; their next build work must reuse that same pinned upstream source rather than adding a TagLib replacement, custom metadata parser, or unrelated native library.
+Current implementation note: JVM/macOS now uses native/CMake FetchContent to fetch, pin, build, and link upstream `https://github.com/taglib/taglib` v2.3 at commit `1b94b93762636ebe5733180c3e825be4621e4c7f`, then verifies the JNI path with a native fixture test. Android now builds the same pinned upstream source with the Android NDK per ABI and packages `librhythhaus_taglib.so` slices into the TagLib AAR/Android debug APK. iOS remains an honest unsupported scaffold; its next build work must reuse that same pinned upstream source rather than adding a TagLib replacement, custom metadata parser, or unrelated native library.
 
 ### Android
 
@@ -161,7 +161,7 @@ Recommended first implementation:
 - Reuse the native/CMake FetchContent-pinned upstream TagLib version/commit (`v2.3`, `1b94b93762636ebe5733180c3e825be4621e4c7f`) and add an Android NDK toolchain CMake configure/build step per ABI.
 - Expected build layout: `taglib/build/native/taglib-android-<abi>-build-v2.3`, with upstream TagLib produced by the native CMake build.
 - Build and package each ABI's `librhythhaus_taglib.so` slice from upstream TagLib plus `native/src/rh_taglib.cpp` and `native/jni/rh_taglib_jni.cpp`.
-- Keep Android metadata reads unsupported until those per-ABI builds are wired, packaged, loaded, and tested on device/emulator.
+- Android native helper builds are wired and packaged; content-URI rich metadata still needs an app-cache file path handoff and runtime/device validation before claiming end-to-end SAF import metadata.
 - Kotlin Android actual calls JNI functions in `androidMain`.
 
 Kotlin surface:
@@ -422,10 +422,10 @@ Record exact results in `progress.md`.
 
 ## Current next safe action
 
-Link and package pinned upstream TagLib v2.3 builds per platform before claiming complete rich metadata support:
+Continue platform completion without adding Kotlin metadata parsers:
 
 1. macOS/JVM: keep building pinned upstream TagLib v2.3 into static `libtag.a`, link `librhythhaus_taglib.dylib`, and complete desktop runtime/DMG packaging review.
-2. Android: build the same pinned upstream TagLib v2.3 source with Android NDK/CMake per ABI, then package `librhythhaus_taglib.so` slices that link the upstream `libtag.a` outputs.
+2. Android: keep the same pinned upstream TagLib v2.3 NDK/CMake per-ABI build, verify packaged `librhythhaus_taglib.so` slices in AAR/APK, then add content-URI-to-file handoff and runtime/device metadata validation.
 3. iOS: build the same pinned upstream TagLib v2.3 source into device/simulator static libraries, assemble `TagLib.xcframework`, then commit Kotlin/Native cinterop wiring and replace the honest unsupported scaffold only after device/simulator linking is verified.
 
 Do not add Kotlin ID3/FLAC/MP4 parsers.
