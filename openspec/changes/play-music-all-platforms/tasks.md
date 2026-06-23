@@ -19,14 +19,16 @@
 - [x] 3.2 Add Android-specific Media3/ExoPlayer engine implementation for one supported local/imported audio source.
 - [x] 3.3 Wire Android lifecycle/resource release enough to avoid player leaks during Activity/app disposal.
 - [x] 3.4 Replace Android `MediaPlayer` spike with Media3/ExoPlayer behind the shared playback engine contract.
-- [ ] 3.5 Verify Android debug build and, when device/emulator is available, manually confirm foreground play/pause/seek.
+- [x] 3.5 Add Android Media3 session/metadata wiring so Android system media controls can display current track information and transport controls during playback.
+- [ ] 3.6 Verify Android debug build and, when device/emulator is available, manually confirm foreground play/pause/seek/system media controls.
 
 ## 4. iOS playback spike and implementation
 
 - [x] 4.1 Decide iOS implementation path: native Apple audio backend. Current Kotlin/Native AVFAudio `AVAudioPlayer` interop is native and acceptable for simple imported local-file foreground playback; AVFoundation `AVPlayer` or Swift bridge remains a follow-up decision for richer document/media-library integration.
 - [x] 4.2 Add iOS-specific engine implementation for one supported local/sample audio source.
 - [x] 4.3 Configure foreground audio-session behavior needed for in-app playback without claiming background playback support.
-- [ ] 4.4 Verify iOS simulator shared tests and, when simulator/device playback is available, manually confirm foreground play/pause/seek.
+- [x] 4.4 Add iOS Now Playing metadata wiring so iOS system media controls can display current track information and transport controls during playback.
+- [ ] 4.5 Verify iOS simulator shared tests and, when simulator/device playback is available, manually confirm foreground play/pause/seek/system media controls.
 
 ## 5. macOS/JVM playback spike and implementation
 
@@ -37,7 +39,8 @@
 - [x] 5.5 Replace the temporary JNA bridge with a small Objective-C++/JNI helper library so JVM code calls a typed native C ABI surface instead of Objective-C runtime selectors.
 - [x] 5.6 Package the native macOS helper as a JVM resource and verify the shared JVM test loads it.
 - [x] 5.7 Add regression coverage and fix macOS/JVM playback so progress is emitted periodically while audio is playing.
-- [ ] 5.8 Manually confirm foreground play/pause/seek on macOS.
+- [x] 5.8 Add macOS Now Playing metadata wiring through the native helper so macOS system media controls can display current track information and transport controls during playback.
+- [ ] 5.9 Manually confirm foreground play/pause/seek/system media controls on macOS.
 
 ## 6. Cross-platform integration and acceptance
 

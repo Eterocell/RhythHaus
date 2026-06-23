@@ -6,6 +6,12 @@ import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.setActive
 import platform.Foundation.NSURL
+import platform.MediaPlayer.MPMediaItemPropertyAlbumTitle
+import platform.MediaPlayer.MPMediaItemPropertyArtist
+import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
+import platform.MediaPlayer.MPMediaItemPropertyTitle
+import platform.MediaPlayer.MPNowPlayingInfoCenter
+import platform.MediaPlayer.MPNowPlayingInfoPropertyElapsedPlaybackTime
 
 actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = IOSPlaybackEngine()
 
@@ -13,6 +19,7 @@ actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = IOSPlaybackE
 private class IOSPlaybackEngine : PlatformPlaybackEngine {
     override var listener: PlaybackEngineListener? = null
     private var player: AVAudioPlayer? = null
+    private var loadedTrack: PlayableTrack? = null
     private var durationMillis: Long? = null
 
     override fun load(track: PlayableTrack) {
@@ -22,7 +29,9 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         val audioPlayer = AVAudioPlayer(contentsOfURL = track.source.iosUrl(), error = null)
         audioPlayer.prepareToPlay()
         player = audioPlayer
+        loadedTrack = track
         durationMillis = track.durationMillis ?: (audioPlayer.duration * 1_000.0).toLong().takeIf { it > 0L }
+        updateNowPlayingInfo(positionMillis = 0L)
         listener?.onPlaybackProgress(0L, durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
     }
@@ -30,6 +39,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     override fun play() {
         val audioPlayer = requireNotNull(player) { "No iOS player has been loaded" }
         audioPlayer.play()
+        updateNowPlayingInfo(positionMillis = (audioPlayer.currentTime * 1_000.0).toLong())
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
         listener?.onPlaybackProgress((audioPlayer.currentTime * 1_000.0).toLong(), durationMillis)
     }
@@ -37,6 +47,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     override fun pause() {
         val audioPlayer = player
         audioPlayer?.pause()
+        updateNowPlayingInfo(positionMillis = ((audioPlayer?.currentTime ?: 0.0) * 1_000.0).toLong())
         listener?.onPlaybackProgress(((audioPlayer?.currentTime ?: 0.0) * 1_000.0).toLong(), durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
     }
@@ -45,19 +56,23 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         val audioPlayer = player
         audioPlayer?.stop()
         audioPlayer?.currentTime = 0.0
+        updateNowPlayingInfo(positionMillis = 0L)
         listener?.onPlaybackProgress(0L, durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Stopped)
     }
 
     override fun seekTo(positionMillis: Long) {
         player?.currentTime = positionMillis.toDouble() / 1_000.0
+        updateNowPlayingInfo(positionMillis = positionMillis)
         listener?.onPlaybackProgress(positionMillis, durationMillis)
     }
 
     override fun release() {
         player?.stop()
         player = null
+        loadedTrack = null
         durationMillis = null
+        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
     }
 
     private fun configureAudioSession() {
@@ -65,6 +80,35 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         session.setCategory(AVAudioSessionCategoryPlayback, error = null)
         session.setActive(true, error = null)
     }
+
+    private fun updateNowPlayingInfo(positionMillis: Long) {
+        val track = loadedTrack ?: return
+        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = buildIOSNowPlayingDictionary(track, positionMillis, durationMillis)
+    }
+}
+
+internal fun buildIOSNowPlayingInfo(
+    track: PlayableTrack,
+    positionMillis: Long,
+    durationMillis: Long?,
+): Map<String, Any> = buildMap {
+    put("title", track.title)
+    put("artist", track.artist)
+    track.album?.let { put("albumTitle", it) }
+    durationMillis?.let { put("durationSeconds", it.toDouble() / 1_000.0) }
+    put("elapsedSeconds", positionMillis.coerceAtLeast(0L).toDouble() / 1_000.0)
+}
+
+private fun buildIOSNowPlayingDictionary(
+    track: PlayableTrack,
+    positionMillis: Long,
+    durationMillis: Long?,
+): Map<Any?, Any?> = buildMap {
+    put(MPMediaItemPropertyTitle, track.title)
+    put(MPMediaItemPropertyArtist, track.artist)
+    track.album?.let { put(MPMediaItemPropertyAlbumTitle, it) }
+    durationMillis?.let { put(MPMediaItemPropertyPlaybackDuration, it.toDouble() / 1_000.0) }
+    put(MPNowPlayingInfoPropertyElapsedPlaybackTime, positionMillis.coerceAtLeast(0L).toDouble() / 1_000.0)
 }
 
 private fun AudioSource.iosUrl(): NSURL = when (this) {

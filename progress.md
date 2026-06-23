@@ -284,3 +284,123 @@ Changed files:
 - `progress.md`: recorded this handoff evidence.
 Next owner: implementation for platform-focused tests where practical and shared library manager UI tasks 5.1-5.4.
 Blockers: none for this slice; full completion still requires UI integration, platform-focused tests, full `./init.sh`, and final OpenSpec archival.
+
+## Handoff - 2026-06-23 Android Media3 system controls slice
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: user-requested Android platform audio API/control-panel slice for `play-music-all-platforms`; no iOS/macOS media-control changes and no long-running background playback claim.
+Implementation:
+- Added Media3 Session dependency for Android shared playback.
+- Wrapped the active Android ExoPlayer in a Media3 `MediaSession` and released it with the player.
+- Built Android Media3 `MediaItem`/`MediaMetadata` from shared `PlayableTrack` title, artist, album, id, and source so Android system media controls can show current track information and transport controls.
+- Added Android host regression coverage for the metadata exposed to platform controls.
+- Updated OpenSpec design/spec/tasks for the Android system media-controls scope while keeping background playback out of scope.
+Verification:
+- `./gradlew :shared:testAndroidHostTest --tests 'com.eterocell.rhythhaus.AndroidPlaybackMediaSessionTest' --configuration-cache`: initial RED failed on missing helper, then pass after implementation; final Gradle run reported `BUILD SUCCESSFUL`.
+- `openspec validate play-music-all-platforms --strict`: pass; output `Change 'play-music-all-platforms' is valid`.
+- `./gradlew :shared:testAndroidHostTest --tests 'com.eterocell.rhythhaus.AndroidPlaybackMediaSessionTest' :androidApp:assembleDebug --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`.
+Acceptance:
+- Requirement matched: yes for Android platform media session/metadata wiring to support system control-panel display and transport controls during playback.
+- Scope controlled: yes; no foreground service, notification-service manifest, iOS Now Playing, macOS remote controls, or background playback support was added.
+- Edge cases/risk reviewed: emulator/device manual validation is still required to visually confirm Android control-panel rendering with a real playable local file.
+Changed files:
+- `gradle/libs.versions.toml`: Media3 Session alias.
+- `shared/build.gradle.kts`: Android Media3 Session dependency.
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.android.kt`: MediaSession lifecycle and track metadata MediaItem construction.
+- `shared/src/androidHostTest/kotlin/com/eterocell/rhythhaus/AndroidPlaybackMediaSessionTest.kt`: Android metadata regression test.
+- `openspec/changes/play-music-all-platforms/design.md`: Android system media-controls scope and non-goal adjustment.
+- `openspec/changes/play-music-all-platforms/specs/audio-playback/spec.md`: Android system controls scenario.
+- `openspec/changes/play-music-all-platforms/tasks.md`: completed Android media-session task and remaining manual device check.
+- `progress.md`: recorded this handoff evidence.
+Next owner: implementation/user for Android emulator/device manual validation with real playback and system control-panel observation.
+Blockers: none for compile/test verification; visual Android control-panel confirmation requires an emulator/device playback session.
+
+## Handoff - 2026-06-23 all-platform system media controls correction
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: correction to extend the platform media-control slice beyond Android to all first platforms: Android, iOS, and macOS. No long-running background playback service/notification support was added.
+Implementation:
+- iOS `AVAudioPlayer` engine now updates and clears `MPNowPlayingInfoCenter` with title, artist, album, elapsed time, and duration on load/play/pause/stop/seek/release.
+- macOS/JVM AVFoundation helper now links `MediaPlayer.framework`, exposes JNI methods for Now Playing metadata/position/clear operations, and updates `MPNowPlayingInfoCenter` through the Objective-C++ helper.
+- Android Media3 session/metadata wiring from the prior slice remains in place.
+- Added focused iOS and macOS/JVM tests for the new metadata seams.
+- Updated OpenSpec design/spec/tasks to describe platform system media controls across Android, iOS, and macOS rather than Android only.
+Verification:
+- `./gradlew :shared:iosSimulatorArm64Test --tests 'com.eterocell.rhythhaus.IOSNowPlayingInfoTest' --configuration-cache`: initial RED failed on missing `buildIOSNowPlayingInfo`, then pass after implementation; final Gradle run reported `BUILD SUCCESSFUL`.
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest.macOSNowPlayingInfoUpdateAcceptsTrackMetadata' --configuration-cache`: initial RED failed on missing bridge methods, then failed once on missing `MediaPlayer.framework` link, then pass after linking; final Gradle run reported `BUILD SUCCESSFUL`.
+- `openspec validate play-music-all-platforms --strict`: pass; output `Change 'play-music-all-platforms' is valid`.
+- `./gradlew :shared:jvmTest :shared:iosSimulatorArm64Test :shared:testAndroidHostTest --tests 'com.eterocell.rhythhaus.AndroidPlaybackMediaSessionTest' :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`.
+Acceptance:
+- Requirement matched: yes for platform-native media information/control seams on Android, iOS, and macOS foreground playback sessions.
+- Scope controlled: yes; no streaming, background playback guarantee, Android foreground-service notification, iOS background mode, or macOS menu-bar/remote-control UI was added.
+- Edge cases/risk reviewed: real system media-control rendering still requires manual validation on Android device/emulator, iOS simulator/device Control Center, and macOS Now Playing/Control Center with a real local audio file.
+Changed files:
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt`: iOS Now Playing metadata lifecycle.
+- `shared/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSNowPlayingInfoTest.kt`: iOS metadata regression test.
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt`: macOS bridge calls for Now Playing metadata/position.
+- `shared/src/nativeInterop/macos/rhythhaus_audio.mm`: macOS `MPNowPlayingInfoCenter` native helper implementation.
+- `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/JvmPlaybackEngineTest.kt`: macOS bridge metadata regression test.
+- `shared/build.gradle.kts`: links macOS helper with `MediaPlayer.framework` and keeps Android Media3 Session dependency.
+- `openspec/changes/play-music-all-platforms/design.md`: all-platform media-controls design update.
+- `openspec/changes/play-music-all-platforms/specs/audio-playback/spec.md`: iOS/macOS system media-controls scenarios.
+- `openspec/changes/play-music-all-platforms/tasks.md`: iOS/macOS media-controls tasks and manual validation follow-ups.
+- `progress.md`: recorded this correction handoff evidence.
+Next owner: implementation/user for manual platform validation with real playback on Android, iOS, and macOS.
+Blockers: none for compile/test verification; visual system media-control confirmation requires platform runtime sessions.
+
+## Handoff - 2026-06-23 macOS Now Playing visibility fix
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: macOS-specific fix after manual runtime feedback that metadata did not appear in macOS Control Center while music was playing.
+Root cause:
+- The native helper populated `MPNowPlayingInfoCenter.nowPlayingInfo`, but did not set `MPNowPlayingInfoCenter.playbackState` or `MPNowPlayingInfoPropertyPlaybackRate` during play/pause/stop transitions. macOS Control Center can treat metadata-only updates as inactive, so the session may not surface while playing.
+Implementation:
+- Added macOS bridge playback-state update API and regression coverage.
+- `MacOSNativePlaybackEngine` now updates native Now Playing playback state on play, pause, and stop.
+- Objective-C++ helper now sets `MPNowPlayingInfoCenter.playbackState` and `MPNowPlayingInfoPropertyPlaybackRate`, and clears state on release.
+Verification:
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest.macOSNowPlayingPlaybackStateUpdatesForControlCenterVisibility' --configuration-cache`: initial RED failed on missing bridge method, then pass after implementation; Gradle reported `BUILD SUCCESSFUL`.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`.
+- `openspec validate play-music-all-platforms --strict`: pass; output `Change 'play-music-all-platforms' is valid`.
+Acceptance:
+- Requirement matched: yes for the identified missing macOS active playback-state signal needed by system media controls.
+- Scope controlled: yes; no unrelated platform changes or background playback service support added in this fix.
+- Remaining risk: visual confirmation still requires running desktop playback with a real audio file and checking macOS Control Center/Now Playing UI.
+Changed files:
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt`: playback-state bridge calls and status mapping.
+- `shared/src/nativeInterop/macos/rhythhaus_audio.mm`: native playback state/rate updates.
+- `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/JvmPlaybackEngineTest.kt`: macOS playback-state regression test.
+- `progress.md`: recorded this bugfix evidence.
+Next owner: user/implementation for manual macOS Control Center confirmation.
+Blockers: none for compile/test verification.
+
+## Handoff - 2026-06-23 macOS remote command registration fix
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: second macOS-specific runtime fix after Control Center still did not show media information with metadata plus playback state/rate.
+Root cause hypothesis:
+- Metadata fields were not the likely weak point: title, artist, album, duration, elapsed time, playback rate, and playback state were already populated. The missing native seam was `MPRemoteCommandCenter` registration, so macOS may not classify the JVM process as a controllable Now Playing media session.
+Implementation:
+- Added `MacAudioPlayerBridge.registerNowPlayingRemoteCommands()` and calls it when a macOS track is loaded.
+- Native helper now enables play, pause, toggle play/pause, stop, and change playback position commands via `MPRemoteCommandCenter` and maps them to the active `AVAudioPlayer`.
+- Added focused JVM regression coverage for remote command registration.
+Verification:
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest.macOSNowPlayingRegistersRemoteCommandsForControlCenter' --configuration-cache`: initial RED failed on missing bridge method, then pass after implementation; Gradle reported `BUILD SUCCESSFUL`.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin --configuration-cache`: pass; Gradle reported `BUILD SUCCESSFUL`.
+- `openspec validate play-music-all-platforms --strict`: pass; output `Change 'play-music-all-platforms' is valid`.
+Acceptance:
+- Requirement matched: yes for the missing native remote-command/control registration needed for macOS Control Center discoverability.
+- Scope controlled: yes; fix is limited to the macOS native helper/JVM bridge and tests.
+- Remaining risk: visual confirmation still requires running desktop playback and checking macOS Control Center/Now Playing UI.
+Changed files:
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt`: registers remote commands when loading a track.
+- `shared/src/nativeInterop/macos/rhythhaus_audio.mm`: registers `MPRemoteCommandCenter` handlers.
+- `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/JvmPlaybackEngineTest.kt`: remote-command registration regression test.
+- `progress.md`: recorded this runtime fix evidence.
+Next owner: user/implementation for manual macOS Control Center confirmation.
+Blockers: none for compile/test verification.

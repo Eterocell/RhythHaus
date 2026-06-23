@@ -1,10 +1,12 @@
 #import <AVFoundation/AVFoundation.h>
 #import <Foundation/Foundation.h>
+#import <MediaPlayer/MediaPlayer.h>
 
 #include <jni.h>
 
 @interface RhythHausAudioPlayer : NSObject
 @property(nonatomic, strong) AVAudioPlayer *player;
+@property(nonatomic, assign) BOOL remoteCommandsRegistered;
 @end
 
 @implementation RhythHausAudioPlayer
@@ -52,6 +54,107 @@
         return 0;
     }
     return (jlong)(self.player.duration * 1000.0);
+}
+
+- (void)updateNowPlayingTitle:(NSString *)title artist:(NSString *)artist album:(NSString *)album durationMillis:(jlong)durationMillis positionMillis:(jlong)positionMillis {
+    NSMutableDictionary *info = [NSMutableDictionary dictionary];
+    if (title.length > 0) {
+        info[MPMediaItemPropertyTitle] = title;
+    }
+    if (artist.length > 0) {
+        info[MPMediaItemPropertyArtist] = artist;
+    }
+    if (album.length > 0) {
+        info[MPMediaItemPropertyAlbumTitle] = album;
+    }
+    if (durationMillis > 0) {
+        info[MPMediaItemPropertyPlaybackDuration] = @(((double)durationMillis) / 1000.0);
+    }
+    info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(((double)MAX((jlong)0, positionMillis)) / 1000.0);
+    info[MPNowPlayingInfoPropertyPlaybackRate] = @(self.player.isPlaying ? 1.0 : 0.0);
+    [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = info;
+}
+
+- (void)updateNowPlayingPositionMillis:(jlong)positionMillis durationMillis:(jlong)durationMillis {
+    NSMutableDictionary *info = [[MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo mutableCopy];
+    if (info == nil) {
+        return;
+    }
+    info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(((double)MAX((jlong)0, positionMillis)) / 1000.0);
+    if (durationMillis > 0) {
+        info[MPMediaItemPropertyPlaybackDuration] = @(((double)durationMillis) / 1000.0);
+    }
+    info[MPNowPlayingInfoPropertyPlaybackRate] = @(self.player.isPlaying ? 1.0 : 0.0);
+    [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = info;
+}
+
+- (void)updateNowPlayingPlaybackStateCode:(jint)playbackStateCode {
+    MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
+    NSMutableDictionary *info = [center.nowPlayingInfo mutableCopy] ?: [NSMutableDictionary dictionary];
+    if (playbackStateCode == 1) {
+        center.playbackState = MPNowPlayingPlaybackStatePlaying;
+        info[MPNowPlayingInfoPropertyPlaybackRate] = @(1.0);
+    } else if (playbackStateCode == 2) {
+        center.playbackState = MPNowPlayingPlaybackStatePaused;
+        info[MPNowPlayingInfoPropertyPlaybackRate] = @(0.0);
+    } else {
+        center.playbackState = MPNowPlayingPlaybackStateStopped;
+        info[MPNowPlayingInfoPropertyPlaybackRate] = @(0.0);
+    }
+    center.nowPlayingInfo = info;
+}
+
+- (void)registerRemoteCommands {
+    if (self.remoteCommandsRegistered) {
+        return;
+    }
+    self.remoteCommandsRegistered = YES;
+    MPRemoteCommandCenter *commandCenter = [MPRemoteCommandCenter sharedCommandCenter];
+    commandCenter.playCommand.enabled = YES;
+    commandCenter.pauseCommand.enabled = YES;
+    commandCenter.togglePlayPauseCommand.enabled = YES;
+    commandCenter.stopCommand.enabled = YES;
+    commandCenter.changePlaybackPositionCommand.enabled = YES;
+
+    __weak RhythHausAudioPlayer *weakSelf = self;
+    [commandCenter.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
+        RhythHausAudioPlayer *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
+        return [strongSelf play] ? MPRemoteCommandHandlerStatusSuccess : MPRemoteCommandHandlerStatusCommandFailed;
+    }];
+    [commandCenter.pauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
+        RhythHausAudioPlayer *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
+        [strongSelf pause];
+        return MPRemoteCommandHandlerStatusSuccess;
+    }];
+    [commandCenter.togglePlayPauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
+        RhythHausAudioPlayer *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
+        if (strongSelf.player.isPlaying) {
+            [strongSelf pause];
+            return MPRemoteCommandHandlerStatusSuccess;
+        }
+        return [strongSelf play] ? MPRemoteCommandHandlerStatusSuccess : MPRemoteCommandHandlerStatusCommandFailed;
+    }];
+    [commandCenter.stopCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
+        RhythHausAudioPlayer *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
+        [strongSelf stop];
+        return MPRemoteCommandHandlerStatusSuccess;
+    }];
+    [commandCenter.changePlaybackPositionCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+        RhythHausAudioPlayer *strongSelf = weakSelf;
+        if (strongSelf == nil || strongSelf.player == nil || ![event isKindOfClass:[MPChangePlaybackPositionCommandEvent class]]) return MPRemoteCommandHandlerStatusNoSuchContent;
+        MPChangePlaybackPositionCommandEvent *positionEvent = (MPChangePlaybackPositionCommandEvent *)event;
+        [strongSelf seekToMillis:(jlong)(positionEvent.positionTime * 1000.0)];
+        return MPRemoteCommandHandlerStatusSuccess;
+    }];
+}
+
+- (void)clearNowPlayingInfo {
+    [MPNowPlayingInfoCenter defaultCenter].playbackState = MPNowPlayingPlaybackStateStopped;
+    [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = nil;
 }
 
 @end
@@ -104,9 +207,49 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBr
     return [playerFromHandle(handle) durationMillis];
 }
 
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeUpdateNowPlayingInfo(JNIEnv *env, jobject, jlong handle, jstring title, jstring artist, jstring album, jlong durationMillis, jlong positionMillis) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    if (player == nil) {
+        return;
+    }
+    const char *utfTitle = title == NULL ? NULL : env->GetStringUTFChars(title, NULL);
+    const char *utfArtist = artist == NULL ? NULL : env->GetStringUTFChars(artist, NULL);
+    const char *utfAlbum = album == NULL ? NULL : env->GetStringUTFChars(album, NULL);
+    NSString *nsTitle = utfTitle == NULL ? @"" : [NSString stringWithUTF8String:utfTitle];
+    NSString *nsArtist = utfArtist == NULL ? @"" : [NSString stringWithUTF8String:utfArtist];
+    NSString *nsAlbum = utfAlbum == NULL ? nil : [NSString stringWithUTF8String:utfAlbum];
+    [player updateNowPlayingTitle:nsTitle artist:nsArtist album:nsAlbum durationMillis:durationMillis positionMillis:positionMillis];
+    if (utfTitle != NULL) {
+        env->ReleaseStringUTFChars(title, utfTitle);
+    }
+    if (utfArtist != NULL) {
+        env->ReleaseStringUTFChars(artist, utfArtist);
+    }
+    if (utfAlbum != NULL) {
+        env->ReleaseStringUTFChars(album, utfAlbum);
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeUpdateNowPlayingPosition(JNIEnv *, jobject, jlong handle, jlong positionMillis, jlong durationMillis) {
+    [playerFromHandle(handle) updateNowPlayingPositionMillis:positionMillis durationMillis:durationMillis];
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeUpdateNowPlayingPlaybackState(JNIEnv *, jobject, jlong handle, jint playbackStateCode) {
+    [playerFromHandle(handle) updateNowPlayingPlaybackStateCode:playbackStateCode];
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeRegisterNowPlayingRemoteCommands(JNIEnv *, jobject, jlong handle) {
+    [playerFromHandle(handle) registerRemoteCommands];
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeClearNowPlayingInfo(JNIEnv *, jobject, jlong handle) {
+    [playerFromHandle(handle) clearNowPlayingInfo];
+}
+
 extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeRelease(JNIEnv *, jobject, jlong handle) {
     RhythHausAudioPlayer *player = playerFromHandle(handle);
     if (player != nil) {
+        [player clearNowPlayingInfo];
         [player stop];
         CFRelease((__bridge CFTypeRef)player);
     }

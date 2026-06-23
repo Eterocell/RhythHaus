@@ -20,6 +20,7 @@ val buildMacosAudioHelper by tasks.registering(Exec::class) {
         "-fobjc-arc",
         "-framework", "Foundation",
         "-framework", "AVFoundation",
+        "-framework", "MediaPlayer",
         "-I$javaHomePath/include",
         "-I$javaHomePath/include/darwin",
         macosAudioHelperSourceFile.absolutePath,
@@ -79,6 +80,7 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.documentfile)
             implementation(libs.androidx.media3.exoplayer)
+            implementation(libs.androidx.media3.session)
             implementation(libs.sqldelight.android.driver)
         }
         jvmMain {

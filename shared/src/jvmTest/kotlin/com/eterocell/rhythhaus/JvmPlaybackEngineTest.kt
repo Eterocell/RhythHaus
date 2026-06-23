@@ -14,6 +14,45 @@ import java.util.concurrent.TimeUnit
 
 class JvmPlaybackEngineTest {
     @Test
+    fun macOSNowPlayingInfoUpdateAcceptsTrackMetadata() {
+        val bridge = MacAudioPlayerBridge()
+        try {
+            bridge.updateNowPlayingInfo(
+                title = "Night Drive",
+                artist = "Rhyth Haus",
+                album = "Local Sessions",
+                durationMillis = 181_000L,
+                positionMillis = 42_000L,
+            )
+            bridge.clearNowPlayingInfo()
+        } finally {
+            bridge.releasePlayer()
+        }
+    }
+
+    @Test
+    fun macOSNowPlayingPlaybackStateUpdatesForControlCenterVisibility() {
+        val bridge = MacAudioPlayerBridge()
+        try {
+            bridge.updateNowPlayingPlaybackState(PlaybackStatus.Playing)
+            bridge.updateNowPlayingPlaybackState(PlaybackStatus.Paused)
+            bridge.updateNowPlayingPlaybackState(PlaybackStatus.Stopped)
+        } finally {
+            bridge.releasePlayer()
+        }
+    }
+
+    @Test
+    fun macOSNowPlayingRegistersRemoteCommandsForControlCenter() {
+        val bridge = MacAudioPlayerBridge()
+        try {
+            bridge.registerNowPlayingRemoteCommands()
+        } finally {
+            bridge.releasePlayer()
+        }
+    }
+
+    @Test
     fun nativeMacPlaybackEngineLoadsGeneratedWavFile() {
         val wavPath = createSilentWavFile()
         val engine = createPlatformPlaybackEngine()

@@ -26,12 +26,15 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
         val loaded = bridge.load(track.source.jvmFile().absolutePath)
         require(loaded) { "Could not load native macOS audio player" }
         durationMillis = track.durationMillis ?: bridge.durationMillis().takeIf { it > 0L }
+        bridge.registerNowPlayingRemoteCommands()
+        bridge.updateNowPlayingInfo(track.title, track.artist, track.album, durationMillis, positionMillis = 0L)
         listener?.onPlaybackProgress(0L, durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
     }
 
     override fun play() {
         require(bridge.play()) { "No native macOS player has been loaded" }
+        bridge.updateNowPlayingPlaybackState(PlaybackStatus.Playing)
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
         publishProgress()
         startProgressUpdates()
@@ -40,6 +43,7 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
     override fun pause() {
         stopProgressUpdates()
         bridge.pause()
+        bridge.updateNowPlayingPlaybackState(PlaybackStatus.Paused)
         publishProgress()
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
     }
@@ -47,6 +51,7 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
     override fun stop() {
         stopProgressUpdates()
         bridge.stop()
+        bridge.updateNowPlayingPlaybackState(PlaybackStatus.Stopped)
         listener?.onPlaybackProgress(0L, durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Stopped)
     }
@@ -79,9 +84,12 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
     }
 
     private fun publishProgress() {
+        val positionMillis = bridge.currentPositionMillis().coerceAtLeast(0L)
+        val latestDurationMillis = bridge.durationMillis().takeIf { it > 0L } ?: durationMillis
+        bridge.updateNowPlayingPosition(positionMillis, latestDurationMillis)
         listener?.onPlaybackProgress(
-            positionMillis = bridge.currentPositionMillis().coerceAtLeast(0L),
-            durationMillis = bridge.durationMillis().takeIf { it > 0L } ?: durationMillis,
+            positionMillis = positionMillis,
+            durationMillis = latestDurationMillis,
         )
     }
 }
@@ -96,6 +104,18 @@ internal class MacAudioPlayerBridge {
     fun seekTo(positionMillis: Long) = nativeSeekTo(requireHandle(), positionMillis)
     fun currentPositionMillis(): Long = nativeCurrentPositionMillis(requireHandle())
     fun durationMillis(): Long = nativeDurationMillis(requireHandle())
+    fun updateNowPlayingInfo(
+        title: String,
+        artist: String,
+        album: String?,
+        durationMillis: Long?,
+        positionMillis: Long,
+    ) = nativeUpdateNowPlayingInfo(requireHandle(), title, artist, album, durationMillis ?: 0L, positionMillis)
+    fun updateNowPlayingPosition(positionMillis: Long, durationMillis: Long?) =
+        nativeUpdateNowPlayingPosition(requireHandle(), positionMillis, durationMillis ?: 0L)
+    fun updateNowPlayingPlaybackState(status: PlaybackStatus) = nativeUpdateNowPlayingPlaybackState(requireHandle(), status.macosPlaybackStateCode())
+    fun registerNowPlayingRemoteCommands() = nativeRegisterNowPlayingRemoteCommands(requireHandle())
+    fun clearNowPlayingInfo() = nativeClearNowPlayingInfo(requireHandle())
 
     fun resetPlayer() {
         if (handle != 0L) {
@@ -129,6 +149,11 @@ internal class MacAudioPlayerBridge {
     private external fun nativeSeekTo(handle: Long, positionMillis: Long)
     private external fun nativeCurrentPositionMillis(handle: Long): Long
     private external fun nativeDurationMillis(handle: Long): Long
+    private external fun nativeUpdateNowPlayingInfo(handle: Long, title: String, artist: String, album: String?, durationMillis: Long, positionMillis: Long)
+    private external fun nativeUpdateNowPlayingPosition(handle: Long, positionMillis: Long, durationMillis: Long)
+    private external fun nativeUpdateNowPlayingPlaybackState(handle: Long, playbackStateCode: Int)
+    private external fun nativeRegisterNowPlayingRemoteCommands(handle: Long)
+    private external fun nativeClearNowPlayingInfo(handle: Long)
     private external fun nativeRelease(handle: Long)
 
     companion object {
@@ -136,6 +161,12 @@ internal class MacAudioPlayerBridge {
             MacAudioNativeLibrary.load()
         }
     }
+}
+
+private fun PlaybackStatus.macosPlaybackStateCode(): Int = when (this) {
+    PlaybackStatus.Playing -> 1
+    PlaybackStatus.Paused -> 2
+    else -> 0
 }
 
 private object MacAudioNativeLibrary {

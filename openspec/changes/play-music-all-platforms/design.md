@@ -18,7 +18,7 @@ This change plans foreground playback of supported local tracks through a shared
 **Non-Goals:**
 
 - Background playback.
-- Lock-screen controls / Android notification controls / iOS Now Playing center.
+- Long-running background playback services or persistent media notifications beyond foreground playback sessions.
 - Playlist management beyond a simple in-memory queue.
 - Streaming or network audio.
 - Equalizer, audio effects, gapless playback, crossfade, lyrics, or visualizers.
@@ -111,6 +111,8 @@ First-slice format support is intentionally conservative:
 - No sample/demo playback fallback should be used; playback should load real imported or scanned local audio sources.
 
 Rationale: The initial Java Sound and MediaPlayer choices were dependency-light first-slice spikes to prove the shared controller/UI seams. The implementation has now moved Android to Media3/ExoPlayer and macOS to a native AVFoundation-backed Objective-C++/JNI helper while keeping the shared controller boundary unchanged. iOS continues to use native Apple audio APIs through Kotlin/Native AVFAudio interop.
+
+Platform system media controls: Android owns a Media3 `MediaSession` around the active ExoPlayer and loads each track with Media3 `MediaMetadata` from the shared `PlayableTrack`; iOS updates `MPNowPlayingInfoCenter` from the `AVAudioPlayer`-backed engine; macOS updates `MPNowPlayingInfoCenter` through the existing AVFoundation Objective-C++/JNI helper. This exposes the current title, artist, album, elapsed time, duration, and transport controls where the platform provides them while keeping the product UI in shared Compose. This does not claim long-running background playback or a foreground media notification/service yet.
 
 Follow-up backend migration triggers:
 

@@ -3,9 +3,11 @@ package com.eterocell.rhythhaus
 import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
 
 private var rhythHausAndroidContext: Context? = null
 
@@ -18,6 +20,7 @@ actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = AndroidPlayb
 private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     override var listener: PlaybackEngineListener? = null
     private var player: ExoPlayer? = null
+    private var mediaSession: MediaSession? = null
     private var loadedTrackDurationMillis: Long? = null
 
     override fun load(track: PlayableTrack) {
@@ -29,8 +32,9 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         loadedTrackDurationMillis = track.durationMillis
         val exoPlayer = ExoPlayer.Builder(context).build()
         player = exoPlayer
+        mediaSession = MediaSession.Builder(context, exoPlayer).build()
         exoPlayer.addListener(AndroidPlayerListener())
-        exoPlayer.setMediaItem(MediaItem.fromUri(track.source.androidUri()))
+        exoPlayer.setMediaItem(buildAndroidPlaybackMediaItem(track))
         exoPlayer.prepare()
     }
 
@@ -70,6 +74,8 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     }
 
     private fun releasePlayer() {
+        mediaSession?.release()
+        mediaSession = null
         player?.release()
         player = null
         loadedTrackDurationMillis = null
@@ -111,6 +117,18 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         }
     }
 }
+
+internal fun buildAndroidPlaybackMediaItem(track: PlayableTrack): MediaItem = MediaItem.Builder()
+    .setMediaId(track.id)
+    .setUri(track.source.androidUri())
+    .setMediaMetadata(buildAndroidPlaybackMediaMetadata(track))
+    .build()
+
+internal fun buildAndroidPlaybackMediaMetadata(track: PlayableTrack): MediaMetadata = MediaMetadata.Builder()
+    .setTitle(track.title)
+    .setArtist(track.artist)
+    .setAlbumTitle(track.album)
+    .build()
 
 private fun AudioSource.androidUri(): Uri = when (this) {
     is AudioSource.FilePath -> Uri.fromFile(java.io.File(path))
