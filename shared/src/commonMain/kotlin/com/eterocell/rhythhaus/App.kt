@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -88,9 +89,28 @@ fun App() {
         onDispose { controller.release() }
     }
 
+    val snapshot = importedLibrarySnapshot(importedFiles)
+    val enrichedTracks = remember(importedFiles) {
+        snapshot.tracks.map { track ->
+            val file = importedFiles.find { it.source.stableKey == track.source.stableKey }
+            if (file != null && file.source is AudioSource.FilePath) {
+                when (val result = tagLibReader.readPath(file.source.path)) {
+                    is com.eterocell.rhythhaus.taglib.TagReadResult.Found -> {
+                        val artwork = result.metadata.artwork
+                        if (artwork != null && artwork.bytes.isNotEmpty()) {
+                            track.copy(artworkBytes = artwork.bytes)
+                        } else track
+                    }
+                    else -> track
+                }
+            } else track
+        }
+    }
+    val enrichedSnapshot = snapshot.copy(tracks = enrichedTracks)
+
     RhythHausTheme {
         LibraryHomeScreen(
-            snapshot = importedLibrarySnapshot(importedFiles),
+            snapshot = enrichedSnapshot,
             importedFiles = importedFiles,
             tagLibReader = tagLibReader,
             playbackController = controller,
@@ -318,6 +338,9 @@ private fun NowPlayingCard(
     val durationMillis = playbackState.durationMillis ?: track.durationSeconds * 1_000L
     val positionMillis = playbackState.positionMillis.coerceIn(0L, durationMillis)
     val statusText = playbackState.error?.message ?: playbackState.status.label
+    val artworkBitmap = remember(track.artworkBytes) {
+        track.artworkBytes?.decodeArtwork()
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -352,6 +375,18 @@ private fun NowPlayingCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.semantics { contentDescription = "Playback status: $statusText" },
                 )
+            }
+
+            if (artworkBitmap != null) {
+                Image(
+                    bitmap = artworkBitmap,
+                    contentDescription = "Album artwork",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(20.dp)),
+                )
+                Spacer(Modifier.height(4.dp))
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

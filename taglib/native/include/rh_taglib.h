@@ -20,6 +20,10 @@ typedef struct RhTagLibMetadata {
     int bitrate;
     int sample_rate;
     int channels;
+    // Embedded artwork (first found)
+    char* artwork_mime_type;
+    unsigned char* artwork_data;
+    int artwork_size;
 } RhTagLibMetadata;
 
 typedef struct RhTagLibResult {

@@ -50,6 +50,8 @@ internal data class NativeTagLibReadResult(
     val bitrate: Int,
     val sampleRate: Int,
     val channels: Int,
+    val artworkMimeType: String?,
+    val artworkBytes: ByteArray?,
 ) {
     fun toTagReadResult(): TagReadResult = when (status) {
         STATUS_FOUND -> TagReadResult.Found(
@@ -69,6 +71,8 @@ internal data class NativeTagLibReadResult(
                 bitrate = bitrate.positiveOrNull(),
                 sampleRate = sampleRate.positiveOrNull(),
                 channels = channels.positiveOrNull(),
+                artwork = if (artworkBytes != null && artworkBytes.isNotEmpty())
+                    EmbeddedArtwork(artworkMimeType, artworkBytes) else null,
             ),
         )
         STATUS_UNSUPPORTED -> TagReadResult.Unsupported(errorMessage ?: "Native TagLib reader does not support this path")

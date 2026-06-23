@@ -44,6 +44,8 @@ class JvmTagLibReaderTest {
             bitrate = 320,
             sampleRate = 44_100,
             channels = 2,
+            artworkMimeType = null,
+            artworkBytes = null,
         ).toTagReadResult()
 
         val found = assertIs<TagReadResult.Found>(result)
@@ -80,6 +82,8 @@ class JvmTagLibReaderTest {
             bitrate = 0,
             sampleRate = 0,
             channels = 0,
+            artworkMimeType = null,
+            artworkBytes = null,
         ).toTagReadResult()
 
         val found = assertIs<TagReadResult.Found>(result)

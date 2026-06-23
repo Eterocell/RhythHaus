@@ -33,6 +33,7 @@ private class IosNativeTagLibReader : TagLibReader {
                         bitrate = metadata.bitrate.positiveOrNull(),
                         sampleRate = metadata.sample_rate.positiveOrNull(),
                         channels = metadata.channels.positiveOrNull(),
+                        artwork = null, // artwork via cinterop pending
                     )
                 },
             )

@@ -10,7 +10,13 @@ data class Track(
     val durationSeconds: Int,
     val accent: TrackAccent,
     val source: AudioSource,
-)
+    val artworkBytes: ByteArray? = null,
+) {
+    override fun equals(other: Any?): Boolean = other is Track &&
+        id == other.id && artworkBytes.contentEquals(other.artworkBytes)
+
+    override fun hashCode(): Int = id.hashCode()
+}
 
 data class TrackAccent(
     val start: Long,

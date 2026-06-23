@@ -14,6 +14,13 @@ jstring nullable_string(JNIEnv* env, const char* value) {
     return value == nullptr ? nullptr : env->NewStringUTF(value);
 }
 
+jbyteArray artwork_bytes(JNIEnv* env, const unsigned char* data, int size) {
+    if (data == nullptr || size <= 0) return nullptr;
+    jbyteArray arr = env->NewByteArray(size);
+    env->SetByteArrayRegion(arr, 0, size, reinterpret_cast<const jbyte*>(data));
+    return arr;
+}
+
 char* jni_duplicate(const char* value) {
     if (value == nullptr) return nullptr;
     auto size = std::strlen(value) + 1;
@@ -61,7 +68,7 @@ extern "C" JNIEXPORT jobject JNICALL Java_com_eterocell_rhythhaus_taglib_NativeT
     jmethodID constructor = env->GetMethodID(
         result_class,
         "<init>",
-        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IIIIIIIII)V"
+        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IIIIIIIIILjava/lang/String;[B)V"
     );
     if (constructor == nullptr) {
         rh_taglib_free_result(result);
@@ -87,7 +94,9 @@ extern "C" JNIEXPORT jobject JNICALL Java_com_eterocell_rhythhaus_taglib_NativeT
         static_cast<jint>(result.metadata.duration_seconds),
         static_cast<jint>(result.metadata.bitrate),
         static_cast<jint>(result.metadata.sample_rate),
-        static_cast<jint>(result.metadata.channels)
+        static_cast<jint>(result.metadata.channels),
+        nullable_string(env, result.metadata.artwork_mime_type),
+        artwork_bytes(env, result.metadata.artwork_data, result.metadata.artwork_size)
     );
 
     rh_taglib_free_result(result);
