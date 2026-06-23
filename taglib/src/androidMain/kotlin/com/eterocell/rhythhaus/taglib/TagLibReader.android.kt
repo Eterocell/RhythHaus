@@ -10,6 +10,14 @@ private class AndroidNativeTagLibReader : TagLibReader {
     } catch (error: UnsatisfiedLinkError) {
         TagReadResult.Unsupported("$ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE (${error.message ?: "unknown linker error"})")
     }
+
+    override fun readProperties(path: String): Map<String, String> = try {
+        NativeTagLibBridge().readPropertiesNative(path).orEmpty()
+    } catch (error: NativeTagLibUnavailableException) {
+        emptyMap()
+    } catch (error: UnsatisfiedLinkError) {
+        emptyMap()
+    }
 }
 
 private class NativeTagLibBridge {
@@ -18,6 +26,7 @@ private class NativeTagLibBridge {
     }
 
     external fun readPathNative(path: String): NativeTagLibReadResult
+    external fun readPropertiesNative(path: String): Map<String, String>?
 }
 
 internal data class NativeTagLibReadResult(
@@ -28,8 +37,12 @@ internal data class NativeTagLibReadResult(
     val album: String?,
     val albumArtist: String?,
     val genre: String?,
+    val comment: String?,
     val year: Int,
     val track: Int,
+    val trackTotal: Int,
+    val discNumber: Int,
+    val discTotal: Int,
     val durationSeconds: Int,
     val bitrate: Int,
     val sampleRate: Int,
@@ -43,8 +56,12 @@ internal data class NativeTagLibReadResult(
                 album = album,
                 albumArtist = albumArtist,
                 genre = genre,
+                comment = comment,
                 year = year.positiveOrNull(),
                 trackNumber = track.positiveOrNull(),
+                trackTotal = trackTotal.positiveOrNull(),
+                discNumber = discNumber.positiveOrNull(),
+                discTotal = discTotal.positiveOrNull(),
                 durationMillis = durationSeconds.positiveOrNull()?.times(1_000L),
                 bitrate = bitrate.positiveOrNull(),
                 sampleRate = sampleRate.positiveOrNull(),

@@ -23,8 +23,12 @@ private class IosNativeTagLibReader : TagLibReader {
                         album = metadata.album?.toKString(),
                         albumArtist = metadata.album_artist?.toKString(),
                         genre = metadata.genre?.toKString(),
+                        comment = metadata.comment?.toKString(),
                         year = metadata.year.positiveOrNull(),
                         trackNumber = metadata.track.positiveOrNull(),
+                        trackTotal = metadata.track_total.positiveOrNull(),
+                        discNumber = metadata.disc_number.positiveOrNull(),
+                        discTotal = metadata.disc_total.positiveOrNull(),
                         durationMillis = metadata.duration_seconds.positiveOrNull()?.times(1_000L),
                         bitrate = metadata.bitrate.positiveOrNull(),
                         sampleRate = metadata.sample_rate.positiveOrNull(),
@@ -45,6 +49,8 @@ private class IosNativeTagLibReader : TagLibReader {
         rh_taglib_free_result(result)
         return tagResult
     }
+
+    override fun readProperties(path: String): Map<String, String> = emptyMap()
 }
 
 private fun Int.positiveOrNull(): Int? = takeIf { it > 0 }

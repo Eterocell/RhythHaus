@@ -210,5 +210,7 @@ class SharedCommonTest {
             lastPath = path
             return result
         }
+
+        override fun readProperties(path: String): Map<String, String> = emptyMap()
     }
 }

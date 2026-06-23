@@ -37,6 +37,19 @@ RhTagLibResult rh_taglib_read_path(const char* path);
 // whose string fields are null.
 void rh_taglib_free_result(RhTagLibResult result);
 
+// --- Property map: exposes ALL TagLib properties as key-value pairs ---
+
+typedef struct RhTagLibProperties {
+    int status;          // 0 found, 1 unsupported, 2 failed
+    char* error_message;
+    int property_count;
+    char** keys;         // array of key strings, owned by caller
+    char** values;       // array of value strings, owned by caller
+} RhTagLibProperties;
+
+RhTagLibProperties rh_taglib_read_properties(const char* path);
+void rh_taglib_free_properties(RhTagLibProperties properties);
+
 #ifdef __cplusplus
 }
 #endif

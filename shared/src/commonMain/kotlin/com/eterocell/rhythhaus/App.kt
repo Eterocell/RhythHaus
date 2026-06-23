@@ -502,7 +502,7 @@ private fun DeveloperPanel(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (importedFiles.isEmpty()) {
                         Text(
-                            text = "Import local audio to inspect raw TagLib output (title, artist, album, albumArtist, genre, year, track, disc, duration, bitrate, sampleRate, channels, artwork presence).",
+                            text = "Import local audio to inspect all TagLib metadata fields plus the full property map (composer, copyright, BPM, ISRC, custom tags, and more).",
                             color = HausMuted,
                             fontSize = 13.sp,
                             lineHeight = 18.sp,
@@ -526,6 +526,12 @@ private fun DeveloperMetadataRow(file: ImportedAudioFile, tagLibReader: TagLibRe
         when (file.source) {
             is AudioSource.FilePath -> tagLibReader.readPath(file.source.path)
             is AudioSource.Uri -> null
+        }
+    }
+    val properties = remember(file.source.stableKey) {
+        when (file.source) {
+            is AudioSource.FilePath -> tagLibReader.readProperties(file.source.path)
+            is AudioSource.Uri -> emptyMap()
         }
     }
     Column(
@@ -561,30 +567,71 @@ private fun DeveloperMetadataRow(file: ImportedAudioFile, tagLibReader: TagLibRe
                 fontWeight = FontWeight.Bold,
             )
         } else when (rawResult) {
-            is TagReadResult.Found -> rawTagLines(rawResult.metadata).forEach { (label, value) ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
+            is TagReadResult.Found -> {
+                rawTagLines(rawResult.metadata).forEach { (label, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = label,
+                            color = HausMuted,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            text = value,
+                            color = HausInk,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .padding(start = 12.dp)
+                                .weight(1f, fill = false),
+                        )
+                    }
+                }
+                if (properties.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = label,
-                        color = HausMuted,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Text(
-                        text = value,
+                        text = "ALL PROPERTIES (${properties.size})",
                         color = HausInk,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .padding(start = 12.dp)
-                            .weight(1f, fill = false),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.2.sp,
                     )
+                    properties.entries.sortedBy { it.key }.forEach { (key, value) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = key,
+                                color = HausMuted,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = value,
+                                color = HausInk,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .weight(1f, fill = false),
+                            )
+                        }
+                    }
                 }
             }
             is TagReadResult.Unsupported -> Text(

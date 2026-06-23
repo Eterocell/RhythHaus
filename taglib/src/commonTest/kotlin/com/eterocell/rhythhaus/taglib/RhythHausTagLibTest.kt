@@ -43,5 +43,7 @@ class RhythHausTagLibTest {
             paths += path
             return result
         }
+
+        override fun readProperties(path: String): Map<String, String> = emptyMap()
     }
 }

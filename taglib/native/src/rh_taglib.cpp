@@ -8,6 +8,7 @@
 #include <fileref.h>
 #include <tag.h>
 #include <tstring.h>
+#include <tpropertymap.h>
 
 #include <ape/apefile.h>
 #include <ape/apetag.h>
@@ -275,4 +276,62 @@ extern "C" void rh_taglib_free_result(RhTagLibResult result) {
     std::free(result.metadata.album_artist);
     std::free(result.metadata.genre);
     std::free(result.metadata.comment);
+}
+
+extern "C" RhTagLibProperties rh_taglib_read_properties(const char* path) {
+    RhTagLibProperties props{};
+    props.status = RH_TAGLIB_STATUS_FAILED;
+    if (path == nullptr || path[0] == '\0') {
+        props.error_message = rh_taglib_duplicate("Path is required");
+        return props;
+    }
+
+#ifndef RH_TAGLIB_HAS_TAGLIB
+    props.status = RH_TAGLIB_STATUS_UNSUPPORTED;
+    props.error_message = rh_taglib_duplicate(
+        "Native TagLib library was not found at build time"
+    );
+    return props;
+#else
+    try {
+        TagLib::FileRef file(path);
+        if (file.isNull()) {
+            props.status = RH_TAGLIB_STATUS_UNSUPPORTED;
+            props.error_message = rh_taglib_duplicate("TagLib could not open this file path");
+            return props;
+        }
+
+        const auto propertyMap = file.file()->properties();
+
+        props.status = RH_TAGLIB_STATUS_FOUND;
+        props.property_count = static_cast<int>(propertyMap.size());
+        props.keys = static_cast<char**>(std::calloc(propertyMap.size(), sizeof(char*)));
+        props.values = static_cast<char**>(std::calloc(propertyMap.size(), sizeof(char*)));
+
+        int index = 0;
+        for (const auto& entry : propertyMap) {
+            props.keys[index] = rh_taglib_duplicate(entry.first.to8Bit(true).c_str());
+            props.values[index] = rh_taglib_duplicate(
+                entry.second.toString(", ").to8Bit(true).c_str()
+            );
+            ++index;
+        }
+
+        return props;
+    } catch (...) {
+        props.status = RH_TAGLIB_STATUS_FAILED;
+        props.error_message = rh_taglib_duplicate("TagLib failed while reading properties");
+        return props;
+    }
+#endif
+}
+
+extern "C" void rh_taglib_free_properties(RhTagLibProperties properties) {
+    std::free(properties.error_message);
+    for (int i = 0; i < properties.property_count; ++i) {
+        std::free(properties.keys[i]);
+        std::free(properties.values[i]);
+    }
+    std::free(properties.keys);
+    std::free(properties.values);
 }

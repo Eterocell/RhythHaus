@@ -186,4 +186,5 @@ private class FakePlatformAudioScanner(
 
 private object ThrowingTagLibReader : TagLibReader {
     override fun readPath(path: String) = throw IllegalStateException("metadata failed")
+    override fun readProperties(path: String): Map<String, String> = emptyMap()
 }
