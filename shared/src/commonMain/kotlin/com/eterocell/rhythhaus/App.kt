@@ -166,6 +166,7 @@ fun LibraryHomeScreen(
     var browseMode by remember { mutableStateOf(BrowseMode.Albums) }
     var selectedAlbum by remember { mutableStateOf<AlbumGroup?>(null) }
     var selectedArtist by remember { mutableStateOf<ArtistGroup?>(null) }
+    var showNowPlayingScreen by remember { mutableStateOf(false) }
 
     if (selectedAlbum != null) {
         val album = selectedAlbum!!
@@ -212,97 +213,104 @@ fun LibraryHomeScreen(
             },
         )
     } else {
-        Surface(modifier = modifier.fillMaxSize(), color = HausPaper) {
-            LazyColumn(
-                modifier = Modifier
-                    .safeContentPadding()
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                item {
-                    HeaderSection(snapshot)
-                }
-                item {
-                    ImportAudioCard(
-                        folderPickerLauncher = folderPickerLauncher,
-                        importMessage = importMessage,
-                        hasImportedTracks = snapshot.tracks.isNotEmpty(),
-                    )
-                }
-                item {
-                    DeveloperPanel(
-                        libraryTracks = libraryTracks,
-                        tagLibReader = tagLibReader,
-                        expanded = devPanelExpanded,
-                        onToggle = { devPanelExpanded = !devPanelExpanded },
-                    )
-                }
-                item {
-                    selectedTrack?.let { track ->
-                        NowPlayingCard(
-                            track = track,
-                            playbackState = playbackState,
-                            onPlayPause = {
-                                val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
-                                if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                                    playbackController.setQueue(playableTracks, track.id)
-                                }
-                                playbackController.togglePlayPause()
-                            },
-                            onStop = playbackController::stop,
-                            onSeekFraction = { fraction ->
-                                val duration = playbackState.durationMillis ?: track.durationSeconds * 1_000L
-                                playbackController.seekTo((duration * fraction).toLong())
-                            },
-                        )
-                    }
-                }
-                item {
-                    SectionLabel(
-                        title = "Library queue",
-                        subtitle = "${snapshot.tracks.size} tracks • ${formatDuration(snapshot.totalDurationSeconds)} total",
-                    )
-                }
-                item {
-                    BrowseModePicker(
-                        browseMode = browseMode,
-                        onModeChange = { browseMode = it },
-                    )
-                }
-                if (browseMode == BrowseMode.Albums) {
-                    val albums = groupTracksByAlbum(snapshot.tracks)
-                    val albumRows = albums.chunked(2)
-                    albumRows.forEach { row ->
+        if (showNowPlayingScreen && selectedTrack != null) {
+            NowPlayingScreen(
+                track = selectedTrack,
+                playbackState = playbackState,
+                playbackController = playbackController,
+                onBack = { showNowPlayingScreen = false },
+            )
+        } else {
+            Box(modifier = modifier.fillMaxSize()) {
+                Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .safeContentPadding()
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                    ) {
                         item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                row.forEach { albumGroup ->
-                                    AlbumCard(
-                                        album = albumGroup,
-                                        modifier = Modifier.weight(1f),
-                                        onClick = { selectedAlbum = albumGroup },
-                                    )
-                                }
-                                if (row.size == 1) {
-                                    Spacer(Modifier.weight(1f))
+                            HeaderSection(snapshot)
+                        }
+                        item {
+                            ImportAudioCard(
+                                folderPickerLauncher = folderPickerLauncher,
+                                importMessage = importMessage,
+                                hasImportedTracks = snapshot.tracks.isNotEmpty(),
+                            )
+                        }
+                        item {
+                            DeveloperPanel(
+                                libraryTracks = libraryTracks,
+                                tagLibReader = tagLibReader,
+                                expanded = devPanelExpanded,
+                                onToggle = { devPanelExpanded = !devPanelExpanded },
+                            )
+                        }
+                        item {
+                            SectionLabel(
+                                title = "Library queue",
+                                subtitle = "${snapshot.tracks.size} tracks • ${formatDuration(snapshot.totalDurationSeconds)} total",
+                            )
+                        }
+                        item {
+                            BrowseModePicker(
+                                browseMode = browseMode,
+                                onModeChange = { browseMode = it },
+                            )
+                        }
+                        if (browseMode == BrowseMode.Albums) {
+                            val albums = groupTracksByAlbum(snapshot.tracks)
+                            val albumRows = albums.chunked(2)
+                            albumRows.forEach { row ->
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    ) {
+                                        row.forEach { albumGroup ->
+                                            AlbumCard(
+                                                album = albumGroup,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = { selectedAlbum = albumGroup },
+                                            )
+                                        }
+                                        if (row.size == 1) {
+                                            Spacer(Modifier.weight(1f))
+                                        }
+                                    }
                                 }
                             }
+                        } else {
+                            val artists = groupTracksByArtist(snapshot.tracks)
+                            items(artists, key = { it.artist }) { artistGroup ->
+                                ArtistRow(
+                                    artist = artistGroup,
+                                    onClick = { selectedArtist = artistGroup },
+                                )
+                            }
+                        }
+                        item {
+                            Spacer(Modifier.height(8.dp))
                         }
                     }
-                } else {
-                    val artists = groupTracksByArtist(snapshot.tracks)
-                    items(artists, key = { it.artist }) { artistGroup ->
-                        ArtistRow(
-                            artist = artistGroup,
-                            onClick = { selectedArtist = artistGroup },
-                        )
-                    }
                 }
-                item {
-                    Spacer(Modifier.height(8.dp))
+
+                if (selectedTrack != null) {
+                    NowPlayingBar(
+                        track = selectedTrack,
+                        playbackState = playbackState,
+                        onPlayPause = {
+                            val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
+                            if (playbackState.currentTrack?.id != selectedTrack.id || playbackState.status == PlaybackStatus.Idle) {
+                                playbackController.setQueue(playableTracks, selectedTrack.id)
+                            }
+                            playbackController.togglePlayPause()
+                        },
+                        onExpand = { showNowPlayingScreen = true },
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
                 }
             }
         }
@@ -945,50 +953,59 @@ private fun DrillDownView(
     onPlayPause: (Track) -> Unit,
 ) {
     var selectedTrackId by remember { mutableStateOf(selectedTrack?.id) }
-    Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
-        LazyColumn(
-            modifier = Modifier
-                .safeContentPadding()
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            item {
-                DrillDownHeader(title = title, subtitle = subtitle, onBack = onBack)
-            }
-            item {
-                selectedTrack?.let { track ->
-                    NowPlayingCard(
-                        track = track,
-                        playbackState = playbackState,
-                        onPlayPause = { onPlayPause(track) },
-                        onStop = playbackController::stop,
-                        onSeekFraction = { fraction ->
-                            val duration = playbackState.durationMillis ?: track.durationSeconds * 1_000L
-                            playbackController.seekTo((duration * fraction).toLong())
-                        },
-                    )
+    var showNowPlayingScreen by remember { mutableStateOf(false) }
+
+    if (showNowPlayingScreen && selectedTrack != null) {
+        NowPlayingScreen(
+            track = selectedTrack,
+            playbackState = playbackState,
+            playbackController = playbackController,
+            onBack = { showNowPlayingScreen = false },
+        )
+    } else {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
+                LazyColumn(
+                    modifier = Modifier
+                        .safeContentPadding()
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    item {
+                        DrillDownHeader(title = title, subtitle = subtitle, onBack = onBack)
+                    }
+                    item {
+                        SectionLabel(
+                            title = title,
+                            subtitle = subtitle,
+                        )
+                    }
+                    items(tracks, key = { it.id }) { track ->
+                        TrackRow(
+                            track = track,
+                            selected = track.id == selectedTrackId,
+                            onClick = {
+                                selectedTrackId = track.id
+                                onTrackSelected(track.id)
+                                onPlayPause(track)
+                            },
+                        )
+                    }
+                    item {
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
-            item {
-                SectionLabel(
-                    title = title,
-                    subtitle = subtitle,
+
+            if (selectedTrack != null) {
+                NowPlayingBar(
+                    track = selectedTrack,
+                    playbackState = playbackState,
+                    onPlayPause = { onPlayPause(selectedTrack) },
+                    onExpand = { showNowPlayingScreen = true },
+                    modifier = Modifier.align(Alignment.BottomCenter),
                 )
-            }
-            items(tracks, key = { it.id }) { track ->
-                TrackRow(
-                    track = track,
-                    selected = track.id == selectedTrackId,
-                    onClick = {
-                        selectedTrackId = track.id
-                        onTrackSelected(track.id)
-                        onPlayPause(track)
-                    },
-                )
-            }
-            item {
-                Spacer(Modifier.height(8.dp))
             }
         }
     }
