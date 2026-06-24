@@ -55,6 +55,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.library.PlatformFolderPickResult
+import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
 import com.eterocell.rhythhaus.taglib.createTagLibReader
@@ -76,16 +79,17 @@ fun App() {
     val tagLibReader = remember { createTagLibReader() }
     var importedFiles by remember { mutableStateOf(emptyList<ImportedAudioFile>()) }
     var importMessage by remember { mutableStateOf<String?>(null) }
-    val importLauncher = rememberAudioImportLauncher { result ->
+    val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
         when (result) {
-            is AudioImportResult.Success -> {
-                importedFiles = mergeImportedFiles(importedFiles, enrichImportedAudioFiles(result.files, metadataReader))
-                importMessage = if (result.files.isEmpty()) "No audio files selected" else "Imported ${result.files.size} local file(s)"
+            is PlatformFolderPickResult.Success -> {
+                importMessage = "Added: ${result.source.displayName}. Scanning..."
+                // Scanner wiring in Task 3
+                importMessage = "Imported source: ${result.source.displayName}"
             }
 
-            is AudioImportResult.Unavailable -> importMessage = result.message
+            is PlatformFolderPickResult.Unavailable -> importMessage = result.message
 
-            is AudioImportResult.Failure -> importMessage = result.cause?.let { "${result.message}: $it" } ?: result.message
+            is PlatformFolderPickResult.Failure -> importMessage = result.cause?.let { "${result.message}: $it" } ?: result.message
         }
     }
     DisposableEffect(controller) {
@@ -122,7 +126,7 @@ fun App() {
             importedFiles = importedFiles,
             tagLibReader = tagLibReader,
             playbackController = controller,
-            importLauncher = importLauncher,
+            folderPickerLauncher = folderPickerLauncher,
             importMessage = importMessage,
         )
     }
@@ -157,7 +161,7 @@ fun LibraryHomeScreen(
     importedFiles: List<ImportedAudioFile>,
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
-    importLauncher: AudioImportLauncher,
+    folderPickerLauncher: PlatformFolderPickerLauncher,
     importMessage: String?,
     modifier: Modifier = Modifier,
 ) {
@@ -179,7 +183,7 @@ fun LibraryHomeScreen(
             }
             item {
                 ImportAudioCard(
-                    importLauncher = importLauncher,
+                    folderPickerLauncher = folderPickerLauncher,
                     importMessage = importMessage,
                     hasImportedTracks = snapshot.tracks.isNotEmpty(),
                 )
@@ -286,7 +290,7 @@ private fun HeaderSection(snapshot: LibrarySnapshot) {
 
 @Composable
 private fun ImportAudioCard(
-    importLauncher: AudioImportLauncher,
+    folderPickerLauncher: PlatformFolderPickerLauncher,
     importMessage: String?,
     hasImportedTracks: Boolean,
 ) {
@@ -300,16 +304,16 @@ private fun ImportAudioCard(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = if (hasImportedTracks) "Add more local audio" else "Import local audio",
+                text = if (hasImportedTracks) "Manage music folders" else "Add music folder",
                 color = HausInk,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Black,
             )
             Text(
                 text = importMessage ?: if (hasImportedTracks) {
-                    "Imported tracks use real local handles for playback."
+                    "Manage your music folders and scan for new tracks."
                 } else {
-                    "Choose audio files from this device to build your local library."
+                    "Choose a music folder on this device to build your local library."
                 },
                 color = HausMuted,
                 fontSize = 13.sp,
@@ -317,12 +321,12 @@ private fun ImportAudioCard(
                 fontWeight = FontWeight.Medium,
             )
             Button(
-                onClick = importLauncher::launch,
-                enabled = importLauncher.isAvailable,
+                onClick = folderPickerLauncher::launch,
+                enabled = folderPickerLauncher.isAvailable,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .semantics { contentDescription = "Import local audio files" },
+                    .semantics { contentDescription = "Add music folder" },
                 cornerRadius = 16.dp,
                 colors = ButtonDefaults.buttonColors(
                     color = HausInk,
@@ -331,7 +335,7 @@ private fun ImportAudioCard(
                     disabledContentColor = HausMuted,
                 ),
             ) {
-                Text(if (importLauncher.isAvailable) "Choose audio files" else "Import not available yet", fontWeight = FontWeight.Black)
+                Text(if (folderPickerLauncher.isAvailable) "Add music folder" else "Folder picker not available yet", fontWeight = FontWeight.Black)
             }
         }
     }
