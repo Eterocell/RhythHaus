@@ -168,68 +168,147 @@ fun LibraryHomeScreen(
     val selectedTrack = snapshot.tracks.firstOrNull { it.id == selectedTrackId } ?: snapshot.tracks.firstOrNull()
     val playbackState by playbackController.state.collectAsState()
     var devPanelExpanded by remember { mutableStateOf(false) }
+    var browseMode by remember { mutableStateOf(BrowseMode.Albums) }
+    var selectedAlbum by remember { mutableStateOf<AlbumGroup?>(null) }
+    var selectedArtist by remember { mutableStateOf<ArtistGroup?>(null) }
 
-    Surface(modifier = modifier.fillMaxSize(), color = HausPaper) {
-        LazyColumn(
-            modifier = Modifier
-                .safeContentPadding()
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            item {
-                HeaderSection(snapshot)
-            }
-            item {
-                ImportAudioCard(
-                    folderPickerLauncher = folderPickerLauncher,
-                    importMessage = importMessage,
-                    hasImportedTracks = snapshot.tracks.isNotEmpty(),
-                )
-            }
-            item {
-                DeveloperPanel(
-                    libraryTracks = libraryTracks,
-                    tagLibReader = tagLibReader,
-                    expanded = devPanelExpanded,
-                    onToggle = { devPanelExpanded = !devPanelExpanded },
-                )
-            }
-            item {
-                selectedTrack?.let { track ->
-                    NowPlayingCard(
-                        track = track,
-                        playbackState = playbackState,
-                        onPlayPause = {
-                            val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
-                            if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                                playbackController.setQueue(playableTracks, track.id)
-                            }
-                            playbackController.togglePlayPause()
-                        },
-                        onStop = playbackController::stop,
-                        onSeekFraction = { fraction ->
-                            val duration = playbackState.durationMillis ?: track.durationSeconds * 1_000L
-                            playbackController.seekTo((duration * fraction).toLong())
-                        },
+    if (selectedAlbum != null) {
+        val album = selectedAlbum!!
+        val albumTracks = album.tracks
+        val selectedAlbumTrackId by remember(album.album) { mutableStateOf(albumTracks.firstOrNull()?.id) }
+        val selectedAlbumTrack = albumTracks.firstOrNull { it.id == selectedAlbumTrackId } ?: albumTracks.firstOrNull()
+        DrillDownView(
+            title = album.album,
+            subtitle = "${albumTracks.size} tracks · ${album.artist ?: "Unknown artist"}",
+            tracks = albumTracks,
+            selectedTrack = selectedAlbumTrack,
+            playbackState = playbackState,
+            playbackController = playbackController,
+            onBack = { selectedAlbum = null },
+            onTrackSelected = { /* selection only */ },
+            onPlayPause = { track ->
+                val playableTracks = albumTracks.map { it.toPlayableTrack() }
+                if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
+                    playbackController.setQueue(playableTracks, track.id)
+                }
+                playbackController.togglePlayPause()
+            },
+        )
+    } else if (selectedArtist != null) {
+        val artist = selectedArtist!!
+        val artistTracks = artist.tracks
+        val selectedArtistTrackId by remember(artist.artist) { mutableStateOf(artistTracks.firstOrNull()?.id) }
+        val selectedArtistTrack = artistTracks.firstOrNull { it.id == selectedArtistTrackId } ?: artistTracks.firstOrNull()
+        DrillDownView(
+            title = artist.artist,
+            subtitle = "${artist.albumCount} albums · ${artistTracks.size} tracks",
+            tracks = artistTracks,
+            selectedTrack = selectedArtistTrack,
+            playbackState = playbackState,
+            playbackController = playbackController,
+            onBack = { selectedArtist = null },
+            onTrackSelected = { /* selection only */ },
+            onPlayPause = { track ->
+                val playableTracks = artistTracks.map { it.toPlayableTrack() }
+                if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
+                    playbackController.setQueue(playableTracks, track.id)
+                }
+                playbackController.togglePlayPause()
+            },
+        )
+    } else {
+        Surface(modifier = modifier.fillMaxSize(), color = HausPaper) {
+            LazyColumn(
+                modifier = Modifier
+                    .safeContentPadding()
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                item {
+                    HeaderSection(snapshot)
+                }
+                item {
+                    ImportAudioCard(
+                        folderPickerLauncher = folderPickerLauncher,
+                        importMessage = importMessage,
+                        hasImportedTracks = snapshot.tracks.isNotEmpty(),
                     )
                 }
-            }
-            item {
-                SectionLabel(
-                    title = "Library queue",
-                    subtitle = "${snapshot.tracks.size} tracks • ${formatDuration(snapshot.totalDurationSeconds)} total",
-                )
-            }
-            items(snapshot.tracks, key = { it.id }) { track ->
-                TrackRow(
-                    track = track,
-                    selected = track.id == selectedTrack?.id,
-                    onClick = { selectedTrackId = track.id },
-                )
-            }
-            item {
-                Spacer(Modifier.height(8.dp))
+                item {
+                    DeveloperPanel(
+                        libraryTracks = libraryTracks,
+                        tagLibReader = tagLibReader,
+                        expanded = devPanelExpanded,
+                        onToggle = { devPanelExpanded = !devPanelExpanded },
+                    )
+                }
+                item {
+                    selectedTrack?.let { track ->
+                        NowPlayingCard(
+                            track = track,
+                            playbackState = playbackState,
+                            onPlayPause = {
+                                val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
+                                if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
+                                    playbackController.setQueue(playableTracks, track.id)
+                                }
+                                playbackController.togglePlayPause()
+                            },
+                            onStop = playbackController::stop,
+                            onSeekFraction = { fraction ->
+                                val duration = playbackState.durationMillis ?: track.durationSeconds * 1_000L
+                                playbackController.seekTo((duration * fraction).toLong())
+                            },
+                        )
+                    }
+                }
+                item {
+                    SectionLabel(
+                        title = "Library queue",
+                        subtitle = "${snapshot.tracks.size} tracks • ${formatDuration(snapshot.totalDurationSeconds)} total",
+                    )
+                }
+                item {
+                    BrowseModePicker(
+                        browseMode = browseMode,
+                        onModeChange = { browseMode = it },
+                    )
+                }
+                if (browseMode == BrowseMode.Albums) {
+                    val albums = groupTracksByAlbum(snapshot.tracks)
+                    val albumRows = albums.chunked(2)
+                    albumRows.forEach { row ->
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                row.forEach { albumGroup ->
+                                    AlbumCard(
+                                        album = albumGroup,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { selectedAlbum = albumGroup },
+                                    )
+                                }
+                                if (row.size == 1) {
+                                    Spacer(Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    val artists = groupTracksByArtist(snapshot.tracks)
+                    items(artists, key = { it.artist }) { artistGroup ->
+                        ArtistRow(
+                            artist = artistGroup,
+                            onClick = { selectedArtist = artistGroup },
+                        )
+                    }
+                }
+                item {
+                    Spacer(Modifier.height(8.dp))
+                }
             }
         }
     }
@@ -843,6 +922,259 @@ private fun AlbumMark(track: Track, selected: Boolean) {
                 color = Color.White,
                 fontWeight = FontWeight.Black,
                 fontSize = 20.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DrillDownView(
+    title: String,
+    subtitle: String,
+    tracks: List<Track>,
+    selectedTrack: Track?,
+    playbackState: PlaybackState,
+    playbackController: PlaybackController,
+    onBack: () -> Unit,
+    onTrackSelected: (String) -> Unit,
+    onPlayPause: (Track) -> Unit,
+) {
+    var selectedTrackId by remember { mutableStateOf(selectedTrack?.id) }
+    Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
+        LazyColumn(
+            modifier = Modifier
+                .safeContentPadding()
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            item {
+                DrillDownHeader(title = title, subtitle = subtitle, onBack = onBack)
+            }
+            item {
+                selectedTrack?.let { track ->
+                    NowPlayingCard(
+                        track = track,
+                        playbackState = playbackState,
+                        onPlayPause = { onPlayPause(track) },
+                        onStop = playbackController::stop,
+                        onSeekFraction = { fraction ->
+                            val duration = playbackState.durationMillis ?: track.durationSeconds * 1_000L
+                            playbackController.seekTo((duration * fraction).toLong())
+                        },
+                    )
+                }
+            }
+            item {
+                SectionLabel(
+                    title = title,
+                    subtitle = subtitle,
+                )
+            }
+            items(tracks, key = { it.id }) { track ->
+                TrackRow(
+                    track = track,
+                    selected = track.id == selectedTrackId,
+                    onClick = {
+                        selectedTrackId = track.id
+                        onTrackSelected(track.id)
+                        onPlayPause(track)
+                    },
+                )
+            }
+            item {
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrillDownHeader(
+    title: String,
+    subtitle: String,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(HausInk)
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = "← BACK",
+                    color = HausPaper,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.8.sp,
+                )
+            }
+            Text(
+                text = subtitle,
+                color = HausMuted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Text(
+            text = title,
+            color = HausInk,
+            fontSize = 44.sp,
+            lineHeight = 42.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = (-1.6).sp,
+            fontFamily = FontFamily.SansSerif,
+        )
+    }
+}
+
+@Composable
+private fun BrowseModePicker(
+    browseMode: BrowseMode,
+    onModeChange: (BrowseMode) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        BrowseMode.entries.forEach { mode ->
+            val isSelected = browseMode == mode
+            Button(
+                onClick = { onModeChange(mode) },
+                modifier = Modifier.weight(1f).height(40.dp),
+                cornerRadius = 20.dp,
+                colors = if (isSelected) ButtonDefaults.buttonColors(
+                    color = HausInk,
+                    contentColor = HausPaper,
+                ) else ButtonDefaults.buttonColors(
+                    color = HausPanel,
+                    contentColor = HausInk,
+                ),
+            ) {
+                Text(mode.name, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlbumCard(
+    album: AlbumGroup,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier = modifier
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Album ${album.album}" },
+        cornerRadius = 20.dp,
+        colors = CardDefaults.defaultColors(color = HausPanel),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(HausInk, HausPulse),
+                        ),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = album.album.take(2).uppercase(),
+                    color = Color.White.copy(alpha = 0.72f),
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Black,
+                )
+            }
+            Text(
+                text = album.album,
+                color = HausInk,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = if (album.artist != null) "${album.artist} · ${album.tracks.size} tracks" else "${album.tracks.size} tracks",
+                color = HausMuted,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtistRow(
+    artist: ArtistGroup,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(HausPanel.copy(alpha = 0.54f))
+            .border(1.dp, HausLine, RoundedCornerShape(24.dp))
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Artist ${artist.artist}" }
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(54.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(HausInk, HausPulse),
+                    ),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = artist.artist.firstOrNull()?.uppercase() ?: "♪",
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                fontSize = 20.sp,
+            )
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                text = artist.artist,
+                color = HausInk,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "${artist.albumCount} albums · ${artist.tracks.size} tracks",
+                color = HausMuted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

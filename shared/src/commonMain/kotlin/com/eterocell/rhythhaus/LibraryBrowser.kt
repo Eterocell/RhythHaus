@@ -1,0 +1,76 @@
+package com.eterocell.rhythhaus
+
+import com.eterocell.rhythhaus.library.LibraryTrack
+
+enum class BrowseMode { Albums, Artists }
+
+data class AlbumGroup(
+    val album: String,
+    val tracks: List<Track>,
+    val artist: String? = tracks.firstOrNull()?.artist,
+)
+
+data class ArtistGroup(
+    val artist: String,
+    val tracks: List<Track>,
+    val albumCount: Int = tracks.map { it.album }.distinct().size,
+)
+
+// ----- Repository-level grouping (LibraryTrack) -----
+
+fun groupByAlbum(tracks: List<LibraryTrack>): List<AlbumGroup> =
+    tracks.groupBy { it.album }
+        .map { (album, trackList) ->
+            AlbumGroup(
+                album = album,
+                tracks = trackList.sortedBy { it.title.lowercase() }.map { it.toUiTrack() },
+                artist = trackList.firstOrNull()?.artist,
+            )
+        }
+        .sortedBy { it.album.lowercase() }
+
+fun groupByArtist(tracks: List<LibraryTrack>): List<ArtistGroup> =
+    tracks.groupBy { it.artist }
+        .map { (artist, trackList) ->
+            ArtistGroup(
+                artist = artist,
+                tracks = trackList.sortedBy { it.title.lowercase() }.map { it.toUiTrack() },
+            )
+        }
+        .sortedBy { it.artist.lowercase() }
+
+// ----- UI-level grouping (Track) -----
+
+fun groupTracksByAlbum(tracks: List<Track>): List<AlbumGroup> =
+    tracks.groupBy { it.album }
+        .map { (album, trackList) ->
+            AlbumGroup(
+                album = album,
+                tracks = trackList.sortedBy { it.title.lowercase() },
+                artist = trackList.firstOrNull()?.artist,
+            )
+        }
+        .sortedBy { it.album.lowercase() }
+
+fun groupTracksByArtist(tracks: List<Track>): List<ArtistGroup> =
+    tracks.groupBy { it.artist }
+        .map { (artist, trackList) ->
+            ArtistGroup(
+                artist = artist,
+                tracks = trackList.sortedBy { it.title.lowercase() },
+            )
+        }
+        .sortedBy { it.artist.lowercase() }
+
+// ----- Private helpers -----
+
+private fun LibraryTrack.toUiTrack(): Track = Track(
+    id = id,
+    title = title,
+    artist = artist,
+    album = album,
+    durationSeconds = durationMillis?.div(1_000L)?.toInt() ?: 0,
+    accent = TrackAccent(start = 0xFF111018, end = 0xFF776F66),
+    source = audioSource,
+    artworkBytes = null,
+)
