@@ -30,16 +30,7 @@ class AudioMetadataReader(
     }
 }
 
-fun enrichImportedAudioFiles(
-    files: List<ImportedAudioFile>,
-    metadataReader: AudioMetadataReader = AudioMetadataReader(),
-): List<ImportedAudioFile> = files.map { file ->
-    if (file.metadata != null) {
-        file
-    } else {
-        file.copy(metadata = metadataReader.read(file.source))
-    }
-}
+// Metadata enrichment handled by LibraryScanner using AudioMetadataReader directly.
 
 private fun TagMetadata.toAudioMetadata(): AudioMetadata = AudioMetadata(
     title = title.normalizedOrNull(),
