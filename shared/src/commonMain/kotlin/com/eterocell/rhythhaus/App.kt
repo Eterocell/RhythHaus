@@ -73,13 +73,7 @@ import com.eterocell.rhythhaus.taglib.TagReadResult
 import com.eterocell.rhythhaus.taglib.createTagLibReader
 import com.eterocell.rhythhaus.taglib.TagMetadata as RawTagMetadata
 
-private val HausInk = Color(0xFF111018)
-private val HausPaper = Color(0xFFFFFAF1)
-private val HausMuted = Color(0xFF776F66)
-private val HausLine = Color(0x1A111018)
-private val HausPanel = Color(0xFFF5EBDD)
-private val HausPanelStrong = Color(0xFFE9D8C2)
-private val HausPulse = Color(0xFFFF5E3A)
+
 
 @Composable
 @Preview
