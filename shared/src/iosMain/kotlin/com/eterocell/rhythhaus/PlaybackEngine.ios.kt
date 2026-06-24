@@ -1,6 +1,14 @@
 package com.eterocell.rhythhaus
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import platform.AVFAudio.AVAudioPlayer
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
@@ -21,6 +29,8 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     private var player: AVAudioPlayer? = null
     private var loadedTrack: PlayableTrack? = null
     private var durationMillis: Long? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var progressJob: Job? = null
 
     override fun load(track: PlayableTrack) {
         release()
@@ -42,9 +52,24 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         updateNowPlayingInfo(positionMillis = (audioPlayer.currentTime * 1_000.0).toLong())
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
         listener?.onPlaybackProgress((audioPlayer.currentTime * 1_000.0).toLong(), durationMillis)
+        startProgressLoop()
+    }
+
+    private fun startProgressLoop() {
+        progressJob?.cancel()
+        progressJob = scope.launch {
+            while (isActive) {
+                delay(250)
+                val p = player ?: break
+                if (!p.isPlaying()) continue
+                val pos = (p.currentTime * 1_000.0).toLong()
+                listener?.onPlaybackProgress(pos, durationMillis)
+            }
+        }
     }
 
     override fun pause() {
+        progressJob?.cancel()
         val audioPlayer = player
         audioPlayer?.pause()
         updateNowPlayingInfo(positionMillis = ((audioPlayer?.currentTime ?: 0.0) * 1_000.0).toLong())
@@ -53,6 +78,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     }
 
     override fun stop() {
+        progressJob?.cancel()
         val audioPlayer = player
         audioPlayer?.stop()
         audioPlayer?.currentTime = 0.0
@@ -68,6 +94,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     }
 
     override fun release() {
+        progressJob?.cancel()
         player?.stop()
         player = null
         loadedTrack = null
