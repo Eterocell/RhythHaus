@@ -42,10 +42,9 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         platformLog("RhythHaus", "iOS player URL: ${url.absoluteString}")
         val audioPlayer = AVAudioPlayer(contentsOfURL = url, error = null)
         if (audioPlayer.duration <= 0.0) {
-            platformLog("RhythHaus", "ERROR: AVAudioPlayer duration is 0 — file may be missing or unsupported format")
-            listener?.onPlaybackError(
-                PlaybackError("Could not open audio file: ${track.title}", cause = url.absoluteString)
-            )
+            val errorMsg = "Could not open audio file: ${track.title} ($url)"
+            platformLog("RhythHaus", "ERROR: $errorMsg")
+            listener?.onPlaybackError(PlaybackError(errorMsg, cause = url.absoluteString))
             return
         }
         audioPlayer.prepareToPlay()
@@ -63,10 +62,9 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         val audioPlayer = requireNotNull(player) { "No iOS player has been loaded" }
         platformLog("RhythHaus", "Playing: ${loadedTrack?.title}")
         if (!audioPlayer.play()) {
-            platformLog("RhythHaus", "ERROR: AVAudioPlayer.play() returned false")
-            listener?.onPlaybackError(
-                PlaybackError("Could not start playback: ${loadedTrack?.title}", cause = null)
-            )
+            val errorMsg = "Could not start playback: ${loadedTrack?.title}"
+            platformLog("RhythHaus", "ERROR: $errorMsg")
+            listener?.onPlaybackError(PlaybackError(errorMsg, cause = null))
             return
         }
         updateNowPlayingInfo(positionMillis = (audioPlayer.currentTime * 1_000.0).toLong())
