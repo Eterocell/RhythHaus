@@ -15,3 +15,5 @@ actual class LibraryDatabase {
 
     actual val database: RhythHausDatabase by lazy { RhythHausDatabase(driver) }
 }
+
+actual fun createLibraryDatabase(): LibraryDatabase = LibraryDatabase()

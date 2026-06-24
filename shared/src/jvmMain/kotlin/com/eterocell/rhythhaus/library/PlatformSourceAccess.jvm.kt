@@ -117,3 +117,5 @@ private fun File.displayPath(root: File, fallback: String): String {
     if (canonicalPath == root.canonicalPath) return fallback
     return relativeTo(root).invariantSeparatorsPath.ifBlank { fallback }
 }
+
+actual fun createPlatformSourceAccess(): PlatformSourceAccess = JvmFolderSourceAccess()

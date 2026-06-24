@@ -128,3 +128,5 @@ private fun fileSize(path: String): Long? {
     val attributes = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null) ?: return null
     return (attributes[NSFileSize] as? Number)?.toLong()?.takeIf { it >= 0L }
 }
+
+actual fun createPlatformSourceAccess(): PlatformSourceAccess = IOSAppLocalSourceAccess()

@@ -6,3 +6,5 @@ expect class LibraryDatabase {
     val driver: SqlDriver
     val database: RhythHausDatabase
 }
+
+expect fun createLibraryDatabase(): LibraryDatabase

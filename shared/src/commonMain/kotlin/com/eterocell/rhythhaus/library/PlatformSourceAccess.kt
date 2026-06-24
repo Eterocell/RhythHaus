@@ -64,3 +64,5 @@ fun String.normalizedSourceLocalKey(): String = replace('\\', '/')
     .split('/')
     .filter { it.isNotBlank() }
     .joinToString("/")
+
+expect fun createPlatformSourceAccess(): PlatformSourceAccess

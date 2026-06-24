@@ -116,3 +116,8 @@ private fun scanDocumentTree(
         )
     }
 }
+
+actual fun createPlatformSourceAccess(): PlatformSourceAccess {
+    val context = LibraryDatabaseContext.applicationContext
+    return AndroidSafSourceAccess(context)
+}

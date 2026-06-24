@@ -55,9 +55,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.library.LibraryScanner
+import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.PlatformAudioScanner
 import com.eterocell.rhythhaus.library.PlatformFolderPickResult
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.library.PlatformSourceAccess
+import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
+import com.eterocell.rhythhaus.library.createLibraryDatabase
+import com.eterocell.rhythhaus.library.createPlatformSourceAccess
+import com.eterocell.rhythhaus.library.currentTimeMillis
 import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.library.uuid4
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
 import com.eterocell.rhythhaus.taglib.createTagLibReader
@@ -77,14 +86,26 @@ fun App() {
     val controller = remember { PlaybackController() }
     val metadataReader = remember { AudioMetadataReader() }
     val tagLibReader = remember { createTagLibReader() }
-    var importedFiles by remember { mutableStateOf(emptyList<ImportedAudioFile>()) }
+    val libraryDb = remember { createLibraryDatabase() }
+    val repository = remember { SqlDelightLibraryRepository(libraryDb) }
+    val platformAccess = remember { createPlatformSourceAccess() }
+    val scanner = remember {
+        LibraryScanner(
+            repository = repository,
+            platformScanner = platformAccess as PlatformAudioScanner,
+            metadataReader = metadataReader,
+            now = { currentTimeMillis() },
+            idFactory = { _ -> uuid4() },
+        )
+    }
+    var libraryTracks by remember { mutableStateOf(repository.tracks()) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
         when (result) {
             is PlatformFolderPickResult.Success -> {
-                importMessage = "Added: ${result.source.displayName}. Scanning..."
-                // Scanner wiring in Task 3
-                importMessage = "Imported source: ${result.source.displayName}"
+                val session = scanner.scan(result.source)
+                importMessage = "Scan complete: ${session.tracksAdded} new, ${session.tracksUpdated} updated"
+                libraryTracks = repository.tracks()
             }
 
             is PlatformFolderPickResult.Unavailable -> importMessage = result.message
@@ -96,34 +117,12 @@ fun App() {
         onDispose { controller.release() }
     }
 
-    val snapshot = importedLibrarySnapshot(importedFiles)
-    val enrichedTracks = remember(importedFiles) {
-        snapshot.tracks.map { track ->
-            val file = importedFiles.find { it.source.stableKey == track.source.stableKey }
-            if (file != null && file.source is AudioSource.FilePath) {
-                when (val result = tagLibReader.readPath(file.source.path)) {
-                    is com.eterocell.rhythhaus.taglib.TagReadResult.Found -> {
-                        val artwork = result.metadata.artwork
-                        if (artwork != null && artwork.bytes.isNotEmpty()) {
-                            track.copy(artworkBytes = artwork.bytes)
-                        } else {
-                            track
-                        }
-                    }
-
-                    else -> track
-                }
-            } else {
-                track
-            }
-        }
-    }
-    val enrichedSnapshot = snapshot.copy(tracks = enrichedTracks)
+    val snapshot = remember(libraryTracks) { librarySnapshot(libraryTracks) }
 
     RhythHausTheme {
         LibraryHomeScreen(
-            snapshot = enrichedSnapshot,
-            importedFiles = importedFiles,
+            snapshot = snapshot,
+            libraryTracks = libraryTracks,
             tagLibReader = tagLibReader,
             playbackController = controller,
             folderPickerLauncher = folderPickerLauncher,
@@ -158,7 +157,7 @@ private fun RhythHausTheme(content: @Composable () -> Unit) {
 @Composable
 fun LibraryHomeScreen(
     snapshot: LibrarySnapshot,
-    importedFiles: List<ImportedAudioFile>,
+    libraryTracks: List<LibraryTrack>,
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     folderPickerLauncher: PlatformFolderPickerLauncher,
@@ -190,7 +189,7 @@ fun LibraryHomeScreen(
             }
             item {
                 DeveloperPanel(
-                    importedFiles = importedFiles,
+                    libraryTracks = libraryTracks,
                     tagLibReader = tagLibReader,
                     expanded = devPanelExpanded,
                     onToggle = { devPanelExpanded = !devPanelExpanded },
@@ -505,7 +504,7 @@ private fun EqualizerStrip(active: Boolean) {
 
 @Composable
 private fun DeveloperPanel(
-    importedFiles: List<ImportedAudioFile>,
+    libraryTracks: List<LibraryTrack>,
     tagLibReader: TagLibReader,
     expanded: Boolean,
     onToggle: () -> Unit,
@@ -536,7 +535,7 @@ private fun DeveloperPanel(
                         letterSpacing = 1.6.sp,
                     )
                     Text(
-                        text = "${importedFiles.size} imported file(s) parsed natively",
+                        text = "${libraryTracks.size} track(s) parsed natively",
                         color = HausMuted,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -552,7 +551,7 @@ private fun DeveloperPanel(
 
             AnimatedVisibility(visible = expanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (importedFiles.isEmpty()) {
+                    if (libraryTracks.isEmpty()) {
                         Text(
                             text = "Import local audio to inspect all TagLib metadata fields plus the full property map (composer, copyright, BPM, ISRC, custom tags, and more).",
                             color = HausMuted,
@@ -562,8 +561,8 @@ private fun DeveloperPanel(
                             modifier = Modifier.semantics { contentDescription = "Developer panel empty state" },
                         )
                     } else {
-                        importedFiles.forEach { file ->
-                            DeveloperMetadataRow(file, tagLibReader)
+                        libraryTracks.forEach { track ->
+                            DeveloperMetadataRow(track, tagLibReader)
                         }
                     }
                 }
@@ -573,16 +572,16 @@ private fun DeveloperPanel(
 }
 
 @Composable
-private fun DeveloperMetadataRow(file: ImportedAudioFile, tagLibReader: TagLibReader) {
-    val rawResult = remember(file.source.stableKey) {
-        when (file.source) {
-            is AudioSource.FilePath -> tagLibReader.readPath(file.source.path)
+private fun DeveloperMetadataRow(track: LibraryTrack, tagLibReader: TagLibReader) {
+    val rawResult = remember(track.audioSource.stableKey) {
+        when (track.audioSource) {
+            is AudioSource.FilePath -> tagLibReader.readPath(track.audioSource.path)
             is AudioSource.Uri -> null
         }
     }
-    val properties = remember(file.source.stableKey) {
-        when (file.source) {
-            is AudioSource.FilePath -> tagLibReader.readProperties(file.source.path)
+    val properties = remember(track.audioSource.stableKey) {
+        when (track.audioSource) {
+            is AudioSource.FilePath -> tagLibReader.readProperties(track.audioSource.path)
             is AudioSource.Uri -> emptyMap()
         }
     }
@@ -596,7 +595,7 @@ private fun DeveloperMetadataRow(file: ImportedAudioFile, tagLibReader: TagLibRe
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
-            text = file.displayName,
+            text = track.displayName,
             color = HausInk,
             fontSize = 14.sp,
             fontWeight = FontWeight.Black,
@@ -604,7 +603,7 @@ private fun DeveloperMetadataRow(file: ImportedAudioFile, tagLibReader: TagLibRe
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = "source: ${file.source.devLabel}",
+            text = "source: ${track.audioSource.devLabel}",
             color = HausMuted,
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
@@ -870,13 +869,37 @@ private fun Track.toPlayableTrack(): PlayableTrack = PlayableTrack(
     artworkBytes = artworkBytes,
 )
 
-private fun mergeImportedFiles(
-    current: List<ImportedAudioFile>,
-    incoming: List<ImportedAudioFile>,
-): List<ImportedAudioFile> {
-    if (incoming.isEmpty()) return current
-    val bySource = LinkedHashMap<String, ImportedAudioFile>()
-    current.forEach { bySource[it.source.stableKey] = it }
-    incoming.forEach { bySource[it.source.stableKey] = it }
-    return bySource.values.toList()
+private fun librarySnapshot(tracks: List<LibraryTrack>): LibrarySnapshot {
+    val uiTracks = tracks.mapIndexed { index, track ->
+        Track(
+            id = track.id,
+            title = track.title,
+            artist = track.artist,
+            album = track.album,
+            durationSeconds = ((track.durationMillis ?: 0L) / 1_000L).toInt(),
+            accent = libraryTrackAccent(index),
+            source = track.audioSource,
+        )
+    }
+    return LibrarySnapshot(
+        title = "RhythHaus",
+        subtitle = if (uiTracks.isEmpty()) {
+            "Choose local audio files to start listening"
+        } else {
+            "${uiTracks.size} local ${if (uiTracks.size == 1) "track" else "tracks"}"
+        },
+        tracks = uiTracks,
+        nowPlayingTrackId = uiTracks.firstOrNull()?.id,
+    )
+}
+
+private fun libraryTrackAccent(index: Int): TrackAccent {
+    val accents = listOf(
+        TrackAccent(start = 0xFF9C6CFF, end = 0xFFFF7A90),
+        TrackAccent(start = 0xFF52D6C5, end = 0xFF4C8DFF),
+        TrackAccent(start = 0xFFFFB86B, end = 0xFFFF6F3C),
+        TrackAccent(start = 0xFF7DE37B, end = 0xFF15B8A6),
+        TrackAccent(start = 0xFFFF6FD8, end = 0xFF3813C2),
+    )
+    return accents[index % accents.size]
 }

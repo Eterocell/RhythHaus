@@ -24,3 +24,5 @@ private fun defaultDatabaseFile(): File = File(
     System.getProperty("user.home"),
     "Library/Application Support/RhythHaus/rhythhaus.db",
 )
+
+actual fun createLibraryDatabase(): LibraryDatabase = LibraryDatabase()
