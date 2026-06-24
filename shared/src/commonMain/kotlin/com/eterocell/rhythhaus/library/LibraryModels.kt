@@ -32,6 +32,10 @@ data class LibraryTrack(
     val lastSeenScanId: String?,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
+    val trackNumber: Int? = null,
+    val discNumber: Int? = null,
+    val artworkBytes: ByteArray? = null,
+    val artworkMimeType: String? = null,
 ) {
     fun toPlayableTrack(): PlayableTrack = PlayableTrack(
         id = id,
@@ -40,7 +44,43 @@ data class LibraryTrack(
         album = album,
         durationMillis = durationMillis,
         source = audioSource,
+        artworkBytes = artworkBytes,
     )
+
+    override fun equals(other: Any?): Boolean = other is LibraryTrack &&
+        id == other.id && sourceId == other.sourceId && sourceLocalKey == other.sourceLocalKey &&
+        audioSource == other.audioSource && displayName == other.displayName &&
+        title == other.title && artist == other.artist && album == other.album &&
+        durationMillis == other.durationMillis && sizeBytes == other.sizeBytes &&
+        modifiedAtEpochMillis == other.modifiedAtEpochMillis &&
+        lastSeenScanId == other.lastSeenScanId &&
+        createdAtEpochMillis == other.createdAtEpochMillis &&
+        updatedAtEpochMillis == other.updatedAtEpochMillis &&
+        trackNumber == other.trackNumber && discNumber == other.discNumber &&
+        artworkMimeType == other.artworkMimeType &&
+        artworkBytes.contentEquals(other.artworkBytes)
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + sourceId.hashCode()
+        result = 31 * result + sourceLocalKey.hashCode()
+        result = 31 * result + audioSource.hashCode()
+        result = 31 * result + displayName.hashCode()
+        result = 31 * result + title.hashCode()
+        result = 31 * result + artist.hashCode()
+        result = 31 * result + album.hashCode()
+        result = 31 * result + (durationMillis?.hashCode() ?: 0)
+        result = 31 * result + (sizeBytes?.hashCode() ?: 0)
+        result = 31 * result + (modifiedAtEpochMillis?.hashCode() ?: 0)
+        result = 31 * result + (lastSeenScanId?.hashCode() ?: 0)
+        result = 31 * result + createdAtEpochMillis.hashCode()
+        result = 31 * result + updatedAtEpochMillis.hashCode()
+        result = 31 * result + (trackNumber ?: 0)
+        result = 31 * result + (discNumber ?: 0)
+        result = 31 * result + (artworkMimeType?.hashCode() ?: 0)
+        result = 31 * result + (artworkBytes?.contentHashCode() ?: 0)
+        return result
+    }
 }
 
 data class AudioScanCandidate(

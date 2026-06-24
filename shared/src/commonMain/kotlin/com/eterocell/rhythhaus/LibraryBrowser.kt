@@ -72,5 +72,7 @@ private fun LibraryTrack.toUiTrack(): Track = Track(
     durationSeconds = durationMillis?.div(1_000L)?.toInt() ?: 0,
     accent = TrackAccent(start = 0xFF111018, end = 0xFF776F66),
     source = audioSource,
-    artworkBytes = null,
+    trackNumber = trackNumber,
+    discNumber = discNumber,
+    artworkBytes = artworkBytes,
 )

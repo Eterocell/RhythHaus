@@ -13,7 +13,11 @@ CREATE TABLE IF NOT EXISTS library_track (
     modifiedAtEpochMillis INTEGER,
     lastSeenScanId TEXT,
     createdAtEpochMillis INTEGER NOT NULL,
-    updatedAtEpochMillis INTEGER NOT NULL
+    updatedAtEpochMillis INTEGER NOT NULL,
+    trackNumber INTEGER,
+    discNumber INTEGER,
+    artworkBytes BLOB,
+    artworkMimeType TEXT
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS library_track_source_key ON library_track(sourceId, sourceLocalKey);
@@ -21,8 +25,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS library_track_source_key ON library_track(sour
 upsertTrack:
 INSERT OR REPLACE INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
-    lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis,
+    trackNumber, discNumber, artworkBytes, artworkMimeType)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 selectAllTracks:
 SELECT * FROM library_track ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;

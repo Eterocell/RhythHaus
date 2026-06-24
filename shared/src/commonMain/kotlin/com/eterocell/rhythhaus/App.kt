@@ -1211,6 +1211,9 @@ private fun librarySnapshot(tracks: List<LibraryTrack>): LibrarySnapshot {
             durationSeconds = ((track.durationMillis ?: 0L) / 1_000L).toInt(),
             accent = libraryTrackAccent(index),
             source = track.audioSource,
+            trackNumber = track.trackNumber,
+            discNumber = track.discNumber,
+            artworkBytes = track.artworkBytes,
         )
     }
     return LibrarySnapshot(

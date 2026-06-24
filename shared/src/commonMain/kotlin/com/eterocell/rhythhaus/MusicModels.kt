@@ -10,12 +10,30 @@ data class Track(
     val durationSeconds: Int,
     val accent: TrackAccent,
     val source: AudioSource,
+    val trackNumber: Int? = null,
+    val discNumber: Int? = null,
     val artworkBytes: ByteArray? = null,
 ) {
     override fun equals(other: Any?): Boolean = other is Track &&
-        id == other.id && artworkBytes.contentEquals(other.artworkBytes)
+        id == other.id && title == other.title && artist == other.artist &&
+        album == other.album && durationSeconds == other.durationSeconds &&
+        accent == other.accent && source == other.source &&
+        trackNumber == other.trackNumber && discNumber == other.discNumber &&
+        artworkBytes.contentEquals(other.artworkBytes)
 
-    override fun hashCode(): Int = id.hashCode()
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + title.hashCode()
+        result = 31 * result + artist.hashCode()
+        result = 31 * result + album.hashCode()
+        result = 31 * result + durationSeconds
+        result = 31 * result + accent.hashCode()
+        result = 31 * result + source.hashCode()
+        result = 31 * result + (trackNumber ?: 0)
+        result = 31 * result + (discNumber ?: 0)
+        result = 31 * result + (artworkBytes?.contentHashCode() ?: 0)
+        return result
+    }
 }
 
 data class TrackAccent(

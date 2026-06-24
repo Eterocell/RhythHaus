@@ -155,6 +155,10 @@ private fun AudioScanCandidate.toLibraryTrack(
         lastSeenScanId = scanId,
         createdAtEpochMillis = timestamp,
         updatedAtEpochMillis = timestamp,
+        trackNumber = metadata?.trackNumber,
+        discNumber = metadata?.discNumber,
+        artworkBytes = metadata?.artworkBytes,
+        artworkMimeType = metadata?.artworkMimeType,
     )
 }
 

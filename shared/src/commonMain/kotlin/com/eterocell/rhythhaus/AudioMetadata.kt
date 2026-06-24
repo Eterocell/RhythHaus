@@ -11,7 +11,29 @@ data class AudioMetadata(
     val artist: String? = null,
     val album: String? = null,
     val durationMillis: Long? = null,
-)
+    val trackNumber: Int? = null,
+    val discNumber: Int? = null,
+    val artworkBytes: ByteArray? = null,
+    val artworkMimeType: String? = null,
+) {
+    override fun equals(other: Any?): Boolean = other is AudioMetadata &&
+        title == other.title && artist == other.artist && album == other.album &&
+        durationMillis == other.durationMillis && trackNumber == other.trackNumber &&
+        discNumber == other.discNumber && artworkMimeType == other.artworkMimeType &&
+        artworkBytes.contentEquals(other.artworkBytes)
+
+    override fun hashCode(): Int {
+        var result = title.hashCode()
+        result = 31 * result + artist.hashCode()
+        result = 31 * result + album.hashCode()
+        result = 31 * result + (durationMillis?.hashCode() ?: 0)
+        result = 31 * result + (trackNumber ?: 0)
+        result = 31 * result + (discNumber ?: 0)
+        result = 31 * result + (artworkMimeType?.hashCode() ?: 0)
+        result = 31 * result + (artworkBytes?.contentHashCode() ?: 0)
+        return result
+    }
+}
 
 class AudioMetadataReader(
     private val tagLibReader: TagLibReader = createTagLibReader(),
@@ -37,6 +59,10 @@ private fun TagMetadata.toAudioMetadata(): AudioMetadata = AudioMetadata(
     artist = artist.normalizedOrNull(),
     album = album.normalizedOrNull(),
     durationMillis = durationMillis?.takeIf { it > 0L },
+    trackNumber = trackNumber?.takeIf { it > 0 },
+    discNumber = discNumber?.takeIf { it > 0 },
+    artworkBytes = artwork?.bytes?.takeIf { it.isNotEmpty() },
+    artworkMimeType = artwork?.mimeType,
 )
 
 private fun String?.normalizedOrNull(): String? = this?.trim()?.takeIf { it.isNotBlank() }

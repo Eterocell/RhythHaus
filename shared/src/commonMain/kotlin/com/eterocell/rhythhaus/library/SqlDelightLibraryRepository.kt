@@ -36,7 +36,7 @@ class SqlDelightLibraryRepository(
         val existing = database.libraryTrackQueries.selectTrackBySourceKey(
             sourceId = track.sourceId,
             sourceLocalKey = track.sourceLocalKey,
-            mapper = { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis ->
+            mapper = { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber, artworkBytes, artworkMimeType ->
                 DomainTrackRow(
                     id = id,
                     sourceId = sourceId,
@@ -53,6 +53,10 @@ class SqlDelightLibraryRepository(
                     lastSeenScanId = lastSeenScanId,
                     createdAtEpochMillis = createdAtEpochMillis,
                     updatedAtEpochMillis = updatedAtEpochMillis,
+                    trackNumber = trackNumber,
+                    discNumber = discNumber,
+                    artworkBytes = artworkBytes,
+                    artworkMimeType = artworkMimeType,
                 )
             },
         ).executeAsOneOrNull()
@@ -75,6 +79,10 @@ class SqlDelightLibraryRepository(
                 lastSeenScanId = track.lastSeenScanId,
                 createdAtEpochMillis = track.createdAtEpochMillis,
                 updatedAtEpochMillis = track.updatedAtEpochMillis,
+                trackNumber = track.trackNumber?.toLong(),
+                discNumber = track.discNumber?.toLong(),
+                artworkBytes = track.artworkBytes,
+                artworkMimeType = track.artworkMimeType,
             )
             TrackUpsertResult.Added
         } else {
@@ -95,13 +103,17 @@ class SqlDelightLibraryRepository(
                 lastSeenScanId = track.lastSeenScanId,
                 createdAtEpochMillis = existing.createdAtEpochMillis,
                 updatedAtEpochMillis = track.updatedAtEpochMillis,
+                trackNumber = track.trackNumber?.toLong(),
+                discNumber = track.discNumber?.toLong(),
+                artworkBytes = track.artworkBytes,
+                artworkMimeType = track.artworkMimeType,
             )
             TrackUpsertResult.Updated
         }
     }
 
     override fun tracks(): List<LibraryTrack> =
-        database.libraryTrackQueries.selectAllTracks { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis ->
+        database.libraryTrackQueries.selectAllTracks { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber, artworkBytes, artworkMimeType ->
             LibraryTrack(
                 id = id,
                 sourceId = sourceId,
@@ -117,11 +129,15 @@ class SqlDelightLibraryRepository(
                 lastSeenScanId = lastSeenScanId,
                 createdAtEpochMillis = createdAtEpochMillis,
                 updatedAtEpochMillis = updatedAtEpochMillis,
+                trackNumber = trackNumber?.toInt(),
+                discNumber = discNumber?.toInt(),
+                artworkBytes = artworkBytes,
+                artworkMimeType = artworkMimeType,
             )
         }.executeAsList()
 
     override fun tracksForSource(sourceId: String): List<LibraryTrack> =
-        database.libraryTrackQueries.selectTracksForSource(sourceId) { id, srcId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis ->
+        database.libraryTrackQueries.selectTracksForSource(sourceId) { id, srcId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber, artworkBytes, artworkMimeType ->
             LibraryTrack(
                 id = id,
                 sourceId = srcId,
@@ -137,6 +153,10 @@ class SqlDelightLibraryRepository(
                 lastSeenScanId = lastSeenScanId,
                 createdAtEpochMillis = createdAtEpochMillis,
                 updatedAtEpochMillis = updatedAtEpochMillis,
+                trackNumber = trackNumber?.toInt(),
+                discNumber = discNumber?.toInt(),
+                artworkBytes = artworkBytes,
+                artworkMimeType = artworkMimeType,
             )
         }.executeAsList()
 
@@ -219,6 +239,10 @@ private data class DomainTrackRow(
     val lastSeenScanId: String?,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
+    val trackNumber: Long?,
+    val discNumber: Long?,
+    val artworkBytes: ByteArray?,
+    val artworkMimeType: String?,
 )
 
 private val AudioSource.kindName: String
