@@ -57,6 +57,12 @@ class IOSAppLocalSourceAccess :
 @OptIn(ExperimentalForeignApi::class)
 private fun appLocalMusicSource(): LibrarySource {
     val folder = appLocalMusicFolderPath()
+    NSFileManager.defaultManager.createDirectoryAtPath(
+        path = folder,
+        withIntermediateDirectories = true,
+        attributes = null,
+        error = null,
+    )
     return LibrarySource(
         id = "ios-app-local-${folder.hashCode().toUInt().toString(16)}",
         platformKind = LibraryPlatformKind.IosAppLocal,
