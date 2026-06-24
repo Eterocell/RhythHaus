@@ -16,10 +16,3 @@ val wrapper: Wrapper by tasks.named<Wrapper>("wrapper") {
             .use { it.reader().readText().trim() }
     distributionSha256Sum = sha256
 }
-
-tasks.named("clean") {
-    allprojects.forEach {
-        delete(it.layout.buildDirectory)
-        delete(files("${it.layout.projectDirectory.asFile.absolutePath}/.cxx"))
-    }
-}

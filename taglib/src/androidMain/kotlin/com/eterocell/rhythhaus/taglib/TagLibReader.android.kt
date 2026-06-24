@@ -68,12 +68,18 @@ internal data class NativeTagLibReadResult(
                 bitrate = bitrate.positiveOrNull(),
                 sampleRate = sampleRate.positiveOrNull(),
                 channels = channels.positiveOrNull(),
-                artwork = if (artworkBytes != null && artworkBytes.isNotEmpty())
-                    EmbeddedArtwork(artworkMimeType, artworkBytes) else null,
+                artwork = if (artworkBytes != null && artworkBytes.isNotEmpty()) {
+                    EmbeddedArtwork(artworkMimeType, artworkBytes)
+                } else {
+                    null
+                },
             ),
         )
+
         STATUS_UNSUPPORTED -> TagReadResult.Unsupported(errorMessage ?: "Native TagLib reader does not support this Android path")
+
         STATUS_FAILED -> TagReadResult.Failed(errorMessage ?: "Native TagLib reader failed on Android")
+
         else -> TagReadResult.Failed("Native TagLib reader returned unknown Android status: $status")
     }
 

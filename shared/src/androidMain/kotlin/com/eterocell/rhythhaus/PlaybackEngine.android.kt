@@ -93,11 +93,14 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
             val exoPlayer = player ?: return
             when (playbackState) {
                 Player.STATE_BUFFERING -> listener?.onPlaybackStatus(PlaybackStatus.Buffering)
+
                 Player.STATE_READY -> {
                     publishProgress(exoPlayer)
                     listener?.onPlaybackStatus(if (exoPlayer.playWhenReady) PlaybackStatus.Playing else PlaybackStatus.Paused)
                 }
+
                 Player.STATE_ENDED -> listener?.onPlaybackCompleted()
+
                 Player.STATE_IDLE -> Unit
             }
         }

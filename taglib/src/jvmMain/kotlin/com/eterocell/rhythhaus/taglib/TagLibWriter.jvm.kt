@@ -59,7 +59,9 @@ private object NativeWriteLibrary {
         val architecture = System.getProperty("os.arch").lowercase()
         val platform = when {
             osName.contains("Mac", ignoreCase = true) && architecture in setOf("aarch64", "arm64") -> "macos-aarch64"
+
             osName.contains("Mac", ignoreCase = true) && architecture == "x86_64" -> "macos-x64"
+
             else -> throw NativeTagLibUnavailableException(
                 "Native TagLib helper is only packaged for macOS JVM, current os=$osName arch=${System.getProperty("os.arch")}",
             )

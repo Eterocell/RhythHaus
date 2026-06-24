@@ -60,7 +60,8 @@ private fun Uri.toAndroidSafSource(context: Context): LibrarySource {
 
 class AndroidSafSourceAccess(
     private val context: Context,
-) : PlatformSourceAccess, PlatformAudioScanner {
+) : PlatformSourceAccess,
+    PlatformAudioScanner {
     override fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus {
         if (source.platformKind != LibraryPlatformKind.AndroidSafTree) return LibrarySourceAccessStatus.LostAccess
         val hasPersistedPermission = context.contentResolver.persistedUriPermissions.any { permission ->

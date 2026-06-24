@@ -71,12 +71,18 @@ internal data class NativeTagLibReadResult(
                 bitrate = bitrate.positiveOrNull(),
                 sampleRate = sampleRate.positiveOrNull(),
                 channels = channels.positiveOrNull(),
-                artwork = if (artworkBytes != null && artworkBytes.isNotEmpty())
-                    EmbeddedArtwork(artworkMimeType, artworkBytes) else null,
+                artwork = if (artworkBytes != null && artworkBytes.isNotEmpty()) {
+                    EmbeddedArtwork(artworkMimeType, artworkBytes)
+                } else {
+                    null
+                },
             ),
         )
+
         STATUS_UNSUPPORTED -> TagReadResult.Unsupported(errorMessage ?: "Native TagLib reader does not support this path")
+
         STATUS_FAILED -> TagReadResult.Failed(errorMessage ?: "Native TagLib reader failed")
+
         else -> TagReadResult.Failed("Native TagLib reader returned unknown status: $status")
     }
 
@@ -115,7 +121,9 @@ private object NativeTagLibLibrary {
         val architecture = System.getProperty("os.arch").lowercase()
         val platform = when {
             osName.contains("Mac", ignoreCase = true) && architecture in setOf("aarch64", "arm64") -> "macos-aarch64"
+
             osName.contains("Mac", ignoreCase = true) && architecture == "x86_64" -> "macos-x64"
+
             else -> throw NativeTagLibUnavailableException(
                 "Native TagLib helper is only packaged for macOS JVM, current os=$osName arch=${System.getProperty("os.arch")}",
             )

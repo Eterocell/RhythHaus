@@ -60,7 +60,9 @@ private fun File.toJvmFolderSource(): LibrarySource = LibrarySource(
     createdAtEpochMillis = System.currentTimeMillis(),
 )
 
-class JvmFolderSourceAccess : PlatformSourceAccess, PlatformAudioScanner {
+class JvmFolderSourceAccess :
+    PlatformSourceAccess,
+    PlatformAudioScanner {
     override fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus {
         val folder = File(source.handle)
         return if (source.platformKind == LibraryPlatformKind.JvmFolder && folder.isDirectory && folder.canRead()) {

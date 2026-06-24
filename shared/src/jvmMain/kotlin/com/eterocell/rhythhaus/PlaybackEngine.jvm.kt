@@ -112,8 +112,7 @@ internal class MacAudioPlayerBridge {
         durationMillis: Long?,
         positionMillis: Long,
     ) = nativeUpdateNowPlayingInfo(requireHandle(), title, artist, album, durationMillis ?: 0L, positionMillis)
-    fun updateNowPlayingPosition(positionMillis: Long, durationMillis: Long?) =
-        nativeUpdateNowPlayingPosition(requireHandle(), positionMillis, durationMillis ?: 0L)
+    fun updateNowPlayingPosition(positionMillis: Long, durationMillis: Long?) = nativeUpdateNowPlayingPosition(requireHandle(), positionMillis, durationMillis ?: 0L)
     fun updateNowPlayingPlaybackState(status: PlaybackStatus) = nativeUpdateNowPlayingPlaybackState(requireHandle(), status.macosPlaybackStateCode())
     fun registerNowPlayingRemoteCommands() = nativeRegisterNowPlayingRemoteCommands(requireHandle())
     fun clearNowPlayingInfo() = nativeClearNowPlayingInfo(requireHandle())

@@ -97,8 +97,17 @@ fun SpotlessExtension.kotlinGradle(
         .editorConfigOverride(editorConfigOverride)
 }
 
+fun SpotlessExtension.cAndCpp(
+    clangFormatVersion: String = "*",
+    style: String = "Google",
+    block: FormatExtension.() -> Unit = {
+        target("src/**/*.c", "src/**/*.cpp", "src/**/*.cc", "src/**/*.h", "src/**/*.hpp")
+        clangFormat(clangFormatVersion).style(style)
+    },
+) = format("c", block)
+
 fun SpotlessExtension.protobuf(
-    clangFormatVersion: String = "13.0.0",
+    clangFormatVersion: String = "*",
     style: String = "Google",
     block: FormatExtension.() -> Unit = {
         target("src/**/*.proto")

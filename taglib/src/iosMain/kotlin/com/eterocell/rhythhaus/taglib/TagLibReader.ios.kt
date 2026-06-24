@@ -3,8 +3,8 @@ package com.eterocell.rhythhaus.taglib
 import com.eterocell.rhythhaus.taglib.cinterop.rh_taglib_free_result
 import com.eterocell.rhythhaus.taglib.cinterop.rh_taglib_read_path
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.useContents
 import kotlinx.cinterop.toKString
+import kotlinx.cinterop.useContents
 
 @OptIn(ExperimentalForeignApi::class)
 actual fun createTagLibReader(): TagLibReader = IosNativeTagLibReader()
@@ -37,14 +37,17 @@ private class IosNativeTagLibReader : TagLibReader {
                     )
                 },
             )
+
             STATUS_UNSUPPORTED -> TagReadResult.Unsupported(
                 result.useContents { error_message?.toKString() }
                     ?: "Native TagLib reader does not support this path",
             )
+
             STATUS_FAILED -> TagReadResult.Failed(
                 result.useContents { error_message?.toKString() }
                     ?: "Native TagLib reader failed",
             )
+
             else -> TagReadResult.Failed("Native TagLib reader returned unknown status: $status")
         }
         rh_taglib_free_result(result)

@@ -93,7 +93,7 @@ val iosNativeBuildTasks = iosTagLibBuilds.associate { build ->
               -DRHYTHHAUS_TAGLIB_BUILD_STATIC=ON
             cmake --build '${buildDirectory.absolutePath}' --target rhythhaus_taglib --config Release --parallel
             cmake -E copy_if_different '${buildDirectory.resolve("librhythhaus_taglib.a").absolutePath}' '${outputLibrary.absolutePath}'
-            cmake -E copy_if_different '${upstreamTagLibDir}/libtag.a' '${upstreamLib.absolutePath}'
+            cmake -E copy_if_different '$upstreamTagLibDir/libtag.a' '${upstreamLib.absolutePath}'
             """.trimIndent(),
         )
     }
@@ -119,7 +119,7 @@ val androidNativeBuildTasks = androidTagLibAbis.map { abi ->
         "x86_64" -> "x86_64-linux-android"
         else -> error("unsupported ABI: $abi")
     }
-    val ndkToolchain = "${ndkAbi}${androidTagLibMinSdk}"
+    val ndkToolchain = "${ndkAbi}$androidTagLibMinSdk"
     val buildDir = layout.buildDirectory.dir("native/androidTagLibHelper-$abi").get().asFile
     val outputSo = androidTagLibOutputRoot.resolve("$abi/librhythhaus_taglib.so")
 
@@ -195,7 +195,7 @@ kotlin {
         val staticLibrary = iosTagLibStaticLibraries.getValue(targetName)
         val upstreamLibrary = iosTagLibUpstreamLibraries.getValue(targetName)
         val nativeBuildTask = iosNativeBuildTasks.getValue(targetName)
-        val generatedDefFile = layout.buildDirectory.file("generated/cinteropDefs/${targetName}/rh_taglib.def")
+        val generatedDefFile = layout.buildDirectory.file("generated/cinteropDefs/$targetName/rh_taglib.def")
         val templateFile = project.file("src/nativeInterop/cinterop/rh_taglib.def")
         val generateDefTask = tasks.register("generateDef$targetName") {
             dependsOn(nativeBuildTask)
@@ -261,5 +261,3 @@ tasks.matching { it.name.contains("merge") && it.name.contains("JniLibFolders") 
 tasks.matching { it.name.contains("copy") && it.name.contains("JniLibsProjectOnly") }.configureEach {
     dependsOn(packageAndroidTagLibJniLibs)
 }
-
-

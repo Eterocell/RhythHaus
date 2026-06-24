@@ -145,8 +145,7 @@ class SqlDelightLibraryRepository(
 
     override fun tracks(): List<LibraryTrack> = queries.selectTracks().executeAsList().map { it.toLibraryTrack() }
 
-    override fun tracksForSource(sourceId: String): List<LibraryTrack> =
-        queries.selectTracksForSource(sourceId).executeAsList().map { it.toLibraryTrack() }
+    override fun tracksForSource(sourceId: String): List<LibraryTrack> = queries.selectTracksForSource(sourceId).executeAsList().map { it.toLibraryTrack() }
 
     override fun insertScanSession(session: ScanSession) = upsertScanSession(session, insert = true)
 

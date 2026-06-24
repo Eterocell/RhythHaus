@@ -1,7 +1,7 @@
 package com.eterocell.rhythhaus.library
 
-import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.AudioMetadataReader
+import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.Test

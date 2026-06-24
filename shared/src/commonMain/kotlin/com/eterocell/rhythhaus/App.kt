@@ -56,8 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
-import com.eterocell.rhythhaus.taglib.TagMetadata as RawTagMetadata
 import com.eterocell.rhythhaus.taglib.createTagLibReader
+import com.eterocell.rhythhaus.taglib.TagMetadata as RawTagMetadata
 
 private val HausInk = Color(0xFF111018)
 private val HausPaper = Color(0xFFFFFAF1)
@@ -81,7 +81,9 @@ fun App() {
                 importedFiles = mergeImportedFiles(importedFiles, enrichImportedAudioFiles(result.files, metadataReader))
                 importMessage = if (result.files.isEmpty()) "No audio files selected" else "Imported ${result.files.size} local file(s)"
             }
+
             is AudioImportResult.Unavailable -> importMessage = result.message
+
             is AudioImportResult.Failure -> importMessage = result.cause?.let { "${result.message}: $it" } ?: result.message
         }
     }
@@ -99,11 +101,16 @@ fun App() {
                         val artwork = result.metadata.artwork
                         if (artwork != null && artwork.bytes.isNotEmpty()) {
                             track.copy(artworkBytes = artwork.bytes)
-                        } else track
+                        } else {
+                            track
+                        }
                     }
+
                     else -> track
                 }
-            } else track
+            } else {
+                track
+            }
         }
     }
     val enrichedSnapshot = snapshot.copy(tracks = enrichedTracks)
@@ -601,86 +608,90 @@ private fun DeveloperMetadataRow(file: ImportedAudioFile, tagLibReader: TagLibRe
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
-        } else when (rawResult) {
-            is TagReadResult.Found -> {
-                rawTagLines(rawResult.metadata).forEach { (label, value) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = label,
-                            color = HausMuted,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Text(
-                            text = value,
-                            color = HausInk,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .padding(start = 12.dp)
-                                .weight(1f, fill = false),
-                        )
-                    }
-                }
-                if (properties.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "ALL PROPERTIES (${properties.size})",
-                        color = HausInk,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.2.sp,
-                    )
-                    properties.entries.sortedBy { it.key }.forEach { (key, value) ->
+        } else {
+            when (rawResult) {
+                is TagReadResult.Found -> {
+                    rawTagLines(rawResult.metadata).forEach { (label, value) ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Text(
-                                text = key,
+                                text = label,
                                 color = HausMuted,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
                             )
                             Text(
                                 text = value,
                                 color = HausInk,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
-                                maxLines = 2,
+                                maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
-                                    .padding(start = 8.dp)
+                                    .padding(start = 12.dp)
                                     .weight(1f, fill = false),
                             )
                         }
                     }
+                    if (properties.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "ALL PROPERTIES (${properties.size})",
+                            color = HausInk,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.2.sp,
+                        )
+                        properties.entries.sortedBy { it.key }.forEach { (key, value) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(
+                                    text = key,
+                                    color = HausMuted,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    text = value,
+                                    color = HausInk,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .padding(start = 8.dp)
+                                        .weight(1f, fill = false),
+                                )
+                            }
+                        }
+                    }
                 }
+
+                is TagReadResult.Unsupported -> Text(
+                    text = "native: unsupported — ${rawResult.reason}",
+                    color = HausPulse,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+
+                is TagReadResult.Failed -> Text(
+                    text = "native: failed — ${rawResult.reason}",
+                    color = HausPulse,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                )
             }
-            is TagReadResult.Unsupported -> Text(
-                text = "native: unsupported — ${rawResult.reason}",
-                color = HausPulse,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            is TagReadResult.Failed -> Text(
-                text = "native: failed — ${rawResult.reason}",
-                color = HausPulse,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-            )
         }
     }
 }

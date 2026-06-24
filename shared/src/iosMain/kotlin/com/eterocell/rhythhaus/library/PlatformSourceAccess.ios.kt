@@ -31,7 +31,9 @@ actual fun rememberPlatformFolderPickerLauncher(
     }
 }
 
-class IOSAppLocalSourceAccess : PlatformSourceAccess, PlatformAudioScanner {
+class IOSAppLocalSourceAccess :
+    PlatformSourceAccess,
+    PlatformAudioScanner {
     override fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus {
         if (source.platformKind != LibraryPlatformKind.IosAppLocal) return LibrarySourceAccessStatus.LostAccess
         return if (NSFileManager.defaultManager.fileExistsAtPath(source.handle)) {
@@ -126,4 +128,3 @@ private fun fileSize(path: String): Long? {
     val attributes = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null) ?: return null
     return (attributes[NSFileSize] as? Number)?.toLong()?.takeIf { it >= 0L }
 }
-
