@@ -35,32 +35,30 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
 
     override fun load(track: PlayableTrack) {
         release()
-        platformLog("RhythHaus", "Loading track: ${track.title} (${track.source})")
+        platformLog("RhythHaus", "Loading track: ${track.title}")
         listener?.onPlaybackStatus(PlaybackStatus.Loading)
         configureAudioSession()
         val url = track.source.iosUrl()
-        platformLog("RhythHaus", "iOS player URL: ${url.absoluteString}")
-        val audioPlayer: AVAudioPlayer?
-        try {
-            audioPlayer = AVAudioPlayer(contentsOfURL = url, error = null)
-            if (audioPlayer.duration <= 0.0) {
-                val errorMsg = "Unsupported or unreadable: ${track.title}"
-                platformLog("RhythHaus", "ERROR: $errorMsg (${url.absoluteString})")
-                listener?.onPlaybackError(PlaybackError(errorMsg, cause = "Format may not be supported by AVAudioPlayer (e.g. FLAC, OGG)"))
-                return
-            }
-        } catch (npe: NullPointerException) {
-            val errorMsg = "Unsupported format: ${track.title}. AVAudioPlayer does not support FLAC/OGG."
-            platformLog("RhythHaus", "ERROR: $errorMsg ($url)")
+        platformLog("RhythHaus", "Player URL: ${url.absoluteString}")
+
+        val audioPlayer = try {
+            AVAudioPlayer(contentsOfURL = url, error = null)
+        } catch (t: Throwable) {
+            val errorMsg = "Could not create player: ${track.title} (${t.message})"
+            platformLog("RhythHaus", "ERROR: $errorMsg")
             listener?.onPlaybackError(PlaybackError(errorMsg, cause = url.absoluteString))
             return
-        } catch (t: Throwable) {
-            val errorMsg = "Could not load: ${track.title} (${t.message})"
+        }
+
+        // On unsupported formats, AVAudioPlayer returns a nil-like object.
+        // The tried-and-true approach: attempt prepareToPlay and check if it works.
+        if (!audioPlayer.prepareToPlay()) {
+            val errorMsg = "Cannot play: ${track.title}"
             platformLog("RhythHaus", "ERROR: $errorMsg")
-            listener?.onPlaybackError(PlaybackError(errorMsg, cause = "${t::class.simpleName}: ${t.message}"))
+            listener?.onPlaybackError(PlaybackError(errorMsg, cause = url.absoluteString))
             return
         }
-        audioPlayer.prepareToPlay()
+
         player = audioPlayer
         loadedTrack = track
         durationMillis = track.durationMillis ?: (audioPlayer.duration * 1_000.0).toLong().takeIf { it > 0L }
@@ -72,7 +70,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     }
 
     override fun play() {
-        val audioPlayer = requireNotNull(player) { "No iOS player has been loaded" }
+        val audioPlayer = requireNotNull(player) { "No player loaded" }
         platformLog("RhythHaus", "Playing: ${loadedTrack?.title}")
         if (!audioPlayer.play()) {
             val errorMsg = "Could not start playback: ${loadedTrack?.title}"
@@ -176,10 +174,6 @@ private fun buildIOSNowPlayingDictionary(
     track.album?.let { put(MPMediaItemPropertyAlbumTitle, it) }
     durationMillis?.let { put(MPMediaItemPropertyPlaybackDuration, it.toDouble() / 1_000.0) }
     put(MPNowPlayingInfoPropertyElapsedPlaybackTime, positionMillis.coerceAtLeast(0L).toDouble() / 1_000.0)
-    // iOS artwork (MPMediaItemPropertyArtwork) is deferred:
-    // Kotlin/Native cinterop for ByteArray → NSData → UIImage → MPMediaItemArtwork
-    // requires stable Foundation bridging APIs not yet available in the current KMP version.
-    // Artwork is delivered through the shared Compose NowPlayingCard meanwhile.
 }
 
 private fun AudioSource.iosUrl(): NSURL = when (this) {
