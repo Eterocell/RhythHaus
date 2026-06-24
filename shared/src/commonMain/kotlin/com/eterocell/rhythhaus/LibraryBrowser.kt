@@ -23,7 +23,11 @@ fun groupByAlbum(tracks: List<LibraryTrack>): List<AlbumGroup> =
         .map { (album, trackList) ->
             AlbumGroup(
                 album = album,
-                tracks = trackList.sortedBy { it.title.lowercase() }.map { it.toUiTrack() },
+                tracks = trackList.sortedWith(
+                    compareBy<LibraryTrack> { it.discNumber ?: 0 }
+                        .thenBy { it.trackNumber ?: 0 }
+                        .thenBy { it.title.lowercase() }
+                ).map { it.toUiTrack() },
                 artist = trackList.firstOrNull()?.artist,
             )
         }
@@ -34,7 +38,11 @@ fun groupByArtist(tracks: List<LibraryTrack>): List<ArtistGroup> =
         .map { (artist, trackList) ->
             ArtistGroup(
                 artist = artist,
-                tracks = trackList.sortedBy { it.title.lowercase() }.map { it.toUiTrack() },
+                tracks = trackList.sortedWith(
+                    compareBy<LibraryTrack> { it.discNumber ?: 0 }
+                        .thenBy { it.trackNumber ?: 0 }
+                        .thenBy { it.title.lowercase() }
+                ).map { it.toUiTrack() },
             )
         }
         .sortedBy { it.artist.lowercase() }
@@ -46,7 +54,11 @@ fun groupTracksByAlbum(tracks: List<Track>): List<AlbumGroup> =
         .map { (album, trackList) ->
             AlbumGroup(
                 album = album,
-                tracks = trackList.sortedBy { it.title.lowercase() },
+                tracks = trackList.sortedWith(
+                    compareBy<Track> { it.discNumber ?: 0 }
+                        .thenBy { it.trackNumber ?: 0 }
+                        .thenBy { it.title.lowercase() }
+                ),
                 artist = trackList.firstOrNull()?.artist,
             )
         }
@@ -57,7 +69,11 @@ fun groupTracksByArtist(tracks: List<Track>): List<ArtistGroup> =
         .map { (artist, trackList) ->
             ArtistGroup(
                 artist = artist,
-                tracks = trackList.sortedBy { it.title.lowercase() },
+                tracks = trackList.sortedWith(
+                    compareBy<Track> { it.discNumber ?: 0 }
+                        .thenBy { it.trackNumber ?: 0 }
+                        .thenBy { it.title.lowercase() }
+                ),
             )
         }
         .sortedBy { it.artist.lowercase() }
