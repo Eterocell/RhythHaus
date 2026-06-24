@@ -28,10 +28,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -129,14 +130,22 @@ fun App() {
 
 @Composable
 private fun RhythHausTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = MaterialTheme.colorScheme.copy(
-            background = HausPaper,
-            surface = HausPanel,
+    MiuixTheme(
+        colors = lightColorScheme(
             primary = HausInk,
+            onPrimary = HausPaper,
             secondary = HausPulse,
+            onSecondary = HausPaper,
+            background = HausPaper,
             onBackground = HausInk,
+            surface = HausPanel,
             onSurface = HausInk,
+            surfaceContainer = HausPanel,
+            onSurfaceContainer = HausInk,
+            secondaryVariant = HausPulse,
+            onSecondaryVariant = HausPaper,
+            disabledSecondaryVariant = HausPulse.copy(alpha = 0.28f),
+            disabledOnSecondaryVariant = HausPaper.copy(alpha = 0.28f),
         ),
         content = content,
     )
