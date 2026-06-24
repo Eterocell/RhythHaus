@@ -57,16 +57,10 @@ class IOSAppLocalSourceAccess :
 @OptIn(ExperimentalForeignApi::class)
 private fun appLocalMusicSource(): LibrarySource {
     val folder = appLocalMusicFolderPath()
-    NSFileManager.defaultManager.createDirectoryAtPath(
-        path = folder,
-        withIntermediateDirectories = true,
-        attributes = null,
-        error = null,
-    )
     return LibrarySource(
         id = "ios-app-local-${folder.hashCode().toUInt().toString(16)}",
         platformKind = LibraryPlatformKind.IosAppLocal,
-        displayName = "RhythHaus Music",
+        displayName = "RhythHaus",
         handle = folder,
         createdAtEpochMillis = 0L,
     )
@@ -114,7 +108,7 @@ private fun appLocalMusicFolderPath(): String {
     )
     val documentsUrl = urls.firstOrNull() as? NSURL
         ?: error("iOS documents directory is unavailable")
-    return documentsUrl.path.orEmpty().trimEnd('/') + "/RhythHaus Music"
+    return documentsUrl.path.orEmpty().trimEnd('/')
 }
 
 @OptIn(ExperimentalForeignApi::class)
