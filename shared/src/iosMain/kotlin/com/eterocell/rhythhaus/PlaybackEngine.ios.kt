@@ -64,6 +64,9 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
                 if (!p.isPlaying()) continue
                 val pos = (p.currentTime * 1_000.0).toLong()
                 listener?.onPlaybackProgress(pos, durationMillis)
+                if (durationMillis != null && pos >= durationMillis!!) {
+                    listener?.onPlaybackCompleted()
+                }
             }
         }
     }

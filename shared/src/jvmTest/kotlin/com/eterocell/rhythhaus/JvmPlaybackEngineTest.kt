@@ -9,6 +9,7 @@ import kotlin.io.path.createTempFile
 import kotlin.io.path.deleteIfExists
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -148,6 +149,54 @@ class JvmPlaybackEngineTest {
             engine.release()
             wavPath.deleteIfExists()
         }
+    }
+
+    @Test
+    fun controllerAutoAdvancesToNextTrackOnCompletion() {
+        val engine = FakePlaybackEngine()
+        val controller = PlaybackController(engine)
+        val track1 = PlayableTrack(
+            id = "track-1",
+            title = "First Track",
+            artist = "Test Artist",
+            album = "Test Album",
+            durationMillis = 1000L,
+            source = AudioSource.FilePath("/tmp/track1.mp3"),
+        )
+        val track2 = PlayableTrack(
+            id = "track-2",
+            title = "Second Track",
+            artist = "Test Artist",
+            album = "Test Album",
+            durationMillis = 2000L,
+            source = AudioSource.FilePath("/tmp/track2.mp3"),
+        )
+        controller.setQueue(listOf(track1, track2), selectedTrackId = "track-1")
+        controller.play()
+        assertEquals("track-1", controller.state.value.currentTrack?.id)
+
+        engine.complete()
+        assertEquals("track-2", controller.state.value.currentTrack?.id)
+        assertEquals(PlaybackStatus.Playing, controller.state.value.status)
+        assertFalse(engine.released)
+    }
+
+    @Test
+    fun controllerStopsWhenLastTrackCompletes() {
+        val engine = FakePlaybackEngine()
+        val controller = PlaybackController(engine)
+        val track = PlayableTrack(
+            id = "track-1",
+            title = "Only Track",
+            artist = "Test Artist",
+            album = null,
+            durationMillis = 1000L,
+            source = AudioSource.FilePath("/tmp/track1.mp3"),
+        )
+        controller.setQueue(listOf(track), selectedTrackId = "track-1")
+        controller.play()
+        engine.complete()
+        assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
     }
 
     private fun createSilentWavFile(durationMillis: Int = 100) = createTempFile(prefix = "rhythhaus-silence", suffix = ".wav").also { path ->

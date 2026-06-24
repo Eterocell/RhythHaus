@@ -199,7 +199,15 @@ class PlaybackController(
     }
 
     override fun onPlaybackCompleted() {
-        _state.value = _state.value.copy(status = PlaybackStatus.Stopped, positionMillis = 0L)
+        val queue = _state.value.queue
+        val currentId = _state.value.currentTrack?.id
+        val currentIndex = queue.indexOfFirst { it.id == currentId }
+        val nextTrack = queue.getOrNull(currentIndex + 1)
+        if (nextTrack != null) {
+            loadSelected(nextTrack, autoPlay = true)
+        } else {
+            _state.value = _state.value.copy(status = PlaybackStatus.Stopped, positionMillis = 0L)
+        }
     }
 
     override fun onPlaybackError(error: PlaybackError) {

@@ -92,6 +92,9 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
             positionMillis = positionMillis,
             durationMillis = latestDurationMillis,
         )
+        if (latestDurationMillis != null && positionMillis >= latestDurationMillis) {
+            listener?.onPlaybackCompleted()
+        }
     }
 }
 

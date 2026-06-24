@@ -53,6 +53,41 @@ Android native packaging subagent was dispatched but hit an HTTP 429 rate limit 
 3. Keep iOS playback on native Apple audio APIs; decide whether the existing Kotlin/Native `AVAudioPlayer`, AVFoundation `AVPlayer`, or a Swift bridge best fits the iOS import/media-library path.
 4. Plan the iOS document-picker bridge so iOS can import local files instead of showing the current unsupported-state message.
 
+## Handoff - 2026-06-24 Now Playing Panel + Track Ordering + Artwork Display
+
+Route: openspec+superpowers (subagent-driven)
+Owner: implementation
+Scope: Transform NowPlayingCard into clickable floating NowPlayingBar with expand-to-full-screen NowPlayingScreen; order album/artist tracks by track number instead of alphabetically; display album/track/artist artwork images everywhere instead of text placeholders.
+
+Implementation:
+- Task 1 (data models): Added trackNumber, discNumber, artworkBytes, artworkMimeType to AudioMetadata, LibraryTrack, and Track models. Updated SQLDelight schema (4 new columns in library_track table), all repository queries, library scanner, and UI-mapping functions (librarySnapshot, toUiTrack) to flow the new fields end-to-end.
+- Task 2 (ordering): Changed all 4 track-grouping functions in LibraryBrowser.kt from alphabetical sortedBy to discNumber → trackNumber → title ordering.
+- Task 3 (artwork display): Updated AlbumMark, AlbumCard, and ArtistRow composables to decode and show artwork Image with ContentScale.Crop when available, falling back to existing text placeholders.
+- Task 4 (NowPlayingBar): Created new floating bar composable with mini progress bar, artwork thumbnail, track info, and play/pause button. Extracted HausColors.kt to share color constants.
+- Task 5 (NowPlayingScreen): Created full-screen expanded view with large artwork, track metadata (including track number), seek bar, and transport controls (stop/play-pause/next).
+- Task 6 (wiring): Replaced inline NowPlayingCard in LibraryHomeScreen and DrillDownView with Box-overlayed NowPlayingBar at bottom and expandable NowPlayingScreen.
+
+Verification:
+- `./init.sh`: BUILD SUCCESSFUL — shared JVM tests, desktop compile, Android debug APK, iOS simulator tests all pass.
+- 7 commits: 5f93931, 8d6501a (fix), a7468bc, 17b0ebb, dbf2932, f8bf98e, 509a5a9
+
+Acceptance:
+- Requirement matched: yes for all 3 features (floating bar + expand, track-number ordering, artwork display).
+- Scope controlled: yes; only data model, ordering, artwork, and UI changes. No platform-specific or unrelated changes.
+- Remaining risk: (a) iOS artwork decode returns null — artwork falls back to text placeholders on iOS; (b) SQL schema migration requires fresh install for existing dev databases; (c) manual visual confirmation of artwork rendering with real embedded-artwork audio files on Android/macOS.
+
+Changed files:
+- AudioMetadata.kt, MusicModels.kt, LibraryModels.kt: extended data models
+- LibraryTrack.sq: SQL schema +4 columns
+- SqlDelightLibraryRepository.kt: new column read/write
+- LibraryScanner.kt: pass metadata through
+- LibraryBrowser.kt: track-number ordering
+- App.kt: artwork display in 3 composables + wiring NowPlayingBar/Screen
+- HausColors.kt, NowPlayingBar.kt, NowPlayingScreen.kt: new composables
+
+Next owner: user for manual visual/runtime validation.
+Blockers: none for compile/test verification.
+
 ## Decisions
 
 - First platform scope: Android, iOS, macOS/desktop JVM.
