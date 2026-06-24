@@ -47,6 +47,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -898,6 +899,9 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun AlbumMark(track: Track, selected: Boolean) {
+    val artworkBitmap = remember(track.artworkBytes) {
+        track.artworkBytes?.decodeArtwork()
+    }
     Box(
         modifier = Modifier
             .size(54.dp)
@@ -915,6 +919,13 @@ private fun AlbumMark(track: Track, selected: Boolean) {
                     .size(18.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.92f)),
+            )
+        } else if (artworkBitmap != null) {
+            Image(
+                bitmap = artworkBitmap,
+                contentDescription = "Album art",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
             )
         } else {
             Text(
@@ -1085,6 +1096,9 @@ private fun AlbumCard(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            val albumArtwork = remember(album.tracks) {
+                album.tracks.firstNotNullOfOrNull { it.artworkBytes?.decodeArtwork() }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1097,12 +1111,21 @@ private fun AlbumCard(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = album.album.take(2).uppercase(),
-                    color = Color.White.copy(alpha = 0.72f),
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Black,
-                )
+                if (albumArtwork != null) {
+                    Image(
+                        bitmap = albumArtwork,
+                        contentDescription = "Album artwork",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Text(
+                        text = album.album.take(2).uppercase(),
+                        color = Color.White.copy(alpha = 0.72f),
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Black,
+                    )
+                }
             }
             Text(
                 text = album.album,
@@ -1141,6 +1164,9 @@ private fun ArtistRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        val artistArtwork = remember(artist.tracks) {
+            artist.tracks.firstNotNullOfOrNull { it.artworkBytes?.decodeArtwork() }
+        }
         Box(
             modifier = Modifier
                 .size(54.dp)
@@ -1152,12 +1178,21 @@ private fun ArtistRow(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = artist.artist.firstOrNull()?.uppercase() ?: "♪",
-                color = Color.White,
-                fontWeight = FontWeight.Black,
-                fontSize = 20.sp,
-            )
+            if (artistArtwork != null) {
+                Image(
+                    bitmap = artistArtwork,
+                    contentDescription = "Artist artwork",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Text(
+                    text = artist.artist.firstOrNull()?.uppercase() ?: "♪",
+                    color = Color.White,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 20.sp,
+                )
+            }
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
