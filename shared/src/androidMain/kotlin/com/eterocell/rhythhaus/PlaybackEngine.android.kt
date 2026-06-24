@@ -8,6 +8,14 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 private var rhythHausAndroidContext: Context? = null
 
@@ -22,6 +30,8 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     private var player: ExoPlayer? = null
     private var mediaSession: MediaSession? = null
     private var loadedTrackDurationMillis: Long? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var progressJob: Job? = null
 
     override fun load(track: PlayableTrack) {
         releasePlayer()
@@ -43,9 +53,11 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         exoPlayer.play()
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
         publishProgress(exoPlayer)
+        startProgressLoop()
     }
 
     override fun pause() {
+        progressJob?.cancel()
         player?.let { exoPlayer ->
             exoPlayer.pause()
             publishProgress(exoPlayer)
@@ -54,6 +66,7 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     }
 
     override fun stop() {
+        progressJob?.cancel()
         player?.let { exoPlayer ->
             exoPlayer.pause()
             exoPlayer.seekTo(0L)
@@ -74,6 +87,7 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     }
 
     private fun releasePlayer() {
+        progressJob?.cancel()
         mediaSession?.release()
         mediaSession = null
         player?.release()
@@ -86,6 +100,21 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
             positionMillis = exoPlayer.currentPosition.coerceAtLeast(0L),
             durationMillis = exoPlayer.duration.takeIf { it > 0L } ?: loadedTrackDurationMillis,
         )
+    }
+
+    private fun startProgressLoop() {
+        progressJob?.cancel()
+        progressJob = scope.launch {
+            while (isActive) {
+                delay(250)
+                val p = player ?: break
+                if (!p.isPlaying) continue
+                listener?.onPlaybackProgress(
+                    positionMillis = p.currentPosition.coerceAtLeast(0L),
+                    durationMillis = p.duration.takeIf { it > 0L } ?: loadedTrackDurationMillis,
+                )
+            }
+        }
     }
 
     private inner class AndroidPlayerListener : Player.Listener {
