@@ -1,0 +1,16 @@
+CREATE TABLE IF NOT EXISTS library_source (
+    id TEXT NOT NULL PRIMARY KEY,
+    platformKind TEXT NOT NULL,
+    displayName TEXT NOT NULL,
+    handle TEXT NOT NULL,
+    createdAtEpochMillis INTEGER NOT NULL DEFAULT 0,
+    lastScanAtEpochMillis INTEGER,
+    accessStatus TEXT NOT NULL DEFAULT 'Available'
+);
+
+upsertSource:
+INSERT OR REPLACE INTO library_source(id, platformKind, displayName, handle, createdAtEpochMillis, lastScanAtEpochMillis, accessStatus)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectAllSources:
+SELECT * FROM library_source;

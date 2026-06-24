@@ -1,0 +1,237 @@
+package com.eterocell.rhythhaus.library
+
+import com.eterocell.rhythhaus.AudioSource
+
+class SqlDelightLibraryRepository(
+    private val libraryDatabase: LibraryDatabase,
+) : LibraryRepository {
+    private val database = libraryDatabase.database
+
+    override fun upsertSource(source: LibrarySource) {
+        database.librarySourceQueries.upsertSource(
+            id = source.id,
+            platformKind = source.platformKind.name,
+            displayName = source.displayName,
+            handle = source.handle,
+            createdAtEpochMillis = source.createdAtEpochMillis,
+            lastScanAtEpochMillis = source.lastScanAtEpochMillis,
+            accessStatus = source.accessStatus.name,
+        )
+    }
+
+    override fun sources(): List<LibrarySource> =
+        database.librarySourceQueries.selectAllSources { id, platformKind, displayName, handle, createdAtEpochMillis, lastScanAtEpochMillis, accessStatus ->
+            LibrarySource(
+                id = id,
+                platformKind = LibraryPlatformKind.valueOf(platformKind),
+                displayName = displayName,
+                handle = handle,
+                createdAtEpochMillis = createdAtEpochMillis,
+                lastScanAtEpochMillis = lastScanAtEpochMillis,
+                accessStatus = LibrarySourceAccessStatus.valueOf(accessStatus),
+            )
+        }.executeAsList()
+
+    override fun upsertTrack(track: LibraryTrack): TrackUpsertResult {
+        val existing = database.libraryTrackQueries.selectAllTracks { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis ->
+            DomainTrackRow(
+                id = id,
+                sourceId = sourceId,
+                sourceLocalKey = sourceLocalKey,
+                audioSourceKind = audioSourceKind,
+                audioSourceValue = audioSourceValue,
+                displayName = displayName,
+                title = title,
+                artist = artist,
+                album = album,
+                durationMillis = durationMillis,
+                sizeBytes = sizeBytes,
+                modifiedAtEpochMillis = modifiedAtEpochMillis,
+                lastSeenScanId = lastSeenScanId,
+                createdAtEpochMillis = createdAtEpochMillis,
+                updatedAtEpochMillis = updatedAtEpochMillis,
+            )
+        }.executeAsList()
+            .firstOrNull { it.sourceId == track.sourceId && it.sourceLocalKey == track.sourceLocalKey }
+
+        return if (existing == null) {
+            val audioSource = track.audioSource
+            database.libraryTrackQueries.upsertTrack(
+                id = track.id,
+                sourceId = track.sourceId,
+                sourceLocalKey = track.sourceLocalKey,
+                audioSourceKind = audioSource.kindName,
+                audioSourceValue = audioSource.stableValue,
+                displayName = track.displayName,
+                title = track.title,
+                artist = track.artist,
+                album = track.album,
+                durationMillis = track.durationMillis,
+                sizeBytes = track.sizeBytes,
+                modifiedAtEpochMillis = track.modifiedAtEpochMillis,
+                lastSeenScanId = track.lastSeenScanId,
+                createdAtEpochMillis = track.createdAtEpochMillis,
+                updatedAtEpochMillis = track.updatedAtEpochMillis,
+            )
+            TrackUpsertResult.Added
+        } else {
+            val audioSource = track.audioSource
+            database.libraryTrackQueries.upsertTrack(
+                id = existing.id,
+                sourceId = existing.sourceId,
+                sourceLocalKey = existing.sourceLocalKey,
+                audioSourceKind = audioSource.kindName,
+                audioSourceValue = audioSource.stableValue,
+                displayName = track.displayName,
+                title = track.title,
+                artist = track.artist,
+                album = track.album,
+                durationMillis = track.durationMillis,
+                sizeBytes = track.sizeBytes,
+                modifiedAtEpochMillis = track.modifiedAtEpochMillis,
+                lastSeenScanId = track.lastSeenScanId,
+                createdAtEpochMillis = existing.createdAtEpochMillis,
+                updatedAtEpochMillis = track.updatedAtEpochMillis,
+            )
+            TrackUpsertResult.Updated
+        }
+    }
+
+    override fun tracks(): List<LibraryTrack> =
+        database.libraryTrackQueries.selectAllTracks { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis ->
+            LibraryTrack(
+                id = id,
+                sourceId = sourceId,
+                sourceLocalKey = sourceLocalKey,
+                audioSource = audioSourceFrom(audioSourceKind, audioSourceValue),
+                displayName = displayName,
+                title = title,
+                artist = artist,
+                album = album,
+                durationMillis = durationMillis,
+                sizeBytes = sizeBytes,
+                modifiedAtEpochMillis = modifiedAtEpochMillis,
+                lastSeenScanId = lastSeenScanId,
+                createdAtEpochMillis = createdAtEpochMillis,
+                updatedAtEpochMillis = updatedAtEpochMillis,
+            )
+        }.executeAsList()
+
+    override fun tracksForSource(sourceId: String): List<LibraryTrack> =
+        database.libraryTrackQueries.selectTracksForSource(sourceId) { id, srcId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis ->
+            LibraryTrack(
+                id = id,
+                sourceId = srcId,
+                sourceLocalKey = sourceLocalKey,
+                audioSource = audioSourceFrom(audioSourceKind, audioSourceValue),
+                displayName = displayName,
+                title = title,
+                artist = artist,
+                album = album,
+                durationMillis = durationMillis,
+                sizeBytes = sizeBytes,
+                modifiedAtEpochMillis = modifiedAtEpochMillis,
+                lastSeenScanId = lastSeenScanId,
+                createdAtEpochMillis = createdAtEpochMillis,
+                updatedAtEpochMillis = updatedAtEpochMillis,
+            )
+        }.executeAsList()
+
+    override fun insertScanSession(session: ScanSession) {
+        database.scanSessionQueries.insertScanSession(
+            id = session.id,
+            sourceId = session.sourceId,
+            status = session.status.name,
+            startedAtEpochMillis = session.startedAtEpochMillis,
+            completedAtEpochMillis = session.completedAtEpochMillis,
+            foldersVisited = session.foldersVisited.toLong(),
+            filesVisited = session.filesVisited.toLong(),
+            tracksAdded = session.tracksAdded.toLong(),
+            tracksUpdated = session.tracksUpdated.toLong(),
+            filesSkipped = session.filesSkipped.toLong(),
+            terminalMessage = session.terminalMessage,
+        )
+    }
+
+    override fun updateScanSession(session: ScanSession) {
+        database.scanSessionQueries.updateScanSession(
+            status = session.status.name,
+            completedAtEpochMillis = session.completedAtEpochMillis,
+            foldersVisited = session.foldersVisited.toLong(),
+            filesVisited = session.filesVisited.toLong(),
+            tracksAdded = session.tracksAdded.toLong(),
+            tracksUpdated = session.tracksUpdated.toLong(),
+            filesSkipped = session.filesSkipped.toLong(),
+            terminalMessage = session.terminalMessage,
+            id = session.id,
+        )
+    }
+
+    override fun insertScanError(error: ScanError) {
+        database.scanErrorQueries.insertScanError(
+            id = error.id,
+            scanId = error.scanId,
+            sourceLocalKey = error.sourceLocalKey,
+            displayPath = error.displayPath,
+            reason = error.reason,
+            recoverable = if (error.recoverable) 1L else 0L,
+            createdAtEpochMillis = error.createdAtEpochMillis,
+        )
+    }
+
+    override fun scanErrors(scanId: String): List<ScanError> =
+        database.scanSessionQueries.selectScanErrorsForScan(scanId) { id, scanId_, sourceLocalKey, displayPath, reason, recoverable, createdAtEpochMillis ->
+            ScanError(
+                id = id,
+                scanId = scanId_,
+                sourceLocalKey = sourceLocalKey,
+                displayPath = displayPath,
+                reason = reason,
+                recoverable = recoverable != 0L,
+                createdAtEpochMillis = createdAtEpochMillis,
+            )
+        }.executeAsList()
+
+    override fun removeMissingTracks(sourceId: String, latestScanId: String): Int {
+        val result = database.libraryTrackQueries.removeMissingTracks(sourceId, latestScanId)
+        return result.value.toInt()
+    }
+}
+
+// --- Internal helpers ---
+
+private data class DomainTrackRow(
+    val id: String,
+    val sourceId: String,
+    val sourceLocalKey: String,
+    val audioSourceKind: String,
+    val audioSourceValue: String,
+    val displayName: String,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val durationMillis: Long?,
+    val sizeBytes: Long?,
+    val modifiedAtEpochMillis: Long?,
+    val lastSeenScanId: String?,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+)
+
+private val AudioSource.kindName: String
+    get() = when (this) {
+        is AudioSource.FilePath -> "FilePath"
+        is AudioSource.Uri -> "Uri"
+    }
+
+private val AudioSource.stableValue: String
+    get() = when (this) {
+        is AudioSource.FilePath -> path
+        is AudioSource.Uri -> value
+    }
+
+private fun audioSourceFrom(kind: String, value: String): AudioSource = when (kind) {
+    "FilePath" -> AudioSource.FilePath(value)
+    "Uri" -> AudioSource.Uri(value)
+    else -> AudioSource.Uri(value)
+}

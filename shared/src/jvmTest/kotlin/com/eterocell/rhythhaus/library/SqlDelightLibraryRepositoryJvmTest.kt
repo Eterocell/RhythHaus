@@ -26,10 +26,10 @@ class SqlDelightLibraryRepositoryJvmTest {
     }
 
     private fun openRepository(databaseFile: java.io.File): OpenRepository {
-        val driver = LibraryDatabaseDriverFactory(databaseFile).createDriver()
+        val database = LibraryDatabase(databaseFile)
         return OpenRepository(
-            repository = SqlDelightLibraryRepository(RhythHausDatabase(driver)),
-            driver = driver,
+            repository = SqlDelightLibraryRepository(database),
+            driver = database.driver,
         )
     }
 

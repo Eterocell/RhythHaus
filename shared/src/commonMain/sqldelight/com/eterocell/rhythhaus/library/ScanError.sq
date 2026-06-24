@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS scan_error (
+    id TEXT NOT NULL PRIMARY KEY,
+    scanId TEXT NOT NULL,
+    sourceLocalKey TEXT NOT NULL,
+    displayPath TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    recoverable INTEGER NOT NULL DEFAULT 1,
+    createdAtEpochMillis INTEGER NOT NULL
+);
+
+insertScanError:
+INSERT INTO scan_error(id, scanId, sourceLocalKey, displayPath, reason, recoverable, createdAtEpochMillis)
+VALUES (?, ?, ?, ?, ?, ?, ?);

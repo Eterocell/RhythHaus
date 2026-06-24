@@ -4,10 +4,16 @@ import android.content.Context
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 
-actual class LibraryDatabaseDriverFactory(private val context: Context) {
-    actual fun createDriver(): SqlDriver = AndroidSqliteDriver(
-        schema = RhythHausDatabase.Schema,
-        context = context,
-        name = "rhythhaus.db",
-    )
+actual class LibraryDatabase(private val context: Context) {
+    private val androidDriver: AndroidSqliteDriver by lazy {
+        AndroidSqliteDriver(
+            schema = RhythHausDatabase.Schema,
+            context = context,
+            name = "rhythhaus.db",
+        )
+    }
+
+    actual val driver: SqlDriver get() = androidDriver
+
+    actual val database: RhythHausDatabase by lazy { RhythHausDatabase(driver) }
 }

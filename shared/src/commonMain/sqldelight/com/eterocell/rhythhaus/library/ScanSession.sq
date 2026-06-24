@@ -1,0 +1,26 @@
+CREATE TABLE IF NOT EXISTS scan_session (
+    id TEXT NOT NULL PRIMARY KEY,
+    sourceId TEXT NOT NULL,
+    status TEXT NOT NULL,
+    startedAtEpochMillis INTEGER NOT NULL,
+    completedAtEpochMillis INTEGER,
+    foldersVisited INTEGER NOT NULL DEFAULT 0,
+    filesVisited INTEGER NOT NULL DEFAULT 0,
+    tracksAdded INTEGER NOT NULL DEFAULT 0,
+    tracksUpdated INTEGER NOT NULL DEFAULT 0,
+    filesSkipped INTEGER NOT NULL DEFAULT 0,
+    terminalMessage TEXT
+);
+
+insertScanSession:
+INSERT INTO scan_session(id, sourceId, status, startedAtEpochMillis, completedAtEpochMillis,
+    foldersVisited, filesVisited, tracksAdded, tracksUpdated, filesSkipped, terminalMessage)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateScanSession:
+UPDATE scan_session SET status = ?, completedAtEpochMillis = ?, foldersVisited = ?,
+    filesVisited = ?, tracksAdded = ?, tracksUpdated = ?, filesSkipped = ?, terminalMessage = ?
+WHERE id = ?;
+
+selectScanErrorsForScan:
+SELECT * FROM scan_error WHERE scanId = ?;

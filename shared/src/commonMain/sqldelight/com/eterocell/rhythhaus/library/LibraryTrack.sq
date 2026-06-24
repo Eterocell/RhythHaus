@@ -1,0 +1,32 @@
+CREATE TABLE IF NOT EXISTS library_track (
+    id TEXT NOT NULL PRIMARY KEY,
+    sourceId TEXT NOT NULL,
+    sourceLocalKey TEXT NOT NULL,
+    audioSourceKind TEXT NOT NULL,
+    audioSourceValue TEXT NOT NULL,
+    displayName TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT 'Untitled audio',
+    artist TEXT NOT NULL DEFAULT 'Local file',
+    album TEXT NOT NULL DEFAULT 'Imported audio',
+    durationMillis INTEGER,
+    sizeBytes INTEGER,
+    modifiedAtEpochMillis INTEGER,
+    lastSeenScanId TEXT,
+    createdAtEpochMillis INTEGER NOT NULL,
+    updatedAtEpochMillis INTEGER NOT NULL
+);
+
+upsertTrack:
+INSERT OR REPLACE INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
+    displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
+    lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectAllTracks:
+SELECT * FROM library_track ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
+
+selectTracksForSource:
+SELECT * FROM library_track WHERE sourceId = ? ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
+
+removeMissingTracks:
+DELETE FROM library_track WHERE sourceId = ? AND (lastSeenScanId IS NULL OR lastSeenScanId != ?);
