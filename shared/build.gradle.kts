@@ -92,6 +92,7 @@ kotlin {
         }
         commonMain.dependencies {
             implementation(projects.taglib)
+            implementation(libs.miuix.ui)
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
