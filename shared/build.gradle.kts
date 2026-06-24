@@ -55,6 +55,9 @@ kotlin {
             baseName = "Shared"
             isStatic = true
         }
+        iosTarget.binaries.all {
+            linkerOpts("-lsqlite3")
+        }
     }
 
     jvm()
