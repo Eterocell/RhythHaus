@@ -35,17 +35,17 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
 
     override fun load(track: PlayableTrack) {
         release()
-        platformLog("RhythHaus", "Loading track: ${track.title}")
+        log.d { "Loading track: ${track.title}" }
         listener?.onPlaybackStatus(PlaybackStatus.Loading)
         configureAudioSession()
         val url = track.source.iosUrl()
-        platformLog("RhythHaus", "Player URL: ${url.absoluteString}")
+        log.d { "Player URL: ${url.absoluteString}" }
 
         val audioPlayer = try {
             AVAudioPlayer(contentsOfURL = url, error = null)
         } catch (t: Throwable) {
             val errorMsg = "Could not create player: ${track.title} (${t.message})"
-            platformLog("RhythHaus", "ERROR: $errorMsg")
+            log.e { errorMsg }
             listener?.onPlaybackError(PlaybackError(errorMsg, cause = url.absoluteString))
             return
         }
@@ -54,7 +54,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         // The tried-and-true approach: attempt prepareToPlay and check if it works.
         if (!audioPlayer.prepareToPlay()) {
             val errorMsg = "Cannot play: ${track.title}"
-            platformLog("RhythHaus", "ERROR: $errorMsg")
+            log.e { errorMsg }
             listener?.onPlaybackError(PlaybackError(errorMsg, cause = url.absoluteString))
             return
         }
@@ -65,16 +65,16 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         completionReported = false
         updateNowPlayingInfo(positionMillis = 0L)
         listener?.onPlaybackProgress(0L, durationMillis)
-        platformLog("RhythHaus", "Loaded OK: duration=${durationMillis}ms")
+        log.d { "Loaded OK: duration=${durationMillis}ms" }
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
     }
 
     override fun play() {
         val audioPlayer = requireNotNull(player) { "No player loaded" }
-        platformLog("RhythHaus", "Playing: ${loadedTrack?.title}")
+        log.d { "Playing: ${loadedTrack?.title}" }
         if (!audioPlayer.play()) {
             val errorMsg = "Could not start playback: ${loadedTrack?.title}"
-            platformLog("RhythHaus", "ERROR: $errorMsg")
+            log.e { errorMsg }
             listener?.onPlaybackError(PlaybackError(errorMsg, cause = null))
             return
         }

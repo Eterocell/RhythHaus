@@ -178,6 +178,7 @@ class PlaybackController(
         try {
             action()
         } catch (throwable: Throwable) {
+            log.e { throwable.stackTraceToString() }
             onPlaybackError(
                 PlaybackError(
                     message = "Playback failed",

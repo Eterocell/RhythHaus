@@ -96,6 +96,7 @@ kotlin {
         commonMain.dependencies {
             implementation(projects.taglib)
             implementation(libs.miuix.ui)
+            implementation(libs.kermit)
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.ui)
