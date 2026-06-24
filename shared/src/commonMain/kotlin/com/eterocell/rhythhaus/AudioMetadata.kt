@@ -23,9 +23,9 @@ data class AudioMetadata(
         artworkBytes.contentEquals(other.artworkBytes)
 
     override fun hashCode(): Int {
-        var result = title.hashCode()
-        result = 31 * result + artist.hashCode()
-        result = 31 * result + album.hashCode()
+        var result = title?.hashCode() ?: 0
+        result = 31 * result + (artist?.hashCode() ?: 0)
+        result = 31 * result + (album?.hashCode() ?: 0)
         result = 31 * result + (durationMillis?.hashCode() ?: 0)
         result = 31 * result + (trackNumber ?: 0)
         result = 31 * result + (discNumber ?: 0)
