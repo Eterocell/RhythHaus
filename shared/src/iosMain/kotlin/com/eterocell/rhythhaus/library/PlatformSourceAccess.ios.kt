@@ -19,8 +19,11 @@ actual fun rememberPlatformFolderPickerLauncher(
 
         override fun launch() {
             val result = runCatching {
-                PlatformFolderPickResult.Success(appLocalMusicSource())
+                PlatformFolderPickResult.Success(appLocalMusicSource().also {
+                    println("[RhythHaus] Scanner source created: ${it.displayName} at ${it.handle}")
+                })
             }.getOrElse { throwable ->
+                println("[RhythHaus] ERROR creating scanner source: ${throwable.message}")
                 PlatformFolderPickResult.Failure(
                     message = "Could not prepare the app-local music folder",
                     cause = throwable.message ?: throwable::class.simpleName,
