@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.taglib
 import com.eterocell.rhythhaus.taglib.cinterop.rh_taglib_free_result
 import com.eterocell.rhythhaus.taglib.cinterop.rh_taglib_read_path
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.readBytes
 import kotlinx.cinterop.toKString
 import kotlinx.cinterop.useContents
 
@@ -33,7 +34,7 @@ private class IosNativeTagLibReader : TagLibReader {
                         bitrate = metadata.bitrate.positiveOrNull(),
                         sampleRate = metadata.sample_rate.positiveOrNull(),
                         channels = metadata.channels.positiveOrNull(),
-                        artwork = null, // artwork via cinterop pending
+                        artwork = iosArtwork(metadata),
                     )
                 },
             )
@@ -55,6 +56,21 @@ private class IosNativeTagLibReader : TagLibReader {
     }
 
     override fun readProperties(path: String): Map<String, String> = emptyMap()
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun iosArtwork(metadata: com.eterocell.rhythhaus.taglib.cinterop.RhTagLibMetadata): EmbeddedArtwork? {
+    val size = metadata.artwork_size
+    if (size <= 0) return null
+    val data = metadata.artwork_data ?: return null
+    val bytes = try {
+        data.readBytes(size)
+    } catch (_: Exception) {
+        return null
+    }
+    if (bytes.isEmpty()) return null
+    val mimeType = metadata.artwork_mime_type?.toKString()
+    return EmbeddedArtwork(mimeType, bytes)
 }
 
 private fun Int.positiveOrNull(): Int? = takeIf { it > 0 }
