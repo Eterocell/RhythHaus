@@ -40,11 +40,24 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         configureAudioSession()
         val url = track.source.iosUrl()
         platformLog("RhythHaus", "iOS player URL: ${url.absoluteString}")
-        val audioPlayer = AVAudioPlayer(contentsOfURL = url, error = null)
-        if (audioPlayer.duration <= 0.0) {
-            val errorMsg = "Could not open audio file: ${track.title} ($url)"
-            platformLog("RhythHaus", "ERROR: $errorMsg")
+        val audioPlayer: AVAudioPlayer?
+        try {
+            audioPlayer = AVAudioPlayer(contentsOfURL = url, error = null)
+            if (audioPlayer.duration <= 0.0) {
+                val errorMsg = "Unsupported or unreadable: ${track.title}"
+                platformLog("RhythHaus", "ERROR: $errorMsg (${url.absoluteString})")
+                listener?.onPlaybackError(PlaybackError(errorMsg, cause = "Format may not be supported by AVAudioPlayer (e.g. FLAC, OGG)"))
+                return
+            }
+        } catch (npe: NullPointerException) {
+            val errorMsg = "Unsupported format: ${track.title}. AVAudioPlayer does not support FLAC/OGG."
+            platformLog("RhythHaus", "ERROR: $errorMsg ($url)")
             listener?.onPlaybackError(PlaybackError(errorMsg, cause = url.absoluteString))
+            return
+        } catch (t: Throwable) {
+            val errorMsg = "Could not load: ${track.title} (${t.message})"
+            platformLog("RhythHaus", "ERROR: $errorMsg")
+            listener?.onPlaybackError(PlaybackError(errorMsg, cause = "${t::class.simpleName}: ${t.message}"))
             return
         }
         audioPlayer.prepareToPlay()
