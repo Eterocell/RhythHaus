@@ -24,13 +24,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -292,9 +292,8 @@ private fun ImportAudioCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = HausPanel),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        cornerRadius = 24.dp,
+        colors = CardDefaults.defaultColors(color = HausPanel),
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -324,11 +323,11 @@ private fun ImportAudioCard(
                     .fillMaxWidth()
                     .height(48.dp)
                     .semantics { contentDescription = "Import local audio files" },
-                shape = RoundedCornerShape(16.dp),
+                cornerRadius = 16.dp,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = HausInk,
+                    color = HausInk,
                     contentColor = HausPaper,
-                    disabledContainerColor = HausMuted.copy(alpha = 0.28f),
+                    disabledColor = HausMuted.copy(alpha = 0.28f),
                     disabledContentColor = HausMuted,
                 ),
             ) {
@@ -360,9 +359,8 @@ private fun NowPlayingCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = HausInk),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        cornerRadius = 32.dp,
+        colors = CardDefaults.defaultColors(color = HausInk),
     ) {
         Column(
             modifier = Modifier
@@ -449,9 +447,9 @@ private fun NowPlayingCard(
                         .weight(1f)
                         .height(52.dp)
                         .semantics { contentDescription = if (playbackState.isPlaying) "Pause playback" else "Play selected track" },
-                    shape = RoundedCornerShape(18.dp),
+                    cornerRadius = 18.dp,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
+                        color = Color.White,
                         contentColor = HausInk,
                     ),
                 ) {
@@ -463,9 +461,9 @@ private fun NowPlayingCard(
                         .width(96.dp)
                         .height(52.dp)
                         .semantics { contentDescription = "Stop playback" },
-                    shape = RoundedCornerShape(18.dp),
+                    cornerRadius = 18.dp,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White.copy(alpha = 0.22f),
+                        color = Color.White.copy(alpha = 0.22f),
                         contentColor = Color.White,
                     ),
                 ) {
@@ -510,9 +508,8 @@ private fun DeveloperPanel(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = HausPanelStrong),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        cornerRadius = 24.dp,
+        colors = CardDefaults.defaultColors(color = HausPanelStrong),
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
