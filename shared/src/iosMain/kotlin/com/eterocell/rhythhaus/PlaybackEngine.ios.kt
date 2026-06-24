@@ -35,11 +35,14 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
 
     override fun load(track: PlayableTrack) {
         release()
+        platformLog("RhythHaus", "Loading track: ${track.title} (${track.source})")
         listener?.onPlaybackStatus(PlaybackStatus.Loading)
         configureAudioSession()
         val url = track.source.iosUrl()
+        platformLog("RhythHaus", "iOS player URL: ${url.absoluteString}")
         val audioPlayer = AVAudioPlayer(contentsOfURL = url, error = null)
         if (audioPlayer.duration <= 0.0) {
+            platformLog("RhythHaus", "ERROR: AVAudioPlayer duration is 0 — file may be missing or unsupported format")
             listener?.onPlaybackError(
                 PlaybackError("Could not open audio file: ${track.title}", cause = url.absoluteString)
             )
@@ -52,12 +55,15 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         completionReported = false
         updateNowPlayingInfo(positionMillis = 0L)
         listener?.onPlaybackProgress(0L, durationMillis)
+        platformLog("RhythHaus", "Loaded OK: duration=${durationMillis}ms")
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
     }
 
     override fun play() {
         val audioPlayer = requireNotNull(player) { "No iOS player has been loaded" }
+        platformLog("RhythHaus", "Playing: ${loadedTrack?.title}")
         if (!audioPlayer.play()) {
+            platformLog("RhythHaus", "ERROR: AVAudioPlayer.play() returned false")
             listener?.onPlaybackError(
                 PlaybackError("Could not start playback: ${loadedTrack?.title}", cause = null)
             )
