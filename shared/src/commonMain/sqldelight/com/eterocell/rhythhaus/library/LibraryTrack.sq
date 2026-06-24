@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS library_track (
     id TEXT NOT NULL PRIMARY KEY,
-    sourceId TEXT NOT NULL,
+    sourceId TEXT NOT NULL REFERENCES library_source(id) ON DELETE CASCADE,
     sourceLocalKey TEXT NOT NULL,
     audioSourceKind TEXT NOT NULL,
     audioSourceValue TEXT NOT NULL,
@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS library_track (
     updatedAtEpochMillis INTEGER NOT NULL
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS library_track_source_key ON library_track(sourceId, sourceLocalKey);
+
 upsertTrack:
 INSERT OR REPLACE INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
@@ -27,6 +29,9 @@ SELECT * FROM library_track ORDER BY title COLLATE NOCASE ASC, artist COLLATE NO
 
 selectTracksForSource:
 SELECT * FROM library_track WHERE sourceId = ? ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
+
+selectTrackBySourceKey:
+SELECT * FROM library_track WHERE sourceId = ? AND sourceLocalKey = ?;
 
 removeMissingTracks:
 DELETE FROM library_track WHERE sourceId = ? AND (lastSeenScanId IS NULL OR lastSeenScanId != ?);

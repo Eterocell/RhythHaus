@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS scan_error (
     id TEXT NOT NULL PRIMARY KEY,
-    scanId TEXT NOT NULL,
+    scanId TEXT NOT NULL REFERENCES scan_session(id) ON DELETE CASCADE,
     sourceLocalKey TEXT NOT NULL,
     displayPath TEXT NOT NULL,
     reason TEXT NOT NULL,

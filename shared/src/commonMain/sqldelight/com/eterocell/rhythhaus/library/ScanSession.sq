@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS scan_session (
     id TEXT NOT NULL PRIMARY KEY,
-    sourceId TEXT NOT NULL,
+    sourceId TEXT NOT NULL REFERENCES library_source(id) ON DELETE CASCADE,
     status TEXT NOT NULL,
     startedAtEpochMillis INTEGER NOT NULL,
     completedAtEpochMillis INTEGER,

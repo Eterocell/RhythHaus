@@ -33,26 +33,29 @@ class SqlDelightLibraryRepository(
         }.executeAsList()
 
     override fun upsertTrack(track: LibraryTrack): TrackUpsertResult {
-        val existing = database.libraryTrackQueries.selectAllTracks { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis ->
-            DomainTrackRow(
-                id = id,
-                sourceId = sourceId,
-                sourceLocalKey = sourceLocalKey,
-                audioSourceKind = audioSourceKind,
-                audioSourceValue = audioSourceValue,
-                displayName = displayName,
-                title = title,
-                artist = artist,
-                album = album,
-                durationMillis = durationMillis,
-                sizeBytes = sizeBytes,
-                modifiedAtEpochMillis = modifiedAtEpochMillis,
-                lastSeenScanId = lastSeenScanId,
-                createdAtEpochMillis = createdAtEpochMillis,
-                updatedAtEpochMillis = updatedAtEpochMillis,
-            )
-        }.executeAsList()
-            .firstOrNull { it.sourceId == track.sourceId && it.sourceLocalKey == track.sourceLocalKey }
+        val existing = database.libraryTrackQueries.selectTrackBySourceKey(
+            sourceId = track.sourceId,
+            sourceLocalKey = track.sourceLocalKey,
+            mapper = { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis ->
+                DomainTrackRow(
+                    id = id,
+                    sourceId = sourceId,
+                    sourceLocalKey = sourceLocalKey,
+                    audioSourceKind = audioSourceKind,
+                    audioSourceValue = audioSourceValue,
+                    displayName = displayName,
+                    title = title,
+                    artist = artist,
+                    album = album,
+                    durationMillis = durationMillis,
+                    sizeBytes = sizeBytes,
+                    modifiedAtEpochMillis = modifiedAtEpochMillis,
+                    lastSeenScanId = lastSeenScanId,
+                    createdAtEpochMillis = createdAtEpochMillis,
+                    updatedAtEpochMillis = updatedAtEpochMillis,
+                )
+            },
+        ).executeAsOneOrNull()
 
         return if (existing == null) {
             val audioSource = track.audioSource
