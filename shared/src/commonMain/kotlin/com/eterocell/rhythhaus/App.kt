@@ -954,10 +954,11 @@ private fun DrillDownView(
 ) {
     var selectedTrackId by remember { mutableStateOf(selectedTrack?.id) }
     var showNowPlayingScreen by remember { mutableStateOf(false) }
+    val currentTrack = tracks.firstOrNull { it.id == selectedTrackId } ?: selectedTrack
 
-    if (showNowPlayingScreen && selectedTrack != null) {
+    if (showNowPlayingScreen && currentTrack != null) {
         NowPlayingScreen(
-            track = selectedTrack,
+            track = currentTrack,
             playbackState = playbackState,
             playbackController = playbackController,
             onBack = { showNowPlayingScreen = false },
@@ -998,11 +999,11 @@ private fun DrillDownView(
                 }
             }
 
-            if (selectedTrack != null) {
+            if (currentTrack != null) {
                 NowPlayingBar(
-                    track = selectedTrack,
+                    track = currentTrack,
                     playbackState = playbackState,
-                    onPlayPause = { onPlayPause(selectedTrack) },
+                    onPlayPause = { onPlayPause(currentTrack) },
                     onExpand = { showNowPlayingScreen = true },
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )

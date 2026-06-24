@@ -18,6 +18,7 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
     }
     private var progressTask: ScheduledFuture<*>? = null
     private var durationMillis: Long? = null
+    private var completionReported: Boolean = false
 
     override fun load(track: PlayableTrack) {
         stopProgressUpdates()
@@ -26,6 +27,7 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
         val loaded = bridge.load(track.source.jvmFile().absolutePath)
         require(loaded) { "Could not load native macOS audio player" }
         durationMillis = track.durationMillis ?: bridge.durationMillis().takeIf { it > 0L }
+        completionReported = false
         bridge.setArtwork(track.artworkBytes)
         bridge.registerNowPlayingRemoteCommands()
         bridge.updateNowPlayingInfo(track.title, track.artist, track.album, durationMillis, positionMillis = 0L)
@@ -92,7 +94,8 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
             positionMillis = positionMillis,
             durationMillis = latestDurationMillis,
         )
-        if (latestDurationMillis != null && positionMillis >= latestDurationMillis) {
+        if (!completionReported && latestDurationMillis != null && positionMillis >= latestDurationMillis) {
+            completionReported = true
             listener?.onPlaybackCompleted()
         }
     }

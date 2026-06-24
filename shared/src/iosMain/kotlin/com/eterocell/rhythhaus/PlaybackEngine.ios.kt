@@ -31,6 +31,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     private var durationMillis: Long? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var progressJob: Job? = null
+    private var completionReported: Boolean = false
 
     override fun load(track: PlayableTrack) {
         release()
@@ -41,6 +42,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         player = audioPlayer
         loadedTrack = track
         durationMillis = track.durationMillis ?: (audioPlayer.duration * 1_000.0).toLong().takeIf { it > 0L }
+        completionReported = false
         updateNowPlayingInfo(positionMillis = 0L)
         listener?.onPlaybackProgress(0L, durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
@@ -61,10 +63,15 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             while (isActive) {
                 delay(250)
                 val p = player ?: break
-                if (!p.isPlaying()) continue
                 val pos = (p.currentTime * 1_000.0).toLong()
-                listener?.onPlaybackProgress(pos, durationMillis)
-                if (durationMillis != null && pos >= durationMillis!!) {
+                if (p.isPlaying()) {
+                    listener?.onPlaybackProgress(pos, durationMillis)
+                    if (!completionReported && durationMillis != null && pos >= durationMillis!!) {
+                        completionReported = true
+                        listener?.onPlaybackCompleted()
+                    }
+                } else if (!completionReported && durationMillis != null && pos > 0L && pos >= durationMillis!! - 500L) {
+                    completionReported = true
                     listener?.onPlaybackCompleted()
                 }
             }
