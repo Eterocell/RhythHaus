@@ -37,7 +37,14 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         release()
         listener?.onPlaybackStatus(PlaybackStatus.Loading)
         configureAudioSession()
-        val audioPlayer = AVAudioPlayer(contentsOfURL = track.source.iosUrl(), error = null)
+        val url = track.source.iosUrl()
+        val audioPlayer = AVAudioPlayer(contentsOfURL = url, error = null)
+        if (audioPlayer.duration <= 0.0) {
+            listener?.onPlaybackError(
+                PlaybackError("Could not open audio file: ${track.title}", cause = url.absoluteString)
+            )
+            return
+        }
         audioPlayer.prepareToPlay()
         player = audioPlayer
         loadedTrack = track
@@ -50,7 +57,12 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
 
     override fun play() {
         val audioPlayer = requireNotNull(player) { "No iOS player has been loaded" }
-        audioPlayer.play()
+        if (!audioPlayer.play()) {
+            listener?.onPlaybackError(
+                PlaybackError("Could not start playback: ${loadedTrack?.title}", cause = null)
+            )
+            return
+        }
         updateNowPlayingInfo(positionMillis = (audioPlayer.currentTime * 1_000.0).toLong())
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
         listener?.onPlaybackProgress((audioPlayer.currentTime * 1_000.0).toLong(), durationMillis)
