@@ -26,6 +26,7 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
         val loaded = bridge.load(track.source.jvmFile().absolutePath)
         require(loaded) { "Could not load native macOS audio player" }
         durationMillis = track.durationMillis ?: bridge.durationMillis().takeIf { it > 0L }
+        bridge.setArtwork(track.artworkBytes)
         bridge.registerNowPlayingRemoteCommands()
         bridge.updateNowPlayingInfo(track.title, track.artist, track.album, durationMillis, positionMillis = 0L)
         listener?.onPlaybackProgress(0L, durationMillis)
@@ -116,6 +117,7 @@ internal class MacAudioPlayerBridge {
     fun updateNowPlayingPlaybackState(status: PlaybackStatus) = nativeUpdateNowPlayingPlaybackState(requireHandle(), status.macosPlaybackStateCode())
     fun registerNowPlayingRemoteCommands() = nativeRegisterNowPlayingRemoteCommands(requireHandle())
     fun clearNowPlayingInfo() = nativeClearNowPlayingInfo(requireHandle())
+    fun setArtwork(artworkBytes: ByteArray?) = nativeSetArtwork(requireHandle(), artworkBytes)
 
     fun resetPlayer() {
         if (handle != 0L) {
@@ -154,6 +156,7 @@ internal class MacAudioPlayerBridge {
     private external fun nativeUpdateNowPlayingPlaybackState(handle: Long, playbackStateCode: Int)
     private external fun nativeRegisterNowPlayingRemoteCommands(handle: Long)
     private external fun nativeClearNowPlayingInfo(handle: Long)
+    private external fun nativeSetArtwork(handle: Long, artworkBytes: ByteArray?)
     private external fun nativeRelease(handle: Long)
 
     companion object {

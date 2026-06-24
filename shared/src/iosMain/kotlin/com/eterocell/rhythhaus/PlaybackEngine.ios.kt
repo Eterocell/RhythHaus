@@ -99,6 +99,7 @@ internal fun buildIOSNowPlayingInfo(
     put("elapsedSeconds", positionMillis.coerceAtLeast(0L).toDouble() / 1_000.0)
 }
 
+@OptIn(ExperimentalForeignApi::class)
 private fun buildIOSNowPlayingDictionary(
     track: PlayableTrack,
     positionMillis: Long,
@@ -109,6 +110,10 @@ private fun buildIOSNowPlayingDictionary(
     track.album?.let { put(MPMediaItemPropertyAlbumTitle, it) }
     durationMillis?.let { put(MPMediaItemPropertyPlaybackDuration, it.toDouble() / 1_000.0) }
     put(MPNowPlayingInfoPropertyElapsedPlaybackTime, positionMillis.coerceAtLeast(0L).toDouble() / 1_000.0)
+    // iOS artwork (MPMediaItemPropertyArtwork) is deferred:
+    // Kotlin/Native cinterop for ByteArray → NSData → UIImage → MPMediaItemArtwork
+    // requires stable Foundation bridging APIs not yet available in the current KMP version.
+    // Artwork is delivered through the shared Compose NowPlayingCard meanwhile.
 }
 
 private fun AudioSource.iosUrl(): NSURL = when (this) {

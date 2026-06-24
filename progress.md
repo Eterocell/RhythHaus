@@ -473,3 +473,39 @@ Acceptance:
 - Remaining risk: real device/runtime metadata values still require manual import validation with real audio files.
 Next owner: user/implementation for manual import + metadata runtime validation.
 Blockers: none.
+
+## Handoff - 2026-06-24 artwork in platform system media controls
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Pass embedded artwork from TagLib-parsed tracks through `PlayableTrack` into Android, macOS, and iOS system media controls (notification center, Control Center, Now Playing widget).
+
+Implementation:
+- Added `artworkBytes: ByteArray?` to `PlayableTrack` with correct ByteArray equals/hashCode.
+- Pass `track.artworkBytes` through `Track.toPlayableTrack()` in `App.kt`.
+- Android: `buildAndroidPlaybackMediaMetadata` sets artwork data via `MediaMetadata.Builder.setArtworkData(byte[])`.
+- macOS: Added `artwork` property and `setArtworkFromBytes:` method to `RhythHausAudioPlayer` native helper (ObjC++). Artwork is preserved across all now-playing info update paths. Added `nativeSetArtwork` JNI method. Gradle build links `AppKit.framework` for `NSImage`.
+- JVM bridge: `MacAudioPlayerBridge.setArtwork()` calls `nativeSetArtwork` when loading a track.
+- iOS: Artwork skipped (`MPMediaItemPropertyArtwork` deferred) — Kotlin/Native cinterop for `ByteArray → NSData → UIImage → MPMediaItemArtwork` requires stable Foundation bridging APIs not available in current KMP version. App's own Compose `NowPlayingCard` still displays artwork.
+
+Verification:
+- `./init.sh`: pass. BUILD SUCCESSFUL for shared JVM tests + desktop compile + Android debug build + iOS simulator tests.
+- `openspec validate play-music-all-platforms --strict`: pass.
+- `openspec validate import-local-audio --strict`: pass.
+
+Acceptance:
+- Requirement matched: yes for Android and macOS system media controls; iOS deferred (cinterop limitation documented).
+- Scope controlled: yes; no background playback, notification, or unrelated platform changes.
+- Remaining risk: visual confirmation requires running desktop/Android playback with real embedded-artwork audio files and checking system Control Center/notification artwork rendering.
+
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt`: `PlayableTrack.artworkBytes` field + equals/hashCode.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`: `toPlayableTrack()` passes artwork.
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.android.kt`: `buildAndroidPlaybackMediaMetadata` sets artwork data.
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt`: added deferred-iOS-artwork comment.
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt`: bridge `setArtwork` + `nativeSetArtwork` JNI declaration.
+- `shared/src/nativeInterop/macos/rhythhaus_audio.mm`: artwork property, setter, JNI method, preserved across all now-playing updates.
+- `shared/build.gradle.kts`: linked `AppKit.framework` for macOS `NSImage`.
+
+Next owner: user/implementation for manual macOS/Android artwork runtime confirmation and iOS cinterop artwork follow-up.
+Blockers: none for compile/test; iOS system Control Center artwork deferred.

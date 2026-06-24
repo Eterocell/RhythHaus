@@ -12,7 +12,28 @@ data class PlayableTrack(
     val album: String?,
     val durationMillis: Long?,
     val source: AudioSource,
-)
+    val artworkBytes: ByteArray? = null,
+) {
+    override fun equals(other: Any?): Boolean = other is PlayableTrack &&
+        id == other.id &&
+        title == other.title &&
+        artist == other.artist &&
+        album == other.album &&
+        durationMillis == other.durationMillis &&
+        source == other.source &&
+        artworkBytes.contentEquals(other.artworkBytes)
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + title.hashCode()
+        result = 31 * result + artist.hashCode()
+        result = 31 * result + (album?.hashCode() ?: 0)
+        result = 31 * result + (durationMillis?.hashCode() ?: 0)
+        result = 31 * result + source.hashCode()
+        result = 31 * result + (artworkBytes?.contentHashCode() ?: 0)
+        return result
+    }
+}
 
 sealed interface AudioSource {
     val stableKey: String

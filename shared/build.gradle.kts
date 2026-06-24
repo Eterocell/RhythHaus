@@ -21,6 +21,7 @@ val buildMacosAudioHelper by tasks.registering(Exec::class) {
         "-framework", "Foundation",
         "-framework", "AVFoundation",
         "-framework", "MediaPlayer",
+        "-framework", "AppKit",
         "-I$javaHomePath/include",
         "-I$javaHomePath/include/darwin",
         macosAudioHelperSourceFile.absolutePath,

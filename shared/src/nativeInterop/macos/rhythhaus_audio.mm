@@ -1,4 +1,5 @@
 #import <AVFoundation/AVFoundation.h>
+#import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
 #import <MediaPlayer/MediaPlayer.h>
 
@@ -7,6 +8,7 @@
 @interface RhythHausAudioPlayer : NSObject
 @property(nonatomic, strong) AVAudioPlayer *player;
 @property(nonatomic, assign) BOOL remoteCommandsRegistered;
+@property(nonatomic, strong) MPMediaItemArtwork *artwork;
 @end
 
 @implementation RhythHausAudioPlayer
@@ -70,6 +72,9 @@
     if (durationMillis > 0) {
         info[MPMediaItemPropertyPlaybackDuration] = @(((double)durationMillis) / 1000.0);
     }
+    if (self.artwork != nil) {
+        info[MPMediaItemPropertyArtwork] = self.artwork;
+    }
     info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(((double)MAX((jlong)0, positionMillis)) / 1000.0);
     info[MPNowPlayingInfoPropertyPlaybackRate] = @(self.player.isPlaying ? 1.0 : 0.0);
     [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = info;
@@ -78,7 +83,10 @@
 - (void)updateNowPlayingPositionMillis:(jlong)positionMillis durationMillis:(jlong)durationMillis {
     NSMutableDictionary *info = [[MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo mutableCopy];
     if (info == nil) {
-        return;
+        info = [NSMutableDictionary dictionary];
+    }
+    if (self.artwork != nil) {
+        info[MPMediaItemPropertyArtwork] = self.artwork;
     }
     info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(((double)MAX((jlong)0, positionMillis)) / 1000.0);
     if (durationMillis > 0) {
@@ -91,6 +99,9 @@
 - (void)updateNowPlayingPlaybackStateCode:(jint)playbackStateCode {
     MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
     NSMutableDictionary *info = [center.nowPlayingInfo mutableCopy] ?: [NSMutableDictionary dictionary];
+    if (self.artwork != nil) {
+        info[MPMediaItemPropertyArtwork] = self.artwork;
+    }
     if (playbackStateCode == 1) {
         center.playbackState = MPNowPlayingPlaybackStatePlaying;
         info[MPNowPlayingInfoPropertyPlaybackRate] = @(1.0);
@@ -149,6 +160,22 @@
         MPChangePlaybackPositionCommandEvent *positionEvent = (MPChangePlaybackPositionCommandEvent *)event;
         [strongSelf seekToMillis:(jlong)(positionEvent.positionTime * 1000.0)];
         return MPRemoteCommandHandlerStatusSuccess;
+    }];
+}
+
+- (void)setArtworkFromBytes:(const unsigned char *)bytes length:(NSUInteger)length {
+    if (bytes == NULL || length == 0) {
+        self.artwork = nil;
+        return;
+    }
+    NSData *data = [NSData dataWithBytes:bytes length:length];
+    NSImage *image = [[NSImage alloc] initWithData:data];
+    if (image == nil) {
+        self.artwork = nil;
+        return;
+    }
+    self.artwork = [[MPMediaItemArtwork alloc] initWithBoundsSize:image.size requestHandler:^NSImage * _Nonnull(CGSize size) {
+        return image;
     }];
 }
 
@@ -244,6 +271,28 @@ extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBri
 
 extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeClearNowPlayingInfo(JNIEnv *, jobject, jlong handle) {
     [playerFromHandle(handle) clearNowPlayingInfo];
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeSetArtwork(JNIEnv *env, jobject, jlong handle, jbyteArray artworkBytes) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    if (player == nil) {
+        return;
+    }
+    if (artworkBytes == NULL) {
+        [player setArtworkFromBytes:NULL length:0];
+        return;
+    }
+    jsize length = env->GetArrayLength(artworkBytes);
+    if (length <= 0) {
+        [player setArtworkFromBytes:NULL length:0];
+        return;
+    }
+    jbyte *bytes = env->GetByteArrayElements(artworkBytes, NULL);
+    if (bytes == NULL) {
+        return;
+    }
+    [player setArtworkFromBytes:(const unsigned char *)bytes length:(NSUInteger)length];
+    env->ReleaseByteArrayElements(artworkBytes, bytes, JNI_ABORT);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeRelease(JNIEnv *, jobject, jlong handle) {

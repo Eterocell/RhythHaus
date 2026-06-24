@@ -846,6 +846,7 @@ private fun Track.toPlayableTrack(): PlayableTrack = PlayableTrack(
     album = album,
     durationMillis = durationSeconds.takeIf { it > 0 }?.times(1_000L),
     source = source,
+    artworkBytes = artworkBytes,
 )
 
 private fun mergeImportedFiles(

@@ -124,11 +124,16 @@ internal fun buildAndroidPlaybackMediaItem(track: PlayableTrack): MediaItem = Me
     .setMediaMetadata(buildAndroidPlaybackMediaMetadata(track))
     .build()
 
-internal fun buildAndroidPlaybackMediaMetadata(track: PlayableTrack): MediaMetadata = MediaMetadata.Builder()
-    .setTitle(track.title)
-    .setArtist(track.artist)
-    .setAlbumTitle(track.album)
-    .build()
+internal fun buildAndroidPlaybackMediaMetadata(track: PlayableTrack): MediaMetadata {
+    val builder = MediaMetadata.Builder()
+        .setTitle(track.title)
+        .setArtist(track.artist)
+        .setAlbumTitle(track.album)
+    track.artworkBytes?.let { artwork ->
+        builder.setArtworkData(artwork)
+    }
+    return builder.build()
+}
 
 private fun AudioSource.androidUri(): Uri = when (this) {
     is AudioSource.FilePath -> Uri.fromFile(java.io.File(path))
