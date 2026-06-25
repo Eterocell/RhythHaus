@@ -9,6 +9,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import com.eterocell.rhythhaus.library.appLocalMusicFolderPath
 import platform.AVFAudio.AVAudioPlayer
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
@@ -177,6 +178,10 @@ private fun buildIOSNowPlayingDictionary(
 }
 
 private fun AudioSource.iosUrl(): NSURL = when (this) {
-    is AudioSource.FilePath -> NSURL.fileURLWithPath(path)
+    is AudioSource.FilePath -> {
+        // Container UUID changes on every Xcode install — resolve relative paths
+        val resolved = if (path.startsWith("/")) path else "${appLocalMusicFolderPath()}/$path"
+        NSURL.fileURLWithPath(resolved)
+    }
     is AudioSource.Uri -> NSURL.URLWithString(value) ?: error("Invalid iOS audio URL: $value")
 }

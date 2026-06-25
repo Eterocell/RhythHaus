@@ -97,7 +97,7 @@ private fun scanIosFolder(
                     sourceLocalKey = relativePath,
                     displayPath = relativePath,
                     displayName = name,
-                    audioSource = AudioSource.FilePath(path),
+                    audioSource = AudioSource.FilePath(relativePath),
                     sizeBytes = fileSize(path),
                     modifiedAtEpochMillis = null,
                 ),
@@ -107,7 +107,7 @@ private fun scanIosFolder(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun appLocalMusicFolderPath(): String {
+internal fun appLocalMusicFolderPath(): String {
     val urls = NSFileManager.defaultManager.URLsForDirectory(
         directory = NSDocumentDirectory,
         inDomains = NSUserDomainMask,
