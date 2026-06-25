@@ -213,9 +213,12 @@ class AudioEngine: ObservableObject {
             if path.hasPrefix("/") {
                 return URL(fileURLWithPath: path)
             }
-            // Resolve relative path via app documents directory
+            // Resolve relative path via app documents directory (string concat, same as old Kotlin iosUrl)
             let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            return docs.appendingPathComponent(path)
+            let docsPath = docs.path.hasSuffix("/") ? String(docs.path.dropLast()) : docs.path
+            let resolved = "\(docsPath)/\(path)"
+            print("[AudioEngine] resolved path: \(resolved)")
+            return URL(fileURLWithPath: resolved)
         }
         if let uriSource = source as? AudioSourceUri {
             return URL(string: uriSource.value)

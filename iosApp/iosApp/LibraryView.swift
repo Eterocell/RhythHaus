@@ -145,12 +145,14 @@ class LibraryStore: ObservableObject {
 
                         // Compute relative path from Documents
                         let relPath = String(item.path.dropFirst(base.path.count + 1))
+                        print("[Scanner] relPath=\(relPath)")
                         let displayName = item.lastPathComponent
                         let fileSize = (try? item.resourceValues(forKeys: [.fileSizeKey]).fileSize).map { Int64($0) }
                         let now = Int64(Date().timeIntervalSince1970 * 1000)
 
-                        // Create LibraryTrack with metadata from TagLib
-                        let absPath = docs.appendingPathComponent(relPath).path
+                        // Compute absolute path for metadata reading
+                        let docsPath = docs.path.hasSuffix("/") ? String(docs.path.dropLast()) : docs.path
+                        let absPath = "\(docsPath)/\(relPath)"
                         let metadata = readMetadata(path: absPath)
                         let track = LibraryTrack(
                             id: UUID().uuidString,
