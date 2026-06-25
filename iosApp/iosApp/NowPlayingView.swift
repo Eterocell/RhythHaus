@@ -1,22 +1,11 @@
 import SwiftUI
 import Shared
 
-// MARK: - KotlinByteArray bulk copy
+// MARK: - KotlinByteArray + Data
 
 private extension KotlinByteArray {
     func toData() -> Data {
         let count = Int(size)
-        return dataWithBytesNoCopy(count: count) ?? slowToData(count: count)
-    }
-
-    private func dataWithBytesNoCopy(count: Int) -> Data? {
-        let first = get(index: 0)
-        return Swift.withUnsafePointer(to: first) { ptr in
-            Data(bytes: UnsafeRawPointer(ptr), count: count)
-        }
-    }
-
-    private func slowToData(count: Int) -> Data {
         var data = Data(count: count)
         for i in 0..<count {
             data[i] = UInt8(bitPattern: get(index: Int32(i)))

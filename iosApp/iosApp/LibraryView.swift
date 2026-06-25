@@ -1,30 +1,13 @@
 import SwiftUI
 import Shared
 
-// MARK: - KotlinByteArray bulk copy
+// MARK: - KotlinByteArray + Data
 
 private extension KotlinByteArray {
-    /// Bulk-copy bytes to Data — avoids O(n) per-byte Kotlin bridge calls during scroll.
+    /// Convert KotlinByteArray to Data. Kotlin/Native cinterop does not expose the
+    /// raw buffer pointer, so we must copy byte-by-byte. NSCache makes this a one-time cost.
     func toData() -> Data {
         let count = Int(size)
-        return dataWithBytesNoCopy(count: count) ?? slowToData(count: count)
-    }
-
-    private func dataWithBytesNoCopy(count: Int) -> Data? {
-        // Try single memcpy via unsafe pointer
-        return byteArrayToPointer { ptr in
-            Data(bytes: ptr, count: count)
-        }
-    }
-
-    private func byteArrayToPointer<T>(_ body: (UnsafeRawPointer) -> T) -> T {
-        let first = get(index: 0)
-        return Swift.withUnsafePointer(to: first) { ptr in
-            body(UnsafeRawPointer(ptr))
-        }
-    }
-
-    private func slowToData(count: Int) -> Data {
         var data = Data(count: count)
         for i in 0..<count {
             data[i] = UInt8(bitPattern: get(index: Int32(i)))
