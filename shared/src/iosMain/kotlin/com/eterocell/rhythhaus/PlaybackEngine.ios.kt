@@ -21,6 +21,11 @@ import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
 import platform.MediaPlayer.MPMediaItemPropertyTitle
 import platform.MediaPlayer.MPNowPlayingInfoCenter
 import platform.MediaPlayer.MPNowPlayingInfoPropertyElapsedPlaybackTime
+import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
+import platform.MediaPlayer.MPRemoteCommandCenter
+import platform.MediaPlayer.MPRemoteCommandHandlerStatus
+import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
+import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 
 actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = IOSPlaybackEngine()
 
@@ -64,7 +69,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         loadedTrack = track
         durationMillis = track.durationMillis ?: (audioPlayer.duration * 1_000.0).toLong().takeIf { it > 0L }
         completionReported = false
-        updateNowPlayingInfo(positionMillis = 0L)
+        updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         listener?.onPlaybackProgress(0L, durationMillis)
         log.d { "Loaded OK: duration=${durationMillis}ms" }
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
@@ -81,6 +86,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         }
         updateNowPlayingInfo(positionMillis = (audioPlayer.currentTime * 1_000.0).toLong())
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
+        MPNowPlayingInfoCenter.defaultCenter().playbackState = 1uL  // MPNowPlayingPlaybackStatePlaying
         listener?.onPlaybackProgress((audioPlayer.currentTime * 1_000.0).toLong(), durationMillis)
         startProgressLoop()
     }
@@ -110,9 +116,10 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         progressJob?.cancel()
         val audioPlayer = player
         audioPlayer?.pause()
-        updateNowPlayingInfo(positionMillis = ((audioPlayer?.currentTime ?: 0.0) * 1_000.0).toLong())
+        updateNowPlayingInfo(positionMillis = ((audioPlayer?.currentTime ?: 0.0) * 1_000.0).toLong(), playbackRate = 0.0)
         listener?.onPlaybackProgress(((audioPlayer?.currentTime ?: 0.0) * 1_000.0).toLong(), durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
+        MPNowPlayingInfoCenter.defaultCenter().playbackState = 2uL  // MPNowPlayingPlaybackStatePaused
     }
 
     override fun stop() {
@@ -120,9 +127,10 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         val audioPlayer = player
         audioPlayer?.stop()
         audioPlayer?.currentTime = 0.0
-        updateNowPlayingInfo(positionMillis = 0L)
+        updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         listener?.onPlaybackProgress(0L, durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Stopped)
+        MPNowPlayingInfoCenter.defaultCenter().playbackState = 0uL  // MPNowPlayingPlaybackStateStopped
     }
 
     override fun seekTo(positionMillis: Long) {
@@ -137,6 +145,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         player = null
         loadedTrack = null
         durationMillis = null
+        MPNowPlayingInfoCenter.defaultCenter().playbackState = 0uL
         MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
     }
 
@@ -144,11 +153,77 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         val session = AVAudioSession.sharedInstance()
         session.setCategory(AVAudioSessionCategoryPlayback, error = null)
         session.setActive(true, error = null)
+        registerRemoteCommands()
     }
 
-    private fun updateNowPlayingInfo(positionMillis: Long) {
+    private fun registerRemoteCommands() {
+        val commandCenter = MPRemoteCommandCenter.sharedCommandCenter()
+        commandCenter.playCommand.setEnabled(true)
+        commandCenter.pauseCommand.setEnabled(true)
+        commandCenter.togglePlayPauseCommand.setEnabled(true)
+        commandCenter.stopCommand.setEnabled(true)
+        commandCenter.changePlaybackPositionCommand.setEnabled(true)
+
+        commandCenter.playCommand.addTargetWithHandler { _ ->
+            val p = player
+            if (p != null) {
+                p.play()
+                updateNowPlayingInfo(positionMillis = (p.currentTime * 1_000.0).toLong())
+                listener?.onPlaybackStatus(PlaybackStatus.Playing)
+                startProgressLoop()
+            }
+            MPRemoteCommandHandlerStatusSuccess
+        }
+        commandCenter.pauseCommand.addTargetWithHandler { _ ->
+            progressJob?.cancel()
+            player?.pause()
+            val pos = ((player?.currentTime ?: 0.0) * 1_000.0).toLong()
+            updateNowPlayingInfo(positionMillis = pos)
+            listener?.onPlaybackProgress(pos, durationMillis)
+            listener?.onPlaybackStatus(PlaybackStatus.Paused)
+            MPRemoteCommandHandlerStatusSuccess
+        }
+        commandCenter.togglePlayPauseCommand.addTargetWithHandler { _ ->
+            val p = player
+            if (p != null) {
+                if (p.isPlaying()) {
+                    progressJob?.cancel()
+                    p.pause()
+                    updateNowPlayingInfo(positionMillis = (p.currentTime * 1_000.0).toLong())
+                    listener?.onPlaybackStatus(PlaybackStatus.Paused)
+                } else {
+                    p.play()
+                    updateNowPlayingInfo(positionMillis = (p.currentTime * 1_000.0).toLong())
+                    listener?.onPlaybackStatus(PlaybackStatus.Playing)
+                    startProgressLoop()
+                }
+            }
+            MPRemoteCommandHandlerStatusSuccess
+        }
+        commandCenter.stopCommand.addTargetWithHandler { _ ->
+            progressJob?.cancel()
+            player?.stop()
+            player?.currentTime = 0.0
+            updateNowPlayingInfo(positionMillis = 0L)
+            listener?.onPlaybackProgress(0L, durationMillis)
+            listener?.onPlaybackStatus(PlaybackStatus.Stopped)
+            MPRemoteCommandHandlerStatusSuccess
+        }
+        commandCenter.changePlaybackPositionCommand.addTargetWithHandler { event ->
+            if (event is MPChangePlaybackPositionCommandEvent) {
+                val seekSeconds = event.positionTime
+                player?.currentTime = seekSeconds
+                val pos = (seekSeconds * 1_000.0).toLong()
+                updateNowPlayingInfo(positionMillis = pos)
+                listener?.onPlaybackProgress(pos, durationMillis)
+            }
+            MPRemoteCommandHandlerStatusSuccess
+        }
+    }
+
+    private fun updateNowPlayingInfo(positionMillis: Long, playbackRate: Double = 1.0) {
         val track = loadedTrack ?: return
-        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = buildIOSNowPlayingDictionary(track, positionMillis, durationMillis)
+        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = buildIOSNowPlayingDictionary(track, positionMillis, durationMillis, playbackRate)
     }
 }
 
@@ -169,12 +244,14 @@ private fun buildIOSNowPlayingDictionary(
     track: PlayableTrack,
     positionMillis: Long,
     durationMillis: Long?,
+    playbackRate: Double,
 ): Map<Any?, Any?> = buildMap {
     put(MPMediaItemPropertyTitle, track.title)
     put(MPMediaItemPropertyArtist, track.artist)
     track.album?.let { put(MPMediaItemPropertyAlbumTitle, it) }
     durationMillis?.let { put(MPMediaItemPropertyPlaybackDuration, it.toDouble() / 1_000.0) }
     put(MPNowPlayingInfoPropertyElapsedPlaybackTime, positionMillis.coerceAtLeast(0L).toDouble() / 1_000.0)
+    put(MPNowPlayingInfoPropertyPlaybackRate, playbackRate)
 }
 
 private fun AudioSource.iosUrl(): NSURL = when (this) {
