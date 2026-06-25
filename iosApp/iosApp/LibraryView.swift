@@ -1,6 +1,54 @@
 import SwiftUI
 import Shared
 
+// MARK: - BrowseMode
+
+enum BrowseMode: String, CaseIterable {
+    case albums = "Albums"
+    case artists = "Artists"
+}
+
+// MARK: - AlbumGroupSwift
+
+struct AlbumGroupSwift: Identifiable {
+    let album: String
+    let tracks: [Track]
+    let artist: String?
+    var id: String { album }
+
+    static func from(_ tracks: [Track]) -> [AlbumGroupSwift] {
+        let grouped = Dictionary(grouping: tracks, by: { $0.album })
+        return grouped.map { (album, tracks) in
+            let sorted = tracks.sorted {
+                ($0.discNumber?.intValue ?? 0, $0.trackNumber?.intValue ?? 0, $0.title.lowercased())
+                < ($1.discNumber?.intValue ?? 0, $1.trackNumber?.intValue ?? 0, $1.title.lowercased())
+            }
+            return AlbumGroupSwift(album: album, tracks: sorted, artist: sorted.first?.artist)
+        }.sorted { $0.album.lowercased() < $1.album.lowercased() }
+    }
+}
+
+// MARK: - ArtistGroupSwift
+
+struct ArtistGroupSwift: Identifiable {
+    let artist: String
+    let tracks: [Track]
+    let albumCount: Int
+    var id: String { artist }
+
+    static func from(_ tracks: [Track]) -> [ArtistGroupSwift] {
+        let grouped = Dictionary(grouping: tracks, by: { $0.artist })
+        return grouped.map { (artist, tracks) in
+            let sorted = tracks.sorted {
+                ($0.discNumber?.intValue ?? 0, $0.trackNumber?.intValue ?? 0, $0.title.lowercased())
+                < ($1.discNumber?.intValue ?? 0, $1.trackNumber?.intValue ?? 0, $1.title.lowercased())
+            }
+            let albumCount = Set(tracks.map { $0.album }).count
+            return ArtistGroupSwift(artist: artist, tracks: sorted, albumCount: albumCount)
+        }.sorted { $0.artist.lowercased() < $1.artist.lowercased() }
+    }
+}
+
 // MARK: - LibraryStore
 
 class LibraryStore: ObservableObject {
@@ -71,35 +119,51 @@ class LibraryStore: ObservableObject {
 struct LibraryView: View {
     @ObservedObject var engine: AudioEngine
     @ObservedObject var libraryStore: LibraryStore
+    @State private var browseMode: BrowseMode = .albums
     @State private var selectedTrack: Track? = nil
     @State private var showNowPlaying = false
+
+    private var albumGroups: [AlbumGroupSwift] {
+        AlbumGroupSwift.from(libraryStore.snapshot.tracks)
+    }
+
+    private var artistGroups: [ArtistGroupSwift] {
+        ArtistGroupSwift.from(libraryStore.snapshot.tracks)
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    // Header
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("RhythHaus")
-                                .font(.system(size: 44, weight: .black))
-                                .tracking(-1.6)
-                            Text("\(libraryStore.tracks.count) tracks · \(formatTotalDuration(libraryStore.snapshot.totalDurationSeconds))")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 12)
+                VStack(alignment: .leading, spacing: 20) {
+                    // HeaderSection
+                    HeaderSection(
+                        trackCount: libraryStore.snapshot.tracks.count,
+                        totalDuration: formatTotalDuration(libraryStore.snapshot.totalDurationSeconds)
+                    )
 
-                    // Track list
-                    ForEach(libraryStore.snapshot.tracks, id: \.id) { track in
-                        TrackRowView(track: track) {
-                            selectedTrack = track
-                            playTrack(track)
-                            showNowPlaying = true
+                    // BrowseModePicker
+                    Picker("Browse", selection: $browseMode) {
+                        ForEach(BrowseMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
                         }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+
+                    // SectionLabel
+                    SectionLabel(
+                        title: "Library queue",
+                        trackCount: libraryStore.snapshot.tracks.count,
+                        totalDuration: formatTotalDuration(libraryStore.snapshot.totalDurationSeconds)
+                    )
+                    .padding(.horizontal)
+
+                    // Content based on browse mode
+                    switch browseMode {
+                    case .albums:
+                        albumGrid
+                    case .artists:
+                        artistList
                     }
                 }
                 .padding(.bottom, 80) // space for now playing bar
@@ -110,7 +174,9 @@ struct LibraryView: View {
                 if let track = selectedTrack {
                     NowPlayingView(
                         track: track,
+                        trackQueue: libraryStore.snapshot.tracks,
                         engine: engine,
+                        playTrack: { t in playTrack(t) },
                         onBack: { showNowPlaying = false }
                     )
                 }
@@ -119,7 +185,7 @@ struct LibraryView: View {
                 // Mini now playing bar
                 if engine.state.currentTrack != nil {
                     NowPlayingBar(engine: engine) {
-                        if let track = selectedTrack {
+                        if selectedTrack != nil {
                             showNowPlaying = true
                         }
                     }
@@ -127,6 +193,66 @@ struct LibraryView: View {
             }
         }
     }
+
+    // MARK: - Album Grid
+
+    private var albumGrid: some View {
+        let columns = [
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12)
+        ]
+        return LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(albumGroups) { album in
+                NavigationLink {
+                    DrillDownView(
+                        title: album.album,
+                        subtitle: album.artist.map { "\($0) · \(album.tracks.count) tracks" } ?? "\(album.tracks.count) tracks",
+                        tracks: album.tracks,
+                        engine: engine,
+                        libraryStore: libraryStore,
+                        playTrack: { track in
+                            selectedTrack = track
+                            playTrack(track)
+                            showNowPlaying = true
+                        }
+                    )
+                } label: {
+                    AlbumCardView(album: album)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    // MARK: - Artist List
+
+    private var artistList: some View {
+        LazyVStack(spacing: 8) {
+            ForEach(artistGroups) { artistGroup in
+                NavigationLink {
+                    DrillDownView(
+                        title: artistGroup.artist,
+                        subtitle: "\(artistGroup.albumCount) albums · \(artistGroup.tracks.count) tracks",
+                        tracks: artistGroup.tracks,
+                        engine: engine,
+                        libraryStore: libraryStore,
+                        playTrack: { track in
+                            selectedTrack = track
+                            playTrack(track)
+                            showNowPlaying = true
+                        }
+                    )
+                } label: {
+                    ArtistRowView(artistGroup: artistGroup)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    // MARK: - Playback
 
     private func playTrack(_ track: Track) {
         let duration: KotlinLong? = track.durationSeconds > 0
@@ -149,6 +275,276 @@ struct LibraryView: View {
         let m = seconds / 60
         let s = seconds % 60
         return "\(m):\(String(format: "%02d", s)) total"
+    }
+}
+
+// MARK: - HeaderSection
+
+struct HeaderSection: View {
+    let trackCount: Int
+    let totalDuration: String
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("RhythHaus")
+                    .font(.system(size: 44, weight: .black))
+                    .tracking(-1.6)
+                Text("\(trackCount) tracks · \(totalDuration)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.top, 12)
+    }
+}
+
+// MARK: - SectionLabel
+
+struct SectionLabel: View {
+    let title: String
+    let trackCount: Int
+    let totalDuration: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 20, weight: .black))
+            Spacer()
+            Text("\(trackCount) tracks · \(totalDuration)")
+                .font(.caption.weight(.bold))
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - AlbumCardView
+
+struct AlbumCardView: View {
+    let album: AlbumGroupSwift
+
+    private var accentStartColor: Color {
+        if let first = album.tracks.first {
+            return Color(hex: UInt(truncatingIfNeeded: first.accent.start))
+        }
+        return Color(hex: 0xFF111018)
+    }
+
+    private var accentEndColor: Color {
+        if let first = album.tracks.first {
+            return Color(hex: UInt(truncatingIfNeeded: first.accent.end))
+        }
+        return Color(hex: 0xFF776F66)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Artwork placeholder with gradient
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [accentStartColor, accentEndColor]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(height: 120)
+
+                Text(String(album.album.prefix(3)).uppercased())
+                    .font(.system(size: 36, weight: .black))
+                    .foregroundColor(.white.opacity(0.72))
+            }
+
+            // Album name
+            Text(album.album)
+                .font(.system(size: 14, weight: .black))
+                .lineLimit(2)
+                .foregroundColor(.primary)
+
+            // Artist + track count
+            Text(subtitleText)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+        }
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var subtitleText: String {
+        if let artist = album.artist {
+            return "\(artist) · \(album.tracks.count) tracks"
+        }
+        return "\(album.tracks.count) tracks"
+    }
+}
+
+// MARK: - ArtistRowView
+
+struct ArtistRowView: View {
+    let artistGroup: ArtistGroupSwift
+
+    private var accentColor: Color {
+        if let first = artistGroup.tracks.first {
+            return Color(hex: UInt(truncatingIfNeeded: first.accent.start))
+        }
+        return Color(hex: 0xFF111018)
+    }
+
+    private var accentEndColor: Color {
+        if let first = artistGroup.tracks.first {
+            return Color(hex: UInt(truncatingIfNeeded: first.accent.end))
+        }
+        return Color(hex: 0xFF776F66)
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            // Accent circle with first letter
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [accentColor, accentEndColor]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 40, height: 40)
+
+                Text(String(artistGroup.artist.prefix(1)).uppercased())
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundColor(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(artistGroup.artist)
+                    .font(.system(size: 16, weight: .black))
+                    .lineLimit(1)
+                    .foregroundColor(.primary)
+
+                Text("\(artistGroup.albumCount) albums · \(artistGroup.tracks.count) tracks")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundColor(.secondary)
+        }
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemBackground).opacity(0.54))
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(Color(uiColor: .separator), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - DrillDownView
+
+struct DrillDownView: View {
+    let title: String
+    let subtitle: String
+    let tracks: [Track]
+    @ObservedObject var engine: AudioEngine
+    @ObservedObject var libraryStore: LibraryStore
+    let playTrack: (Track) -> Void
+
+    @State private var selectedTrackId: String? = nil
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header with back button
+            DrillDownHeader(title: title, subtitle: subtitle) {
+                dismiss()
+            }
+
+            // Section label
+            SectionLabel(
+                title: title,
+                trackCount: tracks.count,
+                totalDuration: formatTracksDuration(tracks)
+            )
+            .padding(.horizontal)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+
+            // Track list
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(tracks, id: \.id) { track in
+                        TrackRowView(track: track) {
+                            selectedTrackId = track.id
+                            playTrack(track)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 80)
+            }
+        }
+        .background(Color(uiColor: .systemBackground))
+        .navigationBarHidden(true)
+        .overlay(alignment: .bottom) {
+            if engine.state.currentTrack != nil {
+                NowPlayingBar(engine: engine) {
+                    // no-op in drill-down; NowPlaying is handled by LibraryView
+                }
+            }
+        }
+    }
+
+    private func formatTracksDuration(_ tracks: [Track]) -> String {
+        let total = tracks.reduce(0) { $0 + max(0, Int32($1.durationSeconds)) }
+        let m = total / 60
+        let s = total % 60
+        return "\(m):\(String(format: "%02d", s)) total"
+    }
+}
+
+// MARK: - DrillDownHeader
+
+struct DrillDownHeader: View {
+    let title: String
+    let subtitle: String
+    let onBack: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Button(action: onBack) {
+                    Text("← BACK")
+                        .font(.system(size: 11, weight: .black))
+                        .tracking(1.8)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.black)
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+
+                Text(subtitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+
+            Text(title)
+                .font(.system(size: 44, weight: .black))
+                .tracking(-1.6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal)
+        .padding(.top, 18)
     }
 }
 
@@ -242,12 +638,40 @@ struct NowPlayingBar: View {
     }
 }
 
-// MARK: - NowPlayingView (placeholder)
+// MARK: - NowPlayingView
 
 struct NowPlayingView: View {
     let track: Track
+    let trackQueue: [Track]
     @ObservedObject var engine: AudioEngine
+    let playTrack: (Track) -> Void
     let onBack: () -> Void
+
+    private func skipToNext() {
+        guard let currentIndex = trackQueue.firstIndex(where: { $0.id == track.id }) else { return }
+        let nextIndex = currentIndex + 1
+        if nextIndex < trackQueue.count {
+            playTrack(trackQueue[nextIndex])
+        } else {
+            // Wrap to first
+            if !trackQueue.isEmpty {
+                playTrack(trackQueue[0])
+            }
+        }
+    }
+
+    private func skipToPrevious() {
+        guard let currentIndex = trackQueue.firstIndex(where: { $0.id == track.id }) else { return }
+        let prevIndex = currentIndex - 1
+        if prevIndex >= 0 {
+            playTrack(trackQueue[prevIndex])
+        } else {
+            // Wrap to last
+            if !trackQueue.isEmpty {
+                playTrack(trackQueue[trackQueue.count - 1])
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -275,9 +699,11 @@ struct NowPlayingView: View {
                 .fill(Color(hex: UInt(truncatingIfNeeded: track.accent.start)))
                 .frame(height: 300)
                 .padding(.horizontal, 20)
-                .overlay(Text(String(track.title.prefix(3)).uppercased())
-                    .font(.system(size: 64, weight: .black))
-                    .foregroundColor(.white.opacity(0.3)))
+                .overlay(
+                    Text(String(track.title.prefix(3)).uppercased())
+                        .font(.system(size: 64, weight: .black))
+                        .foregroundColor(.white.opacity(0.3))
+                )
 
             // Track info
             VStack(spacing: 4) {
@@ -298,7 +724,7 @@ struct NowPlayingView: View {
 
             // Transport
             HStack(spacing: 40) {
-                Button(action: { /* skip prev */ }) {
+                Button(action: skipToPrevious) {
                     Image(systemName: "backward.fill").font(.title2)
                 }
                 Button(action: {
@@ -311,7 +737,7 @@ struct NowPlayingView: View {
                     Image(systemName: engine.state.status == "playing" ? "pause.circle.fill" : "play.circle.fill")
                         .font(.system(size: 64))
                 }
-                Button(action: { /* skip next */ }) {
+                Button(action: skipToNext) {
                     Image(systemName: "forward.fill").font(.title2)
                 }
             }
