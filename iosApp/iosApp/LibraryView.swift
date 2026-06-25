@@ -59,6 +59,10 @@ class LibraryStore: ObservableObject {
         tracks: [],
         nowPlayingTrackId: nil
     )
+    @Published var isScanning = false
+    @Published var scanProgress: String? = nil
+    @Published var showFolderPicker = false
+    @Published var showClearAlert = false
 
     private var database: LibraryDatabase?
     private var repository: SqlDelightLibraryRepository?
@@ -74,6 +78,17 @@ class LibraryStore: ObservableObject {
         guard let repo = repository else { return }
         tracks = repo.tracks()
         snapshot = librarySnapshotFromTracks(tracks)
+    }
+
+    func clearLibrary() {
+        repository?.clearAll()
+        refresh()
+    }
+
+    func importFolder(url: URL) {
+        isScanning = true
+        scanProgress = "Starting scan…"
+        // Placeholder — wire real scanner later
     }
 
     private func librarySnapshotFromTracks(_ tracks: [LibraryTrack]) -> LibrarySnapshot {
@@ -141,6 +156,16 @@ struct LibraryView: View {
                         totalDuration: formatTotalDuration(libraryStore.snapshot.totalDurationSeconds)
                     )
 
+                    // ImportCardView
+                    ImportCardView(
+                        hasTracks: !libraryStore.tracks.isEmpty,
+                        isScanning: libraryStore.isScanning,
+                        scanProgress: libraryStore.scanProgress,
+                        onAddFolder: { libraryStore.showFolderPicker = true },
+                        onClearLibrary: { libraryStore.showClearAlert = true },
+                        onCancelScan: { libraryStore.isScanning = false }
+                    )
+
                     // BrowseModePicker
                     Picker("Browse", selection: $browseMode) {
                         ForEach(BrowseMode.allCases, id: \.self) { mode in
@@ -191,6 +216,27 @@ struct LibraryView: View {
                     }
                 }
             }
+        }
+        .fileImporter(
+            isPresented: $libraryStore.showFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                let secured = url.startAccessingSecurityScopedResource()
+                libraryStore.importFolder(url: url)
+                if !secured {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+        }
+        .alert("Clear Library", isPresented: $libraryStore.showClearAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear", role: .destructive) {
+                libraryStore.clearLibrary()
+            }
+        } message: {
+            Text("Remove all imported tracks? This cannot be undone.")
         }
     }
 
