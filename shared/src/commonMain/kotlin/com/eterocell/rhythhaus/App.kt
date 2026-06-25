@@ -28,6 +28,7 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
@@ -39,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +64,9 @@ import com.eterocell.rhythhaus.library.PlatformAudioScanner
 import com.eterocell.rhythhaus.library.PlatformFolderPickResult
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
+import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.ScanSession
+import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
 import com.eterocell.rhythhaus.library.createLibraryDatabase
 import com.eterocell.rhythhaus.library.createPlatformSourceAccess
@@ -72,6 +77,10 @@ import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
 import com.eterocell.rhythhaus.taglib.createTagLibReader
 import com.eterocell.rhythhaus.taglib.TagMetadata as RawTagMetadata
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 
@@ -95,12 +104,27 @@ fun App() {
     }
     var libraryTracks by remember { mutableStateOf(repository.tracks()) }
     var importMessage by remember { mutableStateOf<String?>(null) }
+    var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
+    var scanJob by remember { mutableStateOf<Job?>(null) }
+    val scope = rememberCoroutineScope()
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
         when (result) {
             is PlatformFolderPickResult.Success -> {
-                val session = scanner.scan(result.source)
-                importMessage = "Scan complete: ${session.tracksAdded} new, ${session.tracksUpdated} updated"
-                libraryTracks = repository.tracks()
+                val source = result.source
+                scanJob = scope.launch(Dispatchers.Default) {
+                    var progress = ScanProgress(
+                        session = ScanSession(id = "", sourceId = source.id, status = ScanStatus.Scanning, startedAtEpochMillis = 0L)
+                    )
+                    withContext(Dispatchers.Main) { scanProgress = progress }
+
+                    val session = scanner.scan(source) { scanJob?.isActive != true }
+
+                    withContext(Dispatchers.Main) {
+                        scanProgress = ScanProgress(session = session)
+                        importMessage = "Scan complete: ${session.tracksAdded} new, ${session.tracksUpdated} updated"
+                        libraryTracks = repository.tracks()
+                    }
+                }
             }
 
             is PlatformFolderPickResult.Unavailable -> importMessage = result.message
@@ -122,6 +146,8 @@ fun App() {
             playbackController = controller,
             folderPickerLauncher = folderPickerLauncher,
             importMessage = importMessage,
+            scanProgress = scanProgress,
+            scanJob = scanJob,
         )
     }
 }
@@ -157,6 +183,8 @@ fun LibraryHomeScreen(
     playbackController: PlaybackController,
     folderPickerLauncher: PlatformFolderPickerLauncher,
     importMessage: String?,
+    scanProgress: ScanProgress?,
+    scanJob: Job?,
     modifier: Modifier = Modifier,
 ) {
     var selectedTrackId by remember(snapshot.nowPlayingTrackId) { mutableStateOf(snapshot.nowPlayingTrackId) }
@@ -233,12 +261,26 @@ fun LibraryHomeScreen(
                         item {
                             HeaderSection(snapshot)
                         }
-                        item {
-                            ImportAudioCard(
-                                folderPickerLauncher = folderPickerLauncher,
-                                importMessage = importMessage,
-                                hasImportedTracks = snapshot.tracks.isNotEmpty(),
-                            )
+                        if (scanProgress?.isActive == true) {
+                            item {
+                                val sp = scanProgress
+                                val ss = sp.session!!
+                                ScanningCard(
+                                    foldersVisited = ss.foldersVisited,
+                                    filesVisited = ss.filesVisited,
+                                    tracksAdded = ss.tracksAdded,
+                                    onCancel = { scanJob?.cancel() },
+                                )
+                            }
+                        }
+                        if (scanProgress?.isActive != true) {
+                            item {
+                                ImportAudioCard(
+                                    folderPickerLauncher = folderPickerLauncher,
+                                    importMessage = importMessage,
+                                    hasImportedTracks = snapshot.tracks.isNotEmpty(),
+                                )
+                            }
                         }
                         item {
                             DeveloperPanel(
@@ -1284,4 +1326,37 @@ private fun libraryTrackAccent(index: Int): TrackAccent {
         TrackAccent(start = 0xFFFF6FD8, end = 0xFF3813C2),
     )
     return accents[index % accents.size]
+}
+
+@Composable
+private fun ScanningCard(
+    foldersVisited: Int,
+    filesVisited: Int,
+    tracksAdded: Int,
+    onCancel: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(12.dp),
+        cornerRadius = 12.dp,
+        colors = CardDefaults.defaultColors(color = HausPanel),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text("Scanning…", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = HausInk)
+            Spacer(Modifier.height(6.dp))
+            Text("$foldersVisited folders • $filesVisited files • $tracksAdded tracks", fontSize = 12.sp, color = HausInk.copy(alpha = 0.7f))
+            Spacer(Modifier.height(6.dp))
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(6.dp))
+            Button(
+                onClick = onCancel,
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 8.dp,
+                colors = ButtonDefaults.buttonColors(color = HausInk, contentColor = HausPaper),
+            ) {
+                Text("Cancel", fontSize = 12.sp)
+            }
+        }
+    }
 }
