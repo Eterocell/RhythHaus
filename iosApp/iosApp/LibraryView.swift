@@ -201,8 +201,8 @@ struct LibraryView: View {
                         track: track,
                         trackQueue: libraryStore.snapshot.tracks,
                         engine: engine,
-                        playTrack: { t in playTrack(t) },
-                        onBack: { showNowPlaying = false }
+                        onBack: { showNowPlaying = false },
+                        onPlayTrack: { t in playTrack(t) }
                     )
                 }
             }
@@ -681,117 +681,6 @@ struct NowPlayingBar: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
         }
-    }
-}
-
-// MARK: - NowPlayingView
-
-struct NowPlayingView: View {
-    let track: Track
-    let trackQueue: [Track]
-    @ObservedObject var engine: AudioEngine
-    let playTrack: (Track) -> Void
-    let onBack: () -> Void
-
-    private func skipToNext() {
-        guard let currentIndex = trackQueue.firstIndex(where: { $0.id == track.id }) else { return }
-        let nextIndex = currentIndex + 1
-        if nextIndex < trackQueue.count {
-            playTrack(trackQueue[nextIndex])
-        } else {
-            // Wrap to first
-            if !trackQueue.isEmpty {
-                playTrack(trackQueue[0])
-            }
-        }
-    }
-
-    private func skipToPrevious() {
-        guard let currentIndex = trackQueue.firstIndex(where: { $0.id == track.id }) else { return }
-        let prevIndex = currentIndex - 1
-        if prevIndex >= 0 {
-            playTrack(trackQueue[prevIndex])
-        } else {
-            // Wrap to last
-            if !trackQueue.isEmpty {
-                playTrack(trackQueue[trackQueue.count - 1])
-            }
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 24) {
-            // Back button
-            HStack {
-                Button(action: onBack) {
-                    Text("← LIBRARY")
-                        .font(.caption.weight(.black))
-                        .tracking(1.8)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(.black)
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                }
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.top, 16)
-
-            Spacer()
-
-            // Artwork placeholder
-            RoundedRectangle(cornerRadius: 32)
-                .fill(Color(hex: UInt(truncatingIfNeeded: track.accent.start)))
-                .frame(height: 300)
-                .padding(.horizontal, 20)
-                .overlay(
-                    Text(String(track.title.prefix(3)).uppercased())
-                        .font(.system(size: 64, weight: .black))
-                        .foregroundColor(.white.opacity(0.3))
-                )
-
-            // Track info
-            VStack(spacing: 4) {
-                Text(track.title)
-                    .font(.system(size: 28, weight: .black))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                Text("\(track.artist) · \(track.album)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                if let tn = track.trackNumber {
-                    Text("Track \(tn)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal)
-
-            // Transport
-            HStack(spacing: 40) {
-                Button(action: skipToPrevious) {
-                    Image(systemName: "backward.fill").font(.title2)
-                }
-                Button(action: {
-                    if engine.state.status == "playing" {
-                        engine.pause()
-                    } else {
-                        engine.play()
-                    }
-                }) {
-                    Image(systemName: engine.state.status == "playing" ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.system(size: 64))
-                }
-                Button(action: skipToNext) {
-                    Image(systemName: "forward.fill").font(.title2)
-                }
-            }
-
-            Spacer()
-        }
-        .background(Color(uiColor: .systemBackground))
-        .navigationBarHidden(true)
     }
 }
 
