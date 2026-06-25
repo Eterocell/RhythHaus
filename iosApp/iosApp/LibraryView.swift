@@ -86,13 +86,68 @@ class LibraryStore: ObservableObject {
 
     func scanAppFolder() {
         isScanning = true
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         scanProgress = "Scanning app folder..."
-        // Scan is async — run on background queue
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
-            // TODO: wire LibraryScanner from Shared.framework for actual scanning
-            // For now, just mark complete after a brief delay
+            guard let self, let repo = self.repository else { return }
+            let supportedExts = Set(["wav", "wave", "aif", "aiff", "au", "mp3", "m4a", "aac", "flac", "ogg"])
+            var filesVisited = 0
+            var tracksAdded = 0
+
+            func walkDirectory(_ url: URL, relativeTo base: URL) {
+                guard let contents = try? FileManager.default.contentsOfDirectory(
+                    at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]
+                ) else { return }
+
+                for item in contents.sorted(by: { $0.lastPathComponent.lowercased() < $1.lastPathComponent.lowercased() }) {
+                    let isDir = (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                    if isDir {
+                        walkDirectory(item, relativeTo: base)
+                    } else {
+                        filesVisited += 1
+                        let ext = item.pathExtension.lowercased()
+                        guard supportedExts.contains(ext) else { continue }
+
+                        // Compute relative path from Documents
+                        let relPath = String(item.path.dropFirst(base.path.count + 1))
+                        let displayName = item.lastPathComponent
+                        let fileSize = (try? item.resourceValues(forKeys: [.fileSizeKey]).fileSize).map { Int64($0) }
+                        let now = Int64(Date().timeIntervalSince1970 * 1000)
+
+                        // Create LibraryTrack with basic metadata (filename as title)
+                        let track = LibraryTrack(
+                            id: UUID().uuidString,
+                            sourceId: "ios-app-local",
+                            sourceLocalKey: relPath,
+                            audioSource: AudioSourceFilePath(path: relPath),
+                            displayName: displayName,
+                            title: String(displayName.dropLast(ext.count + 1)), // strip extension
+                            artist: "Unknown",
+                            album: "Unknown",
+                            durationMillis: nil,
+                            sizeBytes: fileSize != nil ? KotlinLong(value: fileSize!) : nil,
+                            modifiedAtEpochMillis: nil,
+                            lastSeenScanId: "scan-\(now)",
+                            createdAtEpochMillis: now,
+                            updatedAtEpochMillis: now,
+                            trackNumber: nil,
+                            discNumber: nil,
+                            artworkBytes: nil,
+                            artworkMimeType: nil
+                        )
+                        _ = repo.upsertTrack(track: track)
+                        tracksAdded += 1
+
+                        DispatchQueue.main.async {
+                            self.scanProgress = "Scanned \(filesVisited) files, \(tracksAdded) tracks added"
+                        }
+                    }
+                }
+            }
+
+            walkDirectory(docs, relativeTo: docs)
+
             DispatchQueue.main.async {
                 self.isScanning = false
                 self.scanProgress = nil
