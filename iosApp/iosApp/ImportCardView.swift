@@ -14,7 +14,7 @@ struct ImportCardView: View {
     let hasTracks: Bool
     let isScanning: Bool
     let scanProgress: String?
-    let onAddFolder: () -> Void
+    let onScan: () -> Void
     let onClearLibrary: () -> Void
     let onCancelScan: () -> Void
 
@@ -27,7 +27,7 @@ struct ImportCardView: View {
         } else {
             ImportAudioCard(
                 hasTracks: hasTracks,
-                onAddFolder: onAddFolder,
+                onScan: onScan,
                 onClearLibrary: onClearLibrary
             )
         }
@@ -36,10 +36,11 @@ struct ImportCardView: View {
 
 // MARK: - ImportAudioCard
 
-/// Card shown at the top of the library with import and clear actions.
+/// Card shown at the top of the library with scan and clear actions.
+/// On iOS, the app auto-scans its own Documents folder — no folder picker is shown.
 struct ImportAudioCard: View {
     let hasTracks: Bool
-    let onAddFolder: () -> Void
+    let onScan: () -> Void
     let onClearLibrary: () -> Void
 
     var body: some View {
@@ -50,15 +51,15 @@ struct ImportAudioCard: View {
 
             // Description
             Text(hasTracks
-                ? "Tap below to scan more folders. RhythHaus watches your folders and keeps the library up to date."
-                : "Select a folder of audio files to start building your library. Supported formats: MP3, FLAC, WAV, AAC, M4A, OGG, AIFF."
+                ? "Tap below to rescan your app folder for new music. Place files in the RhythHaus Documents folder via the iOS Files app."
+                : "Place your music files in the RhythHaus app folder using the iOS Files app, then tap below to scan. Supported formats: MP3, FLAC, WAV, AAC, M4A, OGG, AIFF."
             )
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            // "Add music folder" button
-            Button(action: onAddFolder) {
-                Text("Add music folder")
+            // "Scan app folder" button
+            Button(action: onScan) {
+                Text(hasTracks ? "Rescan app folder" : "Scan app folder")
                     .font(.body.weight(.black))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)

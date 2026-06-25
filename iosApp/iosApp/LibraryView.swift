@@ -61,7 +61,6 @@ class LibraryStore: ObservableObject {
     )
     @Published var isScanning = false
     @Published var scanProgress: String? = nil
-    @Published var showFolderPicker = false
     @Published var showClearAlert = false
 
     private var database: LibraryDatabase?
@@ -85,10 +84,21 @@ class LibraryStore: ObservableObject {
         refresh()
     }
 
-    func importFolder(url: URL) {
+    func scanAppFolder() {
         isScanning = true
-        scanProgress = "Starting scan…"
-        // Placeholder — wire real scanner later
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        scanProgress = "Scanning app folder..."
+        // Scan is async — run on background queue
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            // TODO: wire LibraryScanner from Shared.framework for actual scanning
+            // For now, just mark complete after a brief delay
+            DispatchQueue.main.async {
+                self.isScanning = false
+                self.scanProgress = nil
+                self.refresh()
+            }
+        }
     }
 
     private func librarySnapshotFromTracks(_ tracks: [LibraryTrack]) -> LibrarySnapshot {
@@ -161,7 +171,7 @@ struct LibraryView: View {
                         hasTracks: !libraryStore.tracks.isEmpty,
                         isScanning: libraryStore.isScanning,
                         scanProgress: libraryStore.scanProgress,
-                        onAddFolder: { libraryStore.showFolderPicker = true },
+                        onScan: { libraryStore.scanAppFolder() },
                         onClearLibrary: { libraryStore.showClearAlert = true },
                         onCancelScan: { libraryStore.isScanning = false }
                     )
@@ -214,19 +224,6 @@ struct LibraryView: View {
                             showNowPlaying = true
                         }
                     }
-                }
-            }
-        }
-        .fileImporter(
-            isPresented: $libraryStore.showFolderPicker,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                let secured = url.startAccessingSecurityScopedResource()
-                libraryStore.importFolder(url: url)
-                if !secured {
-                    url.stopAccessingSecurityScopedResource()
                 }
             }
         }
