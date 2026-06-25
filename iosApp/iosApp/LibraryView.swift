@@ -1,6 +1,26 @@
 import SwiftUI
 import Shared
 
+// MARK: - KotlinByteArray + Data
+
+private extension KotlinByteArray {
+    func toData() -> Data {
+        let count = Int(size)
+        var data = Data(count: count)
+        for i in 0..<count {
+            data[i] = UInt8(bitPattern: get(index: Int32(i)))
+        }
+        return data
+    }
+}
+
+// MARK: - Image helper
+
+private func artworkImage(from bytes: KotlinByteArray?) -> UIImage? {
+    guard let bytes else { return nil }
+    return UIImage(data: bytes.toData())
+}
+
 // MARK: - BrowseMode
 
 enum BrowseMode: String, CaseIterable {
@@ -486,9 +506,13 @@ struct AlbumCardView: View {
         return Color(hex: 0xFF776F66)
     }
 
+    private var albumArtwork: UIImage? {
+        album.tracks.first?.artworkBytes.flatMap { artworkImage(from: $0) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Artwork placeholder with gradient
+            // Artwork or gradient placeholder
             ZStack {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(
@@ -500,9 +524,17 @@ struct AlbumCardView: View {
                     )
                     .frame(height: 120)
 
-                Text(String(album.album.prefix(3)).uppercased())
-                    .font(.system(size: 36, weight: .black))
-                    .foregroundColor(.white.opacity(0.72))
+                if let image = albumArtwork {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 120)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                } else {
+                    Text(String(album.album.prefix(3)).uppercased())
+                        .font(.system(size: 36, weight: .black))
+                        .foregroundColor(.white.opacity(0.72))
+                }
             }
 
             // Album name
@@ -549,9 +581,13 @@ struct ArtistRowView: View {
         return Color(hex: 0xFF776F66)
     }
 
+    private var artistArtwork: UIImage? {
+        artistGroup.tracks.first?.artworkBytes.flatMap { artworkImage(from: $0) }
+    }
+
     var body: some View {
         HStack(spacing: 14) {
-            // Accent circle with first letter
+            // Artwork circle or accent gradient placeholder
             ZStack {
                 Circle()
                     .fill(
@@ -563,9 +599,17 @@ struct ArtistRowView: View {
                     )
                     .frame(width: 40, height: 40)
 
-                Text(String(artistGroup.artist.prefix(1)).uppercased())
-                    .font(.system(size: 18, weight: .black))
-                    .foregroundColor(.white)
+                if let image = artistArtwork {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 40, height: 40)
+                        .clipShape(Circle())
+                } else {
+                    Text(String(artistGroup.artist.prefix(1)).uppercased())
+                        .font(.system(size: 18, weight: .black))
+                        .foregroundColor(.white)
+                }
             }
 
             VStack(alignment: .leading, spacing: 3) {
@@ -701,17 +745,29 @@ struct TrackRowView: View {
     let track: Track
     let onTap: () -> Void
 
+    private var trackArtwork: UIImage? {
+        artworkImage(from: track.artworkBytes)
+    }
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                // Artwork placeholder
+                // Artwork or gradient placeholder
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(Color(hex: UInt(truncatingIfNeeded: track.accent.start)))
                         .frame(width: 48, height: 48)
-                    Text(String(track.title.prefix(1)).uppercased())
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(.white.opacity(0.8))
+                    if let image = trackArtwork {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 48, height: 48)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    } else {
+                        Text(String(track.title.prefix(1)).uppercased())
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -747,13 +803,28 @@ struct NowPlayingBar: View {
     @ObservedObject var engine: AudioEngine
     let onExpand: () -> Void
 
+    private var nowPlayingArtwork: UIImage? {
+        artworkImage(from: engine.state.currentTrack?.artworkBytes)
+    }
+
     var body: some View {
         Button(action: onExpand) {
             HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.secondary.opacity(0.3))
-                    .frame(width: 40, height: 40)
-                    .overlay(Text("♪").font(.title3))
+                // Artwork or placeholder
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.secondary.opacity(0.3))
+                        .frame(width: 40, height: 40)
+                    if let image = nowPlayingArtwork {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 40, height: 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    } else {
+                        Text("♪").font(.title3)
+                    }
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(engine.state.currentTrack?.title ?? "")
