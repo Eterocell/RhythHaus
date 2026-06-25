@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformAudioScanner
@@ -106,6 +107,7 @@ fun App() {
     var importMessage by remember { mutableStateOf<String?>(null) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
+    var showClearDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
         when (result) {
@@ -148,6 +150,13 @@ fun App() {
             importMessage = importMessage,
             scanProgress = scanProgress,
             scanJob = scanJob,
+            showClearDialog = showClearDialog,
+            onShowClearDialog = { showClearDialog = it },
+            onClearLibrary = {
+                repository.clearAll()
+                libraryTracks = emptyList()
+                showClearDialog = false
+            },
         )
     }
 }
@@ -185,6 +194,9 @@ fun LibraryHomeScreen(
     importMessage: String?,
     scanProgress: ScanProgress?,
     scanJob: Job?,
+    showClearDialog: Boolean,
+    onShowClearDialog: (Boolean) -> Unit,
+    onClearLibrary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedTrackId by remember(snapshot.nowPlayingTrackId) { mutableStateOf(snapshot.nowPlayingTrackId) }
@@ -282,6 +294,21 @@ fun LibraryHomeScreen(
                                 )
                             }
                         }
+                        if (snapshot.tracks.isNotEmpty()) {
+                            item {
+                                Button(
+                                    onClick = { onShowClearDialog(true) },
+                                    modifier = Modifier.fillMaxWidth().height(40.dp),
+                                    cornerRadius = 12.dp,
+                                    colors = ButtonDefaults.buttonColors(
+                                        color = HausPulse.copy(alpha = 0.15f),
+                                        contentColor = HausPulse,
+                                    ),
+                                ) {
+                                    Text("Clear Library", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
                         item {
                             DeveloperPanel(
                                 libraryTracks = libraryTracks,
@@ -353,6 +380,61 @@ fun LibraryHomeScreen(
                         onExpand = { showNowPlayingScreen = true },
                         modifier = Modifier.align(Alignment.BottomCenter),
                     )
+                }
+            }
+        }
+    }
+
+    if (showClearDialog) {
+        Dialog(onDismissRequest = { onShowClearDialog(false) }) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                cornerRadius = 24.dp,
+                colors = CardDefaults.defaultColors(color = HausPanel),
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text(
+                        text = "Clear Library",
+                        color = HausInk,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "This will remove all scanned tracks. Your music files are not deleted. Continue?",
+                        color = HausMuted,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        Button(
+                            onClick = { onShowClearDialog(false) },
+                            modifier = Modifier.height(36.dp),
+                            cornerRadius = 12.dp,
+                            colors = ButtonDefaults.buttonColors(
+                                color = HausMuted.copy(alpha = 0.15f),
+                                contentColor = HausMuted,
+                            ),
+                        ) {
+                            Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Button(
+                            onClick = onClearLibrary,
+                            modifier = Modifier.height(36.dp),
+                            cornerRadius = 12.dp,
+                            colors = ButtonDefaults.buttonColors(
+                                color = HausPulse,
+                                contentColor = HausPaper,
+                            ),
+                        ) {
+                            Text("Clear", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
                 }
             }
         }
