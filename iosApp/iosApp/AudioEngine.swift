@@ -24,8 +24,8 @@ class AudioEngine: ObservableObject {
 
     // MARK: Internal state
 
-    private var player: AVAudioPlayer?
-    private var timer: Timer?
+    private var player: AVPlayer?
+    private var timeObserver: Any?
     private var remoteCommandsRegistered = false
 
     // MARK: - Public API
@@ -40,51 +40,68 @@ class AudioEngine: ObservableObject {
             return
         }
 
+        print("[AudioEngine] Loading: \(track.title) from \(url.path)")
         do {
             try configureAudioSession()
-            let audioPlayer = try AVAudioPlayer(contentsOf: url)
-            guard audioPlayer.prepareToPlay() else {
-                state.status = "error"
-                return
-            }
-            player = audioPlayer
-            state.currentTrack = track
-            state.durationSeconds = track.durationMillis?.doubleValue ?? audioPlayer.duration
-            if state.durationSeconds <= 0, audioPlayer.duration > 0 {
-                state.durationSeconds = audioPlayer.duration
-            }
-            state.positionSeconds = 0
-            updateNowPlaying(position: 0, rate: 0)
-            state.status = "paused"
         } catch {
             state.status = "error"
-            print("[AudioEngine] load error: \(error)")
+            print("[AudioEngine] audio session error: \(error)")
+            return
         }
+
+        let playerItem = AVPlayerItem(url: url)
+        let avPlayer = AVPlayer(playerItem: playerItem)
+        self.player = avPlayer
+        state.currentTrack = track
+        state.positionSeconds = 0
+
+        // Completion via notification
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(playerDidFinishPlaying),
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem
+        )
+
+        // Periodic time observer (replaces Timer)
+        let interval = CMTime(seconds: 0.25, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        timeObserver = avPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+            guard let self else { return }
+            let pos = CMTimeGetSeconds(time)
+            self.state.positionSeconds = pos
+            let dur = CMTimeGetSeconds(avPlayer.currentItem?.duration ?? .zero)
+            if dur > 0, self.state.durationSeconds <= 0 {
+                self.state.durationSeconds = dur
+            }
+            if dur > 0, pos >= dur - 0.25 {
+                self.onComplete?()
+            }
+        }
+
+        state.status = "paused"
+        updateNowPlaying(position: 0, rate: 0)
     }
 
     func play() {
         guard let player else { return }
         player.play()
+        player.rate = 1.0
         state.status = "playing"
         MPNowPlayingInfoCenter.default().playbackState = .playing
-        updateNowPlaying(position: player.currentTime, rate: 1)
-        startTimer()
+        updateNowPlaying(position: state.positionSeconds, rate: 1)
     }
 
     func pause() {
-        timer?.invalidate()
         player?.pause()
+        player?.rate = 0
         state.status = "paused"
         MPNowPlayingInfoCenter.default().playbackState = .paused
-        if let p = player {
-            updateNowPlaying(position: p.currentTime, rate: 0)
-        }
+        updateNowPlaying(position: state.positionSeconds, rate: 0)
     }
 
     func stop() {
-        timer?.invalidate()
-        player?.stop()
-        player?.currentTime = 0
+        player?.pause()
+        player?.seek(to: .zero)
         state.positionSeconds = 0
         state.status = "stopped"
         MPNowPlayingInfoCenter.default().playbackState = .stopped
@@ -92,20 +109,29 @@ class AudioEngine: ObservableObject {
     }
 
     func seek(to seconds: Double) {
-        player?.currentTime = seconds
-        if let p = player {
-            state.positionSeconds = p.currentTime
-            updateNowPlaying(position: p.currentTime, rate: p.isPlaying ? 1 : 0)
-        }
+        let time = CMTime(seconds: seconds, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        player?.seek(to: time)
+        state.positionSeconds = seconds
+        updateNowPlaying(position: seconds, rate: state.status == "playing" ? 1 : 0)
     }
 
     func release() {
-        timer?.invalidate()
-        player?.stop()
+        if let observer = timeObserver {
+            player?.removeTimeObserver(observer)
+            timeObserver = nil
+        }
+        NotificationCenter.default.removeObserver(self)
+        player?.pause()
         player = nil
         state.currentTrack = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         MPNowPlayingInfoCenter.default().playbackState = .stopped
+    }
+
+    // MARK: - Completion
+
+    @objc private func playerDidFinishPlaying(_ notification: Notification) {
+        onComplete?()
     }
 
     // MARK: - Private helpers
@@ -139,8 +165,8 @@ class AudioEngine: ObservableObject {
             return .success
         }
         center.togglePlayPauseCommand.addTarget { [weak self] _ in
-            guard let self, let p = self.player else { return .noSuchContent }
-            if p.isPlaying { self.pause() } else { self.play() }
+            guard let self else { return .noSuchContent }
+            if self.state.status == "playing" { self.pause() } else { self.play() }
             return .success
         }
         center.stopCommand.addTarget { [weak self] _ in
@@ -179,18 +205,6 @@ class AudioEngine: ObservableObject {
             info[MPMediaItemPropertyPlaybackDuration] = state.durationSeconds
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-    }
-
-    private func startTimer() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            guard let self, let p = self.player else { return }
-            let pos = p.currentTime
-            self.state.positionSeconds = pos
-            if p.isPlaying, self.state.durationSeconds > 0, pos >= self.state.durationSeconds {
-                self.onComplete?()
-            }
-        }
     }
 
     private func urlForSource(source: AudioSource) -> URL? {

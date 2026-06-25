@@ -97,8 +97,9 @@ class LibraryStore: ObservableObject {
     }
 
     private func readMetadata(path: String) -> ScannedMetadata {
-        // Call Kotlin shared function: readAudioMetadata(path: String) -> AudioMetadata?
+        print("[Scanner] readMetadata for: \(path)")
         if let m = AudioMetadataKt.readAudioMetadata(path: path) {
+            print("[Scanner] metadata found: title=\(m.title ?? "nil"), artist=\(m.artist ?? "nil")")
             return ScannedMetadata(
                 title: m.title,
                 artist: m.artist,
