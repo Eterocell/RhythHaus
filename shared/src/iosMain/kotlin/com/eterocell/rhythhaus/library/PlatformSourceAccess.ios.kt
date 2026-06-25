@@ -64,7 +64,7 @@ private fun appLocalMusicSource(): LibrarySource {
         error = null,
     )
     return LibrarySource(
-        id = "ios-app-local-${folder.hashCode().toUInt().toString(16)}",
+        id = "ios-app-local",
         platformKind = LibraryPlatformKind.IosAppLocal,
         displayName = "RhythHaus",
         handle = folder,
