@@ -65,4 +65,7 @@ private fun TagMetadata.toAudioMetadata(): AudioMetadata = AudioMetadata(
     artworkMimeType = artwork?.mimeType,
 )
 
+// Simple top-level function for Swift interop — reads metadata from an absolute file path.
+fun readAudioMetadata(path: String): AudioMetadata? = AudioMetadataReader().read(AudioSource.FilePath(path))
+
 private fun String?.normalizedOrNull(): String? = this?.trim()?.takeIf { it.isNotBlank() }

@@ -84,6 +84,39 @@ class LibraryStore: ObservableObject {
         refresh()
     }
 
+    /// Simple metadata struct to avoid cinterop complexity with TagReadResult sealed class.
+    struct ScannedMetadata {
+        let title: String?
+        let artist: String?
+        let album: String?
+        let durationMillis: Int64?
+        let trackNumber: Int?
+        let discNumber: Int?
+        let artworkBytes: KotlinByteArray?
+        let artworkMimeType: String?
+    }
+
+    private func readMetadata(path: String) -> ScannedMetadata {
+        // Call Kotlin shared function: readAudioMetadata(path: String) -> AudioMetadata?
+        if let m = AudioMetadataKt.readAudioMetadata(path: path) {
+            return ScannedMetadata(
+                title: m.title,
+                artist: m.artist,
+                album: m.album,
+                durationMillis: m.durationMillis?.int64Value,
+                trackNumber: m.trackNumber?.intValue,
+                discNumber: m.discNumber?.intValue,
+                artworkBytes: m.artworkBytes,
+                artworkMimeType: m.artworkMimeType
+            )
+        }
+        return ScannedMetadata(
+            title: nil, artist: nil, album: nil,
+            durationMillis: nil, trackNumber: nil, discNumber: nil,
+            artworkBytes: nil, artworkMimeType: nil
+        )
+    }
+
     func scanAppFolder() {
         isScanning = true
         scanProgress = "Scanning app folder..."
@@ -115,26 +148,28 @@ class LibraryStore: ObservableObject {
                         let fileSize = (try? item.resourceValues(forKeys: [.fileSizeKey]).fileSize).map { Int64($0) }
                         let now = Int64(Date().timeIntervalSince1970 * 1000)
 
-                        // Create LibraryTrack with basic metadata (filename as title)
+                        // Create LibraryTrack with metadata from TagLib
+                        let absPath = docs.appendingPathComponent(relPath).path
+                        let metadata = readMetadata(path: absPath)
                         let track = LibraryTrack(
                             id: UUID().uuidString,
                             sourceId: "ios-app-local",
                             sourceLocalKey: relPath,
                             audioSource: AudioSourceFilePath(path: relPath),
                             displayName: displayName,
-                            title: String(displayName.dropLast(ext.count + 1)), // strip extension
-                            artist: "Unknown",
-                            album: "Unknown",
-                            durationMillis: nil,
+                            title: metadata.title ?? String(displayName.dropLast(ext.count + 1)),
+                            artist: metadata.artist ?? "Unknown",
+                            album: metadata.album ?? "Unknown",
+                            durationMillis: metadata.durationMillis != nil ? KotlinLong(value: metadata.durationMillis!) : nil,
                             sizeBytes: fileSize != nil ? KotlinLong(value: fileSize!) : nil,
                             modifiedAtEpochMillis: nil,
                             lastSeenScanId: "scan-\(now)",
                             createdAtEpochMillis: now,
                             updatedAtEpochMillis: now,
-                            trackNumber: nil,
-                            discNumber: nil,
-                            artworkBytes: nil,
-                            artworkMimeType: nil
+                            trackNumber: metadata.trackNumber != nil ? KotlinInt(value: Int32(metadata.trackNumber!)) : nil,
+                            discNumber: metadata.discNumber != nil ? KotlinInt(value: Int32(metadata.discNumber!)) : nil,
+                            artworkBytes: metadata.artworkBytes,
+                            artworkMimeType: metadata.artworkMimeType
                         )
                         _ = repo.upsertTrack(track: track)
                         tracksAdded += 1
