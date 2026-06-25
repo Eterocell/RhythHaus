@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus.library
 
 import com.eterocell.rhythhaus.AudioMetadataReader
+import com.eterocell.rhythhaus.AudioSource
 import kotlin.coroutines.cancellation.CancellationException
 
 sealed interface PlatformScanEvent {
@@ -139,7 +140,11 @@ private fun AudioScanCandidate.toLibraryTrack(
     trackId: String,
     metadataReader: AudioMetadataReader,
 ): LibraryTrack {
-    val metadata = runCatching { metadataReader.read(audioSource) }.getOrNull()
+    val resolvedSource = when (audioSource) {
+        is AudioSource.FilePath -> audioSource.copy(path = resolvePathForMetadata(audioSource.path))
+        is AudioSource.Uri -> audioSource
+    }
+    val metadata = runCatching { metadataReader.read(resolvedSource) }.getOrNull()
     return LibraryTrack(
         id = trackId,
         sourceId = sourceId,
