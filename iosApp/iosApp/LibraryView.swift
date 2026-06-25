@@ -16,21 +16,53 @@ class LibraryStore: ObservableObject {
     private var repository: SqlDelightLibraryRepository?
 
     init() {
-        do {
-            database = try createLibraryDatabase()
-            if let db = database {
-                repository = SqlDelightLibraryRepository(libraryDatabase: db)
-                refresh()
-            }
-        } catch {
-            print("[LibraryStore] init error: \(error)")
-        }
+        let db = LibraryDatabase()
+        database = db
+        repository = SqlDelightLibraryRepository(libraryDatabase: db)
+        refresh()
     }
 
     func refresh() {
         guard let repo = repository else { return }
         tracks = repo.tracks()
-        snapshot = LibrarySnapshotKt.librarySnapshot(tracks: tracks)
+        snapshot = librarySnapshotFromTracks(tracks)
+    }
+
+    private func librarySnapshotFromTracks(_ tracks: [LibraryTrack]) -> LibrarySnapshot {
+        let hues: [(Int64, Int64)] = [
+            (0xFF111018, 0xFF776F66),
+            (0xFF1A1422, 0xFF794A4A),
+            (0xFF14202A, 0xFF4B6B7A),
+            (0xFF1A1E1A, 0xFF5C784C),
+            (0xFF201A16, 0xFF7A6448),
+            (0xFF161A24, 0xFF4B5C7A),
+            (0xFF1A1420, 0xFF6E4B7A),
+        ]
+        var uiTracks: [Track] = []
+        for (i, t) in tracks.enumerated() {
+            let (hueStart, hueEnd) = hues[i % hues.count]
+            let accent = TrackAccent(start: hueStart, end: hueEnd)
+            let duration = Int32(truncatingIfNeeded: (t.durationMillis?.int64Value ?? 0) / 1000)
+            let track = Track(
+                id: t.id,
+                title: t.title,
+                artist: t.artist,
+                album: t.album,
+                durationSeconds: duration,
+                accent: accent,
+                source: t.audioSource,
+                trackNumber: t.trackNumber,
+                discNumber: t.discNumber,
+                artworkBytes: t.artworkBytes
+            )
+            uiTracks.append(track)
+        }
+        return LibrarySnapshot(
+            title: "RhythHaus",
+            subtitle: "",
+            tracks: uiTracks,
+            nowPlayingTrackId: nil
+        )
     }
 }
 
@@ -97,7 +129,19 @@ struct LibraryView: View {
     }
 
     private func playTrack(_ track: Track) {
-        engine.load(track: TrackKt.toPlayableTrack(track))
+        let duration: KotlinLong? = track.durationSeconds > 0
+            ? KotlinLong(integerLiteral: Int(track.durationSeconds) * 1000)
+            : nil
+        let playable = PlayableTrack(
+            id: track.id,
+            title: track.title,
+            artist: track.artist,
+            album: track.album,
+            durationMillis: duration,
+            source: track.source,
+            artworkBytes: track.artworkBytes
+        )
+        engine.load(track: playable)
         engine.play()
     }
 

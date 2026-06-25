@@ -194,7 +194,7 @@ class AudioEngine: ObservableObject {
     }
 
     private func urlForSource(source: AudioSource) -> URL? {
-        if let fileSource = source as? AudioSource.FilePath {
+        if let fileSource = source as? AudioSourceFilePath {
             let path = fileSource.path
             if path.hasPrefix("/") {
                 return URL(fileURLWithPath: path)
@@ -203,7 +203,7 @@ class AudioEngine: ObservableObject {
             let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
             return docs.appendingPathComponent(path)
         }
-        if let uriSource = source as? AudioSource.Uri {
+        if let uriSource = source as? AudioSourceUri {
             return URL(string: uriSource.value)
         }
         return nil
