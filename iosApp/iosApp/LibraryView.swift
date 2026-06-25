@@ -130,6 +130,7 @@ class LibraryStore: ObservableObject {
             var tracksAdded = 0
 
             func walkDirectory(_ url: URL, relativeTo base: URL) {
+                let basePath = base.path.hasSuffix("/") ? String(base.path.dropLast()) : base.path
                 guard let contents = try? FileManager.default.contentsOfDirectory(
                     at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]
                 ) else { return }
@@ -143,8 +144,13 @@ class LibraryStore: ObservableObject {
                         let ext = item.pathExtension.lowercased()
                         guard supportedExts.contains(ext) else { continue }
 
-                        // Compute relative path from Documents
-                        let relPath = String(item.path.dropFirst(base.path.count + 1))
+                        // Compute relative path from Documents (use prefix match, not dropFirst)
+                        let prefix = basePath + "/"
+                        guard item.path.hasPrefix(prefix) else {
+                            print("[Scanner] SKIP: item path \(item.path) does not start with base \(basePath)")
+                            continue
+                        }
+                        let relPath = String(item.path.dropFirst(prefix.count))
                         print("[Scanner] relPath=\(relPath)")
                         let displayName = item.lastPathComponent
                         let fileSize = (try? item.resourceValues(forKeys: [.fileSizeKey]).fileSize).map { Int64($0) }
