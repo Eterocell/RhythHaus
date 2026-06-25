@@ -207,7 +207,6 @@ fun LibraryHomeScreen(
     LaunchedEffect(playbackState.currentTrack?.id) {
         playbackState.currentTrack?.id?.let { selectedTrackId = it }
     }
-    var devPanelExpanded by remember { mutableStateOf(false) }
     var browseMode by remember { mutableStateOf(BrowseMode.Albums) }
     var selectedAlbum by remember { mutableStateOf<AlbumGroup?>(null) }
     var selectedArtist by remember { mutableStateOf<ArtistGroup?>(null) }
@@ -225,6 +224,7 @@ fun LibraryHomeScreen(
             selectedTrack = selectedAlbumTrack,
             playbackState = playbackState,
             playbackController = playbackController,
+            tagLibReader = tagLibReader,
             onBack = { selectedAlbum = null },
             onTrackSelected = { /* selection only */ },
             onPlayPause = { track ->
@@ -247,6 +247,7 @@ fun LibraryHomeScreen(
             selectedTrack = selectedArtistTrack,
             playbackState = playbackState,
             playbackController = playbackController,
+            tagLibReader = tagLibReader,
             onBack = { selectedArtist = null },
             onTrackSelected = { /* selection only */ },
             onPlayPause = { track ->
@@ -259,10 +260,13 @@ fun LibraryHomeScreen(
         )
     } else {
         if (showNowPlayingScreen && selectedTrack != null) {
+            val currentLibTrack = libraryTracks.firstOrNull { it.id == selectedTrack.id }
             NowPlayingScreen(
                 track = selectedTrack,
                 playbackState = playbackState,
                 playbackController = playbackController,
+                tagLibReader = tagLibReader,
+                currentLibraryTrack = currentLibTrack,
                 onBack = { showNowPlayingScreen = false },
             )
         } else {
@@ -299,14 +303,6 @@ fun LibraryHomeScreen(
                                     onClearLibrary = { onShowClearDialog(true) },
                                 )
                             }
-                        }
-                        item {
-                            DeveloperPanel(
-                                libraryTracks = libraryTracks,
-                                tagLibReader = tagLibReader,
-                                expanded = devPanelExpanded,
-                                onToggle = { devPanelExpanded = !devPanelExpanded },
-                            )
                         }
                         item {
                             SectionLabel(
@@ -1073,6 +1069,7 @@ private fun DrillDownView(
     selectedTrack: Track?,
     playbackState: PlaybackState,
     playbackController: PlaybackController,
+    tagLibReader: TagLibReader,
     onBack: () -> Unit,
     onTrackSelected: (String) -> Unit,
     onPlayPause: (Track) -> Unit,
@@ -1089,6 +1086,8 @@ private fun DrillDownView(
             track = currentTrack,
             playbackState = playbackState,
             playbackController = playbackController,
+            tagLibReader = tagLibReader,
+            currentLibraryTrack = null,
             onBack = { showNowPlayingScreen = false },
         )
     } else {
