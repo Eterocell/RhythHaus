@@ -2,8 +2,9 @@
 
 ## Current state
 
-Last updated: 2026-06-11
-Current change: native TagLib metadata wrapper with JVM/macOS working; Android/iOS scaffolds honest
+Last updated: 2026-06-25
+Current change: UI polish (button font, next-track sync) + iOS lockscreen player panel
+Three-commit bugfix series on main: Clear Library font, NowPlayingScreen next-track staleness, iOS MPRemoteCommandCenter
 Workflow route: openspec+superpowers
 State source of truth: OpenSpec for durable product changes; Superpowers for clarification/brainstorming/task execution discipline; this file for session continuity and verification evidence.
 
@@ -544,3 +545,31 @@ Changed files:
 
 Next owner: user/implementation for manual macOS/Android artwork runtime confirmation and iOS cinterop artwork follow-up.
 Blockers: none for compile/test; iOS system Control Center artwork deferred.
+
+## Handoff - 2026-06-25 UI polish + iOS lockscreen fixes
+
+Route: openspec+superpowers (subagent-driven)
+Owner: implementation
+Scope: Three independent bugfixes: button font consistency (Clear Library → Black), NowPlayingScreen next-track UI staleness (LaunchedEffect sync), iOS lockscreen player panel (MPRemoteCommandCenter + playbackState).
+
+Implementation:
+- Task 1 (26b5c47): Changed Clear Library button `fontWeight` from `FontWeight.Medium` to `FontWeight.Black` in `ImportAudioCard` to match the "Add music folder" button.
+- Task 2 (6129b35): Added `LaunchedEffect(playbackState.currentTrack?.id)` in both `LibraryHomeScreen` and `DrillDownView` to sync local `selectedTrackId` with the controller's current track when advancing via next-track button or playback completion.
+- Task 3 (daf1811): Registered `MPRemoteCommandCenter` handlers (play, pause, togglePlayPause, stop, changePlaybackPosition) in iOS `PlaybackEngine.ios.kt` via block-based callbacks. Set `playbackState` on `MPNowPlayingInfoCenter` on play/pause/stop/release. Added `MPNowPlayingInfoPropertyPlaybackRate` to nowPlayingInfo dictionary. Used `ULong` values for `playbackState` (0uL/1uL/2uL) and top-level `MPRemoteCommandHandlerStatusSuccess` constant.
+
+Verification:
+- `./init.sh`: BUILD SUCCESSFUL — all platforms pass (JVM tests, desktop compile, Android debug, iOS simulator tests).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: BUILD SUCCESSFUL.
+- `./gradlew :shared:compileKotlinMetadata --configuration-cache`: BUILD SUCCESSFUL.
+
+Acceptance:
+- Requirement matched: yes for all 3 bugfixes.
+- Scope controlled: yes; only App.kt (font + LaunchedEffect) and PlaybackEngine.ios.kt (MPRemoteCommandCenter).
+- Remaining risk: iOS lockscreen widget appearance needs manual runtime validation on a real iOS device/simulator with an active playback session. The compile/test build passes but visual confirmation requires a device.
+
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`: Clear Library FontWeight.Black + 2 LaunchedEffect blocks
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt`: MPRemoteCommandCenter registration, playbackState, playbackRate
+
+Next owner: user for manual iOS lockscreen runtime validation.
+Blockers: none for compile/test verification.
