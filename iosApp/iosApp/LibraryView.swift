@@ -1,11 +1,30 @@
 import SwiftUI
 import Shared
 
-// MARK: - KotlinByteArray + Data
+// MARK: - KotlinByteArray bulk copy
 
 private extension KotlinByteArray {
+    /// Bulk-copy bytes to Data — avoids O(n) per-byte Kotlin bridge calls during scroll.
     func toData() -> Data {
         let count = Int(size)
+        return dataWithBytesNoCopy(count: count) ?? slowToData(count: count)
+    }
+
+    private func dataWithBytesNoCopy(count: Int) -> Data? {
+        // Try single memcpy via unsafe pointer
+        return byteArrayToPointer { ptr in
+            Data(bytes: ptr, count: count)
+        }
+    }
+
+    private func byteArrayToPointer<T>(_ body: (UnsafeRawPointer) -> T) -> T {
+        let first = get(index: 0)
+        return Swift.withUnsafePointer(to: first) { ptr in
+            body(UnsafeRawPointer(ptr))
+        }
+    }
+
+    private func slowToData(count: Int) -> Data {
         var data = Data(count: count)
         for i in 0..<count {
             data[i] = UInt8(bitPattern: get(index: Int32(i)))
@@ -14,7 +33,22 @@ private extension KotlinByteArray {
     }
 }
 
-// MARK: - Image helper
+// MARK: - Image cache
+
+private let artworkCache = NSCache<NSString, UIImage>()
+
+private func cachedArtworkImage(from bytes: KotlinByteArray?, key: String) -> UIImage? {
+    guard let bytes else { return nil }
+    let cacheKey = key as NSString
+    if let cached = artworkCache.object(forKey: cacheKey) {
+        return cached
+    }
+    guard let image = UIImage(data: bytes.toData()) else { return nil }
+    artworkCache.setObject(image, forKey: cacheKey)
+    return image
+}
+
+// MARK: - Image helper (non-cached, for one-shot use)
 
 private func artworkImage(from bytes: KotlinByteArray?) -> UIImage? {
     guard let bytes else { return nil }
@@ -507,7 +541,8 @@ struct AlbumCardView: View {
     }
 
     private var albumArtwork: UIImage? {
-        album.tracks.first?.artworkBytes.flatMap { artworkImage(from: $0) }
+        guard let first = album.tracks.first, let bytes = first.artworkBytes else { return nil }
+        return cachedArtworkImage(from: bytes, key: "album:\(album.album)")
     }
 
     var body: some View {
@@ -582,7 +617,8 @@ struct ArtistRowView: View {
     }
 
     private var artistArtwork: UIImage? {
-        artistGroup.tracks.first?.artworkBytes.flatMap { artworkImage(from: $0) }
+        guard let first = artistGroup.tracks.first, let bytes = first.artworkBytes else { return nil }
+        return cachedArtworkImage(from: bytes, key: "artist:\(artistGroup.artist)")
     }
 
     var body: some View {
@@ -746,7 +782,8 @@ struct TrackRowView: View {
     let onTap: () -> Void
 
     private var trackArtwork: UIImage? {
-        artworkImage(from: track.artworkBytes)
+        guard let bytes = track.artworkBytes else { return nil }
+        return cachedArtworkImage(from: bytes, key: "track:\(track.id)")
     }
 
     var body: some View {
@@ -804,7 +841,8 @@ struct NowPlayingBar: View {
     let onExpand: () -> Void
 
     private var nowPlayingArtwork: UIImage? {
-        artworkImage(from: engine.state.currentTrack?.artworkBytes)
+        guard let track = engine.state.currentTrack, let bytes = track.artworkBytes else { return nil }
+        return cachedArtworkImage(from: bytes, key: "np:\(track.id)")
     }
 
     var body: some View {
