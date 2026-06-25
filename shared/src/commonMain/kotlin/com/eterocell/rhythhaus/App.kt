@@ -36,6 +36,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -203,6 +204,9 @@ fun LibraryHomeScreen(
     var selectedTrackId by remember(snapshot.nowPlayingTrackId) { mutableStateOf(snapshot.nowPlayingTrackId) }
     val selectedTrack = snapshot.tracks.firstOrNull { it.id == selectedTrackId } ?: snapshot.tracks.firstOrNull()
     val playbackState by playbackController.state.collectAsState()
+    LaunchedEffect(playbackState.currentTrack?.id) {
+        playbackState.currentTrack?.id?.let { selectedTrackId = it }
+    }
     var devPanelExpanded by remember { mutableStateOf(false) }
     var browseMode by remember { mutableStateOf(BrowseMode.Albums) }
     var selectedAlbum by remember { mutableStateOf<AlbumGroup?>(null) }
@@ -1074,6 +1078,9 @@ private fun DrillDownView(
     onPlayPause: (Track) -> Unit,
 ) {
     var selectedTrackId by remember { mutableStateOf(selectedTrack?.id) }
+    LaunchedEffect(playbackState.currentTrack?.id) {
+        playbackState.currentTrack?.id?.let { selectedTrackId = it }
+    }
     var showNowPlayingScreen by remember { mutableStateOf(false) }
     val currentTrack = tracks.firstOrNull { it.id == selectedTrackId } ?: selectedTrack
 
