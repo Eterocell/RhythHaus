@@ -5,24 +5,20 @@ import androidx.compose.ui.graphics.ImageBitmap
 expect fun ByteArray.decodeArtwork(): ImageBitmap?
 
 /**
- * Thread-safe in-memory cache for decoded artwork images.
- * Keyed by ByteArray content hash — collisions (~1 in 4B) are ignored.
+ * In-memory cache for decoded artwork images. Keyed by ByteArray content hash.
+ * All access is from Compose @Composable functions on the main thread — no synchronization needed.
  */
 object ArtworkCache {
     private val cache = HashMap<Int, ImageBitmap>(64)
 
-    @Synchronized
     fun get(bytes: ByteArray): ImageBitmap? = cache[bytes.contentHashCode()]
 
-    @Synchronized
     fun put(bytes: ByteArray, image: ImageBitmap) {
         cache[bytes.contentHashCode()] = image
     }
 
-    @Synchronized
     fun clear() = cache.clear()
 
-    @Synchronized
     fun size(): Int = cache.size
 }
 
