@@ -85,6 +85,8 @@ interface PlaybackEngineListener {
     fun onPlaybackProgress(positionMillis: Long, durationMillis: Long?)
     fun onPlaybackCompleted()
     fun onPlaybackError(error: PlaybackError)
+    fun onSkipToNext()
+    fun onSkipToPrevious()
 }
 
 interface PlatformPlaybackEngine {
@@ -213,6 +215,22 @@ class PlaybackController(
 
     override fun onPlaybackError(error: PlaybackError) {
         _state.value = _state.value.copy(status = PlaybackStatus.Error, error = error)
+    }
+
+    override fun onSkipToNext() {
+        val queue = _state.value.queue
+        val currentId = _state.value.currentTrack?.id
+        val currentIndex = queue.indexOfFirst { it.id == currentId }
+        val nextTrack = queue.getOrNull(currentIndex + 1) ?: queue.firstOrNull()
+        nextTrack?.let { loadSelected(it, autoPlay = true) }
+    }
+
+    override fun onSkipToPrevious() {
+        val queue = _state.value.queue
+        val currentId = _state.value.currentTrack?.id
+        val currentIndex = queue.indexOfFirst { it.id == currentId }
+        val prevTrack = queue.getOrNull(currentIndex - 1) ?: queue.lastOrNull()
+        prevTrack?.let { loadSelected(it, autoPlay = true) }
     }
 }
 

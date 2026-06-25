@@ -163,6 +163,8 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         commandCenter.togglePlayPauseCommand.setEnabled(true)
         commandCenter.stopCommand.setEnabled(true)
         commandCenter.changePlaybackPositionCommand.setEnabled(true)
+        commandCenter.previousTrackCommand.setEnabled(true)
+        commandCenter.nextTrackCommand.setEnabled(true)
 
         commandCenter.playCommand.addTargetWithHandler { _ ->
             val p = player
@@ -219,10 +221,21 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             }
             MPRemoteCommandHandlerStatusSuccess
         }
+        commandCenter.previousTrackCommand.addTargetWithHandler { _ ->
+            listener?.onSkipToPrevious()
+            MPRemoteCommandHandlerStatusSuccess
+        }
+        commandCenter.nextTrackCommand.addTargetWithHandler { _ ->
+            listener?.onSkipToNext()
+            MPRemoteCommandHandlerStatusSuccess
+        }
     }
 
     private fun updateNowPlayingInfo(positionMillis: Long, playbackRate: Double = 1.0) {
         val track = loadedTrack ?: return
+        // Note: MPMediaItemPropertyArtwork is not set here — Kotlin/Native cinterop
+        // for ByteArray → NSData → UIImage → MPMediaItemArtwork is unavailable
+        // in the current KMP version. Artwork in the app's own Compose UI works fine.
         MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = buildIOSNowPlayingDictionary(track, positionMillis, durationMillis, playbackRate)
     }
 }

@@ -74,6 +74,10 @@ class JvmPlaybackEngineTest {
             override fun onPlaybackError(error: PlaybackError) {
                 latestError = error
             }
+
+            override fun onSkipToNext() = Unit
+
+            override fun onSkipToPrevious() = Unit
         }
 
         try {
@@ -127,6 +131,10 @@ class JvmPlaybackEngineTest {
             override fun onPlaybackError(error: PlaybackError) {
                 latestError = error
             }
+
+            override fun onSkipToNext() = Unit
+
+            override fun onSkipToPrevious() = Unit
         }
 
         try {
