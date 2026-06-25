@@ -40,3 +40,6 @@ SELECT * FROM library_track WHERE sourceId = ? AND sourceLocalKey = ?;
 
 removeMissingTracks:
 DELETE FROM library_track WHERE sourceId = ? AND (lastSeenScanId IS NULL OR lastSeenScanId != ?);
+
+clearAllTracks:
+DELETE FROM library_track;

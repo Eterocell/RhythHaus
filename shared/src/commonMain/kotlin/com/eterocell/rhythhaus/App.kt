@@ -427,17 +427,13 @@ private fun ImportAudioCard(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = if (hasImportedTracks) "Manage music folders" else "Add music folder",
+                text = if (hasImportedTracks) importCardTitleWithTracks else importCardTitle,
                 color = HausInk,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Black,
             )
             Text(
-                text = importMessage ?: if (hasImportedTracks) {
-                    "Manage your music folders and scan for new tracks."
-                } else {
-                    "Choose a music folder on this device to build your local library."
-                },
+                text = importMessage ?: importCardDescription,
                 color = HausMuted,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,

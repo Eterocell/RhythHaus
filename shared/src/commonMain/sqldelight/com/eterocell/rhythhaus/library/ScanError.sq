@@ -11,3 +11,6 @@ CREATE TABLE IF NOT EXISTS scan_error (
 insertScanError:
 INSERT INTO scan_error(id, scanId, sourceLocalKey, displayPath, reason, recoverable, createdAtEpochMillis)
 VALUES (?, ?, ?, ?, ?, ?, ?);
+
+clearAllErrors:
+DELETE FROM scan_error;

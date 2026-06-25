@@ -13,6 +13,7 @@ interface LibraryRepository {
     fun insertScanError(error: ScanError)
     fun scanErrors(scanId: String): List<ScanError>
     fun removeMissingTracks(sourceId: String, latestScanId: String): Int
+    fun clearAll()
 }
 
 enum class TrackUpsertResult { Added, Updated }
@@ -71,5 +72,12 @@ class InMemoryLibraryRepository : LibraryRepository {
             .map { it.id }
         ids.forEach { tracks.remove(it) }
         return ids.size
+    }
+
+    override fun clearAll() {
+        sources.clear()
+        tracks.clear()
+        scanSessions.clear()
+        scanErrors.clear()
     }
 }

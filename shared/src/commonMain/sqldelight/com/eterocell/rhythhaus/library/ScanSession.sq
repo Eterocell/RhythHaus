@@ -24,3 +24,6 @@ WHERE id = ?;
 
 selectScanErrorsForScan:
 SELECT * FROM scan_error WHERE scanId = ?;
+
+clearAllSessions:
+DELETE FROM scan_session;

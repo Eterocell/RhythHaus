@@ -219,6 +219,13 @@ class SqlDelightLibraryRepository(
         val result = database.libraryTrackQueries.removeMissingTracks(sourceId, latestScanId)
         return result.value.toInt()
     }
+
+    override fun clearAll() {
+        database.libraryTrackQueries.clearAllTracks()
+        database.librarySourceQueries.clearAllSources()
+        database.scanSessionQueries.clearAllSessions()
+        database.scanErrorQueries.clearAllErrors()
+    }
 }
 
 // --- Internal helpers ---
