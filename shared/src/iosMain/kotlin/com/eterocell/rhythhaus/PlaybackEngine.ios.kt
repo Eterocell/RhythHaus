@@ -38,6 +38,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var progressJob: Job? = null
     private var completionReported: Boolean = false
+    private var remoteCommandsRegistered: Boolean = false
 
     override fun load(track: PlayableTrack) {
         release()
@@ -157,6 +158,8 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     }
 
     private fun registerRemoteCommands() {
+        if (remoteCommandsRegistered) return
+        remoteCommandsRegistered = true
         val commandCenter = MPRemoteCommandCenter.sharedCommandCenter()
         commandCenter.playCommand.setEnabled(true)
         commandCenter.pauseCommand.setEnabled(true)
