@@ -1236,7 +1236,7 @@ private fun AlbumCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val albumArtwork = remember(album.tracks) {
-                album.tracks.firstNotNullOfOrNull { it.artworkBytes?.decodeArtwork() }
+                album.tracks.firstNotNullOfOrNull { it.artworkBytes?.decodeArtworkCached() }
             }
             Box(
                 modifier = Modifier
@@ -1304,7 +1304,7 @@ private fun ArtistRow(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         val artistArtwork = remember(artist.tracks) {
-            artist.tracks.firstNotNullOfOrNull { it.artworkBytes?.decodeArtwork() }
+            artist.tracks.firstNotNullOfOrNull { it.artworkBytes?.decodeArtworkCached() }
         }
         Box(
             modifier = Modifier
