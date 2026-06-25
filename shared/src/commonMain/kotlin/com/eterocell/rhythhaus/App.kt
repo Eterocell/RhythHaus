@@ -536,7 +536,7 @@ private fun ImportAudioCard(
                         contentColor = HausPulse,
                     ),
                 ) {
-                    Text("Clear Library", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text("Clear Library", fontSize = 13.sp, fontWeight = FontWeight.Black)
                 }
             }
         }
