@@ -73,6 +73,7 @@ import com.eterocell.rhythhaus.library.createLibraryDatabase
 import com.eterocell.rhythhaus.library.createPlatformSourceAccess
 import com.eterocell.rhythhaus.library.currentTimeMillis
 import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.library.resolvePathForMetadata
 import com.eterocell.rhythhaus.library.uuid4
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
@@ -291,22 +292,8 @@ fun LibraryHomeScreen(
                                     folderPickerLauncher = folderPickerLauncher,
                                     importMessage = importMessage,
                                     hasImportedTracks = snapshot.tracks.isNotEmpty(),
+                                    onClearLibrary = { onShowClearDialog(true) },
                                 )
-                            }
-                        }
-                        if (snapshot.tracks.isNotEmpty()) {
-                            item {
-                                Button(
-                                    onClick = { onShowClearDialog(true) },
-                                    modifier = Modifier.fillMaxWidth().height(40.dp),
-                                    cornerRadius = 12.dp,
-                                    colors = ButtonDefaults.buttonColors(
-                                        color = HausPulse.copy(alpha = 0.15f),
-                                        contentColor = HausPulse,
-                                    ),
-                                ) {
-                                    Text("Clear Library", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                }
                             }
                         }
                         item {
@@ -498,6 +485,7 @@ private fun ImportAudioCard(
     folderPickerLauncher: PlatformFolderPickerLauncher,
     importMessage: String?,
     hasImportedTracks: Boolean,
+    onClearLibrary: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -537,6 +525,19 @@ private fun ImportAudioCard(
                 ),
             ) {
                 Text(if (folderPickerLauncher.isAvailable) "Add music folder" else "Folder picker not available yet", fontWeight = FontWeight.Black)
+            }
+            if (hasImportedTracks) {
+                Button(
+                    onClick = onClearLibrary,
+                    modifier = Modifier.fillMaxWidth().height(40.dp),
+                    cornerRadius = 12.dp,
+                    colors = ButtonDefaults.buttonColors(
+                        color = HausPulse.copy(alpha = 0.15f),
+                        contentColor = HausPulse,
+                    ),
+                ) {
+                    Text("Clear Library", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
             }
         }
     }
@@ -777,13 +778,13 @@ private fun DeveloperPanel(
 private fun DeveloperMetadataRow(track: LibraryTrack, tagLibReader: TagLibReader) {
     val rawResult = remember(track.audioSource.stableKey) {
         when (track.audioSource) {
-            is AudioSource.FilePath -> tagLibReader.readPath(track.audioSource.path)
+            is AudioSource.FilePath -> tagLibReader.readPath(resolvePathForMetadata(track.audioSource.path))
             is AudioSource.Uri -> null
         }
     }
     val properties = remember(track.audioSource.stableKey) {
         when (track.audioSource) {
-            is AudioSource.FilePath -> tagLibReader.readProperties(track.audioSource.path)
+            is AudioSource.FilePath -> tagLibReader.readProperties(resolvePathForMetadata(track.audioSource.path))
             is AudioSource.Uri -> emptyMap()
         }
     }
