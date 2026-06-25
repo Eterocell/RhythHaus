@@ -130,7 +130,9 @@ class LibraryStore: ObservableObject {
             var tracksAdded = 0
 
             func walkDirectory(_ url: URL, relativeTo base: URL) {
-                let basePath = base.path.hasSuffix("/") ? String(base.path.dropLast()) : base.path
+                // Normalize base path: /var is a symlink to /private/var on macOS/iOS
+                let basePath = base.resolvingSymlinksInPath().path
+                    .replacingOccurrences(of: "/private/var", with: "/var")
                 guard let contents = try? FileManager.default.contentsOfDirectory(
                     at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]
                 ) else { return }
@@ -145,19 +147,22 @@ class LibraryStore: ObservableObject {
                         guard supportedExts.contains(ext) else { continue }
 
                         // Compute relative path from Documents (use prefix match, not dropFirst)
+                        let normalizedItemPath = item.path.replacingOccurrences(of: "/private/var", with: "/var")
                         let prefix = basePath + "/"
-                        guard item.path.hasPrefix(prefix) else {
-                            print("[Scanner] SKIP: item path \(item.path) does not start with base \(basePath)")
+                        guard normalizedItemPath.hasPrefix(prefix) else {
+                            print("[Scanner] SKIP: item path \(normalizedItemPath) does not start with base \(basePath)")
                             continue
                         }
-                        let relPath = String(item.path.dropFirst(prefix.count))
+                        let relPath = String(normalizedItemPath.dropFirst(prefix.count))
                         print("[Scanner] relPath=\(relPath)")
                         let displayName = item.lastPathComponent
                         let fileSize = (try? item.resourceValues(forKeys: [.fileSizeKey]).fileSize).map { Int64($0) }
                         let now = Int64(Date().timeIntervalSince1970 * 1000)
 
                         // Compute absolute path for metadata reading
-                        let docsPath = docs.path.hasSuffix("/") ? String(docs.path.dropLast()) : docs.path
+                        let docsPath = docs.path
+                            .replacingOccurrences(of: "/private/var", with: "/var")
+                            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                         let absPath = "\(docsPath)/\(relPath)"
                         let metadata = readMetadata(path: absPath)
                         let track = LibraryTrack(

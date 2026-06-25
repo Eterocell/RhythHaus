@@ -215,7 +215,9 @@ class AudioEngine: ObservableObject {
             }
             // Resolve relative path via app documents directory (string concat, same as old Kotlin iosUrl)
             let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            let docsPath = docs.path.hasSuffix("/") ? String(docs.path.dropLast()) : docs.path
+            let docsPath = docs.path
+                .replacingOccurrences(of: "/private/var", with: "/var")
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             let resolved = "\(docsPath)/\(path)"
             print("[AudioEngine] resolved path: \(resolved)")
             return URL(fileURLWithPath: resolved)
