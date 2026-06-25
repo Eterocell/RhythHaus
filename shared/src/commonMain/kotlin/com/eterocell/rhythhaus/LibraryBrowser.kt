@@ -80,7 +80,7 @@ fun groupTracksByArtist(tracks: List<Track>): List<ArtistGroup> =
 
 // ----- Private helpers -----
 
-private fun LibraryTrack.toUiTrack(): Track = Track(
+internal fun LibraryTrack.toUiTrack(): Track = Track(
     id = id,
     title = title,
     artist = artist,

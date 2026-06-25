@@ -1365,53 +1365,7 @@ private val PlaybackStatus.label: String
         PlaybackStatus.Error -> "Needs a local file"
     }
 
-private fun Track.toPlayableTrack(): PlayableTrack = PlayableTrack(
-    id = id,
-    title = title,
-    artist = artist,
-    album = album,
-    durationMillis = durationSeconds.takeIf { it > 0 }?.times(1_000L),
-    source = source,
-    artworkBytes = artworkBytes,
-)
 
-private fun librarySnapshot(tracks: List<LibraryTrack>): LibrarySnapshot {
-    val uiTracks = tracks.mapIndexed { index, track ->
-        Track(
-            id = track.id,
-            title = track.title,
-            artist = track.artist,
-            album = track.album,
-            durationSeconds = ((track.durationMillis ?: 0L) / 1_000L).toInt(),
-            accent = libraryTrackAccent(index),
-            source = track.audioSource,
-            trackNumber = track.trackNumber,
-            discNumber = track.discNumber,
-            artworkBytes = track.artworkBytes,
-        )
-    }
-    return LibrarySnapshot(
-        title = "RhythHaus",
-        subtitle = if (uiTracks.isEmpty()) {
-            "Choose local audio files to start listening"
-        } else {
-            "${uiTracks.size} local ${if (uiTracks.size == 1) "track" else "tracks"}"
-        },
-        tracks = uiTracks,
-        nowPlayingTrackId = uiTracks.firstOrNull()?.id,
-    )
-}
-
-private fun libraryTrackAccent(index: Int): TrackAccent {
-    val accents = listOf(
-        TrackAccent(start = 0xFF9C6CFF, end = 0xFFFF7A90),
-        TrackAccent(start = 0xFF52D6C5, end = 0xFF4C8DFF),
-        TrackAccent(start = 0xFFFFB86B, end = 0xFFFF6F3C),
-        TrackAccent(start = 0xFF7DE37B, end = 0xFF15B8A6),
-        TrackAccent(start = 0xFFFF6FD8, end = 0xFF3813C2),
-    )
-    return accents[index % accents.size]
-}
 
 @Composable
 private fun ScanningCard(
