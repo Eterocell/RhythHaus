@@ -2,7 +2,24 @@
 
 RhythHaus is a Kotlin Multiplatform + Compose Multiplatform local music application. The first supported platforms are Android, iOS, and macOS/desktop JVM. Windows and Linux may be supported later, but they are out of current scope.
 
-Current route: openspec+superpowers
+## Development workflow enforcement
+
+**All development work in this repository MUST follow these rules:**
+
+- **New features, requirements, product changes, and architecture work** → MUST use the OpenSpec + Superpowers workflow. This means:
+  - Brainstorming and design via `brainstorming` skill → spec doc in `docs/superpowers/specs/`
+  - Implementation plan via `writing-plans` skill → plan in `docs/superpowers/plans/`
+  - Execution via `subagent-driven-development` or `executing-plans`
+  - NO implementation without a user-approved spec and plan
+
+- **Bugs, test failures, unexpected behavior, crashes, performance issues** → MUST use the `systematic-debugging` skill. This means:
+  - Phase 1: Root cause investigation BEFORE any fix
+  - Phase 2: Pattern analysis
+  - Phase 3: Hypothesis formation and testing — one variable at a time
+  - Phase 4: Single fix addressing root cause, verified with regression test
+  - NO quick fixes, no guessing, no "just try changing X"
+
+- **No exceptions without explicit user authorization.**
 
 OpenSpec is initialized in this repository via `openspec/`. Use the OpenSpec + Superpowers flow for durable product or architecture work: Superpowers owns human-facing clarification, brainstorming, task execution discipline, and TDD-style implementation loops; OpenSpec owns durable specs, changes, tasks, task status, and archival; this harness owns startup, scope control, verification, acceptance, lifecycle, and handoff evidence.
 

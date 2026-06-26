@@ -6,6 +6,11 @@ This file defines reusable harness constraints for RhythHaus. Product requiremen
 
 Route: `openspec+superpowers`
 
+**MANDATORY ENFORCEMENT:**
+- New features, requirements, product changes → MUST use OpenSpec + Superpowers (brainstorming → spec → plan → execution)
+- Bugs, crashes, test failures, unexpected behavior → MUST use `systematic-debugging` (Phase 1-4, no guessing)
+- No exceptions without explicit user authorization.
+
 Evidence:
 
 - `openspec/` exists in this repository.
