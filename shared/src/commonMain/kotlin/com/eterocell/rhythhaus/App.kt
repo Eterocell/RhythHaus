@@ -225,6 +225,7 @@ fun LibraryHomeScreen(
             playbackState = playbackState,
             playbackController = playbackController,
             tagLibReader = tagLibReader,
+            libraryTracks = libraryTracks,
             onBack = { selectedAlbum = null },
             onTrackSelected = { /* selection only */ },
             onPlayPause = { track ->
@@ -248,6 +249,7 @@ fun LibraryHomeScreen(
             playbackState = playbackState,
             playbackController = playbackController,
             tagLibReader = tagLibReader,
+            libraryTracks = libraryTracks,
             onBack = { selectedArtist = null },
             onTrackSelected = { /* selection only */ },
             onPlayPause = { track ->
@@ -1070,6 +1072,7 @@ private fun DrillDownView(
     playbackState: PlaybackState,
     playbackController: PlaybackController,
     tagLibReader: TagLibReader,
+    libraryTracks: List<LibraryTrack>,
     onBack: () -> Unit,
     onTrackSelected: (String) -> Unit,
     onPlayPause: (Track) -> Unit,
@@ -1082,12 +1085,13 @@ private fun DrillDownView(
     val currentTrack = tracks.firstOrNull { it.id == selectedTrackId } ?: selectedTrack
 
     if (showNowPlayingScreen && currentTrack != null) {
+        val currentLibTrack = libraryTracks.firstOrNull { it.id == currentTrack.id }
         NowPlayingScreen(
             track = currentTrack,
             playbackState = playbackState,
             playbackController = playbackController,
             tagLibReader = tagLibReader,
-            currentLibraryTrack = null,
+            currentLibraryTrack = currentLibTrack,
             onBack = { showNowPlayingScreen = false },
         )
     } else {

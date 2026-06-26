@@ -573,3 +573,25 @@ Changed files:
 
 Next owner: user for manual iOS lockscreen runtime validation.
 Blockers: none for compile/test verification.
+
+## Handoff - 2026-06-26 Dev panel scroll + DrillDownView wiring
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Debug why dev panel was missing — the panel was visible but unreachable due to missing scroll on NowPlayingScreen and null currentLibraryTrack in DrillDownView.
+Root cause:
+- `NowPlayingScreen` Column had `fillMaxSize()` but no `verticalScroll`, so content below the fold (including dev panel) was clipped on smaller screens.
+- `DrillDownView` hardcoded `currentLibraryTrack = null` when calling `NowPlayingScreen`, so dev panel never showed from album/artist drill-down.
+Implementation:
+- `NowPlayingScreen.kt`: added `import androidx.compose.foundation.rememberScrollState` and `import androidx.compose.foundation.verticalScroll`, added `.verticalScroll(rememberScrollState())` to the main Column modifier.
+- `App.kt`: added `libraryTracks: List<LibraryTrack>` parameter to `DrillDownView`, resolved `currentLibTrack` from `currentTrack.id`, passed it to `NowPlayingScreen`. Updated both callers (album/artist drill-down in `LibraryHomeScreen`) to pass `libraryTracks`.
+Verification:
+- `./init.sh`: BUILD SUCCESSFUL — all platforms pass (JVM tests, iOS simulator tests, desktop compile, Android debug APK).
+Acceptance:
+- Requirement matched: yes; dev panel is now reachable via scroll on NowPlayingScreen and visible from drill-down views.
+- Scope controlled: yes; only NowPlayingScreen scrolling and DrillDownView wiring.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+Next owner: user for manual visual confirmation.
+Blockers: none.
