@@ -1,0 +1,44 @@
+<svg width="1200" height="1200" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="rhythGradient" x1="180" y1="180" x2="1020" y2="1020" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="45%" stop-color="#EC4899"/>
+      <stop offset="100%" stop-color="#F97316"/>
+    </linearGradient>
+    <linearGradient id="waveGradient" x1="320" y1="600" x2="880" y2="600" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#A7F3D0"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#000000" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="1200" rx="260" fill="#111827"/>
+  <g filter="url(#softShadow)">
+    <!-- Centered outer house mark -->
+    <path
+      d="M250 530 L600 230 L950 530 V855 C950 895 918 927 878 927 H322 C282 927 250 895 250 855 V530 Z"
+      fill="url(#rhythGradient)"
+    />
+    <!-- Centered inner house body -->
+    <path
+      d="M340 555 L600 335 L860 555 V800 C860 828 838 850 810 850 H390 C362 850 340 828 340 800 V555 Z"
+      fill="#111827"
+      opacity="0.92"
+    />
+    <!-- Centered rhythm waveform -->
+    <path
+      d="M335 600
+         C390 600 390 510 445 510
+         C500 510 500 690 555 690
+         C610 690 610 455 665 455
+         C720 455 720 630 775 630
+         C830 630 830 570 885 570"
+      fill="none"
+      stroke="url(#waveGradient)"
+      stroke-width="34"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+</svg>
