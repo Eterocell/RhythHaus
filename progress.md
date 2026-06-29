@@ -595,3 +595,103 @@ Changed files:
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
 Next owner: user for manual visual confirmation.
 Blockers: none.
+
+## Handoff - 2026-06-29 Main screen summary removal
+
+Route: implementation
+Owner: implementation
+Scope: Remove the `RHYTHHAUS` pill and main-screen track count/duration summaries, while keeping album/artist drill-down track-count subtitles.
+Implementation:
+- `App.kt`: removed the summary text from `HeaderSection`; the main `Library queue` `SectionLabel` now passes `subtitle = null`; `SectionLabel` renders its subtitle only when present, preserving drill-down subtitles.
+Verification:
+- `./gradlew :shared:jvmTest --configuration-cache`: BUILD SUCCESSFUL. Existing Compose dependency version mismatch warnings were emitted.
+Acceptance:
+- Requirement matched: yes; the main screen no longer shows `xx tracks · xxx:xx` or `xx tracks • xxx:xx total`, and album/artist drill-down subtitles remain.
+- Scope controlled: yes; only shared main-screen header/section-label UI changed.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+Next owner: user for optional visual confirmation.
+Blockers: none.
+
+## Handoff - 2026-06-29 Drill-down scrollbar travel fix
+
+Route: systematic-debugging
+Owner: implementation
+Scope: Fix custom album/artist drill-down scrollbar thumb being constrained to the upper right side.
+Root cause:
+- The scroll indicator used a hard-coded `scrollFraction * 100.dp` offset capped at `200.dp`, so the thumb could not travel across the actual available track height.
+Implementation:
+- `App.kt`: compute scroll fraction from total vs visible lazy-list items and use `BoxWithConstraints` to offset the thumb across `maxHeight - thumbHeight`.
+Verification:
+- `./gradlew :shared:jvmTest --configuration-cache`: BUILD SUCCESSFUL. Existing Compose dependency version mismatch warnings were emitted.
+Acceptance:
+- Requirement matched: yes; scrollbar travel now scales to the full right-side track height instead of a fixed upper band.
+- Scope controlled: yes; only the custom drill-down scroll indicator changed.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+Next owner: user for visual confirmation in album/artist track screens.
+Blockers: none.
+
+## Handoff - 2026-06-29 Square artwork and swipe back
+
+Route: openspec+superpowers (subagent-driven)
+Owner: implementation
+Scope: Make shared Compose album artwork square and add shared Compose-only left-edge swipe-back to detail/full-screen views.
+Input: `docs/superpowers/specs/2026-06-29-square-artwork-swipe-back-design.md` and `docs/superpowers/plans/2026-06-29-square-artwork-swipe-back.md`.
+Implementation:
+- `App.kt`: made AlbumCard and older inline NowPlayingCard artwork square with `aspectRatio(1f)`, kept decoded artwork cropped, and applied `leftEdgeSwipeBack(onBack)` to `DrillDownView`.
+- `NowPlayingScreen.kt`: made full Now Playing artwork square and applied `leftEdgeSwipeBack(onBack)` to the full-screen surface.
+- `SwipeBackGesture.kt`: added shared Compose left-edge horizontal drag helper with edge-start and distance thresholds.
+Verification:
+- Implementer: `./gradlew :shared:compileKotlinJvm --configuration-cache` -> BUILD SUCCESSFUL.
+- Reviewer first pass: spec rejected for missing `ContentScale.Crop` on older inline NowPlayingCard artwork; quality approved.
+- Fix: commit `7c9cdba` added `ContentScale.Crop` to the inline artwork Image only and re-ran `./gradlew :shared:compileKotlinJvm --configuration-cache` -> BUILD SUCCESSFUL.
+- Reviewer second pass: spec approved; quality approved; no findings.
+- Harness final verification: `./gradlew :shared:compileKotlinJvm --configuration-cache` -> BUILD SUCCESSFUL in 497ms. Existing Compose dependency version mismatch warning remains.
+Acceptance:
+- Requirement matched: yes; rectangular album art paths are square, compact square/circle artwork remains unchanged, and shared Compose swipe-back applies to album/artist drill-down and full Now Playing.
+- Scope controlled: yes; no `iosApp` files, dependencies, Material migration, or native SwiftUI navigation changes.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SwipeBackGesture.kt`
+Commits:
+- `19fa018` `docs: design square artwork swipe back`
+- `1c525b6` `docs: plan square artwork swipe back`
+- `5a6898a` `feat: add square artwork and swipe back`
+- `7c9cdba` `fix: crop inline now playing artwork`
+Next owner: user for visual/manual gesture confirmation on target devices.
+Blockers: none.
+
+## Handoff - 2026-06-29 Selectable scrollbar and ripple feedback
+
+Route: openspec+superpowers (subagent-driven)
+Owner: implementation
+Scope: Make the shared Compose drill-down scrollbar selectable and add press feedback to main visible custom clickables/lists.
+Input: `docs/superpowers/specs/2026-06-29-selectable-scrollbar-ripple-design.md` and `docs/superpowers/plans/2026-06-29-selectable-scrollbar-ripple.md`.
+Implementation:
+- `HausClickable.kt`: added `Modifier.hausClickable(onClick)` using foundation `clickable`, remembered `MutableInteractionSource`, and `LocalIndication.current` to avoid Material/Material3 imports.
+- `App.kt`: replaced approved visible custom clickables with `hausClickable` and replaced the visual-only drill-down scrollbar with a right-edge 24 dp tap/drag scrubber and 6 dp thumb.
+- `NowPlayingBar.kt`, `NowPlayingScreen.kt`, `SearchScreen.kt`, and `SettingsScreen.kt`: applied `hausClickable` to visible custom controls/lists while preserving invisible overlay blockers.
+Verification:
+- Initial implementer timed out after partial edits; controller inspected state and ran `./gradlew :shared:compileKotlinJvm --configuration-cache` -> BUILD SUCCESSFUL in 453ms.
+- Recovery implementer: `./gradlew :shared:compileKotlinJvm --configuration-cache` -> BUILD SUCCESSFUL in 578ms; committed `5a04ac0`.
+- Task reviewer: spec approved; quality approved; no Critical/Important findings. Minor note: manual visual/device verification was not performed, and `LocalIndication.current` was accepted as satisfying visible press feedback without Material/Material3 imports.
+- Harness final verification: `./gradlew :shared:compileKotlinJvm --configuration-cache` -> BUILD SUCCESSFUL in 414ms. Existing Compose dependency version mismatch warning remains.
+Acceptance:
+- Requirement matched: yes; scrollbar hit target is wider and selectable via tap/drag, and main visible custom clickables use shared press feedback.
+- Scope controlled: yes; changes are limited to shared Compose files, with no iOS/platform/dependency/version catalog changes.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/HausClickable.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SearchScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SettingsScreen.kt`
+Commits:
+- `959b975` `docs: design selectable scrollbar ripple feedback`
+- `7aaa584` `docs: plan selectable scrollbar ripple feedback`
+- `5a04ac0` `feat: add selectable scrollbar and ripple feedback`
+Next owner: user for manual visual confirmation on target devices.
+Blockers: none.
+

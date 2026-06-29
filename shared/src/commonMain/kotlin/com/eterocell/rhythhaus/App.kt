@@ -322,7 +322,7 @@ fun LibraryHomeScreen(
                         item {
                             SectionLabel(
                                 title = "Library queue",
-                                subtitle = "${snapshot.tracks.size} tracks • ${formatDuration(snapshot.totalDurationSeconds)} total",
+                                subtitle = null,
                             )
                         }
                         item {
@@ -475,31 +475,6 @@ private fun HeaderSection(snapshot: LibrarySnapshot) {
             .padding(top = 18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(HausInk)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    text = "RHYTHHAUS",
-                    color = HausPaper,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.8.sp,
-                )
-            }
-            Text(
-                text = if (snapshot.tracks.isNotEmpty()) "${snapshot.tracks.size} tracks · ${formatDuration(snapshot.totalDurationSeconds)}" else "Local music player",
-                color = HausMuted,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
         Text(
             text = snapshot.title,
             color = HausInk,
@@ -983,7 +958,7 @@ private fun artworkLabel(artwork: com.eterocell.rhythhaus.taglib.EmbeddedArtwork
 }
 
 @Composable
-private fun SectionLabel(title: String, subtitle: String) {
+private fun SectionLabel(title: String, subtitle: String?) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Bottom,
@@ -995,12 +970,14 @@ private fun SectionLabel(title: String, subtitle: String) {
             fontSize = 20.sp,
             fontWeight = FontWeight.Black,
         )
-        Text(
-            text = subtitle,
-            color = HausMuted,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-        )
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                color = HausMuted,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
