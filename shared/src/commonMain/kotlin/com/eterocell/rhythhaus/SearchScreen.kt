@@ -1,20 +1,23 @@
 package com.eterocell.rhythhaus
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.BasicTextField
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,29 +61,50 @@ fun SearchScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("< Back", color = HausPulse, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(HausInk)
+                            .clickable(onClick = onDismiss)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            "< Back",
+                            color = HausPaper,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.2.sp,
+                        )
                     }
                     Spacer(Modifier.weight(1f))
                     Text("Search", color = HausInk, fontSize = 24.sp, fontWeight = FontWeight.Black)
                 }
 
                 // Search field
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                    placeholder = { Text("Track, artist, or album...", color = HausMuted) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = HausInk,
-                        unfocusedTextColor = HausInk,
-                        focusedBorderColor = HausPulse,
-                        unfocusedBorderColor = HausMuted.copy(alpha = 0.3f),
-                        cursorColor = HausPulse,
-                    ),
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, HausMuted.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .background(HausPaper)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                ) {
+                    if (query.isEmpty()) {
+                        Text(
+                            "Track, artist, or album...",
+                            color = HausMuted,
+                            fontSize = 15.sp,
+                        )
+                    }
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                        singleLine = true,
+                        textStyle = TextStyle(color = HausInk, fontSize = 15.sp),
+                        cursorBrush = SolidColor(HausPulse),
+                    )
+                }
 
                 // Results
                 if (query.isNotBlank()) {
