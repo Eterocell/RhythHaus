@@ -477,7 +477,7 @@ private fun HeaderSection(snapshot: LibrarySnapshot) {
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 Text(
-                    text = "LOCAL",
+                    text = "RHYTHHAUS",
                     color = HausPaper,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
@@ -485,7 +485,7 @@ private fun HeaderSection(snapshot: LibrarySnapshot) {
                 )
             }
             Text(
-                text = "shared Compose UI",
+                text = if (snapshot.tracks.isNotEmpty()) "${snapshot.tracks.size} tracks · ${formatDuration(snapshot.totalDurationSeconds)}" else "Local music player",
                 color = HausMuted,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,

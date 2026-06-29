@@ -46,7 +46,7 @@ fun NowPlayingBar(
             .fillMaxWidth()
             .safeContentPadding()
             .clickable(onClick = onExpand),
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        shape = RoundedCornerShape(20.dp),
         shadowElevation = 8.dp,
         color = HausPanel,
     ) {
@@ -66,10 +66,11 @@ fun NowPlayingBar(
                 )
             }
 
+            // Row 1: Artwork | Track info | Play/pause
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -138,26 +139,35 @@ fun NowPlayingBar(
                         fontWeight = FontWeight.Black,
                     )
                 }
+            }
 
-                // Search button
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable(onClick = onSearch),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(text = "🔍", fontSize = 16.sp)
-                }
-                // Settings button
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable(onClick = onSettings),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(text = "⚙️", fontSize = 16.sp)
+            // Row 2: Search & Settings buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onSearch),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(text = "🔍", fontSize = 14.sp)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onSettings),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(text = "⚙️", fontSize = 14.sp)
+                    }
                 }
             }
         }

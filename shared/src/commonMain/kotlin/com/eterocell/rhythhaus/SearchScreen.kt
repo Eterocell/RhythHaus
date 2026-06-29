@@ -47,7 +47,12 @@ fun SearchScreen(
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(HausPaper)
+            .clickable(enabled = false, onClick = {}),
+    ) {
         Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
             Column(
                 modifier = Modifier

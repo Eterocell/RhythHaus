@@ -40,7 +40,12 @@ fun SettingsScreen(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(HausPaper)
+            .clickable(enabled = false, onClick = {}),
+    ) {
         Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
             Column(
                 modifier = Modifier
