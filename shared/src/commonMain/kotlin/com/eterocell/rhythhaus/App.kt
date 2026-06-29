@@ -110,6 +110,8 @@ fun App() {
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
         when (result) {
@@ -159,6 +161,10 @@ fun App() {
                 libraryTracks = emptyList()
                 showClearDialog = false
             },
+            showSettings = showSettings,
+            onShowSettings = { showSettings = it },
+            showSearch = showSearch,
+            onShowSearch = { showSearch = it },
         )
     }
 }
@@ -199,6 +205,10 @@ fun LibraryHomeScreen(
     showClearDialog: Boolean,
     onShowClearDialog: (Boolean) -> Unit,
     onClearLibrary: () -> Unit,
+    showSettings: Boolean,
+    onShowSettings: (Boolean) -> Unit,
+    showSearch: Boolean,
+    onShowSearch: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedTrackId by remember(snapshot.nowPlayingTrackId) { mutableStateOf(snapshot.nowPlayingTrackId) }
@@ -235,6 +245,8 @@ fun LibraryHomeScreen(
                 }
                 playbackController.togglePlayPause()
             },
+            onShowSettings = { onShowSettings(true) },
+            onShowSearch = { onShowSearch(true) },
         )
     } else if (selectedArtist != null) {
         val artist = selectedArtist!!
@@ -259,6 +271,8 @@ fun LibraryHomeScreen(
                 }
                 playbackController.togglePlayPause()
             },
+            onShowSettings = { onShowSettings(true) },
+            onShowSearch = { onShowSearch(true) },
         )
     } else {
         if (showNowPlayingScreen && selectedTrack != null) {
@@ -293,16 +307,6 @@ fun LibraryHomeScreen(
                                     filesVisited = ss.filesVisited,
                                     tracksAdded = ss.tracksAdded,
                                     onCancel = { scanJob?.cancel() },
-                                )
-                            }
-                        }
-                        if (scanProgress?.isActive != true) {
-                            item {
-                                ImportAudioCard(
-                                    folderPickerLauncher = folderPickerLauncher,
-                                    importMessage = importMessage,
-                                    hasImportedTracks = snapshot.tracks.isNotEmpty(),
-                                    onClearLibrary = { onShowClearDialog(true) },
                                 )
                             }
                         }
@@ -367,8 +371,8 @@ fun LibraryHomeScreen(
                             playbackController.togglePlayPause()
                         },
                         onExpand = { showNowPlayingScreen = true },
-                        onSettings = { /* wired in a later task */ },
-                        onSearch = { /* wired in a later task */ },
+                        onSettings = { onShowSettings(true) },
+                        onSearch = { onShowSearch(true) },
                         modifier = Modifier.align(Alignment.BottomCenter),
                     )
                 }
@@ -429,6 +433,28 @@ fun LibraryHomeScreen(
                 }
             }
         }
+    }
+
+    if (showSettings) {
+        SettingsScreen(
+            folderPickerLauncher = folderPickerLauncher,
+            importMessage = importMessage,
+            scanProgress = scanProgress,
+            scanJob = scanJob,
+            hasImportedTracks = snapshot.tracks.isNotEmpty(),
+            onClearLibrary = { onShowClearDialog(true) },
+            onDismiss = { onShowSettings(false) },
+        )
+    }
+
+    if (showSearch) {
+        SearchScreen(
+            libraryTracks = libraryTracks,
+            tagLibReader = tagLibReader,
+            playbackController = playbackController,
+            playbackState = playbackState,
+            onDismiss = { onShowSearch(false) },
+        )
     }
 }
 
@@ -1078,6 +1104,8 @@ private fun DrillDownView(
     onBack: () -> Unit,
     onTrackSelected: (String) -> Unit,
     onPlayPause: (Track) -> Unit,
+    onShowSettings: (Boolean) -> Unit = {},
+    onShowSearch: (Boolean) -> Unit = {},
 ) {
     var selectedTrackId by remember { mutableStateOf(selectedTrack?.id) }
     LaunchedEffect(playbackState.currentTrack?.id) {
@@ -1138,8 +1166,8 @@ private fun DrillDownView(
                     playbackState = playbackState,
                     onPlayPause = { onPlayPause(currentTrack) },
                     onExpand = { showNowPlayingScreen = true },
-                    onSettings = { /* wired in a later task */ },
-                    onSearch = { /* wired in a later task */ },
+                    onSettings = { onShowSettings(true) },
+                    onSearch = { onShowSearch(true) },
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }
