@@ -44,6 +44,7 @@ fun NowPlayingBar(
         modifier = modifier
             .fillMaxWidth()
             .safeContentPadding()
+            .clip(RoundedCornerShape(20.dp))
             .hausClickable(onClick = onExpand),
         shape = RoundedCornerShape(20.dp),
         shadowElevation = 8.dp,
