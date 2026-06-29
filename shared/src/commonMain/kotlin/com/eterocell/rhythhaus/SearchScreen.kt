@@ -70,7 +70,7 @@ fun SearchScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .background(HausInk)
-                            .clickable(onClick = onDismiss)
+                            .hausClickable(onClick = onDismiss)
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     ) {
                         Text(
@@ -159,7 +159,7 @@ private fun SearchResultRow(
     onClick: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().hausClickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = if (isNowPlaying) HausPanel else HausPaper,
     ) {

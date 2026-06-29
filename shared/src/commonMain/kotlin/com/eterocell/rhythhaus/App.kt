@@ -7,10 +7,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -55,6 +58,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -760,7 +764,7 @@ private fun DeveloperPanel(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onToggle)
+                    .hausClickable(onClick = onToggle)
                     .semantics { contentDescription = if (expanded) "Collapse developer panel" else "Expand developer panel" },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1014,7 +1018,7 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
             .clip(RoundedCornerShape(24.dp))
             .background(if (selected) HausPanelStrong else HausPanel.copy(alpha = 0.54f))
             .border(1.dp, if (selected) HausInk else HausLine, RoundedCornerShape(24.dp))
-            .clickable(onClick = onClick)
+            .hausClickable(onClick = onClick)
             .semantics { contentDescription = "Select track ${track.title}" }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1162,29 +1166,10 @@ private fun DrillDownView(
                         }
                         item { Spacer(Modifier.height(80.dp)) }
                     }
-                    // Scroll indicator
-                    val scrollFraction by remember(listState) {
-                        derivedStateOf {
-                            val total = listState.layoutInfo.totalItemsCount
-                            if (total == 0) 0f else listState.firstVisibleItemIndex.toFloat() / total
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .fillMaxHeight()
-                            .padding(vertical = 4.dp)
-                            .width(3.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight(0.15f)
-                                .offset(y = (scrollFraction * 100).dp.coerceAtMost(200.dp))
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(HausMuted.copy(alpha = 0.3f)),
-                        )
-                    }
+                    DrillDownScrollbar(
+                        listState = listState,
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    )
                 }
             }
 
@@ -1200,6 +1185,67 @@ private fun DrillDownView(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DrillDownScrollbar(
+    listState: LazyListState,
+    modifier: Modifier = Modifier,
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val scrollFraction by remember(listState) {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val total = layoutInfo.totalItemsCount
+            val visible = layoutInfo.visibleItemsInfo.size
+            val maxFirstVisibleIndex = (total - visible).coerceAtLeast(1)
+            (listState.firstVisibleItemIndex.toFloat() / maxFirstVisibleIndex).coerceIn(0f, 1f)
+        }
+    }
+
+    fun scrollTo(yPosition: Float, trackHeightPx: Float) {
+        val layoutInfo = listState.layoutInfo
+        val total = layoutInfo.totalItemsCount
+        val visible = layoutInfo.visibleItemsInfo.size
+        if (total <= visible || trackHeightPx <= 0f) return
+
+        val maxFirstVisibleIndex = (total - visible).coerceAtLeast(0)
+        val targetFraction = (yPosition / trackHeightPx).coerceIn(0f, 1f)
+        val targetIndex = (targetFraction * maxFirstVisibleIndex).toInt().coerceIn(0, maxFirstVisibleIndex)
+        coroutineScope.launch {
+            listState.animateScrollToItem(targetIndex)
+        }
+    }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxHeight()
+            .padding(vertical = 4.dp)
+            .width(24.dp)
+            .pointerInput(listState) {
+                detectTapGestures { offset ->
+                    scrollTo(offset.y, size.height.toFloat())
+                }
+            }
+            .pointerInput(listState) {
+                detectVerticalDragGestures { change, _ ->
+                    scrollTo(change.position.y, size.height.toFloat())
+                }
+            },
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        val thumbHeight = maxHeight * 0.15f
+        val thumbOffset = (maxHeight - thumbHeight) * scrollFraction
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = thumbOffset)
+                .width(6.dp)
+                .height(thumbHeight)
+                .clip(RoundedCornerShape(3.dp))
+                .background(HausMuted.copy(alpha = 0.42f)),
+        )
     }
 }
 
@@ -1223,7 +1269,7 @@ private fun DrillDownHeader(
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
                     .background(HausInk)
-                    .clickable(onClick = onBack)
+                    .hausClickable(onClick = onBack)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 Text(
@@ -1290,7 +1336,7 @@ private fun AlbumCard(
 ) {
     Card(
         modifier = modifier
-            .clickable(onClick = onClick)
+            .hausClickable(onClick = onClick)
             .semantics { contentDescription = "Album ${album.album}" },
         cornerRadius = 20.dp,
         colors = CardDefaults.defaultColors(color = HausPanel),
@@ -1361,7 +1407,7 @@ private fun ArtistRow(
             .clip(RoundedCornerShape(24.dp))
             .background(HausPanel.copy(alpha = 0.54f))
             .border(1.dp, HausLine, RoundedCornerShape(24.dp))
-            .clickable(onClick = onClick)
+            .hausClickable(onClick = onClick)
             .semantics { contentDescription = "Artist ${artist.artist}" }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,

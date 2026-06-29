@@ -2,7 +2,6 @@ package com.eterocell.rhythhaus
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,7 +44,7 @@ fun NowPlayingBar(
         modifier = modifier
             .fillMaxWidth()
             .safeContentPadding()
-            .clickable(onClick = onExpand),
+            .hausClickable(onClick = onExpand),
         shape = RoundedCornerShape(20.dp),
         shadowElevation = 8.dp,
         color = HausPanel,
@@ -129,7 +128,7 @@ fun NowPlayingBar(
                         .size(36.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(HausInk)
-                        .clickable(onClick = onPlayPause),
+                        .hausClickable(onClick = onPlayPause),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -154,7 +153,7 @@ fun NowPlayingBar(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onSearch),
+                            .hausClickable(onClick = onSearch),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(text = "🔍", fontSize = 14.sp)
@@ -163,7 +162,7 @@ fun NowPlayingBar(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onSettings),
+                            .hausClickable(onClick = onSettings),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(text = "⚙️", fontSize = 14.sp)

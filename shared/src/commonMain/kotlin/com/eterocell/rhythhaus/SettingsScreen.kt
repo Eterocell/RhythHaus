@@ -63,7 +63,7 @@ fun SettingsScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .background(HausInk)
-                            .clickable(onClick = onDismiss)
+                            .hausClickable(onClick = onDismiss)
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     ) {
                         Text(

@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -80,7 +79,7 @@ fun NowPlayingScreen(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
                         .background(HausInk)
-                        .clickable(onClick = onBack)
+                        .hausClickable(onClick = onBack)
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
                     Text(
@@ -211,7 +210,7 @@ fun NowPlayingScreen(
                         .size(48.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(HausPanel)
-                        .clickable {
+                        .hausClickable {
                             val queue = playbackState.queue
                             val currentId = playbackState.currentTrack?.id
                             val currentIndex = queue.indexOfFirst { it.id == currentId }
@@ -229,7 +228,7 @@ fun NowPlayingScreen(
                         .size(64.dp)
                         .clip(CircleShape)
                         .background(HausPulse)
-                        .clickable { playbackController.togglePlayPause() },
+                        .hausClickable { playbackController.togglePlayPause() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -246,7 +245,7 @@ fun NowPlayingScreen(
                         .size(48.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(HausPanel)
-                        .clickable {
+                        .hausClickable {
                             val queue = playbackState.queue
                             val currentId = playbackState.currentTrack?.id
                             val currentIndex = queue.indexOfFirst { it.id == currentId }
@@ -286,7 +285,7 @@ private fun DeveloperTrackPanel(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(devBgColor)
-            .clickable { expanded = !expanded }
+            .hausClickable { expanded = !expanded }
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
