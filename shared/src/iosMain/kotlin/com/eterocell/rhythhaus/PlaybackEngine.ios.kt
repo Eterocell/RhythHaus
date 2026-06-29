@@ -237,10 +237,16 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
 
     private fun updateNowPlayingInfo(positionMillis: Long, playbackRate: Double = 1.0) {
         val track = loadedTrack ?: return
-        // Note: MPMediaItemPropertyArtwork is not set here — Kotlin/Native cinterop
-        // for ByteArray → NSData → UIImage → MPMediaItemArtwork is unavailable
-        // in the current KMP version. Artwork in the app's own Compose UI works fine.
         MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = buildIOSNowPlayingDictionary(track, positionMillis, durationMillis, playbackRate)
+        // Artwork is set via the Swift-native bridge — cinterop doesn't expose
+        // NSData(bytes:length:) so the ByteArray→UIImage→MPMediaItemArtwork
+        // chain runs in Swift where KotlinByteArray.toData() is available.
+        NowPlayingArtworkBridge.provider?.setArtwork(
+            trackTitle = track.title,
+            artist = track.artist,
+            album = track.album,
+            artworkBytes = track.artworkBytes,
+        )
     }
 }
 

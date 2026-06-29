@@ -1,5 +1,42 @@
 import SwiftUI
 import Foundation
+import MediaPlayer
+import Shared
+
+/// Sets lockscreen / Control Center artwork for the now-playing track.
+/// Called from the KMP IOSPlaybackEngine via NowPlayingArtworkBridge.
+class RhythHausArtworkProvider: NowPlayingArtworkProvider {
+    func setArtwork(
+        trackTitle: String,
+        artist: String,
+        album: String?,
+        artworkBytes: KotlinByteArray?
+    ) {
+        guard let bytes = artworkBytes else {
+            removeArtworkFromNowPlaying()
+            return
+        }
+        let count = Int(bytes.size)
+        var byteArray = [UInt8](repeating: 0, count: count)
+        for i in 0..<count {
+            byteArray[i] = UInt8(truncatingIfNeeded: bytes.get(index: Int32(i)))
+        }
+        guard let image = UIImage(data: Data(byteArray)) else {
+            removeArtworkFromNowPlaying()
+            return
+        }
+        let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+        info[MPMediaItemPropertyArtwork] = artwork
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    private func removeArtworkFromNowPlaying() {
+        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+        info.removeValue(forKey: MPMediaItemPropertyArtwork)
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+}
 
 @main
 struct iOSApp: App {
@@ -13,6 +50,10 @@ struct iOSApp: App {
             try? "Drop your music files (.mp3, .flac, .wav, .m4a) here.\n"
                 .write(to: marker, atomically: true, encoding: .utf8)
         }
+
+        // Register the Swift-native artwork bridge so the KMP playback engine
+        // can set lockscreen/Control Center artwork via MPMediaItemArtwork.
+        NowPlayingArtworkBridge.shared.provider = RhythHausArtworkProvider()
     }
 
     var body: some Scene {
