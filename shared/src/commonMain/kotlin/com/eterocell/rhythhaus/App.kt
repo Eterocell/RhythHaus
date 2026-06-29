@@ -367,6 +367,8 @@ fun LibraryHomeScreen(
                             playbackController.togglePlayPause()
                         },
                         onExpand = { showNowPlayingScreen = true },
+                        onSettings = { /* wired in a later task */ },
+                        onSearch = { /* wired in a later task */ },
                         modifier = Modifier.align(Alignment.BottomCenter),
                     )
                 }
@@ -683,7 +685,7 @@ private fun NowPlayingCard(
 }
 
 @Composable
-private fun EqualizerStrip(active: Boolean) {
+internal fun EqualizerStrip(active: Boolean) {
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -1136,6 +1138,8 @@ private fun DrillDownView(
                     playbackState = playbackState,
                     onPlayPause = { onPlayPause(currentTrack) },
                     onExpand = { showNowPlayingScreen = true },
+                    onSettings = { /* wired in a later task */ },
+                    onSearch = { /* wired in a later task */ },
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }
@@ -1372,7 +1376,7 @@ private val PlaybackStatus.label: String
 
 
 @Composable
-private fun ScanningCard(
+internal fun ScanningCard(
     foldersVisited: Int,
     filesVisited: Int,
     tracksAdded: Int,
