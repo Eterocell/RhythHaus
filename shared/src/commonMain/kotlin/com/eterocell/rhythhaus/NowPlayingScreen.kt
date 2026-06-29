@@ -57,7 +57,12 @@ fun NowPlayingScreen(
     }
     val isPlaying = playbackState.isPlaying
 
-    Surface(modifier = modifier.fillMaxSize(), color = HausPaper) {
+    Surface(
+        modifier = modifier
+            .fillMaxSize()
+            .leftEdgeSwipeBack(onBack),
+        color = HausPaper,
+    ) {
         Column(
             modifier = Modifier
                 .safeContentPadding()
@@ -99,7 +104,7 @@ fun NowPlayingScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp)
+                        .aspectRatio(1f)
                         .background(brush),
                     contentAlignment = Alignment.Center,
                 ) {

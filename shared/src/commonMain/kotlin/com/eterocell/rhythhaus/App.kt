@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -637,7 +638,7 @@ private fun NowPlayingCard(
                     contentDescription = "Album artwork",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .aspectRatio(1f)
                         .clip(RoundedCornerShape(20.dp)),
                 )
                 Spacer(Modifier.height(4.dp))
@@ -1129,7 +1130,11 @@ private fun DrillDownView(
             onBack = { showNowPlayingScreen = false },
         )
     } else {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .leftEdgeSwipeBack(onBack),
+        ) {
             Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
                 val listState = rememberLazyListState()
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -1299,7 +1304,7 @@ private fun AlbumCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp)
+                    .aspectRatio(1f)
                     .clip(RoundedCornerShape(14.dp))
                     .background(
                         Brush.linearGradient(
