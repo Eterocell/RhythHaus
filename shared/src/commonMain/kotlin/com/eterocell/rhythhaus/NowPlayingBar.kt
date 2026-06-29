@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
@@ -25,6 +26,8 @@ fun NowPlayingBar(
     playbackState: PlaybackState,
     onPlayPause: () -> Unit,
     onExpand: () -> Unit,
+    onSettings: () -> Unit,
+    onSearch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val brush = Brush.linearGradient(
@@ -41,6 +44,7 @@ fun NowPlayingBar(
     Surface(
         modifier = modifier
             .fillMaxWidth()
+            .safeContentPadding()
             .clickable(onClick = onExpand),
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
         shadowElevation = 8.dp,
@@ -133,6 +137,27 @@ fun NowPlayingBar(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                     )
+                }
+
+                // Search button
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(onClick = onSearch),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = "🔍", fontSize = 16.sp)
+                }
+                // Settings button
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(onClick = onSettings),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = "⚙️", fontSize = 16.sp)
                 }
             }
         }
