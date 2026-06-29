@@ -173,8 +173,9 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             val p = player
             if (p != null) {
                 p.play()
-                updateNowPlayingInfo(positionMillis = (p.currentTime * 1_000.0).toLong())
+                updateNowPlayingInfo(positionMillis = (p.currentTime * 1_000.0).toLong(), playbackRate = 1.0)
                 listener?.onPlaybackStatus(PlaybackStatus.Playing)
+                MPNowPlayingInfoCenter.defaultCenter().playbackState = 1uL
                 startProgressLoop()
             }
             MPRemoteCommandHandlerStatusSuccess
