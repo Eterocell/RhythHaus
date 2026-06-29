@@ -636,6 +636,7 @@ private fun NowPlayingCard(
                 Image(
                     bitmap = artworkBitmap,
                     contentDescription = "Album artwork",
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f)
