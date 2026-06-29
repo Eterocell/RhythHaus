@@ -13,15 +13,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import top.yukonga.miuix.kmp.basic.Button
@@ -38,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -1127,35 +1131,53 @@ private fun DrillDownView(
     } else {
         Box(modifier = Modifier.fillMaxSize()) {
             Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
-                LazyColumn(
-                    modifier = Modifier
-                        .safeContentPadding()
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                ) {
-                    item {
-                        DrillDownHeader(title = title, subtitle = subtitle, onBack = onBack)
+                val listState = rememberLazyListState()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .safeContentPadding()
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                    ) {
+                        item { DrillDownHeader(title = title, subtitle = subtitle, onBack = onBack) }
+                        item { SectionLabel(title = title, subtitle = subtitle) }
+                        items(tracks, key = { it.id }) { track ->
+                            TrackRow(
+                                track = track,
+                                selected = track.id == selectedTrackId,
+                                onClick = {
+                                    selectedTrackId = track.id
+                                    onTrackSelected(track.id)
+                                    onPlayPause(track)
+                                },
+                            )
+                        }
+                        item { Spacer(Modifier.height(80.dp)) }
                     }
-                    item {
-                        SectionLabel(
-                            title = title,
-                            subtitle = subtitle,
+                    // Scroll indicator
+                    val scrollFraction by remember(listState) {
+                        derivedStateOf {
+                            val total = listState.layoutInfo.totalItemsCount
+                            if (total == 0) 0f else listState.firstVisibleItemIndex.toFloat() / total
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .padding(vertical = 4.dp)
+                            .width(3.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight(0.15f)
+                                .offset(y = (scrollFraction * 100).dp.coerceAtMost(200.dp))
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(HausMuted.copy(alpha = 0.3f)),
                         )
-                    }
-                    items(tracks, key = { it.id }) { track ->
-                        TrackRow(
-                            track = track,
-                            selected = track.id == selectedTrackId,
-                            onClick = {
-                                selectedTrackId = track.id
-                                onTrackSelected(track.id)
-                                onPlayPause(track)
-                            },
-                        )
-                    }
-                    item {
-                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
