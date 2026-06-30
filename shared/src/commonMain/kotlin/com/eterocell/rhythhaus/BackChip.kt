@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -25,6 +26,7 @@ fun BackChip(
             .background(HausColors.current.ink)
             .hausClickable(onClick = onClick)
             .semantics { contentDescription = "Back" }
+            .heightIn(min = 44.dp)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Text(

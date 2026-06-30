@@ -167,7 +167,7 @@ fun NowPlayingBar(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .hausClickable(onClick = onSearch),
                         contentAlignment = Alignment.Center,
@@ -181,7 +181,7 @@ fun NowPlayingBar(
                     }
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(44.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .hausClickable(onClick = onSettings),
                         contentAlignment = Alignment.Center,

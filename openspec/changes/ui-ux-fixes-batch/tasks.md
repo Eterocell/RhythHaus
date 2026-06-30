@@ -32,11 +32,16 @@
 
 ## 3. Search and compact controls polish
 
-- [ ] Add Search query clear action.
-- [ ] Dismiss Search after a result starts playback.
-- [ ] Increase `BackChip` effective hit target to at least 44dp height.
-- [ ] Increase bottom-bar Search and Settings effective hit targets to at least 44dp.
-- [ ] Run JVM compile.
+- [x] Add Search query clear action.
+  - Evidence: `SearchScreen` now reserves 44dp trailing field space when the query is non-empty and shows an end-aligned `Clear` action that uses Miuix `Text` plus `Modifier.hausClickable` to empty the query.
+- [x] Dismiss Search after a result starts playback.
+  - Evidence: `SearchResultRow` selection still sets the full library queue and calls `playbackController.play()`, then calls `onDismiss()`.
+- [x] Increase `BackChip` effective hit target to at least 44dp height.
+  - Evidence: `BackChip` outer modifier now applies `heightIn(min = 44.dp)` before inner padding.
+- [x] Increase bottom-bar Search and Settings effective hit targets to at least 44dp.
+  - Evidence: `NowPlayingBar` Search and Settings boxes now use `.size(44.dp)` while preserving 18dp icon size, content descriptions, and row arrangement.
+- [x] Run JVM compile.
+  - GREEN: `./gradlew :shared:compileKotlinJvm --configuration-cache` passed (`BUILD SUCCESSFUL`).
 
 ## 4. Remove user-facing developer panels
 

@@ -93,11 +93,28 @@ fun SearchScreen(
                     BasicTextField(
                         value = query,
                         onValueChange = { query = it },
-                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(end = if (query.isNotEmpty()) 44.dp else 0.dp)
+                            .focusRequester(focusRequester),
                         singleLine = true,
                         textStyle = TextStyle(color = HausColors.current.ink, fontSize = 15.sp),
                         cursorBrush = SolidColor(HausColors.current.pulse),
                     )
+                    if (query.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .height(44.dp)
+                                .padding(horizontal = 8.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .hausClickable { query = "" }
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("Clear", color = HausColors.current.pulse, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
                 }
 
                 // Results
@@ -128,6 +145,7 @@ fun SearchScreen(
                                         val playable = libraryTracks.map { it.toPlayableTrack() }
                                         playbackController.setQueue(playable, track.id)
                                         playbackController.play()
+                                        onDismiss()
                                     },
                                 )
                             }
