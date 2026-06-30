@@ -63,7 +63,7 @@ fun NowPlayingScreen(
         modifier = modifier
             .fillMaxSize()
             .leftEdgeSwipeBack(onBack),
-        color = HausPaper,
+        color = HausColors.current.paper,
     ) {
         Column(
             modifier = Modifier
@@ -81,13 +81,13 @@ fun NowPlayingScreen(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .background(HausInk)
+                        .background(HausColors.current.ink)
                         .hausClickable(onClick = onBack)
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
                     Text(
                         text = "← LIBRARY",
-                        color = HausPaper,
+                        color = HausColors.current.paper,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.8.sp,
@@ -101,7 +101,7 @@ fun NowPlayingScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = 32.dp,
-                colors = CardDefaults.defaultColors(color = HausInk),
+                colors = CardDefaults.defaultColors(color = HausColors.current.ink),
             ) {
                 Box(
                     modifier = Modifier
@@ -134,7 +134,7 @@ fun NowPlayingScreen(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = track.title,
-                    color = HausInk,
+                    color = HausColors.current.ink,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Black,
                     maxLines = 2,
@@ -142,7 +142,7 @@ fun NowPlayingScreen(
                 )
                 Text(
                     text = "${track.artist} · ${track.album}",
-                    color = HausMuted,
+                    color = HausColors.current.muted,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -151,7 +151,7 @@ fun NowPlayingScreen(
                 if (track.trackNumber != null) {
                     Text(
                         text = "Track ${track.trackNumber}",
-                        color = HausMuted,
+                        color = HausColors.current.muted,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     )
@@ -163,7 +163,7 @@ fun NowPlayingScreen(
             // Status
             Text(
                 text = statusText,
-                color = HausMuted,
+                color = HausColors.current.muted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -192,7 +192,7 @@ fun NowPlayingScreen(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(HausPanel)
+                        .background(HausColors.current.panel)
                         .hausClickable {
                             val queue = playbackState.queue
                             val currentId = playbackState.currentTrack?.id
@@ -202,7 +202,7 @@ fun NowPlayingScreen(
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = "⏮", color = HausInk, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Text(text = "⏮", color = HausColors.current.ink, fontSize = 18.sp, fontWeight = FontWeight.Black)
                 }
 
                 // Play/Pause (large, highlighted)
@@ -210,7 +210,7 @@ fun NowPlayingScreen(
                     modifier = Modifier
                         .size(64.dp)
                         .clip(CircleShape)
-                        .background(HausPulse)
+                        .background(HausColors.current.pulse)
                         .hausClickable { playbackController.togglePlayPause() },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -227,7 +227,7 @@ fun NowPlayingScreen(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(HausPanel)
+                        .background(HausColors.current.panel)
                         .hausClickable {
                             val queue = playbackState.queue
                             val currentId = playbackState.currentTrack?.id
@@ -237,7 +237,7 @@ fun NowPlayingScreen(
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = "⏭", color = HausInk, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Text(text = "⏭", color = HausColors.current.ink, fontSize = 18.sp, fontWeight = FontWeight.Black)
                 }
             }
 
@@ -261,7 +261,7 @@ private fun DeveloperTrackPanel(
     tagLibReader: TagLibReader,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val devBgColor = HausInk.copy(alpha = 0.06f)
+    val devBgColor = HausColors.current.ink.copy(alpha = 0.06f)
 
     Column(
         modifier = Modifier
@@ -280,14 +280,14 @@ private fun DeveloperTrackPanel(
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = "DEV · TagLib",
-                    color = HausInk,
+                    color = HausColors.current.ink,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 1.6.sp,
                 )
                 Text(
                     text = track.displayName,
-                    color = HausMuted,
+                    color = HausColors.current.muted,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -296,7 +296,7 @@ private fun DeveloperTrackPanel(
             }
             Text(
                 text = if (expanded) "▲" else "▼",
-                color = HausPulse,
+                color = HausColors.current.pulse,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Black,
             )
@@ -320,7 +320,7 @@ private fun DeveloperTrackPanel(
                 when {
                     rawResult == null -> Text(
                         text = "URI source — TagLib requires a filesystem path",
-                        color = HausPulse,
+                        color = HausColors.current.pulse,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                     )
@@ -333,14 +333,14 @@ private fun DeveloperTrackPanel(
                             ) {
                                 Text(
                                     text = label,
-                                    color = HausMuted,
+                                    color = HausColors.current.muted,
                                     fontSize = 12.sp,
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.Medium,
                                 )
                                 Text(
                                     text = value,
-                                    color = HausInk,
+                                    color = HausColors.current.ink,
                                     fontSize = 12.sp,
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.Bold,
@@ -354,7 +354,7 @@ private fun DeveloperTrackPanel(
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 text = "ALL PROPERTIES (${properties.size})",
-                                color = HausInk,
+                                color = HausColors.current.ink,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 1.2.sp,
@@ -366,14 +366,14 @@ private fun DeveloperTrackPanel(
                                 ) {
                                     Text(
                                         text = key,
-                                        color = HausMuted,
+                                        color = HausColors.current.muted,
                                         fontSize = 11.sp,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Medium,
                                     )
                                     Text(
                                         text = value,
-                                        color = HausInk,
+                                        color = HausColors.current.ink,
                                         fontSize = 11.sp,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,

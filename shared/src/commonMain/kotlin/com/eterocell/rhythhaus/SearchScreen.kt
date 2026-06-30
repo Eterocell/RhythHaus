@@ -53,10 +53,10 @@ fun SearchScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(HausPaper)
+            .background(HausColors.current.paper)
             .clickable(enabled = false, onClick = {}),
     ) {
-        Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
+        Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -72,20 +72,20 @@ fun SearchScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
-                            .background(HausInk)
+                            .background(HausColors.current.ink)
                             .hausClickable(onClick = onDismiss)
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     ) {
                         Text(
                             "< Back",
-                            color = HausPaper,
+                            color = HausColors.current.paper,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 1.2.sp,
                         )
                     }
                     Spacer(Modifier.weight(1f))
-                    Text("Search", color = HausInk, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                    Text("Search", color = HausColors.current.ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
                 }
 
                 // Search field
@@ -93,14 +93,14 @@ fun SearchScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .border(1.dp, HausMuted.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                        .background(HausPaper)
+                        .border(1.dp, HausColors.current.muted.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .background(HausColors.current.paper)
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                 ) {
                     if (query.isEmpty()) {
                         Text(
                             "Track, artist, or album...",
-                            color = HausMuted,
+                            color = HausColors.current.muted,
                             fontSize = 15.sp,
                         )
                     }
@@ -109,8 +109,8 @@ fun SearchScreen(
                         onValueChange = { query = it },
                         modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                         singleLine = true,
-                        textStyle = TextStyle(color = HausInk, fontSize = 15.sp),
-                        cursorBrush = SolidColor(HausPulse),
+                        textStyle = TextStyle(color = HausColors.current.ink, fontSize = 15.sp),
+                        cursorBrush = SolidColor(HausColors.current.pulse),
                     )
                 }
 
@@ -118,14 +118,14 @@ fun SearchScreen(
                 if (query.isNotBlank()) {
                     Text(
                         text = "${filtered.size} result${if (filtered.size != 1) "s" else ""}",
-                        color = HausMuted,
+                        color = HausColors.current.muted,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     )
                     if (filtered.isEmpty()) {
                         Text(
                             text = "No tracks match \"$query\"",
-                            color = HausMuted,
+                            color = HausColors.current.muted,
                             fontSize = 15.sp,
                             modifier = Modifier.padding(top = 24.dp),
                         )
@@ -164,7 +164,7 @@ private fun SearchResultRow(
     Surface(
         modifier = Modifier.fillMaxWidth().hausClickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        color = if (isNowPlaying) HausPanel else HausPaper,
+        color = if (isNowPlaying) HausColors.current.panel else HausColors.current.paper,
     ) {
         Row(
             modifier = Modifier.padding(12.dp, 10.dp),
@@ -173,14 +173,14 @@ private fun SearchResultRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = track.title,
-                    color = if (isNowPlaying && isPlaying) HausPulse else HausInk,
+                    color = if (isNowPlaying && isPlaying) HausColors.current.pulse else HausColors.current.ink,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                 )
                 Text(
                     text = listOfNotNull(track.artist, track.album).joinToString(" · "),
-                    color = HausMuted,
+                    color = HausColors.current.muted,
                     fontSize = 12.sp,
                     maxLines = 1,
                 )

@@ -182,22 +182,22 @@ internal fun MusicProgressScrubber(
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(999.dp))
-                    .background(HausLine),
+                    .background(HausColors.current.line),
             )
             Box(
                 modifier = Modifier
                     .fillMaxWidth(displayFraction)
                     .height(6.dp)
                     .clip(RoundedCornerShape(999.dp))
-                    .background(HausPulse),
+                    .background(HausColors.current.pulse),
             )
             Box(
                 modifier = Modifier
                     .offset(x = thumbOffset.coerceAtLeast(0.dp))
                     .size(14.dp)
                     .clip(CircleShape)
-                    .background(HausPulse)
-                    .border(width = 2.dp, color = HausPaper, shape = CircleShape),
+                    .background(HausColors.current.pulse)
+                    .border(width = 2.dp, color = HausColors.current.paper, shape = CircleShape),
             )
         }
         Row(
@@ -206,13 +206,13 @@ internal fun MusicProgressScrubber(
         ) {
             Text(
                 text = formatMillis(displayPositionMillis),
-                color = HausMuted,
+                color = HausColors.current.muted,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 text = formatMillis(durationMillis),
-                color = HausMuted,
+                color = HausColors.current.muted,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
             )

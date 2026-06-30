@@ -45,4 +45,14 @@ class ThemeTest {
             RhythHausThemeMode.settingsOptions,
         )
     }
+
+    @Test
+    fun settingsOptionLabelsAndDescriptionsAreStable() {
+        assertEquals("System", RhythHausThemeMode.System.displayLabel)
+        assertEquals("Follow system appearance", RhythHausThemeMode.System.displayDescription)
+        assertEquals("Light", RhythHausThemeMode.Light.displayLabel)
+        assertEquals("Use light appearance", RhythHausThemeMode.Light.displayDescription)
+        assertEquals("Dark", RhythHausThemeMode.Dark.displayLabel)
+        assertEquals("Use dark appearance", RhythHausThemeMode.Dark.displayDescription)
+    }
 }

@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -93,6 +94,7 @@ import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
 import com.eterocell.rhythhaus.taglib.TagMetadata as RawTagMetadata
 
@@ -119,6 +121,8 @@ fun App() {
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
+    val themePreferenceStore = remember { createThemePreferenceStore() }
+    val selectedThemeMode by themePreferenceStore.selectedThemeMode.collectAsState(RhythHausThemeMode.System)
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
         when (result) {
             is PlatformFolderPickResult.Success -> {
@@ -150,7 +154,7 @@ fun App() {
 
     val snapshot = remember(libraryTracks) { librarySnapshot(libraryTracks) }
 
-    RhythHausTheme {
+    RhythHausTheme(selectedThemeMode = selectedThemeMode) {
         LibraryHomeScreen(
             snapshot = snapshot,
             libraryTracks = libraryTracks,
@@ -169,26 +173,57 @@ fun App() {
 }
 
 @Composable
-private fun RhythHausTheme(content: @Composable () -> Unit) {
-    MiuixTheme(
-        colors = lightColorScheme(
-            primary = HausInk,
-            onPrimary = HausPaper,
-            secondary = HausPulse,
-            onSecondary = HausPaper,
-            background = HausPaper,
-            onBackground = HausInk,
-            surface = HausPanel,
-            onSurface = HausInk,
-            surfaceContainer = HausPanel,
-            onSurfaceContainer = HausInk,
-            secondaryVariant = HausPulse,
-            onSecondaryVariant = HausPaper,
-            disabledSecondaryVariant = HausPulse.copy(alpha = 0.28f),
-            disabledOnSecondaryVariant = HausPaper.copy(alpha = 0.28f),
-        ),
-        content = content,
+private fun RhythHausTheme(
+    selectedThemeMode: RhythHausThemeMode,
+    content: @Composable () -> Unit,
+) {
+    val colors = resolveHausPalette(
+        mode = selectedThemeMode,
+        systemIsDark = systemPrefersDarkTheme(),
     )
+    val colorScheme = if (colors == DarkHausPalette) {
+        darkColorScheme(
+            primary = colors.ink,
+            onPrimary = colors.paper,
+            secondary = colors.pulse,
+            onSecondary = colors.paper,
+            background = colors.paper,
+            onBackground = colors.ink,
+            surface = colors.panel,
+            onSurface = colors.ink,
+            surfaceContainer = colors.panel,
+            onSurfaceContainer = colors.ink,
+            secondaryVariant = colors.pulse,
+            onSecondaryVariant = colors.paper,
+            disabledSecondaryVariant = colors.pulse.copy(alpha = 0.28f),
+            disabledOnSecondaryVariant = colors.paper.copy(alpha = 0.28f),
+        )
+    } else {
+        lightColorScheme(
+            primary = colors.ink,
+            onPrimary = colors.paper,
+            secondary = colors.pulse,
+            onSecondary = colors.paper,
+            background = colors.paper,
+            onBackground = colors.ink,
+            surface = colors.panel,
+            onSurface = colors.ink,
+            surfaceContainer = colors.panel,
+            onSurfaceContainer = colors.ink,
+            secondaryVariant = colors.pulse,
+            onSecondaryVariant = colors.paper,
+            disabledSecondaryVariant = colors.pulse.copy(alpha = 0.28f),
+            disabledOnSecondaryVariant = colors.paper.copy(alpha = 0.28f),
+        )
+    }
+
+    MiuixTheme(
+        colors = colorScheme,
+    ) {
+        CompositionLocalProvider(LocalHausColors provides colors) {
+            content()
+        }
+    }
 }
 
 @Composable
@@ -320,7 +355,7 @@ fun LibraryHomeScreen(
         LibraryRoute.ClearLibraryDialog,
         -> {
             Box(modifier = modifier.fillMaxSize()) {
-                Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
+                Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
                     LazyColumn(
                         modifier = Modifier
                             .safeContentPadding()
@@ -415,19 +450,19 @@ fun LibraryHomeScreen(
             Card(
                 modifier = Modifier.fillMaxWidth().padding(24.dp),
                 cornerRadius = 24.dp,
-                colors = CardDefaults.defaultColors(color = HausPanel),
+                colors = CardDefaults.defaultColors(color = HausColors.current.panel),
             ) {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text(
                         text = "Clear Library",
-                        color = HausInk,
+                        color = HausColors.current.ink,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Black,
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
                         text = "This will remove all scanned tracks. Your music files are not deleted. Continue?",
-                        color = HausMuted,
+                        color = HausColors.current.muted,
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
                     )
@@ -441,8 +476,8 @@ fun LibraryHomeScreen(
                             modifier = Modifier.height(36.dp),
                             cornerRadius = 12.dp,
                             colors = ButtonDefaults.buttonColors(
-                                color = HausMuted.copy(alpha = 0.15f),
-                                contentColor = HausMuted,
+                                color = HausColors.current.muted.copy(alpha = 0.15f),
+                                contentColor = HausColors.current.muted,
                             ),
                         ) {
                             Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.Medium)
@@ -456,8 +491,8 @@ fun LibraryHomeScreen(
                             modifier = Modifier.height(36.dp),
                             cornerRadius = 12.dp,
                             colors = ButtonDefaults.buttonColors(
-                                color = HausPulse,
-                                contentColor = HausPaper,
+                                color = HausColors.current.pulse,
+                                contentColor = HausColors.current.paper,
                             ),
                         ) {
                             Text("Clear", fontSize = 13.sp, fontWeight = FontWeight.Medium)
@@ -503,7 +538,7 @@ private fun HeaderSection(snapshot: LibrarySnapshot) {
     ) {
         Text(
             text = snapshot.title,
-            color = HausInk,
+            color = HausColors.current.ink,
             fontSize = 44.sp,
             lineHeight = 42.sp,
             fontWeight = FontWeight.Black,
@@ -512,7 +547,7 @@ private fun HeaderSection(snapshot: LibrarySnapshot) {
         )
         Text(
             text = snapshot.subtitle,
-            color = HausMuted,
+            color = HausColors.current.muted,
             fontSize = 16.sp,
             lineHeight = 22.sp,
             fontWeight = FontWeight.Medium,
@@ -530,7 +565,7 @@ private fun ImportAudioCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 24.dp,
-        colors = CardDefaults.defaultColors(color = HausPanel),
+        colors = CardDefaults.defaultColors(color = HausColors.current.panel),
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -538,13 +573,13 @@ private fun ImportAudioCard(
         ) {
             Text(
                 text = if (hasImportedTracks) importCardTitleWithTracks else importCardTitle,
-                color = HausInk,
+                color = HausColors.current.ink,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Black,
             )
             Text(
                 text = importMessage ?: importCardDescription,
-                color = HausMuted,
+                color = HausColors.current.muted,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
                 fontWeight = FontWeight.Medium,
@@ -558,10 +593,10 @@ private fun ImportAudioCard(
                     .semantics { contentDescription = "Add music folder" },
                 cornerRadius = 16.dp,
                 colors = ButtonDefaults.buttonColors(
-                    color = HausInk,
-                    contentColor = HausPaper,
-                    disabledColor = HausMuted.copy(alpha = 0.28f),
-                    disabledContentColor = HausMuted,
+                    color = HausColors.current.ink,
+                    contentColor = HausColors.current.paper,
+                    disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
+                    disabledContentColor = HausColors.current.muted,
                 ),
             ) {
                 Text(if (folderPickerLauncher.isAvailable) "Add music folder" else "Folder picker not available yet", fontWeight = FontWeight.Black)
@@ -572,8 +607,8 @@ private fun ImportAudioCard(
                     modifier = Modifier.fillMaxWidth().height(40.dp),
                     cornerRadius = 12.dp,
                     colors = ButtonDefaults.buttonColors(
-                        color = HausPulse.copy(alpha = 0.15f),
-                        contentColor = HausPulse,
+                        color = HausColors.current.pulse.copy(alpha = 0.15f),
+                        contentColor = HausColors.current.pulse,
                     ),
                 ) {
                     Text("Clear Library", fontSize = 13.sp, fontWeight = FontWeight.Black)
@@ -606,7 +641,7 @@ private fun NowPlayingCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 32.dp,
-        colors = CardDefaults.defaultColors(color = HausInk),
+        colors = CardDefaults.defaultColors(color = HausColors.current.ink),
     ) {
         Column(
             modifier = Modifier
@@ -697,7 +732,7 @@ private fun NowPlayingCard(
                     cornerRadius = 18.dp,
                     colors = ButtonDefaults.buttonColors(
                         color = Color.White,
-                        contentColor = HausInk,
+                        contentColor = HausColors.current.ink,
                     ),
                 ) {
                     Text(if (playbackState.isPlaying) "Pause" else "Play", fontWeight = FontWeight.Black)
@@ -756,7 +791,7 @@ private fun DeveloperPanel(
     Card(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 24.dp,
-        colors = CardDefaults.defaultColors(color = HausPanelStrong),
+        colors = CardDefaults.defaultColors(color = HausColors.current.panelStrong),
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -773,21 +808,21 @@ private fun DeveloperPanel(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = "DEV · TagLib metadata",
-                        color = HausInk,
+                        color = HausColors.current.ink,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.6.sp,
                     )
                     Text(
                         text = "${libraryTracks.size} track(s) parsed natively",
-                        color = HausMuted,
+                        color = HausColors.current.muted,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     )
                 }
                 Text(
                     text = if (expanded) "Hide" else "Show",
-                    color = HausPulse,
+                    color = HausColors.current.pulse,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Black,
                 )
@@ -798,7 +833,7 @@ private fun DeveloperPanel(
                     if (libraryTracks.isEmpty()) {
                         Text(
                             text = "Import local audio to inspect all TagLib metadata fields plus the full property map (composer, copyright, BPM, ISRC, custom tags, and more).",
-                            color = HausMuted,
+                            color = HausColors.current.muted,
                             fontSize = 13.sp,
                             lineHeight = 18.sp,
                             fontWeight = FontWeight.Medium,
@@ -833,14 +868,14 @@ private fun DeveloperMetadataRow(track: LibraryTrack, tagLibReader: TagLibReader
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(HausPaper)
-            .border(1.dp, HausLine, RoundedCornerShape(16.dp))
+            .background(HausColors.current.paper)
+            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
             text = track.displayName,
-            color = HausInk,
+            color = HausColors.current.ink,
             fontSize = 14.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1,
@@ -848,7 +883,7 @@ private fun DeveloperMetadataRow(track: LibraryTrack, tagLibReader: TagLibReader
         )
         Text(
             text = "source: ${track.audioSource.devLabel}",
-            color = HausMuted,
+            color = HausColors.current.muted,
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
             maxLines = 2,
@@ -857,7 +892,7 @@ private fun DeveloperMetadataRow(track: LibraryTrack, tagLibReader: TagLibReader
         if (rawResult == null) {
             Text(
                 text = "URI source — TagLib requires a filesystem path",
-                color = HausPulse,
+                color = HausColors.current.pulse,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -871,14 +906,14 @@ private fun DeveloperMetadataRow(track: LibraryTrack, tagLibReader: TagLibReader
                         ) {
                             Text(
                                 text = label,
-                                color = HausMuted,
+                                color = HausColors.current.muted,
                                 fontSize = 12.sp,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Medium,
                             )
                             Text(
                                 text = value,
-                                color = HausInk,
+                                color = HausColors.current.ink,
                                 fontSize = 12.sp,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
@@ -894,7 +929,7 @@ private fun DeveloperMetadataRow(track: LibraryTrack, tagLibReader: TagLibReader
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = "ALL PROPERTIES (${properties.size})",
-                            color = HausInk,
+                            color = HausColors.current.ink,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 1.2.sp,
@@ -906,7 +941,7 @@ private fun DeveloperMetadataRow(track: LibraryTrack, tagLibReader: TagLibReader
                             ) {
                                 Text(
                                     text = key,
-                                    color = HausMuted,
+                                    color = HausColors.current.muted,
                                     fontSize = 11.sp,
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.Medium,
@@ -916,7 +951,7 @@ private fun DeveloperMetadataRow(track: LibraryTrack, tagLibReader: TagLibReader
                                 )
                                 Text(
                                     text = value,
-                                    color = HausInk,
+                                    color = HausColors.current.ink,
                                     fontSize = 11.sp,
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.Bold,
@@ -933,14 +968,14 @@ private fun DeveloperMetadataRow(track: LibraryTrack, tagLibReader: TagLibReader
 
                 is TagReadResult.Unsupported -> Text(
                     text = "native: unsupported — ${rawResult.reason}",
-                    color = HausPulse,
+                    color = HausColors.current.pulse,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                 )
 
                 is TagReadResult.Failed -> Text(
                     text = "native: failed — ${rawResult.reason}",
-                    color = HausPulse,
+                    color = HausColors.current.pulse,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -992,14 +1027,14 @@ private fun SectionLabel(title: String, subtitle: String?) {
     ) {
         Text(
             text = title,
-            color = HausInk,
+            color = HausColors.current.ink,
             fontSize = 20.sp,
             fontWeight = FontWeight.Black,
         )
         if (subtitle != null) {
             Text(
                 text = subtitle,
-                color = HausMuted,
+                color = HausColors.current.muted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -1019,8 +1054,8 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(if (selected) HausPanelStrong else HausPanel.copy(alpha = 0.54f))
-            .border(1.dp, if (selected) HausInk else HausLine, RoundedCornerShape(24.dp))
+            .background(if (selected) HausColors.current.panelStrong else HausColors.current.panel.copy(alpha = 0.54f))
+            .border(1.dp, if (selected) HausColors.current.ink else HausColors.current.line, RoundedCornerShape(24.dp))
             .hausClickable(onClick = onClick)
             .semantics { contentDescription = "Select track ${track.title}" }
             .padding(14.dp),
@@ -1031,7 +1066,7 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
                 text = track.title,
-                color = HausInk,
+                color = HausColors.current.ink,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black,
                 maxLines = 1,
@@ -1039,7 +1074,7 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
             )
             Text(
                 text = "${track.artist} · ${track.album}",
-                color = HausMuted,
+                color = HausColors.current.muted,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
@@ -1048,7 +1083,7 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
             AnimatedVisibility(visible = selected) {
                 Text(
                     text = "queued on shared UI ${(selectionAlpha * 100).toInt()}%",
-                    color = HausPulse,
+                    color = HausColors.current.pulse,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
                 )
@@ -1056,7 +1091,7 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
         }
         Text(
             text = formatDuration(track.durationSeconds),
-            color = if (selected) HausInk else HausMuted,
+            color = if (selected) HausColors.current.ink else HausColors.current.muted,
             fontSize = 13.sp,
             fontWeight = FontWeight.Black,
         )
@@ -1135,7 +1170,7 @@ private fun DrillDownView(
             .fillMaxSize()
             .leftEdgeSwipeBack(onBack),
     ) {
-        Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
+        Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
             val listState = rememberLazyListState()
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(
@@ -1238,7 +1273,7 @@ private fun DrillDownScrollbar(
                 .width(6.dp)
                 .height(thumbHeight)
                 .clip(RoundedCornerShape(3.dp))
-                .background(HausMuted.copy(alpha = 0.42f)),
+                .background(HausColors.current.muted.copy(alpha = 0.42f)),
         )
     }
 }
@@ -1262,13 +1297,13 @@ private fun DrillDownHeader(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .background(HausInk)
+                    .background(HausColors.current.ink)
                     .hausClickable(onClick = onBack)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 Text(
                     text = "← BACK",
-                    color = HausPaper,
+                    color = HausColors.current.paper,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 1.8.sp,
@@ -1276,14 +1311,14 @@ private fun DrillDownHeader(
             }
             Text(
                 text = subtitle,
-                color = HausMuted,
+                color = HausColors.current.muted,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
             )
         }
         Text(
             text = title,
-            color = HausInk,
+            color = HausColors.current.ink,
             fontSize = 44.sp,
             lineHeight = 42.sp,
             fontWeight = FontWeight.Black,
@@ -1310,13 +1345,13 @@ private fun BrowseModePicker(
                 cornerRadius = 20.dp,
                 colors = if (isSelected) {
                     ButtonDefaults.buttonColors(
-                        color = HausInk,
-                        contentColor = HausPaper,
+                        color = HausColors.current.ink,
+                        contentColor = HausColors.current.paper,
                     )
                 } else {
                     ButtonDefaults.buttonColors(
-                        color = HausPanel,
-                        contentColor = HausInk,
+                        color = HausColors.current.panel,
+                        contentColor = HausColors.current.ink,
                     )
                 },
             ) {
@@ -1337,7 +1372,7 @@ private fun AlbumCard(
             .hausClickable(onClick = onClick)
             .semantics { contentDescription = "Album ${album.album}" },
         cornerRadius = 20.dp,
-        colors = CardDefaults.defaultColors(color = HausPanel),
+        colors = CardDefaults.defaultColors(color = HausColors.current.panel),
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -1353,7 +1388,7 @@ private fun AlbumCard(
                     .clip(RoundedCornerShape(14.dp))
                     .background(
                         Brush.linearGradient(
-                            listOf(HausInk, HausPulse),
+                            listOf(HausColors.current.ink, HausColors.current.pulse),
                         ),
                     ),
                 contentAlignment = Alignment.Center,
@@ -1376,7 +1411,7 @@ private fun AlbumCard(
             }
             Text(
                 text = album.album,
-                color = HausInk,
+                color = HausColors.current.ink,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Black,
                 maxLines = 2,
@@ -1384,7 +1419,7 @@ private fun AlbumCard(
             )
             Text(
                 text = if (album.artist != null) "${album.artist} · ${album.tracks.size} tracks" else "${album.tracks.size} tracks",
-                color = HausMuted,
+                color = HausColors.current.muted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
@@ -1403,8 +1438,8 @@ private fun ArtistRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(HausPanel.copy(alpha = 0.54f))
-            .border(1.dp, HausLine, RoundedCornerShape(24.dp))
+            .background(HausColors.current.panel.copy(alpha = 0.54f))
+            .border(1.dp, HausColors.current.line, RoundedCornerShape(24.dp))
             .hausClickable(onClick = onClick)
             .semantics { contentDescription = "Artist ${artist.artist}" }
             .padding(14.dp),
@@ -1420,7 +1455,7 @@ private fun ArtistRow(
                 .clip(CircleShape)
                 .background(
                     Brush.linearGradient(
-                        listOf(HausInk, HausPulse),
+                        listOf(HausColors.current.ink, HausColors.current.pulse),
                     ),
                 ),
             contentAlignment = Alignment.Center,
@@ -1444,7 +1479,7 @@ private fun ArtistRow(
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
                 text = artist.artist,
-                color = HausInk,
+                color = HausColors.current.ink,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black,
                 maxLines = 1,
@@ -1452,7 +1487,7 @@ private fun ArtistRow(
             )
             Text(
                 text = "${artist.albumCount} albums · ${artist.tracks.size} tracks",
-                color = HausMuted,
+                color = HausColors.current.muted,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
@@ -1483,12 +1518,12 @@ internal fun ScanningCard(
     Card(
         modifier = Modifier.fillMaxWidth().padding(12.dp),
         cornerRadius = 12.dp,
-        colors = CardDefaults.defaultColors(color = HausPanel),
+        colors = CardDefaults.defaultColors(color = HausColors.current.panel),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text("Scanning…", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = HausInk)
+            Text("Scanning…", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = HausColors.current.ink)
             Spacer(Modifier.height(6.dp))
-            Text("$foldersVisited folders • $filesVisited files • $tracksAdded tracks", fontSize = 12.sp, color = HausInk.copy(alpha = 0.7f))
+            Text("$foldersVisited folders • $filesVisited files • $tracksAdded tracks", fontSize = 12.sp, color = HausColors.current.ink.copy(alpha = 0.7f))
             Spacer(Modifier.height(6.dp))
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth(),
@@ -1498,7 +1533,7 @@ internal fun ScanningCard(
                 onClick = onCancel,
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = 8.dp,
-                colors = ButtonDefaults.buttonColors(color = HausInk, contentColor = HausPaper),
+                colors = ButtonDefaults.buttonColors(color = HausColors.current.ink, contentColor = HausColors.current.paper),
             ) {
                 Text("Cancel", fontSize = 12.sp)
             }

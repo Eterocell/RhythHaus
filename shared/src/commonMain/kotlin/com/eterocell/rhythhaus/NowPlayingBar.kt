@@ -57,7 +57,7 @@ fun NowPlayingBar(
             .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onExpand() }),
         shape = RoundedCornerShape(20.dp),
         shadowElevation = 8.dp,
-        color = HausPanel,
+        color = HausColors.current.panel,
     ) {
         Column {
             // Mini progress bar
@@ -65,13 +65,13 @@ fun NowPlayingBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(3.dp)
-                    .background(HausLine),
+                    .background(HausColors.current.line),
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(progressFraction)
                         .fillMaxHeight()
-                        .background(HausPulse),
+                        .background(HausColors.current.pulse),
                 )
             }
 
@@ -116,7 +116,7 @@ fun NowPlayingBar(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        color = HausInk,
+                        color = HausColors.current.ink,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                         maxLines = 1,
@@ -124,7 +124,7 @@ fun NowPlayingBar(
                     )
                     Text(
                         text = subtitle,
-                        color = HausMuted,
+                        color = HausColors.current.muted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
@@ -137,7 +137,7 @@ fun NowPlayingBar(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(HausInk)
+                        .background(HausColors.current.ink)
                         .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onPlayPause() }),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -149,7 +149,7 @@ fun NowPlayingBar(
                         } else {
                             "▶"
                         },
-                        color = HausPaper,
+                        color = HausColors.current.paper,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                     )

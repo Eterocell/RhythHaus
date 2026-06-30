@@ -1,6 +1,8 @@
 package com.eterocell.rhythhaus
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,6 +34,28 @@ class ThemePreferenceStoreJvmTest {
 
             store.setSelectedThemeMode(RhythHausThemeMode.Light)
             assertEquals(RhythHausThemeMode.Light, store.selectedThemeMode.first())
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    @Test
+    fun themePreferenceStoreFallsBackToSystemForInvalidPersistedValue() = runBlocking {
+        val tempFile = File.createTempFile("rhythhaus-theme-invalid", ".preferences_pb").apply { delete() }
+        try {
+            val dataStore = PreferenceDataStoreFactory.createWithPath(
+                corruptionHandler = null,
+                migrations = emptyList(),
+                scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+                produceFile = { tempFile.toOkioPath() },
+            )
+            val store = DataStoreThemePreferenceStore(dataStore)
+
+            dataStore.edit { preferences ->
+                preferences[stringPreferencesKey("theme_mode")] = "neon"
+            }
+
+            assertEquals(RhythHausThemeMode.System, store.selectedThemeMode.first())
         } finally {
             tempFile.delete()
         }

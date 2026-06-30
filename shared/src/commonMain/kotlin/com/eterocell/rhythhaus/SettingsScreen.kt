@@ -18,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
@@ -43,10 +42,10 @@ fun SettingsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(HausPaper)
+            .background(HausColors.current.paper)
             .clickable(enabled = false, onClick = {}),
     ) {
-        Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
+        Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -62,13 +61,13 @@ fun SettingsScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
-                            .background(HausInk)
+                            .background(HausColors.current.ink)
                             .hausClickable(onClick = onDismiss)
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     ) {
                         Text(
                             "< Back",
-                            color = HausPaper,
+                            color = HausColors.current.paper,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 1.2.sp,
@@ -77,7 +76,7 @@ fun SettingsScreen(
                     Spacer(Modifier.weight(1f))
                     Text(
                         text = "Settings",
-                        color = HausInk,
+                        color = HausColors.current.ink,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Black,
                     )
@@ -86,7 +85,7 @@ fun SettingsScreen(
                 // Manage Music section
                 Text(
                     text = "Manage Music",
-                    color = HausInk,
+                    color = HausColors.current.ink,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black,
                 )
@@ -112,10 +111,10 @@ fun SettingsScreen(
                         .height(48.dp),
                     cornerRadius = 16.dp,
                     colors = ButtonDefaults.buttonColors(
-                        color = HausInk,
-                        contentColor = HausPaper,
-                        disabledColor = HausMuted.copy(alpha = 0.28f),
-                        disabledContentColor = HausMuted,
+                        color = HausColors.current.ink,
+                        contentColor = HausColors.current.paper,
+                        disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
+                        disabledContentColor = HausColors.current.muted,
                     ),
                 ) {
                     Text(
@@ -128,7 +127,7 @@ fun SettingsScreen(
                 importMessage?.let { msg ->
                     Text(
                         text = msg,
-                        color = HausMuted,
+                        color = HausColors.current.muted,
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
                         fontWeight = FontWeight.Medium,
@@ -142,8 +141,8 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth().height(40.dp),
                         cornerRadius = 12.dp,
                         colors = ButtonDefaults.buttonColors(
-                            color = HausPulse.copy(alpha = 0.15f),
-                            contentColor = HausPulse,
+                            color = HausColors.current.pulse.copy(alpha = 0.15f),
+                            contentColor = HausColors.current.pulse,
                         ),
                     ) {
                         Text("Clear Library", fontSize = 13.sp, fontWeight = FontWeight.Black)

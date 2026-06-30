@@ -27,6 +27,20 @@ val RhythHausThemeMode.serialized: String
         RhythHausThemeMode.Dark -> "dark"
     }
 
+val RhythHausThemeMode.displayLabel: String
+    get() = when (this) {
+        RhythHausThemeMode.System -> "System"
+        RhythHausThemeMode.Light -> "Light"
+        RhythHausThemeMode.Dark -> "Dark"
+    }
+
+val RhythHausThemeMode.displayDescription: String
+    get() = when (this) {
+        RhythHausThemeMode.System -> "Follow system appearance"
+        RhythHausThemeMode.Light -> "Use light appearance"
+        RhythHausThemeMode.Dark -> "Use dark appearance"
+    }
+
 data class HausColorPalette(
     val ink: Color,
     val paper: Color,
