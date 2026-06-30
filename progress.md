@@ -25,7 +25,7 @@ Changed files:
 - `progress.md`: handoff evidence.
 Next owner: OpenSpec/user for archive or manual UI visual validation if desired.
 Blockers: none.
-Commit: pending semantic commit with message `fix: polish selected track row copy`.
+Commit: `d3255b6 fix: polish selected track row copy`.
 
 ## Handoff - 2026-06-30 standardize back navigation
 
