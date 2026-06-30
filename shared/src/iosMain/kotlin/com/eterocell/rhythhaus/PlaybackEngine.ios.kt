@@ -15,6 +15,7 @@ import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.setActive
 import platform.Foundation.NSURL
+import platform.Foundation.NSThread
 import platform.MediaPlayer.MPMediaItemPropertyAlbumTitle
 import platform.MediaPlayer.MPMediaItemPropertyArtist
 import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
@@ -29,6 +30,14 @@ import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 
 actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = IOSPlaybackEngine()
 
+internal enum class IOSTrackSwitchTeardown {
+    SoftFade,
+}
+
+internal val iosTrackSwitchTeardown: IOSTrackSwitchTeardown = IOSTrackSwitchTeardown.SoftFade
+internal const val IOS_TRACK_SWITCH_FADE_SECONDS: Double = 0.05
+internal const val IOS_TRACK_SWITCH_SILENT_VOLUME: Float = 0.0f
+
 @OptIn(ExperimentalForeignApi::class)
 private class IOSPlaybackEngine : PlatformPlaybackEngine {
     override var listener: PlaybackEngineListener? = null
@@ -41,7 +50,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     private var remoteCommandsRegistered: Boolean = false
 
     override fun load(track: PlayableTrack) {
-        release()
+        releaseForTrackSwitch()
         log.d { "Loading track: ${track.title}" }
         listener?.onPlaybackStatus(PlaybackStatus.Loading)
         configureAudioSession()
@@ -148,6 +157,18 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         durationMillis = null
         MPNowPlayingInfoCenter.defaultCenter().playbackState = 0uL
         MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
+    }
+
+    private fun releaseForTrackSwitch() {
+        progressJob?.cancel()
+        player?.let { currentPlayer ->
+            currentPlayer.setVolume(IOS_TRACK_SWITCH_SILENT_VOLUME, fadeDuration = IOS_TRACK_SWITCH_FADE_SECONDS)
+            NSThread.sleepForTimeInterval(IOS_TRACK_SWITCH_FADE_SECONDS)
+            currentPlayer.stop()
+        }
+        player = null
+        loadedTrack = null
+        durationMillis = null
     }
 
     private fun configureAudioSession() {

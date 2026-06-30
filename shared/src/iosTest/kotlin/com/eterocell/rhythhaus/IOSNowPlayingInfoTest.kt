@@ -35,4 +35,11 @@ class IOSNowPlayingInfoTest {
             "iOS playback load/configuration work should avoid Main because AVAudioSession.setCategory, setActive, and AVAudioPlayer.prepareToPlay can block the UI thread.",
         )
     }
+
+    @Test
+    fun iosTrackSwitchUsesSoftPlayerTeardown() {
+        assertEquals(IOSTrackSwitchTeardown.SoftFade, iosTrackSwitchTeardown)
+        assertEquals(0.05, IOS_TRACK_SWITCH_FADE_SECONDS)
+        assertEquals(0.0f, IOS_TRACK_SWITCH_SILENT_VOLUME)
+    }
 }

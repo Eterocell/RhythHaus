@@ -20,6 +20,18 @@ Next owner: user for manual iOS runtime validation that warnings are gone during
 Blockers: none for automated verification.
 
 
+
+## Handoff - 2026-06-30 iOS track-switch blast beep mitigation
+
+Route: systematic-debugging
+Owner: implementation
+Input: Possible blast/beep artifact when switching between tracks.
+Root cause hypothesis: iOS track switching called `release()` from `load()`, which immediately stopped the current `AVAudioPlayer` while the next player was being prepared. Abrupt stop/disposal at a non-zero waveform crossing can produce an audible transient, especially with fast auto-advance/skip.
+Output: Added a dedicated iOS track-switch teardown path that fades the current `AVAudioPlayer` volume to silence over 50 ms before stopping it, without clearing Now Playing state like a full user-facing release. Added iOS regression coverage for the soft teardown constants/strategy.
+Verification: Targeted iOS regression first failed to compile before the production symbols existed, then passed after implementation. `./gradlew :shared:iosSimulatorArm64Test --configuration-cache` -> BUILD SUCCESSFUL. `./init.sh` -> BUILD SUCCESSFUL, including shared JVM tests, desktop compile, Android debug build, Xcode 26.6 Build 17F113, and iOS simulator tests.
+Next owner: user for manual iOS runtime listening test while rapidly skipping and auto-advancing between real tracks.
+Blockers: none for automated verification.
+
 ## Subagent-driven execution outcome
 
 Used Subagent-Driven Development on docs/superpowers/plans/2026-06-11-taglib-metadata-module.md (native TagLib wrapper plan). Assessment subagent confirmed: Tasks 1-3 (module/API, C ABI shim, JVM/macOS JNI) are complete with pinned upstream TagLib v2.3 FetchContent builds and real fixture tests passing; Tasks 4/5 Android/iOS remaining as honest unsupported scaffolds; Task 6 shared integration complete; Task 7 OpenSpec/docs complete.
@@ -748,5 +760,6 @@ Verification:
 - `./gradlew syncIosVersionXcconfig --configuration-cache`: BUILD SUCCESSFUL.
 Next owner: user for future version bumps in `gradle.properties`; run `./gradlew syncIosVersionXcconfig` before opening/releasing from Xcode if the xcconfig is stale.
 Blockers: none.
+
 
 
