@@ -8,6 +8,18 @@ Three-commit bugfix series on main: Clear Library font, NowPlayingScreen next-tr
 Workflow route: openspec+superpowers
 State source of truth: OpenSpec for durable product changes; Superpowers for clarification/brainstorming/task execution discipline; this file for session continuity and verification evidence.
 
+## Handoff - 2026-06-30 iOS audio-session UI unresponsiveness warning
+
+Route: systematic-debugging
+Owner: implementation
+Input: Xcode/runtime warnings in `PlaybackEngine.ios.kt` at prepare/configure audio-session sites: `AVAudioPlayer.prepareToPlay`, `AVAudioSession.setCategory`, and `AVAudioSession.setActive` can lead to UI unresponsiveness when called on the main thread.
+Root cause: shared `PlaybackController` engine work was already asynchronous, but the iOS `playbackEngineDispatcher` actual still used `Dispatchers.Main`, so iOS backend load/configuration work still ran the blocking Apple audio calls on the UI thread.
+Output: Added iOS regression coverage in `shared/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSNowPlayingInfoTest.kt` asserting iOS playback engine work does not use `Dispatchers.Main`; changed `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackDispatchers.ios.kt` to `Dispatchers.Default` while Android stays Main and JVM stays IO.
+Verification: Targeted iOS dispatcher regression first failed, then passed. `./gradlew :shared:iosSimulatorArm64Test --configuration-cache` -> BUILD SUCCESSFUL. `./init.sh` -> BUILD SUCCESSFUL, including shared JVM tests, desktop compile, Android debug build, Xcode 26.6 Build 17F113, and iOS simulator tests.
+Next owner: user for manual iOS runtime validation that warnings are gone during real playback load/start.
+Blockers: none for automated verification.
+
+
 ## Subagent-driven execution outcome
 
 Used Subagent-Driven Development on docs/superpowers/plans/2026-06-11-taglib-metadata-module.md (native TagLib wrapper plan). Assessment subagent confirmed: Tasks 1-3 (module/API, C ABI shim, JVM/macOS JNI) are complete with pinned upstream TagLib v2.3 FetchContent builds and real fixture tests passing; Tasks 4/5 Android/iOS remaining as honest unsupported scaffolds; Task 6 shared integration complete; Task 7 OpenSpec/docs complete.
@@ -736,4 +748,5 @@ Verification:
 - `./gradlew syncIosVersionXcconfig --configuration-cache`: BUILD SUCCESSFUL.
 Next owner: user for future version bumps in `gradle.properties`; run `./gradlew syncIosVersionXcconfig` before opening/releasing from Xcode if the xcconfig is stale.
 Blockers: none.
+
 

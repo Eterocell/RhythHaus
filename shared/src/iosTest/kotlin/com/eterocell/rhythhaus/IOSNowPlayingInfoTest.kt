@@ -1,7 +1,9 @@
 package com.eterocell.rhythhaus
 
+import kotlinx.coroutines.Dispatchers
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 
 class IOSNowPlayingInfoTest {
 
@@ -23,5 +25,14 @@ class IOSNowPlayingInfoTest {
         assertEquals("Local Sessions", nowPlayingInfo["albumTitle"])
         assertEquals(181.0, nowPlayingInfo["durationSeconds"])
         assertEquals(42.0, nowPlayingInfo["elapsedSeconds"])
+    }
+
+    @Test
+    fun iosPlaybackEngineWorkDoesNotRunOnMainDispatcher() {
+        assertNotEquals(
+            Dispatchers.Main,
+            playbackEngineDispatcher,
+            "iOS playback load/configuration work should avoid Main because AVAudioSession.setCategory, setActive, and AVAudioPlayer.prepareToPlay can block the UI thread.",
+        )
     }
 }

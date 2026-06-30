@@ -4,7 +4,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import kotlin.io.path.createTempFile
 import kotlin.io.path.deleteIfExists
 import kotlin.test.Test
@@ -185,7 +187,7 @@ class JvmPlaybackEngineTest {
 
         engine.complete()
         assertEquals("track-2", controller.state.value.currentTrack?.id)
-        assertEquals(PlaybackStatus.Playing, controller.state.value.status)
+        assertTrue(awaitPlaybackStatus(controller, PlaybackStatus.Playing), "Expected controller to auto-play the next track")
         assertFalse(engine.released)
     }
 
@@ -205,6 +207,60 @@ class JvmPlaybackEngineTest {
         controller.play()
         engine.complete()
         assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
+    }
+
+    @Test
+    fun controllerSetQueueDoesNotBlockCallerWhileEngineLoads() {
+        val loadStarted = CountDownLatch(1)
+        val releaseLoad = CountDownLatch(1)
+        val engine = object : PlatformPlaybackEngine {
+            override var listener: PlaybackEngineListener? = null
+
+            override fun load(track: PlayableTrack) {
+                loadStarted.countDown()
+                assertTrue(releaseLoad.await(1, TimeUnit.SECONDS), "Test timed out waiting to release fake load")
+                listener?.onPlaybackProgress(0L, track.durationMillis)
+                listener?.onPlaybackStatus(PlaybackStatus.Paused)
+            }
+
+            override fun play() {
+                listener?.onPlaybackStatus(PlaybackStatus.Playing)
+            }
+
+            override fun pause() = Unit
+            override fun stop() = Unit
+            override fun seekTo(positionMillis: Long) = Unit
+            override fun release() = Unit
+        }
+        val controller = PlaybackController(engine)
+        val track = PlayableTrack(
+            id = "blocking-track",
+            title = "Blocking Track",
+            artist = "Test Artist",
+            album = null,
+            durationMillis = 1000L,
+            source = AudioSource.FilePath("/tmp/blocking-track.mp3"),
+        )
+        val executor = Executors.newSingleThreadExecutor()
+        var blockedCaller = false
+
+        try {
+            val future = executor.submit {
+                controller.setQueue(listOf(track), selectedTrackId = track.id)
+            }
+            assertTrue(loadStarted.await(1, TimeUnit.SECONDS), "Expected fake engine load to start")
+            try {
+                future.get(100, TimeUnit.MILLISECONDS)
+            } catch (_: TimeoutException) {
+                blockedCaller = true
+            }
+            assertFalse(blockedCaller, "setQueue should return without waiting for backend load to finish")
+            assertEquals(PlaybackStatus.Loading, controller.state.value.status)
+        } finally {
+            releaseLoad.countDown()
+            executor.shutdownNow()
+            controller.release()
+        }
     }
 
     private fun createSilentWavFile(durationMillis: Int = 100) = createTempFile(prefix = "rhythhaus-silence", suffix = ".wav").also { path ->
@@ -227,5 +283,13 @@ class JvmPlaybackEngineTest {
         buffer.putInt(dataSize)
         repeat(sampleCount) { buffer.putShort(0) }
         Files.write(path, buffer.array())
+    }
+    private fun awaitPlaybackStatus(controller: PlaybackController, status: PlaybackStatus): Boolean {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1)
+        while (System.nanoTime() < deadline) {
+            if (controller.state.value.status == status) return true
+            Thread.sleep(10)
+        }
+        return controller.state.value.status == status
     }
 }

@@ -1,8 +1,16 @@
 package com.eterocell.rhythhaus
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.math.max
 
 data class PlayableTrack(
@@ -102,9 +110,15 @@ interface PlatformPlaybackEngine {
 
 expect fun createPlatformPlaybackEngine(): PlatformPlaybackEngine
 
+internal expect val playbackEngineDispatcher: CoroutineDispatcher
+
 class PlaybackController(
     private val engine: PlatformPlaybackEngine = createPlatformPlaybackEngine(),
 ) : PlaybackEngineListener {
+    private val scope = CoroutineScope(SupervisorJob() + playbackEngineDispatcher)
+    private val engineMutex = Mutex()
+    private var loadJob: Job? = null
+    private var playWhenLoaded: Boolean = false
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
@@ -114,13 +128,19 @@ class PlaybackController(
 
     fun setQueue(tracks: List<PlayableTrack>, selectedTrackId: String? = tracks.firstOrNull()?.id) {
         val selected = tracks.firstOrNull { it.id == selectedTrackId } ?: tracks.firstOrNull()
-        _state.value = PlaybackState(
-            currentTrack = selected,
-            queue = tracks,
-            status = if (selected == null) PlaybackStatus.Idle else PlaybackStatus.Stopped,
-            durationMillis = selected?.durationMillis,
-        )
-        selected?.let { loadSelected(it, autoPlay = false) }
+        if (selected == null) {
+            loadJob?.cancel()
+            playWhenLoaded = false
+            _state.value = PlaybackState(queue = tracks)
+        } else {
+            _state.value = PlaybackState(
+                currentTrack = selected,
+                queue = tracks,
+                status = PlaybackStatus.Loading,
+                durationMillis = selected.durationMillis,
+            )
+            loadSelected(selected, autoPlay = false)
+        }
     }
 
     fun selectTrack(trackId: String, autoPlay: Boolean = false) {
@@ -130,26 +150,32 @@ class PlaybackController(
 
     fun play() {
         val current = _state.value.currentTrack ?: return
+        if (_state.value.status == PlaybackStatus.Loading) {
+            playWhenLoaded = true
+            return
+        }
         if (_state.value.status == PlaybackStatus.Idle || _state.value.status == PlaybackStatus.Error) {
             loadSelected(current, autoPlay = true)
             return
         }
-        runEngineAction { engine.play() }
+        launchEngineAction { engine.play() }
     }
 
     fun pause() {
-        runEngineAction { engine.pause() }
+        playWhenLoaded = false
+        launchEngineAction { engine.pause() }
     }
 
     fun stop() {
-        runEngineAction { engine.stop() }
+        playWhenLoaded = false
+        launchEngineAction { engine.stop() }
     }
 
     fun seekTo(positionMillis: Long) {
         val duration = _state.value.durationMillis
         val safePosition = if (duration == null) max(0L, positionMillis) else positionMillis.coerceIn(0L, duration)
         _state.value = _state.value.copy(positionMillis = safePosition, error = null)
-        runEngineAction { engine.seekTo(safePosition) }
+        launchEngineAction { engine.seekTo(safePosition) }
     }
 
     fun togglePlayPause() {
@@ -157,12 +183,15 @@ class PlaybackController(
     }
 
     fun release() {
+        scope.cancel()
         engine.listener = null
         engine.release()
         _state.value = _state.value.copy(status = PlaybackStatus.Stopped)
     }
 
     private fun loadSelected(track: PlayableTrack, autoPlay: Boolean) {
+        loadJob?.cancel()
+        playWhenLoaded = autoPlay
         _state.value = _state.value.copy(
             currentTrack = track,
             status = PlaybackStatus.Loading,
@@ -170,15 +199,28 @@ class PlaybackController(
             durationMillis = track.durationMillis,
             error = null,
         )
-        runEngineAction {
-            engine.load(track)
-            if (autoPlay) engine.play()
+        loadJob = scope.launch {
+            runEngineAction {
+                engine.load(track)
+                if (_state.value.currentTrack?.id == track.id && (autoPlay || playWhenLoaded)) {
+                    playWhenLoaded = false
+                    engine.play()
+                }
+            }
         }
     }
 
-    private fun runEngineAction(action: () -> Unit) {
+    private fun launchEngineAction(action: () -> Unit) {
+        scope.launch {
+            runEngineAction(action)
+        }
+    }
+
+    private suspend fun runEngineAction(action: () -> Unit) {
         try {
-            action()
+            engineMutex.withLock {
+                action()
+            }
         } catch (throwable: Throwable) {
             log.e { throwable.stackTraceToString() }
             onPlaybackError(
