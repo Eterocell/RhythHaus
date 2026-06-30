@@ -1,5 +1,49 @@
 # Session Progress
 
+## Handoff - 2026-06-30 theme selection
+
+Route: openspec+superpowers (subagent-driven with coordinator recovery after subagent timeout/stale reports)
+Owner: implementation
+Scope: Add persisted System/Light/Dark theme selection and light/dark shared Compose palettes using AndroidX DataStore Preferences.
+Implementation:
+- Added DataStore 1.2.1 dependencies and a shared `ThemePreferenceStore` with Android, iOS, and JVM/macOS actuals.
+- Added `RhythHausThemeMode`, stable serialization/parsing, display labels/descriptions, light/dark Haus palettes, and palette resolution tests.
+- Wired `App()` to collect the persisted theme mode, resolve System against platform dark-mode state, provide `LocalHausColors`, and choose Miuix light/dark color schemes.
+- Migrated shared UI color usage to active palette accessors across App, Settings, Search, Now Playing, bottom bar, and scrubber surfaces.
+- Added Settings Appearance section with System/Light/Dark options and persisted selection callback.
+Verification:
+- `openspec validate theme-selection --strict`: valid.
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6 Build 17F113.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: BUILD SUCCESSFUL.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: BUILD SUCCESSFUL on final rerun. An earlier broad run failed once in known transient `JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion`; targeted rerun of that test passed before the final broad rerun passed.
+Acceptance:
+- Requirement matched: yes — Settings exposes System/Light/Dark; selection is DataStore-backed and persisted across supported platforms; shared UI resolves light/dark palettes.
+- Scope controlled: yes — no SQLDelight preference table, no native settings screens, no playback/scanner/library schema changes.
+- Edge cases/risk reviewed: invalid persisted values fall back to System; manual visual validation is still recommended on Android/iOS/macOS for dark-theme aesthetics.
+Changed files:
+- `gradle/libs.versions.toml`
+- `shared/build.gradle.kts`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Theme.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ThemePreferenceStore.kt`
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/ThemePreferenceStore.android.kt`
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/ThemePreferenceStore.ios.kt`
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/ThemePreferenceStore.jvm.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/HausColors.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SettingsScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SearchScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/MusicProgressScrubber.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/ThemeTest.kt`
+- `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/ThemePreferenceStoreJvmTest.kt`
+- `openspec/changes/theme-selection/*`
+- `docs/superpowers/specs/2026-06-30-theme-selection-design.md`
+- `docs/superpowers/plans/2026-06-30-theme-selection.md`
+- `progress.md`
+Next owner: user for manual visual validation of dark/light/system themes on devices.
+Blockers: none for automated verification.
+
 ## Handoff - 2026-06-30 explicit navigation stack
 
 Route: openspec+superpowers (subagent-driven)
