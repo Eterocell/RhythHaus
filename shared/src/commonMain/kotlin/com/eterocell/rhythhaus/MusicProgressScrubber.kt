@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,13 +45,33 @@ internal fun scrubberPositionForFraction(fraction: Float, durationMillis: Long):
     return (durationMillis * fraction.coerceIn(0f, 1f)).toLong().coerceIn(0L, durationMillis)
 }
 
+internal interface ScrubFractionState {
+    var value: Float?
+}
+
+private class PlainScrubFractionState : ScrubFractionState {
+    override var value: Float? = null
+}
+
+@Composable
+private fun rememberComposeScrubFractionState(): ScrubFractionState = remember {
+    object : ScrubFractionState {
+        override var value: Float? by mutableStateOf(null)
+    }
+}
+
 internal class MusicScrubInteractionState(
     positionMillis: Long,
     durationMillis: Long,
+    private val scrubFractionState: ScrubFractionState = PlainScrubFractionState(),
 ) {
     private var playbackPositionMillis: Long = positionMillis.coerceAtLeast(0L)
     private var playbackDurationMillis: Long = durationMillis.coerceAtLeast(0L)
-    private var scrubFraction: Float? = null
+    private var scrubFraction: Float?
+        get() = scrubFractionState.value
+        set(value) {
+            scrubFractionState.value = value
+        }
 
     val displayPositionMillis: Long
         get() = scrubFraction?.let { scrubberPositionForFraction(it, playbackDurationMillis) }
@@ -94,7 +115,8 @@ internal fun MusicProgressScrubber(
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val interactionState = remember { MusicScrubInteractionState(positionMillis, durationMillis) }
+    val scrubFractionState = rememberComposeScrubFractionState()
+    val interactionState = remember { MusicScrubInteractionState(positionMillis, durationMillis, scrubFractionState) }
     interactionState.updatePlaybackPosition(positionMillis, durationMillis)
 
     var widthPx by remember { mutableFloatStateOf(0f) }
@@ -122,32 +144,34 @@ internal fun MusicProgressScrubber(
                         }
 
                         interactionState.startScrub(fractionFor(down.position.x))
-                        var activePointerId = down.id
-                        var canceled = false
-                        var released = finishIfReleased(activePointerId)
+                        val activePointerId = down.id
+                        var shouldSeekOnRelease = false
 
-                        while (!released) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == activePointerId }
-                            if (change == null) {
-                                canceled = true
-                                break
-                            }
-
-                            if (change.pressed) {
-                                if (change.positionChanged() || change.positionChange().x != 0f) {
-                                    interactionState.updateScrub(fractionFor(change.position.x))
+                        try {
+                            var released = finishIfReleased(activePointerId)
+                            while (!released) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == activePointerId }
+                                if (change == null) {
+                                    return@awaitEachGesture
                                 }
-                                change.consume()
-                            } else {
-                                released = true
-                            }
-                        }
 
-                        if (canceled) {
-                            interactionState.cancelScrub()
-                        } else {
-                            interactionState.finishScrub()?.let(onSeek)
+                                if (change.pressed) {
+                                    if (change.positionChanged() || change.positionChange().x != 0f) {
+                                        interactionState.updateScrub(fractionFor(change.position.x))
+                                    }
+                                    change.consume()
+                                } else {
+                                    released = true
+                                }
+                            }
+                            shouldSeekOnRelease = true
+                        } finally {
+                            if (shouldSeekOnRelease) {
+                                interactionState.finishScrub()?.let(onSeek)
+                            } else {
+                                interactionState.cancelScrub()
+                            }
                         }
                     }
                 },
