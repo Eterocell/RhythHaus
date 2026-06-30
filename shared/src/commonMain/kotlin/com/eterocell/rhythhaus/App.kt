@@ -1,8 +1,6 @@
 package com.eterocell.rhythhaus
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -1052,12 +1050,6 @@ private fun SectionLabel(title: String, subtitle: String?) {
 
 @Composable
 private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
-    val selectionAlpha by animateFloatAsState(
-        targetValue = if (selected) 1f else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "track-row-selection",
-    )
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1090,7 +1082,7 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
             )
             AnimatedVisibility(visible = selected) {
                 Text(
-                    text = "queued on shared UI ${(selectionAlpha * 100).toInt()}%",
+                    text = "Now playing",
                     color = HausColors.current.pulse,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,

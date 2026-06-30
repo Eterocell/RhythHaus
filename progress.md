@@ -1,5 +1,32 @@
 # Session Progress
 
+## Handoff - 2026-07-01 polish track row selected copy
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Implement OpenSpec change `polish-track-row-selected-copy`: selected `TrackRow` user-facing copy and evidence updates.
+Implementation:
+- Replaced selected `TrackRow` debug/prototype text `queued on shared UI ...%` with `Now playing`.
+- Removed now-unused `selectionAlpha` animation state and `animateFloatAsState`/`tween` imports.
+- Preserved selected-row highlight, row click behavior, metadata display, duration display, playback, queue semantics, scanner, persistence, navigation, theme selection, and platform-specific code.
+Verification:
+- `openspec validate polish-track-row-selected-copy --strict`: pass (`Change 'polish-track-row-selected-copy' is valid`).
+- `rg 'queued on shared UI|selectionAlpha' shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`: pass/no matches (exit 1, empty output).
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL`). Warnings were existing `PredictiveBackHandler` deprecation and expect/actual beta warnings.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`). Warnings were existing Android artwork deprecation, `PredictiveBackHandler` deprecation, and expect/actual beta warnings.
+Acceptance:
+- Requirement matched: yes — selected rows display `Now playing` and no longer expose debug text or selected-state percentages.
+- Scope controlled: yes — implementation code change is isolated to `TrackRow`/imports in `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`; evidence files updated.
+- Edge cases/risk reviewed: no behavior/state changes; manual visual smoke remains optional for copy appearance.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`: selected-row copy and unused animation imports/state removal.
+- `openspec/changes/polish-track-row-selected-copy/tasks.md`: completed tasks and evidence.
+- `.superpowers/sdd/polish-track-row-selected-copy-report.md`: implementation/verification report.
+- `progress.md`: handoff evidence.
+Next owner: OpenSpec/user for archive or manual UI visual validation if desired.
+Blockers: none.
+Commit: pending semantic commit with message `fix: polish selected track row copy`.
+
 ## Handoff - 2026-06-30 standardize back navigation
 
 Route: openspec+superpowers
