@@ -1,5 +1,30 @@
 # Session Progress
 
+## Handoff - 2026-06-30 explicit navigation stack
+
+Route: openspec+superpowers (subagent-driven)
+Owner: implementation
+Scope: Replace ad-hoc shared Compose navigation booleans/nullables with explicit route stack.
+Implementation:
+- Added `LibraryRoute` and `LibraryNavigationStack` with common tests.
+- Refactored `LibraryHomeScreen` route rendering for Home, Album Detail, Artist Detail, Now Playing, Search, Settings, and Clear Library dialog.
+- Removed top-level `showClearDialog`, `showSettings`, and `showSearch` state from `App()` and `LibraryHomeScreen` parameters.
+- Converted bottom-bar and drill-down settings/search entry points to `LibraryRoute.Settings` / `LibraryRoute.Search` pushes.
+- Converted Clear Library dialog visibility, dismiss/cancel/confirm, Settings clear-library action, Search dismiss, central Android `BackHandler`, and left-edge/back callbacks to route stack push/pop operations.
+Verification:
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: BUILD SUCCESSFUL.
+- `openspec validate explicit-navigation-stack --strict`: valid (`Change 'explicit-navigation-stack' is valid`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: initial run failed once in pre-existing/flaky `JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion`; targeted rerun of that test passed; reran full command and it was BUILD SUCCESSFUL. Warnings: Compose `BackHandler` deprecation in favor of NavigationEventHandler; existing expect/actual beta and Android artwork deprecation warnings remain.
+Acceptance:
+- Requirement matched: yes.
+- Scope controlled: yes; no playback behavior changes intended, and no unrelated modified files were touched beyond required OpenSpec/progress evidence.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `openspec/changes/explicit-navigation-stack/tasks.md`
+- `progress.md`
+Next owner: user for manual Android system/gesture-back validation on device/emulator.
+Blockers: none.
+
 ## Current state
 
 Last updated: 2026-06-25
@@ -7,6 +32,34 @@ Current change: UI polish (button font, next-track sync) + iOS lockscreen player
 Three-commit bugfix series on main: Clear Library font, NowPlayingScreen next-track staleness, iOS MPRemoteCommandCenter
 Workflow route: openspec+superpowers
 State source of truth: OpenSpec for durable product changes; Superpowers for clarification/brainstorming/task execution discipline; this file for session continuity and verification evidence.
+
+## Handoff - 2026-06-30 bottom bar insets + Android back navigation
+
+Route: systematic-debugging
+Owner: implementation
+Input: User reported bottom bar covering album/artist content, missing bottom inset padding when Android navigation bar is hidden, and Android back/swipe-back closing the app instead of returning to the previous in-app screen.
+Root cause:
+- Main and album/artist drill-down LazyColumns only left a fixed 8dp/80dp trailing spacer while NowPlayingBar is overlaid at the bottom, so final album/artist rows could scroll under the bar.
+- NowPlayingBar used `safeContentPadding()`, which does not intentionally reserve a bottom gutter when Android is in gesture/hidden-navigation mode.
+- Shared Compose navigation state was local (`selectedAlbum`, `selectedArtist`, `showNowPlayingScreen`, overlays), but no Compose back handler consumed Android system back gestures/buttons before the Activity default finished the app.
+Output:
+- `NowPlayingBar.kt`: bottom bar now uses `navigationBarsPadding()` plus an explicit 12dp bottom gutter and 16dp side inset; exported `NowPlayingBarContentPadding = 144.dp` for list content clearance.
+- `App.kt`: main and drill-down lists now use the shared bottom content spacer; album/artist drill-down, settings/search overlays, and clear dialog register Compose `BackHandler` callbacks to pop/dismiss instead of exiting the app.
+- `NowPlayingScreen.kt`: expanded now-playing screen registers `BackHandler(onBack)` so Android back returns to the prior screen.
+- `gradle/libs.versions.toml` and `shared/build.gradle.kts`: added the Compose `ui-backhandler` dependency needed for shared back handling.
+Verification:
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: BUILD SUCCESSFUL. Warnings: Compose BackHandler is deprecated in favor of NavigationEventHandler; existing expect/actual and Android artwork deprecation warnings remain.
+Acceptance:
+- Requirement matched: yes for bottom list safe area, extra bottom bar inset in hidden-nav/gesture mode, and Android system back handling for in-app screens/overlays.
+- Scope controlled: yes; only shared Compose layout/navigation and the dependency alias were changed.
+Changed files:
+- `gradle/libs.versions.toml`
+- `shared/build.gradle.kts`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`
+Next owner: user for manual Android gesture-nav validation on device/emulator.
+Blockers: none for compile/test verification.
 
 ## Handoff - 2026-06-30 Android hardware media-button controls (IMPLEMENTED, awaiting device validation)
 

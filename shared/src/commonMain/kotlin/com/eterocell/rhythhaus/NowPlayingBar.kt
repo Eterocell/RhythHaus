@@ -3,7 +3,7 @@ package com.eterocell.rhythhaus
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
+
+internal val NowPlayingBarContentPadding = 144.dp
 
 enum class BottomBarMode {
     TrackLoaded,
@@ -49,7 +51,8 @@ fun NowPlayingBar(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .safeContentPadding()
+            .navigationBarsPadding()
+            .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
             .clip(RoundedCornerShape(20.dp))
             .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onExpand() }),
         shape = RoundedCornerShape(20.dp),

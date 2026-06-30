@@ -11,7 +11,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -32,6 +34,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import com.eterocell.rhythhaus.taglib.TagMetadata as RawTagMetadata
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 fun NowPlayingScreen(
     track: Track,
     playbackState: PlaybackState,
@@ -53,6 +56,8 @@ fun NowPlayingScreen(
         track.artworkBytes?.decodeArtwork()
     }
     val isPlaying = playbackState.isPlaying
+
+    BackHandler(onBack = onBack)
 
     Surface(
         modifier = modifier

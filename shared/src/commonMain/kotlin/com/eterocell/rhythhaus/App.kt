@@ -42,7 +42,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -116,9 +118,6 @@ fun App() {
     var importMessage by remember { mutableStateOf<String?>(null) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
-    var showClearDialog by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
-    var showSearch by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
         when (result) {
@@ -161,17 +160,10 @@ fun App() {
             importMessage = importMessage,
             scanProgress = scanProgress,
             scanJob = scanJob,
-            showClearDialog = showClearDialog,
-            onShowClearDialog = { showClearDialog = it },
             onClearLibrary = {
                 repository.clearAll()
                 libraryTracks = emptyList()
-                showClearDialog = false
             },
-            showSettings = showSettings,
-            onShowSettings = { showSettings = it },
-            showSearch = showSearch,
-            onShowSearch = { showSearch = it },
         )
     }
 }
@@ -200,6 +192,7 @@ private fun RhythHausTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 fun LibraryHomeScreen(
     snapshot: LibrarySnapshot,
     libraryTracks: List<LibraryTrack>,
@@ -209,13 +202,7 @@ fun LibraryHomeScreen(
     importMessage: String?,
     scanProgress: ScanProgress?,
     scanJob: Job?,
-    showClearDialog: Boolean,
-    onShowClearDialog: (Boolean) -> Unit,
     onClearLibrary: () -> Unit,
-    showSettings: Boolean,
-    onShowSettings: (Boolean) -> Unit,
-    showSearch: Boolean,
-    onShowSearch: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedTrackId by remember(snapshot.nowPlayingTrackId) { mutableStateOf(snapshot.nowPlayingTrackId) }
@@ -225,64 +212,97 @@ fun LibraryHomeScreen(
         playbackState.currentTrack?.id?.let { selectedTrackId = it }
     }
     var browseMode by remember { mutableStateOf(BrowseMode.Albums) }
-    var selectedAlbum by remember { mutableStateOf<AlbumGroup?>(null) }
-    var selectedArtist by remember { mutableStateOf<ArtistGroup?>(null) }
-    var showNowPlayingScreen by remember { mutableStateOf(false) }
+    var navigation by remember { mutableStateOf(LibraryNavigationStack()) }
+    fun pushRoute(route: LibraryRoute) {
+        navigation = navigation.push(route)
+    }
+    fun popRoute() {
+        navigation = navigation.pop()
+    }
+    BackHandler(enabled = navigation.canPop) {
+        popRoute()
+    }
+    val albums = remember(snapshot.tracks) { groupTracksByAlbum(snapshot.tracks) }
+    val artists = remember(snapshot.tracks) { groupTracksByArtist(snapshot.tracks) }
 
-    if (selectedAlbum != null) {
-        val album = selectedAlbum!!
-        val albumTracks = album.tracks
-        val selectedAlbumTrackId by remember(album.album) { mutableStateOf(albumTracks.firstOrNull()?.id) }
-        val selectedAlbumTrack = albumTracks.firstOrNull { it.id == selectedAlbumTrackId } ?: albumTracks.firstOrNull()
-        DrillDownView(
-            title = album.album,
-            subtitle = "${albumTracks.size} tracks · ${album.artist ?: "Unknown artist"}",
-            tracks = albumTracks,
-            selectedTrack = selectedAlbumTrack,
-            playbackState = playbackState,
-            playbackController = playbackController,
-            tagLibReader = tagLibReader,
-            libraryTracks = libraryTracks,
-            onBack = { selectedAlbum = null },
-            onTrackSelected = { /* selection only */ },
-            onPlayPause = { track ->
-                val playableTracks = albumTracks.map { it.toPlayableTrack() }
-                if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                    playbackController.setQueue(playableTracks, track.id)
-                }
-                playbackController.togglePlayPause()
-            },
-            onShowSettings = { onShowSettings(true) },
-            onShowSearch = { onShowSearch(true) },
-        )
-    } else if (selectedArtist != null) {
-        val artist = selectedArtist!!
-        val artistTracks = artist.tracks
-        val selectedArtistTrackId by remember(artist.artist) { mutableStateOf(artistTracks.firstOrNull()?.id) }
-        val selectedArtistTrack = artistTracks.firstOrNull { it.id == selectedArtistTrackId } ?: artistTracks.firstOrNull()
-        DrillDownView(
-            title = artist.artist,
-            subtitle = "${artist.albumCount} albums · ${artistTracks.size} tracks",
-            tracks = artistTracks,
-            selectedTrack = selectedArtistTrack,
-            playbackState = playbackState,
-            playbackController = playbackController,
-            tagLibReader = tagLibReader,
-            libraryTracks = libraryTracks,
-            onBack = { selectedArtist = null },
-            onTrackSelected = { /* selection only */ },
-            onPlayPause = { track ->
-                val playableTracks = artistTracks.map { it.toPlayableTrack() }
-                if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                    playbackController.setQueue(playableTracks, track.id)
-                }
-                playbackController.togglePlayPause()
-            },
-            onShowSettings = { onShowSettings(true) },
-            onShowSearch = { onShowSearch(true) },
-        )
-    } else {
-        if (showNowPlayingScreen && selectedTrack != null) {
+    when (val route = navigation.current) {
+        is LibraryRoute.AlbumDetail -> {
+            val album = albums.firstOrNull { it.album == route.album }
+            if (album == null) {
+                LaunchedEffect(route) { navigation = navigation.pop() }
+                return@LibraryHomeScreen
+            }
+            val albumTracks = album.tracks
+            val selectedAlbumTrackId by remember(album.album) { mutableStateOf(albumTracks.firstOrNull()?.id) }
+            val selectedAlbumTrack = albumTracks.firstOrNull { it.id == selectedAlbumTrackId } ?: albumTracks.firstOrNull()
+            DrillDownView(
+                title = album.album,
+                subtitle = "${albumTracks.size} tracks · ${album.artist ?: "Unknown artist"}",
+                tracks = albumTracks,
+                selectedTrack = selectedAlbumTrack,
+                playbackState = playbackState,
+                playbackController = playbackController,
+                tagLibReader = tagLibReader,
+                libraryTracks = libraryTracks,
+                onBack = ::popRoute,
+                onTrackSelected = { /* selection only */ },
+                onPlayPause = { track ->
+                    val playableTracks = albumTracks.map { it.toPlayableTrack() }
+                    if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
+                        playbackController.setQueue(playableTracks, track.id)
+                    }
+                    playbackController.togglePlayPause()
+                },
+                onExpandNowPlaying = { track ->
+                    selectedTrackId = track.id
+                    pushRoute(LibraryRoute.NowPlaying)
+                },
+                onShowSettings = { pushRoute(LibraryRoute.Settings) },
+                onShowSearch = { pushRoute(LibraryRoute.Search) },
+            )
+        }
+
+        is LibraryRoute.ArtistDetail -> {
+            val artist = artists.firstOrNull { it.artist == route.artist }
+            if (artist == null) {
+                LaunchedEffect(route) { navigation = navigation.pop() }
+                return@LibraryHomeScreen
+            }
+            val artistTracks = artist.tracks
+            val selectedArtistTrackId by remember(artist.artist) { mutableStateOf(artistTracks.firstOrNull()?.id) }
+            val selectedArtistTrack = artistTracks.firstOrNull { it.id == selectedArtistTrackId } ?: artistTracks.firstOrNull()
+            DrillDownView(
+                title = artist.artist,
+                subtitle = "${artist.albumCount} albums · ${artistTracks.size} tracks",
+                tracks = artistTracks,
+                selectedTrack = selectedArtistTrack,
+                playbackState = playbackState,
+                playbackController = playbackController,
+                tagLibReader = tagLibReader,
+                libraryTracks = libraryTracks,
+                onBack = ::popRoute,
+                onTrackSelected = { /* selection only */ },
+                onPlayPause = { track ->
+                    val playableTracks = artistTracks.map { it.toPlayableTrack() }
+                    if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
+                        playbackController.setQueue(playableTracks, track.id)
+                    }
+                    playbackController.togglePlayPause()
+                },
+                onExpandNowPlaying = { track ->
+                    selectedTrackId = track.id
+                    pushRoute(LibraryRoute.NowPlaying)
+                },
+                onShowSettings = { pushRoute(LibraryRoute.Settings) },
+                onShowSearch = { pushRoute(LibraryRoute.Search) },
+            )
+        }
+
+        LibraryRoute.NowPlaying -> {
+            if (selectedTrack == null) {
+                LaunchedEffect(route) { navigation = navigation.pop() }
+                return@LibraryHomeScreen
+            }
             val currentLibTrack = libraryTracks.firstOrNull { it.id == selectedTrack.id }
             NowPlayingScreen(
                 track = selectedTrack,
@@ -290,9 +310,15 @@ fun LibraryHomeScreen(
                 playbackController = playbackController,
                 tagLibReader = tagLibReader,
                 currentLibraryTrack = currentLibTrack,
-                onBack = { showNowPlayingScreen = false },
+                onBack = ::popRoute,
             )
-        } else {
+        }
+
+        LibraryRoute.Home,
+        LibraryRoute.Settings,
+        LibraryRoute.Search,
+        LibraryRoute.ClearLibraryDialog,
+        -> {
             Box(modifier = modifier.fillMaxSize()) {
                 Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
                     LazyColumn(
@@ -330,7 +356,6 @@ fun LibraryHomeScreen(
                             )
                         }
                         if (browseMode == BrowseMode.Albums) {
-                            val albums = groupTracksByAlbum(snapshot.tracks)
                             val albumRows = albums.chunked(2)
                             albumRows.forEach { row ->
                                 item {
@@ -342,7 +367,7 @@ fun LibraryHomeScreen(
                                             AlbumCard(
                                                 album = albumGroup,
                                                 modifier = Modifier.weight(1f),
-                                                onClick = { selectedAlbum = albumGroup },
+                                                onClick = { pushRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
                                             )
                                         }
                                         if (row.size == 1) {
@@ -352,17 +377,14 @@ fun LibraryHomeScreen(
                                 }
                             }
                         } else {
-                            val artists = groupTracksByArtist(snapshot.tracks)
                             items(artists, key = { it.artist }) { artistGroup ->
                                 ArtistRow(
                                     artist = artistGroup,
-                                    onClick = { selectedArtist = artistGroup },
+                                    onClick = { pushRoute(LibraryRoute.ArtistDetail(artistGroup.artist)) },
                                 )
                             }
                         }
-                        item {
-                            Spacer(Modifier.height(8.dp))
-                        }
+                        item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
                     }
                 }
 
@@ -378,17 +400,18 @@ fun LibraryHomeScreen(
                             playbackController.togglePlayPause()
                         }
                     },
-                    onExpand = { if (selectedTrack != null) showNowPlayingScreen = true },
-                    onSettings = { onShowSettings(true) },
-                    onSearch = { onShowSearch(true) },
+                    onExpand = { if (selectedTrack != null) pushRoute(LibraryRoute.NowPlaying) },
+                    onSettings = { pushRoute(LibraryRoute.Settings) },
+                    onSearch = { pushRoute(LibraryRoute.Search) },
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }
         }
     }
 
-    if (showClearDialog) {
-        Dialog(onDismissRequest = { onShowClearDialog(false) }) {
+    if (navigation.current == LibraryRoute.ClearLibraryDialog) {
+        BackHandler { popRoute() }
+        Dialog(onDismissRequest = ::popRoute) {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(24.dp),
                 cornerRadius = 24.dp,
@@ -414,7 +437,7 @@ fun LibraryHomeScreen(
                         horizontalArrangement = Arrangement.End,
                     ) {
                         Button(
-                            onClick = { onShowClearDialog(false) },
+                            onClick = ::popRoute,
                             modifier = Modifier.height(36.dp),
                             cornerRadius = 12.dp,
                             colors = ButtonDefaults.buttonColors(
@@ -426,7 +449,10 @@ fun LibraryHomeScreen(
                         }
                         Spacer(Modifier.width(12.dp))
                         Button(
-                            onClick = onClearLibrary,
+                            onClick = {
+                                onClearLibrary()
+                                popRoute()
+                            },
                             modifier = Modifier.height(36.dp),
                             cornerRadius = 12.dp,
                             colors = ButtonDefaults.buttonColors(
@@ -442,25 +468,27 @@ fun LibraryHomeScreen(
         }
     }
 
-    if (showSettings) {
+    if (navigation.current == LibraryRoute.Settings) {
+        BackHandler { popRoute() }
         SettingsScreen(
             folderPickerLauncher = folderPickerLauncher,
             importMessage = importMessage,
             scanProgress = scanProgress,
             scanJob = scanJob,
             hasImportedTracks = snapshot.tracks.isNotEmpty(),
-            onClearLibrary = { onShowClearDialog(true) },
-            onDismiss = { onShowSettings(false) },
+            onClearLibrary = { pushRoute(LibraryRoute.ClearLibraryDialog) },
+            onDismiss = ::popRoute,
         )
     }
 
-    if (showSearch) {
+    if (navigation.current == LibraryRoute.Search) {
+        BackHandler { popRoute() }
         SearchScreen(
             libraryTracks = libraryTracks,
             tagLibReader = tagLibReader,
             playbackController = playbackController,
             playbackState = playbackState,
-            onDismiss = { onShowSearch(false) },
+            onDismiss = ::popRoute,
         )
     }
 }
@@ -1077,6 +1105,7 @@ private fun AlbumMark(track: Track, selected: Boolean) {
 }
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 private fun DrillDownView(
     title: String,
     subtitle: String,
@@ -1089,76 +1118,66 @@ private fun DrillDownView(
     onBack: () -> Unit,
     onTrackSelected: (String) -> Unit,
     onPlayPause: (Track) -> Unit,
-    onShowSettings: (Boolean) -> Unit = {},
-    onShowSearch: (Boolean) -> Unit = {},
+    onExpandNowPlaying: (Track) -> Unit,
+    onShowSettings: () -> Unit = {},
+    onShowSearch: () -> Unit = {},
 ) {
     var selectedTrackId by remember { mutableStateOf(selectedTrack?.id) }
     LaunchedEffect(playbackState.currentTrack?.id) {
         playbackState.currentTrack?.id?.let { selectedTrackId = it }
     }
-    var showNowPlayingScreen by remember { mutableStateOf(false) }
     val currentTrack = tracks.firstOrNull { it.id == selectedTrackId } ?: selectedTrack
 
-    if (showNowPlayingScreen && currentTrack != null) {
-        val currentLibTrack = libraryTracks.firstOrNull { it.id == currentTrack.id }
-        NowPlayingScreen(
-            track = currentTrack,
-            playbackState = playbackState,
-            playbackController = playbackController,
-            tagLibReader = tagLibReader,
-            currentLibraryTrack = currentLibTrack,
-            onBack = { showNowPlayingScreen = false },
-        )
-    } else {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .leftEdgeSwipeBack(onBack),
-        ) {
-            Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
-                val listState = rememberLazyListState()
-                Box(modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .safeContentPadding()
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(18.dp),
-                    ) {
-                        item { DrillDownHeader(title = title, subtitle = subtitle, onBack = onBack) }
-                        item { SectionLabel(title = title, subtitle = subtitle) }
-                        items(tracks, key = { it.id }) { track ->
-                            TrackRow(
-                                track = track,
-                                selected = track.id == selectedTrackId,
-                                onClick = {
-                                    selectedTrackId = track.id
-                                    onTrackSelected(track.id)
-                                    onPlayPause(track)
-                                },
-                            )
-                        }
-                        item { Spacer(Modifier.height(80.dp)) }
-                    }
-                    DrillDownScrollbar(
-                        listState = listState,
-                        modifier = Modifier.align(Alignment.CenterEnd),
-                    )
-                }
-            }
+    BackHandler(onBack = onBack)
 
-            if (currentTrack != null) {
-                NowPlayingBar(
-                    track = currentTrack,
-                    playbackState = playbackState,
-                    onPlayPause = { onPlayPause(currentTrack) },
-                    onExpand = { showNowPlayingScreen = true },
-                    onSettings = { onShowSettings(true) },
-                    onSearch = { onShowSearch(true) },
-                    modifier = Modifier.align(Alignment.BottomCenter),
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .leftEdgeSwipeBack(onBack),
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = HausPaper) {
+            val listState = rememberLazyListState()
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .safeContentPadding()
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    item { DrillDownHeader(title = title, subtitle = subtitle, onBack = onBack) }
+                    item { SectionLabel(title = title, subtitle = subtitle) }
+                    items(tracks, key = { it.id }) { track ->
+                        TrackRow(
+                            track = track,
+                            selected = track.id == selectedTrackId,
+                            onClick = {
+                                selectedTrackId = track.id
+                                onTrackSelected(track.id)
+                                onPlayPause(track)
+                            },
+                        )
+                    }
+                    item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
+                }
+                DrillDownScrollbar(
+                    listState = listState,
+                    modifier = Modifier.align(Alignment.CenterEnd),
                 )
             }
+        }
+
+        if (currentTrack != null) {
+            NowPlayingBar(
+                track = currentTrack,
+                playbackState = playbackState,
+                onPlayPause = { onPlayPause(currentTrack) },
+                onExpand = { onExpandNowPlaying(currentTrack) },
+                onSettings = onShowSettings,
+                onSearch = onShowSearch,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 }
