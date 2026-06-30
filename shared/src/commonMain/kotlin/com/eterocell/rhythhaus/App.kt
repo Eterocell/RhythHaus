@@ -164,6 +164,12 @@ fun App() {
             importMessage = importMessage,
             scanProgress = scanProgress,
             scanJob = scanJob,
+            currentThemeMode = selectedThemeMode,
+            onThemeModeSelected = { mode ->
+                scope.launch {
+                    themePreferenceStore.setSelectedThemeMode(mode)
+                }
+            },
             onClearLibrary = {
                 repository.clearAll()
                 libraryTracks = emptyList()
@@ -237,6 +243,8 @@ fun LibraryHomeScreen(
     importMessage: String?,
     scanProgress: ScanProgress?,
     scanJob: Job?,
+    currentThemeMode: RhythHausThemeMode,
+    onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -511,6 +519,8 @@ fun LibraryHomeScreen(
             scanProgress = scanProgress,
             scanJob = scanJob,
             hasImportedTracks = snapshot.tracks.isNotEmpty(),
+            currentThemeMode = currentThemeMode,
+            onThemeModeSelected = onThemeModeSelected,
             onClearLibrary = { pushRoute(LibraryRoute.ClearLibraryDialog) },
             onDismiss = ::popRoute,
         )
