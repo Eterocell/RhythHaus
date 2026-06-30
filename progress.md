@@ -8,6 +8,17 @@ Three-commit bugfix series on main: Clear Library font, NowPlayingScreen next-tr
 Workflow route: openspec+superpowers
 State source of truth: OpenSpec for durable product changes; Superpowers for clarification/brainstorming/task execution discipline; this file for session continuity and verification evidence.
 
+
+## Handoff - 2026-06-30 music progress scrubber
+
+Route: openspec+superpowers
+Owner: implementation
+Input: User requested a music-player progress slider that supports single-click destination seeking and avoids multiple intermediate seeks while dragging.
+Output: Added shared Compose `MusicProgressScrubber` with pure seek math and interaction-state tests; replaced expanded now-playing Miuix `Slider` with one-shot tap and drag-release seeking. Follow-up fix made scrub preview state Compose-observable and cancellation cleanup robust. `NowPlayingBar` remains passive progress.
+Verification: Task 1 and Task 2 implementers ran focused `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.MusicProgressScrubberTest' --configuration-cache` and `./gradlew :shared:compileKotlinJvm --configuration-cache` with BUILD SUCCESSFUL. Task reviews passed clean after the observable-preview fix. Final `./init.sh` -> BUILD SUCCESSFUL, including shared JVM tests, desktop compile, Android debug build, Xcode 26.6 Build 17F113, and iOS simulator tests.
+Next owner: user for manual Android/iOS/macOS interaction validation with real playback: tap-to-seek and drag-release seeking should produce no audible intermediate jumps.
+Blockers: none for automated verification.
+
 ## Handoff - 2026-06-30 iOS audio-session UI unresponsiveness warning
 
 Route: systematic-debugging
@@ -760,6 +771,7 @@ Verification:
 - `./gradlew syncIosVersionXcconfig --configuration-cache`: BUILD SUCCESSFUL.
 Next owner: user for future version bumps in `gradle.properties`; run `./gradlew syncIosVersionXcconfig` before opening/releasing from Xcode if the xcconfig is stale.
 Blockers: none.
+
 
 
 
