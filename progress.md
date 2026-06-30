@@ -44,6 +44,10 @@ Changed files:
 Next owner: user for manual visual validation of dark/light/system themes on devices.
 Blockers: none for automated verification.
 
+Update - dropdown theme selector:
+- User requested replacing the three Appearance cards with a dropdown list.
+- Design approved: one compact shared Compose dropdown row that expands to System, Light, and Dark choices and reuses the existing persisted selection callback.
+
 ## Handoff - 2026-06-30 explicit navigation stack
 
 Route: openspec+superpowers (subagent-driven)

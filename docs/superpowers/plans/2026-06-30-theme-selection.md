@@ -166,7 +166,7 @@ Update the `SettingsScreen` call site in `App.kt`.
 
 - [ ] **Step 2: Add Appearance section**
 
-Add an Appearance section before Manage Music. Render three selectable controls for System, Light, and Dark. Use active palette colors. The selected option should be visually distinct through fill/border/text weight, not only text copy.
+Add an Appearance section before Manage Music. Render one compact dropdown selector whose expanded list contains System, Light, and Dark. Use active palette colors. The selected option should be visually distinct through fill/border/text weight, not only text copy.
 
 - [ ] **Step 3: Persist selection from App**
 

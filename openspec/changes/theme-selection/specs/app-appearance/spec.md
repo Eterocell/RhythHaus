@@ -49,9 +49,14 @@ The shared Compose UI SHALL render visible application surfaces, text, controls,
 
 ### Requirement: Settings appearance selector
 
-Settings SHALL include an Appearance section above or near the existing Manage Music section. The selector SHALL show System, Light, and Dark options and clearly indicate the currently selected option.
+Settings SHALL include an Appearance section above or near the existing Manage Music section. The selector SHALL be a dropdown list that shows System, Light, and Dark options and clearly indicates the currently selected option.
 
 #### Scenario: Selected option indication
 - **WHEN** Settings is open
 - **THEN** the current selected theme mode is visually distinct from the unselected modes
 - **AND** selecting another mode immediately updates the active app theme
+
+#### Scenario: Dropdown selector presentation
+- **WHEN** Settings is open
+- **THEN** Appearance is represented by one compact dropdown control instead of three separate cards
+- **AND** expanding the dropdown reveals System, Light, and Dark choices

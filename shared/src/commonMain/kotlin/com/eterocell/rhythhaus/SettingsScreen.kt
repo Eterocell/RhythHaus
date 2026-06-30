@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,18 +97,10 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Black,
                 )
 
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    RhythHausThemeMode.settingsOptions.forEach { mode ->
-                        AppearanceOption(
-                            mode = mode,
-                            selected = mode == currentThemeMode,
-                            onSelected = { onThemeModeSelected(mode) },
-                        )
-                    }
-                }
+                AppearanceDropdown(
+                    currentThemeMode = currentThemeMode,
+                    onThemeModeSelected = onThemeModeSelected,
+                )
 
                 // Manage Music section
                 Text(
@@ -178,25 +174,84 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun AppearanceOption(
+private fun AppearanceDropdown(
+    currentThemeMode: RhythHausThemeMode,
+    onThemeModeSelected: (RhythHausThemeMode) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val colors = HausColors.current
+    val shape = RoundedCornerShape(16.dp)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(colors.panel)
+            .border(width = 1.dp, color = if (expanded) colors.pulse else colors.line, shape = shape),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .hausClickable(onClick = { expanded = !expanded })
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = currentThemeMode.displayLabel,
+                    color = colors.ink,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Black,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = currentThemeMode.displayDescription,
+                    color = colors.muted,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+            Text(
+                text = if (expanded) "⌃" else "⌄",
+                color = colors.pulse,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black,
+            )
+        }
+
+        if (expanded) {
+            RhythHausThemeMode.settingsOptions.forEach { mode ->
+                AppearanceDropdownOption(
+                    mode = mode,
+                    selected = mode == currentThemeMode,
+                    onSelected = {
+                        onThemeModeSelected(mode)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppearanceDropdownOption(
     mode: RhythHausThemeMode,
     selected: Boolean,
     onSelected: () -> Unit,
 ) {
     val colors = HausColors.current
-    val shape = RoundedCornerShape(16.dp)
-    val fillColor = if (selected) colors.pulse.copy(alpha = 0.16f) else colors.panel
-    val borderColor = if (selected) colors.pulse else colors.line
+    val fillColor = if (selected) colors.pulse.copy(alpha = 0.14f) else colors.panel
     val labelColor = if (selected) colors.pulse else colors.ink
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
             .background(fillColor)
-            .border(width = 1.dp, color = borderColor, shape = shape)
             .hausClickable(onClick = onSelected)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -204,23 +259,15 @@ private fun AppearanceOption(
             Text(
                 text = mode.displayLabel,
                 color = labelColor,
-                fontSize = 15.sp,
-                fontWeight = if (selected) FontWeight.Black else FontWeight.Bold,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = mode.displayDescription,
-                color = colors.muted,
                 fontSize = 12.sp,
-                lineHeight = 16.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = if (selected) FontWeight.Black else FontWeight.Bold,
             )
         }
         Text(
-            text = if (selected) "Selected" else "Select",
+            text = if (selected) "Selected" else "",
             color = labelColor,
             fontSize = 11.sp,
-            fontWeight = if (selected) FontWeight.Black else FontWeight.Medium,
+            fontWeight = FontWeight.Black,
             letterSpacing = 0.8.sp,
         )
     }

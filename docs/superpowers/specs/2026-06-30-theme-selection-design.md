@@ -17,7 +17,7 @@ SQLite/SQLDelight is intentionally not used for this preference. Theme mode is a
 - Resolve `System` against platform/system dark mode where Compose exposes it.
 - Persist the selected mode using DataStore Preferences across Android, iOS, and macOS/JVM.
 - Update the shared Compose UI to draw from an active light/dark Haus palette instead of hardcoded light colors.
-- Add an Appearance section to Settings with a clear selected state for System, Light, and Dark.
+- Add an Appearance section to Settings with one compact dropdown selector for System, Light, and Dark.
 - Keep the existing RhythHaus visual identity: warm light theme, dark charcoal theme, and orange pulse accent.
 
 ## Non-goals
@@ -65,6 +65,8 @@ The theme wrapper should choose `lightColorScheme()` or `darkColorScheme()` for 
 `App()` creates the store, observes the selected mode, and provides callbacks. `SettingsScreen` receives:
 - current `RhythHausThemeMode`
 - `onThemeModeSelected: (RhythHausThemeMode) -> Unit`
+
+The Settings UI presents these modes as one compact dropdown row. The collapsed row shows the current mode label and description; expanding it reveals System, Light, and Dark choices. Selecting a choice calls the existing callback and collapses the dropdown.
 
 When the user taps a mode, the UI updates and the mode is persisted. Failed persistence should not crash the UI; the app may keep the in-memory selection and optionally surface an import/settings message later, but this slice does not add a new error banner.
 
