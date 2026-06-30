@@ -9,6 +9,18 @@ Workflow route: openspec+superpowers
 State source of truth: OpenSpec for durable product changes; Superpowers for clarification/brainstorming/task execution discipline; this file for session continuity and verification evidence.
 
 
+
+## Handoff - 2026-06-30 iOS archive version sync
+
+Route: systematic-debugging
+Owner: implementation
+Input: User observed that running Archive in Xcode does not trigger `./gradlew syncIosVersionXcconfig`, leaving `iosApp/Configuration/Version.xcconfig` stale after editing root `gradle.properties`.
+Root cause: `Version.xcconfig` is read while Xcode resolves build settings for archive, but the existing target build phase only runs `:shared:embedAndSignAppleFrameworkForXcode`; no archive/run pre-action invokes `syncIosVersionXcconfig` before build settings are evaluated. After commit `400bcbe` changed root version to 0.0.3, `Version.xcconfig` still contained 0.0.2 and `xcodebuild -showBuildSettings` resolved iOS version values to 0.0.2.
+Output: Added an Xcode scheme pre-action that runs `./gradlew syncIosVersionXcconfig --configuration-cache` from the repo root with the same `JAVA_HOME`/Homebrew PATH setup used by the Kotlin framework build phase. Synced committed `Version.xcconfig` to 0.0.3. The local ignored user scheme was also updated so this developer's current Xcode scheme triggers the pre-action immediately.
+Verification: A Python assertion comparing `gradle.properties` to `xcodebuild -showBuildSettings` failed before sync (`MARKETING_VERSION` stale: expected 0.0.3, actual 0.0.2). After adding the pre-action and intentionally resetting `Version.xcconfig` stale, `xcodebuild ... archive CODE_SIGNING_ALLOWED=NO` ran `:syncIosVersionXcconfig`, completed with `** ARCHIVE SUCCEEDED **`, rewrote `Version.xcconfig` to 0.0.3/000003, and the archive Info.plist reported CFBundleShortVersionString 0.0.3 and CFBundleVersion 000003.
+Next owner: user for normal signed Xcode Archive/Organizer validation.
+Blockers: none for unsigned archive verification.
+
 ## Handoff - 2026-06-30 music progress scrubber
 
 Route: openspec+superpowers
@@ -771,6 +783,7 @@ Verification:
 - `./gradlew syncIosVersionXcconfig --configuration-cache`: BUILD SUCCESSFUL.
 Next owner: user for future version bumps in `gradle.properties`; run `./gradlew syncIosVersionXcconfig` before opening/releasing from Xcode if the xcconfig is stale.
 Blockers: none.
+
 
 
 
