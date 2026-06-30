@@ -18,65 +18,61 @@ data class ArtistGroup(
 
 // ----- Repository-level grouping (LibraryTrack) -----
 
-fun groupByAlbum(tracks: List<LibraryTrack>): List<AlbumGroup> =
-    tracks.groupBy { it.album }
-        .map { (album, trackList) ->
-            AlbumGroup(
-                album = album,
-                tracks = trackList.sortedWith(
-                    compareBy<LibraryTrack> { it.discNumber ?: 0 }
-                        .thenBy { it.trackNumber ?: 0 }
-                        .thenBy { it.title.lowercase() }
-                ).map { it.toUiTrack() },
-                artist = trackList.firstOrNull()?.artist,
-            )
-        }
-        .sortedBy { it.album.lowercase() }
+fun groupByAlbum(tracks: List<LibraryTrack>): List<AlbumGroup> = tracks.groupBy { it.album }
+    .map { (album, trackList) ->
+        AlbumGroup(
+            album = album,
+            tracks = trackList.sortedWith(
+                compareBy<LibraryTrack> { it.discNumber ?: 0 }
+                    .thenBy { it.trackNumber ?: 0 }
+                    .thenBy { it.title.lowercase() },
+            ).map { it.toUiTrack() },
+            artist = trackList.firstOrNull()?.artist,
+        )
+    }
+    .sortedBy { it.album.lowercase() }
 
-fun groupByArtist(tracks: List<LibraryTrack>): List<ArtistGroup> =
-    tracks.groupBy { it.artist }
-        .map { (artist, trackList) ->
-            ArtistGroup(
-                artist = artist,
-                tracks = trackList.sortedWith(
-                    compareBy<LibraryTrack> { it.discNumber ?: 0 }
-                        .thenBy { it.trackNumber ?: 0 }
-                        .thenBy { it.title.lowercase() }
-                ).map { it.toUiTrack() },
-            )
-        }
-        .sortedBy { it.artist.lowercase() }
+fun groupByArtist(tracks: List<LibraryTrack>): List<ArtistGroup> = tracks.groupBy { it.artist }
+    .map { (artist, trackList) ->
+        ArtistGroup(
+            artist = artist,
+            tracks = trackList.sortedWith(
+                compareBy<LibraryTrack> { it.discNumber ?: 0 }
+                    .thenBy { it.trackNumber ?: 0 }
+                    .thenBy { it.title.lowercase() },
+            ).map { it.toUiTrack() },
+        )
+    }
+    .sortedBy { it.artist.lowercase() }
 
 // ----- UI-level grouping (Track) -----
 
-fun groupTracksByAlbum(tracks: List<Track>): List<AlbumGroup> =
-    tracks.groupBy { it.album }
-        .map { (album, trackList) ->
-            AlbumGroup(
-                album = album,
-                tracks = trackList.sortedWith(
-                    compareBy<Track> { it.discNumber ?: 0 }
-                        .thenBy { it.trackNumber ?: 0 }
-                        .thenBy { it.title.lowercase() }
-                ),
-                artist = trackList.firstOrNull()?.artist,
-            )
-        }
-        .sortedBy { it.album.lowercase() }
+fun groupTracksByAlbum(tracks: List<Track>): List<AlbumGroup> = tracks.groupBy { it.album }
+    .map { (album, trackList) ->
+        AlbumGroup(
+            album = album,
+            tracks = trackList.sortedWith(
+                compareBy<Track> { it.discNumber ?: 0 }
+                    .thenBy { it.trackNumber ?: 0 }
+                    .thenBy { it.title.lowercase() },
+            ),
+            artist = trackList.firstOrNull()?.artist,
+        )
+    }
+    .sortedBy { it.album.lowercase() }
 
-fun groupTracksByArtist(tracks: List<Track>): List<ArtistGroup> =
-    tracks.groupBy { it.artist }
-        .map { (artist, trackList) ->
-            ArtistGroup(
-                artist = artist,
-                tracks = trackList.sortedWith(
-                    compareBy<Track> { it.discNumber ?: 0 }
-                        .thenBy { it.trackNumber ?: 0 }
-                        .thenBy { it.title.lowercase() }
-                ),
-            )
-        }
-        .sortedBy { it.artist.lowercase() }
+fun groupTracksByArtist(tracks: List<Track>): List<ArtistGroup> = tracks.groupBy { it.artist }
+    .map { (artist, trackList) ->
+        ArtistGroup(
+            artist = artist,
+            tracks = trackList.sortedWith(
+                compareBy<Track> { it.discNumber ?: 0 }
+                    .thenBy { it.trackNumber ?: 0 }
+                    .thenBy { it.title.lowercase() },
+            ),
+        )
+    }
+    .sortedBy { it.artist.lowercase() }
 
 // ----- Private helpers -----
 

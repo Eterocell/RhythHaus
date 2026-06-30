@@ -3,6 +3,8 @@ package com.eterocell.rhythhaus.library
 import com.eterocell.rhythhaus.AudioMetadataReader
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.taglib.TagMetadata
+import com.eterocell.rhythhaus.taglib.TagReadResult
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -170,6 +172,43 @@ class LibraryScannerTest {
         assertEquals(listOf("broken tags"), repository.tracks().map { it.title })
         assertEquals(emptyList(), repository.scanErrors("scan-id"))
     }
+
+    @Test
+    fun scannerCanReadMetadataFromSeparateFilesystemSourceWhilePreservingPlaybackUri() {
+        val repository = InMemoryLibraryRepository()
+        val source = LibrarySource("source-1", LibraryPlatformKind.AndroidSafTree, "Music", "content://tree/music", 1L)
+        val platform = FakePlatformAudioScanner(
+            events = listOf(
+                PlatformScanEvent.AudioCandidate(
+                    AudioScanCandidate(
+                        sourceId = "source-1",
+                        sourceLocalKey = "albums/song.flac",
+                        displayPath = "albums/song.flac",
+                        displayName = "song.flac",
+                        audioSource = AudioSource.Uri("content://provider/tree/music/document/song"),
+                        metadataAudioSource = AudioSource.FilePath("/cache/rhythhaus-metadata/song.flac"),
+                    ),
+                ),
+            ),
+        )
+        val scanner = LibraryScanner(
+            repository = repository,
+            platformScanner = platform,
+            metadataReader = AudioMetadataReader(PathAwareTagLibReader),
+            now = { 100L },
+            idFactory = { prefix -> "$prefix-id" },
+        )
+
+        val result = scanner.scan(source)
+
+        assertEquals(ScanStatus.Completed, result.status)
+        val track = repository.tracks().single()
+        assertEquals(AudioSource.Uri("content://provider/tree/music/document/song"), track.audioSource)
+        assertEquals("Android TagLib Title", track.title)
+        assertEquals("Android TagLib Artist", track.artist)
+        assertEquals("Android TagLib Album", track.album)
+        assertEquals(123_000L, track.durationMillis)
+    }
 }
 
 private class FakePlatformAudioScanner(
@@ -186,5 +225,21 @@ private class FakePlatformAudioScanner(
 
 private object ThrowingTagLibReader : TagLibReader {
     override fun readPath(path: String) = throw IllegalStateException("metadata failed")
+    override fun readProperties(path: String): Map<String, String> = emptyMap()
+}
+
+private object PathAwareTagLibReader : TagLibReader {
+    override fun readPath(path: String): TagReadResult {
+        assertEquals("/cache/rhythhaus-metadata/song.flac", path)
+        return TagReadResult.Found(
+            TagMetadata(
+                title = "Android TagLib Title",
+                artist = "Android TagLib Artist",
+                album = "Android TagLib Album",
+                durationMillis = 123_000L,
+            ),
+        )
+    }
+
     override fun readProperties(path: String): Map<String, String> = emptyMap()
 }

@@ -8,7 +8,37 @@ Three-commit bugfix series on main: Clear Library font, NowPlayingScreen next-tr
 Workflow route: openspec+superpowers
 State source of truth: OpenSpec for durable product changes; Superpowers for clarification/brainstorming/task execution discipline; this file for session continuity and verification evidence.
 
+## Handoff - 2026-06-30 Android hardware media-button controls (IMPLEMENTED, awaiting device validation)
 
+Route: openspec+superpowers (durable playback-architecture change per AGENTS.md), executed via subagent-driven-development (reviewer subagent gate).
+Owner: implementation -> awaiting user on-device validation before OpenSpec archive.
+Input: User report "cable control is not working on Android just like airpods control wouldn't work on iOS previously." User approved the full MediaSessionService refactor.
+Root cause (systematic-debugging Phase 1, refined by reading media3 1.10.1 source): the Android engine built a standalone Activity-scoped Media3 `MediaSession` (`PlaybackEngine.android.kt`) with no `MediaSessionService`, no audio focus, a single `setMediaItem` (so next/prev had nothing to act on), and no audio-becoming-noisy handling. media3 does self-register a runtime button receiver for an active session, so the dominant real gaps were missing audio focus + foreground service surface + queue + becoming-noisy.
+Output:
+- New `shared/src/androidMain/.../RhythHausPlaybackService.kt`: `MediaSessionService` hosting ExoPlayer with `AudioAttributes(usage=MEDIA, content=MUSIC, handleAudioFocus=true)` + `setHandleAudioBecomingNoisy(true)`; wraps player in `SkipRoutingPlayer` (ForwardingPlayer) advertising next/prev and routing them to the bridge. `onTaskRemoved` keeps service alive while playing (no super, canonical pattern).
+- New `shared/src/androidMain/.../RhythHausTransportBridge.kt`: process-level @Volatile skip handlers so the service player drives the shared controller's queue (single source of truth; no forked playlist).
+- `PlaybackEngine.android.kt`: restructured to connect via async `MediaController` (`SessionToken` + `buildAsync`); FIFO `pendingActions` queue (fixes load+play-before-connect race); `disposed` guard against connection-callback resurrection; `release()` cancels scope + tears down controller/future/bridge; listener setter wires bridge -> `onSkipToNext/onSkipToPrevious`.
+- `androidApp/.../MainActivity.kt`: requests `POST_NOTIFICATIONS` at runtime on API 33+ (backs lock-screen/notification transport surface).
+- `androidApp/src/main/AndroidManifest.xml`: declares the service (`foregroundServiceType=mediaPlayback`), `MediaButtonReceiver`, and `FOREGROUND_SERVICE`/`FOREGROUND_SERVICE_MEDIA_PLAYBACK`/`POST_NOTIFICATIONS` permissions.
+- New `shared/src/androidHostTest/.../RhythHausTransportBridgeTest.kt`: 4 tests (handler invocation, no-op safety, engine listener->bridge wiring).
+- OpenSpec change `openspec/changes/android-media-button-controls/` (proposal/design/tasks/specs); `openspec validate --strict` -> valid.
+Reviewer subagent (spec+quality gate) found 2 Critical + 3 Important; all addressed: C1 single-slot pendingAction overwrite -> FIFO queue; C2 missing POST_NOTIFICATIONS runtime request -> added in MainActivity; I1 uncancelled scope -> scope.cancel() in release(); I2 release-during-connect leak -> disposed guard releases late-arriving controller; I3 double-release -> branch on controller!=null. M1 skip wrap-around is pre-existing PlaybackController behavior (unchanged).
+Verification: `./gradlew :androidApp:assembleDebug` -> BUILD SUCCESSFUL; `:shared:jvmTest` + `:shared:testAndroidHostTest` -> BUILD SUCCESSFUL; merged debug manifest confirmed to contain the service (mediaPlayback), MediaButtonReceiver, and FOREGROUND_SERVICE_MEDIA_PLAYBACK. Not committed (pre-existing unrelated working-tree changes present; AGENTS.md commits only when fully complete).
+Next owner: user for on-device validation matrix — wired cable inline-remote play/pause, Bluetooth play/pause, lock-screen/notification next/previous, unplug-mid-playback auto-pause, and POST_NOTIFICATIONS prompt on API 33+. Residual untested seam: async MediaController connection ordering (not device-independently testable; covered by the FIFO fix + disposed guard but needs runtime confirmation).
+Blockers: cable/BT/lock-screen behavior cannot be validated in this environment (no physical device); pre-existing ktlint error in SwipeBackGesture.kt (untouched file) fails repo-wide spotlessApply.
+
+## Handoff - 2026-06-30 Android hardware media-button controls (AWAITING APPROVAL)
+
+Route: openspec+superpowers (durable playback-architecture change per AGENTS.md)
+Owner: OpenSpec (proposal staged) -> awaiting user approval before implementation
+Input: User report "cable control is not working on Android just like airpods control wouldn't work on iOS previously."
+Root cause (systematic-debugging Phase 1): `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.android.kt:45` builds a standalone Media3 `MediaSession` in Activity-scoped code (`MainActivity` -> `setRhythHausAndroidContext`). The OS delivers hardware media buttons (wired cable inline remote, Bluetooth) as `android.intent.action.MEDIA_BUTTON` broadcasts, which require a registered `androidx.media3.session.MediaButtonReceiver` backed by a `MediaSessionService` to receive/route them. Verified absent: no `MediaSessionService`, no `MediaButtonReceiver`, no `<service>`/`<receiver>` in `androidApp/src/main/AndroidManifest.xml` (only the launcher activity). A bare Activity-scoped session has no delivery target, so the broadcasts are dropped. Android twin of the prior iOS AirPods bug (missing `MPRemoteCommandCenter` handlers). Secondary gaps: single `setMediaItem` (no queue -> next/prev have nothing to skip to) and no audio-becoming-noisy handling (no auto-pause on unplug).
+Output: Staged OpenSpec change `openspec/changes/android-media-button-controls/` (proposal.md, design.md, tasks.md, specs/android-media-controls/spec.md ADDED, specs/audio-playback/spec.md MODIFIED). `openspec validate android-media-button-controls --strict` -> valid. NO code changed (durable playback-architecture work requires user-approved spec+plan per AGENTS.md; cable/BT controls need on-device manual validation unavailable here).
+Verification: spec validation only; no build run for this change (no code touched).
+Next owner: user to approve the proposal/plan, then implementation owner (subagent-driven-development) executes tasks.md; manual device matrix (cable remote, BT, lock-screen next/prev, unplug auto-pause) required before archive.
+Blockers: awaiting user approval; manual on-device validation cannot run in this environment.
+
+Note: also regenerated Android launcher icons from `icons/dark_mode.svg` this session (gradient adaptive foreground + 10 mipmap PNGs); `:androidApp:assembleDebug` BUILD SUCCESSFUL. Separate from the media-button change.
 
 ## Handoff - 2026-06-30 iOS archive version sync
 
@@ -20,6 +50,17 @@ Output: Added an Xcode scheme pre-action that runs `./gradlew syncIosVersionXcco
 Verification: A Python assertion comparing `gradle.properties` to `xcodebuild -showBuildSettings` failed before sync (`MARKETING_VERSION` stale: expected 0.0.3, actual 0.0.2). After adding the pre-action and intentionally resetting `Version.xcconfig` stale, `xcodebuild ... archive CODE_SIGNING_ALLOWED=NO` ran `:syncIosVersionXcconfig`, completed with `** ARCHIVE SUCCEEDED **`, rewrote `Version.xcconfig` to 0.0.3/000003, and the archive Info.plist reported CFBundleShortVersionString 0.0.3 and CFBundleVersion 000003.
 Next owner: user for normal signed Xcode Archive/Organizer validation.
 Blockers: none for unsigned archive verification.
+
+## Handoff - 2026-06-30 Android TagLib SAF metadata handoff
+
+Route: systematic-debugging
+Owner: implementation
+Input: Android imports many audio files but album/metadata fields remain fallback values, unlike the previous iOS metadata behavior.
+Root cause: Android SAF scanner stored and passed `AudioSource.Uri(content://...)` into metadata enrichment. `AudioMetadataReader` intentionally returns null for `AudioSource.Uri`, and native TagLib reads filesystem paths only. The Android TagLib `.so` packaging was present, but the scan path never handed TagLib a readable file path for SAF documents.
+Output: Added a separate `metadataAudioSource` to `AudioScanCandidate` so playback can preserve the original content URI while metadata enrichment can use a temporary filesystem path. Android SAF scanning now copies supported audio documents into an app cache file under `context.cacheDir/rhythhaus-taglib/<sourceId>/...` and supplies that cache path to TagLib. Common scanner regression coverage verifies metadata is read from the separate filesystem source while the stored/playback source remains the original URI.
+Verification: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest.scannerCanReadMetadataFromSeparateFilesystemSourceWhilePreservingPlaybackUri' --configuration-cache` -> BUILD SUCCESSFUL; `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest' --configuration-cache` -> BUILD SUCCESSFUL; `./gradlew :shared:compileAndroidMain :androidApp:assembleDebug --configuration-cache` -> BUILD SUCCESSFUL; APK contains `librhythhaus_taglib.so` for arm64-v8a, armeabi-v7a, and x86_64. Full `:shared:jvmTest` currently has unrelated macOS native playback failures (`No native macOS player has been loaded`) in `JvmPlaybackEngineTest`, outside this Android metadata path.
+Next owner: user for manual Android re-scan/runtime validation with real tagged SAF audio; clear/re-scan may be needed for already-imported fallback metadata rows.
+Blockers: none for Android compile/APK packaging; full JVM suite has unrelated macOS playback test failures.
 
 ## Handoff - 2026-06-30 music progress scrubber
 

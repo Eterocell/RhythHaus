@@ -14,7 +14,7 @@
     </filter>
   </defs>
   <rect width="1200" height="1200" rx="260" fill="#111827"/>
-  <g filter="url(#softShadow)">
+  <g filter="url(#softShadow)" transform="translate(600 600) scale(0.78) translate(-600 -600)">
     <!-- Centered outer house mark -->
     <path
       d="M250 530 L600 230 L950 530 V855 C950 895 918 927 878 927 H322 C282 927 250 895 250 855 V530 Z"

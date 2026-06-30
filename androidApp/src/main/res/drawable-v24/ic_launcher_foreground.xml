@@ -1,12 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M22.5,47.7 L54,20.7 L85.5,47.7 V76.95 C85.5,80.55 82.62,83.43 79.02,83.43 H28.98 C25.38,83.43 22.5,80.55 22.5,76.95 V47.7 Z M30.6,49.95 L54,30.15 L77.4,49.95 V72 C77.4,74.52 75.42,76.5 72.9,76.5 H35.1 C32.58,76.5 30.6,74.52 30.6,72 V49.95 Z M30.15,54 C34.95,54 34.95,45.9 39.75,45.9 C44.55,45.9 44.55,62.1 49.35,62.1 C54.15,62.1 54.15,40.95 58.95,40.95 C63.75,40.95 63.75,56.7 68.7,56.7 C73.65,56.7 73.65,51.3 78.6,51.3"
-        android:strokeWidth="0"
-        android:fillType="nonZero" />
+    android:viewportWidth="1200"
+    android:viewportHeight="1200">
+
+    <group
+        android:pivotX="600"
+        android:pivotY="600"
+        android:scaleX="0.72"
+        android:scaleY="0.72">
+
+        <!-- Outer house mark with brand gradient -->
+        <path
+            android:pathData="M250,530 L600,230 L950,530 V855 C950,895 918,927 878,927 H322 C282,927 250,895 250,855 V530 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="180"
+                    android:startY="180"
+                    android:endX="1020"
+                    android:endY="1020">
+                    <item android:offset="0.0" android:color="#FF7C3AED" />
+                    <item android:offset="0.45" android:color="#FFEC4899" />
+                    <item android:offset="1.0" android:color="#FFF97316" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Inner house body (matches the dark background, creating the framed look) -->
+        <path
+            android:fillColor="#FF111827"
+            android:pathData="M340,555 L600,335 L860,555 V800 C860,828 838,850 810,850 H390 C362,850 340,828 340,800 V555 Z" />
+
+        <!-- Rhythm waveform with accent gradient -->
+        <path
+            android:strokeWidth="34"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M335,600 C390,600 390,510 445,510 C500,510 500,690 555,690 C610,690 610,455 665,455 C720,455 720,630 775,630 C830,630 830,570 885,570">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="320"
+                    android:startY="600"
+                    android:endX="880"
+                    android:endY="600">
+                    <item android:offset="0.0" android:color="#FF22D3EE" />
+                    <item android:offset="1.0" android:color="#FFA7F3D0" />
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
 </vector>

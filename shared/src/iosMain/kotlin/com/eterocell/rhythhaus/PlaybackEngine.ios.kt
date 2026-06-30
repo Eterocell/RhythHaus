@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus
 
+import com.eterocell.rhythhaus.library.appLocalMusicFolderPath
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -9,13 +10,13 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import com.eterocell.rhythhaus.library.appLocalMusicFolderPath
 import platform.AVFAudio.AVAudioPlayer
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.setActive
-import platform.Foundation.NSURL
 import platform.Foundation.NSThread
+import platform.Foundation.NSURL
+import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
 import platform.MediaPlayer.MPMediaItemPropertyAlbumTitle
 import platform.MediaPlayer.MPMediaItemPropertyArtist
 import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
@@ -25,7 +26,6 @@ import platform.MediaPlayer.MPNowPlayingInfoPropertyElapsedPlaybackTime
 import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatus
-import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 
 actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = IOSPlaybackEngine()
@@ -96,7 +96,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         }
         updateNowPlayingInfo(positionMillis = (audioPlayer.currentTime * 1_000.0).toLong())
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
-        MPNowPlayingInfoCenter.defaultCenter().playbackState = 1uL  // MPNowPlayingPlaybackStatePlaying
+        MPNowPlayingInfoCenter.defaultCenter().playbackState = 1uL // MPNowPlayingPlaybackStatePlaying
         listener?.onPlaybackProgress((audioPlayer.currentTime * 1_000.0).toLong(), durationMillis)
         startProgressLoop()
     }
@@ -129,7 +129,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         updateNowPlayingInfo(positionMillis = ((audioPlayer?.currentTime ?: 0.0) * 1_000.0).toLong(), playbackRate = 0.0)
         listener?.onPlaybackProgress(((audioPlayer?.currentTime ?: 0.0) * 1_000.0).toLong(), durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
-        MPNowPlayingInfoCenter.defaultCenter().playbackState = 2uL  // MPNowPlayingPlaybackStatePaused
+        MPNowPlayingInfoCenter.defaultCenter().playbackState = 2uL // MPNowPlayingPlaybackStatePaused
     }
 
     override fun stop() {
@@ -140,7 +140,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         listener?.onPlaybackProgress(0L, durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Stopped)
-        MPNowPlayingInfoCenter.defaultCenter().playbackState = 0uL  // MPNowPlayingPlaybackStateStopped
+        MPNowPlayingInfoCenter.defaultCenter().playbackState = 0uL // MPNowPlayingPlaybackStateStopped
     }
 
     override fun seekTo(positionMillis: Long) {
@@ -304,5 +304,6 @@ private fun AudioSource.iosUrl(): NSURL = when (this) {
         val resolved = if (path.startsWith("/")) path else "${appLocalMusicFolderPath()}/$path"
         NSURL.fileURLWithPath(resolved)
     }
+
     is AudioSource.Uri -> NSURL.URLWithString(value) ?: error("Invalid iOS audio URL: $value")
 }

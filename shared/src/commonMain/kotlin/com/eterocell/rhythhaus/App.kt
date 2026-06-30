@@ -10,12 +10,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,16 +31,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
-import top.yukonga.miuix.kmp.basic.Slider
-import top.yukonga.miuix.kmp.basic.Surface
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -88,13 +78,21 @@ import com.eterocell.rhythhaus.library.uuid4
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
 import com.eterocell.rhythhaus.taglib.createTagLibReader
-import com.eterocell.rhythhaus.taglib.TagMetadata as RawTagMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
+import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.lightColorScheme
+import com.eterocell.rhythhaus.taglib.TagMetadata as RawTagMetadata
 
 @Composable
 @Preview
@@ -128,7 +126,7 @@ fun App() {
                 val source = result.source
                 scanJob = scope.launch(Dispatchers.Default) {
                     var progress = ScanProgress(
-                        session = ScanSession(id = "", sourceId = source.id, status = ScanStatus.Scanning, startedAtEpochMillis = 0L)
+                        session = ScanSession(id = "", sourceId = source.id, status = ScanStatus.Scanning, startedAtEpochMillis = 0L),
                     )
                     withContext(Dispatchers.Main) { scanProgress = progress }
 
@@ -368,23 +366,23 @@ fun LibraryHomeScreen(
                     }
                 }
 
-                if (selectedTrack != null) {
-                    NowPlayingBar(
-                        track = selectedTrack,
-                        playbackState = playbackState,
-                        onPlayPause = {
+                NowPlayingBar(
+                    track = selectedTrack,
+                    playbackState = playbackState,
+                    onPlayPause = {
+                        selectedTrack?.let { track ->
                             val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
-                            if (playbackState.currentTrack?.id != selectedTrack.id || playbackState.status == PlaybackStatus.Idle) {
-                                playbackController.setQueue(playableTracks, selectedTrack.id)
+                            if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
+                                playbackController.setQueue(playableTracks, track.id)
                             }
                             playbackController.togglePlayPause()
-                        },
-                        onExpand = { showNowPlayingScreen = true },
-                        onSettings = { onShowSettings(true) },
-                        onSearch = { onShowSearch(true) },
-                        modifier = Modifier.align(Alignment.BottomCenter),
-                    )
-                }
+                        }
+                    },
+                    onExpand = { if (selectedTrack != null) showNowPlayingScreen = true },
+                    onSettings = { onShowSettings(true) },
+                    onSearch = { onShowSearch(true) },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
             }
         }
     }
@@ -1291,13 +1289,17 @@ private fun BrowseModePicker(
                 onClick = { onModeChange(mode) },
                 modifier = Modifier.weight(1f).height(40.dp),
                 cornerRadius = 20.dp,
-                colors = if (isSelected) ButtonDefaults.buttonColors(
-                    color = HausInk,
-                    contentColor = HausPaper,
-                ) else ButtonDefaults.buttonColors(
-                    color = HausPanel,
-                    contentColor = HausInk,
-                ),
+                colors = if (isSelected) {
+                    ButtonDefaults.buttonColors(
+                        color = HausInk,
+                        contentColor = HausPaper,
+                    )
+                } else {
+                    ButtonDefaults.buttonColors(
+                        color = HausPanel,
+                        contentColor = HausInk,
+                    )
+                },
             ) {
                 Text(mode.name, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
             }
@@ -1451,8 +1453,6 @@ private val PlaybackStatus.label: String
         PlaybackStatus.Stopped -> "Stopped"
         PlaybackStatus.Error -> "Needs a local file"
     }
-
-
 
 @Composable
 internal fun ScanningCard(

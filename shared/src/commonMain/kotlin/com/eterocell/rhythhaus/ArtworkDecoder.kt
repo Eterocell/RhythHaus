@@ -25,5 +25,4 @@ object ArtworkCache {
 /**
  * Decodes artwork with caching — first checks ArtworkCache, falls back to platform decode.
  */
-fun ByteArray.decodeArtworkCached(): ImageBitmap? =
-    ArtworkCache.get(this) ?: decodeArtwork()?.also { ArtworkCache.put(this, it) }
+fun ByteArray.decodeArtworkCached(): ImageBitmap? = ArtworkCache.get(this) ?: decodeArtwork()?.also { ArtworkCache.put(this, it) }

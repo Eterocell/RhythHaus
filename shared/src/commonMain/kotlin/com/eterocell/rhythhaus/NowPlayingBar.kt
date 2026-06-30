@@ -5,8 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import top.yukonga.miuix.kmp.basic.Surface
-import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,10 +16,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.basic.Text
+
+enum class BottomBarMode {
+    TrackLoaded,
+    EmptyLibraryNavigation,
+}
+
+fun bottomBarModeFor(track: Track?): BottomBarMode = if (track == null) BottomBarMode.EmptyLibraryNavigation else BottomBarMode.TrackLoaded
 
 @Composable
 fun NowPlayingBar(
-    track: Track,
+    track: Track?,
     playbackState: PlaybackState,
     onPlayPause: () -> Unit,
     onExpand: () -> Unit,
@@ -29,23 +36,22 @@ fun NowPlayingBar(
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val brush = Brush.linearGradient(
-        colors = listOf(Color(track.accent.start), Color(track.accent.end)),
-        start = androidx.compose.ui.geometry.Offset.Zero,
-        end = androidx.compose.ui.geometry.Offset.Infinite,
-    )
-    val artworkBitmap = remember(track.artworkBytes) {
-        track.artworkBytes?.decodeArtwork()
+    val mode = bottomBarModeFor(track)
+    val accent = track?.accent ?: TrackAccent(start = 0xFF111827, end = 0xFF776F66)
+    val artworkBitmap = remember(track?.artworkBytes) {
+        track?.artworkBytes?.decodeArtwork()
     }
-    val progressFraction = playbackState.progressFraction
-    val isPlaying = playbackState.isPlaying
+    val progressFraction = if (track == null) 0f else playbackState.progressFraction
+    val isPlaying = track != null && playbackState.isPlaying
+    val title = track?.title ?: "RhythHaus"
+    val subtitle = track?.let { "${it.artist} · ${it.album}" } ?: "Add music in Settings to start listening"
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .safeContentPadding()
             .clip(RoundedCornerShape(20.dp))
-            .hausClickable(onClick = onExpand),
+            .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onExpand() }),
         shape = RoundedCornerShape(20.dp),
         shadowElevation = 8.dp,
         color = HausPanel,
@@ -81,7 +87,7 @@ fun NowPlayingBar(
                         .clip(RoundedCornerShape(8.dp))
                         .background(
                             Brush.linearGradient(
-                                listOf(Color(track.accent.start), Color(track.accent.end)),
+                                listOf(Color(accent.start), Color(accent.end)),
                             ),
                         ),
                     contentAlignment = Alignment.Center,
@@ -95,7 +101,7 @@ fun NowPlayingBar(
                         )
                     } else {
                         Text(
-                            text = track.title.firstOrNull()?.uppercase() ?: "♪",
+                            text = track?.title?.firstOrNull()?.uppercase() ?: "♪",
                             color = Color.White,
                             fontWeight = FontWeight.Black,
                             fontSize = 14.sp,
@@ -106,7 +112,7 @@ fun NowPlayingBar(
                 // Track info
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = track.title,
+                        text = title,
                         color = HausInk,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
@@ -114,7 +120,7 @@ fun NowPlayingBar(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = "${track.artist} · ${track.album}",
+                        text = subtitle,
                         color = HausMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
@@ -129,11 +135,17 @@ fun NowPlayingBar(
                         .size(36.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(HausInk)
-                        .hausClickable(onClick = onPlayPause),
+                        .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onPlayPause() }),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = if (isPlaying) "⏸" else "▶",
+                        text = if (track == null) {
+                            "♪"
+                        } else if (isPlaying) {
+                            "⏸"
+                        } else {
+                            "▶"
+                        },
                         color = HausPaper,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,

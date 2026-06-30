@@ -1,7 +1,7 @@
 package com.eterocell.rhythhaus
 
-import kotlin.math.max
 import com.eterocell.rhythhaus.library.LibraryTrack
+import kotlin.math.max
 
 data class Track(
     val id: String,

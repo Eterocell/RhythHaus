@@ -19,18 +19,17 @@ class SqlDelightLibraryRepository(
         )
     }
 
-    override fun sources(): List<LibrarySource> =
-        database.librarySourceQueries.selectAllSources { id, platformKind, displayName, handle, createdAtEpochMillis, lastScanAtEpochMillis, accessStatus ->
-            LibrarySource(
-                id = id,
-                platformKind = LibraryPlatformKind.valueOf(platformKind),
-                displayName = displayName,
-                handle = handle,
-                createdAtEpochMillis = createdAtEpochMillis,
-                lastScanAtEpochMillis = lastScanAtEpochMillis,
-                accessStatus = LibrarySourceAccessStatus.valueOf(accessStatus),
-            )
-        }.executeAsList()
+    override fun sources(): List<LibrarySource> = database.librarySourceQueries.selectAllSources { id, platformKind, displayName, handle, createdAtEpochMillis, lastScanAtEpochMillis, accessStatus ->
+        LibrarySource(
+            id = id,
+            platformKind = LibraryPlatformKind.valueOf(platformKind),
+            displayName = displayName,
+            handle = handle,
+            createdAtEpochMillis = createdAtEpochMillis,
+            lastScanAtEpochMillis = lastScanAtEpochMillis,
+            accessStatus = LibrarySourceAccessStatus.valueOf(accessStatus),
+        )
+    }.executeAsList()
 
     override fun upsertTrack(track: LibraryTrack): TrackUpsertResult {
         val existing = database.libraryTrackQueries.selectTrackBySourceKey(
@@ -112,53 +111,51 @@ class SqlDelightLibraryRepository(
         }
     }
 
-    override fun tracks(): List<LibraryTrack> =
-        database.libraryTrackQueries.selectAllTracks { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber, artworkBytes, artworkMimeType ->
-            LibraryTrack(
-                id = id,
-                sourceId = sourceId,
-                sourceLocalKey = sourceLocalKey,
-                audioSource = audioSourceFrom(audioSourceKind, audioSourceValue),
-                displayName = displayName,
-                title = title,
-                artist = artist,
-                album = album,
-                durationMillis = durationMillis,
-                sizeBytes = sizeBytes,
-                modifiedAtEpochMillis = modifiedAtEpochMillis,
-                lastSeenScanId = lastSeenScanId,
-                createdAtEpochMillis = createdAtEpochMillis,
-                updatedAtEpochMillis = updatedAtEpochMillis,
-                trackNumber = trackNumber?.toInt(),
-                discNumber = discNumber?.toInt(),
-                artworkBytes = artworkBytes,
-                artworkMimeType = artworkMimeType,
-            )
-        }.executeAsList()
+    override fun tracks(): List<LibraryTrack> = database.libraryTrackQueries.selectAllTracks { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber, artworkBytes, artworkMimeType ->
+        LibraryTrack(
+            id = id,
+            sourceId = sourceId,
+            sourceLocalKey = sourceLocalKey,
+            audioSource = audioSourceFrom(audioSourceKind, audioSourceValue),
+            displayName = displayName,
+            title = title,
+            artist = artist,
+            album = album,
+            durationMillis = durationMillis,
+            sizeBytes = sizeBytes,
+            modifiedAtEpochMillis = modifiedAtEpochMillis,
+            lastSeenScanId = lastSeenScanId,
+            createdAtEpochMillis = createdAtEpochMillis,
+            updatedAtEpochMillis = updatedAtEpochMillis,
+            trackNumber = trackNumber?.toInt(),
+            discNumber = discNumber?.toInt(),
+            artworkBytes = artworkBytes,
+            artworkMimeType = artworkMimeType,
+        )
+    }.executeAsList()
 
-    override fun tracksForSource(sourceId: String): List<LibraryTrack> =
-        database.libraryTrackQueries.selectTracksForSource(sourceId) { id, srcId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber, artworkBytes, artworkMimeType ->
-            LibraryTrack(
-                id = id,
-                sourceId = srcId,
-                sourceLocalKey = sourceLocalKey,
-                audioSource = audioSourceFrom(audioSourceKind, audioSourceValue),
-                displayName = displayName,
-                title = title,
-                artist = artist,
-                album = album,
-                durationMillis = durationMillis,
-                sizeBytes = sizeBytes,
-                modifiedAtEpochMillis = modifiedAtEpochMillis,
-                lastSeenScanId = lastSeenScanId,
-                createdAtEpochMillis = createdAtEpochMillis,
-                updatedAtEpochMillis = updatedAtEpochMillis,
-                trackNumber = trackNumber?.toInt(),
-                discNumber = discNumber?.toInt(),
-                artworkBytes = artworkBytes,
-                artworkMimeType = artworkMimeType,
-            )
-        }.executeAsList()
+    override fun tracksForSource(sourceId: String): List<LibraryTrack> = database.libraryTrackQueries.selectTracksForSource(sourceId) { id, srcId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber, artworkBytes, artworkMimeType ->
+        LibraryTrack(
+            id = id,
+            sourceId = srcId,
+            sourceLocalKey = sourceLocalKey,
+            audioSource = audioSourceFrom(audioSourceKind, audioSourceValue),
+            displayName = displayName,
+            title = title,
+            artist = artist,
+            album = album,
+            durationMillis = durationMillis,
+            sizeBytes = sizeBytes,
+            modifiedAtEpochMillis = modifiedAtEpochMillis,
+            lastSeenScanId = lastSeenScanId,
+            createdAtEpochMillis = createdAtEpochMillis,
+            updatedAtEpochMillis = updatedAtEpochMillis,
+            trackNumber = trackNumber?.toInt(),
+            discNumber = discNumber?.toInt(),
+            artworkBytes = artworkBytes,
+            artworkMimeType = artworkMimeType,
+        )
+    }.executeAsList()
 
     override fun insertScanSession(session: ScanSession) {
         database.scanSessionQueries.insertScanSession(
@@ -202,18 +199,17 @@ class SqlDelightLibraryRepository(
         )
     }
 
-    override fun scanErrors(scanId: String): List<ScanError> =
-        database.scanSessionQueries.selectScanErrorsForScan(scanId) { id, scanId_, sourceLocalKey, displayPath, reason, recoverable, createdAtEpochMillis ->
-            ScanError(
-                id = id,
-                scanId = scanId_,
-                sourceLocalKey = sourceLocalKey,
-                displayPath = displayPath,
-                reason = reason,
-                recoverable = recoverable != 0L,
-                createdAtEpochMillis = createdAtEpochMillis,
-            )
-        }.executeAsList()
+    override fun scanErrors(scanId: String): List<ScanError> = database.scanSessionQueries.selectScanErrorsForScan(scanId) { id, scanId_, sourceLocalKey, displayPath, reason, recoverable, createdAtEpochMillis ->
+        ScanError(
+            id = id,
+            scanId = scanId_,
+            sourceLocalKey = sourceLocalKey,
+            displayPath = displayPath,
+            reason = reason,
+            recoverable = recoverable != 0L,
+            createdAtEpochMillis = createdAtEpochMillis,
+        )
+    }.executeAsList()
 
     override fun removeMissingTracks(sourceId: String, latestScanId: String): Int {
         val result = database.libraryTrackQueries.removeMissingTracks(sourceId, latestScanId)

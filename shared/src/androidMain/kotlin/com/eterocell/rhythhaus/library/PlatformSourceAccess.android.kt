@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.documentfile.provider.DocumentFile
 import com.eterocell.rhythhaus.AudioSource
+import java.io.File
 
 @Composable
 actual fun rememberPlatformFolderPickerLauncher(
@@ -81,11 +82,12 @@ class AndroidSafSourceAccess(
         val rootUri = Uri.parse(source.handle)
         val root = DocumentFile.fromTreeUri(context, rootUri) ?: error("Cannot open SAF tree: ${source.handle}")
         require(root.canRead()) { "No read access to SAF tree: ${source.displayName}" }
-        yieldAll(scanDocumentTree(source, root, emptyList()))
+        yieldAll(scanDocumentTree(context, source, root, emptyList()))
     }
 }
 
 private fun scanDocumentTree(
+    context: Context,
     source: LibrarySource,
     document: DocumentFile,
     pathSegments: List<String>,
@@ -97,25 +99,66 @@ private fun scanDocumentTree(
             .sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name.orEmpty().lowercase() })
             .forEach { child ->
                 val name = child.name ?: child.uri.lastPathSegment ?: "unnamed"
-                yieldAll(scanDocumentTree(source, child, pathSegments + name))
+                yieldAll(scanDocumentTree(context, source, child, pathSegments + name))
             }
     } else if (document.isFile) {
         val name = pathSegments.lastOrNull() ?: document.name ?: document.uri.lastPathSegment ?: "unnamed"
         val key = pathSegments.sourceLocalKey().ifBlank { document.uri.toString() }
         val displayPath = pathSegments.joinToString("/").ifBlank { name }
+        val playbackSource = AudioSource.Uri(document.uri.toString())
+        val metadataSource = if (isSupportedAudioName(name)) {
+            copyDocumentToMetadataCache(context, source, document, key, name)
+                ?.let { AudioSource.FilePath(it.absolutePath) }
+                ?: playbackSource
+        } else {
+            playbackSource
+        }
         yield(
             audioCandidateForSourceFile(
                 source = source,
                 sourceLocalKey = key,
                 displayPath = displayPath,
                 displayName = name,
-                audioSource = AudioSource.Uri(document.uri.toString()),
+                audioSource = playbackSource,
+                metadataAudioSource = metadataSource,
                 sizeBytes = document.length().takeIf { it >= 0L },
                 modifiedAtEpochMillis = document.lastModified().takeIf { it > 0L },
             ),
         )
     }
 }
+
+private fun copyDocumentToMetadataCache(
+    context: Context,
+    source: LibrarySource,
+    document: DocumentFile,
+    sourceLocalKey: String,
+    displayName: String,
+): File? = runCatching {
+    val cacheDir = File(context.cacheDir, "rhythhaus-taglib/${source.id}").apply { mkdirs() }
+    val cacheName = "${sourceLocalKey.hashCode().toUInt().toString(16)}-${displayName.safeCacheFileName()}"
+    val target = File(cacheDir, cacheName)
+    val expectedSize = document.length().takeIf { it >= 0L }
+    val expectedModifiedAt = document.lastModified().takeIf { it > 0L }
+    if (target.exists() &&
+        (expectedSize == null || target.length() == expectedSize) &&
+        (expectedModifiedAt == null || target.lastModified() >= expectedModifiedAt)
+    ) {
+        return@runCatching target
+    }
+
+    context.contentResolver.openInputStream(document.uri)?.use { input ->
+        target.outputStream().use { output ->
+            input.copyTo(output)
+        }
+    } ?: return@runCatching null
+    expectedModifiedAt?.let { target.setLastModified(it) }
+    target
+}.getOrNull()
+
+private fun String.safeCacheFileName(): String = replace(Regex("[^A-Za-z0-9._-]+"), "_")
+    .trim('_')
+    .ifBlank { "audio" }
 
 actual fun createPlatformSourceAccess(): PlatformSourceAccess {
     val context = LibraryDatabaseContext.applicationContext

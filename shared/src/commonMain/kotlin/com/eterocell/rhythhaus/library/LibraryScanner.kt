@@ -140,9 +140,9 @@ private fun AudioScanCandidate.toLibraryTrack(
     trackId: String,
     metadataReader: AudioMetadataReader,
 ): LibraryTrack {
-    val resolvedSource = when (audioSource) {
-        is AudioSource.FilePath -> audioSource.copy(path = resolvePathForMetadata(audioSource.path))
-        is AudioSource.Uri -> audioSource
+    val resolvedSource = when (val source = metadataAudioSource) {
+        is AudioSource.FilePath -> source.copy(path = resolvePathForMetadata(source.path))
+        is AudioSource.Uri -> source
     }
     val metadata = runCatching { metadataReader.read(resolvedSource) }.getOrNull()
     return LibraryTrack(

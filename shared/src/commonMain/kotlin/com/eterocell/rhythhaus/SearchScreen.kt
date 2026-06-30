@@ -8,8 +8,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import top.yukonga.miuix.kmp.basic.Surface
-import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.taglib.TagLibReader
+import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
 fun SearchScreen(
@@ -37,11 +37,14 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
 
     val filtered = remember(query, libraryTracks) {
-        if (query.isBlank()) emptyList()
-        else libraryTracks.filter { track ->
-            track.title.contains(query, ignoreCase = true) ||
-            track.artist.contains(query, ignoreCase = true) ||
-            track.album.contains(query, ignoreCase = true)
+        if (query.isBlank()) {
+            emptyList()
+        } else {
+            libraryTracks.filter { track ->
+                track.title.contains(query, ignoreCase = true) ||
+                    track.artist.contains(query, ignoreCase = true) ||
+                    track.album.contains(query, ignoreCase = true)
+            }
         }
     }
 

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed (monochrome) launcher layer, generated from icons/dark_mode.svg.
+     A monochrome icon is tinted as a single flat color, so a solid house + a
+     same-color wave collapse into one blob (the wave disappears). To keep the
+     wave readable we mirror the source design's structure in ALPHA only:
+       * the outer house and inner house body are combined in ONE path with
+         evenOdd fill, producing a hollow house OUTLINE (the inner body is the
+         transparent cutout, same role the dark inner body plays in the SVG);
+       * the rhythm waveform is a separate filled-by-stroke path that sits
+         inside that transparent cutout, so the tint renders it as a visible
+         wave against the empty interior.
+     Master paths use the 1200x1200 source viewport and fill most of the canvas,
+     so they are wrapped in a group scaled 0.55 around the center (600,600) to
+     sit inside the adaptive icon safe zone. The system tints this silhouette;
+     only alpha/shape matters. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1200"
+    android:viewportHeight="1200">
+
+    <group
+        android:scaleX="0.55"
+        android:scaleY="0.55"
+        android:pivotX="600"
+        android:pivotY="600">
+
+        <!-- Hollow house outline: outer house minus inner house body (evenOdd). -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M250,530 L600,230 L950,530 V855 C950,895 918,927 878,927 H322 C282,927 250,895 250,855 V530 Z M340,555 L600,335 L860,555 V800 C860,828 838,850 810,850 H390 C362,850 340,828 340,800 V555 Z" />
+
+        <!-- Rhythm waveform, rendered inside the transparent interior. -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="48"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M335,600 C390,600 390,510 445,510 C500,510 500,690 555,690 C610,690 610,455 665,455 C720,455 720,630 775,630 C830,630 830,570 885,570" />
+    </group>
+</vector>
