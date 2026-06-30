@@ -724,3 +724,16 @@ Changed files:
 Next owner: user for future version bumps by editing `gradle.properties` and running `./gradlew syncIosVersionXcconfig`.
 Blockers: none.
 
+## Handoff - 2026-06-29 iOS target version/build wiring
+
+Route: openspec+superpowers follow-up
+Owner: implementation
+Input: User noted the unified version metadata must also update the iOS target's Version and Build fields.
+Output:
+- `iosApp/iosApp.xcodeproj/project.pbxproj`: Debug and Release target build settings now set `CURRENT_PROJECT_VERSION = "$(RHYTHHAUS_VERSION_CODE)"`, `INFOPLIST_KEY_CFBundleShortVersionString = "$(MARKETING_VERSION)"`, and `INFOPLIST_KEY_CFBundleVersion = "$(CURRENT_PROJECT_VERSION)"`.
+Verification:
+- `/usr/bin/xcrun xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -showBuildSettings | grep -E 'MARKETING_VERSION|CURRENT_PROJECT_VERSION|RHYTHHAUS_VERSION|INFOPLIST_KEY_CFBundleShortVersionString|INFOPLIST_KEY_CFBundleVersion'`: resolved `MARKETING_VERSION = 1.0.0`, `CURRENT_PROJECT_VERSION = 1`, `INFOPLIST_KEY_CFBundleShortVersionString = 1.0.0`, `INFOPLIST_KEY_CFBundleVersion = 1`, and the shared `RHYTHHAUS_VERSION_*` values.
+- `./gradlew syncIosVersionXcconfig --configuration-cache`: BUILD SUCCESSFUL.
+Next owner: user for future version bumps in `gradle.properties`; run `./gradlew syncIosVersionXcconfig` before opening/releasing from Xcode if the xcconfig is stale.
+Blockers: none.
+
