@@ -1,5 +1,41 @@
 # Session Progress
 
+## Handoff - 2026-06-30 standardize back navigation
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Implement OpenSpec change `standardize-back-navigation`: shared visible back chip, root predictive/system back route-pop handling, Android manifest opt-in, and handoff evidence.
+Implementation:
+- Added shared commonMain `BackChip` with visible label `‹ Back`, `Back` content description, rounded dark chip styling, and existing `hausClickable` feedback.
+- Replaced drill-down `← BACK`, now-playing `← LIBRARY`, and search/settings `< Back` labels with `BackChip` while preserving existing route-pop callbacks.
+- Replaced the `LibraryHomeScreen` root `BackHandler(enabled = navigation.canPop)` with `PredictiveBackHandler(enabled = navigation.canPop)` that pops one route after completed predictive/system back progress.
+- Removed duplicate child `BackHandler` registrations for drill-down, now playing, settings, search, and clear-library dialog so root navigation owns system/predictive back consumption. Preserved shared left-edge swipe-back gestures for drill-down and now playing.
+- Added `android:enableOnBackInvokedCallback="true"` to the Android main activity.
+Verification:
+- `openspec validate standardize-back-navigation --strict`: pass (`Change 'standardize-back-navigation' is valid`).
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL`). Warning: `PredictiveBackHandler` is deprecated in Compose 1.11.1 in favor of `NavigationEventHandler`, expected/recorded in the plan.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: initial run failed in known/flaky `JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion`.
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion' --configuration-cache`: pass.
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion' --rerun-tasks --configuration-cache`: pass.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --rerun-tasks --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+Acceptance:
+- Requirement matched: yes — all visible targeted back controls use shared `‹ Back`, route-pop callbacks are unchanged, and Android predictive/system back is wired at the route-stack owner with manifest opt-in.
+- Scope controlled: yes — no playback, scanner, theme selection, library persistence, or route semantics changed.
+- Edge cases/risk reviewed: Android predictive-back visual preview still needs manual Android 13+ emulator/device validation; automated verification proves wiring compiles and broad JVM/desktop/Android checks pass.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/BackChip.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SearchScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SettingsScreen.kt`
+- `androidApp/src/main/AndroidManifest.xml`
+- `openspec/changes/standardize-back-navigation/tasks.md`
+- `.superpowers/sdd/standardize-back-navigation-report.md`
+- `progress.md`
+Next owner: user for manual Android 13+ predictive-back gesture preview/runtime validation.
+Blockers: none for automated verification.
+Commit: semantic commit with message `feat: standardize back navigation`.
+
 ## Handoff - 2026-06-30 theme selection
 
 Route: openspec+superpowers (subagent-driven with coordinator recovery after subagent timeout/stale reports)

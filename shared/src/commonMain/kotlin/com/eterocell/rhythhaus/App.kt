@@ -45,7 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.backhandler.BackHandler
+import androidx.compose.ui.backhandler.PredictiveBackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -262,7 +262,8 @@ fun LibraryHomeScreen(
     fun popRoute() {
         navigation = navigation.pop()
     }
-    BackHandler(enabled = navigation.canPop) {
+    PredictiveBackHandler(enabled = navigation.canPop) { progress ->
+        progress.collect { /* Android owns predictive-back progress animation for this change. */ }
         popRoute()
     }
     val albums = remember(snapshot.tracks) { groupTracksByAlbum(snapshot.tracks) }
@@ -453,7 +454,6 @@ fun LibraryHomeScreen(
     }
 
     if (navigation.current == LibraryRoute.ClearLibraryDialog) {
-        BackHandler { popRoute() }
         Dialog(onDismissRequest = ::popRoute) {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(24.dp),
@@ -512,7 +512,6 @@ fun LibraryHomeScreen(
     }
 
     if (navigation.current == LibraryRoute.Settings) {
-        BackHandler { popRoute() }
         SettingsScreen(
             folderPickerLauncher = folderPickerLauncher,
             importMessage = importMessage,
@@ -527,7 +526,6 @@ fun LibraryHomeScreen(
     }
 
     if (navigation.current == LibraryRoute.Search) {
-        BackHandler { popRoute() }
         SearchScreen(
             libraryTracks = libraryTracks,
             tagLibReader = tagLibReader,
@@ -1173,8 +1171,6 @@ private fun DrillDownView(
     }
     val currentTrack = tracks.firstOrNull { it.id == selectedTrackId } ?: selectedTrack
 
-    BackHandler(onBack = onBack)
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1304,21 +1300,7 @@ private fun DrillDownHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(HausColors.current.ink)
-                    .hausClickable(onClick = onBack)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    text = "← BACK",
-                    color = HausColors.current.paper,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.8.sp,
-                )
-            }
+            BackChip(onClick = onBack)
             Text(
                 text = subtitle,
                 color = HausColors.current.muted,

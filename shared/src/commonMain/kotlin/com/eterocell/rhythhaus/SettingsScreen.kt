@@ -65,21 +65,7 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(HausColors.current.ink)
-                            .hausClickable(onClick = onDismiss)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                    ) {
-                        Text(
-                            "< Back",
-                            color = HausColors.current.paper,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.2.sp,
-                        )
-                    }
+                    BackChip(onClick = onDismiss)
                     Spacer(Modifier.weight(1f))
                     Text(
                         text = "Settings",

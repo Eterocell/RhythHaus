@@ -13,7 +13,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -57,8 +56,6 @@ fun NowPlayingScreen(
     }
     val isPlaying = playbackState.isPlaying
 
-    BackHandler(onBack = onBack)
-
     Surface(
         modifier = modifier
             .fillMaxSize()
@@ -78,21 +75,7 @@ fun NowPlayingScreen(
                     .fillMaxWidth()
                     .padding(top = 18.dp),
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(HausColors.current.ink)
-                        .hausClickable(onClick = onBack)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                ) {
-                    Text(
-                        text = "← LIBRARY",
-                        color = HausColors.current.paper,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.8.sp,
-                    )
-                }
+                BackChip(onClick = onBack)
             }
 
             Spacer(Modifier.height(18.dp))
