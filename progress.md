@@ -695,3 +695,32 @@ Commits:
 Next owner: user for manual visual confirmation on target devices.
 Blockers: none.
 
+## Handoff - 2026-06-29 Unified platform version metadata
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Make root `gradle.properties` the single editable source for app version name/code across Android, desktop/macOS, and iOS.
+Input: `docs/superpowers/specs/2026-06-29-unified-platform-version-design.md` and `docs/superpowers/plans/2026-06-29-unified-platform-version.md`.
+Implementation:
+- `gradle.properties`: added `rhythhaus.versionName=1.0.0` and `rhythhaus.versionCode=1`.
+- `androidApp/build.gradle.kts`: reads Gradle properties for `versionName` and integer `versionCode`.
+- `desktopApp/build.gradle.kts`: reads the same version name for Compose Desktop `packageVersion`.
+- `build.gradle.kts`: added cacheable `syncIosVersionXcconfig` task to write iOS version settings from Gradle properties.
+- `iosApp/Configuration/Config.xcconfig` and `Version.xcconfig`: map Xcode `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` from the synced version keys.
+Verification:
+- `./gradlew syncIosVersionXcconfig --configuration-cache`: BUILD SUCCESSFUL; wrote valid xcconfig syntax.
+- `./gradlew syncIosVersionXcconfig :androidApp:assembleDebug :desktopApp:compileKotlin --configuration-cache`: BUILD SUCCESSFUL in 12s. Existing Compose dependency mismatch/deprecation warnings remain.
+- `/usr/bin/xcrun xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -showBuildSettings | grep -E 'MARKETING_VERSION|CURRENT_PROJECT_VERSION|RHYTHHAUS_VERSION'`: resolved `MARKETING_VERSION = 1.0.0`, `CURRENT_PROJECT_VERSION = 1`, `RHYTHHAUS_VERSION_NAME = 1.0.0`, and `RHYTHHAUS_VERSION_CODE = 1`.
+Acceptance:
+- Requirement matched: yes; changing only root `gradle.properties` version keys controls Android, desktop/macOS, and iOS version metadata after the sync task updates the committed xcconfig.
+- Scope controlled: yes; no app IDs, signing settings, deployment targets, SDK/plugin/dependency versions, or packaging scope changed.
+Changed files:
+- `gradle.properties`
+- `build.gradle.kts`
+- `androidApp/build.gradle.kts`
+- `desktopApp/build.gradle.kts`
+- `iosApp/Configuration/Config.xcconfig`
+- `iosApp/Configuration/Version.xcconfig`
+Next owner: user for future version bumps by editing `gradle.properties` and running `./gradlew syncIosVersionXcconfig`.
+Blockers: none.
+
