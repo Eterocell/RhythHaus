@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,8 @@ fun SettingsScreen(
     scanProgress: ScanProgress?,
     scanJob: Job?,
     hasImportedTracks: Boolean,
+    currentThemeMode: RhythHausThemeMode,
+    onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -80,6 +83,27 @@ fun SettingsScreen(
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Black,
                     )
+                }
+
+                // Appearance section
+                Text(
+                    text = "Appearance",
+                    color = HausColors.current.ink,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                )
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    RhythHausThemeMode.settingsOptions.forEach { mode ->
+                        AppearanceOption(
+                            mode = mode,
+                            selected = mode == currentThemeMode,
+                            onSelected = { onThemeModeSelected(mode) },
+                        )
+                    }
                 }
 
                 // Manage Music section
@@ -150,5 +174,54 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AppearanceOption(
+    mode: RhythHausThemeMode,
+    selected: Boolean,
+    onSelected: () -> Unit,
+) {
+    val colors = HausColors.current
+    val shape = RoundedCornerShape(16.dp)
+    val fillColor = if (selected) colors.pulse.copy(alpha = 0.16f) else colors.panel
+    val borderColor = if (selected) colors.pulse else colors.line
+    val labelColor = if (selected) colors.pulse else colors.ink
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(fillColor)
+            .border(width = 1.dp, color = borderColor, shape = shape)
+            .hausClickable(onClick = onSelected)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = mode.displayLabel,
+                color = labelColor,
+                fontSize = 15.sp,
+                fontWeight = if (selected) FontWeight.Black else FontWeight.Bold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = mode.displayDescription,
+                color = colors.muted,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        Text(
+            text = if (selected) "Selected" else "Select",
+            color = labelColor,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Black else FontWeight.Medium,
+            letterSpacing = 0.8.sp,
+        )
     }
 }
