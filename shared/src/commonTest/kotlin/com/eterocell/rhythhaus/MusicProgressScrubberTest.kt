@@ -58,4 +58,24 @@ class MusicProgressScrubberTest {
         assertEquals(10_000L, state.displayPositionMillis)
         assertEquals(0.1f, state.displayFraction)
     }
+
+    @Test
+    fun tapAndDragContractsEmitOnlyCommittedSeekTargets() {
+        val duration = 200_000L
+        val tapTarget = scrubberPositionForFraction(
+            scrubberFractionForOffset(offsetX = 50f, widthPx = 200f),
+            duration,
+        )
+        assertEquals(50_000L, tapTarget)
+
+        val state = MusicScrubInteractionState(positionMillis = 0L, durationMillis = duration)
+        val emittedTargets = mutableListOf<Long>()
+
+        state.startScrub(scrubberFractionForOffset(offsetX = 20f, widthPx = 200f))
+        state.updateScrub(scrubberFractionForOffset(offsetX = 80f, widthPx = 200f))
+        state.updateScrub(scrubberFractionForOffset(offsetX = 160f, widthPx = 200f))
+        state.finishScrub()?.let(emittedTargets::add)
+
+        assertEquals(listOf(160_000L), emittedTargets)
+    }
 }

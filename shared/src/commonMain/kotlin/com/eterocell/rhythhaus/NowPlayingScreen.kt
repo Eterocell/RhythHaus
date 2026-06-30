@@ -11,7 +11,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.runtime.*
@@ -49,7 +48,6 @@ fun NowPlayingScreen(
     )
     val durationMillis = playbackState.durationMillis ?: track.durationSeconds * 1_000L
     val positionMillis = playbackState.positionMillis.coerceIn(0L, durationMillis)
-    val progressFraction = if (durationMillis > 0) positionMillis.toFloat() / durationMillis else 0f
     val statusText = playbackState.error?.message ?: statusLabel(playbackState.status)
     val artworkBitmap = remember(track.artworkBytes) {
         track.artworkBytes?.decodeArtwork()
@@ -169,32 +167,12 @@ fun NowPlayingScreen(
             Spacer(Modifier.height(12.dp))
 
             // Seek bar
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Slider(
-                    value = progressFraction,
-                    onValueChange = { fraction ->
-                        playbackController.seekTo((durationMillis * fraction).toLong())
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = formatMillis(positionMillis),
-                        color = HausMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = formatMillis(durationMillis),
-                        color = HausMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
+            MusicProgressScrubber(
+                positionMillis = positionMillis,
+                durationMillis = durationMillis,
+                onSeek = playbackController::seekTo,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
             Spacer(Modifier.height(18.dp))
 
