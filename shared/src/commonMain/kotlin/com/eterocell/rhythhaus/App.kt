@@ -407,37 +407,58 @@ fun LibraryHomeScreen(
                                 onModeChange = { browseMode = it },
                             )
                         }
-                        if (browseMode == BrowseMode.Albums) {
-                            item {
-                                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                                    val columns = albumGridColumnsForWidth(maxWidth.value)
-                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        albums.chunked(columns).forEach { row ->
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            ) {
-                                                row.forEach { albumGroup ->
-                                                    AlbumCard(
-                                                        album = albumGroup,
-                                                        modifier = Modifier.weight(1f),
-                                                        onClick = { pushRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
-                                                    )
-                                                }
-                                                repeat(columns - row.size) {
-                                                    Spacer(Modifier.weight(1f))
+                        when (browseMode) {
+                            BrowseMode.Albums -> {
+                                item {
+                                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                                        val columns = albumGridColumnsForWidth(maxWidth.value)
+                                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            albums.chunked(columns).forEach { row ->
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                ) {
+                                                    row.forEach { albumGroup ->
+                                                        AlbumCard(
+                                                            album = albumGroup,
+                                                            modifier = Modifier.weight(1f),
+                                                            onClick = { pushRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
+                                                        )
+                                                    }
+                                                    repeat(columns - row.size) {
+                                                        Spacer(Modifier.weight(1f))
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                        } else {
-                            items(artists, key = { it.artist }) { artistGroup ->
-                                ArtistRow(
-                                    artist = artistGroup,
-                                    onClick = { pushRoute(LibraryRoute.ArtistDetail(artistGroup.artist)) },
-                                )
+
+                            BrowseMode.Artists -> {
+                                items(artists, key = { it.artist }) { artistGroup ->
+                                    ArtistRow(
+                                        artist = artistGroup,
+                                        onClick = { pushRoute(LibraryRoute.ArtistDetail(artistGroup.artist)) },
+                                    )
+                                }
+                            }
+
+                            BrowseMode.Songs -> {
+                                items(snapshot.tracks, key = { it.id }) { track ->
+                                    TrackRow(
+                                        track = track,
+                                        selected = track.id == selectedTrackId,
+                                        onClick = {
+                                            selectedTrackId = track.id
+                                            val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
+                                            if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
+                                                playbackController.setQueue(playableTracks, track.id)
+                                            }
+                                            playbackController.togglePlayPause()
+                                        },
+                                    )
+                                }
                             }
                         }
                         item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }

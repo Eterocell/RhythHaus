@@ -5,6 +5,11 @@ import kotlin.test.assertEquals
 
 class LibraryBrowserTest {
     @Test
+    fun browseModesIncludeAlbumsArtistsAndSongsInOrder() {
+        assertEquals(listOf(BrowseMode.Albums, BrowseMode.Artists, BrowseMode.Songs), BrowseMode.entries.toList())
+    }
+
+    @Test
     fun albumGridUsesTwoColumnsBelowTabletWidth() {
         assertEquals(2, albumGridColumnsForWidth(0f))
         assertEquals(2, albumGridColumnsForWidth(559f))

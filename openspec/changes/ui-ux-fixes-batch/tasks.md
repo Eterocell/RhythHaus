@@ -17,11 +17,18 @@
 
 ## 2. Songs browse mode
 
-- [ ] Extend `BrowseMode` with `Songs`.
-- [ ] Render all tracks as `TrackRow` entries in Songs mode.
-- [ ] Wire song-row clicks to select the track and use the full-library playable queue to start/toggle playback.
-- [ ] Preserve Albums and Artists behavior.
-- [ ] Run focused common tests and JVM compile.
+- [x] Extend `BrowseMode` with `Songs`.
+  - Evidence: `BrowseMode` is now `Albums, Artists, Songs`; added `LibraryBrowserTest.browseModesIncludeAlbumsArtistsAndSongsInOrder`.
+- [x] Render all tracks as `TrackRow` entries in Songs mode.
+  - Evidence: Home browse rendering now uses a `when (browseMode)` and the `BrowseMode.Songs` branch renders `items(snapshot.tracks, key = { it.id })` with `TrackRow`.
+- [x] Wire song-row clicks to select the track and use the full-library playable queue to start/toggle playback.
+  - Evidence: song row clicks set `selectedTrackId`, build `snapshot.tracks.map { it.toPlayableTrack() }`, set the queue when needed, and call `playbackController.togglePlayPause()`.
+- [x] Preserve Albums and Artists behavior.
+  - Evidence: existing Albums adaptive-grid and Artists drill-down rendering were preserved in the new `when` branches.
+- [x] Run focused common tests and JVM compile.
+  - RED: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryBrowserTest' --configuration-cache` failed before implementation with unresolved reference `BrowseMode.Songs`.
+  - GREEN: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryBrowserTest' --configuration-cache` passed (`BUILD SUCCESSFUL`).
+  - GREEN: `./gradlew :shared:compileKotlinJvm --configuration-cache` passed (`BUILD SUCCESSFUL`).
 
 ## 3. Search and compact controls polish
 

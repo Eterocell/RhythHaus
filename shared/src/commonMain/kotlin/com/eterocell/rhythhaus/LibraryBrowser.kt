@@ -2,7 +2,7 @@ package com.eterocell.rhythhaus
 
 import com.eterocell.rhythhaus.library.LibraryTrack
 
-enum class BrowseMode { Albums, Artists }
+enum class BrowseMode { Albums, Artists, Songs }
 
 fun albumGridColumnsForWidth(widthDp: Float): Int = when {
     widthDp >= 900f -> 4
