@@ -2,11 +2,18 @@
 
 ## 1. Empty Home onboarding and adaptive album grid
 
-- [ ] Add common tests for album-grid column breakpoints.
-- [ ] Add the pure column-count helper in shared common code.
-- [ ] Show `ImportAudioCard` on Home when the library is empty.
-- [ ] Render album rows using the adaptive column count instead of hardcoded two-column chunks.
-- [ ] Run focused common tests and JVM compile.
+- [x] Add common tests for album-grid column breakpoints.
+  - Evidence: added `LibraryBrowserTest` covering 0/559dp => 2 columns, 560/899dp => 3 columns, and 900/1400dp => 4 columns.
+- [x] Add the pure column-count helper in shared common code.
+  - Evidence: added `albumGridColumnsForWidth(widthDp: Float): Int` in `LibraryBrowser.kt`.
+- [x] Show `ImportAudioCard` on Home when the library is empty.
+  - Evidence: `LibraryHomeScreen` now inserts `ImportAudioCard` after `HeaderSection(snapshot)` when `snapshot.tracks.isEmpty()`.
+- [x] Render album rows using the adaptive column count instead of hardcoded two-column chunks.
+  - Evidence: album mode now wraps rendering in `BoxWithConstraints`, computes columns from `maxWidth.value`, chunks albums by that count, and preserves spacer fill for short rows.
+- [x] Run focused common tests and JVM compile.
+  - RED: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryBrowserTest' --configuration-cache` failed before implementation with unresolved reference `albumGridColumnsForWidth`.
+  - GREEN: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryBrowserTest' --configuration-cache` passed (`BUILD SUCCESSFUL`).
+  - GREEN: `./gradlew :shared:compileKotlinJvm --configuration-cache` passed (`BUILD SUCCESSFUL`).
 
 ## 2. Songs browse mode
 

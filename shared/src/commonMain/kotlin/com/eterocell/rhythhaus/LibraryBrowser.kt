@@ -4,6 +4,12 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 
 enum class BrowseMode { Albums, Artists }
 
+fun albumGridColumnsForWidth(widthDp: Float): Int = when {
+    widthDp >= 900f -> 4
+    widthDp >= 560f -> 3
+    else -> 2
+}
+
 data class AlbumGroup(
     val album: String,
     val tracks: List<Track>,

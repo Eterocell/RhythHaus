@@ -373,6 +373,16 @@ fun LibraryHomeScreen(
                         item {
                             HeaderSection(snapshot)
                         }
+                        if (snapshot.tracks.isEmpty()) {
+                            item {
+                                ImportAudioCard(
+                                    folderPickerLauncher = folderPickerLauncher,
+                                    importMessage = importMessage,
+                                    hasImportedTracks = false,
+                                    onClearLibrary = onClearLibrary,
+                                )
+                            }
+                        }
                         if (scanProgress?.isActive == true) {
                             item {
                                 val sp = scanProgress
@@ -398,22 +408,26 @@ fun LibraryHomeScreen(
                             )
                         }
                         if (browseMode == BrowseMode.Albums) {
-                            val albumRows = albums.chunked(2)
-                            albumRows.forEach { row ->
-                                item {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    ) {
-                                        row.forEach { albumGroup ->
-                                            AlbumCard(
-                                                album = albumGroup,
-                                                modifier = Modifier.weight(1f),
-                                                onClick = { pushRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
-                                            )
-                                        }
-                                        if (row.size == 1) {
-                                            Spacer(Modifier.weight(1f))
+                            item {
+                                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                                    val columns = albumGridColumnsForWidth(maxWidth.value)
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        albums.chunked(columns).forEach { row ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            ) {
+                                                row.forEach { albumGroup ->
+                                                    AlbumCard(
+                                                        album = albumGroup,
+                                                        modifier = Modifier.weight(1f),
+                                                        onClick = { pushRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
+                                                    )
+                                                }
+                                                repeat(columns - row.size) {
+                                                    Spacer(Modifier.weight(1f))
+                                                }
+                                            }
                                         }
                                     }
                                 }
