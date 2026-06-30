@@ -9,6 +9,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -185,7 +191,12 @@ fun NowPlayingScreen(
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = "⏮", color = HausColors.current.ink, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Icon(
+                        imageVector = Icons.Filled.SkipPrevious,
+                        contentDescription = "Previous track",
+                        tint = HausColors.current.ink,
+                        modifier = Modifier.size(26.dp),
+                    )
                 }
 
                 // Play/Pause (large, highlighted)
@@ -197,11 +208,11 @@ fun NowPlayingScreen(
                         .hausClickable { playbackController.togglePlayPause() },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = if (isPlaying) "⏸" else "▶",
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Black,
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        tint = Color.White,
+                        modifier = Modifier.size(34.dp),
                     )
                 }
 
@@ -220,7 +231,12 @@ fun NowPlayingScreen(
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = "⏭", color = HausColors.current.ink, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Icon(
+                        imageVector = Icons.Filled.SkipNext,
+                        contentDescription = "Next track",
+                        tint = HausColors.current.ink,
+                        modifier = Modifier.size(26.dp),
+                    )
                 }
             }
 

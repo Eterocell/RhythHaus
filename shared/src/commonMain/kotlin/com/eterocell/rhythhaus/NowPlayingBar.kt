@@ -5,6 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -141,17 +147,11 @@ fun NowPlayingBar(
                         .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onPlayPause() }),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = if (track == null) {
-                            "♪"
-                        } else if (isPlaying) {
-                            "⏸"
-                        } else {
-                            "▶"
-                        },
-                        color = HausColors.current.paper,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Black,
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        tint = HausColors.current.paper,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
@@ -172,7 +172,12 @@ fun NowPlayingBar(
                             .hausClickable(onClick = onSearch),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(text = "🔍", fontSize = 14.sp)
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = "Search",
+                            tint = HausColors.current.ink,
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                     Box(
                         modifier = Modifier
@@ -181,7 +186,12 @@ fun NowPlayingBar(
                             .hausClickable(onClick = onSettings),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(text = "⚙️", fontSize = 14.sp)
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Settings",
+                            tint = HausColors.current.ink,
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 }
             }

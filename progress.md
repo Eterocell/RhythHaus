@@ -1,5 +1,36 @@
 # Session Progress
 
+## Handoff - 2026-07-01 replace emoji controls with icons
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Implement OpenSpec change `replace-emoji-controls-with-icons`: replace transport/search/settings control glyphs with Material vector icons and record evidence.
+Implementation:
+- Added a shared commonMain Compose Material Icons Extended dependency alias and dependency. The planned `org.jetbrains.compose.material:material-icons-extended:1.11.1` artifact did not resolve, so the icon artifact is pinned to the available JetBrains Compose icon version `1.7.3` while existing Compose Multiplatform dependencies remain unchanged.
+- Replaced `NowPlayingBar.kt` play/pause/empty play, search, and settings control `Text` glyphs with `Icon` using `PlayArrow`, `Pause`, `Search`, and `Settings` image vectors.
+- Replaced `NowPlayingScreen.kt` previous/play-pause/next transport `Text` glyphs with `Icon` using `SkipPrevious`, `PlayArrow`/`Pause`, and `SkipNext` image vectors.
+- Preserved existing control containers, sizes, theme-driven colors/tints, click behavior, playback behavior, navigation behavior, queue behavior, scanner, persistence, platform code, and non-control artwork fallback text.
+Verification:
+- `openspec validate replace-emoji-controls-with-icons --strict`: pass (`Change 'replace-emoji-controls-with-icons' is valid`).
+- `rg '▶|⏸|⏮|⏭|🔍|⚙️' shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`: pass/no matches (exit 1, empty output).
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: initial fail because `org.jetbrains.compose.material:material-icons-extended:1.11.1` was unavailable; pass after pinning icon artifact to `1.7.3` (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+Acceptance:
+- Requirement matched: yes — targeted transport/search/settings controls now render vector icons with content descriptions and theme-aware tints instead of targeted emoji/text glyphs.
+- Scope controlled: yes — no playback, queue, scanner, persistence, navigation, theme selection, platform-specific code, or out-of-scope artwork fallback changes.
+- Edge cases/risk reviewed: automated compile/test verification passed; manual visual confirmation remains optional for icon appearance across devices.
+Changed files:
+- `gradle/libs.versions.toml`: Material Icons Extended alias/version.
+- `shared/build.gradle.kts`: commonMain Material Icons dependency.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`: mini-player vector icons.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`: expanded transport vector icons.
+- `openspec/changes/replace-emoji-controls-with-icons/tasks.md`: completed tasks and evidence.
+- `.superpowers/sdd/replace-emoji-controls-with-icons-report.md`: implementation/verification report.
+- `progress.md`: handoff evidence.
+Next owner: OpenSpec/user for archive or manual visual validation if desired.
+Blockers: none.
+Commit: pending semantic commit `fix: replace emoji controls with vector icons`.
+
 ## Handoff - 2026-07-01 polish track row selected copy
 
 Route: openspec+superpowers
