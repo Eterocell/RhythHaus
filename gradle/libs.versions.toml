@@ -65,6 +65,7 @@ sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", versi
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+build-logic-android-application = { id = "build-logic.android.application" }
 build-logic-root-project = { id = "build-logic.root-project" }
 build-logic-root-project-base = { id = "build-logic.root-project.base" }
 build-logic-root-spotless = { id = "build-logic.root-project.spotless" }
