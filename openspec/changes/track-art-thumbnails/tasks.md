@@ -2,11 +2,16 @@
 
 ## 1. Thumbnail cache and decoders
 
-- [ ] Add common cache-key support so full-size artwork and thumbnail entries are stored separately.
-- [ ] Add `decodeArtworkThumbnail(maxPixelSize: Int): ImageBitmap?` as an expect/actual helper.
-- [ ] Add `decodeArtworkThumbnailCached(maxPixelSize: Int = 128): ImageBitmap?` in common code.
-- [ ] Cover cache-key separation and thumbnail cache reuse with common tests.
-- [ ] Verify with focused JVM tests and JVM compilation.
+- [x] Add common cache-key support so full-size artwork and thumbnail entries are stored separately.
+  - Evidence: added `ArtworkCacheKey` with nullable size bucket and routed `ArtworkCache.get/put` through it.
+- [x] Add `decodeArtworkThumbnail(maxPixelSize: Int): ImageBitmap?` as an expect/actual helper.
+  - Evidence: common expect plus Android BitmapFactory and JVM/iOS Skia actuals added.
+- [x] Add `decodeArtworkThumbnailCached(maxPixelSize: Int = 128): ImageBitmap?` in common code.
+  - Evidence: common cached thumbnail helper added in `ArtworkDecoder.kt`.
+- [x] Cover cache-key separation and thumbnail cache reuse with common tests.
+  - Evidence: `ArtworkCacheTest` covers full-size vs thumbnail and thumbnail-size key separation without initializing Skiko native image objects.
+- [x] Verify with focused JVM tests and JVM compilation.
+  - Evidence: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ArtworkCacheTest' --configuration-cache` passed; `./gradlew :shared:compileKotlinJvm --configuration-cache` passed.
 
 ## 2. Route compact artwork surfaces through thumbnails
 
