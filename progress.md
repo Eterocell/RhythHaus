@@ -1,5 +1,33 @@
 # Session Progress
 
+
+## Handoff - 2026-07-01 Android release metadata R8 keep rules
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User reported metadata scans correctly in Android debug builds but not in release builds.
+Root cause: Release builds enable R8 minification/shrinking while debug builds do not. Source/build inspection showed the Android TagLib JNI bridge returns `NativeTagLibReadResult` from native C++ via `FindClass`/constructor signatures. A release APK dex inspection before the fix showed R8 kept `NativeTagLibBridge` native method names but optimized `NativeTagLibReadResult` into an abstract shell with no constructor, fields, or accessors. That makes the native result mapping fail only in minified release builds, so metadata falls back to display-name/default values. Debug APKs kept the normal Kotlin data-class shape.
+Fix:
+- Added `androidApp/proguard-rules.pro` with keep rules for JNI native method descriptor classes and the TagLib JNI bridge/result/write metadata classes.
+- Wired the release build type in `androidApp/build.gradle.kts` to use the default optimized Android rules plus `proguard-rules.pro`.
+Tight feedback loop:
+- Before fix, `./gradlew :androidApp:assembleDebug :androidApp:assembleRelease --configuration-cache` built both variants; release dex check failed because `NativeTagLibReadResult` had `Access flags 0x0401 (PUBLIC ABSTRACT)` and no constructor/accessors.
+- After fix, release dex check passes: `NativeTagLibReadResult` is `PUBLIC FINAL`; `NativeTagLibBridge.readFdNative`/`readPathNative`, `NativeWriteBridge.writePathNative`, and `WriteMeta` getters are present.
+Verification:
+- `./gradlew :androidApp:assembleRelease --rerun-tasks --configuration-cache`: pass (`BUILD SUCCESSFUL`); followed by dex inspection keep-check pass.
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug :androidApp:assembleRelease --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `git diff --check`: pass.
+Acceptance:
+- Requirement matched: yes for the release-vs-debug metadata cause that is reproducible locally; the release APK now preserves the JNI result classes needed by metadata scanning.
+- Scope controlled: yes — Android release shrinker configuration only; no scanner logic, database schema, playback, native TagLib C++, or metadata merge behavior changed.
+- Edge cases/risk reviewed: live Android SAF/provider scanning in an installed release build still needs device validation with real tagged files; automated verification proves the release-only R8/JNI break is fixed.
+Changed files:
+- `androidApp/build.gradle.kts`: release build now applies default optimized ProGuard rules plus app rules.
+- `androidApp/proguard-rules.pro`: keep rules for TagLib JNI bridges/result/value classes.
+Next owner: user for installing release build and rescanning/clearing existing fallback rows if needed.
+Blockers: none for automated validation; no Android device was attached for live release scan validation.
+
 ## Handoff - 2026-07-01 Android SAF metadata fallback
 
 Route: systematic-debugging (bugfix follow-up)
