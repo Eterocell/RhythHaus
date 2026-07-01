@@ -257,4 +257,5 @@ internal fun buildAndroidPlaybackMediaMetadata(track: PlayableTrack): MediaMetad
 private fun AudioSource.androidUri(): Uri = when (this) {
     is AudioSource.FilePath -> Uri.fromFile(java.io.File(path))
     is AudioSource.Uri -> Uri.parse(value)
+    is AudioSource.FileDescriptor -> error("File descriptor audio sources are metadata-only and cannot be played")
 }

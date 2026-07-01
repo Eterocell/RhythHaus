@@ -252,16 +252,19 @@ private val AudioSource.kindName: String
     get() = when (this) {
         is AudioSource.FilePath -> "FilePath"
         is AudioSource.Uri -> "Uri"
+        is AudioSource.FileDescriptor -> "FileDescriptor"
     }
 
 private val AudioSource.stableValue: String
     get() = when (this) {
         is AudioSource.FilePath -> path
         is AudioSource.Uri -> value
+        is AudioSource.FileDescriptor -> stableKey
     }
 
 private fun audioSourceFrom(kind: String, value: String): AudioSource = when (kind) {
     "FilePath" -> AudioSource.FilePath(value)
     "Uri" -> AudioSource.Uri(value)
+    "FileDescriptor" -> AudioSource.Uri(value)
     else -> AudioSource.Uri(value)
 }

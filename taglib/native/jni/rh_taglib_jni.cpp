@@ -36,29 +36,7 @@ jclass find_class(JNIEnv* env, const char* name) {
     return clazz;
 }
 
-} // namespace
-
-extern "C" JNIEXPORT jobject JNICALL Java_com_eterocell_rhythhaus_taglib_NativeTagLibBridge_readPathNative(
-    JNIEnv* env,
-    jobject,
-    jstring path
-) {
-    if (path == nullptr) {
-        jclass illegal_argument = find_class(env, "java/lang/IllegalArgumentException");
-        if (illegal_argument != nullptr) {
-            env->ThrowNew(illegal_argument, "path is required");
-        }
-        return nullptr;
-    }
-
-    const char* native_path = env->GetStringUTFChars(path, nullptr);
-    if (native_path == nullptr) {
-        return nullptr;
-    }
-
-    RhTagLibResult result = rh_taglib_read_path(native_path);
-    env->ReleaseStringUTFChars(path, native_path);
-
+jobject map_read_result(JNIEnv* env, RhTagLibResult result) {
     jclass result_class = find_class(env, "com/eterocell/rhythhaus/taglib/NativeTagLibReadResult");
     if (result_class == nullptr) {
         rh_taglib_free_result(result);
@@ -101,6 +79,51 @@ extern "C" JNIEXPORT jobject JNICALL Java_com_eterocell_rhythhaus_taglib_NativeT
 
     rh_taglib_free_result(result);
     return mapped_result;
+}
+
+} // namespace
+
+extern "C" JNIEXPORT jobject JNICALL Java_com_eterocell_rhythhaus_taglib_NativeTagLibBridge_readPathNative(
+    JNIEnv* env,
+    jobject,
+    jstring path
+) {
+    if (path == nullptr) {
+        jclass illegal_argument = find_class(env, "java/lang/IllegalArgumentException");
+        if (illegal_argument != nullptr) {
+            env->ThrowNew(illegal_argument, "path is required");
+        }
+        return nullptr;
+    }
+
+    const char* native_path = env->GetStringUTFChars(path, nullptr);
+    if (native_path == nullptr) {
+        return nullptr;
+    }
+
+    RhTagLibResult result = rh_taglib_read_path(native_path);
+    env->ReleaseStringUTFChars(path, native_path);
+
+    return map_read_result(env, result);
+}
+
+extern "C" JNIEXPORT jobject JNICALL Java_com_eterocell_rhythhaus_taglib_NativeTagLibBridge_readFdNative(
+    JNIEnv* env,
+    jobject,
+    jint fd,
+    jstring displayName
+) {
+    const char* native_display_name = displayName == nullptr ? nullptr : env->GetStringUTFChars(displayName, nullptr);
+    if (displayName != nullptr && native_display_name == nullptr) {
+        return nullptr;
+    }
+
+    RhTagLibResult result = rh_taglib_read_fd(static_cast<int>(fd), native_display_name);
+    if (native_display_name != nullptr) {
+        env->ReleaseStringUTFChars(displayName, native_display_name);
+    }
+
+    return map_read_result(env, result);
 }
 
 extern "C" JNIEXPORT jobject JNICALL Java_com_eterocell_rhythhaus_taglib_NativeTagLibBridge_readPropertiesNative(

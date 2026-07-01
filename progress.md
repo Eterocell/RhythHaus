@@ -1,5 +1,83 @@
 # Session Progress
 
+## Handoff - 2026-07-01 Android SAF metadata fallback
+
+Route: systematic-debugging (bugfix follow-up)
+Owner: implementation
+Input: User reported that after the FD TagLib change, scanned Android tracks still have missing metadata and duration `0:00`.
+Investigation evidence:
+- Current Android APK contains `librhythhaus_taglib.so` for `arm64-v8a`, `armeabi-v7a`, and `x86_64`.
+- Native symbol check confirmed all packaged/generated Android `.so` slices export `Java_com_eterocell_rhythhaus_taglib_NativeTagLibBridge_readFdNative`, `Java_com_eterocell_rhythhaus_taglib_NativeTagLibBridge_readPathNative`, and `rh_taglib_read_fd`.
+- A local native probe using the macOS helper verified `rh_taglib_read_fd` can read the generated WAV fixture title/artist/album/duration from a normal seekable FD, so the FD bridge itself works for at least file-backed descriptors.
+- No adb device was attached (`adb devices` listed none), so exact Android provider/runtime failure could not be captured from device logs.
+Root-cause hypothesis acted on:
+- Real Android SAF providers can still produce descriptors/streams that TagLib cannot fully parse or cannot derive duration from. Because `AudioMetadataReader` returned null on TagLib Unsupported/Failed or accepted partial TagLib results with null duration, the scanner persisted fallback title/artist/album and null duration, rendering as `0:00`.
+Fix:
+- Added a platform metadata fallback seam: `internal expect fun readPlatformAudioMetadata(source: AudioSource): AudioMetadata?`.
+- Android actual uses `MediaMetadataRetriever` for `AudioSource.FileDescriptor` via `/proc/self/fd/<fd>` and for `AudioSource.Uri` via `setDataSource(context, uri)`.
+- `AudioMetadataReader` now merges missing fields from the platform fallback when TagLib returns no metadata or partial metadata lacking title/artist/album/duration/artwork. TagLib remains the primary reader; Android framework metadata fills gaps, especially duration.
+- JVM/iOS actual fallbacks return null, preserving current TagLib-only behavior there.
+- Added regression coverage where TagLib returns title/artist/album but no duration; scanner fills duration from the platform fallback while preserving TagLib fields.
+Verification:
+- Native probe: `rh_taglib_read_path` and `rh_taglib_read_fd` both returned status 0, title/artist/album, duration=1, sample=8000, channels=1 for `/tmp/rhythhaus-fd-fixture.wav`.
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest.scannerFillsMissingDurationFromPlatformMetadataFallback' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:compileAndroidMain :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `git diff --check`: pass.
+Changed files added in this follow-up:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/AudioMetadata.kt`
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/AudioMetadata.android.kt`
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/AudioMetadata.jvm.kt`
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/AudioMetadata.ios.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryScannerTest.kt`
+Next owner: user for Android device clear/re-scan/manual validation with real SAF music files. If metadata still shows fallback values, capture device logcat around scan; no device was connected in this session.
+Blockers: none for automated validation; live Android SAF provider behavior not device-verified.
+Commit: not created; user did not ask to commit.
+
+## Handoff - 2026-07-01 Android SAF FD metadata
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Scope: Replace Android SAF metadata temp-file handoff with a file-descriptor handoff so TagLib can read metadata without copying user audio into app storage.
+Root cause: Android SAF playback sources are `content://` URIs, while RhythHaus TagLib metadata reads previously only accepted filesystem paths. The prior temp-file fix avoided persistent copies, but still copied every document before TagLib could run; if the metadata source fell back to URI, `AudioMetadataReader` returned null and tracks kept fallback metadata.
+Fix:
+- Added a metadata-only `AudioSource.FileDescriptor(fd, displayName)` and routed `AudioMetadataReader` through a new `TagLibReader.readFd` path.
+- Added native `rh_taglib_read_fd(int fd, const char* display_name)` using `dup(fd)` plus TagLib `FileStream`/`FileRef(IOStream*)`, with shared extraction logic for path and descriptor reads.
+- Added Android JNI `readFdNative(fd, displayName)` and wired `AndroidNativeTagLibReader.readFd` to it.
+- Changed Android SAF scanning to open each supported document with `ContentResolver.openFileDescriptor(document.uri, "r")`, pass that descriptor as the metadata source, and close it in `cleanupMetadataAudioSource` after scanner enrichment. Playback persistence still uses the original `content://` URI.
+- Kept legacy persistent metadata cache removal on scan start so old copied-cache files are cleaned on rescan.
+Verification:
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest.scannerCanReadMetadataFromSeparateFilesystemSourceWhilePreservingPlaybackUri' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:compileAndroidMain :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`); rebuilt Android TagLib helper slices during the build.
+- `./gradlew :taglib:buildAllAndroidTagLibHelpers --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :taglib:buildMacosTagLibHelper :taglib:buildAllAndroidTagLibHelpers --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+Acceptance:
+- Requirement matched: yes — Android SAF metadata now uses option 2 (file descriptor) instead of temp-copy files; original `content://` playback URI is still persisted.
+- Scope controlled: yes — no database schema, playback behavior, scanner UI, or iOS/JVM metadata source changes beyond exhaustive `AudioSource` handling.
+- Edge cases/risk reviewed: `FileDescriptor` is metadata-only and throws if accidentally routed to platform playback. Automated tests/builds prove compilation and scanner routing; real Android provider behavior still needs manual device rescan with local music to confirm provider seekability and actual embedded metadata/artwork extraction.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/AudioMetadata.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryScanner.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepository.kt`
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.android.kt`
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.android.kt`
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt`
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryScannerTest.kt`
+- `taglib/src/commonMain/kotlin/com/eterocell/rhythhaus/taglib/RhythHausTagLib.kt`
+- `taglib/src/androidMain/kotlin/com/eterocell/rhythhaus/taglib/TagLibReader.android.kt`
+- `taglib/native/include/rh_taglib.h`
+- `taglib/native/src/rh_taglib.cpp`
+- `taglib/native/jni/rh_taglib_jni.cpp`
+Next owner: user for Android device rescan/manual validation with real SAF music files; implementation if a provider returns a non-seekable descriptor and needs a fallback.
+Blockers: none for automated validation.
+Commit: not created; user did not ask to commit.
+
 ## Handoff - 2026-07-01 fix Android SAF import metadata copies
 
 Route: systematic-debugging (bugfix)

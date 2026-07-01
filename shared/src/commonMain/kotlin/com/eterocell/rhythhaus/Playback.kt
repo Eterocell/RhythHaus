@@ -53,6 +53,12 @@ sealed interface AudioSource {
     data class Uri(val value: String) : AudioSource {
         override val stableKey: String = value
     }
+
+    data class FileDescriptor(
+        val fd: Int,
+        val displayName: String,
+        override val stableKey: String = displayName,
+    ) : AudioSource
 }
 
 enum class PlaybackStatus {

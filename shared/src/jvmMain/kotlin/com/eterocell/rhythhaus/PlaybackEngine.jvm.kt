@@ -207,4 +207,5 @@ private object MacAudioNativeLibrary {
 private fun AudioSource.jvmFile(): File = when (this) {
     is AudioSource.FilePath -> File(path)
     is AudioSource.Uri -> if (value.startsWith("file:")) File(java.net.URI(value)) else File(value)
+    is AudioSource.FileDescriptor -> error("File descriptor audio sources are metadata-only and cannot be played")
 }

@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 #ifdef RH_TAGLIB_HAS_TAGLIB
 #include <audioproperties.h>
@@ -9,6 +10,7 @@
 #include <tag.h>
 #include <tstring.h>
 #include <tpropertymap.h>
+#include <tfilestream.h>
 
 #include <ape/apefile.h>
 #include <ape/apetag.h>
@@ -27,6 +29,8 @@
 #include <ogg/speex/speexfile.h>
 #include <ogg/vorbis/vorbisfile.h>
 #include <ogg/xiphcomment.h>
+
+#include <unistd.h>
 #endif
 
 namespace {
@@ -346,6 +350,40 @@ void rh_write_disc_track(TagLib::FileRef& file, int track, int trackTotal,
     }
 }
 
+RhTagLibResult rh_taglib_read_file_ref(TagLib::FileRef& file) {
+    if (file.isNull()) {
+        return rh_taglib_result(RH_TAGLIB_STATUS_UNSUPPORTED, "TagLib could not open this audio stream");
+    }
+
+    RhTagLibResult result{};
+    result.status = RH_TAGLIB_STATUS_FOUND;
+    result.error_message = nullptr;
+    result.metadata = rh_taglib_empty_metadata();
+
+    if (auto* tag = file.tag()) {
+        result.metadata.title = rh_taglib_duplicate_tag_string(tag->title());
+        result.metadata.artist = rh_taglib_duplicate_tag_string(tag->artist());
+        result.metadata.album = rh_taglib_duplicate_tag_string(tag->album());
+        result.metadata.genre = rh_taglib_duplicate_tag_string(tag->genre());
+        result.metadata.comment = rh_taglib_duplicate_tag_string(tag->comment());
+        result.metadata.year = static_cast<int>(tag->year());
+        result.metadata.track = static_cast<int>(tag->track());
+    }
+
+    if (auto* properties = file.audioProperties()) {
+        result.metadata.duration_seconds = properties->lengthInSeconds();
+        result.metadata.bitrate = properties->bitrate();
+        result.metadata.sample_rate = properties->sampleRate();
+        result.metadata.channels = properties->channels();
+    }
+
+    rh_extract_album_artist(result.metadata, file);
+    rh_extract_disc_track_totals(result.metadata, file);
+    rh_extract_artwork(result.metadata, file);
+
+    return result;
+}
+
 #endif // RH_TAGLIB_HAS_TAGLIB
 
 } // namespace
@@ -363,39 +401,40 @@ extern "C" RhTagLibResult rh_taglib_read_path(const char* path) {
 #else
     try {
         TagLib::FileRef file(path);
-        if (file.isNull()) {
-            return rh_taglib_result(RH_TAGLIB_STATUS_UNSUPPORTED, "TagLib could not open this file path");
-        }
-
-        RhTagLibResult result{};
-        result.status = RH_TAGLIB_STATUS_FOUND;
-        result.error_message = nullptr;
-        result.metadata = rh_taglib_empty_metadata();
-
-        if (auto* tag = file.tag()) {
-            result.metadata.title = rh_taglib_duplicate_tag_string(tag->title());
-            result.metadata.artist = rh_taglib_duplicate_tag_string(tag->artist());
-            result.metadata.album = rh_taglib_duplicate_tag_string(tag->album());
-            result.metadata.genre = rh_taglib_duplicate_tag_string(tag->genre());
-            result.metadata.comment = rh_taglib_duplicate_tag_string(tag->comment());
-            result.metadata.year = static_cast<int>(tag->year());
-            result.metadata.track = static_cast<int>(tag->track());
-        }
-
-        if (auto* properties = file.audioProperties()) {
-            result.metadata.duration_seconds = properties->lengthInSeconds();
-            result.metadata.bitrate = properties->bitrate();
-            result.metadata.sample_rate = properties->sampleRate();
-            result.metadata.channels = properties->channels();
-        }
-
-        rh_extract_album_artist(result.metadata, file);
-        rh_extract_disc_track_totals(result.metadata, file);
-        rh_extract_artwork(result.metadata, file);
-
-        return result;
+        return rh_taglib_read_file_ref(file);
     } catch (...) {
         return rh_taglib_result(RH_TAGLIB_STATUS_FAILED, "TagLib failed while reading metadata");
+    }
+#endif
+}
+
+extern "C" RhTagLibResult rh_taglib_read_fd(int fd, const char* display_name) {
+    if (fd < 0) {
+        return rh_taglib_result(RH_TAGLIB_STATUS_FAILED, "File descriptor is required");
+    }
+
+#ifndef RH_TAGLIB_HAS_TAGLIB
+    return rh_taglib_result(
+        RH_TAGLIB_STATUS_UNSUPPORTED,
+        "Native TagLib library was not found at build time; rebuild rhythhaus_taglib with TagLib available"
+    );
+#else
+    try {
+        const int owned_fd = dup(fd);
+        if (owned_fd < 0) {
+            return rh_taglib_result(RH_TAGLIB_STATUS_FAILED, "Could not duplicate file descriptor for TagLib");
+        }
+
+        (void)display_name;
+        TagLib::FileStream stream(owned_fd, true);
+        if (!stream.isOpen()) {
+            return rh_taglib_result(RH_TAGLIB_STATUS_UNSUPPORTED, "TagLib could not open this file descriptor");
+        }
+
+        TagLib::FileRef file(&stream);
+        return rh_taglib_read_file_ref(file);
+    } catch (...) {
+        return rh_taglib_result(RH_TAGLIB_STATUS_FAILED, "TagLib failed while reading metadata from file descriptor");
     }
 #endif
 }

@@ -11,6 +11,14 @@ private class AndroidNativeTagLibReader : TagLibReader {
         TagReadResult.Unsupported("$ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE (${error.message ?: "unknown linker error"})")
     }
 
+    override fun readFd(fd: Int, displayName: String): TagReadResult = try {
+        NativeTagLibBridge().readFdNative(fd, displayName).toTagReadResult()
+    } catch (error: NativeTagLibUnavailableException) {
+        TagReadResult.Unsupported(error.message ?: ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE)
+    } catch (error: UnsatisfiedLinkError) {
+        TagReadResult.Unsupported("$ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE (${error.message ?: "unknown linker error"})")
+    }
+
     override fun readProperties(path: String): Map<String, String> = try {
         NativeTagLibBridge().readPropertiesNative(path).orEmpty()
     } catch (error: NativeTagLibUnavailableException) {
@@ -26,6 +34,7 @@ private class NativeTagLibBridge {
     }
 
     external fun readPathNative(path: String): NativeTagLibReadResult
+    external fun readFdNative(fd: Int, displayName: String): NativeTagLibReadResult
     external fun readPropertiesNative(path: String): Map<String, String>?
 }
 

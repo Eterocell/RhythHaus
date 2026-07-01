@@ -37,6 +37,11 @@ typedef struct RhTagLibResult {
 // the complete result value to rh_taglib_free_result.
 RhTagLibResult rh_taglib_read_path(const char* path);
 
+// Reads metadata from an already-open, seekable file descriptor. The descriptor
+// is duplicated internally, so the caller remains responsible for closing the
+// original descriptor. display_name is used only for extension-based type hints.
+RhTagLibResult rh_taglib_read_fd(int fd, const char* display_name);
+
 // Frees all heap-owned string fields inside result. It is safe to pass a result
 // whose string fields are null.
 void rh_taglib_free_result(RhTagLibResult result);

@@ -328,4 +328,5 @@ private fun AudioSource.iosUrl(): NSURL = when (this) {
     }
 
     is AudioSource.Uri -> NSURL.URLWithString(value) ?: error("Invalid iOS audio URL: $value")
+    is AudioSource.FileDescriptor -> error("File descriptor audio sources are metadata-only and cannot be played")
 }

@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus.library
 
+import com.eterocell.rhythhaus.AudioMetadata
 import com.eterocell.rhythhaus.AudioMetadataReader
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.taglib.TagLibReader
@@ -187,7 +188,7 @@ class LibraryScannerTest {
                         displayPath = "albums/song.flac",
                         displayName = "song.flac",
                         audioSource = AudioSource.Uri("content://provider/tree/music/document/song"),
-                        metadataAudioSource = AudioSource.FilePath("/cache/rhythhaus-metadata/song.flac"),
+                        metadataAudioSource = AudioSource.FileDescriptor(fd = 42, displayName = "song.flac"),
                         cleanupMetadataAudioSource = { metadataSourceCleanedUp = true },
                     ),
                 ),
@@ -212,6 +213,48 @@ class LibraryScannerTest {
         assertEquals(123_000L, track.durationMillis)
         assertEquals(true, metadataSourceCleanedUp)
     }
+
+    @Test
+    fun scannerFillsMissingDurationFromPlatformMetadataFallback() {
+        val repository = InMemoryLibraryRepository()
+        val source = LibrarySource("source-1", LibraryPlatformKind.AndroidSafTree, "Music", "content://tree/music", 1L)
+        val platform = FakePlatformAudioScanner(
+            events = listOf(
+                PlatformScanEvent.AudioCandidate(
+                    AudioScanCandidate(
+                        sourceId = "source-1",
+                        sourceLocalKey = "albums/song.m4a",
+                        displayPath = "albums/song.m4a",
+                        displayName = "song.m4a",
+                        audioSource = AudioSource.Uri("content://provider/tree/music/document/song"),
+                        metadataAudioSource = AudioSource.FileDescriptor(fd = 42, displayName = "song.m4a"),
+                    ),
+                ),
+            ),
+        )
+        val scanner = LibraryScanner(
+            repository = repository,
+            platformScanner = platform,
+            metadataReader = AudioMetadataReader(
+                tagLibReader = DurationlessTagLibReader,
+                platformMetadataReader = { source ->
+                    assertEquals(AudioSource.FileDescriptor(fd = 42, displayName = "song.m4a"), source)
+                    AudioMetadata(durationMillis = 187_000L)
+                },
+            ),
+            now = { 100L },
+            idFactory = { prefix -> "$prefix-id" },
+        )
+
+        val result = scanner.scan(source)
+
+        assertEquals(ScanStatus.Completed, result.status)
+        val track = repository.tracks().single()
+        assertEquals("TagLib Title", track.title)
+        assertEquals("TagLib Artist", track.artist)
+        assertEquals("TagLib Album", track.album)
+        assertEquals(187_000L, track.durationMillis)
+    }
 }
 
 private class FakePlatformAudioScanner(
@@ -234,12 +277,39 @@ private object ThrowingTagLibReader : TagLibReader {
 private object PathAwareTagLibReader : TagLibReader {
     override fun readPath(path: String): TagReadResult {
         assertEquals("/cache/rhythhaus-metadata/song.flac", path)
+        return androidTagMetadata()
+    }
+
+    override fun readFd(fd: Int, displayName: String): TagReadResult {
+        assertEquals(42, fd)
+        assertEquals("song.flac", displayName)
+        return androidTagMetadata()
+    }
+
+    override fun readProperties(path: String): Map<String, String> = emptyMap()
+
+    private fun androidTagMetadata() = TagReadResult.Found(
+        TagMetadata(
+            title = "Android TagLib Title",
+            artist = "Android TagLib Artist",
+            album = "Android TagLib Album",
+            durationMillis = 123_000L,
+        ),
+    )
+}
+
+private object DurationlessTagLibReader : TagLibReader {
+    override fun readPath(path: String): TagReadResult = error("Expected descriptor metadata source")
+
+    override fun readFd(fd: Int, displayName: String): TagReadResult {
+        assertEquals(42, fd)
+        assertEquals("song.m4a", displayName)
         return TagReadResult.Found(
             TagMetadata(
-                title = "Android TagLib Title",
-                artist = "Android TagLib Artist",
-                album = "Android TagLib Album",
-                durationMillis = 123_000L,
+                title = "TagLib Title",
+                artist = "TagLib Artist",
+                album = "TagLib Album",
+                durationMillis = null,
             ),
         )
     }

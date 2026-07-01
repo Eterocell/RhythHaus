@@ -107,8 +107,8 @@ private fun scanDocumentTree(
         val key = pathSegments.sourceLocalKey().ifBlank { document.uri.toString() }
         val displayPath = pathSegments.joinToString("/").ifBlank { name }
         val playbackSource = AudioSource.Uri(document.uri.toString())
-        val metadataCopy = if (isSupportedAudioName(name)) {
-            copyDocumentToTemporaryMetadataFile(context, document, key, name)
+        val metadataDescriptor = if (isSupportedAudioName(name)) {
+            openDocumentForMetadata(context, document)
         } else {
             null
         }
@@ -119,8 +119,8 @@ private fun scanDocumentTree(
                 displayPath = displayPath,
                 displayName = name,
                 audioSource = playbackSource,
-                metadataAudioSource = metadataCopy?.let { AudioSource.FilePath(it.absolutePath) } ?: playbackSource,
-                cleanupMetadataAudioSource = metadataCopy?.let { file -> { file.delete() } },
+                metadataAudioSource = metadataDescriptor?.let { AudioSource.FileDescriptor(it.fd, name) } ?: playbackSource,
+                cleanupMetadataAudioSource = metadataDescriptor?.let { descriptor -> { descriptor.close() } },
                 sizeBytes = document.length().takeIf { it >= 0L },
                 modifiedAtEpochMillis = document.lastModified().takeIf { it > 0L },
             ),
@@ -128,34 +128,16 @@ private fun scanDocumentTree(
     }
 }
 
-private fun copyDocumentToTemporaryMetadataFile(
+private fun openDocumentForMetadata(
     context: Context,
     document: DocumentFile,
-    sourceLocalKey: String,
-    displayName: String,
-): File? = runCatching {
-    val cacheDir = File(context.cacheDir, "rhythhaus-taglib-temp").apply { mkdirs() }
-    val target = File.createTempFile(
-        "${sourceLocalKey.hashCode().toUInt().toString(16)}-",
-        "-${displayName.safeCacheFileName()}",
-        cacheDir,
-    )
-
-    context.contentResolver.openInputStream(document.uri)?.use { input ->
-        target.outputStream().use { output ->
-            input.copyTo(output)
-        }
-        target
-    } ?: target.delete().let { null }
+): android.os.ParcelFileDescriptor? = runCatching {
+    context.contentResolver.openFileDescriptor(document.uri, "r")
 }.getOrNull()
 
 private fun removeLegacyPersistentMetadataCache(source: LibrarySource) {
     File(LibraryDatabaseContext.applicationContext.cacheDir, "rhythhaus-taglib/${source.id}").deleteRecursively()
 }
-
-private fun String.safeCacheFileName(): String = replace(Regex("[^A-Za-z0-9._-]+"), "_")
-    .trim('_')
-    .ifBlank { "audio" }
 
 actual fun createPlatformSourceAccess(): PlatformSourceAccess {
     val context = LibraryDatabaseContext.applicationContext

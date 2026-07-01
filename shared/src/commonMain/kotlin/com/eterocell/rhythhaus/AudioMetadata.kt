@@ -37,22 +37,32 @@ data class AudioMetadata(
 
 class AudioMetadataReader(
     private val tagLibReader: TagLibReader = createTagLibReader(),
+    private val platformMetadataReader: (AudioSource) -> AudioMetadata? = ::readPlatformAudioMetadata,
 ) {
     fun read(source: AudioSource): AudioMetadata? {
-        val path = when (source) {
-            is AudioSource.FilePath -> source.path
-            is AudioSource.Uri -> return null
+        val result = when (source) {
+            is AudioSource.FilePath -> RhythHausTagLib.readPath(source.path, tagLibReader)
+            is AudioSource.FileDescriptor -> RhythHausTagLib.readFd(source.fd, source.displayName, tagLibReader)
+            is AudioSource.Uri -> return platformMetadataReader(source)
         }
 
-        return when (val result = RhythHausTagLib.readPath(path, tagLibReader)) {
+        val tagMetadata = when (result) {
             is TagReadResult.Found -> result.metadata.toAudioMetadata()
             is TagReadResult.Unsupported -> null
             is TagReadResult.Failed -> null
         }
+        val fallbackMetadata = if (tagMetadata == null || tagMetadata.needsFallbackMetadata()) {
+            platformMetadataReader(source)
+        } else {
+            null
+        }
+        return tagMetadata.mergeMissing(fallbackMetadata) ?: fallbackMetadata
     }
 }
 
 // Metadata enrichment handled by LibraryScanner using AudioMetadataReader directly.
+
+internal expect fun readPlatformAudioMetadata(source: AudioSource): AudioMetadata?
 
 private fun TagMetadata.toAudioMetadata(): AudioMetadata = AudioMetadata(
     title = title.normalizedOrNull(),
@@ -64,6 +74,27 @@ private fun TagMetadata.toAudioMetadata(): AudioMetadata = AudioMetadata(
     artworkBytes = artwork?.bytes?.takeIf { it.isNotEmpty() },
     artworkMimeType = artwork?.mimeType,
 )
+
+private fun AudioMetadata?.mergeMissing(fallback: AudioMetadata?): AudioMetadata? {
+    if (this == null) return fallback
+    if (fallback == null) return this
+    return copy(
+        title = title ?: fallback.title,
+        artist = artist ?: fallback.artist,
+        album = album ?: fallback.album,
+        durationMillis = durationMillis ?: fallback.durationMillis,
+        trackNumber = trackNumber ?: fallback.trackNumber,
+        discNumber = discNumber ?: fallback.discNumber,
+        artworkBytes = artworkBytes ?: fallback.artworkBytes,
+        artworkMimeType = artworkMimeType ?: fallback.artworkMimeType,
+    )
+}
+
+private fun AudioMetadata.needsFallbackMetadata(): Boolean = title == null ||
+    artist == null ||
+    album == null ||
+    durationMillis == null ||
+    artworkBytes == null
 
 // Simple top-level function for Swift interop — reads metadata from an absolute file path.
 fun readAudioMetadata(path: String): AudioMetadata? = AudioMetadataReader().read(AudioSource.FilePath(path))
