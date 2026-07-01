@@ -1,5 +1,46 @@
 # Session Progress
 
+## Handoff - 2026-07-01 fix iOS lockscreen skip buttons greyed out
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Scope: Fix user report — iOS lockscreen media controls, previous/next (forward/backward) buttons greyed out.
+Root cause (Phase 1/2): `IOSPlaybackEngine.registerRemoteCommands()` enabled and handled
+`previousTrackCommand`/`nextTrackCommand`, but never explicitly disabled the skip-interval commands
+(`skipForwardCommand`, `skipBackwardCommand`, `seekForwardCommand`, `seekBackwardCommand`). iOS
+prefers the interval commands over the track commands on the lock screen when the interval commands
+are left enabled; with no handler attached, they render greyed out and suppress the working
+previous/next track buttons.
+Fix (Phase 4, single change):
+- Extracted the command enable/disable wiring from `registerRemoteCommands()` into a new
+  internal top-level `configureIOSRemoteCommandAvailability(commandCenter: MPRemoteCommandCenter)`
+  in `PlaybackEngine.ios.kt`, called from `registerRemoteCommands()` unchanged (still guarded by
+  `remoteCommandsRegistered` to avoid handler accumulation, per known cinterop pitfall).
+  The function now additionally disables `skipForwardCommand`, `skipBackwardCommand`,
+  `seekForwardCommand`, `seekBackwardCommand`.
+- Added `remoteCommandConfigurationEnablesTrackControlsAndDisablesIntervalControls` regression test
+  in `IOSNowPlayingInfoTest.kt` (iosTest) asserting the real `MPRemoteCommandCenter.sharedCommandCenter()`
+  singleton's `.enabled` flags after calling the new function — not a mock.
+Verification:
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 16s`);
+  new test confirmed executed via `TEST-iosSimulatorArm64Test.com.eterocell.rhythhaus.IOSNowPlayingInfoTest.xml`
+  (4 tests, 0 failures, including `remoteCommandConfigurationEnablesTrackControlsAndDisablesIntervalControls`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass.
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, Build version 17F113.
+Acceptance:
+- Requirement matched: yes — root cause fixed at the source (command registration), not a UI-level workaround.
+- Scope controlled: yes — iOS-only change, no touch to Android/desktop media session code, no new
+  dependencies, no behavior change to play/pause/stop/scrub/track-skip handlers themselves.
+- Not verified: actual on-device/simulator lock-screen visual confirmation that the buttons are no
+  longer greyed. The fix is verified at the API level (command `.enabled` state) which directly
+  controls the lock-screen rendering per Apple's `MPRemoteCommandCenter` behavior, but no screenshot
+  evidence was captured.
+Changed files:
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt`
+- `shared/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSNowPlayingInfoTest.kt`
+Next owner: user for on-device/simulator visual confirmation; no further automated action pending.
+Blockers: none for automated validation; on-device lock-screen visual confirmation not performed.
+
 ## Handoff - 2026-07-01 ui ux fixes batch
 
 Route: openspec+superpowers

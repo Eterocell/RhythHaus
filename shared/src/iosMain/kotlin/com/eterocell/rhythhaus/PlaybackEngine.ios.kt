@@ -182,13 +182,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         if (remoteCommandsRegistered) return
         remoteCommandsRegistered = true
         val commandCenter = MPRemoteCommandCenter.sharedCommandCenter()
-        commandCenter.playCommand.setEnabled(true)
-        commandCenter.pauseCommand.setEnabled(true)
-        commandCenter.togglePlayPauseCommand.setEnabled(true)
-        commandCenter.stopCommand.setEnabled(true)
-        commandCenter.changePlaybackPositionCommand.setEnabled(true)
-        commandCenter.previousTrackCommand.setEnabled(true)
-        commandCenter.nextTrackCommand.setEnabled(true)
+        configureIOSRemoteCommandAvailability(commandCenter)
 
         commandCenter.playCommand.addTargetWithHandler { _ ->
             val p = player
@@ -269,6 +263,30 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             artworkBytes = track.artworkBytes,
         )
     }
+}
+
+/**
+ * Configures which lock-screen / Control Center remote commands are enabled.
+ *
+ * iOS prefers the skip-interval commands (skip/seek forward/backward) over the previous/next
+ * TRACK commands when the interval commands are left enabled. Because this app has no notion of
+ * a fixed skip interval — only a track queue — the interval commands must be explicitly disabled,
+ * otherwise the lock screen renders them (greyed out, since nothing handles them) instead of the
+ * working previous/next track buttons.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun configureIOSRemoteCommandAvailability(commandCenter: MPRemoteCommandCenter) {
+    commandCenter.playCommand.setEnabled(true)
+    commandCenter.pauseCommand.setEnabled(true)
+    commandCenter.togglePlayPauseCommand.setEnabled(true)
+    commandCenter.stopCommand.setEnabled(true)
+    commandCenter.changePlaybackPositionCommand.setEnabled(true)
+    commandCenter.previousTrackCommand.setEnabled(true)
+    commandCenter.nextTrackCommand.setEnabled(true)
+    commandCenter.skipForwardCommand.setEnabled(false)
+    commandCenter.skipBackwardCommand.setEnabled(false)
+    commandCenter.seekForwardCommand.setEnabled(false)
+    commandCenter.seekBackwardCommand.setEnabled(false)
 }
 
 internal fun buildIOSNowPlayingInfo(

@@ -1,9 +1,13 @@
 package com.eterocell.rhythhaus
 
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
+import platform.MediaPlayer.MPRemoteCommandCenter
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class IOSNowPlayingInfoTest {
 
@@ -41,5 +45,30 @@ class IOSNowPlayingInfoTest {
         assertEquals(IOSTrackSwitchTeardown.SoftFade, iosTrackSwitchTeardown)
         assertEquals(0.05, IOS_TRACK_SWITCH_FADE_SECONDS)
         assertEquals(0.0f, IOS_TRACK_SWITCH_SILENT_VOLUME)
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    @Test
+    fun remoteCommandConfigurationEnablesTrackControlsAndDisablesIntervalControls() {
+        val commandCenter = MPRemoteCommandCenter.sharedCommandCenter()
+
+        configureIOSRemoteCommandAvailability(commandCenter)
+
+        // Track-level transport controls must be enabled — these are the ones this app can
+        // actually service (play/pause/stop/scrub/previous track/next track).
+        assertTrue(commandCenter.playCommand.enabled)
+        assertTrue(commandCenter.pauseCommand.enabled)
+        assertTrue(commandCenter.togglePlayPauseCommand.enabled)
+        assertTrue(commandCenter.stopCommand.enabled)
+        assertTrue(commandCenter.changePlaybackPositionCommand.enabled)
+        assertTrue(commandCenter.previousTrackCommand.enabled)
+        assertTrue(commandCenter.nextTrackCommand.enabled)
+
+        // Skip-interval controls must be disabled — left enabled without a handler, iOS renders
+        // them (greyed out) on the lock screen INSTEAD OF previous/next track.
+        assertFalse(commandCenter.skipForwardCommand.enabled)
+        assertFalse(commandCenter.skipBackwardCommand.enabled)
+        assertFalse(commandCenter.seekForwardCommand.enabled)
+        assertFalse(commandCenter.seekBackwardCommand.enabled)
     }
 }
