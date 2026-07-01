@@ -41,6 +41,51 @@ Changed files:
 Next owner: user for on-device/simulator visual confirmation; no further automated action pending.
 Blockers: none for automated validation; on-device lock-screen visual confirmation not performed.
 
+## Handoff - 2026-07-01 track art thumbnails
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Add memory-only cached thumbnail artwork decode path for compact track-list and now-playing-bar artwork.
+Root cause: Source inspection showed compact track-row artwork (`AlbumMark` inside `TrackRow`) and `NowPlayingBar` decoded full embedded artwork bytes in Compose surfaces used during list scrolling. Lazy-list row composition could therefore trigger full-size image decode work for a 54dp row mark.
+Implementation:
+- Added cache-key separation for full-size and thumbnail artwork entries in `ArtworkCache`.
+- Added `decodeArtworkThumbnail(maxPixelSize: Int)` expect/actual implementations: Android uses sampled `BitmapFactory` decode plus final scaling; JVM/iOS use Skia raster thumbnail rendering.
+- Added `decodeArtworkThumbnailCached(maxPixelSize: Int = 128)` for compact UI surfaces.
+- Added `ArtworkCacheTest` coverage for cache bucket separation, empty-cache behavior, and rectangular thumbnail dimension bounds without requiring Skiko native image construction in tests.
+- Routed `AlbumMark`/`TrackRow` and compact `NowPlayingBar` through `decodeArtworkThumbnailCached()`.
+- Preserved original `artworkBytes` on track/playback models and kept expanded `NowPlayingScreen` on full-size `decodeArtwork()`.
+Verification:
+- `openspec validate track-art-thumbnails --strict`: pass (`Change 'track-art-thumbnails' is valid`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ArtworkCacheTest' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:compileKotlinJvm :shared:compileAndroidMain --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `rg 'decodeArtwork\\(' shared/src/commonMain/kotlin/com/eterocell/rhythhaus shared/src/androidMain/kotlin/com/eterocell/rhythhaus shared/src/jvmMain/kotlin/com/eterocell/rhythhaus shared/src/iosMain/kotlin/com/eterocell/rhythhaus`: pass; direct full decode remains in platform actuals, `NowPlayingScreen`, legacy `NowPlayingCard`, and common cached full-size helper.
+- `rg 'decodeArtworkThumbnailCached' shared/src/commonMain/kotlin/com/eterocell/rhythhaus`: pass; shows `AlbumMark`, `NowPlayingBar`, and helper.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, Build version 17F113.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+Acceptance:
+- Requirement matched: yes — compact row/bar artwork uses cached thumbnails, expanded Now Playing remains full-size, and original artwork bytes remain available for platform metadata/full artwork.
+- Scope controlled: yes — no dependency, SQLDelight schema, scanner, TagLib/native metadata, playback-engine, MediaSession, audio-session, or platform media metadata changes.
+- Edge cases/risk reviewed: runtime scroll/FPS improvement still needs manual validation with a large artwork-heavy library; this change removes the source-level full-decode-on-row-composition hotspot.
+Changed files:
+- `docs/superpowers/plans/2026-07-01-track-art-thumbnails.md`
+- `docs/superpowers/specs/2026-07-01-track-art-thumbnails-design.md`
+- `openspec/changes/track-art-thumbnails/design.md`
+- `openspec/changes/track-art-thumbnails/proposal.md`
+- `openspec/changes/track-art-thumbnails/specs/library-ui/spec.md`
+- `openspec/changes/track-art-thumbnails/tasks.md`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ArtworkDecoder.kt`
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/ArtworkDecoder.android.kt`
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/ArtworkDecoder.jvm.kt`
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/ArtworkDecoder.ios.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/ArtworkCacheTest.kt`
+- `progress.md`
+Next owner: user for manual scroll-performance validation with a large artwork-heavy library; OpenSpec/user for archive when satisfied.
+Blockers: none for automated verification.
+Commit: `b139cfa docs: spec track artwork thumbnails`, `dab756f feat: add artwork thumbnail cache`, `e7491ef fix: use thumbnails for compact artwork`, `1ffb579 fix: tighten artwork thumbnail cache tests`, `f9ec7ab docs: record track artwork thumbnail evidence`.
+
 ## Handoff - 2026-07-01 ui ux fixes batch
 
 Route: openspec+superpowers
