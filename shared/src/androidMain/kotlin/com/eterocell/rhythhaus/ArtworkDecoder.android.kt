@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -19,17 +20,24 @@ actual fun ByteArray.decodeArtworkThumbnail(maxPixelSize: Int): ImageBitmap? = t
     val options = BitmapFactory.Options().apply {
         inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, target)
     }
-    BitmapFactory.decodeByteArray(this, 0, size, options)?.asImageBitmap()
+    val sampled = BitmapFactory.decodeByteArray(this, 0, size, options) ?: return null
+    val (scaledWidth, scaledHeight) = scaledThumbnailDimension(sampled.width, sampled.height, target)
+    val thumbnail = if (sampled.width == scaledWidth && sampled.height == scaledHeight) {
+        sampled
+    } else {
+        Bitmap.createScaledBitmap(sampled, scaledWidth, scaledHeight, true)
+    }
+    thumbnail.asImageBitmap()
 } catch (_: Exception) {
     null
 }
 
 private fun calculateInSampleSize(width: Int, height: Int, target: Int): Int {
+    val safeTarget = target.coerceAtLeast(1)
+    val largestDimension = maxOf(width, height).coerceAtLeast(1)
     var sampleSize = 1
-    var halfWidth = width / 2
-    var halfHeight = height / 2
-    while (halfWidth / sampleSize >= target && halfHeight / sampleSize >= target) {
+    while (largestDimension / (sampleSize * 2) >= safeTarget) {
         sampleSize *= 2
     }
-    return sampleSize.coerceAtLeast(1)
+    return sampleSize
 }

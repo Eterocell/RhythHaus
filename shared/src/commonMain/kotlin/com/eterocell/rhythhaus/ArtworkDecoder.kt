@@ -23,6 +23,8 @@ object ArtworkCache {
     fun clear() = cache.clear()
 
     fun size(): Int = cache.size
+
+    internal fun contains(bytes: ByteArray, maxPixelSize: Int? = null): Boolean = artworkCacheKey(bytes, maxPixelSize) in cache
 }
 
 internal data class ArtworkCacheKey(
@@ -45,3 +47,13 @@ fun ByteArray.decodeArtworkCached(): ImageBitmap? = ArtworkCache.get(this) ?: de
  */
 fun ByteArray.decodeArtworkThumbnailCached(maxPixelSize: Int = 128): ImageBitmap? =
     ArtworkCache.get(this, maxPixelSize) ?: decodeArtworkThumbnail(maxPixelSize)?.also { ArtworkCache.put(this, it, maxPixelSize) }
+
+internal fun scaledThumbnailDimension(width: Int, height: Int, target: Int): Pair<Int, Int> {
+    val safeTarget = target.coerceAtLeast(1)
+    val safeWidth = width.coerceAtLeast(1)
+    val safeHeight = height.coerceAtLeast(1)
+    val largestDimension = maxOf(safeWidth, safeHeight)
+    if (largestDimension <= safeTarget) return safeWidth to safeHeight
+    val scale = safeTarget.toFloat() / largestDimension
+    return (safeWidth * scale).toInt().coerceAtLeast(1) to (safeHeight * scale).toInt().coerceAtLeast(1)
+}
