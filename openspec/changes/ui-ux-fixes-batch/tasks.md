@@ -57,8 +57,15 @@
 
 ## 5. Handoff
 
-- [ ] Run `openspec validate ui-ux-fixes-batch --strict`.
-- [ ] Run final relevant verification or record exact blockers.
-- [ ] Update this task list with evidence.
-- [ ] Update `progress.md` with route, scope, verification, changed files, next owner, blockers, and commits.
-- [ ] Commit with a semantic message after successful OpenSpec + Superpowers execution.
+- [x] Run `openspec validate ui-ux-fixes-batch --strict`.
+  - GREEN: `openspec validate ui-ux-fixes-batch --strict` passed (`Change 'ui-ux-fixes-batch' is valid`).
+- [x] Run final relevant verification or record exact blockers.
+  - GREEN: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` passed (`BUILD SUCCESSFUL in 542ms`).
+  - GREEN: `/usr/bin/xcrun xcodebuild -version` printed `Xcode 26.6` / `Build version 17F113`.
+  - GREEN: `./gradlew :shared:iosSimulatorArm64Test --configuration-cache` passed (`BUILD SUCCESSFUL in 2m 43s`).
+- [x] Update this task list with evidence.
+  - Evidence: all Task 5 checkboxes now include exact validation and verification command results.
+- [x] Update `progress.md` with route, scope, verification, changed files, next owner, blockers, and commits.
+  - Evidence: prepended `Handoff - 2026-07-01 ui ux fixes batch` with route, owner, scope, implementation, verification, acceptance, changed files, next owner, blockers, and commit list.
+- [x] Commit with a semantic message after successful OpenSpec + Superpowers execution.
+  - Evidence: final evidence is committed with semantic message `docs: record ui ux fixes batch evidence`.

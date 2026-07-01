@@ -1,5 +1,54 @@
 # Session Progress
 
+## Handoff - 2026-07-01 ui ux fixes batch
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Implement OpenSpec change `ui-ux-fixes-batch`: empty-library onboarding/adaptive album grid, Songs browse mode, Search polish and 44dp compact controls, removal of user-facing TagLib developer panels, and final evidence handoff.
+Implementation:
+- Added OpenSpec change artifacts under `openspec/changes/ui-ux-fixes-batch/` and Superpowers design/plan documents under `docs/superpowers/`.
+- Added common `LibraryBrowserTest` coverage for album-grid breakpoints and `BrowseMode` ordering.
+- Added `albumGridColumnsForWidth(widthDp: Float)` and adaptive album-grid rendering; empty Home now shows `ImportAudioCard`.
+- Extended browse mode to `Albums, Artists, Songs`; Songs mode renders all tracks and starts playback using the full-library playable queue.
+- Added Search query `Clear` action and dismisses Search after a result starts playback.
+- Increased BackChip and bottom-bar Search/Settings effective hit targets to at least 44dp while preserving icon sizes/callbacks.
+- Removed normal UI TagLib developer panels and dead developer-only panel/helper code from App/NowPlayingScreen.
+Verification:
+- `openspec validate ui-ux-fixes-batch --strict`: pass (`Change 'ui-ux-fixes-batch' is valid`).
+- Task-level focused checks passed during execution, including `:shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryBrowserTest'` and `:shared:compileKotlinJvm` where required.
+- `rg 'DEV · TagLib|ALL PROPERTIES|URI source — TagLib requires a filesystem path' shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`: pass/no matches (`rg_exit=1`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 542ms`).
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, Build version 17F113.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 2m 43s`).
+Acceptance:
+- Requirement matched: yes — all five OpenSpec task groups have recorded evidence and task-scoped reviews for Tasks 1-4 found no critical or important issues.
+- Scope controlled: yes — no new dependencies; no native platform UI rewrite; no scanner, metadata extraction, playback engine, MediaSession, audio-session, database schema, playlists, genres, folders/sources, recently-added, queue redesign, or stable album identity changes.
+- Edge cases/risk reviewed: no live visual QA/device screenshot evidence was performed or claimed; manual cross-device visual validation remains optional.
+Changed files:
+- `docs/superpowers/plans/2026-07-01-ui-ux-fixes-batch.md`
+- `docs/superpowers/specs/2026-07-01-ui-ux-fixes-batch-design.md`
+- `openspec/changes/ui-ux-fixes-batch/design.md`
+- `openspec/changes/ui-ux-fixes-batch/proposal.md`
+- `openspec/changes/ui-ux-fixes-batch/specs/library-ui/spec.md`
+- `openspec/changes/ui-ux-fixes-batch/tasks.md`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/BackChip.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryBrowser.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SearchScreen.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibraryBrowserTest.kt`
+Next owner: user/OpenSpec for optional manual visual validation and eventual archive of `ui-ux-fixes-batch` when satisfied.
+Blockers: none for automated validation.
+Commit:
+- `defab2b docs: spec ui ux fixes batch`
+- `793d3b8 docs: plan ui ux fixes batch`
+- `82c0bc8 feat: improve empty library album browsing`
+- `db87aed feat: add songs browse mode`
+- `dc27d69 fix: polish search and compact controls`
+- `21d5810 fix: remove user facing developer panels`
+- final evidence update: `docs: record ui ux fixes batch evidence`
+
 ## Handoff - 2026-07-01 replace emoji controls with icons
 
 Route: openspec+superpowers
