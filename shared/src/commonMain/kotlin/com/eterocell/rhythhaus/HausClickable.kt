@@ -12,7 +12,7 @@ fun Modifier.hausClickable(onClick: () -> Unit): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
     return clickable(
         interactionSource = interactionSource,
-        indication = ripple(bounded = true),
+        indication = ripple(bounded = true, color = HausInk),
         onClick = onClick,
     )
 }
