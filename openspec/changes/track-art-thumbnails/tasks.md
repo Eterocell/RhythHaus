@@ -15,11 +15,16 @@
 
 ## 2. Route compact artwork surfaces through thumbnails
 
-- [ ] Change `AlbumMark`/`TrackRow` artwork rendering to use `decodeArtworkThumbnailCached()`.
-- [ ] Change `NowPlayingBar` compact artwork rendering to use `decodeArtworkThumbnailCached()`.
-- [ ] Keep `NowPlayingScreen` on full-size `decodeArtwork()`.
-- [ ] Confirm source search shows the intended direct/full decode call sites only.
-- [ ] Verify with broad JVM/desktop/Android build/test command and iOS simulator tests.
+- [x] Change `AlbumMark`/`TrackRow` artwork rendering to use `decodeArtworkThumbnailCached()`.
+  - Evidence: `AlbumMark` in `App.kt` now decodes compact row artwork via `decodeArtworkThumbnailCached()` while preserving selected-row overlay and fallback text.
+- [x] Change `NowPlayingBar` compact artwork rendering to use `decodeArtworkThumbnailCached()`.
+  - Evidence: compact `NowPlayingBar` artwork now decodes via `decodeArtworkThumbnailCached()` while preserving bar layout, controls, callbacks, icons, and progress rendering.
+- [x] Keep `NowPlayingScreen` on full-size `decodeArtwork()`.
+  - Evidence: source search confirms `NowPlayingScreen.kt` still calls `track.artworkBytes?.decodeArtwork()` for expanded artwork.
+- [x] Confirm source search shows the intended direct/full decode call sites only.
+  - Evidence: `rg 'decodeArtwork\(' ...` shows platform actual decoder implementations, `NowPlayingScreen`, the legacy `NowPlayingCard`, and common cached full-size helper; `rg 'decodeArtworkThumbnailCached' ...` shows `AlbumMark`, `NowPlayingBar`, and the helper.
+- [x] Verify with focused JVM artwork-cache test and JVM compilation.
+  - Evidence: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ArtworkCacheTest' --configuration-cache` passed; `./gradlew :shared:compileKotlinJvm --configuration-cache` passed.
 
 ## 3. Handoff and commit
 

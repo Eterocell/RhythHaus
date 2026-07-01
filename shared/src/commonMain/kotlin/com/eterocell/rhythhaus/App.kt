@@ -897,7 +897,7 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun AlbumMark(track: Track, selected: Boolean) {
     val artworkBitmap = remember(track.artworkBytes) {
-        track.artworkBytes?.decodeArtwork()
+        track.artworkBytes?.decodeArtworkThumbnailCached()
     }
     Box(
         modifier = Modifier

@@ -1,5 +1,35 @@
 # Session Progress
 
+## Handoff - 2026-07-01 track art thumbnails task 2
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Implement Task 2 of OpenSpec change `track-art-thumbnails`: route compact artwork surfaces through thumbnail cache while preserving full-size expanded artwork.
+Implementation:
+- Changed `AlbumMark` in `App.kt` so compact `TrackRow` artwork uses `decodeArtworkThumbnailCached()`.
+- Changed compact `NowPlayingBar` artwork to use `decodeArtworkThumbnailCached()`.
+- Preserved `NowPlayingScreen` full-size `decodeArtwork()` call, selected-row behavior, fallback text, row shape/click behavior, bar layout, controls, callbacks, icons, progress rendering, scanner, schema, dependencies, and playback engine.
+- Updated `openspec/changes/track-art-thumbnails/tasks.md` Task 2 evidence.
+Verification:
+- `rg 'decodeArtwork\(' shared/src/commonMain/kotlin/com/eterocell/rhythhaus shared/src/androidMain/kotlin/com/eterocell/rhythhaus shared/src/jvmMain/kotlin/com/eterocell/rhythhaus shared/src/iosMain/kotlin/com/eterocell/rhythhaus`: pass; direct decode remains in platform actuals, `NowPlayingScreen`, legacy `NowPlayingCard`, and common cached helper.
+- `rg 'decodeArtworkThumbnailCached' shared/src/commonMain/kotlin/com/eterocell/rhythhaus`: pass; shows `AlbumMark`, `NowPlayingBar`, and helper.
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ArtworkCacheTest' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `openspec validate track-art-thumbnails --strict`: pass (`Change 'track-art-thumbnails' is valid`).
+Acceptance:
+- Requirement matched: yes — compact row/bar artwork now uses thumbnails and expanded `NowPlayingScreen` remains full-size.
+- Scope controlled: yes — no dependencies, schema, scanner, or playback engine changes.
+- Edge cases/risk reviewed: direct full decode in legacy `NowPlayingCard` remains because the brief only targeted `AlbumMark` and compact `NowPlayingBar`; manual performance validation with real embedded artwork remains optional.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`: compact `AlbumMark` thumbnail decode.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`: compact bar thumbnail decode.
+- `openspec/changes/track-art-thumbnails/tasks.md`: Task 2 evidence.
+- `.superpowers/sdd/task-2-report.md`: implementation report.
+- `progress.md`: handoff evidence.
+Next owner: implementation/OpenSpec for remaining handoff/commit workflow tasks if not completed in this session.
+Blockers: none.
+Commit: `31259ef fix: use thumbnails for compact artwork`.
+
 ## Handoff - 2026-07-01 ui ux fixes batch
 
 Route: openspec+superpowers

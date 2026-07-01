@@ -47,7 +47,7 @@ fun NowPlayingBar(
     val mode = bottomBarModeFor(track)
     val accent = track?.accent ?: TrackAccent(start = 0xFF111827, end = 0xFF776F66)
     val artworkBitmap = remember(track?.artworkBytes) {
-        track?.artworkBytes?.decodeArtwork()
+        track?.artworkBytes?.decodeArtworkThumbnailCached()
     }
     val progressFraction = if (track == null) 0f else playbackState.progressFraction
     val isPlaying = track != null && playbackState.isPlaying
