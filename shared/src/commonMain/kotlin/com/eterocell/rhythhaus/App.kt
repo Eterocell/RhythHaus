@@ -1037,7 +1037,10 @@ private fun DrillDownScrollbar(
         val targetFraction = (yPosition / trackHeightPx).coerceIn(0f, 1f)
         val targetIndex = (targetFraction * maxFirstVisibleIndex).toInt().coerceIn(0, maxFirstVisibleIndex)
         coroutineScope.launch {
-            listState.animateScrollToItem(targetIndex)
+            // Must be an immediate (non-animated) scroll: animateScrollToItem takes ~300ms
+            // and gets cancelled/restarted on every drag-move event, so the list perpetually
+            // chases a stale animation and only catches up once the drag ends.
+            listState.scrollToItem(targetIndex)
         }
     }
 
