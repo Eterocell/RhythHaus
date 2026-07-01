@@ -96,7 +96,6 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         }
         updateNowPlayingInfo(positionMillis = (audioPlayer.currentTime * 1_000.0).toLong())
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
-        MPNowPlayingInfoCenter.defaultCenter().playbackState = 1uL // MPNowPlayingPlaybackStatePlaying
         listener?.onPlaybackProgress((audioPlayer.currentTime * 1_000.0).toLong(), durationMillis)
         startProgressLoop()
     }
@@ -129,7 +128,6 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         updateNowPlayingInfo(positionMillis = ((audioPlayer?.currentTime ?: 0.0) * 1_000.0).toLong(), playbackRate = 0.0)
         listener?.onPlaybackProgress(((audioPlayer?.currentTime ?: 0.0) * 1_000.0).toLong(), durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Paused)
-        MPNowPlayingInfoCenter.defaultCenter().playbackState = 2uL // MPNowPlayingPlaybackStatePaused
     }
 
     override fun stop() {
@@ -140,7 +138,6 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         listener?.onPlaybackProgress(0L, durationMillis)
         listener?.onPlaybackStatus(PlaybackStatus.Stopped)
-        MPNowPlayingInfoCenter.defaultCenter().playbackState = 0uL // MPNowPlayingPlaybackStateStopped
     }
 
     override fun seekTo(positionMillis: Long) {
@@ -155,7 +152,6 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         player = null
         loadedTrack = null
         durationMillis = null
-        MPNowPlayingInfoCenter.defaultCenter().playbackState = 0uL
         MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
     }
 
@@ -190,7 +186,6 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
                 p.play()
                 updateNowPlayingInfo(positionMillis = (p.currentTime * 1_000.0).toLong(), playbackRate = 1.0)
                 listener?.onPlaybackStatus(PlaybackStatus.Playing)
-                MPNowPlayingInfoCenter.defaultCenter().playbackState = 1uL
                 startProgressLoop()
             }
             MPRemoteCommandHandlerStatusSuccess
