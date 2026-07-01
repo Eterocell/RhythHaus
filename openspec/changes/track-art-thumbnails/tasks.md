@@ -28,6 +28,9 @@
 
 ## 3. Handoff and commit
 
-- [ ] Run `openspec validate track-art-thumbnails --strict`.
-- [ ] Update `progress.md` with route, evidence, changed files, and remaining manual performance-validation note.
-- [ ] Commit the completed OpenSpec + Superpowers workflow with a semantic message.
+- [x] Run `openspec validate track-art-thumbnails --strict`.
+  - Evidence: pass, `Change 'track-art-thumbnails' is valid`.
+- [x] Update `progress.md` with route, evidence, changed files, and remaining manual performance-validation note.
+  - Evidence: final handoff records broad JVM/desktop/Android and iOS simulator verification plus manual scroll-performance follow-up.
+- [x] Commit the completed OpenSpec + Superpowers workflow with a semantic message.
+  - Evidence: final evidence commit records this handoff.
