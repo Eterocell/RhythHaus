@@ -48,6 +48,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     private var progressJob: Job? = null
     private var completionReported: Boolean = false
     private var remoteCommandsRegistered: Boolean = false
+    private var artworkTrackId: String? = null
 
     override fun load(track: PlayableTrack) {
         releaseForTrackSwitch()
@@ -152,6 +153,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         player = null
         loadedTrack = null
         durationMillis = null
+        artworkTrackId = null
         MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
     }
 
@@ -251,12 +253,19 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         // Artwork is set via the Swift-native bridge — cinterop doesn't expose
         // NSData(bytes:length:) so the ByteArray→UIImage→MPMediaItemArtwork
         // chain runs in Swift where KotlinByteArray.toData() is available.
-        NowPlayingArtworkBridge.provider?.setArtwork(
-            trackTitle = track.title,
-            artist = track.artist,
-            album = track.album,
-            artworkBytes = track.artworkBytes,
-        )
+        // Only re-decode/re-assign artwork when the track actually changes — this
+        // function runs on every progress tick, play/pause, and lockscreen slider
+        // drag (changePlaybackPositionCommand), and re-setting the artwork on every
+        // call causes the lockscreen art to visibly reload while scrubbing.
+        if (artworkTrackId != track.id) {
+            artworkTrackId = track.id
+            NowPlayingArtworkBridge.provider?.setArtwork(
+                trackTitle = track.title,
+                artist = track.artist,
+                album = track.album,
+                artworkBytes = track.artworkBytes,
+            )
+        }
     }
 }
 
