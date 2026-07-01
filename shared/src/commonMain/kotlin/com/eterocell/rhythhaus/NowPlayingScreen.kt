@@ -1,9 +1,7 @@
 package com.eterocell.rhythhaus
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,20 +21,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.library.resolvePathForMetadata
 import com.eterocell.rhythhaus.taglib.TagLibReader
-import com.eterocell.rhythhaus.taglib.TagReadResult
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
-import com.eterocell.rhythhaus.taglib.TagMetadata as RawTagMetadata
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
@@ -240,182 +234,9 @@ fun NowPlayingScreen(
                 }
             }
 
-            // Developer: TagLib metadata for current track
-            if (currentLibraryTrack != null) {
-                Spacer(Modifier.height(18.dp))
-                DeveloperTrackPanel(
-                    track = currentLibraryTrack,
-                    tagLibReader = tagLibReader,
-                )
-            }
-
             Spacer(Modifier.height(16.dp))
         }
     }
-}
-
-@Composable
-private fun DeveloperTrackPanel(
-    track: LibraryTrack,
-    tagLibReader: TagLibReader,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val devBgColor = HausColors.current.ink.copy(alpha = 0.06f)
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(devBgColor)
-            .hausClickable { expanded = !expanded }
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "DEV · TagLib",
-                    color = HausColors.current.ink,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.6.sp,
-                )
-                Text(
-                    text = track.displayName,
-                    color = HausColors.current.muted,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                text = if (expanded) "▲" else "▼",
-                color = HausColors.current.pulse,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Black,
-            )
-        }
-
-        AnimatedVisibility(visible = expanded) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val rawResult = remember(track.audioSource.stableKey) {
-                    when (track.audioSource) {
-                        is AudioSource.FilePath -> tagLibReader.readPath(resolvePathForMetadata(track.audioSource.path))
-                        is AudioSource.Uri -> null
-                    }
-                }
-                val properties = remember(track.audioSource.stableKey) {
-                    when (track.audioSource) {
-                        is AudioSource.FilePath -> tagLibReader.readProperties(resolvePathForMetadata(track.audioSource.path))
-                        is AudioSource.Uri -> emptyMap()
-                    }
-                }
-
-                when {
-                    rawResult == null -> Text(
-                        text = "URI source — TagLib requires a filesystem path",
-                        color = HausColors.current.pulse,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-
-                    rawResult is TagReadResult.Found -> {
-                        rawTagLines(rawResult.metadata).forEach { (label, value) ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = HausColors.current.muted,
-                                    fontSize = 12.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                Text(
-                                    text = value,
-                                    color = HausColors.current.ink,
-                                    fontSize = 12.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(start = 12.dp).weight(1f, fill = false),
-                                )
-                            }
-                        }
-                        if (properties.isNotEmpty()) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "ALL PROPERTIES (${properties.size})",
-                                color = HausColors.current.ink,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 1.2.sp,
-                            )
-                            properties.entries.sortedBy { it.key }.forEach { (key, value) ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    Text(
-                                        text = key,
-                                        color = HausColors.current.muted,
-                                        fontSize = 11.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Medium,
-                                    )
-                                    Text(
-                                        text = value,
-                                        color = HausColors.current.ink,
-                                        fontSize = 11.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(start = 8.dp).weight(1f, fill = false),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun rawTagLines(metadata: RawTagMetadata): List<Pair<String, String>> = listOf(
-    "title" to (metadata.title ?: "—"),
-    "artist" to (metadata.artist ?: "—"),
-    "album" to (metadata.album ?: "—"),
-    "albumArtist" to (metadata.albumArtist ?: "—"),
-    "genre" to (metadata.genre ?: "—"),
-    "comment" to (metadata.comment ?: "—"),
-    "year" to (metadata.year?.toString() ?: "—"),
-    "track" to trackDisplay(metadata.trackNumber, metadata.trackTotal),
-    "disc" to trackDisplay(metadata.discNumber, metadata.discTotal),
-    "duration" to (metadata.durationMillis?.let { formatMillis(it) } ?: "—"),
-    "bitrate" to (metadata.bitrate?.let { "${it}kbps" } ?: "—"),
-    "sampleRate" to (metadata.sampleRate?.let { "${it}Hz" } ?: "—"),
-    "channels" to (metadata.channels?.toString() ?: "—"),
-    "artwork" to artworkLabel(metadata.artwork),
-)
-
-private fun trackDisplay(number: Int?, total: Int?): String = when {
-    number != null && total != null -> "$number/$total"
-    number != null -> number.toString()
-    else -> "—"
-}
-
-private fun artworkLabel(artwork: com.eterocell.rhythhaus.taglib.EmbeddedArtwork?): String {
-    if (artwork == null) return "—"
-    return "${artwork.mimeType ?: "unknown"} · ${artwork.bytes.size}B"
 }
 
 private fun statusLabel(status: PlaybackStatus): String = when (status) {

@@ -45,10 +45,15 @@
 
 ## 4. Remove user-facing developer panels
 
-- [ ] Remove normal UI rendering of TagLib developer panels.
-- [ ] Remove now-unused developer-only composables/imports when they become dead code.
-- [ ] Verify source no longer contains user-facing `DEV · TagLib` text.
-- [ ] Run broad JVM/desktop/Android verification.
+- [x] Remove normal UI rendering of TagLib developer panels.
+  - Evidence: removed the expanded `DeveloperTrackPanel` call from `NowPlayingScreen`; normal Now Playing now proceeds from transport controls directly to bottom spacing.
+- [x] Remove now-unused developer-only composables/imports when they become dead code.
+  - Evidence: removed `DeveloperTrackPanel`, `DeveloperPanel`, `DeveloperMetadataRow`, `AudioSource.devLabel`, duplicated developer-only `rawTagLines`, `trackDisplay`, and `artworkLabel` helpers, plus unused TagLib metadata imports from `App.kt` and `NowPlayingScreen.kt`.
+- [x] Verify source no longer contains user-facing `DEV · TagLib` text.
+  - Evidence: `rg 'DEV · TagLib|ALL PROPERTIES|URI source — TagLib requires a filesystem path' shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt` returned no matches (`rg_exit=1`).
+- [x] Run broad JVM/desktop/Android verification.
+  - GREEN: `./gradlew :shared:compileKotlinJvm --configuration-cache` passed (`BUILD SUCCESSFUL`).
+  - GREEN: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` passed (`BUILD SUCCESSFUL`).
 
 ## 5. Handoff
 
