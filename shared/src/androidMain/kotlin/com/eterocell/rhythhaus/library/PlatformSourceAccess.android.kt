@@ -79,6 +79,7 @@ class AndroidSafSourceAccess(
         require(source.platformKind == LibraryPlatformKind.AndroidSafTree) {
             "AndroidSafSourceAccess can only scan AndroidSafTree sources"
         }
+        removeLegacyPersistentMetadataCache(source)
         val rootUri = Uri.parse(source.handle)
         val root = DocumentFile.fromTreeUri(context, rootUri) ?: error("Cannot open SAF tree: ${source.handle}")
         require(root.canRead()) { "No read access to SAF tree: ${source.displayName}" }
@@ -106,12 +107,10 @@ private fun scanDocumentTree(
         val key = pathSegments.sourceLocalKey().ifBlank { document.uri.toString() }
         val displayPath = pathSegments.joinToString("/").ifBlank { name }
         val playbackSource = AudioSource.Uri(document.uri.toString())
-        val metadataSource = if (isSupportedAudioName(name)) {
-            copyDocumentToMetadataCache(context, source, document, key, name)
-                ?.let { AudioSource.FilePath(it.absolutePath) }
-                ?: playbackSource
+        val metadataCopy = if (isSupportedAudioName(name)) {
+            copyDocumentToTemporaryMetadataFile(context, document, key, name)
         } else {
-            playbackSource
+            null
         }
         yield(
             audioCandidateForSourceFile(
@@ -120,7 +119,8 @@ private fun scanDocumentTree(
                 displayPath = displayPath,
                 displayName = name,
                 audioSource = playbackSource,
-                metadataAudioSource = metadataSource,
+                metadataAudioSource = metadataCopy?.let { AudioSource.FilePath(it.absolutePath) } ?: playbackSource,
+                cleanupMetadataAudioSource = metadataCopy?.let { file -> { file.delete() } },
                 sizeBytes = document.length().takeIf { it >= 0L },
                 modifiedAtEpochMillis = document.lastModified().takeIf { it > 0L },
             ),
@@ -128,33 +128,30 @@ private fun scanDocumentTree(
     }
 }
 
-private fun copyDocumentToMetadataCache(
+private fun copyDocumentToTemporaryMetadataFile(
     context: Context,
-    source: LibrarySource,
     document: DocumentFile,
     sourceLocalKey: String,
     displayName: String,
 ): File? = runCatching {
-    val cacheDir = File(context.cacheDir, "rhythhaus-taglib/${source.id}").apply { mkdirs() }
-    val cacheName = "${sourceLocalKey.hashCode().toUInt().toString(16)}-${displayName.safeCacheFileName()}"
-    val target = File(cacheDir, cacheName)
-    val expectedSize = document.length().takeIf { it >= 0L }
-    val expectedModifiedAt = document.lastModified().takeIf { it > 0L }
-    if (target.exists() &&
-        (expectedSize == null || target.length() == expectedSize) &&
-        (expectedModifiedAt == null || target.lastModified() >= expectedModifiedAt)
-    ) {
-        return@runCatching target
-    }
+    val cacheDir = File(context.cacheDir, "rhythhaus-taglib-temp").apply { mkdirs() }
+    val target = File.createTempFile(
+        "${sourceLocalKey.hashCode().toUInt().toString(16)}-",
+        "-${displayName.safeCacheFileName()}",
+        cacheDir,
+    )
 
     context.contentResolver.openInputStream(document.uri)?.use { input ->
         target.outputStream().use { output ->
             input.copyTo(output)
         }
-    } ?: return@runCatching null
-    expectedModifiedAt?.let { target.setLastModified(it) }
-    target
+        target
+    } ?: target.delete().let { null }
 }.getOrNull()
+
+private fun removeLegacyPersistentMetadataCache(source: LibrarySource) {
+    File(LibraryDatabaseContext.applicationContext.cacheDir, "rhythhaus-taglib/${source.id}").deleteRecursively()
+}
 
 private fun String.safeCacheFileName(): String = replace(Regex("[^A-Za-z0-9._-]+"), "_")
     .trim('_')

@@ -30,6 +30,7 @@ fun audioCandidateForSourceFile(
     displayName: String,
     audioSource: com.eterocell.rhythhaus.AudioSource,
     metadataAudioSource: com.eterocell.rhythhaus.AudioSource = audioSource,
+    cleanupMetadataAudioSource: (() -> Unit)? = null,
     sizeBytes: Long? = null,
     modifiedAtEpochMillis: Long? = null,
 ): PlatformScanEvent = if (isSupportedAudioName(displayName)) {
@@ -41,6 +42,7 @@ fun audioCandidateForSourceFile(
             displayName = displayName,
             audioSource = audioSource,
             metadataAudioSource = metadataAudioSource,
+            cleanupMetadataAudioSource = cleanupMetadataAudioSource,
             sizeBytes = sizeBytes,
             modifiedAtEpochMillis = modifiedAtEpochMillis,
         ),

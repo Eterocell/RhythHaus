@@ -1,5 +1,33 @@
 # Session Progress
 
+## Handoff - 2026-07-01 fix Android SAF import metadata copies
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Scope: Fix Android folder import behavior where scanned SAF audio files appeared copied into app storage and metadata fallback values returned again.
+Root cause: Android SAF scanning intentionally preserved playback as `content://` URIs, but copied every supported document into a persistent app cache under `cacheDir/rhythhaus-taglib/<sourceId>` so native TagLib could read a filesystem path. That made imports look like the app had copied the music into internal storage. Metadata fallback happened whenever that filesystem handoff failed or fell back to the original URI, because `AudioMetadataReader` returns null for `AudioSource.Uri`.
+Fix:
+- Changed Android SAF metadata handoff to create a per-candidate temporary file under `cacheDir/rhythhaus-taglib-temp`, pass that filesystem path only to metadata extraction, and persist the original `content://` playback URI unchanged.
+- Added `cleanupMetadataAudioSource` to `AudioScanCandidate` and `audioCandidateForSourceFile`; `LibraryScanner` now always invokes it in a `finally` after metadata read, so the temp copy is deleted whether TagLib succeeds or falls back.
+- Removed the legacy persistent metadata-cache directory for the scanned source at scan start so old internal-storage copies are cleaned up on the next Android rescan.
+- Extended the existing scanner regression to assert that the metadata filesystem source is used while the playback URI is preserved and cleanup runs.
+Verification:
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest.scannerCanReadMetadataFromSeparateFilesystemSourceWhilePreservingPlaybackUri' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:compileAndroidMain :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+Acceptance:
+- Requirement matched: yes — Android persisted tracks still reference the selected external SAF document URI; copied files are now metadata-only temporary files cleaned after each read, with legacy persistent cache cleaned on rescan.
+- Scope controlled: yes — no scanner UI, database schema, playback engine, native TagLib ABI, iOS, or JVM folder behavior changes.
+- Manual note: existing rows with fallback metadata may need a rescan to refresh stored title/artist/album/duration/artwork.
+Changed files:
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.android.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryModels.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryScanner.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryScannerTest.kt`
+Next owner: user for Android device rescan/manual validation with real local music files.
+Blockers: none for automated validation.
+
 ## Handoff - 2026-07-01 fix iOS lockscreen skip buttons greyed out
 
 Route: systematic-debugging (bugfix)

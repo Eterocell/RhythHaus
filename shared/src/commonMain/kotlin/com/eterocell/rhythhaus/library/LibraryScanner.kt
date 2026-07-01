@@ -144,7 +144,11 @@ private fun AudioScanCandidate.toLibraryTrack(
         is AudioSource.FilePath -> source.copy(path = resolvePathForMetadata(source.path))
         is AudioSource.Uri -> source
     }
-    val metadata = runCatching { metadataReader.read(resolvedSource) }.getOrNull()
+    val metadata = try {
+        runCatching { metadataReader.read(resolvedSource) }.getOrNull()
+    } finally {
+        cleanupMetadataAudioSource?.invoke()
+    }
     return LibraryTrack(
         id = trackId,
         sourceId = sourceId,

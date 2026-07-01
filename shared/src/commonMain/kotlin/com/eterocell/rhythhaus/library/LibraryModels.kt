@@ -90,6 +90,7 @@ data class AudioScanCandidate(
     val displayName: String,
     val audioSource: AudioSource,
     val metadataAudioSource: AudioSource = audioSource,
+    val cleanupMetadataAudioSource: (() -> Unit)? = null,
     val sizeBytes: Long? = null,
     val modifiedAtEpochMillis: Long? = null,
 )

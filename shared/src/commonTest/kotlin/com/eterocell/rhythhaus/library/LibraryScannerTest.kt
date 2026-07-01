@@ -177,6 +177,7 @@ class LibraryScannerTest {
     fun scannerCanReadMetadataFromSeparateFilesystemSourceWhilePreservingPlaybackUri() {
         val repository = InMemoryLibraryRepository()
         val source = LibrarySource("source-1", LibraryPlatformKind.AndroidSafTree, "Music", "content://tree/music", 1L)
+        var metadataSourceCleanedUp = false
         val platform = FakePlatformAudioScanner(
             events = listOf(
                 PlatformScanEvent.AudioCandidate(
@@ -187,6 +188,7 @@ class LibraryScannerTest {
                         displayName = "song.flac",
                         audioSource = AudioSource.Uri("content://provider/tree/music/document/song"),
                         metadataAudioSource = AudioSource.FilePath("/cache/rhythhaus-metadata/song.flac"),
+                        cleanupMetadataAudioSource = { metadataSourceCleanedUp = true },
                     ),
                 ),
             ),
@@ -208,6 +210,7 @@ class LibraryScannerTest {
         assertEquals("Android TagLib Artist", track.artist)
         assertEquals("Android TagLib Album", track.album)
         assertEquals(123_000L, track.durationMillis)
+        assertEquals(true, metadataSourceCleanedUp)
     }
 }
 
