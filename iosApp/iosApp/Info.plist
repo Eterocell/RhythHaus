@@ -5,7 +5,7 @@
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>AVInitialRouteSharingPolicy</key>
-	<string>LongformAudio</string>
+	<string>LongFormAudio</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
