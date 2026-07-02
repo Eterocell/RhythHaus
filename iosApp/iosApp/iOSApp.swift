@@ -54,6 +54,13 @@ struct iOSApp: App {
         // Register the Swift-native artwork bridge so the KMP playback engine
         // can set lockscreen/Control Center artwork via MPMediaItemArtwork.
         NowPlayingArtworkBridge.shared.provider = RhythHausArtworkProvider()
+
+        // Tell iOS this app wants to be a Now Playing app. Without this call,
+        // the system only partially activates the Lock Screen / Control Center
+        // media panel — play/pause appears, but previous/next track buttons and
+        // the progress slider remain greyed out. Every production iOS music app
+        // calls this before or alongside MPRemoteCommandCenter setup.
+        UIApplication.shared.beginReceivingRemoteControlEvents()
     }
 
     var body: some Scene {
