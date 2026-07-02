@@ -56,6 +56,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     override fun load(track: PlayableTrack) {
         releaseForTrackSwitch()
         log.d { "Loading track: ${track.title}" }
+        log.d { "[NP-DBG] load: track.durationMillis=${track.durationMillis} track.id=${track.id}" }
         listener?.onPlaybackStatus(PlaybackStatus.Loading)
         configureAudioSession()
         val url = track.source.iosUrl()
@@ -70,18 +71,18 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             return
         }
 
-        // On unsupported formats, AVAudioPlayer returns a nil-like object.
-        // The tried-and-true approach: attempt prepareToPlay and check if it works.
         if (!audioPlayer.prepareToPlay()) {
             val errorMsg = "Cannot play: ${track.title}"
             log.e { errorMsg }
             listener?.onPlaybackError(PlaybackError(errorMsg, cause = url.absoluteString))
             return
         }
+        log.d { "[NP-DBG] load: AVAudioPlayer.duration=${audioPlayer.duration} (after prepareToPlay)" }
 
         player = audioPlayer
         loadedTrack = track
         durationMillis = track.durationMillis ?: (audioPlayer.duration * 1_000.0).toLong().takeIf { it > 0L }
+        log.d { "[NP-DBG] load: resolved durationMillis=$durationMillis" }
         completionReported = false
         updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         listener?.onPlaybackProgress(0L, durationMillis)
@@ -92,14 +93,13 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     override fun play() {
         val audioPlayer = requireNotNull(player) { "No player loaded" }
         log.d { "Playing: ${loadedTrack?.title}" }
+        log.d { "[NP-DBG] play: durationMillis=$durationMillis audioPlayer.duration=${audioPlayer.duration}" }
         if (!audioPlayer.play()) {
             val errorMsg = "Could not start playback: ${loadedTrack?.title}"
             log.e { errorMsg }
             listener?.onPlaybackError(PlaybackError(errorMsg, cause = null))
             return
         }
-        // Re-probe duration: AVAudioPlayer.duration may return 0 during prepareToPlay()
-        // but become valid once playback starts and the decoder processes frames.
         if (durationMillis == null) {
             val probedDuration = (audioPlayer.duration * 1_000.0).toLong().takeIf { it > 0L }
             if (probedDuration != null) {
@@ -183,13 +183,9 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     }
 
     private fun configureAudioSession() {
-        // AVAudioSession category + .longFormAudio policy is configured in Swift
-        // (iOSApp.init) because the pre-iOS-13 setCategory(error:) API available
-        // via cinterop resets the route sharing policy to .default, which would
-        // undo the .longFormAudio policy that iOS needs to treat this app as a
-        // primary Now Playing source.
         val session = AVAudioSession.sharedInstance()
         session.setActive(true, error = null)
+        log.d { "[NP-DBG] configureAudioSession: category=${session.category}" }
         registerRemoteCommands()
     }
 
@@ -262,18 +258,34 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             listener?.onSkipToNext()
             MPRemoteCommandHandlerStatusSuccess
         }
+        log.d {
+            "[NP-DBG] registerRemoteCommands DONE. enabled: play=${commandCenter.playCommand.enabled} " +
+                "pause=${commandCenter.pauseCommand.enabled} toggle=${commandCenter.togglePlayPauseCommand.enabled} " +
+                "stop=${commandCenter.stopCommand.enabled} changePos=${commandCenter.changePlaybackPositionCommand.enabled} " +
+                "prev=${commandCenter.previousTrackCommand.enabled} next=${commandCenter.nextTrackCommand.enabled} " +
+                "skipFwd=${commandCenter.skipForwardCommand.enabled} skipBwd=${commandCenter.skipBackwardCommand.enabled} " +
+                "seekFwd=${commandCenter.seekForwardCommand.enabled} seekBwd=${commandCenter.seekBackwardCommand.enabled}"
+        }
     }
 
     private fun updateNowPlayingInfo(positionMillis: Long, playbackRate: Double = 1.0) {
         val track = loadedTrack ?: return
         val existingArtwork = MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo?.get(MPMediaItemPropertyArtwork)
-        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = buildIOSNowPlayingDictionary(
+        val dict = buildIOSNowPlayingDictionary(
             track = track,
             positionMillis = positionMillis,
             durationMillis = durationMillis,
             playbackRate = playbackRate,
             existingArtwork = existingArtwork,
         )
+        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = dict
+        val stored = MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo
+        log.d {
+            "[NP-DBG] updateNowPlayingInfo: rate=$playbackRate pos=$positionMillis duration=$durationMillis | " +
+                "storedKeys=${stored?.keys?.joinToString() ?: "NULL"} " +
+                "storedDuration=${stored?.get(MPMediaItemPropertyPlaybackDuration)} " +
+                "storedRate=${stored?.get(MPNowPlayingInfoPropertyPlaybackRate)}"
+        }
         // Artwork is set via the Swift-native bridge — cinterop doesn't expose
         // NSData(bytes:length:) so the ByteArray→UIImage→MPMediaItemArtwork
         // chain runs in Swift where KotlinByteArray.toData() is available.
