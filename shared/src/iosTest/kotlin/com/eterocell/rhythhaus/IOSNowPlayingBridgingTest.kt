@@ -78,11 +78,10 @@ class IOSNowPlayingBridgingTest {
         assertTrue(rate is Number, "Rate must be a Number after bridging — got ${rate::class.simpleName}")
         assertEquals(1.0, (rate as Number).toDouble(), "Rate value must survive round-trip")
 
-        // Check Boolean value
+        // IsLiveStream key should NOT be present when duration is known
         val isLive = readBack.get(MPNowPlayingInfoPropertyIsLiveStream)
-        println("[BRIDGE-TEST] isLiveStream=$isLive type=${isLive?.let { it::class.simpleName }}")
-        assertNotNull(isLive, "IsLiveStream must be present after round-trip")
-        // Boolean might bridge to NSNumber or to native Boolean — just check it's not null
+        println("[BRIDGE-TEST] isLiveStream=$isLive (should be null when duration is known)")
+        assertNull(isLive, "IsLiveStream must be ABSENT when duration is known")
     }
 
     @Test

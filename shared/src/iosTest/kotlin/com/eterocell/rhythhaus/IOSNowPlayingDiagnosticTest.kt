@@ -79,8 +79,6 @@ class IOSNowPlayingDiagnosticTest {
         assertNotNull(dur, "Duration key must be present when durationMillis is non-null")
         val durDouble = (dur as Number).toDouble()
         assertEquals(181.0, durDouble, "Duration should be 181.0 seconds")
-        val isLive = dict[MPNowPlayingInfoPropertyIsLiveStream]
-        assertNotNull(isLive, "IsLiveStream key should be present (set to false)")
-        assertEquals(false, isLive, "IsLiveStream must be false when duration is known")
+        assertNull(dict[MPNowPlayingInfoPropertyIsLiveStream], "IsLiveStream key must be ABSENT when duration is known — its presence may disable the slider")
     }
 }

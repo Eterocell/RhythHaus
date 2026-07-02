@@ -355,7 +355,9 @@ internal fun buildIOSNowPlayingDictionary(
     existingArtwork?.let { put(MPMediaItemPropertyArtwork, it) }
     if (durationMillis != null && durationMillis > 0L) {
         put(MPMediaItemPropertyPlaybackDuration, durationMillis.toDouble() / 1_000.0)
-        put(MPNowPlayingInfoPropertyIsLiveStream, false)
+        // Do NOT put MPNowPlayingInfoPropertyIsLiveStream at all when duration is known.
+        // Apple docs: "When this key is set, the system doesn't display the scrubber."
+        // The key's PRESENCE (not just value=true) may disable the slider + prev/next.
     } else {
         put(MPNowPlayingInfoPropertyIsLiveStream, true)
     }
