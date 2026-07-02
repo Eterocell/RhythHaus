@@ -183,8 +183,12 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     }
 
     private fun configureAudioSession() {
+        // AVAudioSession category + .longFormAudio policy is configured in Swift
+        // (iOSApp.init) because the pre-iOS-13 setCategory(error:) API available
+        // via cinterop resets the route sharing policy to .default, which would
+        // undo the .longFormAudio policy that iOS needs to treat this app as a
+        // primary Now Playing source.
         val session = AVAudioSession.sharedInstance()
-        session.setCategory(AVAudioSessionCategoryPlayback, error = null)
         session.setActive(true, error = null)
         registerRemoteCommands()
     }

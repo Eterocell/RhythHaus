@@ -1,5 +1,6 @@
 import SwiftUI
 import Foundation
+import AVFAudio
 import MediaPlayer
 import Shared
 
@@ -51,16 +52,25 @@ struct iOSApp: App {
                 .write(to: marker, atomically: true, encoding: .utf8)
         }
 
+        // Configure AVAudioSession as a long-form audio source (music app).
+        // WWDC23 "Tune up your AirPlay audio experience": set route sharing policy
+        // to .longFormAudio alongside MPNowPlayingInfoCenter + MPRemoteCommandCenter.
+        // Without .longFormAudio, iOS may not treat the app as a primary Now Playing
+        // source, causing prev/next and slider to appear greyed despite registered handlers.
+        try? AVAudioSession.sharedInstance().setCategory(
+            .playback,
+            mode: .default,
+            policy: .longFormAudio,
+            options: []
+        )
+        try? AVAudioSession.sharedInstance().setActive(true)
+
+        // Tell iOS this app wants to be a Now Playing app.
+        UIApplication.shared.beginReceivingRemoteControlEvents()
+
         // Register the Swift-native artwork bridge so the KMP playback engine
         // can set lockscreen/Control Center artwork via MPMediaItemArtwork.
         NowPlayingArtworkBridge.shared.provider = RhythHausArtworkProvider()
-
-        // Tell iOS this app wants to be a Now Playing app. Without this call,
-        // the system only partially activates the Lock Screen / Control Center
-        // media panel — play/pause appears, but previous/next track buttons and
-        // the progress slider remain greyed out. Every production iOS music app
-        // calls this before or alongside MPRemoteCommandCenter setup.
-        UIApplication.shared.beginReceivingRemoteControlEvents()
     }
 
     var body: some Scene {
