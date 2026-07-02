@@ -53,6 +53,15 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     private val remoteCommandHandlerTokens = mutableListOf<Any?>()
     private var artworkTrackId: String? = null
 
+    init {
+        // MPRemoteCommandCenter must be configured on the main thread so the
+        // Lock Screen UI layer picks up the enabled command state. Registration
+        // from Dispatchers.Default routes events (AirPods work) but the UI
+        // does not reflect it (prev/next + slider remain greyed).
+        log.d { "[NP-DBG] IOSPlaybackEngine.init: isMainThread=${NSThread.isMainThread()}" }
+        registerRemoteCommands()
+    }
+
     override fun load(track: PlayableTrack) {
         releaseForTrackSwitch()
         log.d { "Loading track: ${track.title}" }
@@ -186,12 +195,14 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         val session = AVAudioSession.sharedInstance()
         session.setActive(true, error = null)
         log.d { "[NP-DBG] configureAudioSession: category=${session.category}" }
-        registerRemoteCommands()
+        // Remote commands are registered in the init block (main thread).
+        // Calling registerRemoteCommands() here would be from Dispatchers.Default.
     }
 
     private fun registerRemoteCommands() {
         if (remoteCommandsRegistered) return
         remoteCommandsRegistered = true
+        log.d { "[NP-DBG] registerRemoteCommands: isMainThread=${NSThread.isMainThread()}" }
         val commandCenter = MPRemoteCommandCenter.sharedCommandCenter()
         configureIOSRemoteCommandAvailability(commandCenter)
 
