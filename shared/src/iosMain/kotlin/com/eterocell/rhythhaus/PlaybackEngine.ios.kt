@@ -24,6 +24,7 @@ import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
 import platform.MediaPlayer.MPMediaItemPropertyTitle
 import platform.MediaPlayer.MPNowPlayingInfoCenter
 import platform.MediaPlayer.MPNowPlayingInfoPropertyElapsedPlaybackTime
+import platform.MediaPlayer.MPNowPlayingInfoPropertyIsLiveStream
 import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatus
@@ -96,6 +97,15 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             log.e { errorMsg }
             listener?.onPlaybackError(PlaybackError(errorMsg, cause = null))
             return
+        }
+        // Re-probe duration: AVAudioPlayer.duration may return 0 during prepareToPlay()
+        // but become valid once playback starts and the decoder processes frames.
+        if (durationMillis == null) {
+            val probedDuration = (audioPlayer.duration * 1_000.0).toLong().takeIf { it > 0L }
+            if (probedDuration != null) {
+                durationMillis = probedDuration
+                log.d { "Re-probed duration after play(): ${probedDuration}ms (was null at load time)" }
+            }
         }
         updateNowPlayingInfo(positionMillis = (audioPlayer.currentTime * 1_000.0).toLong())
         listener?.onPlaybackStatus(PlaybackStatus.Playing)
@@ -327,7 +337,12 @@ internal fun buildIOSNowPlayingDictionary(
     put(MPMediaItemPropertyArtist, track.artist)
     track.album?.let { put(MPMediaItemPropertyAlbumTitle, it) }
     existingArtwork?.let { put(MPMediaItemPropertyArtwork, it) }
-    durationMillis?.let { put(MPMediaItemPropertyPlaybackDuration, it.toDouble() / 1_000.0) }
+    if (durationMillis != null && durationMillis > 0L) {
+        put(MPMediaItemPropertyPlaybackDuration, durationMillis.toDouble() / 1_000.0)
+        put(MPNowPlayingInfoPropertyIsLiveStream, false)
+    } else {
+        put(MPNowPlayingInfoPropertyIsLiveStream, true)
+    }
     put(MPNowPlayingInfoPropertyElapsedPlaybackTime, positionMillis.coerceAtLeast(0L).toDouble() / 1_000.0)
     put(MPNowPlayingInfoPropertyPlaybackRate, playbackRate)
 }
