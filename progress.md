@@ -1,6 +1,34 @@
 # Session Progress
 
 
+## Handoff - 2026-07-02 fix iOS lockscreen controls and artwork regression
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User reported iOS lockscreen media controls are again greyed out and album art does not show.
+Investigation evidence:
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt` still ignored the handler tokens returned by `MPRemoteCommand.addTargetWithHandler`, matching the known Kotlin/Native MediaRemote failure mode where enabled commands can be dropped by iOS and rendered as unsupported/greyed.
+- Several remote handlers called `updateNowPlayingInfo()` without explicit paused/stopped `playbackRate = 0.0`, leaving stale `MPNowPlayingInfoPropertyPlaybackRate = 1.0` after pause/stop/toggle-pause paths.
+- Kotlin replaced the whole `MPNowPlayingInfoCenter.nowPlayingInfo` dictionary on every refresh without carrying forward Swift-inserted `MPMediaItemPropertyArtwork`, so artwork set by `RhythHausArtworkProvider` was deleted by later play/pause/seek/progress updates.
+Fix:
+- Retained all iOS remote command handler tokens for the engine lifetime in `remoteCommandHandlerTokens`.
+- Made pause/toggle-pause/stop remote command handlers publish explicit `playbackRate = 0.0`; seek now mirrors the actual player playing state.
+- Preserved any existing `MPMediaItemPropertyArtwork` entry when rebuilding the Now Playing dictionary, and reset `artworkTrackId` during track-switch teardown so the next track republishes artwork.
+- Added `nowPlayingDictionaryPreservesArtworkAndExplicitPausedRate` iosTest coverage.
+Verification:
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 13s`); `TEST-iosSimulatorArm64Test.com.eterocell.rhythhaus.IOSNowPlayingInfoTest.xml` shows 5 tests, 0 failures, including `nowPlayingDictionaryPreservesArtworkAndExplicitPausedRate`.
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, Build version 17F113.
+- `git diff --check`: pass.
+Acceptance:
+- Requirement matched: source-level regression causes for greyed command routing and artwork deletion are addressed.
+- Scope controlled: yes — iOS playback engine/test only; no Android, desktop, scanner, database, dependency, or UI behavior changed.
+- Not verified: live lockscreen/Control Center visual confirmation on simulator/device was not captured in this CLI session.
+Changed files:
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt`
+- `shared/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSNowPlayingInfoTest.kt`
+Next owner: user for live iOS lockscreen/Control Center visual confirmation with an artwork-bearing track.
+Blockers: none for automated validation; no live iOS visual capture was performed.
+
 ## Handoff - 2026-07-01 Android release metadata R8 keep rules
 
 Route: systematic-debugging (bugfix)

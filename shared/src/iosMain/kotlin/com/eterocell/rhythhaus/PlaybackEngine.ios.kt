@@ -19,6 +19,7 @@ import platform.Foundation.NSURL
 import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
 import platform.MediaPlayer.MPMediaItemPropertyAlbumTitle
 import platform.MediaPlayer.MPMediaItemPropertyArtist
+import platform.MediaPlayer.MPMediaItemPropertyArtwork
 import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
 import platform.MediaPlayer.MPMediaItemPropertyTitle
 import platform.MediaPlayer.MPNowPlayingInfoCenter
@@ -48,6 +49,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     private var progressJob: Job? = null
     private var completionReported: Boolean = false
     private var remoteCommandsRegistered: Boolean = false
+    private val remoteCommandHandlerTokens = mutableListOf<Any?>()
     private var artworkTrackId: String? = null
 
     override fun load(track: PlayableTrack) {
@@ -167,6 +169,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         player = null
         loadedTrack = null
         durationMillis = null
+        artworkTrackId = null
     }
 
     private fun configureAudioSession() {
@@ -182,7 +185,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         val commandCenter = MPRemoteCommandCenter.sharedCommandCenter()
         configureIOSRemoteCommandAvailability(commandCenter)
 
-        commandCenter.playCommand.addTargetWithHandler { _ ->
+        remoteCommandHandlerTokens += commandCenter.playCommand.addTargetWithHandler { _ ->
             val p = player
             if (p != null) {
                 p.play()
@@ -192,56 +195,56 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             }
             MPRemoteCommandHandlerStatusSuccess
         }
-        commandCenter.pauseCommand.addTargetWithHandler { _ ->
+        remoteCommandHandlerTokens += commandCenter.pauseCommand.addTargetWithHandler { _ ->
             progressJob?.cancel()
             player?.pause()
             val pos = ((player?.currentTime ?: 0.0) * 1_000.0).toLong()
-            updateNowPlayingInfo(positionMillis = pos)
+            updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
             listener?.onPlaybackProgress(pos, durationMillis)
             listener?.onPlaybackStatus(PlaybackStatus.Paused)
             MPRemoteCommandHandlerStatusSuccess
         }
-        commandCenter.togglePlayPauseCommand.addTargetWithHandler { _ ->
+        remoteCommandHandlerTokens += commandCenter.togglePlayPauseCommand.addTargetWithHandler { _ ->
             val p = player
             if (p != null) {
                 if (p.isPlaying()) {
                     progressJob?.cancel()
                     p.pause()
-                    updateNowPlayingInfo(positionMillis = (p.currentTime * 1_000.0).toLong())
+                    updateNowPlayingInfo(positionMillis = (p.currentTime * 1_000.0).toLong(), playbackRate = 0.0)
                     listener?.onPlaybackStatus(PlaybackStatus.Paused)
                 } else {
                     p.play()
-                    updateNowPlayingInfo(positionMillis = (p.currentTime * 1_000.0).toLong())
+                    updateNowPlayingInfo(positionMillis = (p.currentTime * 1_000.0).toLong(), playbackRate = 1.0)
                     listener?.onPlaybackStatus(PlaybackStatus.Playing)
                     startProgressLoop()
                 }
             }
             MPRemoteCommandHandlerStatusSuccess
         }
-        commandCenter.stopCommand.addTargetWithHandler { _ ->
+        remoteCommandHandlerTokens += commandCenter.stopCommand.addTargetWithHandler { _ ->
             progressJob?.cancel()
             player?.stop()
             player?.currentTime = 0.0
-            updateNowPlayingInfo(positionMillis = 0L)
+            updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
             listener?.onPlaybackProgress(0L, durationMillis)
             listener?.onPlaybackStatus(PlaybackStatus.Stopped)
             MPRemoteCommandHandlerStatusSuccess
         }
-        commandCenter.changePlaybackPositionCommand.addTargetWithHandler { event ->
+        remoteCommandHandlerTokens += commandCenter.changePlaybackPositionCommand.addTargetWithHandler { event ->
             if (event is MPChangePlaybackPositionCommandEvent) {
                 val seekSeconds = event.positionTime
                 player?.currentTime = seekSeconds
                 val pos = (seekSeconds * 1_000.0).toLong()
-                updateNowPlayingInfo(positionMillis = pos)
+                updateNowPlayingInfo(positionMillis = pos, playbackRate = if (player?.isPlaying() == true) 1.0 else 0.0)
                 listener?.onPlaybackProgress(pos, durationMillis)
             }
             MPRemoteCommandHandlerStatusSuccess
         }
-        commandCenter.previousTrackCommand.addTargetWithHandler { _ ->
+        remoteCommandHandlerTokens += commandCenter.previousTrackCommand.addTargetWithHandler { _ ->
             listener?.onSkipToPrevious()
             MPRemoteCommandHandlerStatusSuccess
         }
-        commandCenter.nextTrackCommand.addTargetWithHandler { _ ->
+        remoteCommandHandlerTokens += commandCenter.nextTrackCommand.addTargetWithHandler { _ ->
             listener?.onSkipToNext()
             MPRemoteCommandHandlerStatusSuccess
         }
@@ -249,7 +252,14 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
 
     private fun updateNowPlayingInfo(positionMillis: Long, playbackRate: Double = 1.0) {
         val track = loadedTrack ?: return
-        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = buildIOSNowPlayingDictionary(track, positionMillis, durationMillis, playbackRate)
+        val existingArtwork = MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo?.get(MPMediaItemPropertyArtwork)
+        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = buildIOSNowPlayingDictionary(
+            track = track,
+            positionMillis = positionMillis,
+            durationMillis = durationMillis,
+            playbackRate = playbackRate,
+            existingArtwork = existingArtwork,
+        )
         // Artwork is set via the Swift-native bridge — cinterop doesn't expose
         // NSData(bytes:length:) so the ByteArray→UIImage→MPMediaItemArtwork
         // chain runs in Swift where KotlinByteArray.toData() is available.
@@ -306,15 +316,17 @@ internal fun buildIOSNowPlayingInfo(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun buildIOSNowPlayingDictionary(
+internal fun buildIOSNowPlayingDictionary(
     track: PlayableTrack,
     positionMillis: Long,
     durationMillis: Long?,
     playbackRate: Double,
+    existingArtwork: Any? = null,
 ): Map<Any?, Any?> = buildMap {
     put(MPMediaItemPropertyTitle, track.title)
     put(MPMediaItemPropertyArtist, track.artist)
     track.album?.let { put(MPMediaItemPropertyAlbumTitle, it) }
+    existingArtwork?.let { put(MPMediaItemPropertyArtwork, it) }
     durationMillis?.let { put(MPMediaItemPropertyPlaybackDuration, it.toDouble() / 1_000.0) }
     put(MPNowPlayingInfoPropertyElapsedPlaybackTime, positionMillis.coerceAtLeast(0L).toDouble() / 1_000.0)
     put(MPNowPlayingInfoPropertyPlaybackRate, playbackRate)

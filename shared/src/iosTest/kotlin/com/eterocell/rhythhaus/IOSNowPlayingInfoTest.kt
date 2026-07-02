@@ -2,6 +2,8 @@ package com.eterocell.rhythhaus
 
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
+import platform.MediaPlayer.MPMediaItemPropertyArtwork
+import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -70,5 +72,30 @@ class IOSNowPlayingInfoTest {
         assertFalse(commandCenter.skipBackwardCommand.enabled)
         assertFalse(commandCenter.seekForwardCommand.enabled)
         assertFalse(commandCenter.seekBackwardCommand.enabled)
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    @Test
+    fun nowPlayingDictionaryPreservesArtworkAndExplicitPausedRate() {
+        val track = PlayableTrack(
+            id = "track-artwork",
+            title = "Artwork Track",
+            artist = "Rhyth Haus",
+            album = "Control Center",
+            durationMillis = 120_000L,
+            source = AudioSource.FilePath("/tmp/artwork-track.wav"),
+        )
+        val artworkSentinel = Any()
+
+        val nowPlayingInfo = buildIOSNowPlayingDictionary(
+            track = track,
+            positionMillis = 5_000L,
+            durationMillis = 120_000L,
+            playbackRate = 0.0,
+            existingArtwork = artworkSentinel,
+        )
+
+        assertEquals(artworkSentinel, nowPlayingInfo[MPMediaItemPropertyArtwork])
+        assertEquals(0.0, nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate])
     }
 }
