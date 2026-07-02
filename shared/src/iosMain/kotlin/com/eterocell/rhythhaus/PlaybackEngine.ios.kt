@@ -12,7 +12,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import platform.AVFAudio.AVAudioPlayer
 import platform.AVFAudio.AVAudioSession
-import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.setActive
 import platform.Foundation.NSThread
 import platform.Foundation.NSURL
@@ -27,7 +26,6 @@ import platform.MediaPlayer.MPNowPlayingInfoPropertyElapsedPlaybackTime
 import platform.MediaPlayer.MPNowPlayingInfoPropertyIsLiveStream
 import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
-import platform.MediaPlayer.MPRemoteCommandHandlerStatus
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 
 actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = IOSPlaybackEngine()
@@ -58,14 +56,12 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         // Lock Screen UI layer picks up the enabled command state. Registration
         // from Dispatchers.Default routes events (AirPods work) but the UI
         // does not reflect it (prev/next + slider remain greyed).
-        log.d { "[NP-DBG] IOSPlaybackEngine.init: isMainThread=${NSThread.isMainThread()}" }
         registerRemoteCommands()
     }
 
     override fun load(track: PlayableTrack) {
         releaseForTrackSwitch()
         log.d { "Loading track: ${track.title}" }
-        log.d { "[NP-DBG] load: track.durationMillis=${track.durationMillis} track.id=${track.id}" }
         listener?.onPlaybackStatus(PlaybackStatus.Loading)
         configureAudioSession()
         val url = track.source.iosUrl()
@@ -86,12 +82,10 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             listener?.onPlaybackError(PlaybackError(errorMsg, cause = url.absoluteString))
             return
         }
-        log.d { "[NP-DBG] load: AVAudioPlayer.duration=${audioPlayer.duration} (after prepareToPlay)" }
 
         player = audioPlayer
         loadedTrack = track
         durationMillis = track.durationMillis ?: (audioPlayer.duration * 1_000.0).toLong().takeIf { it > 0L }
-        log.d { "[NP-DBG] load: resolved durationMillis=$durationMillis" }
         completionReported = false
         updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         listener?.onPlaybackProgress(0L, durationMillis)
@@ -102,7 +96,6 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     override fun play() {
         val audioPlayer = requireNotNull(player) { "No player loaded" }
         log.d { "Playing: ${loadedTrack?.title}" }
-        log.d { "[NP-DBG] play: durationMillis=$durationMillis audioPlayer.duration=${audioPlayer.duration}" }
         if (!audioPlayer.play()) {
             val errorMsg = "Could not start playback: ${loadedTrack?.title}"
             log.e { errorMsg }
@@ -194,15 +187,11 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
     private fun configureAudioSession() {
         val session = AVAudioSession.sharedInstance()
         session.setActive(true, error = null)
-        log.d { "[NP-DBG] configureAudioSession: category=${session.category}" }
-        // Remote commands are registered in the init block (main thread).
-        // Calling registerRemoteCommands() here would be from Dispatchers.Default.
     }
 
     private fun registerRemoteCommands() {
         if (remoteCommandsRegistered) return
         remoteCommandsRegistered = true
-        log.d { "[NP-DBG] registerRemoteCommands: isMainThread=${NSThread.isMainThread()}" }
         val commandCenter = MPRemoteCommandCenter.sharedCommandCenter()
         configureIOSRemoteCommandAvailability(commandCenter)
 
@@ -269,14 +258,6 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             listener?.onSkipToNext()
             MPRemoteCommandHandlerStatusSuccess
         }
-        log.d {
-            "[NP-DBG] registerRemoteCommands DONE. enabled: play=${commandCenter.playCommand.enabled} " +
-                "pause=${commandCenter.pauseCommand.enabled} toggle=${commandCenter.togglePlayPauseCommand.enabled} " +
-                "stop=${commandCenter.stopCommand.enabled} changePos=${commandCenter.changePlaybackPositionCommand.enabled} " +
-                "prev=${commandCenter.previousTrackCommand.enabled} next=${commandCenter.nextTrackCommand.enabled} " +
-                "skipFwd=${commandCenter.skipForwardCommand.enabled} skipBwd=${commandCenter.skipBackwardCommand.enabled} " +
-                "seekFwd=${commandCenter.seekForwardCommand.enabled} seekBwd=${commandCenter.seekBackwardCommand.enabled}"
-        }
     }
 
     private fun updateNowPlayingInfo(positionMillis: Long, playbackRate: Double = 1.0) {
@@ -290,13 +271,6 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             existingArtwork = existingArtwork,
         )
         MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = dict
-        val stored = MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo
-        log.d {
-            "[NP-DBG] updateNowPlayingInfo: rate=$playbackRate pos=$positionMillis duration=$durationMillis | " +
-                "storedKeys=${stored?.keys?.joinToString() ?: "NULL"} " +
-                "storedDuration=${stored?.get(MPMediaItemPropertyPlaybackDuration)} " +
-                "storedRate=${stored?.get(MPNowPlayingInfoPropertyPlaybackRate)}"
-        }
         // Artwork is set via the Swift-native bridge — cinterop doesn't expose
         // NSData(bytes:length:) so the ByteArray→UIImage→MPMediaItemArtwork
         // chain runs in Swift where KotlinByteArray.toData() is available.
