@@ -47,6 +47,10 @@ sqldelight {
 }
 
 kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     listOf(
         iosArm64(),
         iosSimulatorArm64(),
@@ -101,7 +105,7 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material.icons.extended)
             implementation(libs.compose.ui)
-            implementation(libs.compose.ui.backhandler)
+            implementation(libs.navigationevent.compose)
             implementation(libs.compose.material3)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)

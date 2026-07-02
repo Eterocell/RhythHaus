@@ -43,7 +43,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.backhandler.PredictiveBackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -60,6 +59,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformAudioScanner
@@ -258,10 +260,13 @@ fun LibraryHomeScreen(
     fun popRoute() {
         navigation = navigation.pop()
     }
-    PredictiveBackHandler(enabled = navigation.canPop) { progress ->
-        progress.collect { /* Android owns predictive-back progress animation for this change. */ }
-        popRoute()
-    }
+    val navState = rememberNavigationEventState(NavigationEventInfo.None)
+    NavigationBackHandler(
+        state = navState,
+        isBackEnabled = navigation.canPop,
+        onBackCancelled = { },
+        onBackCompleted = ::popRoute,
+    )
     val albums = remember(snapshot.tracks) { groupTracksByAlbum(snapshot.tracks) }
     val artists = remember(snapshot.tracks) { groupTracksByArtist(snapshot.tracks) }
 
