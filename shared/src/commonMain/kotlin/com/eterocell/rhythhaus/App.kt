@@ -29,9 +29,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -421,7 +421,7 @@ fun LibraryHomeScreen(
                 Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
                     LazyColumn(
                         modifier = Modifier
-                            .navigationBarsPadding()
+                            .safeContentPadding()
                             .fillMaxSize()
                             .padding(horizontal = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -1150,7 +1150,7 @@ private fun DrillDownView(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
-                        .navigationBarsPadding()
+                        .safeContentPadding()
                         .fillMaxSize()
                         .padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
