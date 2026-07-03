@@ -613,6 +613,7 @@ private fun NowPlayingExpandOverlay(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val gestureScope = rememberCoroutineScope()
     if (expandProgress.value > 0.001f && track != null) {
         val fraction = expandProgress.value
         Box(modifier = modifier) {
@@ -624,7 +625,7 @@ private fun NowPlayingExpandOverlay(
                     .verticalSheetGesture(
                         expandProgress = expandProgress,
                         isActive = true,
-                        scope = rememberCoroutineScope(),
+                        scope = gestureScope,
                         onSwipeExpand = {},
                         onSwipeCollapse = onBack,
                     ),
