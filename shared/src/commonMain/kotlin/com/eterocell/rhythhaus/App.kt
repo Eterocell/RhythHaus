@@ -3,8 +3,6 @@ package com.eterocell.rhythhaus
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
@@ -267,6 +265,7 @@ fun LibraryHomeScreen(
         playbackState.currentTrack?.id?.let { selectedTrackId = it }
     }
     var browseMode by remember { mutableStateOf(BrowseMode.Albums) }
+    var showNowPlaying by remember { mutableStateOf(false) }
     var navigation by remember { mutableStateOf(LibraryNavigationStack()) }
     var lastNavigationTransition by remember { mutableStateOf(LibraryNavigationTransition.None) }
     fun updateNavigation(next: LibraryNavigationStack) {
@@ -280,26 +279,30 @@ fun LibraryHomeScreen(
         updateNavigation(navigation.pop())
     }
     val expandProgress = remember { Animatable(0f) }
-    LaunchedEffect(navigation.current == LibraryRoute.NowPlaying) {
-        val target = if (navigation.current == LibraryRoute.NowPlaying) 1f else 0f
+    LaunchedEffect(showNowPlaying) {
+        val target = if (showNowPlaying) 1f else 0f
         expandProgress.animateTo(target, tween(300))
     }
     var backGestureProgressAtCompletion by remember { mutableStateOf<Float?>(null) }
     val navState = rememberNavigationEventState(NavigationEventInfo.None)
     NavigationBackHandler(
         state = navState,
-        isBackEnabled = navigation.canPop,
+        isBackEnabled = showNowPlaying || navigation.canPop,
         onBackCancelled = { },
         onBackCompleted = {
-            backGestureProgressAtCompletion = when (val ts = navState.transitionState) {
-                is NavigationEventTransitionState.InProgress -> ts.latestEvent.progress
-                else -> null
+            if (showNowPlaying) {
+                showNowPlaying = false
+            } else {
+                backGestureProgressAtCompletion = when (val ts = navState.transitionState) {
+                    is NavigationEventTransitionState.InProgress -> ts.latestEvent.progress
+                    else -> null
+                }
+                // Skip the AnimatedContent slide when predictive back drove the pop
+                val next = navigation.pop()
+                backGestureProgressAtCompletion = null
+                lastNavigationTransition = LibraryNavigationTransition.None
+                navigation = next
             }
-            // Skip the AnimatedContent slide when predictive back drove the pop
-            val next = navigation.pop()
-            backGestureProgressAtCompletion = null
-            lastNavigationTransition = LibraryNavigationTransition.None
-            navigation = next
         },
     )
     val albums = remember(snapshot.tracks) { groupTracksByAlbum(snapshot.tracks) }
@@ -324,15 +327,7 @@ fun LibraryHomeScreen(
     AnimatedContent(
         targetState = navigation.current,
         transitionSpec = {
-            if (targetState == LibraryRoute.NowPlaying) {
-                // Keep exiting content visible while the expand overlay grows on top
-                EnterTransition.None togetherWith fadeOut(tween(300))
-            } else if (initialState == LibraryRoute.NowPlaying) {
-                // Show entering content quickly while the collapse overlay shrinks
-                fadeIn(tween(50)) togetherWith ExitTransition.None
-            } else {
-                routeContentTransform(lastNavigationTransition)
-            }
+            routeContentTransform(lastNavigationTransition)
         },
         label = "LibraryRouteTransition",
         modifier = Modifier
@@ -369,7 +364,7 @@ fun LibraryHomeScreen(
                     },
                     onExpandNowPlaying = { track ->
                         selectedTrackId = track.id
-                        pushRoute(LibraryRoute.NowPlaying)
+                        showNowPlaying = true
                     },
                     onShowSettings = { pushRoute(LibraryRoute.Settings) },
                     onShowSearch = { pushRoute(LibraryRoute.Search) },
@@ -406,7 +401,7 @@ fun LibraryHomeScreen(
                     },
                     onExpandNowPlaying = { track ->
                         selectedTrackId = track.id
-                        pushRoute(LibraryRoute.NowPlaying)
+                        showNowPlaying = true
                     },
                     onShowSettings = { pushRoute(LibraryRoute.Settings) },
                     onShowSearch = { pushRoute(LibraryRoute.Search) },
@@ -415,7 +410,7 @@ fun LibraryHomeScreen(
         }
 
         LibraryRoute.NowPlaying -> {
-            Box(modifier = Modifier.fillMaxSize())
+            // Now Playing is shown as an overlay, not a navigation route
         }
 
         LibraryRoute.Home,
@@ -578,11 +573,11 @@ fun LibraryHomeScreen(
                 playbackController.togglePlayPause()
             }
         },
-        onExpand = { if (selectedTrack != null) pushRoute(LibraryRoute.NowPlaying) },
+        onExpand = { if (selectedTrack != null) showNowPlaying = true },
         onSettings = { pushRoute(LibraryRoute.Settings) },
         onSearch = { pushRoute(LibraryRoute.Search) },
         expandProgress = expandProgress,
-        isExpanded = navigation.current == LibraryRoute.NowPlaying,
+        isExpanded = showNowPlaying,
         modifier = Modifier.align(Alignment.BottomCenter),
     )
 
@@ -593,9 +588,9 @@ fun LibraryHomeScreen(
         playbackController = playbackController,
         tagLibReader = tagLibReader,
         currentLibraryTrack = libraryTracks.firstOrNull { it.id == selectedTrack?.id },
-        isVisible = navigation.current == LibraryRoute.NowPlaying,
+        isVisible = showNowPlaying,
         expandProgress = expandProgress,
-        onBack = ::popRoute,
+        onBack = { showNowPlaying = false },
         modifier = Modifier.fillMaxSize(),
     )
     }
