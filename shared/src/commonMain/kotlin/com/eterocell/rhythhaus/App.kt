@@ -7,6 +7,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -277,6 +278,11 @@ fun LibraryHomeScreen(
     }
     fun popRoute() {
         updateNavigation(navigation.pop())
+    }
+    val expandProgress = remember { Animatable(0f) }
+    LaunchedEffect(navigation.current == LibraryRoute.NowPlaying) {
+        val target = if (navigation.current == LibraryRoute.NowPlaying) 1f else 0f
+        expandProgress.animateTo(target, tween(300))
     }
     var backGestureProgressAtCompletion by remember { mutableStateOf<Float?>(null) }
     val navState = rememberNavigationEventState(NavigationEventInfo.None)
@@ -575,6 +581,8 @@ fun LibraryHomeScreen(
         onExpand = { if (selectedTrack != null) pushRoute(LibraryRoute.NowPlaying) },
         onSettings = { pushRoute(LibraryRoute.Settings) },
         onSearch = { pushRoute(LibraryRoute.Search) },
+        expandProgress = expandProgress,
+        isExpanded = navigation.current == LibraryRoute.NowPlaying,
         modifier = Modifier.align(Alignment.BottomCenter),
     )
 
@@ -586,6 +594,7 @@ fun LibraryHomeScreen(
         tagLibReader = tagLibReader,
         currentLibraryTrack = libraryTracks.firstOrNull { it.id == selectedTrack?.id },
         isVisible = navigation.current == LibraryRoute.NowPlaying,
+        expandProgress = expandProgress,
         onBack = ::popRoute,
         modifier = Modifier.fillMaxSize(),
     )
@@ -600,14 +609,10 @@ private fun NowPlayingExpandOverlay(
     tagLibReader: TagLibReader,
     currentLibraryTrack: LibraryTrack?,
     isVisible: Boolean,
+    expandProgress: Animatable<Float, AnimationVector1D>,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val expandProgress = remember { Animatable(0f) }
-    LaunchedEffect(isVisible) {
-        if (isVisible) expandProgress.animateTo(1f, tween(300))
-        else expandProgress.animateTo(0f, tween(250))
-    }
     if (expandProgress.value > 0.001f && track != null) {
         val fraction = expandProgress.value
         Box(modifier = modifier) {
@@ -615,7 +620,14 @@ private fun NowPlayingExpandOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(fraction)
-                    .align(Alignment.BottomCenter),
+                    .align(Alignment.BottomCenter)
+                    .verticalSheetGesture(
+                        expandProgress = expandProgress,
+                        isActive = true,
+                        scope = rememberCoroutineScope(),
+                        onSwipeExpand = {},
+                        onSwipeCollapse = onBack,
+                    ),
                 shape = RoundedCornerShape(
                     topStart = (24 * (1f - fraction)).dp,
                     topEnd = (24 * (1f - fraction)).dp,
@@ -1172,6 +1184,7 @@ private fun DrillDownView(
         }
 
         if (currentTrack != null) {
+            val barExpandProgress = remember { Animatable(0f) }
             NowPlayingBar(
                 track = currentTrack,
                 playbackState = playbackState,
@@ -1179,6 +1192,8 @@ private fun DrillDownView(
                 onExpand = { onExpandNowPlaying(currentTrack) },
                 onSettings = onShowSettings,
                 onSearch = onShowSearch,
+                expandProgress = barExpandProgress,
+                isExpanded = false,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }

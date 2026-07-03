@@ -1,5 +1,7 @@
 package com.eterocell.rhythhaus
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -22,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CoroutineScope
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -42,6 +45,8 @@ fun NowPlayingBar(
     onExpand: () -> Unit,
     onSettings: () -> Unit,
     onSearch: () -> Unit,
+    expandProgress: Animatable<Float, AnimationVector1D>,
+    isExpanded: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val mode = bottomBarModeFor(track)
@@ -60,7 +65,14 @@ fun NowPlayingBar(
             .navigationBarsPadding()
             .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
             .clip(RoundedCornerShape(20.dp))
-            .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onExpand() }),
+            .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onExpand() })
+            .verticalSheetGesture(
+                expandProgress = expandProgress,
+                isActive = !isExpanded && mode == BottomBarMode.TrackLoaded,
+                scope = rememberCoroutineScope(),
+                onSwipeExpand = onExpand,
+                onSwipeCollapse = {},
+            ),
         shape = RoundedCornerShape(20.dp),
         shadowElevation = 8.dp,
         color = HausColors.current.panel,
