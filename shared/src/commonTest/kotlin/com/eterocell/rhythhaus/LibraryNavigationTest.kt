@@ -59,6 +59,14 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun clearDialogRouteRequiresInWindowContentAnimation() {
+        assertTrue(routeRequiresInWindowContentAnimation(LibraryRoute.ClearLibraryDialog))
+        assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.Settings))
+        assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.Search))
+        assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.Home))
+    }
+
+    @Test
     fun pushingHomeReturnsToRoot() {
         val stack = LibraryNavigationStack()
             .push(LibraryRoute.AlbumDetail("A"))
@@ -67,5 +75,51 @@ class LibraryNavigationTest {
 
         assertEquals(listOf(LibraryRoute.Home), stack.routes)
         assertEquals(LibraryRoute.Home, stack.current)
+    }
+
+    @Test
+    fun pushingNestedRouteClassifiesAsPush() {
+        val from = LibraryNavigationStack()
+        val to = from.push(LibraryRoute.AlbumDetail("Blue Train"))
+
+        assertEquals(LibraryNavigationTransition.Push, classifyNavigationTransition(from, to))
+    }
+
+    @Test
+    fun poppingNestedRouteClassifiesAsPop() {
+        val from = LibraryNavigationStack()
+            .push(LibraryRoute.AlbumDetail("Blue Train"))
+            .push(LibraryRoute.Search)
+        val to = from.pop()
+
+        assertEquals(LibraryNavigationTransition.Pop, classifyNavigationTransition(from, to))
+    }
+
+    @Test
+    fun pushingHomeClassifiesAsRoot() {
+        val from = LibraryNavigationStack()
+            .push(LibraryRoute.AlbumDetail("Blue Train"))
+            .push(LibraryRoute.Search)
+        val to = from.push(LibraryRoute.Home)
+
+        assertEquals(LibraryNavigationTransition.Root, classifyNavigationTransition(from, to))
+    }
+
+    @Test
+    fun replacingTopRouteClassifiesAsReplace() {
+        val from = LibraryNavigationStack()
+            .push(LibraryRoute.Search)
+        val to = from.replaceTop(LibraryRoute.Settings)
+
+        assertEquals(LibraryNavigationTransition.Replace, classifyNavigationTransition(from, to))
+    }
+
+    @Test
+    fun duplicateTopPushClassifiesAsNone() {
+        val from = LibraryNavigationStack()
+            .push(LibraryRoute.Search)
+        val to = from.push(LibraryRoute.Search)
+
+        assertEquals(LibraryNavigationTransition.None, classifyNavigationTransition(from, to))
     }
 }

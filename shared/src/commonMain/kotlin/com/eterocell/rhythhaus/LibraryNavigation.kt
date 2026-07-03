@@ -10,6 +10,28 @@ sealed interface LibraryRoute {
     data object ClearLibraryDialog : LibraryRoute
 }
 
+enum class LibraryNavigationTransition {
+    None,
+    Push,
+    Pop,
+    Replace,
+    Root,
+}
+
+fun classifyNavigationTransition(
+    from: LibraryNavigationStack,
+    to: LibraryNavigationStack,
+): LibraryNavigationTransition = when {
+    from.routes == to.routes -> LibraryNavigationTransition.None
+    to.current == LibraryRoute.Home && from.current != LibraryRoute.Home -> LibraryNavigationTransition.Root
+    to.routes.size > from.routes.size -> LibraryNavigationTransition.Push
+    to.routes.size < from.routes.size -> LibraryNavigationTransition.Pop
+    from.current != to.current -> LibraryNavigationTransition.Replace
+    else -> LibraryNavigationTransition.None
+}
+
+fun routeRequiresInWindowContentAnimation(route: LibraryRoute): Boolean = route == LibraryRoute.ClearLibraryDialog
+
 data class LibraryNavigationStack(
     val routes: List<LibraryRoute> = listOf(LibraryRoute.Home),
 ) {

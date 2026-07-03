@@ -1,6 +1,93 @@
 # Session Progress
 
 
+## Handoff - 2026-07-03 navigation animation polish
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Three polish items on top of the base navigation-animations change: (1) Android predictive back visual progress, (2) NowPlayingBar fixed during route transitions, (3) NowPlayingBar expands/collapses into Now Playing with a growth animation instead of a route-push fade/slide.
+Implementation:
+- Predictive back: read `navState.transitionState` (kept `NavigationEventInfo.None`; confirmed `NavigationEventInfo.Slide` does not exist in `navigationevent` 1.1.x by extracting the sources jar). When `transitionState` is `InProgress` with direction `TRANSITIONING_BACK`, extract `latestEvent.progress` (0f-1f) and apply it as a horizontal offset on the `AnimatedContent` route container so the current route visually tracks the drag. Gesture completion still pops via the existing `onBackCompleted`; cancellation naturally resets to 0 because progress is derived fresh from `transitionState` every recomposition, not stored.
+- Fixed bottom bar: restructured `LibraryHomeScreen` root into a `Box` containing `AnimatedContent` (route content, now `fillMaxSize()` + predictive-back offset) and `NowPlayingBar` as a fixed sibling aligned `BottomCenter`. Removed the previous `NowPlayingBar` call from inside the Home/Settings/Search/ClearLibraryDialog route branch.
+- Bottom bar expand/collapse: replaced the `LibraryRoute.NowPlaying` route-push rendering (which used to show `NowPlayingScreen` via the standard `AnimatedContent` fade/slide) with an empty placeholder inside `AnimatedContent`, and added a new `NowPlayingExpandOverlay` composable rendered outside `AnimatedContent`, driven by an `Animatable<Float>` (0f = bar, 1f = full screen; expand `tween(300)`, collapse `tween(250)`). The overlay grows a `Surface` from the bottom via `fillMaxHeight(fraction)`, shrinks its top corner radius from 24dp to 0dp as it grows, and fades the `NowPlayingScreen` content in via `alpha(fraction)`. `leftEdgeSwipeBack` and `BackChip` inside `NowPlayingScreen` are unchanged for closing.
+Self-review (independent reviewer subagent timed out after 600s with 0 findings returned; coordinator performed the review directly):
+- Confirmed no double-render: the `NowPlaying` branch inside `AnimatedContent` is an empty `Box`; actual content only renders in `NowPlayingExpandOverlay`.
+- Confirmed `predictiveBackProgress` is safe: computed fresh from `navState.transitionState` each recomposition (not `remember`ed), so it naturally returns to 0 when `transitionState` returns to `Idle` after gesture completion or cancellation.
+- Confirmed `LaunchedEffect(isVisible)` cannot race: `Animatable.animateTo` cancels any in-flight animation on the same instance before starting a new one, so rapid open/close taps are safe.
+- Open caveat not fully resolved by automated checks: the `LibraryRoute.NowPlaying` target still participates in `AnimatedContent`'s route transition (transitioning to/from an empty `Box`), so the underlying screen still runs its own fade/slide via `routeContentTransform` while the expand overlay grows on top of it simultaneously. This is expected to look fine since the overlay covers the screen as it grows, but has not been visually confirmed on a device/simulator.
+Verification:
+- `openspec validate navigation-animation-polish --strict`: pass (`Change 'navigation-animation-polish' is valid`).
+- `openspec validate navigation-animations --strict`: pass (`Change 'navigation-animations' is valid`).
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 5s`; 98 actionable tasks: 13 executed, 5 from cache, 80 up-to-date).
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, Build version 17F113.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 22s`; 33 actionable tasks: 8 executed, 25 up-to-date).
+- `git diff --check`: pass (no output, exit 0).
+Acceptance:
+- Requirement matched: yes for all three polish items at the source/automated-verification level; predictive back progress, fixed bottom bar, and expand/collapse animation are implemented per spec.
+- Scope controlled: yes — no new dependencies, no `SharedTransitionScope` adoption, no native navigation migration, no changes to playback, scanner, library persistence, theme, or Now Playing screen content layout beyond the expand wrapper.
+- Edge cases/risk reviewed: the external reviewer subagent timed out without returning a verdict; coordinator performed the review directly and found no blocking issues, but flagged the simultaneous-transition-layering caveat above as needing manual visual confirmation on device/simulator (Android 13+ for predictive back gesture in particular).
+Changed files:
+- `docs/superpowers/specs/2026-07-02-navigation-animation-polish-design.md`
+- `docs/superpowers/plans/2026-07-02-navigation-animation-polish.md`
+- `openspec/changes/navigation-animation-polish/proposal.md`
+- `openspec/changes/navigation-animation-polish/design.md`
+- `openspec/changes/navigation-animation-polish/specs/library-navigation/spec.md`
+- `openspec/changes/navigation-animation-polish/tasks.md`
+- `openspec/changes/navigation-animation-polish/.openspec.yaml`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `progress.md`
+Next owner: user for manual visual validation, especially Android 13+ predictive back gesture and the bar-to-Now-Playing expand/collapse feel on device; OpenSpec/user for archive of both `navigation-animations` and `navigation-animation-polish` when satisfied.
+Blockers: none for automated verification. Manual visual confirmation not performed in this session.
+Commit: pending — user asked for the base navigation-animations work and this polish work to land in one commit; awaiting staged-diff review and approval.
+
+## Handoff - 2026-07-02 navigation animations
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Add shared Compose direction-aware route transition animations for Home, detail, Now Playing, Search, Settings, and Clear Library dialog routes.
+Implementation:
+- Added pure navigation transition classification for push/pop/replace/root/no-op route changes.
+- Added common tests covering transition classification and preserving route-stack behavior.
+- Wrapped shared route rendering in root-level AnimatedContent with direction-aware push/pop/root/replace transitions.
+- Replaced the Clear Library platform `Dialog` with an in-window Compose overlay so that route also participates in the AnimatedContent transition.
+- Preserved existing visible back, left-edge swipe, Android system/predictive back, playback, scanner, library, and theme behavior.
+Verification:
+- `openspec validate navigation-animations --strict`: pass (`Change 'navigation-animations' is valid`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass before final fix (`BUILD SUCCESSFUL in 357ms`) and pass after final fix (`BUILD SUCCESSFUL in 329ms`; 24 actionable tasks: 4 executed, 20 up-to-date; configuration cache reused).
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass after final fix (`BUILD SUCCESSFUL in 323ms`; 15 actionable tasks: 3 executed, 12 up-to-date; configuration cache reused).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: initial fail in known flaky `JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion` (`60 tests completed, 1 failed`; Android debug package still completed before `:shared:jvmTest` failure); targeted rerun passed; exact broad rerun passed; final post-fix broad run passed (`BUILD SUCCESSFUL in 5s`; 98 actionable tasks: 12 executed, 86 up-to-date; configuration cache reused).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion' --configuration-cache`: pass (`BUILD SUCCESSFUL in 919ms`; 33 actionable tasks: 5 executed, 28 up-to-date).
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, Build version 17F113.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass before final fix (`BUILD SUCCESSFUL in 21s`) and pass after final fix (`BUILD SUCCESSFUL in 13s`; 33 actionable tasks: 8 executed, 25 up-to-date; configuration cache reused).
+- `git diff --check`: pass (no output, exit 0).
+- `git diff --stat`: reviewed; tracked diff summary after final fix/evidence updates showed `progress.md`, `App.kt`, `LibraryNavigation.kt`, and `LibraryNavigationTest.kt` with 341 insertions and 149 deletions; untracked new OpenSpec/docs/report files are listed below.
+Reviews:
+- Task 1 review: clean.
+- Task 2 review: clean after timeout recovery.
+- Final whole-change review: found one Important issue that Clear Library platform `Dialog` would likely not animate inside parent `AnimatedContent`.
+- Final fix and re-review: clean; no Critical, Important, or Minor findings.
+Acceptance:
+- Requirement matched: yes — shared route changes animate, push/pop directions are distinct, and Clear Library uses in-window content instead of platform `Dialog` so it participates in the route transition.
+- Scope controlled: yes — no new dependencies, native navigation migration, playback, scanner, persistence, or theme behavior changes.
+- Edge cases/risk reviewed: automated checks prove route metadata and compilation; subjective animation polish still needs manual visual validation on Android/iOS/macOS.
+Changed files:
+- `docs/superpowers/specs/2026-07-02-navigation-animations-design.md`
+- `docs/superpowers/plans/2026-07-02-navigation-animations.md`
+- `openspec/changes/navigation-animations/proposal.md`
+- `openspec/changes/navigation-animations/design.md`
+- `openspec/changes/navigation-animations/specs/library-navigation/spec.md`
+- `openspec/changes/navigation-animations/tasks.md`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryNavigation.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibraryNavigationTest.kt`
+- `.superpowers/sdd/navigation-animations/task-3-report.md`
+- `progress.md`
+Next owner: user for manual visual validation; OpenSpec/user for archive when satisfied.
+Blockers: none for automated verification. One broad verification run hit known flaky `JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion`; targeted rerun and exact broad rerun passed.
+Commit: pending semantic commit after user reviews staged diff, unless user asks not to commit.
+
 ## Handoff - 2026-07-02 fix iOS lockscreen controls and artwork regression
 
 Route: systematic-debugging (bugfix)
