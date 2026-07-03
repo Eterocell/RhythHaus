@@ -72,6 +72,7 @@ fun NowPlayingBar(
                 scope = rememberCoroutineScope(),
                 onSwipeExpand = onExpand,
                 onSwipeCollapse = {},
+                threshold = 0.3f,
             ),
         shape = RoundedCornerShape(20.dp),
         shadowElevation = 8.dp,
