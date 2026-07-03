@@ -1339,6 +1339,7 @@ private fun AlbumCard(
 ) {
     Card(
         modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
             .hausClickable(onClick = onClick)
             .semantics { contentDescription = "Album ${album.album}" },
         cornerRadius = 20.dp,
