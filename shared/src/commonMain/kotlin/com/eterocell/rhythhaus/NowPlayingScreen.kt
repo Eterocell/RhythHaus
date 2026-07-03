@@ -66,15 +66,6 @@ fun NowPlayingScreen(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp),
         ) {
-            // Back button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 18.dp),
-            ) {
-                BackChip(onClick = onBack)
-            }
-
             Spacer(Modifier.height(18.dp))
 
             // Large artwork
