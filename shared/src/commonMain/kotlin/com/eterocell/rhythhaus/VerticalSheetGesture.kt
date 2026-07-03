@@ -20,6 +20,7 @@ fun Modifier.verticalSheetGesture(
     onSwipeExpand: () -> Unit,
     onSwipeCollapse: () -> Unit,
     threshold: Float = DefaultThreshold,
+    referenceHeight: Float? = null,
 ): Modifier = pointerInput(isActive) {
     if (!isActive) return@pointerInput
     var totalDrag = 0f
@@ -30,7 +31,7 @@ fun Modifier.verticalSheetGesture(
         onVerticalDrag = { _, dragAmount ->
             scope.launch {
                 totalDrag += dragAmount
-                val screenHeight = size.height.toFloat()
+                val screenHeight = referenceHeight ?: size.height.toFloat()
                 if (screenHeight <= 0f) return@launch
                 val current = expandProgress.value
                 val delta = -(dragAmount / screenHeight)

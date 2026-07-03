@@ -47,6 +47,7 @@ fun NowPlayingBar(
     onSearch: () -> Unit,
     expandProgress: Animatable<Float, AnimationVector1D>,
     isExpanded: Boolean,
+    screenHeightPx: Float = 0f,
     modifier: Modifier = Modifier,
 ) {
     val mode = bottomBarModeFor(track)
@@ -73,6 +74,7 @@ fun NowPlayingBar(
                 onSwipeExpand = onExpand,
                 onSwipeCollapse = {},
                 threshold = 0.3f,
+                referenceHeight = screenHeightPx,
             ),
         shape = RoundedCornerShape(20.dp),
         shadowElevation = 8.dp,

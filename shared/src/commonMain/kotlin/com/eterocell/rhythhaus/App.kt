@@ -47,6 +47,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -61,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -278,6 +280,7 @@ fun LibraryHomeScreen(
         updateNavigation(navigation.pop())
     }
     val expandProgress = remember { Animatable(0f) }
+    var screenHeightPx by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(showNowPlaying) {
         val target = if (showNowPlaying) 1f else 0f
         expandProgress.animateTo(target, tween(300))
@@ -322,7 +325,7 @@ fun LibraryHomeScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().onSizeChanged { screenHeightPx = it.height.toFloat() }) {
     AnimatedContent(
         targetState = navigation.current,
         transitionSpec = {
@@ -577,6 +580,7 @@ fun LibraryHomeScreen(
         onSearch = { pushRoute(LibraryRoute.Search) },
         expandProgress = expandProgress,
         isExpanded = showNowPlaying,
+        screenHeightPx = screenHeightPx,
         modifier = Modifier.align(Alignment.BottomCenter),
     )
 
