@@ -11,14 +11,16 @@ import java.io.File
 
 private const val ThemePreferenceFileName = "theme.preferences_pb"
 
-actual fun createThemePreferenceStore(): ThemePreferenceStore = DataStoreThemePreferenceStore(
+private val themeDataStore by lazy {
     PreferenceDataStoreFactory.createWithPath(
         corruptionHandler = null,
         migrations = emptyList(),
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
         produceFile = { defaultThemePreferenceFile().toOkioPath() },
-    ),
-)
+    )
+}
+
+actual fun createThemePreferenceStore(): ThemePreferenceStore = DataStoreThemePreferenceStore(themeDataStore)
 
 private fun defaultThemePreferenceFile(): File = File(
     System.getProperty("user.home"),

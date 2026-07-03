@@ -12,17 +12,17 @@ import java.io.File
 
 private const val ThemePreferenceFileName = "theme.preferences_pb"
 
-actual fun createThemePreferenceStore(): ThemePreferenceStore {
+private val themeDataStore by lazy {
     val file = File(LibraryDatabaseContext.applicationContext.filesDir, ThemePreferenceFileName)
-    return DataStoreThemePreferenceStore(
-        PreferenceDataStoreFactory.createWithPath(
-            corruptionHandler = null,
-            migrations = emptyList(),
-            scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
-            produceFile = { file.toOkioPath() },
-        ),
+    PreferenceDataStoreFactory.createWithPath(
+        corruptionHandler = null,
+        migrations = emptyList(),
+        scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+        produceFile = { file.toOkioPath() },
     )
 }
+
+actual fun createThemePreferenceStore(): ThemePreferenceStore = DataStoreThemePreferenceStore(themeDataStore)
 
 @Composable
 actual fun systemPrefersDarkTheme(): Boolean = isSystemInDarkTheme()

@@ -15,14 +15,16 @@ import platform.Foundation.NSUserDomainMask
 private const val ThemePreferenceFileName = "theme.preferences_pb"
 private const val ApplicationSupportFolderName = "RhythHaus"
 
-actual fun createThemePreferenceStore(): ThemePreferenceStore = DataStoreThemePreferenceStore(
+private val themeDataStore by lazy {
     PreferenceDataStoreFactory.createWithPath(
         corruptionHandler = null,
         migrations = emptyList(),
         scope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
         produceFile = { themePreferencePath().toPath() },
-    ),
-)
+    )
+}
+
+actual fun createThemePreferenceStore(): ThemePreferenceStore = DataStoreThemePreferenceStore(themeDataStore)
 
 @OptIn(ExperimentalForeignApi::class)
 private fun themePreferencePath(): String {

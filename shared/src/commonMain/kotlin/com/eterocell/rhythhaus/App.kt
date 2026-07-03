@@ -624,8 +624,8 @@ private fun NowPlayingExpandOverlay(
                         onSwipeCollapse = onBack,
                     ),
                 shape = RoundedCornerShape(
-                    topStart = (24 * (1f - fraction)).dp,
-                    topEnd = (24 * (1f - fraction)).dp,
+                    topStart = (24 * (1f - fraction).coerceAtLeast(0f)).dp,
+                    topEnd = (24 * (1f - fraction).coerceAtLeast(0f)).dp,
                     bottomStart = 0.dp,
                     bottomEnd = 0.dp,
                 ),
