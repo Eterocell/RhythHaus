@@ -11,7 +11,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 private const val CloseThreshold = 0.7f
-private const val OpenThreshold = 0.3f
 private const val RubberBandFactor = 0.5f
 
 fun Modifier.verticalSheetGesture(
@@ -51,6 +50,7 @@ fun Modifier.verticalSheetGesture(
                         1f,
                         spring(stiffness = Spring.StiffnessMediumLow)
                     )
+                    onSwipeExpand()
                 } else {
                     expandProgress.animateTo(
                         0f,
@@ -65,7 +65,7 @@ fun Modifier.verticalSheetGesture(
                 val current = expandProgress.value
                 val target = if (current >= CloseThreshold) 1f else 0f
                 expandProgress.animateTo(target, spring(stiffness = Spring.StiffnessMediumLow))
-                if (target == 0f) onSwipeCollapse()
+                if (target == 1f) onSwipeExpand() else onSwipeCollapse()
             }
         },
     )
