@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.*
@@ -31,10 +32,12 @@ fun SearchScreen(
     playbackController: PlaybackController,
     playbackState: PlaybackState,
     onDismiss: () -> Unit,
+    onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var query by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
+    val resultListState = rememberLazyListState()
 
     val filtered = remember(query, libraryTracks) {
         if (query.isBlank()) {
@@ -49,6 +52,14 @@ fun SearchScreen(
     }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(resultListState.firstVisibleItemIndex, resultListState.firstVisibleItemScrollOffset) {
+        onScrollPositionChanged(
+            LibraryScrollPosition(
+                firstVisibleItemIndex = resultListState.firstVisibleItemIndex,
+                firstVisibleItemScrollOffset = resultListState.firstVisibleItemScrollOffset,
+            ),
+        )
+    }
 
     Box(
         modifier = modifier
@@ -134,6 +145,7 @@ fun SearchScreen(
                         )
                     } else {
                         LazyColumn(
+                            state = resultListState,
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             items(filtered, key = { it.id }) { track ->

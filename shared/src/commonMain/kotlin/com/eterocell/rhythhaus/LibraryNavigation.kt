@@ -32,6 +32,27 @@ fun classifyNavigationTransition(
 
 fun routeRequiresInWindowContentAnimation(route: LibraryRoute): Boolean = route == LibraryRoute.ClearLibraryDialog
 
+data class LibraryScrollPosition(
+    val firstVisibleItemIndex: Int,
+    val firstVisibleItemScrollOffset: Int,
+)
+
+fun decideNowPlayingBarVisibilityForLibraryScroll(
+    previous: LibraryScrollPosition,
+    current: LibraryScrollPosition,
+    currentlyVisible: Boolean,
+    jitterThresholdPx: Int = 2,
+): Boolean {
+    val indexDelta = current.firstVisibleItemIndex - previous.firstVisibleItemIndex
+    if (indexDelta > 0) return false
+    if (indexDelta < 0) return true
+
+    val offsetDelta = current.firstVisibleItemScrollOffset - previous.firstVisibleItemScrollOffset
+    if (offsetDelta > jitterThresholdPx) return false
+    if (offsetDelta < -jitterThresholdPx) return true
+    return currentlyVisible
+}
+
 data class LibraryNavigationStack(
     val routes: List<LibraryRoute> = listOf(LibraryRoute.Home),
 ) {

@@ -122,4 +122,83 @@ class LibraryNavigationTest {
 
         assertEquals(LibraryNavigationTransition.None, classifyNavigationTransition(from, to))
     }
+
+    @Test
+    fun libraryScrollDownWithinSameItemHidesNowPlayingBar() {
+        val previous = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10)
+        val current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30)
+
+        assertFalse(
+            decideNowPlayingBarVisibilityForLibraryScroll(
+                previous = previous,
+                current = current,
+                currentlyVisible = true,
+            ),
+        )
+    }
+
+    @Test
+    fun libraryScrollUpWithinSameItemShowsNowPlayingBar() {
+        val previous = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30)
+        val current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10)
+
+        assertTrue(
+            decideNowPlayingBarVisibilityForLibraryScroll(
+                previous = previous,
+                current = current,
+                currentlyVisible = false,
+            ),
+        )
+    }
+
+    @Test
+    fun libraryScrollDownAcrossItemBoundaryHidesNowPlayingBar() {
+        val previous = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 120)
+        val current = LibraryScrollPosition(firstVisibleItemIndex = 1, firstVisibleItemScrollOffset = 0)
+
+        assertFalse(
+            decideNowPlayingBarVisibilityForLibraryScroll(
+                previous = previous,
+                current = current,
+                currentlyVisible = true,
+            ),
+        )
+    }
+
+    @Test
+    fun libraryScrollUpAcrossItemBoundaryShowsNowPlayingBar() {
+        val previous = LibraryScrollPosition(firstVisibleItemIndex = 1, firstVisibleItemScrollOffset = 0)
+        val current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 120)
+
+        assertTrue(
+            decideNowPlayingBarVisibilityForLibraryScroll(
+                previous = previous,
+                current = current,
+                currentlyVisible = false,
+            ),
+        )
+    }
+
+    @Test
+    fun libraryScrollJitterKeepsCurrentNowPlayingBarVisibility() {
+        val previous = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30)
+        val current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 31)
+
+        assertTrue(
+            decideNowPlayingBarVisibilityForLibraryScroll(
+                previous = previous,
+                current = current,
+                currentlyVisible = true,
+                jitterThresholdPx = 2,
+            ),
+        )
+        assertFalse(
+            decideNowPlayingBarVisibilityForLibraryScroll(
+                previous = previous,
+                current = current,
+                currentlyVisible = false,
+                jitterThresholdPx = 2,
+            ),
+        )
+    }
 }

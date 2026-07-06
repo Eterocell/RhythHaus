@@ -4,13 +4,17 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -267,6 +271,9 @@ fun LibraryHomeScreen(
     }
     var browseMode by remember { mutableStateOf(BrowseMode.Albums) }
     var showNowPlaying by remember { mutableStateOf(false) }
+    var isNowPlayingBarVisible by remember { mutableStateOf(true) }
+    var previousLibraryScrollPosition by remember { mutableStateOf<LibraryScrollPosition?>(null) }
+    val homeListState = rememberLazyListState()
     var navigation by remember { mutableStateOf(LibraryNavigationStack()) }
     var lastNavigationTransition by remember { mutableStateOf(LibraryNavigationTransition.None) }
     fun updateNavigation(next: LibraryNavigationStack) {
@@ -309,6 +316,17 @@ fun LibraryHomeScreen(
     )
     val albums = remember(snapshot.tracks) { groupTracksByAlbum(snapshot.tracks) }
     val artists = remember(snapshot.tracks) { groupTracksByArtist(snapshot.tracks) }
+    fun updateNowPlayingBarVisibilityForScroll(currentPosition: LibraryScrollPosition) {
+        val previousPosition = previousLibraryScrollPosition
+        if (previousPosition != null) {
+            isNowPlayingBarVisible = decideNowPlayingBarVisibilityForLibraryScroll(
+                previous = previousPosition,
+                current = currentPosition,
+                currentlyVisible = isNowPlayingBarVisible,
+            )
+        }
+        previousLibraryScrollPosition = currentPosition
+    }
     val predictiveBackProgress = when (val ts = navState.transitionState) {
         is NavigationEventTransitionState.InProgress -> {
             if (ts.direction == NavigationEventTransitionState.TRANSITIONING_BACK) ts.latestEvent.progress
@@ -326,6 +344,10 @@ fun LibraryHomeScreen(
     }
 
     val previousRoute = if (navigation.routes.size >= 2) navigation.routes[navigation.routes.size - 2] else null
+
+    LaunchedEffect(homeListState.firstVisibleItemIndex, homeListState.firstVisibleItemScrollOffset) {
+        updateNowPlayingBarVisibilityForScroll(homeListState.toLibraryScrollPosition())
+    }
 
     @Composable
     fun RouteContent(route: LibraryRoute) {
@@ -363,6 +385,8 @@ fun LibraryHomeScreen(
                     },
                     onShowSettings = { pushRoute(LibraryRoute.Settings) },
                     onShowSearch = { pushRoute(LibraryRoute.Search) },
+                    isNowPlayingBarVisible = isNowPlayingBarVisible,
+                    onScrollPositionChanged = ::updateNowPlayingBarVisibilityForScroll,
                 )
             }
         }
@@ -400,6 +424,8 @@ fun LibraryHomeScreen(
                     },
                     onShowSettings = { pushRoute(LibraryRoute.Settings) },
                     onShowSearch = { pushRoute(LibraryRoute.Search) },
+                    isNowPlayingBarVisible = isNowPlayingBarVisible,
+                    onScrollPositionChanged = ::updateNowPlayingBarVisibilityForScroll,
                 )
             }
         }
@@ -416,6 +442,7 @@ fun LibraryHomeScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
                     LazyColumn(
+                        state = homeListState,
                         modifier = Modifier
                             .statusBarsPadding()
                             .fillMaxSize()
@@ -549,6 +576,7 @@ fun LibraryHomeScreen(
                     playbackController = playbackController,
                     playbackState = playbackState,
                     onDismiss = ::popRoute,
+                    onScrollPositionChanged = ::updateNowPlayingBarVisibilityForScroll,
                 )
             }
         }
@@ -573,26 +601,32 @@ fun LibraryHomeScreen(
     }
 
     // Fixed bottom bar (outside AnimatedContent)
-    NowPlayingBar(
-        track = selectedTrack,
-        playbackState = playbackState,
-        onPlayPause = {
-            selectedTrack?.let { track ->
-                val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
-                if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                    playbackController.setQueue(playableTracks, track.id)
-                }
-                playbackController.togglePlayPause()
-            }
-        },
-        onExpand = { if (selectedTrack != null) showNowPlaying = true },
-        onSettings = { pushRoute(LibraryRoute.Settings) },
-        onSearch = { pushRoute(LibraryRoute.Search) },
-        expandProgress = expandProgress,
-        isExpanded = showNowPlaying,
-        screenHeightPx = screenHeightPx,
+    AnimatedVisibility(
+        visible = isNowPlayingBarVisible && !showNowPlaying,
+        enter = slideInVertically(initialOffsetY = { it }) + expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
         modifier = Modifier.align(Alignment.BottomCenter),
-    )
+    ) {
+        NowPlayingBar(
+            track = selectedTrack,
+            playbackState = playbackState,
+            onPlayPause = {
+                selectedTrack?.let { track ->
+                    val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
+                    if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
+                        playbackController.setQueue(playableTracks, track.id)
+                    }
+                    playbackController.togglePlayPause()
+                }
+            },
+            onExpand = { if (selectedTrack != null) showNowPlaying = true },
+            onSettings = { pushRoute(LibraryRoute.Settings) },
+            onSearch = { pushRoute(LibraryRoute.Search) },
+            expandProgress = expandProgress,
+            isExpanded = showNowPlaying,
+            screenHeightPx = screenHeightPx,
+        )
+    }
 
     // Now Playing expand overlay (outside AnimatedContent)
     NowPlayingExpandOverlay(
@@ -1146,6 +1180,8 @@ private fun DrillDownView(
     onExpandNowPlaying: (Track) -> Unit,
     onShowSettings: () -> Unit = {},
     onShowSearch: () -> Unit = {},
+    isNowPlayingBarVisible: Boolean = true,
+    onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
 ) {
     var selectedTrackId by remember { mutableStateOf(selectedTrack?.id) }
     LaunchedEffect(playbackState.currentTrack?.id) {
@@ -1160,6 +1196,9 @@ private fun DrillDownView(
     ) {
         Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
             val listState = rememberLazyListState()
+            LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
+                onScrollPositionChanged(listState.toLibraryScrollPosition())
+            }
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = listState,
@@ -1193,20 +1232,31 @@ private fun DrillDownView(
 
         if (currentTrack != null) {
             val barExpandProgress = remember { Animatable(0f) }
-            NowPlayingBar(
-                track = currentTrack,
-                playbackState = playbackState,
-                onPlayPause = { onPlayPause(currentTrack) },
-                onExpand = { onExpandNowPlaying(currentTrack) },
-                onSettings = onShowSettings,
-                onSearch = onShowSearch,
-                expandProgress = barExpandProgress,
-                isExpanded = false,
+            AnimatedVisibility(
+                visible = isNowPlayingBarVisible,
+                enter = slideInVertically(initialOffsetY = { it }) + expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter),
-            )
+            ) {
+                NowPlayingBar(
+                    track = currentTrack,
+                    playbackState = playbackState,
+                    onPlayPause = { onPlayPause(currentTrack) },
+                    onExpand = { onExpandNowPlaying(currentTrack) },
+                    onSettings = onShowSettings,
+                    onSearch = onShowSearch,
+                    expandProgress = barExpandProgress,
+                    isExpanded = false,
+                )
+            }
         }
     }
 }
+
+private fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = LibraryScrollPosition(
+    firstVisibleItemIndex = firstVisibleItemIndex,
+    firstVisibleItemScrollOffset = firstVisibleItemScrollOffset,
+)
 
 @Composable
 private fun DrillDownScrollbar(

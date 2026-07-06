@@ -1427,7 +1427,44 @@ Verification:
 Next owner: user for future version bumps in `gradle.properties`; run `./gradlew syncIosVersionXcconfig` before opening/releasing from Xcode if the xcconfig is stale.
 Blockers: none.
 
+## Handoff - 2026-07-06 library scroll bar visibility
 
-
-
+Route: openspec+superpowers
+Owner: implementation
+Scope: Scroll direction controls `NowPlayingBar` visibility on every scrollable screen that renders a bar: Home Library list, Search results, and album/artist track-list drill-down screens.
+Implementation:
+- Added pure common `LibraryScrollPosition` and `decideNowPlayingBarVisibilityForLibraryScroll` helper with tests for same-item down/up, item-boundary down/up, and jitter no-op behavior.
+- Wired Home, Search results, and album/artist `DrillDownView` list scroll states to a hoisted `isNowPlayingBarVisible` state using the tested helper.
+- Rendered both root fixed and drill-down `NowPlayingBar` paths through bottom `AnimatedVisibility` while preserving existing bar callbacks and Now Playing overlay.
+Reviews:
+- Task 1 independent review: clean; no Critical, Important, or Minor findings.
+- Task 2 initial independent review: clean for the original Home-only scope.
+- Widened-scope independent review: clean; no Critical or Important findings. One Minor EOF whitespace finding in `App.kt` was already fixed before staging and rechecked with `git diff --check` / `git diff --cached --check`.
+Verification:
+- `openspec validate library-scroll-bar-visibility --strict`: pass (`Change 'library-scroll-bar-visibility' is valid`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 988ms`; 24 actionable tasks: 7 executed, 17 up-to-date; configuration cache reused).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 5s`; 98 actionable tasks: 12 executed, 86 up-to-date). Existing Android deprecation warning for `MediaMetadata.Builder.setArtworkData` remains unrelated.
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, Build version 17F113.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 15s`; 33 actionable tasks: 8 executed, 25 up-to-date). Existing iOS test warnings remain unrelated.
+- `git diff --check`: pass (no output, exit 0) after trimming a trailing blank line in `App.kt`.
+Acceptance:
+- Requirement matched: yes at source/automated-verification level — Home, Search results, and album/artist track lists now hide on downward scroll, show on upward scroll, preserve jitter no-op, bottom animation, and no pointer interception after hidden `AnimatedVisibility` exit.
+- Scope controlled: yes — no new dependencies, native navigation changes, route-stack changes, playback/scanner/library/theme/platform changes, or changes to Now Playing content layout.
+- Edge cases/risk reviewed: automated checks verify helper behavior and compilation; subjective animation feel and live gesture/hit-test behavior still need optional manual visual validation on device/simulator.
+Changed files:
+- `docs/superpowers/specs/2026-07-06-library-scroll-bar-visibility-design.md`
+- `docs/superpowers/plans/2026-07-06-library-scroll-bar-visibility.md`
+- `openspec/changes/library-scroll-bar-visibility/proposal.md`
+- `openspec/changes/library-scroll-bar-visibility/design.md`
+- `openspec/changes/library-scroll-bar-visibility/specs/library-navigation/spec.md`
+- `openspec/changes/library-scroll-bar-visibility/tasks.md`
+- `openspec/changes/library-scroll-bar-visibility/.openspec.yaml`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryNavigation.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibraryNavigationTest.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SearchScreen.kt`
+- `progress.md`
+Next owner: user/OpenSpec for manual visual validation and archive when satisfied.
+Blockers: none for automated validation.
+Commit: pending semantic commit after staged-diff review/approval.
 
