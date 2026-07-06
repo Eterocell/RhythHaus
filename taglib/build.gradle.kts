@@ -47,6 +47,10 @@ data class IosTagLibBuild(
     val arch: String,
 )
 
+val iosTagLibDeploymentTarget = providers
+    .environmentVariable("IPHONEOS_DEPLOYMENT_TARGET")
+    .orElse(providers.gradleProperty("rhythhaus.ios.deploymentTarget"))
+
 val iosTagLibBuilds = listOf(
     IosTagLibBuild(targetName = "iosArm64", sdk = "iphoneos", arch = "arm64"),
     IosTagLibBuild(targetName = "iosSimulatorArm64", sdk = "iphonesimulator", arch = "arm64"),
@@ -55,11 +59,11 @@ val iosTagLibBuilds = listOf(
 val iosCinteropDirectory = project.file("src/nativeInterop/cinterop")
 
 val iosTagLibStaticLibraries = iosTagLibBuilds.associate { build ->
-    build.targetName to iosCinteropDirectory.resolve("librhythhaus_taglib.a")
+    build.targetName to layout.buildDirectory.file("generated/iosTagLib/${build.targetName}/librhythhaus_taglib.a").get().asFile
 }
 
 val iosTagLibUpstreamLibraries = iosTagLibBuilds.associate { build ->
-    build.targetName to iosCinteropDirectory.resolve("libtag.a")
+    build.targetName to layout.buildDirectory.file("generated/iosTagLib/${build.targetName}/libtag.a").get().asFile
 }
 
 val iosNativeBuildTasks = iosTagLibBuilds.associate { build ->
@@ -70,6 +74,7 @@ val iosNativeBuildTasks = iosTagLibBuilds.associate { build ->
     val upstreamTagLibDir = buildDirectory.absolutePath
     build.targetName to tasks.register(taskName, Exec::class) {
         inputs.dir(nativeTagLibDirectory)
+        inputs.property("iosTagLibDeploymentTarget", iosTagLibDeploymentTarget)
         outputs.file(outputLibrary)
         outputs.file(upstreamLib)
         doFirst {
@@ -86,6 +91,7 @@ val iosNativeBuildTasks = iosTagLibBuilds.associate { build ->
               -DCMAKE_SYSTEM_NAME=iOS \
               -DCMAKE_OSX_SYSROOT="${'$'}SDK_PATH" \
               -DCMAKE_OSX_ARCHITECTURES='${build.arch}' \
+              -DCMAKE_OSX_DEPLOYMENT_TARGET='${iosTagLibDeploymentTarget.get()}' \
               -DCMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=NO \
               -DCMAKE_LIBRARY_OUTPUT_DIRECTORY='${buildDirectory.absolutePath}' \
               -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY='${buildDirectory.absolutePath}' \

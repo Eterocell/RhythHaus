@@ -1,6 +1,29 @@
 # Session Progress
 
 
+## Handoff - 2026-07-06 fix iOS TagLib deployment target mismatch
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: Xcode Release/device link warning: `Shared.framework/Shared[149](rh_taglib.cpp.o)` was built for newer iOS 26.5 than being linked at iOS 26.0.
+Root cause:
+- `taglib/build.gradle.kts` built iOS TagLib static archives with custom CMake tasks and no explicit `CMAKE_OSX_DEPLOYMENT_TARGET`, so AppleClang used the current iPhoneOS 26.5 SDK default/min version for object metadata while `iosApp` links at `IPHONEOS_DEPLOYMENT_TARGET = 26.0`.
+- A second issue made the build nondeterministic across iOS targets: both `iosArm64` and `iosSimulatorArm64` copied `librhythhaus_taglib.a` / `libtag.a` to the same `src/nativeInterop/cinterop/` paths, so device and simulator builds could overwrite each other's archives.
+Fix:
+- Added `rhythhaus.ios.deploymentTarget=26.0` in `gradle.properties`; `taglib/build.gradle.kts` resolves `iosTagLibDeploymentTarget` from Xcode's `IPHONEOS_DEPLOYMENT_TARGET` environment variable when present, otherwise falls back to the Gradle property, and passes it to CMake as `-DCMAKE_OSX_DEPLOYMENT_TARGET` for iOS TagLib builds.
+- Moved generated iOS TagLib archives to target-specific build outputs under `taglib/build/generated/iosTagLib/<target>/`, and the generated cinterop `.def` now points each KMP target at its own library directory.
+Verification:
+- Rebuilt clean iOS TagLib/device framework path: `./gradlew :shared:linkReleaseFrameworkIosArm64 --configuration-cache` -> `BUILD SUCCESSFUL`.
+- Verified deployment target source selection: default CLI build wrote `CMAKE_OSX_DEPLOYMENT_TARGET=26.0`; test override `IPHONEOS_DEPLOYMENT_TARGET=26.1 ./gradlew :taglib:buildIosTagLibHelperIosArm64 --configuration-cache` wrote `CMAKE_OSX_DEPLOYMENT_TARGET=26.1`; rebuilt default artifacts back to 26.0 afterward.
+- Inspected rebuilt object metadata: `rh_taglib.cpp.o` reports `minos 26.0`, `sdk 26.5`.
+- Xcode Release/device build: `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` -> `** BUILD SUCCEEDED **`; grep count for `was built for newer 'iOS' version` was `0`.
+- Simulator coverage after target-specific archive separation: `./gradlew :shared:iosSimulatorArm64Test --configuration-cache` -> `BUILD SUCCESSFUL`.
+Changed files:
+- `gradle.properties`: `rhythhaus.ios.deploymentTarget=26.0` fallback/source of truth for CLI builds.
+- `taglib/build.gradle.kts`: Xcode env/Gradle property provider chain for iOS native deployment target and target-specific generated static archive paths.
+Next owner: user for normal Xcode Archive/signing validation if desired.
+Blockers: none.
+
 ## Handoff - 2026-07-03 navigation animation polish
 
 Route: openspec+superpowers
