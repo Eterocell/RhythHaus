@@ -89,6 +89,7 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import androidx.navigation3.adaptive.ListDetailPaneScaffold
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformAudioScanner
@@ -407,6 +408,168 @@ fun LibraryHomeScreen(
     }
 
     @Composable
+    fun HomeContent(onOpenDetailRoute: (LibraryRoute) -> Unit) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            val homeStatusBarHeight = rememberSystemBarTopPadding()
+            val homeBackdrop = rememberRhythHausBackdrop()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .recordRhythHausBackdrop(homeBackdrop),
+            ) {
+                Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
+                    LazyColumn(
+                        state = homeListState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp),
+                        contentPadding = PaddingValues(top = homeStatusBarHeight),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                    ) {
+                        item {
+                            HeaderSection(snapshot)
+                        }
+                        if (snapshot.tracks.isEmpty()) {
+                            item {
+                                ImportAudioCard(
+                                    folderPickerLauncher = folderPickerLauncher,
+                                    importMessage = importMessage,
+                                    hasImportedTracks = false,
+                                    onClearLibrary = onClearLibrary,
+                                )
+                            }
+                        }
+                        if (scanProgress?.isActive == true) {
+                            item {
+                                val sp = scanProgress
+                                val ss = sp.session!!
+                                ScanningCard(
+                                    foldersVisited = ss.foldersVisited,
+                                    filesVisited = ss.filesVisited,
+                                    tracksAdded = ss.tracksAdded,
+                                    onCancel = { scanJob?.cancel() },
+                                )
+                            }
+                        }
+                        item {
+                            SectionLabel(
+                                title = stringResource(Res.string.library_queue),
+                                subtitle = null,
+                            )
+                        }
+                        item {
+                            BrowseModePicker(
+                                browseMode = browseMode,
+                                onModeChange = { browseMode = it },
+                            )
+                        }
+                        when (browseMode) {
+                            BrowseMode.Albums -> {
+                                item {
+                                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                                        val columns = albumGridColumnsForWidth(maxWidth.value)
+                                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            albums.chunked(columns).forEach { row ->
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                ) {
+                                                    row.forEach { albumGroup ->
+                                                        AlbumCard(
+                                                            album = albumGroup,
+                                                            modifier = Modifier.weight(1f),
+                                                            onClick = { onOpenDetailRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
+                                                        )
+                                                    }
+                                                    repeat(columns - row.size) {
+                                                        Spacer(Modifier.weight(1f))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            BrowseMode.Artists -> {
+                                items(artists, key = { it.artist }) { artistGroup ->
+                                    ArtistRow(
+                                        artist = artistGroup,
+                                        onClick = { onOpenDetailRoute(LibraryRoute.ArtistDetail(artistGroup.artist)) },
+                                    )
+                                }
+                            }
+
+                            BrowseMode.Songs -> {
+                                items(snapshot.tracks, key = { it.id }) { track ->
+                                    TrackRow(
+                                        track = track,
+                                        selected = track.id == selectedTrackId,
+                                        onClick = {
+                                            selectedTrackId = track.id
+                                            val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
+                                            if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
+                                                playbackController.setQueue(playableTracks, track.id)
+                                            }
+                                            playbackController.togglePlayPause()
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                        item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
+                    }
+                }
+            }
+            NestedScrollBlurChrome(
+                state = homeScrollChromeState,
+                title = stringResource(Res.string.library),
+                backdrop = homeBackdrop,
+                statusBarHeight = homeStatusBarHeight,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
+    }
+
+    @Composable
+    fun RouteOverlays(route: LibraryRoute) {
+        if (route == LibraryRoute.ClearLibraryDialog) {
+            AnimatedClearLibraryDialogRoute(
+                onDismiss = ::popRoute,
+                onClearLibrary = {
+                    onClearLibrary()
+                    popRoute()
+                },
+            )
+        }
+
+        if (route == LibraryRoute.Settings) {
+            SettingsScreen(
+                folderPickerLauncher = folderPickerLauncher,
+                importMessage = importMessage,
+                scanProgress = scanProgress,
+                scanJob = scanJob,
+                hasImportedTracks = snapshot.tracks.isNotEmpty(),
+                currentThemeMode = currentThemeMode,
+                onThemeModeSelected = onThemeModeSelected,
+                onClearLibrary = { pushRoute(LibraryRoute.ClearLibraryDialog) },
+                onDismiss = ::popRoute,
+            )
+        }
+
+        if (route == LibraryRoute.Search) {
+            SearchScreen(
+                libraryTracks = libraryTracks,
+                tagLibReader = tagLibReader,
+                playbackController = playbackController,
+                playbackState = playbackState,
+                onDismiss = ::popRoute,
+                onScrollPositionChanged = ::updateNowPlayingBarVisibilityForScroll,
+            )
+        }
+    }
+
+    @Composable
     fun RouteContent(route: LibraryRoute) {
         when (route) {
         is LibraryRoute.AlbumDetail -> {
@@ -496,183 +659,71 @@ fun LibraryHomeScreen(
         LibraryRoute.Search,
         LibraryRoute.ClearLibraryDialog,
         -> {
-            Box(modifier = Modifier.fillMaxSize()) {
-                val homeStatusBarHeight = rememberSystemBarTopPadding()
-                val homeBackdrop = rememberRhythHausBackdrop()
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .recordRhythHausBackdrop(homeBackdrop),
-                ) {
-                    Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
-                        LazyColumn(
-                            state = homeListState,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 20.dp),
-                            contentPadding = PaddingValues(top = homeStatusBarHeight),
-                            verticalArrangement = Arrangement.spacedBy(18.dp),
-                        ) {
-                            item {
-                                HeaderSection(snapshot)
-                            }
-                            if (snapshot.tracks.isEmpty()) {
-                                item {
-                                    ImportAudioCard(
-                                        folderPickerLauncher = folderPickerLauncher,
-                                        importMessage = importMessage,
-                                        hasImportedTracks = false,
-                                        onClearLibrary = onClearLibrary,
-                                    )
-                                }
-                            }
-                            if (scanProgress?.isActive == true) {
-                                item {
-                                    val sp = scanProgress
-                                    val ss = sp.session!!
-                                    ScanningCard(
-                                        foldersVisited = ss.foldersVisited,
-                                        filesVisited = ss.filesVisited,
-                                        tracksAdded = ss.tracksAdded,
-                                        onCancel = { scanJob?.cancel() },
-                                    )
-                                }
-                            }
-                            item {
-                                SectionLabel(
-                                    title = stringResource(Res.string.library_queue),
-                                    subtitle = null,
-                                )
-                            }
-                            item {
-                                BrowseModePicker(
-                                    browseMode = browseMode,
-                                    onModeChange = { browseMode = it },
-                                )
-                            }
-                            when (browseMode) {
-                                BrowseMode.Albums -> {
-                                    item {
-                                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                                            val columns = albumGridColumnsForWidth(maxWidth.value)
-                                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                                albums.chunked(columns).forEach { row ->
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                                    ) {
-                                                        row.forEach { albumGroup ->
-                                                            AlbumCard(
-                                                                album = albumGroup,
-                                                                modifier = Modifier.weight(1f),
-                                                                onClick = { pushRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
-                                                            )
-                                                        }
-                                                        repeat(columns - row.size) {
-                                                            Spacer(Modifier.weight(1f))
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+            HomeContent(onOpenDetailRoute = ::pushRoute)
+            RouteOverlays(route)
+        }
+    }
+    }
 
-                                BrowseMode.Artists -> {
-                                    items(artists, key = { it.artist }) { artistGroup ->
-                                        ArtistRow(
-                                            artist = artistGroup,
-                                            onClick = { pushRoute(LibraryRoute.ArtistDetail(artistGroup.artist)) },
-                                        )
-                                    }
-                                }
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .background(HausColors.current.paper)
+            .onSizeChanged { screenHeightPx = it.height.toFloat() },
+    ) {
+        val rootBackdrop = rememberRhythHausBackdrop()
+        val adaptiveLayoutMode = libraryAdaptiveLayoutModeFor(
+            widthDp = maxWidth.value,
+            heightDp = maxHeight.value,
+        )
+        fun openDetailRoute(route: LibraryRoute) {
+            val isWideDetail = adaptiveLayoutMode == LibraryAdaptiveLayoutMode.ListDetail &&
+                (navigation.current is LibraryRoute.AlbumDetail || navigation.current is LibraryRoute.ArtistDetail) &&
+                (route is LibraryRoute.AlbumDetail || route is LibraryRoute.ArtistDetail)
+            if (isWideDetail) updateNavigation(navigation.replaceTop(route)) else pushRoute(route)
+        }
 
-                                BrowseMode.Songs -> {
-                                    items(snapshot.tracks, key = { it.id }) { track ->
-                                        TrackRow(
-                                            track = track,
-                                            selected = track.id == selectedTrackId,
-                                            onClick = {
-                                                selectedTrackId = track.id
-                                                val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
-                                                if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                                                    playbackController.setQueue(playableTracks, track.id)
-                                                }
-                                                playbackController.togglePlayPause()
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-                            item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
+        if (adaptiveLayoutMode == LibraryAdaptiveLayoutMode.ListDetail) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .recordRhythHausBackdrop(rootBackdrop),
+            ) {
+                ListDetailPaneScaffold(
+                    list = {
+                        HomeContent(onOpenDetailRoute = ::openDetailRoute)
+                    },
+                    detail = when (val route = navigation.current) {
+                        is LibraryRoute.AlbumDetail, is LibraryRoute.ArtistDetail -> {
+                            { RouteContent(route = route) }
                         }
-                    }
-                }
-                NestedScrollBlurChrome(
-                    state = homeScrollChromeState,
-                    title = stringResource(Res.string.library),
-                    backdrop = homeBackdrop,
-                    statusBarHeight = homeStatusBarHeight,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
-            }
 
-            if (route == LibraryRoute.ClearLibraryDialog) {
-                AnimatedClearLibraryDialogRoute(
-                    onDismiss = ::popRoute,
-                    onClearLibrary = {
-                        onClearLibrary()
-                        popRoute()
+                        else -> null
+                    },
+                    detailPlaceholder = {
+                        AdaptiveDetailPlaceholder()
                     },
                 )
+                RouteOverlays(navigation.current)
             }
-
-            if (route == LibraryRoute.Settings) {
-                SettingsScreen(
-                    folderPickerLauncher = folderPickerLauncher,
-                    importMessage = importMessage,
-                    scanProgress = scanProgress,
-                    scanJob = scanJob,
-                    hasImportedTracks = snapshot.tracks.isNotEmpty(),
-                    currentThemeMode = currentThemeMode,
-                    onThemeModeSelected = onThemeModeSelected,
-                    onClearLibrary = { pushRoute(LibraryRoute.ClearLibraryDialog) },
-                    onDismiss = ::popRoute,
-                )
+        } else {
+            if (predictiveBackProgress > 0f && previousRoute != null) {
+                RouteContent(route = previousRoute)
             }
-
-            if (route == LibraryRoute.Search) {
-                SearchScreen(
-                    libraryTracks = libraryTracks,
-                    tagLibReader = tagLibReader,
-                    playbackController = playbackController,
-                    playbackState = playbackState,
-                    onDismiss = ::popRoute,
-                    onScrollPositionChanged = ::updateNowPlayingBarVisibilityForScroll,
-                )
+            AnimatedContent(
+                targetState = navigation.current,
+                transitionSpec = {
+                    routeContentTransform(lastNavigationTransition)
+                },
+                label = "LibraryRouteTransition",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .recordRhythHausBackdrop(rootBackdrop)
+                    .offset(x = predictiveBackOffset.value.dp),
+            ) { currentRoute ->
+                RouteContent(route = currentRoute)
             }
         }
-    }
-    }
-
-    Box(modifier = modifier.fillMaxSize().background(HausColors.current.paper).onSizeChanged { screenHeightPx = it.height.toFloat() }) {
-        val rootBackdrop = rememberRhythHausBackdrop()
-        if (predictiveBackProgress > 0f && previousRoute != null) {
-            RouteContent(route = previousRoute)
-        }
-    AnimatedContent(
-        targetState = navigation.current,
-        transitionSpec = {
-            routeContentTransform(lastNavigationTransition)
-        },
-        label = "LibraryRouteTransition",
-        modifier = Modifier
-            .fillMaxSize()
-            .recordRhythHausBackdrop(rootBackdrop)
-            .offset(x = predictiveBackOffset.value.dp),
-    ) { currentRoute ->
-        RouteContent(route = currentRoute)
-    }
 
     // Fixed bottom bar (outside AnimatedContent). It stays in composition so
     // returning from Now Playing does not re-trigger the enter animation when
@@ -722,6 +773,35 @@ fun LibraryHomeScreen(
         onBack = { showNowPlaying = false },
         modifier = Modifier.fillMaxSize(),
     )
+    }
+}
+
+@Composable
+private fun AdaptiveDetailPlaceholder() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(HausColors.current.paper)
+            .padding(32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(Res.string.library),
+                color = HausColors.current.ink,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black,
+            )
+            Text(
+                text = "Select an album or artist to show details here.",
+                color = HausColors.current.muted,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            )
+        }
     }
 }
 
