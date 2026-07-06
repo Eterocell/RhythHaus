@@ -655,6 +655,7 @@ fun LibraryHomeScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(HausColors.current.paper).onSizeChanged { screenHeightPx = it.height.toFloat() }) {
+        val rootBackdrop = rememberRhythHausBackdrop()
         if (predictiveBackProgress > 0f && previousRoute != null) {
             RouteContent(route = previousRoute)
         }
@@ -666,6 +667,7 @@ fun LibraryHomeScreen(
         label = "LibraryRouteTransition",
         modifier = Modifier
             .fillMaxSize()
+            .recordRhythHausBackdrop(rootBackdrop)
             .offset(x = predictiveBackOffset.value.dp),
     ) { currentRoute ->
         RouteContent(route = currentRoute)
@@ -703,6 +705,7 @@ fun LibraryHomeScreen(
             expandProgress = expandProgress,
             isExpanded = showNowPlaying,
             screenHeightPx = screenHeightPx,
+            backdrop = rootBackdrop,
         )
     }
 
@@ -1355,6 +1358,7 @@ private fun DrillDownView(
                     onSearch = onShowSearch,
                     expandProgress = barExpandProgress,
                     isExpanded = false,
+                    backdrop = drillDownBackdrop,
                 )
             }
         }

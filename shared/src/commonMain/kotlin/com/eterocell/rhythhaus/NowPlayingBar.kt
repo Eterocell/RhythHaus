@@ -19,11 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
@@ -62,6 +64,7 @@ fun NowPlayingBar(
     expandProgress: Animatable<Float, AnimationVector1D>,
     isExpanded: Boolean,
     screenHeightPx: Float = 0f,
+    backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier,
 ) {
     val mode = bottomBarModeFor(track)
@@ -75,25 +78,42 @@ fun NowPlayingBar(
     val subtitle = track?.let { stringResource(Res.string.track_artist_album_format, it.artist, it.album) }
         ?: stringResource(Res.string.mini_player_empty_subtitle)
 
+    val barShape: Shape = RoundedCornerShape(20.dp)
+    val barModifier = modifier
+        .fillMaxWidth()
+        .navigationBarsPadding()
+        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+        .clip(barShape)
+        .then(
+            if (backdrop != null) {
+                Modifier.rhythHausLiquidGlass(
+                    backdrop = backdrop,
+                    shape = barShape,
+                    fallbackColor = HausColors.current.panel.copy(alpha = 0.72f),
+                    blurRadius = 10.dp,
+                    refractionHeight = 16.dp,
+                    refractionAmount = 24.dp,
+                )
+            } else {
+                Modifier.background(HausColors.current.panel)
+            },
+        )
+        .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onExpand() })
+        .verticalSheetGesture(
+            expandProgress = expandProgress,
+            isActive = !isExpanded && mode == BottomBarMode.TrackLoaded,
+            scope = rememberCoroutineScope(),
+            onSwipeExpand = onExpand,
+            onSwipeCollapse = {},
+            threshold = 0.3f,
+            referenceHeight = screenHeightPx,
+        )
+
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onExpand() })
-            .verticalSheetGesture(
-                expandProgress = expandProgress,
-                isActive = !isExpanded && mode == BottomBarMode.TrackLoaded,
-                scope = rememberCoroutineScope(),
-                onSwipeExpand = onExpand,
-                onSwipeCollapse = {},
-                threshold = 0.3f,
-                referenceHeight = screenHeightPx,
-            ),
-        shape = RoundedCornerShape(20.dp),
+        modifier = barModifier,
+        shape = barShape,
         shadowElevation = 8.dp,
-        color = HausColors.current.panel,
+        color = Color.Transparent,
     ) {
         Column {
             // Mini progress bar
