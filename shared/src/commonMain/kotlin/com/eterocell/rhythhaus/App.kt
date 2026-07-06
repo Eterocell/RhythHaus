@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -83,6 +84,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import kotlin.math.max
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
@@ -495,7 +497,7 @@ fun LibraryHomeScreen(
         LibraryRoute.ClearLibraryDialog,
         -> {
             Box(modifier = Modifier.fillMaxSize()) {
-                val homeStatusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                val homeStatusBarHeight = rememberSystemBarTopPadding()
                 val homeBackdrop = rememberRhythHausBackdrop()
                 Box(
                     modifier = Modifier
@@ -506,9 +508,9 @@ fun LibraryHomeScreen(
                         LazyColumn(
                             state = homeListState,
                             modifier = Modifier
-                                .padding(top = homeStatusBarHeight)
                                 .fillMaxSize()
                                 .padding(horizontal = 20.dp),
+                            contentPadding = PaddingValues(top = homeStatusBarHeight),
                             verticalArrangement = Arrangement.spacedBy(18.dp),
                         ) {
                             item {
@@ -1287,7 +1289,7 @@ private fun DrillDownView(
             .fillMaxSize()
             .leftEdgeSwipeBack(onBack),
     ) {
-        val drillDownStatusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val drillDownStatusBarHeight = rememberSystemBarTopPadding()
         val drillDownBackdrop = rememberRhythHausBackdrop()
         val listState = rememberLazyListState()
         val scrollChromeState by remember(listState) {
@@ -1305,9 +1307,9 @@ private fun DrillDownView(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
-                        .padding(top = drillDownStatusBarHeight)
                         .fillMaxSize()
                         .padding(horizontal = 20.dp),
+                    contentPadding = PaddingValues(top = drillDownStatusBarHeight),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
                     item { DrillDownHeader(title = title, subtitle = subtitle, onBack = onBack) }
@@ -1371,12 +1373,19 @@ private fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = Lib
 private val NestedScrollChromeToolbarHeight = 56.dp
 
 @Composable
+private fun rememberSystemBarTopPadding(): Dp {
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val systemBarHeight = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    return max(statusBarHeight.value, systemBarHeight.value).dp
+}
+
+@Composable
 private fun NestedScrollBlurChrome(
     state: NestedScrollChromeState,
     title: String,
     backdrop: LayerBackdrop,
     modifier: Modifier = Modifier,
-    statusBarHeight: Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+    statusBarHeight: Dp = rememberSystemBarTopPadding(),
 ) {
     val progress = state.progress.coerceIn(0f, 1f)
     if (progress <= 0f) return

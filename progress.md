@@ -1,5 +1,27 @@
 # Session Progress
 
+## Handoff - 2026-07-06 fix nested chrome status-bar backdrop sampling
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User reported the status-bar background remained solid even after full-size backdrop recording; the Backdrop effect still did not visually cover the status-bar area.
+Root cause:
+- The recorded full-size backdrop included the status-bar area, but the list itself was still moved down with outer `Modifier.padding(top = statusBarHeight)`, so the pixels under the status bar were still only solid paper.
+- The nested chrome therefore sampled/drew against solid paper in the status-bar strip even though the chrome box height included the status bar.
+Fix:
+- Changed Home and drill-down lists from outer top padding to `LazyColumn(contentPadding = PaddingValues(top = statusBarHeight))` so the list viewport/layer spans behind the status bar while the first row remains offset below it.
+- Added `rememberSystemBarTopPadding()` to use the max of `WindowInsets.statusBars` and `WindowInsets.systemBars` top padding for more robust Android/iOS top inset sizing.
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --tests 'com.eterocell.rhythhaus.BottomBarModeTest' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 9s`).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `progress.md`
+Next owner: user for Android/iOS visual confirmation of status-bar glass coverage.
+Blockers: none for compile/test/build verification. Visual status-bar coverage requires runtime confirmation.
+Commit: pending.
+
 ## Handoff - 2026-07-06 fix Backdrop status-bar coverage
 
 Route: systematic-debugging (bugfix)
