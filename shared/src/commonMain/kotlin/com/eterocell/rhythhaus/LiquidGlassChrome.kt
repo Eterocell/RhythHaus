@@ -6,13 +6,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.blur
+import top.yukonga.miuix.kmp.blur.drawBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 
 @Composable
 internal fun rememberRhythHausBackdrop(): LayerBackdrop = rememberLayerBackdrop()
@@ -35,9 +33,7 @@ internal fun Modifier.rhythHausLiquidGlass(
     backdrop = backdrop,
     shape = { shape },
     effects = {
-        vibrancy()
         blur(blurRadius.toPx())
-        lens(refractionHeight.toPx(), refractionAmount.toPx())
     },
     onDrawSurface = {
         drawRect(fallbackColor)

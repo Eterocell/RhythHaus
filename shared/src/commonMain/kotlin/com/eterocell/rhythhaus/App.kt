@@ -106,7 +106,7 @@ import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.uuid4
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.createTagLibReader
-import com.kyant.backdrop.backdrops.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
