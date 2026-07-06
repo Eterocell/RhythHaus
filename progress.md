@@ -1,5 +1,29 @@
 # Session Progress
 
+## Handoff - 2026-07-06 fix Backdrop status-bar coverage
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User reported the nested-scroll top bar and Backdrop effect did not cover the status bar on both iOS and Android after the RenderThread crash fix.
+Root cause:
+- The previous crash fix moved `recordRhythHausBackdrop(...)` from route-level surfaces to each `LazyColumn` after `Modifier.padding(top = statusBarHeight)`.
+- That prevented self-recording crashes, but it also made the recorded backdrop begin below the status bar, so `NestedScrollBlurChrome` could draw a full-height box while its Backdrop sample/fallback coverage appeared to start below the status bar.
+Fix:
+- Wrapped Home route content in a non-glass `Box(...recordRhythHausBackdrop(homeBackdrop))` that includes the paper background and status-bar area.
+- Moved `NestedScrollBlurChrome` outside that recorded Home subtree so the chrome draws from, but is not recorded into, the same backdrop.
+- Applied the same pattern to drill-down routes: record a full-size non-glass content box containing the paper surface/list, then draw scrollbar/chrome/bottom bar as overlay siblings outside the recorded subtree.
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --tests 'com.eterocell.rhythhaus.BottomBarModeTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`).
+- `./gradlew :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`).
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `progress.md`
+Next owner: user for Android/iOS visual confirmation that the glass top chrome now covers the status-bar area without reintroducing the RenderThread crash.
+Blockers: none for compile/test/build verification. Visual status-bar coverage requires runtime confirmation.
+Commit: pending.
+
 ## Handoff - 2026-07-06 fix Backdrop RenderThread crash
 
 Route: systematic-debugging (bugfix)

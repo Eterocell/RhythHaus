@@ -497,14 +497,17 @@ fun LibraryHomeScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 val homeStatusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                 val homeBackdrop = rememberRhythHausBackdrop()
-                Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .recordRhythHausBackdrop(homeBackdrop),
+                ) {
+                    Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
                         LazyColumn(
                             state = homeListState,
                             modifier = Modifier
                                 .padding(top = homeStatusBarHeight)
                                 .fillMaxSize()
-                                .recordRhythHausBackdrop(homeBackdrop)
                                 .padding(horizontal = 20.dp),
                             verticalArrangement = Arrangement.spacedBy(18.dp),
                         ) {
@@ -601,15 +604,15 @@ fun LibraryHomeScreen(
                             }
                             item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
                         }
-                        NestedScrollBlurChrome(
-                            state = homeScrollChromeState,
-                            title = stringResource(Res.string.library),
-                            backdrop = homeBackdrop,
-                            statusBarHeight = homeStatusBarHeight,
-                            modifier = Modifier.align(Alignment.TopCenter),
-                        )
                     }
                 }
+                NestedScrollBlurChrome(
+                    state = homeScrollChromeState,
+                    title = stringResource(Res.string.library),
+                    backdrop = homeBackdrop,
+                    statusBarHeight = homeStatusBarHeight,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
             }
 
             if (route == LibraryRoute.ClearLibraryDialog) {
@@ -1286,21 +1289,24 @@ private fun DrillDownView(
     ) {
         val drillDownStatusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val drillDownBackdrop = rememberRhythHausBackdrop()
-        Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
-            val listState = rememberLazyListState()
-            val scrollChromeState by remember(listState) {
-                derivedStateOf { nestedScrollChromeStateFor(listState.toLibraryScrollPosition()) }
-            }
-            LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
-                onScrollPositionChanged(listState.toLibraryScrollPosition())
-            }
-            Box(modifier = Modifier.fillMaxSize()) {
+        val listState = rememberLazyListState()
+        val scrollChromeState by remember(listState) {
+            derivedStateOf { nestedScrollChromeStateFor(listState.toLibraryScrollPosition()) }
+        }
+        LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
+            onScrollPositionChanged(listState.toLibraryScrollPosition())
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .recordRhythHausBackdrop(drillDownBackdrop),
+        ) {
+            Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
                         .padding(top = drillDownStatusBarHeight)
                         .fillMaxSize()
-                        .recordRhythHausBackdrop(drillDownBackdrop)
                         .padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
@@ -1319,19 +1325,19 @@ private fun DrillDownView(
                     }
                     item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
                 }
-                DrillDownScrollbar(
-                    listState = listState,
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                )
-                NestedScrollBlurChrome(
-                    state = scrollChromeState,
-                    title = title,
-                    backdrop = drillDownBackdrop,
-                    statusBarHeight = drillDownStatusBarHeight,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
             }
         }
+        DrillDownScrollbar(
+            listState = listState,
+            modifier = Modifier.align(Alignment.CenterEnd),
+        )
+        NestedScrollBlurChrome(
+            state = scrollChromeState,
+            title = title,
+            backdrop = drillDownBackdrop,
+            statusBarHeight = drillDownStatusBarHeight,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
 
         if (currentTrack != null) {
             val barExpandProgress = remember { Animatable(0f) }
