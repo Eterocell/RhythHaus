@@ -32,6 +32,20 @@ fun classifyNavigationTransition(
 
 fun routeRequiresInWindowContentAnimation(route: LibraryRoute): Boolean = route == LibraryRoute.ClearLibraryDialog
 
+enum class LibraryAdaptiveLayoutMode {
+    Compact,
+    ListDetail,
+}
+
+fun libraryAdaptiveLayoutModeFor(
+    widthDp: Float,
+    heightDp: Float,
+): LibraryAdaptiveLayoutMode {
+    if (widthDp >= 840f) return LibraryAdaptiveLayoutMode.ListDetail
+    if (widthDp >= 600f && widthDp > 0f && heightDp / widthDp < 1.2f) return LibraryAdaptiveLayoutMode.ListDetail
+    return LibraryAdaptiveLayoutMode.Compact
+}
+
 data class LibraryScrollPosition(
     val firstVisibleItemIndex: Int,
     val firstVisibleItemScrollOffset: Int,

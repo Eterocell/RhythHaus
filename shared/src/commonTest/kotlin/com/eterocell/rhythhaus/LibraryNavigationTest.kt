@@ -67,6 +67,46 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun adaptiveLayoutUsesCompactForPhonePortrait() {
+        assertEquals(
+            LibraryAdaptiveLayoutMode.Compact,
+            libraryAdaptiveLayoutModeFor(widthDp = 390f, heightDp = 844f),
+        )
+    }
+
+    @Test
+    fun adaptiveLayoutUsesCompactForNarrowPortraitTablet() {
+        assertEquals(
+            LibraryAdaptiveLayoutMode.Compact,
+            libraryAdaptiveLayoutModeFor(widthDp = 700f, heightDp = 1000f),
+        )
+    }
+
+    @Test
+    fun adaptiveLayoutUsesListDetailForWideTablet() {
+        assertEquals(
+            LibraryAdaptiveLayoutMode.ListDetail,
+            libraryAdaptiveLayoutModeFor(widthDp = 840f, heightDp = 1180f),
+        )
+    }
+
+    @Test
+    fun adaptiveLayoutUsesListDetailForLandscapeMediumWidth() {
+        assertEquals(
+            LibraryAdaptiveLayoutMode.ListDetail,
+            libraryAdaptiveLayoutModeFor(widthDp = 700f, heightDp = 500f),
+        )
+    }
+
+    @Test
+    fun adaptiveLayoutUsesListDetailForDesktopWidth() {
+        assertEquals(
+            LibraryAdaptiveLayoutMode.ListDetail,
+            libraryAdaptiveLayoutModeFor(widthDp = 1200f, heightDp = 800f),
+        )
+    }
+
+    @Test
     fun pushingHomeReturnsToRoot() {
         val stack = LibraryNavigationStack()
             .push(LibraryRoute.AlbumDetail("A"))
