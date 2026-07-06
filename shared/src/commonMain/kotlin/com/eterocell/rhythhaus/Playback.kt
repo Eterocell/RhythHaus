@@ -134,11 +134,13 @@ internal expect val playbackEngineDispatcher: CoroutineDispatcher
 
 class PlaybackController(
     private val engine: PlatformPlaybackEngine = createPlatformPlaybackEngine(),
+    private val shuffleOrderFactory: (List<String>, String?) -> List<String> = ::defaultShuffleOrder,
 ) : PlaybackEngineListener {
     private val scope = CoroutineScope(SupervisorJob() + playbackEngineDispatcher)
     private val engineMutex = Mutex()
     private var loadJob: Job? = null
     private var playWhenLoaded: Boolean = false
+    private var shuffledOrder: List<String> = emptyList()
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
@@ -151,6 +153,7 @@ class PlaybackController(
         if (selected == null) {
             loadJob?.cancel()
             playWhenLoaded = false
+            shuffledOrder = emptyList()
             _state.value = PlaybackState(
                 queue = tracks,
                 repeatMode = _state.value.repeatMode,
@@ -165,6 +168,11 @@ class PlaybackController(
                 repeatMode = _state.value.repeatMode,
                 shuffleMode = _state.value.shuffleMode,
             )
+            if (_state.value.shuffleMode == ShuffleMode.On) {
+                regenerateShuffleOrder(selected.id)
+            } else {
+                shuffledOrder = emptyList()
+            }
             loadSelected(selected, autoPlay = false)
         }
     }
@@ -190,7 +198,13 @@ class PlaybackController(
     }
 
     fun setShuffleMode(mode: ShuffleMode) {
+        val previous = _state.value.shuffleMode
+        if (previous == mode) return
         _state.value = _state.value.copy(shuffleMode = mode)
+        when (mode) {
+            ShuffleMode.On -> regenerateShuffleOrder()
+            ShuffleMode.Off -> shuffledOrder = emptyList()
+        }
     }
 
     fun toggleShuffleMode() {
@@ -236,6 +250,16 @@ class PlaybackController(
         if (_state.value.isPlaying) pause() else play()
     }
 
+    fun skipToNext() {
+        val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
+        nextTrack(wrap)?.let { loadSelected(it, autoPlay = true) }
+    }
+
+    fun skipToPrevious() {
+        val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
+        previousTrack(wrap)?.let { loadSelected(it, autoPlay = true) }
+    }
+
     fun release() {
         scope.cancel()
         engine.listener = null
@@ -262,6 +286,9 @@ class PlaybackController(
                 }
             }
         }
+        if (autoPlay) {
+            _state.value = _state.value.copy(status = PlaybackStatus.Playing)
+        }
     }
 
     private fun launchEngineAction(action: () -> Unit) {
@@ -286,6 +313,51 @@ class PlaybackController(
         }
     }
 
+    private fun effectiveOrder(): List<String> = when (_state.value.shuffleMode) {
+        ShuffleMode.Off -> _state.value.queue.map { it.id }
+        ShuffleMode.On -> shuffledOrder.ifEmpty { _state.value.queue.map { it.id } }
+    }
+
+    private fun trackById(trackId: String?): PlayableTrack? = _state.value.queue.firstOrNull { it.id == trackId }
+
+    private fun currentEffectiveIndex(order: List<String> = effectiveOrder()): Int =
+        order.indexOf(_state.value.currentTrack?.id)
+
+    private fun nextTrack(wrap: Boolean): PlayableTrack? {
+        val order = effectiveOrder()
+        if (order.isEmpty()) return null
+        val currentIndex = currentEffectiveIndex(order)
+        if (currentIndex < 0) return null
+        val nextId = order.getOrNull(currentIndex + 1) ?: if (wrap) order.firstOrNull() else null
+        return trackById(nextId)
+    }
+
+    private fun previousTrack(wrap: Boolean): PlayableTrack? {
+        val order = effectiveOrder()
+        if (order.isEmpty()) return null
+        val currentIndex = currentEffectiveIndex(order)
+        if (currentIndex < 0) return null
+        val previousId = order.getOrNull(currentIndex - 1) ?: if (wrap) order.lastOrNull() else null
+        return trackById(previousId)
+    }
+
+    private fun regenerateShuffleOrder(currentId: String? = _state.value.currentTrack?.id) {
+        shuffledOrder = shuffleOrderFactory(_state.value.queue.map { it.id }, currentId)
+            .filter { id -> _state.value.queue.any { it.id == id } }
+            .distinct()
+        val missing = _state.value.queue.map { it.id }.filterNot { it in shuffledOrder }
+        shuffledOrder = shuffledOrder + missing
+    }
+
+    private fun stopAtCurrentTrackEnd() {
+        val duration = _state.value.durationMillis
+        _state.value = _state.value.copy(
+            status = PlaybackStatus.Stopped,
+            positionMillis = duration ?: max(0L, _state.value.positionMillis),
+            error = null,
+        )
+    }
+
     override fun onPlaybackStatus(status: PlaybackStatus) {
         _state.value = _state.value.copy(status = status, error = null)
     }
@@ -298,14 +370,20 @@ class PlaybackController(
     }
 
     override fun onPlaybackCompleted() {
-        val queue = _state.value.queue
-        val currentId = _state.value.currentTrack?.id
-        val currentIndex = queue.indexOfFirst { it.id == currentId }
-        val nextTrack = queue.getOrNull(currentIndex + 1)
-        if (nextTrack != null) {
-            loadSelected(nextTrack, autoPlay = true)
-        } else {
-            _state.value = _state.value.copy(status = PlaybackStatus.Stopped, positionMillis = 0L)
+        when (_state.value.repeatMode) {
+            RepeatMode.RepeatOne -> {
+                val current = _state.value.currentTrack ?: return stopAtCurrentTrackEnd()
+                loadSelected(current, autoPlay = true)
+            }
+            RepeatMode.RepeatPlaylist -> {
+                val next = nextTrack(wrap = true)
+                if (next != null) loadSelected(next, autoPlay = true) else stopAtCurrentTrackEnd()
+            }
+            RepeatMode.StopAfterCurrent -> stopAtCurrentTrackEnd()
+            RepeatMode.StopAfterQueue -> {
+                val next = nextTrack(wrap = false)
+                if (next != null) loadSelected(next, autoPlay = true) else stopAtCurrentTrackEnd()
+            }
         }
     }
 
@@ -314,20 +392,19 @@ class PlaybackController(
     }
 
     override fun onSkipToNext() {
-        val queue = _state.value.queue
-        val currentId = _state.value.currentTrack?.id
-        val currentIndex = queue.indexOfFirst { it.id == currentId }
-        val nextTrack = queue.getOrNull(currentIndex + 1) ?: queue.firstOrNull()
-        nextTrack?.let { loadSelected(it, autoPlay = true) }
+        skipToNext()
     }
 
     override fun onSkipToPrevious() {
-        val queue = _state.value.queue
-        val currentId = _state.value.currentTrack?.id
-        val currentIndex = queue.indexOfFirst { it.id == currentId }
-        val prevTrack = queue.getOrNull(currentIndex - 1) ?: queue.lastOrNull()
-        prevTrack?.let { loadSelected(it, autoPlay = true) }
+        skipToPrevious()
     }
+}
+
+private fun defaultShuffleOrder(ids: List<String>, currentId: String?): List<String> {
+    if (ids.size <= 1) return ids
+    val shuffled = ids.shuffled()
+    if (currentId == null || currentId !in shuffled) return shuffled
+    return listOf(currentId) + shuffled.filterNot { it == currentId }
 }
 
 class FakePlaybackEngine : PlatformPlaybackEngine {
