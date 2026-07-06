@@ -183,37 +183,49 @@ class PlaybackController(
     }
 
     fun setRepeatMode(mode: RepeatMode) {
+        val previous = _state.value.repeatMode
+        if (previous == mode) return
         _state.value = _state.value.copy(repeatMode = mode)
+        log.d { "RepeatMode changed: $previous -> $mode" }
     }
 
     fun cycleRepeatMode() {
-        setRepeatMode(
-            when (_state.value.repeatMode) {
-                RepeatMode.StopAfterQueue -> RepeatMode.RepeatPlaylist
-                RepeatMode.RepeatPlaylist -> RepeatMode.RepeatOne
-                RepeatMode.RepeatOne -> RepeatMode.StopAfterCurrent
-                RepeatMode.StopAfterCurrent -> RepeatMode.StopAfterQueue
-            },
-        )
+        val previous = _state.value.repeatMode
+        val next = when (previous) {
+            RepeatMode.StopAfterQueue -> RepeatMode.RepeatPlaylist
+            RepeatMode.RepeatPlaylist -> RepeatMode.RepeatOne
+            RepeatMode.RepeatOne -> RepeatMode.StopAfterCurrent
+            RepeatMode.StopAfterCurrent -> RepeatMode.StopAfterQueue
+        }
+        log.d { "Cycle repeat mode: $previous -> $next" }
+        setRepeatMode(next)
     }
 
     fun setShuffleMode(mode: ShuffleMode) {
         val previous = _state.value.shuffleMode
         if (previous == mode) return
         _state.value = _state.value.copy(shuffleMode = mode)
+        log.d { "ShuffleMode changed: $previous -> $mode" }
         when (mode) {
-            ShuffleMode.On -> regenerateShuffleOrder()
-            ShuffleMode.Off -> shuffledOrder = emptyList()
+            ShuffleMode.On -> {
+                regenerateShuffleOrder()
+                log.d { "Shuffle enabled, effective order: $shuffledOrder" }
+            }
+            ShuffleMode.Off -> {
+                shuffledOrder = emptyList()
+                log.d { "Shuffle disabled, restoring original queue order" }
+            }
         }
     }
 
     fun toggleShuffleMode() {
-        setShuffleMode(
-            when (_state.value.shuffleMode) {
-                ShuffleMode.Off -> ShuffleMode.On
-                ShuffleMode.On -> ShuffleMode.Off
-            },
-        )
+        val previous = _state.value.shuffleMode
+        val next = when (previous) {
+            ShuffleMode.Off -> ShuffleMode.On
+            ShuffleMode.On -> ShuffleMode.Off
+        }
+        log.d { "Toggle shuffle: $previous -> $next" }
+        setShuffleMode(next)
     }
 
     fun play() {
