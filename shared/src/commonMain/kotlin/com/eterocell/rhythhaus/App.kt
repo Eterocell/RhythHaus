@@ -325,23 +325,16 @@ fun LibraryHomeScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize().onSizeChanged { screenHeightPx = it.height.toFloat() }) {
-    AnimatedContent(
-        targetState = navigation.current,
-        transitionSpec = {
-            routeContentTransform(lastNavigationTransition)
-        },
-        label = "LibraryRouteTransition",
-        modifier = Modifier
-            .fillMaxSize()
-            .offset(x = predictiveBackOffset.value.dp),
-    ) { currentRoute ->
-        when (val route = currentRoute) {
+    val previousRoute = if (navigation.routes.size >= 2) navigation.routes[navigation.routes.size - 2] else null
+
+    @Composable
+    fun RouteContent(route: LibraryRoute) {
+        when (route) {
         is LibraryRoute.AlbumDetail -> {
             val album = albums.firstOrNull { it.album == route.album }
             if (album == null) {
                 LaunchedEffect(route) { popRoute() }
-                Box(modifier = modifier.fillMaxSize())
+                Box(modifier = Modifier.fillMaxSize())
             } else {
                 val albumTracks = album.tracks
                 val selectedAlbumTrackId by remember(album.album) { mutableStateOf(albumTracks.firstOrNull()?.id) }
@@ -378,7 +371,7 @@ fun LibraryHomeScreen(
             val artist = artists.firstOrNull { it.artist == route.artist }
             if (artist == null) {
                 LaunchedEffect(route) { popRoute() }
-                Box(modifier = modifier.fillMaxSize())
+                Box(modifier = Modifier.fillMaxSize())
             } else {
                 val artistTracks = artist.tracks
                 val selectedArtistTrackId by remember(artist.artist) { mutableStateOf(artistTracks.firstOrNull()?.id) }
@@ -420,7 +413,7 @@ fun LibraryHomeScreen(
         LibraryRoute.Search,
         LibraryRoute.ClearLibraryDialog,
         -> {
-            Box(modifier = modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize()) {
                 Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
                     LazyColumn(
                         modifier = Modifier
@@ -560,6 +553,23 @@ fun LibraryHomeScreen(
             }
         }
     }
+    }
+
+    Box(modifier = modifier.fillMaxSize().background(HausColors.current.paper).onSizeChanged { screenHeightPx = it.height.toFloat() }) {
+        if (predictiveBackProgress > 0f && previousRoute != null) {
+            RouteContent(route = previousRoute)
+        }
+    AnimatedContent(
+        targetState = navigation.current,
+        transitionSpec = {
+            routeContentTransform(lastNavigationTransition)
+        },
+        label = "LibraryRouteTransition",
+        modifier = Modifier
+            .fillMaxSize()
+            .offset(x = predictiveBackOffset.value.dp),
+    ) { currentRoute ->
+        RouteContent(route = currentRoute)
     }
 
     // Fixed bottom bar (outside AnimatedContent)
