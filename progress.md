@@ -7,14 +7,23 @@ Owner: implementation
 Input: adaptive-layout-miuix-blur spec/plan
 Output: adaptive wide layout + Miuix blur replacement evidence recorded in OpenSpec tasks and progress handoff
 Verification:
-- `openspec validate adaptive-layout-miuix-blur --strict`: pass (`Change 'adaptive-layout-miuix-blur' is valid`).
-- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 524ms`; 25 actionable tasks: 4 executed, 1 from cache, 20 up-to-date; configuration cache reused).
-- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: fail (`BUILD FAILED in 10s`). Blockers: `:androidApp:checkDebugDuplicateClasses` reports duplicate `top.yukonga.miuix.kmp.*` classes from `top.yukonga.miuix.kmp:miuix-ui-android:0.9.2` and transitive `top.yukonga.miuix.kmp:miuix-android:0.8.5`; `:androidApp:processDebugMainManifest` reports `uses-sdk:minSdkVersion 29 cannot be smaller than version 33 declared in library [top.yukonga.miuix.kmp:miuix-blur-android:0.9.2]`.
+- Initial `openspec validate adaptive-layout-miuix-blur --strict`: pass (`Change 'adaptive-layout-miuix-blur' is valid`).
+- Initial `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 524ms`; 25 actionable tasks: 4 executed, 1 from cache, 20 up-to-date; configuration cache reused).
+- Initial `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: failed (`BUILD FAILED in 10s`). Blockers: `:androidApp:checkDebugDuplicateClasses` reported duplicate `top.yukonga.miuix.kmp.*` classes from `miuix-ui-android:0.9.2` and transitive `miuix-android:0.8.5`; `:androidApp:processDebugMainManifest` reported `miuix-blur-android:0.9.2` minSdk 33 while app minSdk is 29.
+- User-directed blocker fix: updated Miuix UI/blur to `0.9.3`; removed `miuix-navigation3-adaptive` completely; replaced the wide `ListDetailPaneScaffold` with a local two-pane Row shell; added Android manifest `tools:overrideLibrary="top.yukonga.miuix.kmp.blur"`; gated backdrop recording with `isRenderEffectSupported()` and blur use with `isRuntimeShaderSupported()`.
+- `./gradlew :shared:compileKotlinJvm :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 21s`).
+- `./gradlew :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 48s`).
+- Final `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`; 108 actionable tasks: 6 executed, 102 up-to-date).
 - `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
 - `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 34s`; 43 actionable tasks: 27 executed, 16 up-to-date; configuration cache entry stored).
 - `git diff --check`: pass (no output, exit 0).
-- `grep -R "com.kyant.backdrop\|kyant-backdrop\|kyant-shapes" -n gradle shared/src || true`: pass (no output).
+- `grep -R "com.kyant.backdrop\|kyant-backdrop\|kyant-shapes\|miuix-navigation3-adaptive\|ListDetailPaneScaffold" -n gradle shared/src androidApp/src || true`: pass (no output).
 Changed files:
+- `androidApp/src/main/AndroidManifest.xml`
+- `gradle/libs.versions.toml`
+- `shared/build.gradle.kts`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LiquidGlassChrome.kt`
 - `openspec/changes/adaptive-layout-miuix-blur/tasks.md`
 - `progress.md`
 - `docs/superpowers/specs/2026-07-06-adaptive-layout-miuix-blur-design.md` (tracked into final evidence commit)
@@ -22,8 +31,8 @@ Changed files:
 - `openspec/changes/adaptive-layout-miuix-blur/proposal.md` (tracked into final evidence commit)
 - `openspec/changes/adaptive-layout-miuix-blur/design.md` (tracked into final evidence commit)
 - `openspec/changes/adaptive-layout-miuix-blur/specs/library-ui/spec.md` (tracked into final evidence commit)
-Next owner: user for manual tablet/desktop visual validation and implementation/coordinator decision on Android dependency blockers.
-Blockers: Android debug assembly is blocked by Miuix dependency incompatibilities: adaptive `0.8.5` brings `miuix-android:0.8.5` alongside current `miuix-ui-android:0.9.2`, and `miuix-blur-android:0.9.2` requires minSdk 33 while the app minSdk is 29.
+Next owner: user for manual tablet/desktop visual validation of the local two-pane layout and Android API <33 fallback visual validation.
+Blockers: none for automated JVM/desktop/Android/iOS verification. Manual visual validation remains.
 Commit: pending.
 
 ## Handoff - 2026-07-06 unify app glass tint

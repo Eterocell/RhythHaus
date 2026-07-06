@@ -1,6 +1,6 @@
 # Task 5 Report: Final Verification and Evidence
 
-Status: BLOCKED
+Status: PASS after user-directed Android blocker fix
 
 ## Commands run
 
@@ -45,10 +45,24 @@ Tracked previously untracked coordinator docs/OpenSpec evidence:
 - iOS simulator tests: PASS.
 - Diff hygiene: PASS.
 - Forbidden Kyant references: PASS.
-- Broad JVM/desktop/Android verification: BLOCKED by Android dependency issues listed above.
+- Broad JVM/desktop/Android verification: initially BLOCKED by Android dependency issues listed above; after user-directed fix, PASS with `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` returning `BUILD SUCCESSFUL in 3s`.
+
+## Android blocker fix
+
+User direction applied after the initial BLOCKED report:
+- Updated Miuix UI/blur from `0.9.2` to `0.9.3`.
+- Removed `miuix-navigation3-adaptive` completely from the version catalog and shared dependencies.
+- Replaced the wide `ListDetailPaneScaffold` call with an in-project two-pane Row shell preserving the same list/detail behavior.
+- Added Android manifest `tools:overrideLibrary="top.yukonga.miuix.kmp.blur"`.
+- Gated Miuix blur usage with `isRenderEffectSupported()` for backdrop creation/recording and `isRuntimeShaderSupported()` before applying `blur(...)`; unsupported paths draw fallback/tint surfaces only.
+
+Additional verification after the fix:
+- `./gradlew :shared:compileKotlinJvm :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache` → `BUILD SUCCESSFUL in 21s`.
+- `./gradlew :androidApp:assembleDebug --configuration-cache` → `BUILD SUCCESSFUL in 48s`.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` → `BUILD SUCCESSFUL in 3s`.
+- `./gradlew :shared:dependencies --configuration jvmCompileClasspath --console=plain | grep -E 'miuix|navigation3' | head -n 80` → resolved `miuix-ui:0.9.3` and `miuix-blur:0.9.3`; no navigation3 adaptive artifact shown.
+- `openspec validate adaptive-layout-miuix-blur --strict && git diff --check && (grep -R "com.kyant.backdrop\|kyant-backdrop\|kyant-shapes\|miuix-navigation3-adaptive\|ListDetailPaneScaffold" -n gradle shared/src androidApp/src || true)` → OpenSpec valid, diff check passed, grep produced no forbidden references.
 
 ## Next owner
 
-User/coordinator for decision on Android dependency blockers:
-- whether to raise Android minSdk to 33, find a lower-minSdk Miuix blur alternative/version, or gate/replace blur on Android;
-- whether to replace/avoid `miuix-navigation3-adaptive:0.8.5`, force compatible Miuix dependency resolution, or implement an in-project list-detail scaffold.
+User for manual tablet/desktop visual validation of the local two-pane layout and Android API <33 runtime fallback visual validation.

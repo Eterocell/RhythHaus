@@ -2,9 +2,9 @@
 
 ## Dependency strategy
 
-Add `miuix-blur:0.9.2` and try `miuix-navigation3-adaptive:0.8.5` through the version catalog. Keep `miuix-ui` and other existing Miuix modules on `0.9.2`.
+Use the current Miuix UI/blur line (`0.9.3`). The implementation initially tried `miuix-navigation3-adaptive:0.8.5`, but Android broad verification proved it transitively brings `miuix-android:0.8.5` beside `miuix-ui-android:0.9.x`, causing duplicate `top.yukonga.miuix.kmp.*` classes. Per user direction, remove `miuix-navigation3-adaptive` completely and keep the wide shell in project code.
 
-The implementation must verify Gradle resolution before depending on adaptive APIs. `miuix-navigation3-adaptive:0.8.5` metadata requests older Miuix/Nav3 modules, so the first implementation task must prove that the project can compile while keeping current `0.9.2` modules. If it cannot, stop with exact output and ask before downgrading or replacing the adaptive implementation.
+`miuix-blur` declares Android minSdk 33 while RhythHaus still ships minSdk 29. The Android app manifest therefore overrides `top.yukonga.miuix.kmp.blur`, and blur usage must be runtime-gated: use `isRenderEffectSupported()` before creating/recording the backdrop scaffold, and use `isRuntimeShaderSupported()` before applying `blur(...)` or other RuntimeShader-backed effects. Unsupported paths must draw the fallback/tint surface only.
 
 ## Miuix blur replacement
 
@@ -33,7 +33,7 @@ Use list-detail mode to render:
 - detail pane: album detail or artist detail when selected;
 - placeholder pane: an empty detail prompt when no album/artist is selected.
 
-If `ListDetailPaneScaffold` from `androidx.navigation3.adaptive` compiles with the dependency strategy, use it for the wide shell. Search, Settings, Clear Library dialog, and Now Playing remain overlay/single-surface behavior in this slice.
+Use an in-project two-pane shell for the wide layout. Search, Settings, Clear Library dialog, and Now Playing remain overlay/single-surface behavior in this slice.
 
 Wide album/artist selection should swap the detail pane with `replaceTop` when already showing a detail route. Compact selection keeps current push behavior.
 

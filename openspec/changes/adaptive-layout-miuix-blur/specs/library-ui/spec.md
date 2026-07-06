@@ -21,19 +21,29 @@ RhythHaus shared Compose UI SHALL use an adaptive list-detail layout on wide tab
 - **THEN** the visible detail pane changes to the newly selected album or artist
 - **AND** the app does not build an unnecessary deep stack of wide-screen detail panes
 
-### Requirement: Miuix adaptive dependency attempt preserves current Miuix modules
+### Requirement: Miuix adaptive dependency incompatibility is handled without downgrading current Miuix modules
 
-The implementation SHALL attempt to use `top.yukonga.miuix.kmp:miuix-navigation3-adaptive:0.8.5` without downgrading existing Miuix modules from `0.9.2`.
+The implementation SHALL not ship `top.yukonga.miuix.kmp:miuix-navigation3-adaptive:0.8.5` if it forces older Miuix artifacts into the Android dependency graph.
 
-#### Scenario: Adaptive artifact compiles with current Miuix modules
-- **WHEN** Gradle resolves and compiles the shared module with `miuix-navigation3-adaptive:0.8.5`
-- **THEN** existing Miuix modules remain on `0.9.2`
-- **AND** the wide list-detail shell uses the adaptive artifact APIs
+#### Scenario: Adaptive artifact creates Android duplicate classes
+- **WHEN** broad Android verification detects duplicate Miuix classes from `miuix-navigation3-adaptive:0.8.5` transitive dependencies
+- **THEN** `miuix-navigation3-adaptive` is removed from the version catalog and shared dependencies
+- **AND** the wide list-detail shell remains implemented in project code
+- **AND** current Miuix UI/blur modules remain on the current approved Miuix line
 
-#### Scenario: Adaptive artifact cannot compile without downgrade
-- **WHEN** dependency resolution or compilation requires downgrading existing Miuix modules from `0.9.2`
-- **THEN** the implementation records the exact Gradle error or dependency conflict
-- **AND** no Miuix downgrade is applied without explicit user approval
+### Requirement: Android lower-minSdk Miuix blur usage is runtime-gated
+
+RhythHaus SHALL keep Android minSdk 29 while overriding `miuix-blur`'s minSdk 33 manifest requirement only when runtime capability checks protect unsupported devices.
+
+#### Scenario: Android device lacks RuntimeShader blur support
+- **WHEN** `isRuntimeShaderSupported()` returns false
+- **THEN** RhythHaus does not apply Miuix `blur(...)` or other RuntimeShader-backed blur/blend effects
+- **AND** the chrome/bar remains readable via the fallback/tint surface
+
+#### Scenario: Android device lacks RenderEffect backdrop support
+- **WHEN** `isRenderEffectSupported()` returns false
+- **THEN** RhythHaus does not create or record a Miuix backdrop layer
+- **AND** the chrome/bar remains readable via the fallback/tint surface
 
 ### Requirement: Miuix blur replaces Kyant Backdrop chrome
 

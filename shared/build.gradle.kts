@@ -101,7 +101,6 @@ kotlin {
             implementation(projects.taglib)
             implementation(libs.miuix.ui)
             implementation(libs.miuix.blur)
-            implementation(libs.miuix.navigation3.adaptive)
             implementation(libs.kermit)
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)

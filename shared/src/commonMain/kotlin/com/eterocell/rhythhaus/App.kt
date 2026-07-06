@@ -89,7 +89,6 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import androidx.navigation3.adaptive.ListDetailPaneScaffold
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformAudioScanner
@@ -689,21 +688,28 @@ fun LibraryHomeScreen(
                     .fillMaxSize()
                     .recordRhythHausBackdrop(rootBackdrop),
             ) {
-                ListDetailPaneScaffold(
-                    list = {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .weight(0.42f),
+                    ) {
                         HomeContent(onOpenDetailRoute = ::openDetailRoute)
-                    },
-                    detail = when (val route = navigation.current) {
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .weight(0.58f),
+                    ) {
+                        when (val route = navigation.current) {
                         is LibraryRoute.AlbumDetail, is LibraryRoute.ArtistDetail -> {
-                            { RouteContent(route = route) }
+                                RouteContent(route = route)
                         }
 
-                        else -> null
-                    },
-                    detailPlaceholder = {
-                        AdaptiveDetailPlaceholder()
-                    },
-                )
+                            else -> AdaptiveDetailPlaceholder()
+                        }
+                    }
+                }
                 RouteOverlays(navigation.current)
             }
         } else {
@@ -1463,7 +1469,7 @@ private fun rememberSystemBarTopPadding(): Dp {
 private fun NestedScrollBlurChrome(
     state: NestedScrollChromeState,
     title: String,
-    backdrop: LayerBackdrop,
+    backdrop: LayerBackdrop?,
     modifier: Modifier = Modifier,
     statusBarHeight: Dp = rememberSystemBarTopPadding(),
 ) {

@@ -4,17 +4,18 @@
 
 **Goal:** Add adaptive list-detail UI for tablets/desktops and replace Kyant Backdrop glass with Miuix blur while preserving compact phone behavior.
 
-**Architecture:** Keep `LibraryNavigationStack` as the route source of truth. Add a tested adaptive layout-mode helper, use compact mode for the existing one-pane route renderer, and use `miuix-navigation3-adaptive:0.8.5` `ListDetailPaneScaffold` for wide list/detail rendering if it compiles while current Miuix modules remain on `0.9.2`. Keep blur recording/drawing behind a RhythHaus wrapper so top chrome and bottom bar call sites stay contained.
+**Architecture:** Keep `LibraryNavigationStack` as the route source of truth. Add a tested adaptive layout-mode helper, use compact mode for the existing one-pane route renderer, and use an in-project two-pane Row shell for wide list/detail rendering. The plan initially tried `miuix-navigation3-adaptive:0.8.5`, but final Android verification proved it pulls older Miuix artifacts that conflict with current Miuix UI, so the final implementation removes it completely. Keep blur recording/drawing behind a RhythHaus wrapper so top chrome and bottom bar call sites stay contained.
 
-**Tech Stack:** Kotlin Multiplatform, Compose Multiplatform, Miuix `0.9.2`, attempted `miuix-navigation3-adaptive:0.8.5`, Miuix Blur `0.9.2`, existing NavigationEvent back handling, Gradle version catalog.
+**Tech Stack:** Kotlin Multiplatform, Compose Multiplatform, Miuix UI/Blur `0.9.3`, local two-pane adaptive shell, existing NavigationEvent back handling, Gradle version catalog.
 
 ## Global Constraints
 
 - Compact phone layout and behavior must remain unchanged.
 - Wide layout threshold: list-detail at width >= 840dp, or width >= 600dp with height / width < 1.2.
-- Try `top.yukonga.miuix.kmp:miuix-navigation3-adaptive:0.8.5` but keep existing Miuix modules at `0.9.2`.
+- Remove `top.yukonga.miuix.kmp:miuix-navigation3-adaptive:0.8.5` from the final graph after its Android duplicate-class conflict is proven.
 - Do not downgrade current Miuix modules without explicit user approval.
-- Replace Kyant Backdrop/Shapes with `top.yukonga.miuix.kmp:miuix-blur:0.9.2` if compilation succeeds.
+- Replace Kyant Backdrop/Shapes with `top.yukonga.miuix.kmp:miuix-blur:0.9.3` if compilation succeeds.
+- Keep Android minSdk 29 by adding `tools:overrideLibrary="top.yukonga.miuix.kmp.blur"` and gate blur usage with `isRenderEffectSupported()` / `isRuntimeShaderSupported()`.
 - Preserve playback, scanner, library persistence, Search, Settings, Clear Library dialog, Now Playing overlay, route stack semantics, gestures, and bottom/top glass single-layer behavior.
 - Record exact dependency/compile blockers instead of guessing or silently changing strategy.
 - Verification target: `openspec validate adaptive-layout-miuix-blur --strict`, focused JVM tests, `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`, `/usr/bin/xcrun xcodebuild -version`, and `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`.
@@ -23,13 +24,15 @@
 
 ### Task 1: Dependency Gate for Miuix Blur and Adaptive
 
+**Final update:** The adaptive dependency gate initially passed for shared JVM compilation, but Android broad verification later failed because `miuix-navigation3-adaptive:0.8.5` transitively pulled `miuix-android:0.8.5` beside current Miuix UI. Per user direction, the final graph removes `miuix-navigation3-adaptive` completely and updates Miuix UI/blur to `0.9.3`.
+
 **Files:**
 - Modify: `gradle/libs.versions.toml`
 - Modify: `shared/build.gradle.kts`
 
 **Interfaces:**
-- Produces: catalog aliases `libs.miuix.blur` and `libs.miuix.navigation3.adaptive`.
-- Produces: compile evidence proving whether adaptive can be used without downgrading existing Miuix modules.
+- Produces: catalog alias `libs.miuix.blur`.
+- Records: evidence proving external adaptive cannot be used in the Android app without pulling older Miuix artifacts.
 
 - [ ] **Step 1: Add version-catalog aliases**
 
@@ -37,14 +40,14 @@ In `gradle/libs.versions.toml`:
 
 ```toml
 [versions]
-miuix = "0.9.2"
-miuix-navigation3-adaptive = "0.8.5"
+miuix = "0.9.3"
 
 [libraries]
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuix" }
 miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur", version.ref = "miuix" }
-miuix-navigation3-adaptive = { module = "top.yukonga.miuix.kmp:miuix-navigation3-adaptive", version.ref = "miuix-navigation3-adaptive" }
 ```
+
+Do not keep a final `miuix-navigation3-adaptive` alias; Android broad verification proved the `0.8.5` adaptive artifact pulls older Miuix classes into the app.
 
 Keep existing catalog entries not shown here unchanged for this step.
 
@@ -54,7 +57,6 @@ In `shared/build.gradle.kts`, add to `commonMain.dependencies`:
 
 ```kotlin
 implementation(libs.miuix.blur)
-implementation(libs.miuix.navigation3.adaptive)
 ```
 
 Do not remove `libs.kyant.backdrop` or `libs.kyant.shapes` yet; Task 2 removes them after Miuix blur compiles.
@@ -69,17 +71,17 @@ Run:
 
 Expected if compatible: `BUILD SUCCESSFUL`.
 
-If it fails because `miuix-navigation3-adaptive:0.8.5` pulls incompatible Miuix/Nav3 modules, record the exact output in the task report and stop for coordinator/user decision. Do not downgrade `miuix` from `0.9.2`.
+If it fails because `miuix-navigation3-adaptive:0.8.5` pulls incompatible Miuix/Nav3 modules, record the exact output in the task report and remove the adaptive dependency per final user direction. Do not downgrade Miuix.
 
 - [ ] **Step 4: Inspect resolved Miuix modules**
 
 Run:
 
 ```bash
-./gradlew :shared:dependencies --configuration commonMainImplementationDependenciesMetadata | grep -E 'top.yukonga.miuix.kmp:(miuix-ui|miuix-blur|miuix-navigation3-ui|miuix-navigation3-adaptive)'
+./gradlew :shared:dependencies --configuration jvmCompileClasspath --console=plain | grep -E 'miuix|navigation3'
 ```
 
-Expected: existing current Miuix modules remain on `0.9.2`; adaptive may show `0.8.5`. If output is too noisy or the configuration name differs, use the closest shared metadata dependency configuration and record the exact command used.
+Expected final graph: Miuix UI/blur resolve to `0.9.3`; `miuix-navigation3-adaptive` is absent. If output is too noisy or the configuration name differs, use the closest shared dependency configuration and record the exact command used.
 
 - [ ] **Step 5: Commit**
 
@@ -319,7 +321,7 @@ git commit -m "test: add adaptive layout mode rules"
 
 **Interfaces:**
 - Consumes: `libraryAdaptiveLayoutModeFor(widthDp, heightDp)`.
-- Consumes: `androidx.navigation3.adaptive.ListDetailPaneScaffold` if Task 1 dependency gate passed.
+- Consumes: local Compose Row/Box two-pane shell.
 - Preserves: `LibraryNavigationStack`, `pushRoute`, `popRoute`, `replaceTop`, `NowPlayingBar`, `NowPlayingExpandOverlay`.
 
 - [ ] **Step 1: Add Compose window-size mode calculation**
@@ -365,28 +367,7 @@ AnimatedContent(
 
 - [ ] **Step 3: Add wide list-detail branch**
 
-Import:
-
-```kotlin
-import androidx.navigation3.adaptive.ListDetailPaneScaffold
-```
-
-In list-detail mode, render:
-
-```kotlin
-ListDetailPaneScaffold(
-    list = {
-        RouteContent(route = LibraryRoute.Home)
-    },
-    detail = when (val route = navigation.current) {
-        is LibraryRoute.AlbumDetail, is LibraryRoute.ArtistDetail -> { RouteContent(route = route) }
-        else -> null
-    },
-    detailPlaceholder = {
-        AdaptiveDetailPlaceholder()
-    },
-)
-```
+In list-detail mode, render a local `Row` with the Home/list pane on the left and a detail pane on the right. The detail pane shows album/artist detail routes or `AdaptiveDetailPlaceholder()`.
 
 Then render Search, Settings, Clear Library dialog, fixed bottom bar, and Now Playing overlay above the scaffold using existing route checks/state. If directly reusing `RouteContent(Home)` would also draw overlays in the list pane, split only the minimal overlay rendering out of the Home route branch so overlays are not duplicated.
 

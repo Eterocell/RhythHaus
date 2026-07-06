@@ -2,7 +2,7 @@
 
 ## Summary
 
-RhythHaus will add an adaptive shared Compose layout for tablets, desktop JVM/macOS, and other wide screens while preserving the existing phone layout. The implementation will try to use `top.yukonga.miuix.kmp:miuix-navigation3-adaptive:0.8.5` for the wide list-detail pane scaffold, but it must keep the existing Miuix modules on `0.9.2`. The same change will replace the current Kyant Backdrop glass wrapper with `top.yukonga.miuix.kmp:miuix-blur:0.9.2` so the glass/blur stack comes from Miuix rather than Kyant.
+RhythHaus will add an adaptive shared Compose layout for tablets, desktop JVM/macOS, and other wide screens while preserving the existing phone layout. The implementation initially tried `top.yukonga.miuix.kmp:miuix-navigation3-adaptive:0.8.5`, but final Android verification proved it incompatible with current Miuix artifacts. Per user direction, the final implementation removes `miuix-navigation3-adaptive` completely, uses an in-project two-pane shell, and updates Miuix UI/blur to `0.9.3`. The same change replaces the current Kyant Backdrop glass wrapper with Miuix blur so the glass/blur stack comes from Miuix rather than Kyant.
 
 ## Current context
 
@@ -11,16 +11,15 @@ RhythHaus will add an adaptive shared Compose layout for tablets, desktop JVM/ma
 - `DrillDownView` renders album/artist track lists as full-screen routes with its own nested-scroll chrome and bottom bar.
 - `LiquidGlassChrome.kt` currently wraps Kyant Backdrop APIs: `rememberLayerBackdrop`, `layerBackdrop`, `drawBackdrop`, `vibrancy`, `blur`, and `lens`.
 - `NowPlayingBar.kt` and `NestedScrollBlurChrome` consume that wrapper and currently type their backdrop as Kyant `LayerBackdrop`.
-- `gradle/libs.versions.toml` currently has `miuix = "0.9.2"`, Kyant Backdrop `2.0.0`, and Kyant Shapes `1.2.0`.
-- Maven evidence from this design session: `miuix-navigation3-ui:0.9.2` and `0.9.3` do not contain `androidx.navigation3.adaptive` APIs. The adaptive APIs exist in separate `miuix-navigation3-adaptive:0.8.5`, whose metadata requests older Miuix/Nav3 dependencies.
+- Maven evidence from this design session: `miuix-navigation3-ui:0.9.2` and `0.9.3` do not contain `androidx.navigation3.adaptive` APIs. The adaptive APIs exist in separate `miuix-navigation3-adaptive:0.8.5`, whose metadata requests older Miuix/Nav3 dependencies. Final Android verification confirmed those older transitive Miuix dependencies are not shippable beside current Miuix UI.
 
 ## Goals
 
 - Improve tablet/desktop UI by showing Library list content and album/artist detail content side by side on wide screens.
 - Preserve the current compact phone UI and behavior.
-- Try `miuix-navigation3-adaptive:0.8.5` for the adaptive pane scaffold.
-- Keep all other Miuix modules at current `0.9.2` versions unless Gradle resolution proves this impossible and the user explicitly approves a different versioning strategy.
-- Replace Kyant Backdrop/Shapes usage with `miuix-blur:0.9.2`.
+- Remove `miuix-navigation3-adaptive:0.8.5` completely after its Android duplicate-class conflict is proven.
+- Keep Miuix UI/blur on the current approved line (`0.9.3`).
+- Replace Kyant Backdrop/Shapes usage with Miuix blur.
 - Preserve existing playback, scanner, route stack, search, settings, clear-library dialog, Now Playing expand/collapse, bottom bar controls, gestures, status-bar coverage, and glass single-layer behavior.
 
 ## Non-goals
@@ -38,10 +37,10 @@ RhythHaus will add an adaptive shared Compose layout for tablets, desktop JVM/ma
 
 Add version-catalog aliases for:
 
-- `miuix-blur = top.yukonga.miuix.kmp:miuix-blur:0.9.2`, using the existing `miuix` version reference.
-- `miuix-navigation3-adaptive = top.yukonga.miuix.kmp:miuix-navigation3-adaptive:0.8.5`, using a separate `miuix-navigation3-adaptive` version entry.
+- `miuix-blur = top.yukonga.miuix.kmp:miuix-blur:0.9.3`, using the existing `miuix` version reference.
+- No `miuix-navigation3-adaptive` alias in the final dependency graph.
 
-The plan must verify dependency resolution before relying on adaptive APIs. Because the adaptive artifact metadata requests older modules, the implementation should first try to keep current Miuix modules through Gradle dependency constraints or excludes that prevent `miuix-ui` / `miuix-navigation3-ui` downgrades. If this cannot compile cleanly, the implementation must stop, record the exact resolver/compiler output, and ask the user before downgrading or replacing the approach.
+The plan verified dependency resolution before relying on adaptive APIs. Because the adaptive artifact metadata requests older modules and final Android verification produced duplicate classes, the implementation uses a local two-pane shell instead of the external adaptive artifact.
 
 ### Miuix blur wrapper
 
@@ -51,7 +50,7 @@ Replace `LiquidGlassChrome.kt` internals with Miuix blur APIs while keeping a Rh
 - `Modifier.recordRhythHausBackdrop(backdrop)` backed by `Modifier.layerBackdrop(backdrop)`.
 - `Modifier.rhythHausLiquidGlass(...)` or a renamed local equivalent backed by Miuix `Modifier.drawBackdrop(...)` and `BackdropEffectScope.blur(...)`.
 
-The wrapper must continue to draw a fallback/tint surface so unsupported runtime shader paths remain readable. It should drop Kyant-specific effects such as `lens`/refraction if Miuix blur does not provide an equivalent in `0.9.2`; preserving readable frosted blur and unified tint is more important than preserving the exact Kyant lens effect.
+The wrapper must continue to draw a fallback/tint surface so unsupported runtime shader paths remain readable. It should drop Kyant-specific effects such as `lens`/refraction if Miuix blur does not provide an equivalent; preserving readable frosted blur and unified tint is more important than preserving the exact Kyant lens effect. Because Android minSdk remains 29 while `miuix-blur` declares minSdk 33, the app manifest uses `tools:overrideLibrary="top.yukonga.miuix.kmp.blur"`; the wrapper must gate backdrop creation/recording with `isRenderEffectSupported()` and blur application with `isRuntimeShaderSupported()`.
 
 After successful replacement, remove Kyant Backdrop/Shapes dependencies from `shared/build.gradle.kts` and the version catalog.
 
@@ -76,7 +75,7 @@ On compact screens, keep the existing one-pane `AnimatedContent` route rendering
 
 On wide screens:
 
-- Use `ListDetailPaneScaffold` from `androidx.navigation3.adaptive` if dependency resolution/compilation succeeds.
+- Use an in-project two-pane shell, because `miuix-navigation3-adaptive:0.8.5` is not Android-shippable beside current Miuix artifacts.
 - List pane: render the Library/Home content surface.
 - Detail pane: render album detail or artist detail when the selected/current route is `AlbumDetail` or `ArtistDetail`.
 - Placeholder: render a simple RhythHaus-branded empty detail state when no album/artist detail is selected.
@@ -108,7 +107,7 @@ Wide-screen album/artist selection should prefer `replaceTop` between detail rou
 
 - Compact phone width renders the current one-pane UI and preserves current route/back/playback/search/settings behavior.
 - Wide tablet/desktop width renders Library list and album/artist detail side by side.
-- The implementation attempts `miuix-navigation3-adaptive:0.8.5` while preserving current Miuix `0.9.2` modules; if this is impossible, the exact blocker is recorded before any fallback/downgrade.
+- `miuix-navigation3-adaptive:0.8.5` blocker is recorded, the dependency is removed, and the local two-pane shell preserves adaptive behavior.
 - Current Kyant Backdrop/Shapes dependencies and imports are removed after Miuix blur replacement succeeds.
 - Top nested-scroll chrome and bottom `NowPlayingBar` use Miuix blur while retaining unified tint, bounded status-bar coverage, single bottom-bar layer, controls, gestures, and readable fallback surface.
 - Focused common tests cover adaptive layout-mode thresholds and unchanged navigation behavior.
