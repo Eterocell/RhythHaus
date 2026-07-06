@@ -1,0 +1,5 @@
+- [x] 添加循环播放选择, 随机播放选择
+- [ ] 修复即使上一页 NowPlayingBar 仍然 visible 的情况下, 从 NowPlayingScreen 返回也会显示 NowPlayingBar hidden->visible 的动画的问题
+- [ ] 修复按钮中字母 'g' 的下方可能被截断的问题
+- [ ] 添加 Nested Scroll 效果给 Track list 和 Library 等页面, 类似于 Material 3 Expressive 的效果, 但是需要用 Backdrop 或者 Haze 添加模糊效果
+- [ ] i18n
