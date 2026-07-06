@@ -1,5 +1,31 @@
 # Session Progress
 
+## Handoff - 2026-07-07 adaptive layout miuix blur final verification
+
+Route: openspec+superpowers
+Owner: implementation
+Input: adaptive-layout-miuix-blur spec/plan
+Output: adaptive wide layout + Miuix blur replacement evidence recorded in OpenSpec tasks and progress handoff
+Verification:
+- `openspec validate adaptive-layout-miuix-blur --strict`: pass (`Change 'adaptive-layout-miuix-blur' is valid`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 524ms`; 25 actionable tasks: 4 executed, 1 from cache, 20 up-to-date; configuration cache reused).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: fail (`BUILD FAILED in 10s`). Blockers: `:androidApp:checkDebugDuplicateClasses` reports duplicate `top.yukonga.miuix.kmp.*` classes from `top.yukonga.miuix.kmp:miuix-ui-android:0.9.2` and transitive `top.yukonga.miuix.kmp:miuix-android:0.8.5`; `:androidApp:processDebugMainManifest` reports `uses-sdk:minSdkVersion 29 cannot be smaller than version 33 declared in library [top.yukonga.miuix.kmp:miuix-blur-android:0.9.2]`.
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 34s`; 43 actionable tasks: 27 executed, 16 up-to-date; configuration cache entry stored).
+- `git diff --check`: pass (no output, exit 0).
+- `grep -R "com.kyant.backdrop\|kyant-backdrop\|kyant-shapes" -n gradle shared/src || true`: pass (no output).
+Changed files:
+- `openspec/changes/adaptive-layout-miuix-blur/tasks.md`
+- `progress.md`
+- `docs/superpowers/specs/2026-07-06-adaptive-layout-miuix-blur-design.md` (tracked into final evidence commit)
+- `docs/superpowers/plans/2026-07-06-adaptive-layout-miuix-blur.md` (tracked into final evidence commit)
+- `openspec/changes/adaptive-layout-miuix-blur/proposal.md` (tracked into final evidence commit)
+- `openspec/changes/adaptive-layout-miuix-blur/design.md` (tracked into final evidence commit)
+- `openspec/changes/adaptive-layout-miuix-blur/specs/library-ui/spec.md` (tracked into final evidence commit)
+Next owner: user for manual tablet/desktop visual validation and implementation/coordinator decision on Android dependency blockers.
+Blockers: Android debug assembly is blocked by Miuix dependency incompatibilities: adaptive `0.8.5` brings `miuix-android:0.8.5` alongside current `miuix-ui-android:0.9.2`, and `miuix-blur-android:0.9.2` requires minSdk 33 while the app minSdk is 29.
+Commit: pending.
+
 ## Handoff - 2026-07-06 unify app glass tint
 
 Route: systematic-debugging (bugfix)
