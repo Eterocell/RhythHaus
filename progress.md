@@ -1468,3 +1468,49 @@ Next owner: user/OpenSpec for manual visual validation and archive when satisfie
 Blockers: none for automated validation.
 Commit: pending semantic commit after staged-diff review/approval.
 
+
+
+## Handoff - 2026-07-06 playback repeat shuffle
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Shared playback repeat/shuffle modes and NowPlayingScreen controls.
+Implementation:
+- Added shared RepeatMode/ShuffleMode state and controller APIs.
+- Centralized completion, previous, and next through mode-aware effective order logic.
+- Added shuffle effective order generation that preserves current track and keeps visible library order unchanged.
+- Added NowPlayingScreen repeat/shuffle controls using Material vector icons.
+- Stabilized controller mode tests by isolating state-machine assertions from asynchronous fake-engine callbacks after broad verification exposed an order-dependent race.
+Verification:
+- openspec validate playback-repeat-shuffle --strict: pass (`Change 'playback-repeat-shuffle' is valid`).
+- ./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache: pass after deterministic test hardening (`BUILD SUCCESSFUL in 1s`).
+- ./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache: first two broad runs failed in `PlaybackControllerTest.disablingShuffleReturnsToOriginalQueueOrderFromCurrentTrack` because async fake-engine callbacks raced controller state assertions; exact focused reruns passed, tests were made deterministic in `cbfcfdc`, and final broad rerun passed (`BUILD SUCCESSFUL in 2s`).
+- /usr/bin/xcrun xcodebuild -version: Xcode 26.6, Build version 17F113.
+- ./gradlew :shared:iosSimulatorArm64Test --configuration-cache: pass (`BUILD SUCCESSFUL in 18s`).
+- git diff --check: pass before evidence edits; will be rerun after evidence commit.
+Acceptance:
+- Requirement matched: yes — repeat modes, shuffle modes, controller navigation semantics, and NowPlayingScreen controls match the approved plan at source/test level.
+- Scope controlled: yes — no dependency changes; no mini-player/system-notification controls; visible library/browse order remains unchanged.
+- Edge cases/risk reviewed: stop-after-current keeps current track and stops at duration; stop-after-queue stops at final effective track without wrapping; repeat-playlist wraps; repeat-one loops automatically while manual transport remains adjacent; shuffle enable/disable and shuffled queue replacement covered by tests. Manual playback UX validation on device/simulator was not performed in this CLI session.
+Changed files:
+- docs/superpowers/specs/2026-07-06-playback-repeat-shuffle-design.md
+- docs/superpowers/plans/2026-07-06-playback-repeat-shuffle.md
+- openspec/changes/playback-repeat-shuffle/.openspec.yaml
+- openspec/changes/playback-repeat-shuffle/proposal.md
+- openspec/changes/playback-repeat-shuffle/design.md
+- openspec/changes/playback-repeat-shuffle/specs/audio-playback/spec.md
+- openspec/changes/playback-repeat-shuffle/tasks.md
+- shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt
+- shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt
+- shared/src/commonTest/kotlin/com/eterocell/rhythhaus/PlaybackControllerTest.kt
+- progress.md
+Next owner: user/OpenSpec for manual playback UX validation and archive when satisfied.
+Blockers: none for automated validation. Unrelated untracked `roadmap.md` remains untouched.
+Commit:
+- 4c2974e docs: spec playback repeat shuffle
+- 5f1225a feat: add playback mode state
+- ac59554 feat: add repeat and shuffle queue navigation
+- 0c6f394 fix: preserve loading state during auto play transitions
+- 906a00e feat: add now playing repeat shuffle controls
+- cbfcfdc test: stabilize playback controller mode tests
+- Evidence/docs finalization commit pending.
