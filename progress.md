@@ -1,5 +1,29 @@
 # Session Progress
 
+## Handoff - 2026-07-06 fix Backdrop RenderThread crash
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User reported Android RenderThread SIGSEGV after the liquid-glass Backdrop change and linked Kyant Backdrop's Glass Bottom Sheet tutorial describing the same crash pattern.
+Root cause:
+- Backdrop's docs identify `Fatal signal 11 (SIGSEGV), code 2 (SEGV_ACCERR)` as a self-referential draw loop when `layerBackdrop` records content that later draws from the same backdrop.
+- RhythHaus recorded `homeBackdrop` on the whole Home `Surface` and `drillDownBackdrop` on the whole drill-down `Surface`. Both surfaces contained glass overlays (`NestedScrollBlurChrome`, and on drill-down also `NowPlayingBar`) that draw from the same recorded backdrop, creating the same loop on Android RenderThread.
+Fix:
+- Moved `recordRhythHausBackdrop(homeBackdrop)` from the Home route `Surface` to the Home `LazyColumn` content only.
+- Moved `recordRhythHausBackdrop(drillDownBackdrop)` from the drill-down route `Surface` to the drill-down `LazyColumn` content only.
+- Kept the glass top chrome and bottom bars outside their same-backdrop recording scope so they sample content but are not recorded into the backdrop they draw.
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.BottomBarModeTest' --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`).
+- `./gradlew :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 5s`).
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `progress.md`
+Next owner: user for Android runtime repro confirmation that the RenderThread SIGSEGV no longer occurs.
+Blockers: none for compile/test/build verification. Runtime crash cannot be fully proven fixed without running the Android app through the reported screen path.
+Commit: pending.
+
 ## Handoff - 2026-07-06 liquid glass backdrop chrome
 
 Route: openspec+superpowers

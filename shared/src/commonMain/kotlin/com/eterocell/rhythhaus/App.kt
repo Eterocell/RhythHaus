@@ -497,18 +497,14 @@ fun LibraryHomeScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 val homeStatusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                 val homeBackdrop = rememberRhythHausBackdrop()
-                Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .recordRhythHausBackdrop(homeBackdrop),
-                    color = HausColors.current.paper,
-                ) {
+                Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         LazyColumn(
                             state = homeListState,
                             modifier = Modifier
                                 .padding(top = homeStatusBarHeight)
                                 .fillMaxSize()
+                                .recordRhythHausBackdrop(homeBackdrop)
                                 .padding(horizontal = 20.dp),
                             verticalArrangement = Arrangement.spacedBy(18.dp),
                         ) {
@@ -1290,12 +1286,7 @@ private fun DrillDownView(
     ) {
         val drillDownStatusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val drillDownBackdrop = rememberRhythHausBackdrop()
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .recordRhythHausBackdrop(drillDownBackdrop),
-            color = HausColors.current.paper,
-        ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
             val listState = rememberLazyListState()
             val scrollChromeState by remember(listState) {
                 derivedStateOf { nestedScrollChromeStateFor(listState.toLibraryScrollPosition()) }
@@ -1309,6 +1300,7 @@ private fun DrillDownView(
                     modifier = Modifier
                         .padding(top = drillDownStatusBarHeight)
                         .fillMaxSize()
+                        .recordRhythHausBackdrop(drillDownBackdrop)
                         .padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
