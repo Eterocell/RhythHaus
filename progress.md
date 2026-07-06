@@ -1,5 +1,33 @@
 # Session Progress
 
+## Handoff - 2026-07-06 unify app glass blur
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User reported the top bar and bottom bar Backdrop alpha/blur radius did not match and asked to unify the Backdrop effect blur across the app.
+Root cause:
+- `NestedScrollBlurChrome` passed progress-dependent Backdrop params: fallback alpha `0.34f + 0.42f * progress`, blur `(6 + 10 * progress).dp`, refraction height `(8 + 8 * progress).dp`, and refraction amount `(12 + 12 * progress).dp`.
+- `NowPlayingBar` passed fixed Backdrop params: alpha `0.72f`, blur `10.dp`, refraction height `16.dp`, and refraction amount `24.dp`.
+- The shared wrapper default blur was still `8.dp`, so there was no single app-level glass definition.
+Fix:
+- Added shared constants in `LiquidGlassChrome.kt`: `RhythHausGlassSurfaceAlpha`, `RhythHausGlassBlurRadius`, `RhythHausGlassRefractionHeight`, and `RhythHausGlassRefractionAmount`.
+- Updated `rhythHausLiquidGlass(...)` defaults to use those constants.
+- Removed custom blur/refraction params from top chrome and bottom bar call sites.
+- Updated top chrome and bottom bar fallback alpha to use `RhythHausGlassSurfaceAlpha`.
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --tests 'com.eterocell.rhythhaus.BottomBarModeTest' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`).
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LiquidGlassChrome.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`
+- `progress.md`
+Next owner: user for Android/iOS visual confirmation that top and bottom glass strength now match.
+Blockers: none for compile/test/build verification. Visual tuning remains runtime/manual.
+Commit: pending.
+
 ## Handoff - 2026-07-06 fix duplicate bottom bar layer
 
 Route: systematic-debugging (bugfix)

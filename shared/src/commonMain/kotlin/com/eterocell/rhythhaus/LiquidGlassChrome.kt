@@ -19,13 +19,18 @@ internal fun rememberRhythHausBackdrop(): LayerBackdrop = rememberLayerBackdrop(
 
 internal fun Modifier.recordRhythHausBackdrop(backdrop: LayerBackdrop): Modifier = layerBackdrop(backdrop)
 
+internal const val RhythHausGlassSurfaceAlpha = 0.72f
+internal val RhythHausGlassBlurRadius = 10.dp
+internal val RhythHausGlassRefractionHeight = 16.dp
+internal val RhythHausGlassRefractionAmount = 24.dp
+
 internal fun Modifier.rhythHausLiquidGlass(
     backdrop: LayerBackdrop,
     shape: Shape,
     fallbackColor: Color,
-    blurRadius: Dp = 8.dp,
-    refractionHeight: Dp = 16.dp,
-    refractionAmount: Dp = 24.dp,
+    blurRadius: Dp = RhythHausGlassBlurRadius,
+    refractionHeight: Dp = RhythHausGlassRefractionHeight,
+    refractionAmount: Dp = RhythHausGlassRefractionAmount,
 ): Modifier = drawBackdrop(
     backdrop = backdrop,
     shape = { shape },

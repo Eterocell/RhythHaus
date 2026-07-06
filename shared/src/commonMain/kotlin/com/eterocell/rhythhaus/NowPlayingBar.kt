@@ -88,10 +88,7 @@ fun NowPlayingBar(
                 Modifier.rhythHausLiquidGlass(
                     backdrop = backdrop,
                     shape = barShape,
-                    fallbackColor = HausColors.current.panel.copy(alpha = 0.72f),
-                    blurRadius = 10.dp,
-                    refractionHeight = 16.dp,
-                    refractionAmount = 24.dp,
+                    fallbackColor = HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha),
                 )
             } else {
                 Modifier.background(HausColors.current.panel)

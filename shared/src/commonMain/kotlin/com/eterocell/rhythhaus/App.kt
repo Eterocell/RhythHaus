@@ -1403,10 +1403,7 @@ private fun NestedScrollBlurChrome(
             .rhythHausLiquidGlass(
                 backdrop = backdrop,
                 shape = RoundedCornerShape(0.dp),
-                fallbackColor = HausColors.current.paper.copy(alpha = 0.34f + 0.42f * progress),
-                blurRadius = (6 + 10 * progress).dp,
-                refractionHeight = (8 + 8 * progress).dp,
-                refractionAmount = (12 + 12 * progress).dp,
+                fallbackColor = HausColors.current.paper.copy(alpha = RhythHausGlassSurfaceAlpha),
             ),
     ) {
         Box(
