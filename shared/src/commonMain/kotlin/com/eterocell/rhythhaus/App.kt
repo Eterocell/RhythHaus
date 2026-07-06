@@ -1286,7 +1286,13 @@ private fun DrillDownView(
             .leftEdgeSwipeBack(onBack),
     ) {
         val drillDownStatusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
+        val drillDownBackdrop = rememberRhythHausBackdrop()
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .recordRhythHausBackdrop(drillDownBackdrop),
+            color = HausColors.current.paper,
+        ) {
             val listState = rememberLazyListState()
             val scrollChromeState by remember(listState) {
                 derivedStateOf { nestedScrollChromeStateFor(listState.toLibraryScrollPosition()) }
@@ -1325,7 +1331,7 @@ private fun DrillDownView(
                 NestedScrollBlurChrome(
                     state = scrollChromeState,
                     title = title,
-                    backdrop = rememberRhythHausBackdrop(),
+                    backdrop = drillDownBackdrop,
                     statusBarHeight = drillDownStatusBarHeight,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
