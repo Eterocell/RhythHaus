@@ -36,12 +36,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -79,6 +79,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -493,113 +494,117 @@ fun LibraryHomeScreen(
         LibraryRoute.ClearLibraryDialog,
         -> {
             Box(modifier = Modifier.fillMaxSize()) {
+                val homeStatusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
                 Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
-                    LazyColumn(
-                        state = homeListState,
-                        modifier = Modifier
-                            .statusBarsPadding()
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(18.dp),
-                    ) {
-                        item {
-                            HeaderSection(snapshot)
-                        }
-                        if (snapshot.tracks.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        LazyColumn(
+                            state = homeListState,
+                            modifier = Modifier
+                                .padding(top = homeStatusBarHeight)
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(18.dp),
+                        ) {
                             item {
-                                ImportAudioCard(
-                                    folderPickerLauncher = folderPickerLauncher,
-                                    importMessage = importMessage,
-                                    hasImportedTracks = false,
-                                    onClearLibrary = onClearLibrary,
-                                )
+                                HeaderSection(snapshot)
                             }
-                        }
-                        if (scanProgress?.isActive == true) {
-                            item {
-                                val sp = scanProgress
-                                val ss = sp.session!!
-                                ScanningCard(
-                                    foldersVisited = ss.foldersVisited,
-                                    filesVisited = ss.filesVisited,
-                                    tracksAdded = ss.tracksAdded,
-                                    onCancel = { scanJob?.cancel() },
-                                )
-                            }
-                        }
-                        item {
-                            SectionLabel(
-                                title = stringResource(Res.string.library_queue),
-                                subtitle = null,
-                            )
-                        }
-                        item {
-                            BrowseModePicker(
-                                browseMode = browseMode,
-                                onModeChange = { browseMode = it },
-                            )
-                        }
-                        when (browseMode) {
-                            BrowseMode.Albums -> {
+                            if (snapshot.tracks.isEmpty()) {
                                 item {
-                                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                                        val columns = albumGridColumnsForWidth(maxWidth.value)
-                                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            albums.chunked(columns).forEach { row ->
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                                ) {
-                                                    row.forEach { albumGroup ->
-                                                        AlbumCard(
-                                                            album = albumGroup,
-                                                            modifier = Modifier.weight(1f),
-                                                            onClick = { pushRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
-                                                        )
-                                                    }
-                                                    repeat(columns - row.size) {
-                                                        Spacer(Modifier.weight(1f))
+                                    ImportAudioCard(
+                                        folderPickerLauncher = folderPickerLauncher,
+                                        importMessage = importMessage,
+                                        hasImportedTracks = false,
+                                        onClearLibrary = onClearLibrary,
+                                    )
+                                }
+                            }
+                            if (scanProgress?.isActive == true) {
+                                item {
+                                    val sp = scanProgress
+                                    val ss = sp.session!!
+                                    ScanningCard(
+                                        foldersVisited = ss.foldersVisited,
+                                        filesVisited = ss.filesVisited,
+                                        tracksAdded = ss.tracksAdded,
+                                        onCancel = { scanJob?.cancel() },
+                                    )
+                                }
+                            }
+                            item {
+                                SectionLabel(
+                                    title = stringResource(Res.string.library_queue),
+                                    subtitle = null,
+                                )
+                            }
+                            item {
+                                BrowseModePicker(
+                                    browseMode = browseMode,
+                                    onModeChange = { browseMode = it },
+                                )
+                            }
+                            when (browseMode) {
+                                BrowseMode.Albums -> {
+                                    item {
+                                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                                            val columns = albumGridColumnsForWidth(maxWidth.value)
+                                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                albums.chunked(columns).forEach { row ->
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                    ) {
+                                                        row.forEach { albumGroup ->
+                                                            AlbumCard(
+                                                                album = albumGroup,
+                                                                modifier = Modifier.weight(1f),
+                                                                onClick = { pushRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
+                                                            )
+                                                        }
+                                                        repeat(columns - row.size) {
+                                                            Spacer(Modifier.weight(1f))
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            }
 
-                            BrowseMode.Artists -> {
-                                items(artists, key = { it.artist }) { artistGroup ->
-                                    ArtistRow(
-                                        artist = artistGroup,
-                                        onClick = { pushRoute(LibraryRoute.ArtistDetail(artistGroup.artist)) },
-                                    )
+                                BrowseMode.Artists -> {
+                                    items(artists, key = { it.artist }) { artistGroup ->
+                                        ArtistRow(
+                                            artist = artistGroup,
+                                            onClick = { pushRoute(LibraryRoute.ArtistDetail(artistGroup.artist)) },
+                                        )
+                                    }
+                                }
+
+                                BrowseMode.Songs -> {
+                                    items(snapshot.tracks, key = { it.id }) { track ->
+                                        TrackRow(
+                                            track = track,
+                                            selected = track.id == selectedTrackId,
+                                            onClick = {
+                                                selectedTrackId = track.id
+                                                val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
+                                                if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
+                                                    playbackController.setQueue(playableTracks, track.id)
+                                                }
+                                                playbackController.togglePlayPause()
+                                            },
+                                        )
+                                    }
                                 }
                             }
-
-                            BrowseMode.Songs -> {
-                                items(snapshot.tracks, key = { it.id }) { track ->
-                                    TrackRow(
-                                        track = track,
-                                        selected = track.id == selectedTrackId,
-                                        onClick = {
-                                            selectedTrackId = track.id
-                                            val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
-                                            if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                                                playbackController.setQueue(playableTracks, track.id)
-                                            }
-                                            playbackController.togglePlayPause()
-                                        },
-                                    )
-                                }
-                            }
+                            item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
                         }
-                        item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
+                        NestedScrollBlurChrome(
+                            state = homeScrollChromeState,
+                            title = stringResource(Res.string.library),
+                            statusBarHeight = homeStatusBarHeight,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
                     }
-                    NestedScrollBlurChrome(
-                        state = homeScrollChromeState,
-                        title = stringResource(Res.string.library),
-                        modifier = Modifier.align(Alignment.TopCenter),
-                    )
                 }
             }
 
@@ -1272,6 +1277,7 @@ private fun DrillDownView(
             .fillMaxSize()
             .leftEdgeSwipeBack(onBack),
     ) {
+        val drillDownStatusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
             val listState = rememberLazyListState()
             val scrollChromeState by remember(listState) {
@@ -1284,7 +1290,7 @@ private fun DrillDownView(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
-                        .statusBarsPadding()
+                        .padding(top = drillDownStatusBarHeight)
                         .fillMaxSize()
                         .padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -1311,6 +1317,7 @@ private fun DrillDownView(
                 NestedScrollBlurChrome(
                     state = scrollChromeState,
                     title = title,
+                    statusBarHeight = drillDownStatusBarHeight,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
             }
@@ -1351,6 +1358,7 @@ private fun NestedScrollBlurChrome(
     state: NestedScrollChromeState,
     title: String,
     modifier: Modifier = Modifier,
+    statusBarHeight: Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
 ) {
     val progress = state.progress.coerceIn(0f, 1f)
     if (progress <= 0f) return
@@ -1359,13 +1367,12 @@ private fun NestedScrollBlurChrome(
     // Haze has been dropped from this chrome (per user request) in favor of a plain scrim.
     // The chrome still needs one known, fixed total height (status bar inset + toolbar) so the
     // background scrim is bounded to exactly that box instead of bleeding into the content below.
-    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val chromeHeight = statusBarHeight + NestedScrollChromeToolbarHeight
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(chromeHeight)
+            .requiredHeight(chromeHeight)
             .zIndex(3f)
             .background(HausColors.current.paper.copy(alpha = 0.26f + 0.66f * progress)),
     ) {

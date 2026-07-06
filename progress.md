@@ -1,6 +1,29 @@
 # Session Progress
 
 
+## Handoff - 2026-07-06 fix nested scroll chrome layout
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User reported nested scroll chrome issues: on the main Library screen the scrolled top bar covered the whole screen with the title at the bottom; on track-list screens the chrome worked but its color did not cover the iOS status bar.
+Root cause:
+- The main screen placed `LazyColumn` and `NestedScrollBlurChrome` directly inside `Surface` (Miuix `Box` with `propagateMinConstraints = true`). `Surface` propagated full-screen min constraints to the chrome, and `Modifier.height(chromeHeight)` only constrained max height, allowing the chrome to stretch to the full screen on the main screen.
+- The track list wrapped its content in an inner `Box` (default `propagateMinConstraints = false`), which is why it did not stretch, but `NestedScrollBlurChrome` read `WindowInsets.statusBars` internally. If the `LazyColumn`'s `statusBarsPadding()` consumed the insets before the chrome read them, the chrome could compute a height that did not include the status bar.
+Fix:
+- Changed `NestedScrollBlurChrome` to accept `statusBarHeight: Dp` as a parameter and use `Modifier.requiredHeight(chromeHeight)` so its height is exact regardless of propagated min constraints.
+- Read the status bar height once in each route (Library/Home and `DrillDownView`) before the list consumes insets, replaced `LazyColumn.statusBarsPadding()` with `Modifier.padding(top = statusBarHeight)`, and passed the same height to `NestedScrollBlurChrome`.
+- Wrapped the main screen `LazyColumn` + chrome in an inner `Box` to match the working track-list pattern and isolate layout constraints.
+Verification:
+- `./gradlew :shared:compileKotlinJvm :desktopApp:compileKotlin --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`; one known flaky `JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion` failed on first broad run, passed on targeted rerun).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- iOS simulator visual check (forced chrome visible): main screen chrome now sits at the top only, title is at the top, and the scrim extends behind the status bar; at rest the chrome is hidden as intended.
+- `git diff --check`: pass (no output).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+Next owner: user for on-device visual confirmation, especially track-list scroll behavior on iOS.
+Blockers: none.
+
 ## Handoff - 2026-07-06 fix iOS TagLib deployment target mismatch
 
 Route: systematic-debugging (bugfix)
