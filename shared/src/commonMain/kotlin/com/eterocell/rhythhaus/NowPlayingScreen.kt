@@ -8,6 +8,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
@@ -19,6 +22,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,6 +58,18 @@ fun NowPlayingScreen(
         track.artworkBytes?.decodeArtwork()
     }
     val isPlaying = playbackState.isPlaying
+    val shuffleEnabled = playbackState.shuffleMode == ShuffleMode.On
+    val repeatContentDescription = when (playbackState.repeatMode) {
+        RepeatMode.StopAfterQueue -> "Repeat mode: play list then stop. Tap for playlist repeat"
+        RepeatMode.RepeatPlaylist -> "Repeat mode: playlist repeat. Tap for single track repeat"
+        RepeatMode.RepeatOne -> "Repeat mode: single track repeat. Tap for play current song then stop"
+        RepeatMode.StopAfterCurrent -> "Repeat mode: play current song then stop. Tap for play list then stop"
+    }
+    val shuffleContentDescription = if (shuffleEnabled) {
+        "Shuffle on. Tap to turn shuffle off"
+    } else {
+        "Shuffle off. Tap to shuffle playlist songs"
+    }
 
     Surface(
         modifier = modifier
@@ -152,6 +169,40 @@ fun NowPlayingScreen(
 
             Spacer(Modifier.height(18.dp))
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PlaybackModeButton(
+                    selected = shuffleEnabled,
+                    contentDescription = shuffleContentDescription,
+                    onClick = playbackController::toggleShuffleMode,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Shuffle,
+                        contentDescription = null,
+                        tint = if (shuffleEnabled) Color.White else HausColors.current.ink,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                PlaybackModeButton(
+                    selected = playbackState.repeatMode == RepeatMode.RepeatPlaylist || playbackState.repeatMode == RepeatMode.RepeatOne,
+                    contentDescription = repeatContentDescription,
+                    onClick = playbackController::cycleRepeatMode,
+                ) {
+                    Icon(
+                        imageVector = if (playbackState.repeatMode == RepeatMode.RepeatOne) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                        contentDescription = null,
+                        tint = if (playbackState.repeatMode == RepeatMode.RepeatPlaylist || playbackState.repeatMode == RepeatMode.RepeatOne) Color.White else HausColors.current.ink,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
             // Transport controls
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -164,13 +215,7 @@ fun NowPlayingScreen(
                         .size(48.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(HausColors.current.panel)
-                        .hausClickable {
-                            val queue = playbackState.queue
-                            val currentId = playbackState.currentTrack?.id
-                            val currentIndex = queue.indexOfFirst { it.id == currentId }
-                            val prevTrack = queue.getOrNull(currentIndex - 1) ?: queue.lastOrNull()
-                            prevTrack?.let { playbackController.selectTrack(it.id, autoPlay = true) }
-                        },
+                        .hausClickable { playbackController.skipToPrevious() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -204,13 +249,7 @@ fun NowPlayingScreen(
                         .size(48.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(HausColors.current.panel)
-                        .hausClickable {
-                            val queue = playbackState.queue
-                            val currentId = playbackState.currentTrack?.id
-                            val currentIndex = queue.indexOfFirst { it.id == currentId }
-                            val nextTrack = queue.getOrNull(currentIndex + 1) ?: queue.firstOrNull()
-                            nextTrack?.let { playbackController.selectTrack(it.id, autoPlay = true) }
-                        },
+                        .hausClickable { playbackController.skipToNext() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -225,6 +264,25 @@ fun NowPlayingScreen(
             Spacer(Modifier.height(16.dp))
         }
     }
+}
+
+@Composable
+private fun PlaybackModeButton(
+    selected: Boolean,
+    contentDescription: String,
+    onClick: () -> Unit,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) HausColors.current.pulse else HausColors.current.panel)
+            .hausClickable(onClick)
+            .semantics { this.contentDescription = contentDescription },
+        contentAlignment = Alignment.Center,
+        content = content,
+    )
 }
 
 private fun statusLabel(status: PlaybackStatus): String = when (status) {
