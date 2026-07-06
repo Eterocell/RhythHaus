@@ -50,19 +50,19 @@ class PlaybackControllerTest {
 
     @Test
     fun stopAfterQueueAdvancesMiddleTrackAndStopsAtFinalTrackEnd() {
-        val engine = FakePlaybackEngine()
+        val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(engine)
         val tracks = testTracks(3)
         controller.setQueue(tracks, selectedTrackId = "track-1")
         controller.play()
 
-        engine.complete()
+        engine.listener?.onPlaybackCompleted()
         assertEquals("track-2", controller.state.value.currentTrack?.id)
 
-        engine.complete()
+        engine.listener?.onPlaybackCompleted()
         assertEquals("track-3", controller.state.value.currentTrack?.id)
 
-        engine.complete()
+        engine.listener?.onPlaybackCompleted()
         assertEquals("track-3", controller.state.value.currentTrack?.id)
         assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
         assertEquals(3_000L, controller.state.value.positionMillis)
@@ -70,14 +70,14 @@ class PlaybackControllerTest {
 
     @Test
     fun stopAfterCurrentStopsAtCurrentTrackEndWithoutAdvancing() {
-        val engine = FakePlaybackEngine()
+        val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(engine)
         val tracks = testTracks(2)
         controller.setQueue(tracks, selectedTrackId = "track-1")
         controller.setRepeatMode(RepeatMode.StopAfterCurrent)
         controller.play()
 
-        engine.complete()
+        engine.listener?.onPlaybackCompleted()
 
         assertEquals("track-1", controller.state.value.currentTrack?.id)
         assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
@@ -86,14 +86,14 @@ class PlaybackControllerTest {
 
     @Test
     fun repeatPlaylistWrapsCompletionAndManualTransport() {
-        val engine = FakePlaybackEngine()
+        val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(engine)
         val tracks = testTracks(2)
         controller.setQueue(tracks, selectedTrackId = "track-2")
         controller.setRepeatMode(RepeatMode.RepeatPlaylist)
         controller.play()
 
-        engine.complete()
+        engine.listener?.onPlaybackCompleted()
         assertEquals("track-1", controller.state.value.currentTrack?.id)
 
         controller.skipToPrevious()
@@ -104,14 +104,14 @@ class PlaybackControllerTest {
 
     @Test
     fun repeatOneReplaysCurrentTrackButManualTransportCanMoveWithoutWrapping() {
-        val engine = FakePlaybackEngine()
+        val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(engine)
         val tracks = testTracks(2)
         controller.setQueue(tracks, selectedTrackId = "track-1")
         controller.setRepeatMode(RepeatMode.RepeatOne)
         controller.play()
 
-        engine.complete()
+        engine.listener?.onPlaybackCompleted()
         assertEquals("track-1", controller.state.value.currentTrack?.id)
 
         controller.skipToPrevious()
@@ -122,7 +122,7 @@ class PlaybackControllerTest {
 
     @Test
     fun shuffleUsesGeneratedOrderAndKeepsCurrentTrackActive() {
-        val engine = FakePlaybackEngine()
+        val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(
             engine = engine,
             shuffleOrderFactory = { _, currentId -> listOf(currentId!!, "track-3", "track-1") },
@@ -141,7 +141,7 @@ class PlaybackControllerTest {
 
     @Test
     fun disablingShuffleReturnsToOriginalQueueOrderFromCurrentTrack() {
-        val engine = FakePlaybackEngine()
+        val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(
             engine = engine,
             shuffleOrderFactory = { _, currentId -> listOf(currentId!!, "track-3", "track-1") },
@@ -160,7 +160,7 @@ class PlaybackControllerTest {
     @Test
     fun shuffledQueueReplacementRegeneratesOrderAndPreservesSelectedTrack() {
         val generatedOrders = mutableListOf<List<String>>()
-        val engine = FakePlaybackEngine()
+        val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(
             engine = engine,
             shuffleOrderFactory = { ids, currentId ->
