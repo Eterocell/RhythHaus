@@ -105,6 +105,8 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material.icons.extended)
             implementation(libs.compose.ui)
+            implementation(libs.kyant.backdrop)
+            implementation(libs.kyant.shapes)
             implementation(libs.navigationevent.compose)
             implementation(libs.compose.material3)
             implementation(libs.compose.components.resources)
