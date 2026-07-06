@@ -104,6 +104,7 @@ import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.uuid4
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.createTagLibReader
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -495,7 +496,13 @@ fun LibraryHomeScreen(
         -> {
             Box(modifier = Modifier.fillMaxSize()) {
                 val homeStatusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
+                val homeBackdrop = rememberRhythHausBackdrop()
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .recordRhythHausBackdrop(homeBackdrop),
+                    color = HausColors.current.paper,
+                ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         LazyColumn(
                             state = homeListState,
@@ -601,6 +608,7 @@ fun LibraryHomeScreen(
                         NestedScrollBlurChrome(
                             state = homeScrollChromeState,
                             title = stringResource(Res.string.library),
+                            backdrop = homeBackdrop,
                             statusBarHeight = homeStatusBarHeight,
                             modifier = Modifier.align(Alignment.TopCenter),
                         )
@@ -1317,6 +1325,7 @@ private fun DrillDownView(
                 NestedScrollBlurChrome(
                     state = scrollChromeState,
                     title = title,
+                    backdrop = rememberRhythHausBackdrop(),
                     statusBarHeight = drillDownStatusBarHeight,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
@@ -1357,6 +1366,7 @@ private val NestedScrollChromeToolbarHeight = 56.dp
 private fun NestedScrollBlurChrome(
     state: NestedScrollChromeState,
     title: String,
+    backdrop: LayerBackdrop,
     modifier: Modifier = Modifier,
     statusBarHeight: Dp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
 ) {
@@ -1364,9 +1374,8 @@ private fun NestedScrollBlurChrome(
     if (progress <= 0f) return
     val titleProgress = ((progress - 0.68f) / 0.32f).coerceIn(0f, 1f)
 
-    // Haze has been dropped from this chrome (per user request) in favor of a plain scrim.
     // The chrome still needs one known, fixed total height (status bar inset + toolbar) so the
-    // background scrim is bounded to exactly that box instead of bleeding into the content below.
+    // glass surface is bounded to exactly that box instead of bleeding into the content below.
     val chromeHeight = statusBarHeight + NestedScrollChromeToolbarHeight
 
     Box(
@@ -1374,7 +1383,14 @@ private fun NestedScrollBlurChrome(
             .fillMaxWidth()
             .requiredHeight(chromeHeight)
             .zIndex(3f)
-            .background(HausColors.current.paper.copy(alpha = 0.26f + 0.66f * progress)),
+            .rhythHausLiquidGlass(
+                backdrop = backdrop,
+                shape = RoundedCornerShape(0.dp),
+                fallbackColor = HausColors.current.paper.copy(alpha = 0.34f + 0.42f * progress),
+                blurRadius = (6 + 10 * progress).dp,
+                refractionHeight = (8 + 8 * progress).dp,
+                refractionAmount = (12 + 12 * progress).dp,
+            ),
     ) {
         Box(
             modifier = Modifier
