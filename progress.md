@@ -1,5 +1,42 @@
 # Session Progress
 
+## Handoff - 2026-07-06 liquid glass backdrop chrome
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Replace nested-scroll top chrome and bottom NowPlayingBar panel surfaces with Kyant0 Backdrop liquid-glass effect.
+Implementation:
+- Added Backdrop and Shapes dependencies through the version catalog.
+- Added local `LiquidGlassChrome.kt` wrapper for Backdrop recording/effects/fallback draw surface.
+- Recorded Library/Home and drill-down content layers and routed nested-scroll top chrome through Backdrop glass.
+- Routed root and drill-down `NowPlayingBar` rounded card containers through Backdrop glass while preserving existing controls and gestures.
+Verification:
+- `openspec validate liquid-glass-backdrop-chrome --strict`: pass (`Change 'liquid-glass-backdrop-chrome' is valid`).
+- `git diff --check`: pass (no output, exit 0).
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, Build version 17F113.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 36s`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 26s`).
+Acceptance:
+- Requirement matched: yes — visible Library/Home chrome, drill-down chrome, and bottom bar rounded card now use Kyant0 Backdrop glass with fallback surface draw.
+- Scope controlled: yes — no playback, scanner, navigation model, route-transition, empty-library, or control redesign changes beyond backdrop recording and glass surfaces.
+- Edge cases/risk reviewed: Backdrop shader support may vary by platform; fallback surface remains readable; manual visual validation recommended on Android/iOS/macOS for final glass tuning.
+Changed files:
+- `gradle/libs.versions.toml`
+- `shared/build.gradle.kts`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LiquidGlassChrome.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`
+- `openspec/changes/liquid-glass-backdrop-chrome/proposal.md`
+- `openspec/changes/liquid-glass-backdrop-chrome/design.md`
+- `openspec/changes/liquid-glass-backdrop-chrome/tasks.md`
+- `openspec/changes/liquid-glass-backdrop-chrome/specs/library-ui/spec.md`
+- `docs/superpowers/specs/2026-07-06-liquid-glass-backdrop-chrome-design.md`
+- `docs/superpowers/plans/2026-07-06-liquid-glass-backdrop-chrome.md`
+- `progress.md`
+Next owner: user for manual visual validation of glass appearance on Android/iOS/macOS.
+Blockers: none for automated verification.
+Commit: implementation commits `a29a6cd`, `bd3c6d5`, `12802cc`, `acc0df6`; final docs/evidence commit pending.
+
 
 ## Handoff - 2026-07-06 fix nested scroll chrome layout
 
