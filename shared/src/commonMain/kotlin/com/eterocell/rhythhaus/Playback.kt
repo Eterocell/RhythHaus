@@ -71,6 +71,18 @@ enum class PlaybackStatus {
     Error,
 }
 
+enum class RepeatMode {
+    RepeatOne,
+    RepeatPlaylist,
+    StopAfterCurrent,
+    StopAfterQueue,
+}
+
+enum class ShuffleMode {
+    Off,
+    On,
+}
+
 data class PlaybackError(
     val message: String,
     val cause: String? = null,
@@ -82,6 +94,8 @@ data class PlaybackState(
     val status: PlaybackStatus = PlaybackStatus.Idle,
     val positionMillis: Long = 0L,
     val durationMillis: Long? = null,
+    val repeatMode: RepeatMode = RepeatMode.StopAfterQueue,
+    val shuffleMode: ShuffleMode = ShuffleMode.Off,
     val error: PlaybackError? = null,
 ) {
     val canPlay: Boolean = currentTrack != null && status != PlaybackStatus.Loading && status != PlaybackStatus.Buffering
@@ -137,13 +151,19 @@ class PlaybackController(
         if (selected == null) {
             loadJob?.cancel()
             playWhenLoaded = false
-            _state.value = PlaybackState(queue = tracks)
+            _state.value = PlaybackState(
+                queue = tracks,
+                repeatMode = _state.value.repeatMode,
+                shuffleMode = _state.value.shuffleMode,
+            )
         } else {
             _state.value = PlaybackState(
                 currentTrack = selected,
                 queue = tracks,
                 status = PlaybackStatus.Loading,
                 durationMillis = selected.durationMillis,
+                repeatMode = _state.value.repeatMode,
+                shuffleMode = _state.value.shuffleMode,
             )
             loadSelected(selected, autoPlay = false)
         }
@@ -152,6 +172,34 @@ class PlaybackController(
     fun selectTrack(trackId: String, autoPlay: Boolean = false) {
         val track = _state.value.queue.firstOrNull { it.id == trackId } ?: return
         loadSelected(track, autoPlay)
+    }
+
+    fun setRepeatMode(mode: RepeatMode) {
+        _state.value = _state.value.copy(repeatMode = mode)
+    }
+
+    fun cycleRepeatMode() {
+        setRepeatMode(
+            when (_state.value.repeatMode) {
+                RepeatMode.StopAfterQueue -> RepeatMode.RepeatPlaylist
+                RepeatMode.RepeatPlaylist -> RepeatMode.RepeatOne
+                RepeatMode.RepeatOne -> RepeatMode.StopAfterCurrent
+                RepeatMode.StopAfterCurrent -> RepeatMode.StopAfterQueue
+            },
+        )
+    }
+
+    fun setShuffleMode(mode: ShuffleMode) {
+        _state.value = _state.value.copy(shuffleMode = mode)
+    }
+
+    fun toggleShuffleMode() {
+        setShuffleMode(
+            when (_state.value.shuffleMode) {
+                ShuffleMode.Off -> ShuffleMode.On
+                ShuffleMode.On -> ShuffleMode.Off
+            },
+        )
     }
 
     fun play() {
