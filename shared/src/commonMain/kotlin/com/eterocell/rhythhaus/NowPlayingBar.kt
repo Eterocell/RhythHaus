@@ -36,7 +36,6 @@ import rhythhaus.shared.generated.resources.play
 import rhythhaus.shared.generated.resources.search
 import rhythhaus.shared.generated.resources.settings
 import rhythhaus.shared.generated.resources.track_artist_album_format
-import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 
 internal val NowPlayingBarContentPadding = 144.dp
@@ -109,12 +108,7 @@ fun NowPlayingBar(
             referenceHeight = screenHeightPx,
         )
 
-    Surface(
-        modifier = barModifier,
-        shape = barShape,
-        shadowElevation = 8.dp,
-        color = Color.Transparent,
-    ) {
+    Box(modifier = barModifier) {
         Column {
             // Mini progress bar
             Box(

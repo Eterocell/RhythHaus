@@ -1,5 +1,28 @@
 # Session Progress
 
+## Handoff - 2026-07-06 fix duplicate bottom bar layer
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User attached screenshot showing the NowPlayingBar rendering as two visible panel layers and asked to fix the two layers in the bottom bar.
+Root cause:
+- `NowPlayingBar` applied `rhythHausLiquidGlass(...)` to `barModifier`, then wrapped the content in a Miuix `Surface` with the same rounded shape and shadow.
+- Even with transparent color, the Surface still contributed its own shaped/elevated container behavior, creating a nested/duplicate rounded panel on top of the glass card.
+Fix:
+- Replaced the outer `Surface` wrapper with a plain `Box(modifier = barModifier)`.
+- Removed the unused Miuix `Surface` import.
+- Kept the content column, progress bar, artwork, text, play/search/settings controls, click and swipe modifiers unchanged.
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.BottomBarModeTest' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`
+- `progress.md`
+Next owner: user for visual confirmation that the bottom bar now renders as a single glass panel.
+Blockers: none for compile/test verification. Visual layering requires runtime confirmation.
+Commit: pending.
+
 ## Handoff - 2026-07-06 fix nested chrome status-bar seam
 
 Route: systematic-debugging (bugfix)
