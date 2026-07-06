@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Filter1
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -192,8 +193,13 @@ fun NowPlayingScreen(
                     contentDescription = repeatContentDescription,
                     onClick = playbackController::cycleRepeatMode,
                 ) {
+                    val repeatIcon = when (playbackState.repeatMode) {
+                        RepeatMode.RepeatOne -> Icons.Filled.RepeatOne
+                        RepeatMode.StopAfterCurrent -> Icons.Filled.Filter1
+                        else -> Icons.Filled.Repeat
+                    }
                     Icon(
-                        imageVector = if (playbackState.repeatMode == RepeatMode.RepeatOne) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                        imageVector = repeatIcon,
                         contentDescription = null,
                         tint = if (playbackState.repeatMode == RepeatMode.RepeatPlaylist || playbackState.repeatMode == RepeatMode.RepeatOne) Color.White else HausColors.current.ink,
                         modifier = Modifier.size(22.dp),
