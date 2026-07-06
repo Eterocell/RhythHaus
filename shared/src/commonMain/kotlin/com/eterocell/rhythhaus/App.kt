@@ -1403,22 +1403,9 @@ private fun NestedScrollBlurChrome(
             .rhythHausLiquidGlass(
                 backdrop = backdrop,
                 shape = RoundedCornerShape(0.dp),
-                fallbackColor = HausColors.current.paper.copy(alpha = RhythHausGlassSurfaceAlpha),
+                fallbackColor = HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha),
             ),
     ) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            HausColors.current.panelStrong.copy(alpha = 0.20f * progress),
-                            HausColors.current.panel.copy(alpha = 0.10f * progress),
-                            Color.Transparent,
-                        ),
-                    ),
-                ),
-        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()

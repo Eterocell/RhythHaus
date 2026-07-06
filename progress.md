@@ -1,5 +1,30 @@
 # Session Progress
 
+## Handoff - 2026-07-06 unify app glass tint
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User confirmed top and bottom Backdrop effect should use the same surface color/tint policy after identifying that background color differences could explain the mismatch.
+Root cause:
+- Top chrome used `HausColors.current.paper.copy(alpha = RhythHausGlassSurfaceAlpha)` while the bottom bar used `HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha)`.
+- Top chrome also drew an additional full-size gradient overlay using `panelStrong`, `panel`, and transparent colors, while bottom bar did not.
+- Blur/refraction constants were unified, but the visible glass tint was still different.
+Fix:
+- Switched top chrome fallback color to `HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha)` to match bottom bar.
+- Removed the top chrome's extra full-size gradient/tint overlay.
+- Left title row and bottom divider layout unchanged.
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --tests 'com.eterocell.rhythhaus.BottomBarModeTest' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`).
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `progress.md`
+Next owner: user for visual confirmation that top and bottom glass now match.
+Blockers: none for compile/test/build verification. Visual matching remains runtime/manual.
+Commit: pending.
+
 ## Handoff - 2026-07-06 unify app glass blur
 
 Route: systematic-debugging (bugfix)
