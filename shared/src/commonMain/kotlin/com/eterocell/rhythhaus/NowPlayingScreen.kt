@@ -31,6 +31,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.taglib.TagLibReader
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.album_artwork
+import rhythhaus.shared.generated.resources.next_track
+import rhythhaus.shared.generated.resources.pause
+import rhythhaus.shared.generated.resources.play
+import rhythhaus.shared.generated.resources.playback_status_buffering
+import rhythhaus.shared.generated.resources.playback_status_error
+import rhythhaus.shared.generated.resources.playback_status_loading
+import rhythhaus.shared.generated.resources.playback_status_paused
+import rhythhaus.shared.generated.resources.playback_status_playing
+import rhythhaus.shared.generated.resources.playback_status_ready
+import rhythhaus.shared.generated.resources.playback_status_stopped
+import rhythhaus.shared.generated.resources.previous_track
+import rhythhaus.shared.generated.resources.repeat_mode_repeat_one
+import rhythhaus.shared.generated.resources.repeat_mode_repeat_playlist
+import rhythhaus.shared.generated.resources.repeat_mode_stop_after_current
+import rhythhaus.shared.generated.resources.repeat_mode_stop_after_queue
+import rhythhaus.shared.generated.resources.shuffle_off
+import rhythhaus.shared.generated.resources.shuffle_on
+import rhythhaus.shared.generated.resources.track_artist_album_format
+import rhythhaus.shared.generated.resources.track_number_format
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Surface
@@ -61,15 +83,15 @@ fun NowPlayingScreen(
     val isPlaying = playbackState.isPlaying
     val shuffleEnabled = playbackState.shuffleMode == ShuffleMode.On
     val repeatContentDescription = when (playbackState.repeatMode) {
-        RepeatMode.StopAfterQueue -> "Repeat mode: play list then stop. Tap for playlist repeat"
-        RepeatMode.RepeatPlaylist -> "Repeat mode: playlist repeat. Tap for single track repeat"
-        RepeatMode.RepeatOne -> "Repeat mode: single track repeat. Tap for play current song then stop"
-        RepeatMode.StopAfterCurrent -> "Repeat mode: play current song then stop. Tap for play list then stop"
+        RepeatMode.StopAfterQueue -> stringResource(Res.string.repeat_mode_stop_after_queue)
+        RepeatMode.RepeatPlaylist -> stringResource(Res.string.repeat_mode_repeat_playlist)
+        RepeatMode.RepeatOne -> stringResource(Res.string.repeat_mode_repeat_one)
+        RepeatMode.StopAfterCurrent -> stringResource(Res.string.repeat_mode_stop_after_current)
     }
     val shuffleContentDescription = if (shuffleEnabled) {
-        "Shuffle on. Tap to turn shuffle off"
+        stringResource(Res.string.shuffle_on)
     } else {
-        "Shuffle off. Tap to shuffle playlist songs"
+        stringResource(Res.string.shuffle_off)
     }
 
     Surface(
@@ -102,7 +124,7 @@ fun NowPlayingScreen(
                     if (artworkBitmap != null) {
                         Image(
                             bitmap = artworkBitmap,
-                            contentDescription = "Album artwork",
+                            contentDescription = stringResource(Res.string.album_artwork),
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,
                         )
@@ -130,7 +152,7 @@ fun NowPlayingScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${track.artist} · ${track.album}",
+                    text = stringResource(Res.string.track_artist_album_format, track.artist, track.album),
                     color = HausColors.current.muted,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
@@ -139,7 +161,7 @@ fun NowPlayingScreen(
                 )
                 if (track.trackNumber != null) {
                     Text(
-                        text = "Track ${track.trackNumber}",
+                        text = stringResource(Res.string.track_number_format, track.trackNumber),
                         color = HausColors.current.muted,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -226,7 +248,7 @@ fun NowPlayingScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.SkipPrevious,
-                        contentDescription = "Previous track",
+                        contentDescription = stringResource(Res.string.previous_track),
                         tint = HausColors.current.ink,
                         modifier = Modifier.size(26.dp),
                     )
@@ -243,7 +265,7 @@ fun NowPlayingScreen(
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        contentDescription = if (isPlaying) stringResource(Res.string.pause) else stringResource(Res.string.play),
                         tint = Color.White,
                         modifier = Modifier.size(34.dp),
                     )
@@ -260,7 +282,7 @@ fun NowPlayingScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.SkipNext,
-                        contentDescription = "Next track",
+                        contentDescription = stringResource(Res.string.next_track),
                         tint = HausColors.current.ink,
                         modifier = Modifier.size(26.dp),
                     )
@@ -291,12 +313,13 @@ private fun PlaybackModeButton(
     )
 }
 
+@Composable
 private fun statusLabel(status: PlaybackStatus): String = when (status) {
-    PlaybackStatus.Idle -> "Ready"
-    PlaybackStatus.Loading -> "Loading"
-    PlaybackStatus.Buffering -> "Buffering"
-    PlaybackStatus.Playing -> "Playing"
-    PlaybackStatus.Paused -> "Paused"
-    PlaybackStatus.Stopped -> "Stopped"
-    PlaybackStatus.Error -> "Needs a local file"
+    PlaybackStatus.Idle -> stringResource(Res.string.playback_status_ready)
+    PlaybackStatus.Loading -> stringResource(Res.string.playback_status_loading)
+    PlaybackStatus.Buffering -> stringResource(Res.string.playback_status_buffering)
+    PlaybackStatus.Playing -> stringResource(Res.string.playback_status_playing)
+    PlaybackStatus.Paused -> stringResource(Res.string.playback_status_paused)
+    PlaybackStatus.Stopped -> stringResource(Res.string.playback_status_stopped)
+    PlaybackStatus.Error -> stringResource(Res.string.playback_status_error)
 }

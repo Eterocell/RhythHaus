@@ -1,16 +1,16 @@
-import SwiftUI
-import Foundation
 import AVFAudio
+import Foundation
 import MediaPlayer
 import Shared
+import SwiftUI
 
 /// Sets lockscreen / Control Center artwork for the now-playing track.
 /// Called from the KMP IOSPlaybackEngine via NowPlayingArtworkBridge.
 class RhythHausArtworkProvider: NowPlayingArtworkProvider {
     func setArtwork(
-        trackTitle: String,
-        artist: String,
-        album: String?,
+        trackTitle _: String,
+        artist _: String,
+        album _: String?,
         artworkBytes: KotlinByteArray?
     ) {
         guard let bytes = artworkBytes else {
@@ -19,7 +19,7 @@ class RhythHausArtworkProvider: NowPlayingArtworkProvider {
         }
         let count = Int(bytes.size)
         var byteArray = [UInt8](repeating: 0, count: count)
-        for i in 0..<count {
+        for i in 0 ..< count {
             byteArray[i] = UInt8(truncatingIfNeeded: bytes.get(index: Int32(i)))
         }
         guard let image = UIImage(data: Data(byteArray)) else {

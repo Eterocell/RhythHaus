@@ -1514,3 +1514,130 @@ Commit:
 - 906a00e feat: add now playing repeat shuffle controls
 - cbfcfdc test: stabilize playback controller mode tests
 - Evidence/docs finalization commit pending.
+
+
+## Handoff - 2026-07-06 roadmap items 2-4
+
+Route: mixed — systematic-debugging for roadmap bugfixes, openspec+superpowers for Nested Scroll/Haze UI feature.
+Owner: implementation
+Input: roadmap.md unfinished items in order.
+Output:
+- Fixed NowPlayingBar re-enter animation after returning from NowPlayingScreen by keeping the fixed bottom bar in composition and animating scroll hide/show with offset/alpha instead of gating it on `showNowPlaying`.
+- Fixed compact Miuix button descender clipping risk by reducing inside vertical margin on fixed-height 36dp/40dp text buttons so glyphs such as `g` have enough vertical content space.
+- Added Nested Scroll/Haze feature for Library/Home and album/artist track-list pages: pure tested `NestedScrollChromeState`, Haze dependency (`dev.chrisbanes.haze:haze`), `hazeSource` on lists, and top `hazeEffect` chrome driven by list scroll progress.
+Changed files:
+- `roadmap.md`
+- `gradle/libs.versions.toml`
+- `shared/build.gradle.kts`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryNavigation.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SettingsScreen.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibraryNavigationTest.kt`
+- `docs/superpowers/specs/2026-07-06-nested-scroll-blur-design.md`
+- `docs/superpowers/plans/2026-07-06-nested-scroll-blur.md`
+- `openspec/changes/nested-scroll-blur/*`
+Verification:
+- `openspec validate nested-scroll-blur --strict` -> `Change 'nested-scroll-blur' is valid`.
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache` first failed red because `nestedScrollChromeStateFor` was missing, then passed after implementation.
+- `./gradlew :shared:compileKotlinJvm :shared:jvmTest --configuration-cache` -> `BUILD SUCCESSFUL` after Haze dependency/API integration.
+Next owner: implementation can continue with roadmap item 5 (`i18n`) via OpenSpec/Superpowers.
+Blockers: none for JVM/common verification. Manual visual validation on Android/iOS/desktop not performed in this session.
+
+
+## Handoff - 2026-07-06 i18n
+
+Route: openspec+superpowers
+Owner: implementation
+Input: roadmap.md item 5 (`i18n`).
+Output:
+- Added OpenSpec change `openspec/changes/i18n/` and Superpowers design/plan docs for shared Compose i18n.
+- Added Compose Multiplatform string resources under `shared/src/commonMain/composeResources/values/strings.xml` and `values-zh/strings.xml`.
+- Migrated shared Compose UI text/content descriptions in BackChip, NowPlayingBar, NowPlayingScreen, SearchScreen, SettingsScreen, and primary App.kt UI paths to `stringResource(Res.string.*)` while leaving user media metadata unchanged.
+- Marked roadmap i18n item complete.
+Changed files include:
+- `roadmap.md`
+- `progress.md`
+- `shared/src/commonMain/composeResources/values/strings.xml`
+- `shared/src/commonMain/composeResources/values-zh/strings.xml`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/BackChip.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingBar.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SearchScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/SettingsScreen.kt`
+- `docs/superpowers/specs/2026-07-06-i18n-design.md`
+- `docs/superpowers/plans/2026-07-06-i18n.md`
+- `openspec/changes/i18n/*`
+Verification:
+- `openspec validate i18n --strict` -> `Change 'i18n' is valid`.
+- `./gradlew :shared:compileKotlinJvm --configuration-cache` after resource creation -> `BUILD SUCCESSFUL`.
+- `./gradlew :shared:compileKotlinJvm :shared:jvmTest --configuration-cache` after code migration -> `BUILD SUCCESSFUL`.
+Next owner: final verification/review; roadmap has no remaining unchecked item.
+Blockers: none for shared JVM verification. Manual locale visual QA not performed.
+
+
+## Handoff - 2026-07-06 nested scroll bugfix
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: user reported Nested Scroll effect covers nearly all Library screen, transition is not smooth, duplicate large heading + toolbar title visible simultaneously, and toolbar does not cover iOS status bar.
+Root cause:
+- `NestedScrollBlurChrome` used a fixed 92dp layer after `statusBarsPadding()` plus a negative `headerOffsetPx`, making the Haze/scrim area visually too large and unstable.
+- Toolbar title alpha followed raw scroll progress from 0, so it appeared while the large page heading was still visible.
+- Status bar coverage depended on a padded box height rather than a stable status-bar + toolbar structure.
+Fix:
+- Made default nested-scroll header offset zero and shortened activation distance to 96px for a faster, less jumpy transition.
+- Reworked `NestedScrollBlurChrome` into a status-bar-covering container plus a fixed 56dp toolbar area.
+- Reduced Haze blur/tint/scrim intensity and delayed toolbar title fade-in until scroll progress is ~68%, preventing simultaneous prominent headings.
+Verification:
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache` -> `BUILD SUCCESSFUL`.
+- `./gradlew :shared:compileKotlinJvm :shared:jvmTest --configuration-cache` -> `BUILD SUCCESSFUL`.
+- `git diff --check && openspec validate nested-scroll-blur --strict` -> no diff-check output, `Change 'nested-scroll-blur' is valid`.
+Next owner: user for manual visual check on iOS/Library screen; implementation can tune thresholds/height further if needed.
+Blockers: none.
+
+
+## Handoff - 2026-07-06 nested scroll blur root-cause fix
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User reported the Haze/blur nested-scroll chrome still covers nearly all of the Library screen after scrolling, contradicting the prior (unverified) parameter-tuning fix.
+
+Phase 1 root cause investigation:
+- Built and ran the real iOS app in the iPhone 17 (iOS 26.5) simulator via `xcodebuild` + `xcrun simctl`, not just static code reading.
+- Reproduced the exact user-reported symptom: after scrolling, screenshots showed the content grid (album thumbnails + captions) uniformly blurred well below the intended 56dp toolbar, while status bar and toolbar title stayed sharp.
+- Quantified this objectively (not just visual impression) with a Laplacian-variance sharpness metric on the same album cover crop before/after scroll: 1129 (sharp, unscrolled) -> 41 (heavily blurred, scrolled), a ~96% sharpness loss confirming a real blur filter was drawn over content far outside the chrome box.
+- Isolated the Haze effect specifically via a red-color-box substitution experiment to separate "my Box layout is oversized" from "Haze itself draws past its host bounds" hypotheses.
+- Traced Haze 1.7.2 library source (`HazeEffectNode.kt`, `BlurEffect.kt`) and found the actual root causes in `NestedScrollBlurChrome`:
+  1. `Modifier.statusBarsPadding().height(0.dp)` inside the haze-effect Box squeezed the status-bar inset to zero instead of reserving space for it (this explains "does not cover iOS status bar").
+  2. The Haze `hazeEffect` call had no explicit `clipToAreasBounds`, relying on Haze's implicit heuristic (`backgroundColor.alpha <= 0.9f` triggers clip) with alpha 0.92 sitting right at that fragile boundary, and the chrome Box had no fixed total height, so its measured height (and thus the Haze layer bounds) was not reliably constrained to the toolbar strip.
+- Fix implemented: compute `chromeHeight = statusBarInset + 56dp` explicitly via `WindowInsets.statusBars.asPaddingValues().calculateTopPadding()`, apply it as a single `Modifier.height(chromeHeight)` on the outer chrome Box, and pass `clipToAreasBounds = true` / `blurEnabled = true` explicitly to `hazeEffect` instead of relying on the alpha heuristic.
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache` -> BUILD SUCCESSFUL.
+- `./gradlew :shared:jvmTest --configuration-cache` -> BUILD SUCCESSFUL (all LibraryNavigationTest cases pass, including nested-scroll-chrome tests).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` -> BUILD SUCCESSFUL.
+- iOS: rebuilt via `xcodebuild ... build` (BUILD SUCCEEDED) and reinstalled/relaunched on iPhone 17 simulator (iOS 26.5) to confirm the app runs with the fix. The GUI automation driver (computer_use) that was used to reproduce the bug lost its session mid-task and could not be revived with the tools available in this session, so a fresh visual/AX-tree re-confirmation of "chrome no longer covers most of the screen after scrolling" on-device was not completed after the fix landed — this is an honest gap, not claimed as done.
+Changed files (this session, in addition to prior nested-scroll-blur / i18n work):
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt` (NestedScrollBlurChrome rewritten; new WindowInsets imports)
+Next owner: user (or a future session with a working computer_use/simulator driver) to visually re-confirm on iOS/Android/desktop that the chrome is now bounded to the toolbar strip and covers the status bar.
+Blockers: none for automated/JVM verification. On-device visual re-confirmation after the fix is the one gap — GUI driver session died and could not be restarted with available tools.
+
+
+## Handoff - 2026-07-06 drop Haze from nested scroll chrome
+
+Route: systematic-debugging (bugfix follow-up, user-directed)
+Owner: implementation
+Input: user asked to drop Haze from the nested-scroll chrome and use a plain (unblurred) scrim instead, pending their own visual check.
+Output:
+- Removed `hazeSource`/`hazeEffect`/`HazeState` usage from `NestedScrollBlurChrome` and its two call sites (Library home list, DrillDownView track list) in App.kt.
+- `NestedScrollBlurChrome` now renders a fixed-height (status bar inset + 56dp toolbar) plain color scrim instead of a blurred Haze layer; scrim opacity still scales with scroll progress.
+- Removed the `dev.chrisbanes.haze:haze` dependency entirely: `gradle/libs.versions.toml` (version + library entries) and `shared/build.gradle.kts` (`implementation(libs.haze)`).
+- Marked roadmap item 4 (nested scroll + blur) back to `[ ]` / WIP since the blur requirement is currently dropped pending the user's own visual confirmation of the plain-scrim look.
+Verification:
+- `./gradlew :shared:compileKotlinJvm :shared:jvmTest --configuration-cache` -> BUILD SUCCESSFUL.
+- `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` -> BUILD SUCCESSFUL.
+- iOS: `xcodebuild ... build` -> BUILD SUCCEEDED, reinstalled/relaunched on iPhone 17 simulator (iOS 26.5), app launches and Library screen renders.
+- NOT verified: live on-device scroll behavior of the new plain-scrim chrome. The computer_use GUI automation driver used earlier in this session to reproduce/diagnose the Haze bug lost its session and could not be revived with the tools available here, so a fresh screenshot-based confirmation of the post-Haze-removal scroll chrome was not completed. This is an open item for the user or a future session with a working driver.
+Next owner: user, to visually confirm the plain-scrim nested-scroll chrome looks acceptable; if so, mark roadmap item 4 done, if not, decide follow-up (different blur approach, or keep plain scrim as final design).
+Blockers: none for build verification. On-device visual confirmation is pending.

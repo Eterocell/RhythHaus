@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +29,21 @@ import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import kotlinx.coroutines.Job
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.add_music_folder
+import rhythhaus.shared.generated.resources.appearance
+import rhythhaus.shared.generated.resources.clear_library
+import rhythhaus.shared.generated.resources.folder_picker_unavailable
+import rhythhaus.shared.generated.resources.manage_music
+import rhythhaus.shared.generated.resources.selected
+import rhythhaus.shared.generated.resources.settings
+import rhythhaus.shared.generated.resources.theme_dark_description
+import rhythhaus.shared.generated.resources.theme_dark_label
+import rhythhaus.shared.generated.resources.theme_light_description
+import rhythhaus.shared.generated.resources.theme_light_label
+import rhythhaus.shared.generated.resources.theme_system_description
+import rhythhaus.shared.generated.resources.theme_system_label
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Surface
@@ -68,7 +84,7 @@ fun SettingsScreen(
                     BackChip(onClick = onDismiss)
                     Spacer(Modifier.weight(1f))
                     Text(
-                        text = "Settings",
+                        text = stringResource(Res.string.settings),
                         color = HausColors.current.ink,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Black,
@@ -77,7 +93,7 @@ fun SettingsScreen(
 
                 // Appearance section
                 Text(
-                    text = "Appearance",
+                    text = stringResource(Res.string.appearance),
                     color = HausColors.current.ink,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black,
@@ -90,7 +106,7 @@ fun SettingsScreen(
 
                 // Manage Music section
                 Text(
-                    text = "Manage Music",
+                    text = stringResource(Res.string.manage_music),
                     color = HausColors.current.ink,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black,
@@ -124,7 +140,7 @@ fun SettingsScreen(
                     ),
                 ) {
                     Text(
-                        text = if (folderPickerLauncher.isAvailable) "Add music folder" else "Folder picker not available yet",
+                        text = if (folderPickerLauncher.isAvailable) stringResource(Res.string.add_music_folder) else stringResource(Res.string.folder_picker_unavailable),
                         fontWeight = FontWeight.Black,
                     )
                 }
@@ -146,12 +162,13 @@ fun SettingsScreen(
                         onClick = onClearLibrary,
                         modifier = Modifier.fillMaxWidth().height(40.dp),
                         cornerRadius = 12.dp,
+                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                         colors = ButtonDefaults.buttonColors(
                             color = HausColors.current.pulse.copy(alpha = 0.15f),
                             contentColor = HausColors.current.pulse,
                         ),
                     ) {
-                        Text("Clear Library", fontSize = 13.sp, fontWeight = FontWeight.Black)
+                        Text(stringResource(Res.string.clear_library), fontSize = 13.sp, fontWeight = FontWeight.Black)
                     }
                 }
             }
@@ -185,14 +202,14 @@ private fun AppearanceDropdown(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = currentThemeMode.displayLabel,
+                    text = currentThemeMode.displayLabelResource(),
                     color = colors.ink,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Black,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = currentThemeMode.displayDescription,
+                    text = currentThemeMode.displayDescriptionResource(),
                     color = colors.muted,
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
@@ -243,18 +260,32 @@ private fun AppearanceDropdownOption(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = mode.displayLabel,
+                text = mode.displayLabelResource(),
                 color = labelColor,
                 fontSize = 12.sp,
                 fontWeight = if (selected) FontWeight.Black else FontWeight.Bold,
             )
         }
         Text(
-            text = if (selected) "Selected" else "",
+            text = if (selected) stringResource(Res.string.selected) else "",
             color = labelColor,
             fontSize = 11.sp,
             fontWeight = FontWeight.Black,
             letterSpacing = 0.8.sp,
         )
     }
+}
+
+@Composable
+private fun RhythHausThemeMode.displayLabelResource(): String = when (this) {
+    RhythHausThemeMode.System -> stringResource(Res.string.theme_system_label)
+    RhythHausThemeMode.Light -> stringResource(Res.string.theme_light_label)
+    RhythHausThemeMode.Dark -> stringResource(Res.string.theme_dark_label)
+}
+
+@Composable
+private fun RhythHausThemeMode.displayDescriptionResource(): String = when (this) {
+    RhythHausThemeMode.System -> stringResource(Res.string.theme_system_description)
+    RhythHausThemeMode.Light -> stringResource(Res.string.theme_light_description)
+    RhythHausThemeMode.Dark -> stringResource(Res.string.theme_dark_description)
 }

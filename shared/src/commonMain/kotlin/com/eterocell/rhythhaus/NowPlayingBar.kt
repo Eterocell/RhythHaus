@@ -25,10 +25,24 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.album_art
+import rhythhaus.shared.generated.resources.mini_player_empty_subtitle
+import rhythhaus.shared.generated.resources.pause
+import rhythhaus.shared.generated.resources.play
+import rhythhaus.shared.generated.resources.search
+import rhythhaus.shared.generated.resources.settings
+import rhythhaus.shared.generated.resources.track_artist_album_format
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 
 internal val NowPlayingBarContentPadding = 144.dp
+
+// Approximate collapsed NowPlayingBar height in px for the hide/show offset animation.
+// The bar's actual height is dynamic (text + navigation bars + padding), but a fixed
+// visual target keeps the animation simple and avoids measuring during composition.
+internal const val NowPlayingBarHeightPx = 156f
 
 enum class BottomBarMode {
     TrackLoaded,
@@ -58,7 +72,8 @@ fun NowPlayingBar(
     val progressFraction = if (track == null) 0f else playbackState.progressFraction
     val isPlaying = track != null && playbackState.isPlaying
     val title = track?.title ?: "RhythHaus"
-    val subtitle = track?.let { "${it.artist} · ${it.album}" } ?: "Add music in Settings to start listening"
+    val subtitle = track?.let { stringResource(Res.string.track_artist_album_format, it.artist, it.album) }
+        ?: stringResource(Res.string.mini_player_empty_subtitle)
 
     Surface(
         modifier = modifier
@@ -119,7 +134,7 @@ fun NowPlayingBar(
                     if (artworkBitmap != null) {
                         Image(
                             bitmap = artworkBitmap,
-                            contentDescription = "Album art",
+                            contentDescription = stringResource(Res.string.album_art),
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,
                         )
@@ -164,7 +179,7 @@ fun NowPlayingBar(
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        contentDescription = if (isPlaying) stringResource(Res.string.pause) else stringResource(Res.string.play),
                         tint = HausColors.current.paper,
                         modifier = Modifier.size(20.dp),
                     )
@@ -189,7 +204,7 @@ fun NowPlayingBar(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Search,
-                            contentDescription = "Search",
+                            contentDescription = stringResource(Res.string.search),
                             tint = HausColors.current.ink,
                             modifier = Modifier.size(18.dp),
                         )
@@ -203,7 +218,7 @@ fun NowPlayingBar(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Settings,
-                            contentDescription = "Settings",
+                            contentDescription = stringResource(Res.string.settings),
                             tint = HausColors.current.ink,
                             modifier = Modifier.size(18.dp),
                         )

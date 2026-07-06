@@ -201,4 +201,46 @@ class LibraryNavigationTest {
             ),
         )
     }
+
+    @Test
+    fun nestedScrollChromeIsInactiveAtTopOfList() {
+        val state = nestedScrollChromeStateFor(
+            position = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 0),
+        )
+
+        assertEquals(0f, state.progress)
+        assertEquals(0f, state.headerOffsetPx)
+    }
+
+    @Test
+    fun nestedScrollChromeProgressesWithinFirstItem() {
+        val state = nestedScrollChromeStateFor(
+            position = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 80),
+        )
+
+        assertEquals(0.8333333f, state.progress, absoluteTolerance = 0.0001f)
+        assertEquals(0f, state.headerOffsetPx, absoluteTolerance = 0.0001f)
+    }
+
+    @Test
+    fun nestedScrollChromeIsFullyActiveAfterFirstItem() {
+        val state = nestedScrollChromeStateFor(
+            position = LibraryScrollPosition(firstVisibleItemIndex = 1, firstVisibleItemScrollOffset = 0),
+        )
+
+        assertEquals(1f, state.progress, absoluteTolerance = 0.0001f)
+        assertEquals(0f, state.headerOffsetPx, absoluteTolerance = 0.0001f)
+    }
+
+    @Test
+    fun nestedScrollChromeCanStillUseExplicitHeaderOffsetWhenRequested() {
+        val state = nestedScrollChromeStateFor(
+            position = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 80),
+            activationDistancePx = 160f,
+            maxHeaderOffsetPx = 18f,
+        )
+
+        assertEquals(0.5f, state.progress)
+        assertEquals(-9f, state.headerOffsetPx)
+    }
 }

@@ -14,6 +14,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.back
+import rhythhaus.shared.generated.resources.back_button
 import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
@@ -21,6 +25,7 @@ fun BackChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val backContentDescription = stringResource(Res.string.back)
     // The min-44dp height below is a touch-target size for accessibility (tap area),
     // kept separate from the ink chip's own size so the visible chip stays compact.
     Box(
@@ -28,7 +33,7 @@ fun BackChip(
             .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(10.dp))
             .hausClickable(onClick = onClick)
-            .semantics { contentDescription = "Back" },
+            .semantics { contentDescription = backContentDescription },
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -38,7 +43,7 @@ fun BackChip(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "‹ Back",
+                text = stringResource(Res.string.back_button),
                 color = HausColors.current.paper,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Black,

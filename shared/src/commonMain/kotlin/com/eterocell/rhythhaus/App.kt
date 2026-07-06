@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -36,6 +38,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -59,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -75,6 +81,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
@@ -99,6 +106,49 @@ import com.eterocell.rhythhaus.taglib.createTagLibReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.add_music_folder
+import rhythhaus.shared.generated.resources.album_accessibility_format
+import rhythhaus.shared.generated.resources.album_art
+import rhythhaus.shared.generated.resources.album_artwork
+import rhythhaus.shared.generated.resources.album_detail_subtitle_format
+import rhythhaus.shared.generated.resources.album_track_count_format
+import rhythhaus.shared.generated.resources.artist_accessibility_format
+import rhythhaus.shared.generated.resources.artist_album_tracks_format
+import rhythhaus.shared.generated.resources.artist_artwork
+import rhythhaus.shared.generated.resources.artist_detail_subtitle_format
+import rhythhaus.shared.generated.resources.cancel
+import rhythhaus.shared.generated.resources.clear
+import rhythhaus.shared.generated.resources.clear_library
+import rhythhaus.shared.generated.resources.clear_library_message
+import rhythhaus.shared.generated.resources.folder_picker_unavailable
+import rhythhaus.shared.generated.resources.library
+import rhythhaus.shared.generated.resources.library_queue
+import rhythhaus.shared.generated.resources.now_playing_badge
+import rhythhaus.shared.generated.resources.now_playing_label
+import rhythhaus.shared.generated.resources.pause
+import rhythhaus.shared.generated.resources.pause_playback
+import rhythhaus.shared.generated.resources.play
+import rhythhaus.shared.generated.resources.play_selected_track
+import rhythhaus.shared.generated.resources.playback_seek_position
+import rhythhaus.shared.generated.resources.playback_status_buffering
+import rhythhaus.shared.generated.resources.playback_status_error
+import rhythhaus.shared.generated.resources.playback_status_format
+import rhythhaus.shared.generated.resources.playback_status_loading
+import rhythhaus.shared.generated.resources.playback_status_paused
+import rhythhaus.shared.generated.resources.playback_status_playing
+import rhythhaus.shared.generated.resources.playback_status_ready
+import rhythhaus.shared.generated.resources.playback_status_stopped
+import rhythhaus.shared.generated.resources.scan_progress_format
+import rhythhaus.shared.generated.resources.scanning
+import rhythhaus.shared.generated.resources.select_track_format
+import rhythhaus.shared.generated.resources.stop
+import rhythhaus.shared.generated.resources.stop_playback
+import rhythhaus.shared.generated.resources.track_artist_album_format
+import rhythhaus.shared.generated.resources.track_count_format
+import rhythhaus.shared.generated.resources.unknown_artist
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -348,6 +398,9 @@ fun LibraryHomeScreen(
     LaunchedEffect(homeListState.firstVisibleItemIndex, homeListState.firstVisibleItemScrollOffset) {
         updateNowPlayingBarVisibilityForScroll(homeListState.toLibraryScrollPosition())
     }
+    val homeScrollChromeState by remember(homeListState) {
+        derivedStateOf { nestedScrollChromeStateFor(homeListState.toLibraryScrollPosition()) }
+    }
 
     @Composable
     fun RouteContent(route: LibraryRoute) {
@@ -363,7 +416,7 @@ fun LibraryHomeScreen(
                 val selectedAlbumTrack = albumTracks.firstOrNull { it.id == selectedAlbumTrackId } ?: albumTracks.firstOrNull()
                 DrillDownView(
                     title = album.album,
-                    subtitle = "${albumTracks.size} tracks · ${album.artist ?: "Unknown artist"}",
+                    subtitle = stringResource(Res.string.album_detail_subtitle_format, albumTracks.size, album.artist ?: stringResource(Res.string.unknown_artist)),
                     tracks = albumTracks,
                     selectedTrack = selectedAlbumTrack,
                     playbackState = playbackState,
@@ -402,7 +455,7 @@ fun LibraryHomeScreen(
                 val selectedArtistTrack = artistTracks.firstOrNull { it.id == selectedArtistTrackId } ?: artistTracks.firstOrNull()
                 DrillDownView(
                     title = artist.artist,
-                    subtitle = "${artist.albumCount} albums · ${artistTracks.size} tracks",
+                    subtitle = stringResource(Res.string.artist_detail_subtitle_format, artist.albumCount, artistTracks.size),
                     tracks = artistTracks,
                     selectedTrack = selectedArtistTrack,
                     playbackState = playbackState,
@@ -476,7 +529,7 @@ fun LibraryHomeScreen(
                         }
                         item {
                             SectionLabel(
-                                title = "Library queue",
+                                title = stringResource(Res.string.library_queue),
                                 subtitle = null,
                             )
                         }
@@ -542,6 +595,11 @@ fun LibraryHomeScreen(
                         }
                         item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
                     }
+                    NestedScrollBlurChrome(
+                        state = homeScrollChromeState,
+                        title = stringResource(Res.string.library),
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
                 }
             }
 
@@ -600,12 +658,19 @@ fun LibraryHomeScreen(
         RouteContent(route = currentRoute)
     }
 
-    // Fixed bottom bar (outside AnimatedContent)
-    AnimatedVisibility(
-        visible = isNowPlayingBarVisible && !showNowPlaying,
-        enter = slideInVertically(initialOffsetY = { it }) + expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
-        modifier = Modifier.align(Alignment.BottomCenter),
+    // Fixed bottom bar (outside AnimatedContent). It stays in composition so
+    // returning from Now Playing does not re-trigger the enter animation when
+    // the bar was already visible underneath the overlay.
+    val bottomBarOffset by animateFloatAsState(
+        targetValue = if (isNowPlayingBarVisible) 0f else 1f,
+        animationSpec = tween(250),
+        label = "BottomBarOffset",
+    )
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .offset(y = (bottomBarOffset * NowPlayingBarHeightPx).dp)
+            .alpha(1f - bottomBarOffset),
     ) {
         NowPlayingBar(
             track = selectedTrack,
@@ -714,14 +779,14 @@ private fun AnimatedClearLibraryDialogRoute(
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text(
-                    text = "Clear Library",
+                    text = stringResource(Res.string.clear_library),
                     color = HausColors.current.ink,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black,
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "This will remove all scanned tracks. Your music files are not deleted. Continue?",
+                    text = stringResource(Res.string.clear_library_message),
                     color = HausColors.current.muted,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
@@ -735,24 +800,26 @@ private fun AnimatedClearLibraryDialogRoute(
                         onClick = onDismiss,
                         modifier = Modifier.height(36.dp),
                         cornerRadius = 12.dp,
+                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
                         colors = ButtonDefaults.buttonColors(
                             color = HausColors.current.muted.copy(alpha = 0.15f),
                             contentColor = HausColors.current.muted,
                         ),
                     ) {
-                        Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(Res.string.cancel), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
                     Spacer(Modifier.width(12.dp))
                     Button(
                         onClick = onClearLibrary,
                         modifier = Modifier.height(36.dp),
                         cornerRadius = 12.dp,
+                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
                         colors = ButtonDefaults.buttonColors(
                             color = HausColors.current.pulse,
                             contentColor = HausColors.current.paper,
                         ),
                     ) {
-                        Text("Clear", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(Res.string.clear), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -844,6 +911,7 @@ private fun ImportAudioCard(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Black,
             )
+            val addMusicFolderContentDescription = stringResource(Res.string.add_music_folder)
             Text(
                 text = importMessage ?: importCardDescription,
                 color = HausColors.current.muted,
@@ -857,7 +925,7 @@ private fun ImportAudioCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .semantics { contentDescription = "Add music folder" },
+                    .semantics { contentDescription = addMusicFolderContentDescription },
                 cornerRadius = 16.dp,
                 colors = ButtonDefaults.buttonColors(
                     color = HausColors.current.ink,
@@ -866,19 +934,20 @@ private fun ImportAudioCard(
                     disabledContentColor = HausColors.current.muted,
                 ),
             ) {
-                Text(if (folderPickerLauncher.isAvailable) "Add music folder" else "Folder picker not available yet", fontWeight = FontWeight.Black)
+                Text(if (folderPickerLauncher.isAvailable) stringResource(Res.string.add_music_folder) else stringResource(Res.string.folder_picker_unavailable), fontWeight = FontWeight.Black)
             }
             if (hasImportedTracks) {
                 Button(
                     onClick = onClearLibrary,
                     modifier = Modifier.fillMaxWidth().height(40.dp),
                     cornerRadius = 12.dp,
+                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                     colors = ButtonDefaults.buttonColors(
                         color = HausColors.current.pulse.copy(alpha = 0.15f),
                         contentColor = HausColors.current.pulse,
                     ),
                 ) {
-                    Text("Clear Library", fontSize = 13.sp, fontWeight = FontWeight.Black)
+                    Text(stringResource(Res.string.clear_library), fontSize = 13.sp, fontWeight = FontWeight.Black)
                 }
             }
         }
@@ -900,10 +969,18 @@ private fun NowPlayingCard(
     )
     val durationMillis = playbackState.durationMillis ?: track.durationSeconds * 1_000L
     val positionMillis = playbackState.positionMillis.coerceIn(0L, durationMillis)
-    val statusText = playbackState.error?.message ?: playbackState.status.label
+    val statusText = playbackState.error?.message ?: playbackStatusLabel(playbackState.status)
     val artworkBitmap = remember(track.artworkBytes) {
         track.artworkBytes?.decodeArtwork()
     }
+    val playbackStatusDescription = stringResource(Res.string.playback_status_format, statusText)
+    val playbackSeekDescription = stringResource(Res.string.playback_seek_position)
+    val playPauseDescription = if (playbackState.isPlaying) {
+        stringResource(Res.string.pause_playback)
+    } else {
+        stringResource(Res.string.play_selected_track)
+    }
+    val stopPlaybackDescription = stringResource(Res.string.stop_playback)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -922,7 +999,7 @@ private fun NowPlayingCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = "NOW PLAYING",
+                    text = stringResource(Res.string.now_playing_label),
                     color = Color.White.copy(alpha = 0.84f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
@@ -935,14 +1012,14 @@ private fun NowPlayingCard(
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.semantics { contentDescription = "Playback status: $statusText" },
+                    modifier = Modifier.semantics { contentDescription = playbackStatusDescription },
                 )
             }
 
             if (artworkBitmap != null) {
                 Image(
                     bitmap = artworkBitmap,
-                    contentDescription = "Album artwork",
+                    contentDescription = stringResource(Res.string.album_artwork),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -963,7 +1040,7 @@ private fun NowPlayingCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${track.artist} · ${track.album}",
+                    text = stringResource(Res.string.track_artist_album_format, track.artist, track.album),
                     color = Color.White.copy(alpha = 0.82f),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -978,7 +1055,7 @@ private fun NowPlayingCard(
                 Slider(
                     value = playbackState.progressFraction,
                     onValueChange = onSeekFraction,
-                    modifier = Modifier.semantics { contentDescription = "Playback seek position" },
+                    modifier = Modifier.semantics { contentDescription = playbackSeekDescription },
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -995,28 +1072,28 @@ private fun NowPlayingCard(
                     modifier = Modifier
                         .weight(1f)
                         .height(52.dp)
-                        .semantics { contentDescription = if (playbackState.isPlaying) "Pause playback" else "Play selected track" },
+                        .semantics { contentDescription = playPauseDescription },
                     cornerRadius = 18.dp,
                     colors = ButtonDefaults.buttonColors(
                         color = Color.White,
                         contentColor = HausColors.current.ink,
                     ),
                 ) {
-                    Text(if (playbackState.isPlaying) "Pause" else "Play", fontWeight = FontWeight.Black)
+                    Text(if (playbackState.isPlaying) stringResource(Res.string.pause) else stringResource(Res.string.play), fontWeight = FontWeight.Black)
                 }
                 Button(
                     onClick = onStop,
                     modifier = Modifier
                         .width(96.dp)
                         .height(52.dp)
-                        .semantics { contentDescription = "Stop playback" },
+                        .semantics { contentDescription = stopPlaybackDescription },
                     cornerRadius = 18.dp,
                     colors = ButtonDefaults.buttonColors(
                         color = Color.White.copy(alpha = 0.22f),
                         contentColor = Color.White,
                     ),
                 ) {
-                    Text("Stop", fontWeight = FontWeight.Black)
+                    Text(stringResource(Res.string.stop), fontWeight = FontWeight.Black)
                 }
             }
         }
@@ -1074,6 +1151,7 @@ private fun SectionLabel(title: String, subtitle: String?) {
 
 @Composable
 private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
+    val selectTrackContentDescription = stringResource(Res.string.select_track_format, track.title)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1081,7 +1159,7 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
             .background(if (selected) HausColors.current.panelStrong else HausColors.current.panel.copy(alpha = 0.54f))
             .border(1.dp, if (selected) HausColors.current.ink else HausColors.current.line, RoundedCornerShape(24.dp))
             .hausClickable(onClick = onClick)
-            .semantics { contentDescription = "Select track ${track.title}" }
+            .semantics { contentDescription = selectTrackContentDescription }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -1097,7 +1175,7 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${track.artist} · ${track.album}",
+                text = stringResource(Res.string.track_artist_album_format, track.artist, track.album),
                 color = HausColors.current.muted,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
@@ -1106,7 +1184,7 @@ private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
             )
             AnimatedVisibility(visible = selected) {
                 Text(
-                    text = "Now playing",
+                    text = stringResource(Res.string.now_playing_badge),
                     color = HausColors.current.pulse,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
@@ -1148,7 +1226,7 @@ private fun AlbumMark(track: Track, selected: Boolean) {
         } else if (artworkBitmap != null) {
             Image(
                 bitmap = artworkBitmap,
-                contentDescription = "Album art",
+                contentDescription = stringResource(Res.string.album_art),
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
@@ -1196,6 +1274,9 @@ private fun DrillDownView(
     ) {
         Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
             val listState = rememberLazyListState()
+            val scrollChromeState by remember(listState) {
+                derivedStateOf { nestedScrollChromeStateFor(listState.toLibraryScrollPosition()) }
+            }
             LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
                 onScrollPositionChanged(listState.toLibraryScrollPosition())
             }
@@ -1227,6 +1308,11 @@ private fun DrillDownView(
                     listState = listState,
                     modifier = Modifier.align(Alignment.CenterEnd),
                 )
+                NestedScrollBlurChrome(
+                    state = scrollChromeState,
+                    title = title,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
             }
         }
 
@@ -1257,6 +1343,84 @@ private fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = Lib
     firstVisibleItemIndex = firstVisibleItemIndex,
     firstVisibleItemScrollOffset = firstVisibleItemScrollOffset,
 )
+
+private val NestedScrollChromeToolbarHeight = 56.dp
+
+@Composable
+private fun NestedScrollBlurChrome(
+    state: NestedScrollChromeState,
+    title: String,
+    modifier: Modifier = Modifier,
+) {
+    val progress = state.progress.coerceIn(0f, 1f)
+    if (progress <= 0f) return
+    val titleProgress = ((progress - 0.68f) / 0.32f).coerceIn(0f, 1f)
+
+    // Haze has been dropped from this chrome (per user request) in favor of a plain scrim.
+    // The chrome still needs one known, fixed total height (status bar inset + toolbar) so the
+    // background scrim is bounded to exactly that box instead of bleeding into the content below.
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val chromeHeight = statusBarHeight + NestedScrollChromeToolbarHeight
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(chromeHeight)
+            .zIndex(3f)
+            .background(HausColors.current.paper.copy(alpha = 0.26f + 0.66f * progress)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .height(NestedScrollChromeToolbarHeight),
+        ) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                HausColors.current.panelStrong.copy(alpha = 0.20f * progress),
+                                HausColors.current.panel.copy(alpha = 0.08f * progress),
+                                Color.Transparent,
+                            ),
+                        ),
+                    ),
+            )
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(horizontal = 20.dp)
+                    .alpha(titleProgress),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(HausColors.current.pulse.copy(alpha = 0.72f * titleProgress)),
+                )
+                Text(
+                    text = title,
+                    color = HausColors.current.ink.copy(alpha = 0.86f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(HausColors.current.line.copy(alpha = 0.42f * progress)),
+            )
+        }
+    }
+}
 
 @Composable
 private fun DrillDownScrollbar(
@@ -1373,6 +1537,7 @@ private fun BrowseModePicker(
                 onClick = { onModeChange(mode) },
                 modifier = Modifier.weight(1f).height(40.dp),
                 cornerRadius = 20.dp,
+                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 colors = if (isSelected) {
                     ButtonDefaults.buttonColors(
                         color = HausColors.current.ink,
@@ -1397,11 +1562,12 @@ private fun AlbumCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    val albumContentDescription = stringResource(Res.string.album_accessibility_format, album.album)
     Card(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .hausClickable(onClick = onClick)
-            .semantics { contentDescription = "Album ${album.album}" },
+            .semantics { contentDescription = albumContentDescription },
         cornerRadius = 20.dp,
         colors = CardDefaults.defaultColors(color = HausColors.current.panel),
     ) {
@@ -1427,7 +1593,7 @@ private fun AlbumCard(
                 if (albumArtwork != null) {
                     Image(
                         bitmap = albumArtwork,
-                        contentDescription = "Album artwork",
+                        contentDescription = stringResource(Res.string.album_artwork),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
                     )
@@ -1449,7 +1615,7 @@ private fun AlbumCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = if (album.artist != null) "${album.artist} · ${album.tracks.size} tracks" else "${album.tracks.size} tracks",
+                text = if (album.artist != null) stringResource(Res.string.artist_album_tracks_format, album.artist, album.tracks.size) else stringResource(Res.string.track_count_format, album.tracks.size),
                 color = HausColors.current.muted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
@@ -1465,6 +1631,7 @@ private fun ArtistRow(
     artist: ArtistGroup,
     onClick: () -> Unit,
 ) {
+    val artistContentDescription = stringResource(Res.string.artist_accessibility_format, artist.artist)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1472,7 +1639,7 @@ private fun ArtistRow(
             .background(HausColors.current.panel.copy(alpha = 0.54f))
             .border(1.dp, HausColors.current.line, RoundedCornerShape(24.dp))
             .hausClickable(onClick = onClick)
-            .semantics { contentDescription = "Artist ${artist.artist}" }
+            .semantics { contentDescription = artistContentDescription }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -1494,7 +1661,7 @@ private fun ArtistRow(
             if (artistArtwork != null) {
                 Image(
                     bitmap = artistArtwork,
-                    contentDescription = "Artist artwork",
+                    contentDescription = stringResource(Res.string.artist_artwork),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                 )
@@ -1517,7 +1684,7 @@ private fun ArtistRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${artist.albumCount} albums · ${artist.tracks.size} tracks",
+                text = stringResource(Res.string.album_track_count_format, artist.albumCount, artist.tracks.size),
                 color = HausColors.current.muted,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
@@ -1528,16 +1695,16 @@ private fun ArtistRow(
     }
 }
 
-private val PlaybackStatus.label: String
-    get() = when (this) {
-        PlaybackStatus.Idle -> "Ready"
-        PlaybackStatus.Loading -> "Loading"
-        PlaybackStatus.Buffering -> "Buffering"
-        PlaybackStatus.Playing -> "Playing"
-        PlaybackStatus.Paused -> "Paused"
-        PlaybackStatus.Stopped -> "Stopped"
-        PlaybackStatus.Error -> "Needs a local file"
-    }
+@Composable
+private fun playbackStatusLabel(status: PlaybackStatus): String = when (status) {
+    PlaybackStatus.Idle -> stringResource(Res.string.playback_status_ready)
+    PlaybackStatus.Loading -> stringResource(Res.string.playback_status_loading)
+    PlaybackStatus.Buffering -> stringResource(Res.string.playback_status_buffering)
+    PlaybackStatus.Playing -> stringResource(Res.string.playback_status_playing)
+    PlaybackStatus.Paused -> stringResource(Res.string.playback_status_paused)
+    PlaybackStatus.Stopped -> stringResource(Res.string.playback_status_stopped)
+    PlaybackStatus.Error -> stringResource(Res.string.playback_status_error)
+}
 
 @Composable
 internal fun ScanningCard(
@@ -1552,9 +1719,9 @@ internal fun ScanningCard(
         colors = CardDefaults.defaultColors(color = HausColors.current.panel),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text("Scanning…", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = HausColors.current.ink)
+            Text(stringResource(Res.string.scanning), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = HausColors.current.ink)
             Spacer(Modifier.height(6.dp))
-            Text("$foldersVisited folders • $filesVisited files • $tracksAdded tracks", fontSize = 12.sp, color = HausColors.current.ink.copy(alpha = 0.7f))
+            Text(stringResource(Res.string.scan_progress_format, foldersVisited, filesVisited, tracksAdded), fontSize = 12.sp, color = HausColors.current.ink.copy(alpha = 0.7f))
             Spacer(Modifier.height(6.dp))
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth(),
@@ -1566,7 +1733,7 @@ internal fun ScanningCard(
                 cornerRadius = 8.dp,
                 colors = ButtonDefaults.buttonColors(color = HausColors.current.ink, contentColor = HausColors.current.paper),
             ) {
-                Text("Cancel", fontSize = 12.sp)
+                Text(stringResource(Res.string.cancel), fontSize = 12.sp)
             }
         }
     }

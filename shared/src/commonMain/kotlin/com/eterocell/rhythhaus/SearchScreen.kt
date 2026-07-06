@@ -22,6 +22,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.taglib.TagLibReader
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.clear
+import rhythhaus.shared.generated.resources.search
+import rhythhaus.shared.generated.resources.search_no_tracks_match_format
+import rhythhaus.shared.generated.resources.search_placeholder
+import rhythhaus.shared.generated.resources.search_results_count_many
+import rhythhaus.shared.generated.resources.search_results_count_one
+import rhythhaus.shared.generated.resources.search_results_count_zero
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -82,7 +91,7 @@ fun SearchScreen(
                 ) {
                     BackChip(onClick = onDismiss)
                     Spacer(Modifier.weight(1f))
-                    Text("Search", color = HausColors.current.ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                    Text(stringResource(Res.string.search), color = HausColors.current.ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
                 }
 
                 // Search field
@@ -96,7 +105,7 @@ fun SearchScreen(
                 ) {
                     if (query.isEmpty()) {
                         Text(
-                            "Track, artist, or album...",
+                            stringResource(Res.string.search_placeholder),
                             color = HausColors.current.muted,
                             fontSize = 15.sp,
                         )
@@ -123,7 +132,7 @@ fun SearchScreen(
                                 .padding(horizontal = 10.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("Clear", color = HausColors.current.pulse, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                            Text(stringResource(Res.string.clear), color = HausColors.current.pulse, fontSize = 12.sp, fontWeight = FontWeight.Black)
                         }
                     }
                 }
@@ -131,14 +140,14 @@ fun SearchScreen(
                 // Results
                 if (query.isNotBlank()) {
                     Text(
-                        text = "${filtered.size} result${if (filtered.size != 1) "s" else ""}",
+                        text = searchResultCountLabel(filtered.size),
                         color = HausColors.current.muted,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     )
                     if (filtered.isEmpty()) {
                         Text(
-                            text = "No tracks match \"$query\"",
+                            text = stringResource(Res.string.search_no_tracks_match_format, query),
                             color = HausColors.current.muted,
                             fontSize = 15.sp,
                             modifier = Modifier.padding(top = 24.dp),
@@ -168,6 +177,13 @@ fun SearchScreen(
             }
         }
     }
+}
+
+@Composable
+private fun searchResultCountLabel(count: Int): String = when (count) {
+    0 -> stringResource(Res.string.search_results_count_zero)
+    1 -> stringResource(Res.string.search_results_count_one)
+    else -> stringResource(Res.string.search_results_count_many, count)
 }
 
 @Composable
