@@ -1,5 +1,27 @@
 # Session Progress
 
+## Handoff - 2026-07-06 fix nested chrome status-bar seam
+
+Route: systematic-debugging (bugfix)
+Owner: implementation
+Input: User reported a separate visible line between the nested-scroll top bar and the status bar, with the Backdrop effect not continuous between them.
+Root cause:
+- `NestedScrollBlurChrome` applied Backdrop glass to the full status-bar + toolbar height, but its tint/gradient overlay was drawn only inside the bottom 56dp toolbar sub-box.
+- The status-bar part and toolbar part therefore had different overlay treatment even though they shared a Backdrop modifier, creating a visible seam at the boundary.
+Fix:
+- Moved the chrome gradient/tint overlay from the toolbar-only child to a full-size `matchParentSize()` child of the glass chrome container.
+- Kept the title row and bottom divider inside the toolbar-height child so text/divider layout is unchanged.
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `progress.md`
+Next owner: user for Android/iOS visual confirmation that the status-bar/top-bar seam is gone.
+Blockers: none for compile/test verification. Visual continuity requires runtime confirmation.
+Commit: pending.
+
 ## Handoff - 2026-07-06 fix nested chrome status-bar backdrop sampling
 
 Route: systematic-debugging (bugfix)

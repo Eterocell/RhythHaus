@@ -1411,23 +1411,23 @@ private fun NestedScrollBlurChrome(
     ) {
         Box(
             modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            HausColors.current.panelStrong.copy(alpha = 0.20f * progress),
+                            HausColors.current.panel.copy(alpha = 0.10f * progress),
+                            Color.Transparent,
+                        ),
+                    ),
+                ),
+        )
+        Box(
+            modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .height(NestedScrollChromeToolbarHeight),
         ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                HausColors.current.panelStrong.copy(alpha = 0.20f * progress),
-                                HausColors.current.panel.copy(alpha = 0.08f * progress),
-                                Color.Transparent,
-                            ),
-                        ),
-                    ),
-            )
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
