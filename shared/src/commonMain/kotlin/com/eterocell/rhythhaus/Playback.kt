@@ -286,9 +286,6 @@ class PlaybackController(
                 }
             }
         }
-        if (autoPlay) {
-            _state.value = _state.value.copy(status = PlaybackStatus.Playing)
-        }
     }
 
     private fun launchEngineAction(action: () -> Unit) {
