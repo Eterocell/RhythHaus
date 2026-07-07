@@ -383,6 +383,41 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun libraryAppStateNavigationActionsRecordTransitions() {
+        val state = LibraryAppState(initialSelectedTrackId = null)
+
+        state.pushRoute(LibraryRoute.AlbumDetail("A"))
+        assertEquals(LibraryRoute.AlbumDetail("A"), state.navigation.current)
+        assertEquals(LibraryNavigationTransition.Push, state.lastNavigationTransition)
+
+        state.replaceTopRoute(LibraryRoute.ArtistDetail("B"))
+        assertEquals(LibraryRoute.ArtistDetail("B"), state.navigation.current)
+        assertEquals(LibraryNavigationTransition.Replace, state.lastNavigationTransition)
+
+        state.popRoute()
+        assertEquals(LibraryRoute.Home, state.navigation.current)
+        assertEquals(LibraryNavigationTransition.Pop, state.lastNavigationTransition)
+    }
+
+    @Test
+    fun libraryAppStateTracksNowPlayingAndBottomBarVisibility() {
+        val state = LibraryAppState(initialSelectedTrackId = "a")
+
+        state.syncSelectedTrackWithPlayback("b")
+        assertEquals("b", state.selectedTrackId)
+
+        state.showNowPlaying()
+        assertTrue(state.showNowPlaying)
+        state.hideNowPlaying()
+        assertFalse(state.showNowPlaying)
+
+        state.updateNowPlayingBarVisibilityForScroll(LibraryScrollPosition(0, 10))
+        assertTrue(state.isNowPlayingBarVisible)
+        state.updateNowPlayingBarVisibilityForScroll(LibraryScrollPosition(0, 30))
+        assertFalse(state.isNowPlayingBarVisible)
+    }
+
+    @Test
     fun nestedScrollChromeIsInactiveAtTopOfList() {
         val state = nestedScrollChromeStateFor(
             position = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 0),
