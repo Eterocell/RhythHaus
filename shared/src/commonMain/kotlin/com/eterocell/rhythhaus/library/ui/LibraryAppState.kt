@@ -1,10 +1,11 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.eterocell.rhythhaus.LibrarySnapshot
 
 class LibraryAppState(
     initialSelectedTrackId: String?,

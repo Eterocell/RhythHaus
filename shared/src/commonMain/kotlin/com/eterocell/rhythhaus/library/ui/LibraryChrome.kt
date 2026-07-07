@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -42,6 +42,9 @@ import kotlin.math.max
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.rhythHausLiquidGlass
+import com.eterocell.rhythhaus.RhythHausGlassSurfaceAlpha
 
 internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = LibraryScrollPosition(
     firstVisibleItemIndex = firstVisibleItemIndex,

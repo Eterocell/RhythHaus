@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -31,6 +31,7 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import com.eterocell.rhythhaus.HausColors
 
 @Composable
 internal fun AnimatedClearLibraryDialogRoute(

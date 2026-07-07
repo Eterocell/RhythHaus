@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +30,14 @@ import rhythhaus.shared.generated.resources.library
 import rhythhaus.shared.generated.resources.library_queue
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.LibrarySnapshot
+import com.eterocell.rhythhaus.NowPlayingBarContentPadding
+import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.PlaybackStatus
+import com.eterocell.rhythhaus.recordRhythHausBackdrop
+import com.eterocell.rhythhaus.toPlayableTrack
 
 @Composable
 internal fun LibraryHomeContent(

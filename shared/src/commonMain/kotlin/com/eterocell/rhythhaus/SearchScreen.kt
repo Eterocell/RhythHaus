@@ -33,6 +33,8 @@ import rhythhaus.shared.generated.resources.search_results_count_one
 import rhythhaus.shared.generated.resources.search_results_count_zero
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
+import com.eterocell.rhythhaus.library.ui.EqualizerStrip
+import com.eterocell.rhythhaus.library.ui.LibraryScrollPosition
 
 @Composable
 fun SearchScreen(

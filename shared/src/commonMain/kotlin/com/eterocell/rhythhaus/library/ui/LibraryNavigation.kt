@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.library.ui
 
 sealed interface LibraryRoute {
     data object Home : LibraryRoute

@@ -48,6 +48,7 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
+import com.eterocell.rhythhaus.library.ui.ScanningCard
 
 @Composable
 fun SettingsScreen(

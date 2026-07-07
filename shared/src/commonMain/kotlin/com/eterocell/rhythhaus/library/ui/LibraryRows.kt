@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
@@ -62,6 +62,17 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
+import com.eterocell.rhythhaus.BackChip
+import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.LibrarySnapshot
+import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.decodeArtworkCached
+import com.eterocell.rhythhaus.decodeArtworkThumbnailCached
+import com.eterocell.rhythhaus.formatDuration
+import com.eterocell.rhythhaus.hausClickable
+import com.eterocell.rhythhaus.importCardDescription
+import com.eterocell.rhythhaus.importCardTitle
+import com.eterocell.rhythhaus.importCardTitleWithTracks
 
 @Composable
 internal fun HeaderSection(snapshot: LibrarySnapshot) {

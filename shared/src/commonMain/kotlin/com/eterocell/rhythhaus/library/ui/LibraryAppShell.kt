@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
@@ -56,6 +56,20 @@ import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.library
 import top.yukonga.miuix.kmp.basic.Surface
+import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.LibrarySnapshot
+import com.eterocell.rhythhaus.NowPlayingBar
+import com.eterocell.rhythhaus.NowPlayingBarHeightPx
+import com.eterocell.rhythhaus.NowPlayingScreen
+import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.PlaybackStatus
+import com.eterocell.rhythhaus.RhythHausThemeMode
+import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.recordRhythHausBackdrop
+import com.eterocell.rhythhaus.rememberRhythHausBackdrop
+import com.eterocell.rhythhaus.toPlayableTrack
+import com.eterocell.rhythhaus.verticalSheetGesture
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalAnimationApi::class)

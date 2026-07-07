@@ -58,6 +58,8 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
+import com.eterocell.rhythhaus.library.ui.NowPlayingAdaptiveLayoutMode
+import com.eterocell.rhythhaus.library.ui.nowPlayingAdaptiveLayoutModeFor
 
 private data class NowPlayingUiState(
     val durationMillis: Long,
