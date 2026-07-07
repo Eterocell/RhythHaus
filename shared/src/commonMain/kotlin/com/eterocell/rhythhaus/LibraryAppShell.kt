@@ -17,23 +17,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,7 +55,6 @@ import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.library
-import rhythhaus.shared.generated.resources.library_queue
 import top.yukonga.miuix.kmp.basic.Surface
 
 @Composable
@@ -137,134 +131,6 @@ fun LibraryHomeScreen(
     LaunchedEffect(homeListState.firstVisibleItemIndex, homeListState.firstVisibleItemScrollOffset) {
         appState.updateNowPlayingBarVisibilityForScroll(homeListState.toLibraryScrollPosition())
     }
-    val homeScrollChromeState by remember(homeListState) {
-        derivedStateOf { nestedScrollChromeStateFor(homeListState.toLibraryScrollPosition()) }
-    }
-
-    @Composable
-    fun HomeContent(onOpenDetailRoute: (LibraryRoute) -> Unit) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            val homeStatusBarHeight = rememberSystemBarTopPadding()
-            val homeBackdrop = rememberRhythHausBackdrop()
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .recordRhythHausBackdrop(homeBackdrop),
-            ) {
-                Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
-                    LazyColumn(
-                        state = homeListState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp),
-                        contentPadding = PaddingValues(top = homeStatusBarHeight),
-                        verticalArrangement = Arrangement.spacedBy(18.dp),
-                    ) {
-                        item {
-                            HeaderSection(snapshot)
-                        }
-                        if (snapshot.tracks.isEmpty()) {
-                            item {
-                                ImportAudioCard(
-                                    folderPickerLauncher = folderPickerLauncher,
-                                    importMessage = importMessage,
-                                    hasImportedTracks = false,
-                                    onClearLibrary = onClearLibrary,
-                                )
-                            }
-                        }
-                        if (scanProgress?.isActive == true) {
-                            item {
-                                val sp = scanProgress
-                                val ss = sp.session!!
-                                ScanningCard(
-                                    foldersVisited = ss.foldersVisited,
-                                    filesVisited = ss.filesVisited,
-                                    tracksAdded = ss.tracksAdded,
-                                    onCancel = { scanJob?.cancel() },
-                                )
-                            }
-                        }
-                        item {
-                            SectionLabel(
-                                title = stringResource(Res.string.library_queue),
-                                subtitle = null,
-                            )
-                        }
-                        item {
-                            BrowseModePicker(
-                                browseMode = appState.browseMode,
-                                onModeChange = { appState.setBrowseMode(it) }
-                            )
-                        }
-                        when (appState.browseMode) {
-                            BrowseMode.Albums -> {
-                                item {
-                                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                                        val columns = albumGridColumnsForWidth(maxWidth.value)
-                                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            albums.chunked(columns).forEach { row ->
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                                ) {
-                                                    row.forEach { albumGroup ->
-                                                        AlbumCard(
-                                                            album = albumGroup,
-                                                            modifier = Modifier.weight(1f),
-                                                            onClick = { onOpenDetailRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
-                                                        )
-                                                    }
-                                                    repeat(columns - row.size) {
-                                                        Spacer(Modifier.weight(1f))
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            BrowseMode.Artists -> {
-                                items(artists, key = { it.artist }) { artistGroup ->
-                                    ArtistRow(
-                                        artist = artistGroup,
-                                        onClick = { onOpenDetailRoute(LibraryRoute.ArtistDetail(artistGroup.artist)) },
-                                    )
-                                }
-                            }
-
-                            BrowseMode.Songs -> {
-                                items(snapshot.tracks, key = { it.id }) { track ->
-                                    TrackRow(
-                                        track = track,
-                                        selected = track.id == appState.selectedTrackId,
-                                        onClick = {
-                                            appState.setSelectedTrackId(track.id)
-                                            val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
-                                            if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                                                playbackController.setQueue(playableTracks, track.id)
-                                            }
-                                            playbackController.togglePlayPause()
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                        item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
-                    }
-                }
-            }
-            NestedScrollBlurChrome(
-                state = homeScrollChromeState,
-                title = stringResource(Res.string.library),
-                backdrop = homeBackdrop,
-                statusBarHeight = homeStatusBarHeight,
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
-        }
-    }
-
     fun playPauseFromTracks(tracks: List<Track>, track: Track) {
         val playableTracks = tracks.map { it.toPlayableTrack() }
         if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
@@ -322,7 +188,25 @@ fun LibraryHomeScreen(
             onShowSearch = { appState.pushRoute(LibraryRoute.Search) },
             onScrollPositionChanged = appState::updateNowPlayingBarVisibilityForScroll,
             homeContent = { onOpenDetailRoute ->
-                HomeContent(onOpenDetailRoute = onOpenDetailRoute)
+                LibraryHomeContent(
+                    snapshot = snapshot,
+                    albums = albums,
+                    artists = artists,
+                    browseMode = appState.browseMode,
+                    homeListState = homeListState,
+                    folderPickerLauncher = folderPickerLauncher,
+                    importMessage = importMessage,
+                    scanProgress = scanProgress,
+                    scanJob = scanJob,
+                    selectedTrackId = appState.selectedTrackId,
+                    playbackState = playbackState,
+                    playbackController = playbackController,
+                    homeBackdrop = rememberRhythHausBackdrop(),
+                    onBrowseModeChange = appState::setBrowseMode,
+                    onClearLibrary = onClearLibrary,
+                    onOpenDetailRoute = onOpenDetailRoute,
+                    onTrackSelected = appState::setSelectedTrackId,
+                )
                 RouteOverlays(route)
             },
         )
@@ -355,7 +239,25 @@ fun LibraryHomeScreen(
                             .fillMaxHeight()
                             .weight(0.42f),
                     ) {
-                        HomeContent(onOpenDetailRoute = ::openDetailRoute)
+                        LibraryHomeContent(
+                            snapshot = snapshot,
+                            albums = albums,
+                            artists = artists,
+                            browseMode = appState.browseMode,
+                            homeListState = homeListState,
+                            folderPickerLauncher = folderPickerLauncher,
+                            importMessage = importMessage,
+                            scanProgress = scanProgress,
+                            scanJob = scanJob,
+                            selectedTrackId = appState.selectedTrackId,
+                            playbackState = playbackState,
+                            playbackController = playbackController,
+                            homeBackdrop = rememberRhythHausBackdrop(),
+                            onBrowseModeChange = appState::setBrowseMode,
+                            onClearLibrary = onClearLibrary,
+                            onOpenDetailRoute = ::openDetailRoute,
+                            onTrackSelected = appState::setSelectedTrackId,
+                        )
                     }
                     Box(
                         modifier = Modifier

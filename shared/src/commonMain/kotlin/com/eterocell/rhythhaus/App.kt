@@ -1,69 +1,37 @@
 package com.eterocell.rhythhaus
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -73,24 +41,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import kotlin.math.max
-import androidx.navigationevent.NavigationEventInfo
-import androidx.navigationevent.NavigationEventTransitionState
-import androidx.navigationevent.compose.NavigationBackHandler
-import androidx.navigationevent.compose.rememberNavigationEventState
 import com.eterocell.rhythhaus.library.LibraryScanner
-import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformAudioScanner
 import com.eterocell.rhythhaus.library.PlatformFolderPickResult
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
@@ -106,30 +66,25 @@ import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.uuid4
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.createTagLibReader
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.add_music_folder
 import rhythhaus.shared.generated.resources.album_accessibility_format
 import rhythhaus.shared.generated.resources.album_art
 import rhythhaus.shared.generated.resources.album_artwork
-import rhythhaus.shared.generated.resources.album_detail_subtitle_format
 import rhythhaus.shared.generated.resources.album_track_count_format
 import rhythhaus.shared.generated.resources.artist_accessibility_format
 import rhythhaus.shared.generated.resources.artist_album_tracks_format
 import rhythhaus.shared.generated.resources.artist_artwork
-import rhythhaus.shared.generated.resources.artist_detail_subtitle_format
 import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.clear
 import rhythhaus.shared.generated.resources.clear_library
 import rhythhaus.shared.generated.resources.clear_library_message
 import rhythhaus.shared.generated.resources.folder_picker_unavailable
 import rhythhaus.shared.generated.resources.library
-import rhythhaus.shared.generated.resources.library_queue
 import rhythhaus.shared.generated.resources.now_playing_badge
 import rhythhaus.shared.generated.resources.now_playing_label
 import rhythhaus.shared.generated.resources.pause
@@ -152,7 +107,6 @@ import rhythhaus.shared.generated.resources.stop
 import rhythhaus.shared.generated.resources.stop_playback
 import rhythhaus.shared.generated.resources.track_artist_album_format
 import rhythhaus.shared.generated.resources.track_count_format
-import rhythhaus.shared.generated.resources.unknown_artist
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -165,6 +119,21 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.zIndex
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+
 
 
 @Composable
@@ -750,112 +719,6 @@ private fun AlbumMark(track: Track, selected: Boolean) {
     }
 }
 
-@Composable
-@OptIn(ExperimentalComposeUiApi::class)
-internal fun DrillDownView(
-    title: String,
-    subtitle: String,
-    tracks: List<Track>,
-    selectedTrack: Track?,
-    playbackState: PlaybackState,
-    playbackController: PlaybackController,
-    tagLibReader: TagLibReader,
-    libraryTracks: List<LibraryTrack>,
-    onBack: () -> Unit,
-    onTrackSelected: (String) -> Unit,
-    onPlayPause: (Track) -> Unit,
-    onExpandNowPlaying: (Track) -> Unit,
-    onShowSettings: () -> Unit = {},
-    onShowSearch: () -> Unit = {},
-    isNowPlayingBarVisible: Boolean = true,
-    onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
-) {
-    var selectedTrackId by remember { mutableStateOf(selectedTrack?.id) }
-    LaunchedEffect(playbackState.currentTrack?.id) {
-        playbackState.currentTrack?.id?.let { selectedTrackId = it }
-    }
-    val currentTrack = tracks.firstOrNull { it.id == selectedTrackId } ?: selectedTrack
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .leftEdgeSwipeBack(onBack),
-    ) {
-        val drillDownStatusBarHeight = rememberSystemBarTopPadding()
-        val drillDownBackdrop = rememberRhythHausBackdrop()
-        val listState = rememberLazyListState()
-        val scrollChromeState by remember(listState) {
-            derivedStateOf { nestedScrollChromeStateFor(listState.toLibraryScrollPosition()) }
-        }
-        LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
-            onScrollPositionChanged(listState.toLibraryScrollPosition())
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .recordRhythHausBackdrop(drillDownBackdrop),
-        ) {
-            Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp),
-                    contentPadding = PaddingValues(top = drillDownStatusBarHeight),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                ) {
-                    item { DrillDownHeader(title = title, subtitle = subtitle, onBack = onBack) }
-                    item { SectionLabel(title = title, subtitle = subtitle) }
-                    items(tracks, key = { it.id }) { track ->
-                        TrackRow(
-                            track = track,
-                            selected = track.id == selectedTrackId,
-                            onClick = {
-                                selectedTrackId = track.id
-                                onTrackSelected(track.id)
-                                onPlayPause(track)
-                            },
-                        )
-                    }
-                    item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
-                }
-            }
-        }
-        DrillDownScrollbar(
-            listState = listState,
-            modifier = Modifier.align(Alignment.CenterEnd),
-        )
-        NestedScrollBlurChrome(
-            state = scrollChromeState,
-            title = title,
-            backdrop = drillDownBackdrop,
-            statusBarHeight = drillDownStatusBarHeight,
-            modifier = Modifier.align(Alignment.TopCenter),
-        )
-
-        if (currentTrack != null) {
-            val barExpandProgress = remember { Animatable(0f) }
-            AnimatedVisibility(
-                visible = isNowPlayingBarVisible,
-                enter = slideInVertically(initialOffsetY = { it }) + expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
-                modifier = Modifier.align(Alignment.BottomCenter),
-            ) {
-                NowPlayingBar(
-                    track = currentTrack,
-                    playbackState = playbackState,
-                    onPlayPause = { onPlayPause(currentTrack) },
-                    onExpand = { onExpandNowPlaying(currentTrack) },
-                    onSettings = onShowSettings,
-                    onSearch = onShowSearch,
-                    expandProgress = barExpandProgress,
-                    isExpanded = false,
-                    backdrop = drillDownBackdrop,
-                )
-            }
-        }
-    }
-}
 
 internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = LibraryScrollPosition(
     firstVisibleItemIndex = firstVisibleItemIndex,
@@ -939,7 +802,7 @@ internal fun NestedScrollBlurChrome(
 }
 
 @Composable
-private fun DrillDownScrollbar(
+internal fun DrillDownScrollbar(
     listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
@@ -1003,7 +866,7 @@ private fun DrillDownScrollbar(
 }
 
 @Composable
-private fun DrillDownHeader(
+internal fun DrillDownHeader(
     title: String,
     subtitle: String,
     onBack: () -> Unit,
