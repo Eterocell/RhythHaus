@@ -1934,3 +1934,47 @@ Verification:
 - NOT verified: live on-device scroll behavior of the new plain-scrim chrome. The computer_use GUI automation driver used earlier in this session to reproduce/diagnose the Haze bug lost its session and could not be revived with the tools available here, so a fresh screenshot-based confirmation of the post-Haze-removal scroll chrome was not completed. This is an open item for the user or a future session with a working driver.
 Next owner: user, to visually confirm the plain-scrim nested-scroll chrome looks acceptable; if so, mark roadmap item 4 done, if not, decide follow-up (different blur approach, or keep plain scrim as final design).
 Blockers: none for build verification. On-device visual confirmation is pending.
+
+
+## Handoff - 2026-07-07 architecture refactor
+
+Route: openspec+superpowers
+Owner: implementation
+Input: architecture-refactor spec/plan
+Output: behavior-preserving shared Compose architecture refactor: pure navigation decisions, LibraryAppState coordinator, route/adaptive shell extraction, home/detail content extraction, and chrome/dialog/row component split.
+Verification:
+- `openspec validate architecture-refactor --strict`: pass (`Change 'architecture-refactor' is valid`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 404ms`; 25 actionable tasks: 4 executed, 21 up-to-date; configuration cache entry reused).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 7s`; 99 actionable tasks: 14 executed, 85 up-to-date; configuration cache entry reused). Existing Android warning only: `PlaybackEngine.android.kt:252:17 'fun setArtworkData(p0: ByteArray?): MediaMetadata.Builder' is deprecated`.
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 15s`; 34 actionable tasks: 8 executed, 26 up-to-date; configuration cache entry reused). Existing iOS test warnings only in `IOSNowPlayingBridgingTest.kt` about unnecessary non-null assertions/no casts needed.
+- `git diff --check`: pass (no output, exit 0).
+- App.kt line count after split: `166 shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryNavigation.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibraryNavigationTest.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryAppState.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryAppShell.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryRoutes.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryHomeContent.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryDetailContent.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryChrome.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryDialogs.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryRows.kt`
+- `docs/superpowers/specs/2026-07-07-architecture-refactor-design.md`
+- `docs/superpowers/plans/2026-07-07-architecture-refactor.md`
+- `openspec/changes/architecture-refactor/proposal.md`
+- `openspec/changes/architecture-refactor/design.md`
+- `openspec/changes/architecture-refactor/specs/app-architecture/spec.md`
+- `openspec/changes/architecture-refactor/tasks.md`
+- `progress.md`
+Reviews:
+- Task 1 review: changes requested for no-op pop/root transitions; fixed and re-reviewed clean.
+- Task 2 review: clean after timeout salvage and composition-time mutation fix.
+- Task 3 review: clean.
+- Task 4 review: clean after timeout salvage and scope correction.
+- Task 5 review: clean.
+Next owner: user for manual visual smoke validation of library navigation/detail/search/settings/clear-library routes on target devices; OpenSpec/user for archive when satisfied.
+Blockers: none for automated OpenSpec/JVM/desktop/Android/iOS verification. Manual visual validation remains recommended because this was a behavior-preserving UI extraction.
+Commits: `7c7e895`, `aafa446`, `a6c78e7`, `80e0d8f`, `e37470f`; final evidence commit pending.
