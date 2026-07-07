@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -58,6 +59,16 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 
+private data class NowPlayingUiState(
+    val durationMillis: Long,
+    val positionMillis: Long,
+    val statusText: String,
+    val isPlaying: Boolean,
+    val shuffleEnabled: Boolean,
+    val repeatContentDescription: String,
+    val shuffleContentDescription: String,
+)
+
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
 fun NowPlayingScreen(
@@ -93,6 +104,15 @@ fun NowPlayingScreen(
     } else {
         stringResource(Res.string.shuffle_off)
     }
+    val uiState = NowPlayingUiState(
+        durationMillis = durationMillis,
+        positionMillis = positionMillis,
+        statusText = statusText,
+        isPlaying = isPlaying,
+        shuffleEnabled = shuffleEnabled,
+        repeatContentDescription = repeatContentDescription,
+        shuffleContentDescription = shuffleContentDescription,
+    )
 
     Surface(
         modifier = modifier
@@ -100,197 +120,240 @@ fun NowPlayingScreen(
             .leftEdgeSwipeBack(onBack),
         color = HausColors.current.paper,
     ) {
-        Column(
+        CompactNowPlayingLayout(
+            track = track,
+            playbackState = playbackState,
+            playbackController = playbackController,
+            uiState = uiState,
+            artworkBitmap = artworkBitmap,
+            brush = brush,
+        )
+    }
+}
+
+@Composable
+private fun NowPlayingArtworkPane(
+    track: Track,
+    artworkBitmap: ImageBitmap?,
+    brush: Brush,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier,
+        cornerRadius = 32.dp,
+        colors = CardDefaults.defaultColors(color = HausColors.current.ink),
+    ) {
+        Box(
             modifier = Modifier
-                .safeContentPadding()
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .background(brush),
+            contentAlignment = Alignment.Center,
         ) {
-            Spacer(Modifier.height(18.dp))
-
-            // Large artwork
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                cornerRadius = 32.dp,
-                colors = CardDefaults.defaultColors(color = HausColors.current.ink),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .background(brush),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (artworkBitmap != null) {
-                        Image(
-                            bitmap = artworkBitmap,
-                            contentDescription = stringResource(Res.string.album_artwork),
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                        )
-                    } else {
-                        Text(
-                            text = track.title.take(3).uppercase(),
-                            color = Color.White.copy(alpha = 0.48f),
-                            fontSize = 64.sp,
-                            fontWeight = FontWeight.Black,
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(18.dp))
-
-            // Track info
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (artworkBitmap != null) {
+                Image(
+                    bitmap = artworkBitmap,
+                    contentDescription = stringResource(Res.string.album_artwork),
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
                 Text(
-                    text = track.title,
-                    color = HausColors.current.ink,
-                    fontSize = 28.sp,
+                    text = track.title.take(3).uppercase(),
+                    color = Color.White.copy(alpha = 0.48f),
+                    fontSize = 64.sp,
                     fontWeight = FontWeight.Black,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = stringResource(Res.string.track_artist_album_format, track.artist, track.album),
-                    color = HausColors.current.muted,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (track.trackNumber != null) {
-                    Text(
-                        text = stringResource(Res.string.track_number_format, track.trackNumber),
-                        color = HausColors.current.muted,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
             }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Status
-            Text(
-                text = statusText,
-                color = HausColors.current.muted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // Seek bar
-            MusicProgressScrubber(
-                positionMillis = positionMillis,
-                durationMillis = durationMillis,
-                onSeek = playbackController::seekTo,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(18.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                PlaybackModeButton(
-                    selected = shuffleEnabled,
-                    contentDescription = shuffleContentDescription,
-                    onClick = playbackController::toggleShuffleMode,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Shuffle,
-                        contentDescription = null,
-                        tint = if (shuffleEnabled) Color.White else HausColors.current.ink,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                PlaybackModeButton(
-                    selected = playbackState.repeatMode == RepeatMode.RepeatPlaylist || playbackState.repeatMode == RepeatMode.RepeatOne,
-                    contentDescription = repeatContentDescription,
-                    onClick = playbackController::cycleRepeatMode,
-                ) {
-                    val repeatIcon = when (playbackState.repeatMode) {
-                        RepeatMode.RepeatOne -> Icons.Filled.RepeatOne
-                        RepeatMode.StopAfterCurrent -> Icons.Filled.Filter1
-                        else -> Icons.Filled.Repeat
-                    }
-                    Icon(
-                        imageVector = repeatIcon,
-                        contentDescription = null,
-                        tint = if (playbackState.repeatMode == RepeatMode.RepeatPlaylist || playbackState.repeatMode == RepeatMode.RepeatOne) Color.White else HausColors.current.ink,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            // Transport controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Previous track
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(HausColors.current.panel)
-                        .hausClickable { playbackController.skipToPrevious() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.SkipPrevious,
-                        contentDescription = stringResource(Res.string.previous_track),
-                        tint = HausColors.current.ink,
-                        modifier = Modifier.size(26.dp),
-                    )
-                }
-
-                // Play/Pause (large, highlighted)
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(HausColors.current.pulse)
-                        .hausClickable { playbackController.togglePlayPause() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) stringResource(Res.string.pause) else stringResource(Res.string.play),
-                        tint = Color.White,
-                        modifier = Modifier.size(34.dp),
-                    )
-                }
-
-                // Next track
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(HausColors.current.panel)
-                        .hausClickable { playbackController.skipToNext() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.SkipNext,
-                        contentDescription = stringResource(Res.string.next_track),
-                        tint = HausColors.current.ink,
-                        modifier = Modifier.size(26.dp),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
         }
+    }
+}
+
+@Composable
+private fun NowPlayingControlsPane(
+    track: Track,
+    playbackState: PlaybackState,
+    playbackController: PlaybackController,
+    uiState: NowPlayingUiState,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = track.title,
+                color = HausColors.current.ink,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(Res.string.track_artist_album_format, track.artist, track.album),
+                color = HausColors.current.muted,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (track.trackNumber != null) {
+                Text(
+                    text = stringResource(Res.string.track_number_format, track.trackNumber),
+                    color = HausColors.current.muted,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Text(
+            text = uiState.statusText,
+            color = HausColors.current.muted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        MusicProgressScrubber(
+            positionMillis = uiState.positionMillis,
+            durationMillis = uiState.durationMillis,
+            onSeek = playbackController::seekTo,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(Modifier.height(18.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PlaybackModeButton(
+                selected = uiState.shuffleEnabled,
+                contentDescription = uiState.shuffleContentDescription,
+                onClick = playbackController::toggleShuffleMode,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Shuffle,
+                    contentDescription = null,
+                    tint = if (uiState.shuffleEnabled) Color.White else HausColors.current.ink,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            PlaybackModeButton(
+                selected = playbackState.repeatMode == RepeatMode.RepeatPlaylist || playbackState.repeatMode == RepeatMode.RepeatOne,
+                contentDescription = uiState.repeatContentDescription,
+                onClick = playbackController::cycleRepeatMode,
+            ) {
+                val repeatIcon = when (playbackState.repeatMode) {
+                    RepeatMode.RepeatOne -> Icons.Filled.RepeatOne
+                    RepeatMode.StopAfterCurrent -> Icons.Filled.Filter1
+                    else -> Icons.Filled.Repeat
+                }
+                Icon(
+                    imageVector = repeatIcon,
+                    contentDescription = null,
+                    tint = if (playbackState.repeatMode == RepeatMode.RepeatPlaylist || playbackState.repeatMode == RepeatMode.RepeatOne) Color.White else HausColors.current.ink,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(HausColors.current.panel)
+                    .hausClickable { playbackController.skipToPrevious() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.SkipPrevious,
+                    contentDescription = stringResource(Res.string.previous_track),
+                    tint = HausColors.current.ink,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(HausColors.current.pulse)
+                    .hausClickable { playbackController.togglePlayPause() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (uiState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (uiState.isPlaying) stringResource(Res.string.pause) else stringResource(Res.string.play),
+                    tint = Color.White,
+                    modifier = Modifier.size(34.dp),
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(HausColors.current.panel)
+                    .hausClickable { playbackController.skipToNext() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.SkipNext,
+                    contentDescription = stringResource(Res.string.next_track),
+                    tint = HausColors.current.ink,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun CompactNowPlayingLayout(
+    track: Track,
+    playbackState: PlaybackState,
+    playbackController: PlaybackController,
+    uiState: NowPlayingUiState,
+    artworkBitmap: ImageBitmap?,
+    brush: Brush,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .safeContentPadding()
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
+    ) {
+        Spacer(Modifier.height(18.dp))
+        NowPlayingArtworkPane(
+            track = track,
+            artworkBitmap = artworkBitmap,
+            brush = brush,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(18.dp))
+        NowPlayingControlsPane(
+            track = track,
+            playbackState = playbackState,
+            playbackController = playbackController,
+            uiState = uiState,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
