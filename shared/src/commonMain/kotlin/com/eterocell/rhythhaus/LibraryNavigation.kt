@@ -37,6 +37,11 @@ enum class LibraryAdaptiveLayoutMode {
     ListDetail,
 }
 
+enum class NowPlayingAdaptiveLayoutMode {
+    Compact,
+    Split,
+}
+
 fun libraryAdaptiveLayoutModeFor(
     widthDp: Float,
     heightDp: Float,
@@ -44,6 +49,14 @@ fun libraryAdaptiveLayoutModeFor(
     if (widthDp >= 840f) return LibraryAdaptiveLayoutMode.ListDetail
     if (widthDp >= 600f && widthDp > 0f && heightDp / widthDp < 1.2f) return LibraryAdaptiveLayoutMode.ListDetail
     return LibraryAdaptiveLayoutMode.Compact
+}
+
+fun nowPlayingAdaptiveLayoutModeFor(
+    widthDp: Float,
+    heightDp: Float,
+): NowPlayingAdaptiveLayoutMode = when (libraryAdaptiveLayoutModeFor(widthDp, heightDp)) {
+    LibraryAdaptiveLayoutMode.Compact -> NowPlayingAdaptiveLayoutMode.Compact
+    LibraryAdaptiveLayoutMode.ListDetail -> NowPlayingAdaptiveLayoutMode.Split
 }
 
 data class LibraryScrollPosition(

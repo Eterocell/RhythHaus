@@ -107,6 +107,46 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun nowPlayingAdaptiveLayoutUsesCompactForPhonePortrait() {
+        assertEquals(
+            NowPlayingAdaptiveLayoutMode.Compact,
+            nowPlayingAdaptiveLayoutModeFor(widthDp = 390f, heightDp = 844f),
+        )
+    }
+
+    @Test
+    fun nowPlayingAdaptiveLayoutUsesCompactForNarrowPortraitTablet() {
+        assertEquals(
+            NowPlayingAdaptiveLayoutMode.Compact,
+            nowPlayingAdaptiveLayoutModeFor(widthDp = 700f, heightDp = 1000f),
+        )
+    }
+
+    @Test
+    fun nowPlayingAdaptiveLayoutUsesSplitForWideTablet() {
+        assertEquals(
+            NowPlayingAdaptiveLayoutMode.Split,
+            nowPlayingAdaptiveLayoutModeFor(widthDp = 840f, heightDp = 1180f),
+        )
+    }
+
+    @Test
+    fun nowPlayingAdaptiveLayoutUsesSplitForLandscapeMediumWidth() {
+        assertEquals(
+            NowPlayingAdaptiveLayoutMode.Split,
+            nowPlayingAdaptiveLayoutModeFor(widthDp = 700f, heightDp = 500f),
+        )
+    }
+
+    @Test
+    fun nowPlayingAdaptiveLayoutUsesSplitForDesktopWidth() {
+        assertEquals(
+            NowPlayingAdaptiveLayoutMode.Split,
+            nowPlayingAdaptiveLayoutModeFor(widthDp = 1200f, heightDp = 800f),
+        )
+    }
+
+    @Test
     fun pushingHomeReturnsToRoot() {
         val stack = LibraryNavigationStack()
             .push(LibraryRoute.AlbumDetail("A"))
