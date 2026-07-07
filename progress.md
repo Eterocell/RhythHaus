@@ -1,5 +1,55 @@
 # Session Progress
 
+## Handoff - 2026-07-07 iOS locked-screen track-end completion
+
+Route: systematic-debugging
+Owner: implementation
+Input: User report that on iOS, with the screen locked, music may stop when one track ends even though later tracks remain in the playlist; user selected the Swift-native helper option.
+Root cause:
+- The old iOS engine owned `AVAudioPlayer` in Kotlin/Native and inferred track completion from a 250 ms polling coroutine.
+- At the exact moment a track ends under screen lock/background playback, audio stops and iOS can suspend/throttle the app before the next Kotlin polling tick, so `PlaybackController` may never receive `onPlaybackCompleted()` and therefore never advances the queue.
+Fix:
+- Added a Swift-owned `RhythHausAudioPlayerProvider` implementing `AVAudioPlayerDelegate.audioPlayerDidFinishPlaying` and registered it through a new KMP `IOSAudioPlayerBridge`.
+- Reworked `PlaybackEngine.ios.kt` to use the Swift provider for load/play/pause/stop/seek/progress and to advance from the event-based completion callback instead of polling for end-of-track.
+- Kept polling only for while-playing progress updates; track-end completion no longer depends on the progress loop.
+- Added iOS regression coverage for bridge callback retention/forwarding and the chosen Swift delegate backend.
+Verification:
+- RED: `./gradlew :shared:iosSimulatorArm64Test --tests 'com.eterocell.rhythhaus.IOSAudioPlayerBridgeTest' --configuration-cache` failed before implementation with unresolved `IOSAudioPlayerCompletionHandler`, `IOSAudioPlayerProvider`, `IOSAudioBackend`, and `iosAudioBackend`.
+- Targeted: `./gradlew :shared:iosSimulatorArm64Test --tests 'com.eterocell.rhythhaus.IOSAudioPlayerBridgeTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 753ms`; 34 actionable tasks: 4 executed, 30 up-to-date; configuration cache reused).
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- Swift/Xcode: `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`: pass (`** BUILD SUCCEEDED **`). Initial run exposed Swift export naming (`play_()`), fixed by matching the generated KMP protocol name.
+- Full platform subset: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 12s`; 133 actionable tasks: 13 executed, 120 up-to-date). Existing Android deprecation warning only: `MediaMetadata.Builder.setArtworkData`.
+- `git diff --check`: pass (no whitespace errors).
+Changed files:
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridge.kt`: KMP Swift provider bridge and backend marker.
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt`: delegates actual iOS audio operations to Swift provider and uses event-based completion.
+- `iosApp/iosApp/iOSApp.swift`: Swift `AVAudioPlayerDelegate` provider and registration alongside existing artwork bridge.
+- `shared/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridgeTest.kt`: regression tests for bridge callback forwarding and backend selection.
+Next owner: user for on-device locked-screen validation across multiple consecutive tracks.
+Blockers: none for automated KMP/iOS simulator/Xcode build validation; physical locked-screen playback behavior still requires manual device/simulator runtime validation.
+Commit: skipped; user did not ask to commit.
+
+## Handoff - 2026-07-07 iOS Swift module split
+
+Route: systematic-debugging follow-up refactor
+Owner: implementation
+Input: User asked to review the Swift code and separate modules into different files/packages after the Swift audio helper fix.
+Output:
+- Reviewed `iosApp/iosApp/iOSApp.swift` after the audio-helper implementation. It had unrelated responsibilities in one file: SwiftUI app entry, AVAudioPlayer provider, artwork bridge, Documents marker setup, AVAudioSession setup, and KMP bridge registration.
+- Split Swift code into filesystem-synchronized Xcode source folders without editing `project.pbxproj`:
+  - `iosApp/iosApp/App/RhythHausAppBootstrapper.swift`: one-time Documents container, AVAudioSession, remote-control-event, and KMP bridge setup.
+  - `iosApp/iosApp/Audio/RhythHausAudioPlayerProvider.swift`: Swift-owned `AVAudioPlayerDelegate` provider for KMP completion callbacks.
+  - `iosApp/iosApp/NowPlaying/RhythHausArtworkProvider.swift`: lockscreen / Control Center artwork bridge.
+  - `iosApp/iosApp/iOSApp.swift`: now only owns provider lifetimes and SwiftUI scene startup.
+Verification:
+- `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`: pass (`** BUILD SUCCEEDED **`). Logs confirmed Xcode auto-discovered and compiled `App/RhythHausAppBootstrapper.swift`, `Audio/RhythHausAudioPlayerProvider.swift`, and `NowPlaying/RhythHausArtworkProvider.swift` via `PBXFileSystemSynchronizedRootGroup`.
+- `./gradlew :shared:iosSimulatorArm64Test --tests 'com.eterocell.rhythhaus.IOSAudioPlayerBridgeTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`; 34 actionable tasks: 5 executed, 29 up-to-date).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`; 124 actionable tasks: 7 executed, 117 up-to-date; configuration cache reused).
+- `git diff --check`: pass (no whitespace errors).
+Next owner: user for on-device locked-screen multi-track validation.
+Blockers: none for automated verification.
+Commit: skipped; user did not ask to commit.
+
 ## Handoff - 2026-07-07 adaptive now playing screen
 
 Route: openspec+superpowers

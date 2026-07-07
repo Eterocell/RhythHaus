@@ -5,3 +5,4 @@
 - [x] i18n
 - [x] 架构重构：拆分 App.kt，提取 Library 导航/状态/路由/页面内容到独立文件 (commits 7c7e895..0cbe270)
 - [x] 包结构整理：将 Library UI、NowPlaying/Search/Settings、通用 UI 与 theme  helpers 迁入 feature-first 包 (commits f0310e5..adb1e3d); playback/model 包迁移因 Playback.kt 混合模型与引擎逻辑且涉及 AndroidManifest/iOS Swift 桥接而 deferred
+- [x] 修复 iOS 锁屏时曲末可能不自动播放下一首：iOS 播放改由 Swift `AVAudioPlayerDelegate` 事件回调驱动完成通知，Kotlin 轮询只保留进度更新；仍需真机锁屏多曲目手动验证
