@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -38,7 +41,14 @@ import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import kotlin.math.max
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.back
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.ScrollBehavior
+import top.yukonga.miuix.kmp.basic.TopAppBar
 
 internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = LibraryScrollPosition(
     firstVisibleItemIndex = firstVisibleItemIndex,
@@ -46,12 +56,73 @@ internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = Li
 )
 
 private val NestedScrollChromeToolbarHeight = 56.dp
+internal val DrillDownMiuixScrollContentTopPadding = 128.dp
 
 @Composable
 internal fun rememberSystemBarTopPadding(): Dp {
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val systemBarHeight = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
     return max(statusBarHeight.value, systemBarHeight.value).dp
+}
+
+@Composable
+internal fun rememberMiuixTopAppBarScrollBehavior(): ScrollBehavior = MiuixScrollBehavior()
+
+@Composable
+internal fun DrillDownMiuixScrollChrome(
+    scrollBehavior: ScrollBehavior,
+    title: String,
+    onBack: () -> Unit,
+    backdrop: LayerBackdrop?,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .zIndex(3f)
+            .rhythHausLiquidGlass(
+                backdrop = backdrop,
+                shape = RoundedCornerShape(0.dp),
+                fallbackColor = HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha),
+            ),
+    ) {
+        TopAppBar(
+            title = title,
+            largeTitle = title,
+            subtitle = "",
+            modifier = Modifier.fillMaxWidth(),
+            color = Color.Transparent,
+            titleColor = HausColors.current.ink.copy(alpha = 0.90f),
+            largeTitleColor = HausColors.current.ink,
+            defaultWindowInsetsPadding = false,
+            titlePadding = 20.dp,
+            navigationIconPadding = 0.dp,
+            actionIconPadding = 0.dp,
+            scrollBehavior = scrollBehavior,
+            navigationIcon = {
+                IconButton(
+                    onClick = onBack,
+                    backgroundColor = Color.Transparent,
+                    minWidth = 44.dp,
+                    minHeight = 44.dp,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(Res.string.back),
+                        tint = HausColors.current.ink,
+                    )
+                }
+            },
+            bottomContent = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(HausColors.current.line.copy(alpha = 0.42f * scrollBehavior.state.collapsedFraction)),
+                )
+            },
+        )
+    }
 }
 
 @Composable

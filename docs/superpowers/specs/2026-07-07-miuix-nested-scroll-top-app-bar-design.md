@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Migrate the Library nested-scroll collapsed chrome from a hand-built `Row` + `Text` toolbar to Miuix `SmallTopAppBar`, while preserving RhythHaus' existing glass/backdrop shell and scroll-triggered reveal behavior.
+Migrate Library nested-scroll top chrome toward Miuix app-bar behavior. The final drill-down track-list correction adopts Miuix `MiuixScrollBehavior` and Miuix `TopAppBar` large-title/collapsed-title behavior, while preserving RhythHaus' existing glass/backdrop shell.
 
 This is a follow-up to `fefa11c feat: migrate top bars to Miuix`. The ordinary Search, Settings, and Library drill-down back/title bars already use `RhythHausTopAppBar`; this change targets only the collapsed nested-scroll chrome rendered by `NestedScrollBlurChrome` for Library home and drill-down pages.
 
@@ -16,22 +16,21 @@ This is a follow-up to `fefa11c feat: migrate top bars to Miuix`. The ordinary S
 - a custom `Row` with an 8.dp pulse dot and a 14sp black title that fades in after scroll progress reaches about 0.68;
 - a 1.dp bottom divider whose alpha follows scroll progress.
 
-Call sites:
+Original call sites:
 
 - `LibraryHomeContent.kt` passes the Library title and home backdrop.
 - `LibraryDetailContent.kt` passes the drill-down title and detail backdrop.
 
-The scroll trigger is pure state derived from `LazyListState.toLibraryScrollPosition()` via `nestedScrollChromeStateFor(...)`. It does not currently use Miuix `ScrollBehavior.nestedScrollConnection`.
+The original scroll trigger was pure state derived from `LazyListState.toLibraryScrollPosition()` via `nestedScrollChromeStateFor(...)`. The drill-down track-list correction replaces that specific path with Miuix `MiuixScrollBehavior().nestedScrollConnection`.
 
 ## Decision
 
-Use Miuix `SmallTopAppBar` for the visible collapsed nested-scroll toolbar content inside the existing RhythHaus glass overlay.
+Use Miuix `TopAppBar` with `MiuixScrollBehavior` for the drill-down track-list title transition so the expanded large title and collapsed title are one Miuix behavior.
 
 This is intentionally a partial Miuix migration:
 
-- Miuix owns the toolbar layout and title rendering.
-- RhythHaus keeps owning backdrop recording, glass drawing, status-bar coverage, scroll progress thresholding, and the bottom divider.
-- Do not switch Library lists to Miuix `MiuixScrollBehavior` in this change, because the existing Library scroll state also drives bottom-bar visibility, route scroll restoration, and both home/detail chrome progress. Wiring nested scroll behavior directly would be a larger behavior change.
+- Miuix owns the drill-down top app bar layout, title transition, and nested-scroll collapse behavior.
+- RhythHaus keeps owning backdrop recording, glass drawing, list scroll reporting, route transitions, Now Playing visibility, and the home-screen nested-scroll chrome until explicitly migrated.
 
 ## Approach
 
@@ -40,11 +39,10 @@ This is intentionally a partial Miuix migration:
    - Add optional `color`, `titleColor`, `subtitleColor`, `defaultWindowInsetsPadding`, and padding parameters if needed.
    - Keep defaults identical to the current wrapper behavior so Search, Settings, and drill-down back/title bars do not change.
 
-2. Replace the custom title `Row` inside `NestedScrollBlurChrome` with `RhythHausTopAppBar` or direct Miuix `SmallTopAppBar` usage.
-   - Preferred: use `RhythHausTopAppBar` so all RhythHaus Miuix compact app bars share one wrapper.
-   - The nested-scroll instance should pass `onBack = null` and `defaultWindowInsetsPadding = false`.
-   - The top bar background should be transparent or glass-compatible so the existing `rhythHausLiquidGlass` surface remains visible.
-   - The top bar should be alpha-controlled by the existing `titleProgress` threshold.
+2. For drill-down track lists, render `TopAppBar(title = title, largeTitle = title, scrollBehavior = MiuixScrollBehavior(), ...)` in the RhythHaus glass overlay.
+   - Attach `Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)` to the drill-down `LazyColumn`.
+   - Provide the same back callback as the navigation icon.
+   - Keep the app-bar background transparent/glass-compatible so `rhythHausLiquidGlass` remains visible.
 
 3. Preserve the overlay box and divider.
    - Keep `chromeHeight = statusBarHeight + NestedScrollChromeToolbarHeight`.
@@ -52,9 +50,9 @@ This is intentionally a partial Miuix migration:
    - Keep `rhythHausLiquidGlass(...)` on the outer overlay.
    - Keep the bottom divider alpha based on `progress`.
 
-4. Preserve all scroll-state behavior.
-   - Keep `nestedScrollChromeStateFor(...)` activation semantics unless tests explicitly cover a refactor.
-   - Keep `LibraryHomeContent` and `DrillDownView` list state wiring and scroll reporting.
+4. Preserve surrounding behavior.
+   - Keep `LibraryHomeContent` and its current `nestedScrollChromeStateFor(...)` wiring unless a future change migrates home too.
+   - Keep `DrillDownView` list-state scroll reporting for Now Playing visibility.
    - Keep Now Playing bar visibility logic untouched.
 
 ## Non-goals
@@ -62,7 +60,7 @@ This is intentionally a partial Miuix migration:
 - No new Miuix dependencies.
 - No `miuix-navigation3-adaptive`.
 - No replacement of `NestedScrollBlurChrome`'s glass/backdrop implementation with Miuix blur primitives.
-- No adoption of `MiuixScrollBehavior.nestedScrollConnection` for Library lists in this change.
+- No dependency additions.
 - No changes to route transitions, Library navigation stack, bottom bar visibility, track rows, artwork, equalizer, or Now Playing controls.
 - No changes to `iosApp/iosApp.xcodeproj/xcshareddata/xcschemes/iosApp.xcscheme`.
 

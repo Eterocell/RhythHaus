@@ -33,16 +33,28 @@ The Library nested-scroll collapsed top chrome SHALL render its toolbar/title co
 - **THEN** the expanded header shows the back action and the large drill-down title
 - **AND** it does not show the former static top-bar title such as track count or artist subtitle above the large title
 
-### Requirement: Existing nested-scroll state semantics are preserved
+### Requirement: Miuix scroll behavior drives drill-down title collapse
 
-The migration SHALL preserve the current `nestedScrollChromeStateFor(...)` activation semantics and existing Library list scroll reporting unless explicitly changed by a future spec.
+The Library drill-down track list SHALL use Miuix `MiuixScrollBehavior` / `ScrollBehavior.nestedScrollConnection` for the expanded large title to collapsed top-bar title transition.
+
+#### Scenario: Drill-down list connects to Miuix scroll behavior
+
+- **GIVEN** an album or artist drill-down is displayed
+- **WHEN** the user scrolls the track list
+- **THEN** the drill-down `LazyColumn` is connected to the Miuix scroll behavior via nested scroll
+- **AND** the Miuix `TopAppBar` renders both the expanded large title and collapsed title states
+- **AND** the collapsed Miuix top app bar includes the back navigation action
+
+### Requirement: Existing home nested-scroll state semantics are preserved
+
+The migration SHALL preserve the current `nestedScrollChromeStateFor(...)` activation semantics for Library home and SHALL preserve existing Library list scroll reporting unless explicitly changed by a future spec.
 
 #### Scenario: Scroll progress tests remain valid
 
 - **GIVEN** existing `LibraryNavigationTest` coverage for Library scroll behavior
-- **WHEN** the nested-scroll top chrome is migrated
+- **WHEN** the home nested-scroll top chrome remains on the existing state-derived path
 - **THEN** those tests still pass
-- **AND** no Miuix nested scroll connection is introduced that changes list scroll consumption in this change
+- **AND** drill-down adoption of Miuix nested scroll does not break Library scroll reporting tests
 
 ### Requirement: TopAppBar wrapper remains backwards-compatible
 

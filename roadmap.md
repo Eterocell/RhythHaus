@@ -5,6 +5,7 @@
 - [x] Miuix 组件迁移：添加 miuix-preference，将 Settings 外观选择迁移到 OverlayDropdownPreference，将 Search 输入迁移到 Miuix TextField/IconButton；保留音乐专属的行、封面、均衡器和路由弹窗壳体自定义
 - [x] Miuix TopAppBar 迁移：新增 `RhythHausTopAppBar` wrapper，将 Search、Settings、Library drill-down 的普通返回/标题栏替换为 Miuix `SmallTopAppBar`，保留 nested-scroll glass chrome 与 Now Playing 自定义
 - [x] Miuix nested-scroll TopAppBar 迁移：Library home/drill-down collapsed glass chrome 的标题内容改用 Miuix `SmallTopAppBar` 路径，保留 RhythHaus glass/backdrop、状态栏覆盖与滚动触发逻辑
+- [x] MiuixScrollBehavior drill-down title collapse：drill-down track list 改用 Miuix `MiuixScrollBehavior().nestedScrollConnection` + direct Miuix `TopAppBar(title, largeTitle, scrollBehavior)`，由 Miuix 负责大标题到 collapsed topbar 标题/返回按钮的过渡；Library home 暂保留既有 `NestedScrollBlurChrome`。验证：shared compile、LibraryNavigationTest；仍需设备/模拟器手动调 top padding/标题位置。
 - [x] i18n
 - [x] 架构重构：拆分 App.kt，提取 Library 导航/状态/路由/页面内容到独立文件 (commits 7c7e895..0cbe270)
 - [x] 包结构整理：将 Library UI、NowPlaying/Search/Settings、通用 UI 与 theme  helpers 迁入 feature-first 包 (commits f0310e5..adb1e3d); playback/model 包迁移因 Playback.kt 混合模型与引擎逻辑且涉及 AndroidManifest/iOS Swift 桥接而 deferred

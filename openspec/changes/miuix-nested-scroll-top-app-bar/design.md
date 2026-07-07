@@ -27,15 +27,11 @@ NestedScrollBlurChrome
 
 ## Scroll Behavior Decision
 
-Do not adopt Miuix `MiuixScrollBehavior.nestedScrollConnection` for Library lists in this change.
+The Library drill-down track list uses Miuix `MiuixScrollBehavior().nestedScrollConnection` so the large title and collapsed title are owned by Miuix `TopAppBar` physics instead of RhythHaus' former `LazyListState`-derived overlay threshold.
 
-Reasons:
+The Library home screen can continue to use `NestedScrollBlurChrome` until its home-specific large header/import-card layout is explicitly migrated. The correction scope is the drill-down track-list behavior requested by the user.
 
-- Library already derives `NestedScrollChromeState` from `LazyListState`.
-- That same list state also feeds scroll reporting and bottom-bar visibility logic.
-- The current chrome is an overlay, not a layout-reserving app bar. Switching to Miuix nested scroll behavior directly would change list consumption/collapse physics and requires broader visual/runtime design.
-
-The migration should therefore use Miuix `SmallTopAppBar` as a rendering component, driven by the existing RhythHaus scroll progress.
+The drill-down migration keeps RhythHaus' glass/backdrop shell custom by placing Miuix `TopAppBar(scrollBehavior = scrollBehavior, largeTitle = title, title = title)` inside the glass overlay, while the `LazyColumn` attaches `Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)`.
 
 ## Inset and Glass Rules
 
@@ -47,7 +43,7 @@ The migration should therefore use Miuix `SmallTopAppBar` as a rendering compone
 
 ## Compatibility
 
-Existing `RhythHausTopAppBar` usages in Search, Settings, and `DrillDownHeader` must keep the same default visual behavior after any wrapper extension.
+Existing `RhythHausTopAppBar` usages in Search and Settings must keep the same default visual behavior after any wrapper extension. Drill-down track-list chrome now uses a direct Miuix `TopAppBar` with `MiuixScrollBehavior` instead of `DrillDownHeader`.
 
 Required existing API compatibility:
 
@@ -64,6 +60,6 @@ Adding optional parameters after `subtitle` is acceptable. Reordering or removin
 
 ## Risks
 
-- Miuix `SmallTopAppBar` internally applies top system bar padding even when `defaultWindowInsetsPadding = false` in Miuix 0.9.3 source. The implementation must verify the overlay does not double-cover the status bar or change total chrome height. If this behavior causes unavoidable double inset, use direct `SmallTopAppBar` in a bounded toolbar area with measurements adjusted, and record the reason.
+- Miuix `TopAppBar` internally applies top system bar padding in Miuix 0.9.3 source. The drill-down list must reserve enough top content padding for the expanded app bar and status area so content does not render beneath the large title.
 - Removing the pulse dot changes visual personality. The user asked to migrate nested scroll to Miuix TopAppBar, so the standard Miuix title should be preferred unless manual QA later requests restoring the dot as an action/bottom content.
 - Transparent app bar color must not create unreadable text over glass; use existing Haus ink/muted colors and current glass fallback.

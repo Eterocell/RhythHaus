@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -79,9 +80,7 @@ internal fun DrillDownView(
         val drillDownStatusBarHeight = rememberSystemBarTopPadding()
         val drillDownBackdrop = rememberRhythHausBackdrop()
         val listState = rememberLazyListState()
-        val scrollChromeState by remember(listState) {
-            derivedStateOf { nestedScrollChromeStateFor(listState.toLibraryScrollPosition()) }
-        }
+        val miuixScrollBehavior = rememberMiuixTopAppBarScrollBehavior()
         LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
             onScrollPositionChanged(listState.toLibraryScrollPosition())
         }
@@ -95,11 +94,11 @@ internal fun DrillDownView(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
+                        .nestedScroll(miuixScrollBehavior.nestedScrollConnection)
                         .padding(horizontal = 20.dp),
-                    contentPadding = PaddingValues(top = drillDownStatusBarHeight),
+                    contentPadding = PaddingValues(top = drillDownStatusBarHeight + DrillDownMiuixScrollContentTopPadding),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
-                    item { DrillDownHeader(title = title, onBack = onBack) }
                     item { SectionLabel(title = title, subtitle = subtitle) }
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(
@@ -120,12 +119,11 @@ internal fun DrillDownView(
             listState = listState,
             modifier = Modifier.align(Alignment.CenterEnd),
         )
-        NestedScrollBlurChrome(
-            state = scrollChromeState,
+        DrillDownMiuixScrollChrome(
+            scrollBehavior = miuixScrollBehavior,
             title = title,
             onBack = onBack,
             backdrop = drillDownBackdrop,
-            statusBarHeight = drillDownStatusBarHeight,
             modifier = Modifier.align(Alignment.TopCenter),
         )
 

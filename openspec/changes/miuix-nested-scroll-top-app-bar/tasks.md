@@ -37,3 +37,16 @@
   - Verified `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 896ms`; 25 actionable tasks: 6 executed, 19 up-to-date; configuration cache entry reused).
   - Verified `openspec validate miuix-nested-scroll-top-app-bar --strict`: pass (`Change 'miuix-nested-scroll-top-app-bar' is valid`).
   - Verified `git diff --check`: pass (no output, exit 0).
+
+- [x] 5. Adopt MiuixScrollBehavior for drill-down track-list title collapse.
+  - Replaced the drill-down-specific `NestedScrollBlurChrome`/`DrillDownHeader` path with `DrillDownMiuixScrollChrome`, rendering direct Miuix `TopAppBar(title = title, largeTitle = title, scrollBehavior = scrollBehavior, ...)`.
+  - Added `rememberMiuixTopAppBarScrollBehavior()` and attached `Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)` to the drill-down `LazyColumn`.
+  - Removed the separate expanded `DrillDownHeader`; Miuix `TopAppBar` now owns both the expanded large title and collapsed top-bar title, with the back button present in both states.
+  - Preserved Library home `NestedScrollBlurChrome` state-derived behavior, drill-down list scroll reporting, route transitions, track rows, Now Playing behavior, and Search/Settings `RhythHausTopAppBar` behavior.
+  - Verified `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`; 16 actionable tasks: 3 executed, 13 up-to-date; configuration cache entry reused).
+  - Verified `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`; 25 actionable tasks: 6 executed, 19 up-to-date; configuration cache entry reused).
+  - Verified `openspec validate miuix-nested-scroll-top-app-bar --strict`: pass (`Change 'miuix-nested-scroll-top-app-bar' is valid`).
+  - Verified `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 6s`; 99 actionable tasks: 11 executed, 88 up-to-date; configuration cache entry reused). Existing Android deprecation warning only: `MediaMetadata.Builder.setArtworkData`.
+  - Verified `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+  - Verified `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 14s`; 34 actionable tasks: 8 executed, 26 up-to-date; configuration cache entry reused). Existing iOS test warnings only in `IOSNowPlayingBridgingTest`.
+  - Verified `git diff --check`: pass (no output, exit 0).

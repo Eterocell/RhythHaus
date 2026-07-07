@@ -63,7 +63,6 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.ui.decodeArtworkCached
@@ -307,34 +306,6 @@ private fun AlbumMark(track: Track, selected: Boolean) {
                 fontSize = 20.sp,
             )
         }
-    }
-}
-
-@Composable
-internal fun DrillDownHeader(
-    title: String,
-    onBack: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        RhythHausTopAppBar(
-            title = "",
-            onBack = onBack,
-            color = Color.Transparent,
-        )
-        Text(
-            text = title,
-            color = HausColors.current.ink,
-            fontSize = 44.sp,
-            lineHeight = 42.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = (-1.6).sp,
-            fontFamily = FontFamily.SansSerif,
-        )
     }
 }
 

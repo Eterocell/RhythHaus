@@ -1,5 +1,38 @@
 # Session Progress
 
+## Handoff - 2026-07-07 Adopt MiuixScrollBehavior for drill-down track list
+
+Route: openspec+superpowers / planned scope correction / systematic debugging
+Owner: implementation
+Input: User correction: "Still not right, I want to adopt MiuixScrollBehavior"
+Output:
+- Confirmed Miuix 0.9.3 exposes `MiuixScrollBehavior()` returning `ScrollBehavior`, and Miuix `TopAppBar` supports `title`, `largeTitle`, and `scrollBehavior`; `SmallTopAppBar` pins the behavior and is not sufficient for large-title collapse.
+- Replaced the drill-down track-list chrome path with direct Miuix `TopAppBar(title = title, largeTitle = title, scrollBehavior = scrollBehavior, ...)` in RhythHaus glass.
+- Attached `Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)` to the drill-down `LazyColumn`.
+- Removed the separate expanded `DrillDownHeader`; the Miuix top app bar now owns both expanded large-title and collapsed title states with the back action present.
+- Preserved Library home `NestedScrollBlurChrome`, list scroll reporting, route transitions, track rows, and Now Playing behavior.
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`; 16 actionable tasks: 3 executed, 13 up-to-date; configuration cache reused).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`; 25 actionable tasks: 6 executed, 19 up-to-date; configuration cache reused).
+- `openspec validate miuix-nested-scroll-top-app-bar --strict`: pass (`Change 'miuix-nested-scroll-top-app-bar' is valid`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 6s`; 99 actionable tasks: 11 executed, 88 up-to-date; configuration cache reused). Existing Android deprecation warning only: `MediaMetadata.Builder.setArtworkData`.
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 14s`; 34 actionable tasks: 8 executed, 26 up-to-date; configuration cache reused). Existing iOS test warnings only in `IOSNowPlayingBridgingTest`.
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRows.kt`
+- `openspec/changes/miuix-nested-scroll-top-app-bar/design.md`
+- `openspec/changes/miuix-nested-scroll-top-app-bar/specs/library-ui/spec.md`
+- `openspec/changes/miuix-nested-scroll-top-app-bar/tasks.md`
+- `docs/superpowers/specs/2026-07-07-miuix-nested-scroll-top-app-bar-design.md`
+- `docs/superpowers/plans/2026-07-07-miuix-nested-scroll-top-app-bar.md`
+- `progress.md`
+- `roadmap.md`
+Next owner: user for visual QA on device/simulator; implementation owner if top padding/title position needs tuning.
+Blockers: manual visual QA still needed to tune top padding/title position if Miuix layout height differs from expected 128.dp reservation.
+
 ## Handoff - 2026-07-07 Miuix nested-scroll drill-down correction
 
 Route: openspec+superpowers correction

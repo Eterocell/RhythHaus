@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Render Library nested-scroll collapsed top chrome with Miuix `SmallTopAppBar` while preserving RhythHaus glass/backdrop and scroll-state behavior.
+**Goal:** Render Library nested-scroll top chrome with Miuix app bars. The drill-down track-list correction adopts Miuix `MiuixScrollBehavior` and Miuix `TopAppBar` large-title/collapsed-title behavior while preserving RhythHaus glass/backdrop and surrounding Library behavior.
 
-**Architecture:** Keep `NestedScrollBlurChrome` as the RhythHaus glass overlay shell and replace only its hand-built collapsed title row with the existing `RhythHausTopAppBar` wrapper. Extend the wrapper with optional color/inset/padding parameters while preserving defaults for Search, Settings, and Library drill-down back/title bars.
+**Architecture:** Keep RhythHaus glass/backdrop shells custom. Library home still uses `NestedScrollBlurChrome`; Library drill-down uses a direct Miuix `TopAppBar(scrollBehavior = MiuixScrollBehavior(), largeTitle = title, title = title)` in the glass overlay, with the drill-down `LazyColumn` connected through `Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)`.
 
 **Tech Stack:** Kotlin Multiplatform, Compose Multiplatform, Miuix 0.9.3 `miuix-ui`, RhythHaus shared Compose UI, OpenSpec.
 
@@ -13,9 +13,9 @@
 - Use existing Miuix 0.9.3 `miuix-ui`; do not add dependencies.
 - Do not add `miuix-navigation3-adaptive`.
 - Do not touch `iosApp/iosApp.xcodeproj/xcshareddata/xcschemes/iosApp.xcscheme`.
-- Keep `NestedScrollBlurChrome`'s glass/backdrop shell, status-bar coverage, early return, divider, and progress thresholding.
-- Do not adopt `MiuixScrollBehavior.nestedScrollConnection` for Library lists in this change.
-- Preserve `nestedScrollChromeStateFor(...)`, Library scroll reporting, bottom-bar visibility, route transitions, track rows, Now Playing behavior, and existing Search/Settings/drill-down `RhythHausTopAppBar` behavior.
+- Keep RhythHaus glass/backdrop shells, status-bar coverage, and route/content behavior.
+- Adopt `MiuixScrollBehavior().nestedScrollConnection` for the drill-down track-list title transition.
+- Preserve `nestedScrollChromeStateFor(...)` for Library home until a future home-specific migration; preserve Library scroll reporting, bottom-bar visibility, route transitions, track rows, Now Playing behavior, and existing Search/Settings `RhythHausTopAppBar` behavior.
 - Use patch/write_file tools; do not commit from subagents.
 - Each task must update `openspec/changes/miuix-nested-scroll-top-app-bar/tasks.md` with exact verification evidence and write its report under `.superpowers/sdd/miuix-nested-scroll-top-app-bar/`.
 
