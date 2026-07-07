@@ -133,3 +133,70 @@ data class LibraryNavigationStack(
         else -> candidate
     }
 }
+
+sealed interface LibraryNavigationAction {
+    data class Push(val route: LibraryRoute) : LibraryNavigationAction
+    data class ReplaceTop(val route: LibraryRoute) : LibraryNavigationAction
+    data object Pop : LibraryNavigationAction
+    data object PopToRoot : LibraryNavigationAction
+}
+
+fun shouldReplaceWideDetailRoute(
+    mode: LibraryAdaptiveLayoutMode,
+    current: LibraryRoute,
+    next: LibraryRoute,
+): Boolean = mode == LibraryAdaptiveLayoutMode.ListDetail &&
+    current.isDetailRoute() &&
+    next.isDetailRoute()
+
+private fun LibraryRoute.isDetailRoute(): Boolean = this is LibraryRoute.AlbumDetail || this is LibraryRoute.ArtistDetail
+
+fun applyNavigationAction(
+    stack: LibraryNavigationStack,
+    action: LibraryNavigationAction,
+): LibraryNavigationStack = when (action) {
+    is LibraryNavigationAction.Push -> stack.push(action.route)
+    is LibraryNavigationAction.ReplaceTop -> stack.replaceTop(action.route)
+    LibraryNavigationAction.Pop -> stack.pop()
+    LibraryNavigationAction.PopToRoot -> stack.popToRoot()
+}
+
+fun transitionForNavigationAction(
+    from: LibraryNavigationStack,
+    action: LibraryNavigationAction,
+): LibraryNavigationTransition {
+    val to = applyNavigationAction(from, action)
+    if (from.routes == to.routes) return LibraryNavigationTransition.None
+    return when (action) {
+        is LibraryNavigationAction.Push,
+        is LibraryNavigationAction.ReplaceTop,
+        -> classifyNavigationTransition(from = from, to = to)
+        LibraryNavigationAction.Pop -> LibraryNavigationTransition.Pop
+        LibraryNavigationAction.PopToRoot -> LibraryNavigationTransition.Root
+    }
+}
+
+fun selectedTrackIdForPlaybackChange(
+    currentSelectedTrackId: String?,
+    playbackTrackId: String?,
+): String? = playbackTrackId ?: currentSelectedTrackId
+
+data class LibraryBottomBarVisibilityState(
+    val visible: Boolean = true,
+    val previousScrollPosition: LibraryScrollPosition? = null,
+)
+
+fun updateBottomBarVisibilityForScroll(
+    state: LibraryBottomBarVisibilityState,
+    current: LibraryScrollPosition,
+): LibraryBottomBarVisibilityState {
+    val previous = state.previousScrollPosition ?: return state.copy(previousScrollPosition = current)
+    return LibraryBottomBarVisibilityState(
+        visible = decideNowPlayingBarVisibilityForLibraryScroll(
+            previous = previous,
+            current = current,
+            currentlyVisible = state.visible,
+        ),
+        previousScrollPosition = current,
+    )
+}

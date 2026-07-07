@@ -283,6 +283,106 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun wideDetailRouteReplacementOnlyAppliesBetweenDetailRoutesInListDetailMode() {
+        assertTrue(
+            shouldReplaceWideDetailRoute(
+                mode = LibraryAdaptiveLayoutMode.ListDetail,
+                current = LibraryRoute.AlbumDetail("A"),
+                next = LibraryRoute.ArtistDetail("B"),
+            ),
+        )
+        assertFalse(
+            shouldReplaceWideDetailRoute(
+                mode = LibraryAdaptiveLayoutMode.Compact,
+                current = LibraryRoute.AlbumDetail("A"),
+                next = LibraryRoute.ArtistDetail("B"),
+            ),
+        )
+        assertFalse(
+            shouldReplaceWideDetailRoute(
+                mode = LibraryAdaptiveLayoutMode.ListDetail,
+                current = LibraryRoute.Home,
+                next = LibraryRoute.AlbumDetail("A"),
+            ),
+        )
+        assertFalse(
+            shouldReplaceWideDetailRoute(
+                mode = LibraryAdaptiveLayoutMode.ListDetail,
+                current = LibraryRoute.AlbumDetail("A"),
+                next = LibraryRoute.Search,
+            ),
+        )
+    }
+
+    @Test
+    fun navigationActionsApplyExistingStackSemantics() {
+        val album = LibraryRoute.AlbumDetail("Blue Train")
+        val pushed = applyNavigationAction(LibraryNavigationStack(), LibraryNavigationAction.Push(album))
+        assertEquals(listOf(LibraryRoute.Home, album), pushed.routes)
+
+        val replaced = applyNavigationAction(pushed, LibraryNavigationAction.ReplaceTop(LibraryRoute.ArtistDetail("Alice")))
+        assertEquals(listOf(LibraryRoute.Home, LibraryRoute.ArtistDetail("Alice")), replaced.routes)
+
+        assertEquals(LibraryRoute.Home, applyNavigationAction(replaced, LibraryNavigationAction.Pop).current)
+        assertEquals(listOf(LibraryRoute.Home), applyNavigationAction(replaced, LibraryNavigationAction.PopToRoot).routes)
+    }
+
+    @Test
+    fun navigationActionTransitionMatchesStackChange() {
+        val from = LibraryNavigationStack().push(LibraryRoute.AlbumDetail("Blue Train"))
+
+        assertEquals(
+            LibraryNavigationTransition.Push,
+            transitionForNavigationAction(from, LibraryNavigationAction.Push(LibraryRoute.Search)),
+        )
+        assertEquals(
+            LibraryNavigationTransition.Pop,
+            transitionForNavigationAction(from, LibraryNavigationAction.Pop),
+        )
+        assertEquals(
+            LibraryNavigationTransition.Replace,
+            transitionForNavigationAction(from, LibraryNavigationAction.ReplaceTop(LibraryRoute.ArtistDetail("Alice"))),
+        )
+        assertEquals(
+            LibraryNavigationTransition.Root,
+            transitionForNavigationAction(from, LibraryNavigationAction.PopToRoot),
+        )
+        assertEquals(
+            LibraryNavigationTransition.None,
+            transitionForNavigationAction(LibraryNavigationStack(), LibraryNavigationAction.Pop),
+        )
+        assertEquals(
+            LibraryNavigationTransition.None,
+            transitionForNavigationAction(LibraryNavigationStack(), LibraryNavigationAction.PopToRoot),
+        )
+    }
+
+    @Test
+    fun playbackTrackSelectionOverridesOnlyWhenPlaybackHasTrack() {
+        assertEquals("playing", selectedTrackIdForPlaybackChange("selected", "playing"))
+        assertEquals("selected", selectedTrackIdForPlaybackChange("selected", null))
+        assertEquals(null, selectedTrackIdForPlaybackChange(null, null))
+    }
+
+    @Test
+    fun bottomBarVisibilityStateStoresPreviousScrollPosition() {
+        val initial = LibraryBottomBarVisibilityState(visible = true, previousScrollPosition = null)
+        val first = updateBottomBarVisibilityForScroll(
+            state = initial,
+            current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10),
+        )
+        assertTrue(first.visible)
+        assertEquals(LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10), first.previousScrollPosition)
+
+        val second = updateBottomBarVisibilityForScroll(
+            state = first,
+            current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30),
+        )
+        assertFalse(second.visible)
+        assertEquals(LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30), second.previousScrollPosition)
+    }
+
+    @Test
     fun nestedScrollChromeIsInactiveAtTopOfList() {
         val state = nestedScrollChromeStateFor(
             position = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 0),
