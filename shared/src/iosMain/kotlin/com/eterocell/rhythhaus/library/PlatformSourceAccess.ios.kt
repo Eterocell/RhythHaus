@@ -9,24 +9,30 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSURL
 import platform.Foundation.NSUserDomainMask
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.folder_picker_error_prepare
 
 @Composable
 actual fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
-): PlatformFolderPickerLauncher = remember(onResult) {
-    object : PlatformFolderPickerLauncher {
-        override val isAvailable: Boolean = true
+): PlatformFolderPickerLauncher {
+    val couldNotPrepareMessage = stringResource(Res.string.folder_picker_error_prepare)
+    return remember(onResult) {
+        object : PlatformFolderPickerLauncher {
+            override val isAvailable: Boolean = true
 
-        override fun launch() {
-            val result = runCatching {
-                PlatformFolderPickResult.Success(appLocalMusicSource())
-            }.getOrElse { throwable ->
-                PlatformFolderPickResult.Failure(
-                    message = "Could not prepare the app-local music folder",
-                    cause = throwable.message ?: throwable::class.simpleName,
-                )
+            override fun launch() {
+                val result = runCatching {
+                    PlatformFolderPickResult.Success(appLocalMusicSource())
+                }.getOrElse { throwable ->
+                    PlatformFolderPickResult.Failure(
+                        message = couldNotPrepareMessage,
+                        cause = throwable.message ?: throwable::class.simpleName,
+                    )
+                }
+                onResult(result)
             }
-            onResult(result)
         }
     }
 }

@@ -6,32 +6,40 @@ import com.eterocell.rhythhaus.AudioSource
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.folder_picker_error_select
+import rhythhaus.shared.generated.resources.folder_picker_no_folder_selected
 
 @Composable
 actual fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
-): PlatformFolderPickerLauncher = remember(onResult) {
-    object : PlatformFolderPickerLauncher {
-        override val isAvailable: Boolean = true
+): PlatformFolderPickerLauncher {
+    val noFolderSelectedMessage = stringResource(Res.string.folder_picker_no_folder_selected)
+    val couldNotSelectMessage = stringResource(Res.string.folder_picker_error_select)
+    return remember(onResult) {
+        object : PlatformFolderPickerLauncher {
+            override val isAvailable: Boolean = true
 
-        override fun launch() {
-            val result = runCatching { openNativeFolderDialog() }
-                .fold(
-                    onSuccess = { folder ->
-                        if (folder == null) {
-                            PlatformFolderPickResult.Unavailable("No folder selected")
-                        } else {
-                            PlatformFolderPickResult.Success(folder.toJvmFolderSource())
-                        }
-                    },
-                    onFailure = { throwable ->
-                        PlatformFolderPickResult.Failure(
-                            message = "Could not select music folder",
-                            cause = throwable.message ?: throwable::class.simpleName,
-                        )
-                    },
-                )
-            onResult(result)
+            override fun launch() {
+                val result = runCatching { openNativeFolderDialog() }
+                    .fold(
+                        onSuccess = { folder ->
+                            if (folder == null) {
+                                PlatformFolderPickResult.Unavailable(noFolderSelectedMessage)
+                            } else {
+                                PlatformFolderPickResult.Success(folder.toJvmFolderSource())
+                            }
+                        },
+                        onFailure = { throwable ->
+                            PlatformFolderPickResult.Failure(
+                                message = couldNotSelectMessage,
+                                cause = throwable.message ?: throwable::class.simpleName,
+                            )
+                        },
+                    )
+                onResult(result)
+            }
         }
     }
 }

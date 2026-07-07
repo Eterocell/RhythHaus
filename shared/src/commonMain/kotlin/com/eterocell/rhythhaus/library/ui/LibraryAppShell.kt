@@ -54,6 +54,7 @@ import com.eterocell.rhythhaus.taglib.TagLibReader
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.adaptive_detail_placeholder
 import rhythhaus.shared.generated.resources.library
 import top.yukonga.miuix.kmp.basic.Surface
 import com.eterocell.rhythhaus.theme.HausColors
@@ -375,7 +376,7 @@ private fun AdaptiveDetailPlaceholder() {
                 fontWeight = FontWeight.Black,
             )
             top.yukonga.miuix.kmp.basic.Text(
-                text = "Select an album or artist to show details here.",
+                text = stringResource(Res.string.adaptive_detail_placeholder),
                 color = HausColors.current.muted,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,

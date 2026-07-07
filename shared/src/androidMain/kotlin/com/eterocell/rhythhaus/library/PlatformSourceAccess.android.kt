@@ -11,12 +11,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.documentfile.provider.DocumentFile
 import com.eterocell.rhythhaus.AudioSource
 import java.io.File
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.folder_picker_error_access
 
 @Composable
 actual fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
 ): PlatformFolderPickerLauncher {
     val context = LocalContext.current
+    val couldNotAccessMessage = stringResource(Res.string.folder_picker_error_access)
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val result = runCatching {
@@ -24,7 +28,7 @@ actual fun rememberPlatformFolderPickerLauncher(
             PlatformFolderPickResult.Success(uri.toAndroidSafSource(context))
         }.getOrElse { throwable ->
             PlatformFolderPickResult.Failure(
-                message = "Could not access selected folder",
+                message = couldNotAccessMessage,
                 cause = throwable.message ?: throwable::class.simpleName,
             )
         }

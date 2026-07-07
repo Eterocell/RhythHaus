@@ -147,6 +147,7 @@ A code-changing task is complete only when:
 - relevant verification commands were run, or blockers were recorded with exact command/output;
 - final diff was reviewed against the original request;
 - `progress.md` is updated with evidence and next safe action for multi-session work;
+- `roadmap.md` is updated with a concise entry for any completed product, architecture, or refactor work, including deferrals and blockers;
 - OpenSpec tasks/specs are updated when OpenSpec owns the change;
 - after an OpenSpec + Superpowers workflow is complete, the resulting changes are committed with a semantic/conventional commit message unless the user explicitly says not to commit.
 

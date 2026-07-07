@@ -1,5 +1,7 @@
 - [x] 添加循环播放选择, 随机播放选择
 - [x] 修复即使上一页 NowPlayingBar 仍然 visible 的情况下, 从 NowPlayingScreen 返回也会显示 NowPlayingBar hidden->visible 的动画的问题
 - [x] 修复按钮中字母 'g' 的下方可能被截断的问题
-- [ ] 添加 Nested Scroll 效果给 Track list 和 Library 等页面, 类似于 Material 3 Expressive 的效果, 但是需要用 Backdrop 或者 Haze 添加模糊效果 (WIP: Haze 已移除，chrome 现为纯色 scrim，待用户实机确认最终视觉效果)
+- [x] 添加 Nested Scroll 效果给 Track list 和 Library 等页面, 类似于 Material 3 Expressive 的效果, 使用 miuix-blur 添加模糊效果
 - [x] i18n
+- [x] 架构重构：拆分 App.kt，提取 Library 导航/状态/路由/页面内容到独立文件 (commits 7c7e895..0cbe270)
+- [x] 包结构整理：将 Library UI、NowPlaying/Search/Settings、通用 UI 与 theme  helpers 迁入 feature-first 包 (commits f0310e5..adb1e3d); playback/model 包迁移因 Playback.kt 混合模型与引擎逻辑且涉及 AndroidManifest/iOS Swift 桥接而 deferred

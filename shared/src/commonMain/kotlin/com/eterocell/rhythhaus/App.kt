@@ -37,6 +37,9 @@ import com.eterocell.rhythhaus.theme.resolveHausPalette
 import com.eterocell.rhythhaus.theme.createThemePreferenceStore
 import com.eterocell.rhythhaus.theme.LocalHausColors
 import com.eterocell.rhythhaus.theme.DarkHausPalette
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.scan_complete_format
 
 @Composable
 @Preview
@@ -61,6 +64,7 @@ fun App() {
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
+    val scanCompleteFormat = stringResource(Res.string.scan_complete_format)
     val themePreferenceStore = remember { createThemePreferenceStore() }
     val selectedThemeMode by themePreferenceStore.selectedThemeMode.collectAsState(RhythHausThemeMode.System)
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
@@ -77,7 +81,9 @@ fun App() {
 
                     withContext(Dispatchers.Main) {
                         scanProgress = ScanProgress(session = session)
-                        importMessage = "Scan complete: ${session.tracksAdded} new, ${session.tracksUpdated} updated"
+                        importMessage = scanCompleteFormat
+                            .replaceFirst("%1\$d", session.tracksAdded.toString())
+                            .replaceFirst("%2\$d", session.tracksUpdated.toString())
                         libraryTracks = repository.tracks()
                     }
                 }

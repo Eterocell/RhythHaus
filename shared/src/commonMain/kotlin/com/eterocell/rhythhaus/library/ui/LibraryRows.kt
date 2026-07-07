@@ -73,6 +73,9 @@ import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.importCardDescription
 import com.eterocell.rhythhaus.importCardTitle
 import com.eterocell.rhythhaus.importCardTitleWithTracks
+import rhythhaus.shared.generated.resources.browse_mode_albums
+import rhythhaus.shared.generated.resources.browse_mode_artists
+import rhythhaus.shared.generated.resources.browse_mode_songs
 
 @Composable
 internal fun HeaderSection(snapshot: LibrarySnapshot) {
@@ -118,14 +121,14 @@ internal fun ImportAudioCard(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = if (hasImportedTracks) importCardTitleWithTracks else importCardTitle,
+                text = if (hasImportedTracks) importCardTitleWithTracks() else importCardTitle(),
                 color = HausColors.current.ink,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Black,
             )
             val addMusicFolderContentDescription = stringResource(Res.string.add_music_folder)
             Text(
-                text = importMessage ?: importCardDescription,
+                text = importMessage ?: importCardDescription(),
                 color = HausColors.current.muted,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
@@ -371,10 +374,17 @@ internal fun BrowseModePicker(
                     )
                 },
             ) {
-                Text(mode.name, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+                Text(stringResource(mode.displayLabelResource()), fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
             }
         }
     }
+}
+
+@Composable
+private fun BrowseMode.displayLabelResource() = when (this) {
+    BrowseMode.Albums -> Res.string.browse_mode_albums
+    BrowseMode.Artists -> Res.string.browse_mode_artists
+    BrowseMode.Songs -> Res.string.browse_mode_songs
 }
 
 @Composable

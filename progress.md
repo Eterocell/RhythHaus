@@ -1978,3 +1978,47 @@ Reviews:
 Next owner: user for manual visual smoke validation of library navigation/detail/search/settings/clear-library routes on target devices; OpenSpec/user for archive when satisfied.
 Blockers: none for automated OpenSpec/JVM/desktop/Android/iOS verification. Manual visual validation remains recommended because this was a behavior-preserving UI extraction.
 Commits: `7c7e895`, `aafa446`, `a6c78e7`, `80e0d8f`, `e37470f`; final evidence commit pending.
+
+## Handoff - 2026-07-07 i18n completeness
+
+Route: openspec+superpowers
+Owner: implementation
+Input: existing i18n design spec/plan (`docs/superpowers/specs/2026-07-06-i18n-design.md`, `docs/superpowers/plans/2026-07-06-i18n.md`)
+Scope: Complete missing shared Compose UI string localization and remove dead resource keys.
+Findings:
+- Existing `composeResources/values/strings.xml` and `values-zh/strings.xml` were in sync but missing keys for several user-facing strings.
+- `ImportLabels` used platform-specific `expect val` hardcoded strings; migrated to common composable functions using string resources and deleted Android/JVM/iOS actual files.
+Fix:
+- Added 12 new localized keys to both English and Chinese resource files: `adaptive_detail_placeholder`, `browse_mode_albums`, `browse_mode_artists`, `browse_mode_songs`, `import_card_title`, `import_card_title_with_tracks`, `import_card_description`, `scan_complete_format`, `folder_picker_error_access`, `folder_picker_error_select`, `folder_picker_error_prepare`, `folder_picker_no_folder_selected`.
+- Removed 8 unused/dead keys from both files: `album_count_format`, `now_playing_label`, `pause_playback`, `play_selected_track`, `playback_seek_position`, `playback_status_format`, `stop`, `stop_playback`.
+- Replaced hardcoded browse-mode labels in `LibraryRows.kt` with `stringResource(mode.displayLabelResource())` and a private `BrowseMode.displayLabelResource()` extension.
+- Replaced hardcoded adaptive placeholder in `LibraryAppShell.kt` with `stringResource(Res.string.adaptive_detail_placeholder)`.
+- Replaced hardcoded scan-complete message in `App.kt` with the new `scan_complete_format` resource, using `.replaceFirst` for Kotlin/Multiplatform integer substitution.
+- Localized platform folder-picker failure/unavailable messages in `PlatformSourceAccess.android.kt`, `.jvm.kt`, and `.ios.kt` by resolving `stringResource` values in the composable launcher and passing them into `PlatformFolderPickResult`.
+Changed files:
+- `shared/src/commonMain/composeResources/values/strings.xml`
+- `shared/src/commonMain/composeResources/values-zh/strings.xml`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ImportLabels.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRows.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.android.kt`
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.jvm.kt`
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.ios.kt`
+- `docs/superpowers/plans/2026-07-06-i18n.md`
+- `openspec/changes/i18n/tasks.md`
+Deleted files:
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/ImportLabels.android.kt`
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/ImportLabels.jvm.kt`
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/ImportLabels.ios.kt`
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :desktopApp:compileKotlin --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `./gradlew :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `git diff --check`: pass (no output).
+Next owner: user for manual visual validation of localized strings in English and Chinese on target devices; OpenSpec for archive when satisfied.
+Blockers: none.
+Commit: not created; will describe staged diff before committing per user preference.
