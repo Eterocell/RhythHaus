@@ -25,16 +25,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.PlaybackState
-import com.eterocell.rhythhaus.RhythHausGlassSurfaceAlpha
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.decodeArtworkThumbnailCached
-import com.eterocell.rhythhaus.hausClickable
-import com.eterocell.rhythhaus.rhythHausLiquidGlass
-import com.eterocell.rhythhaus.verticalSheetGesture
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import com.eterocell.rhythhaus.ui.decodeArtworkThumbnailCached
+import com.eterocell.rhythhaus.ui.hausClickable
+import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
+import com.eterocell.rhythhaus.ui.verticalSheetGesture
+import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
 import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
@@ -46,6 +45,7 @@ import rhythhaus.shared.generated.resources.search
 import rhythhaus.shared.generated.resources.settings
 import rhythhaus.shared.generated.resources.track_artist_album_format
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 
 internal val NowPlayingBarContentPadding = 144.dp
 

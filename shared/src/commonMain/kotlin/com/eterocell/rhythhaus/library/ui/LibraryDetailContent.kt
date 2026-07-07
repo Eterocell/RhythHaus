@@ -34,16 +34,16 @@ import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import top.yukonga.miuix.kmp.basic.Surface
-import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.leftEdgeSwipeBack
-import com.eterocell.rhythhaus.recordRhythHausBackdrop
+import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
+import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
-import com.eterocell.rhythhaus.rememberRhythHausBackdrop
+import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)

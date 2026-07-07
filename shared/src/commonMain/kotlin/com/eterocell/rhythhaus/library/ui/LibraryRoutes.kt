@@ -21,7 +21,7 @@ import rhythhaus.shared.generated.resources.unknown_artist
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
-import com.eterocell.rhythhaus.RhythHausThemeMode
+import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.search.SearchScreen
 import com.eterocell.rhythhaus.settings.SettingsScreen
 import com.eterocell.rhythhaus.Track

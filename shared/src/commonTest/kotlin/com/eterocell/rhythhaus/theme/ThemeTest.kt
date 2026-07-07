@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.theme
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

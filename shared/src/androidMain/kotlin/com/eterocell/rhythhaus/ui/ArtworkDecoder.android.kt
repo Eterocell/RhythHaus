@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.ui
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

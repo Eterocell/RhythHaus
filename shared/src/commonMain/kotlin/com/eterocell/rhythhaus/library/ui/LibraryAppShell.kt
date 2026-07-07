@@ -56,7 +56,7 @@ import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.library
 import top.yukonga.miuix.kmp.basic.Surface
-import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarHeightPx
@@ -64,12 +64,12 @@ import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus
-import com.eterocell.rhythhaus.RhythHausThemeMode
+import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.recordRhythHausBackdrop
-import com.eterocell.rhythhaus.rememberRhythHausBackdrop
+import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
+import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
 import com.eterocell.rhythhaus.toPlayableTrack
-import com.eterocell.rhythhaus.verticalSheetGesture
+import com.eterocell.rhythhaus.ui.verticalSheetGesture
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalAnimationApi::class)

@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.ui
 
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Animatable

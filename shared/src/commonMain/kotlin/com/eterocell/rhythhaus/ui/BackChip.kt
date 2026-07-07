@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -19,6 +19,7 @@ import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.back
 import rhythhaus.shared.generated.resources.back_button
 import top.yukonga.miuix.kmp.basic.Text
+import com.eterocell.rhythhaus.theme.HausColors
 
 @Composable
 fun BackChip(

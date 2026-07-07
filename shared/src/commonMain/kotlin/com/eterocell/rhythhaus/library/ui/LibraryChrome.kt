@@ -42,9 +42,9 @@ import kotlin.math.max
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import com.eterocell.rhythhaus.HausColors
-import com.eterocell.rhythhaus.rhythHausLiquidGlass
-import com.eterocell.rhythhaus.RhythHausGlassSurfaceAlpha
+import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
+import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
 
 internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = LibraryScrollPosition(
     firstVisibleItemIndex = firstVisibleItemIndex,

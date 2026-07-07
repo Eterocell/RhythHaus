@@ -30,13 +30,13 @@ import rhythhaus.shared.generated.resources.library
 import rhythhaus.shared.generated.resources.library_queue
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus
-import com.eterocell.rhythhaus.recordRhythHausBackdrop
+import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.toPlayableTrack
 
 @Composable

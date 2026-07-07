@@ -465,11 +465,3 @@ class FakePlaybackEngine : PlatformPlaybackEngine {
         loaded = null
     }
 }
-
-fun formatMillis(totalMillis: Long?): String {
-    if (totalMillis == null) return "--:--"
-    val totalSeconds = max(0L, totalMillis / 1_000L)
-    val minutes = totalSeconds / 60L
-    val seconds = totalSeconds % 60L
-    return "$minutes:${seconds.toString().padStart(2, '0')}"
-}

@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable

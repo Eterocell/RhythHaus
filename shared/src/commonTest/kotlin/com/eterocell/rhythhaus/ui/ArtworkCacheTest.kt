@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.ui
 
 import kotlin.test.AfterTest
 import kotlin.test.Test

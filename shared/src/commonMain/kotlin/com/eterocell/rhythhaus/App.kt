@@ -31,6 +31,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
 import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
+import com.eterocell.rhythhaus.theme.systemPrefersDarkTheme
+import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.theme.resolveHausPalette
+import com.eterocell.rhythhaus.theme.createThemePreferenceStore
+import com.eterocell.rhythhaus.theme.LocalHausColors
+import com.eterocell.rhythhaus.theme.DarkHausPalette
 
 @Composable
 @Preview
