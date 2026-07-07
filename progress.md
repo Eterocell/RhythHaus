@@ -1,5 +1,40 @@
 # Session Progress
 
+## Handoff - 2026-07-07 Miuix component migration
+
+Route: openspec+superpowers
+Owner: implementation
+Input: User asked to use `rhythhaus-miuix-usage` and migrate the project UI toward Miuix components, replacing bare custom components where suitable.
+Output:
+- Added `miuix-preference` at the existing Miuix `0.9.3` version line and wired `libs.miuix.preference` into shared commonMain.
+- Migrated Settings appearance selection from a hand-rolled dropdown to Miuix `OverlayDropdownPreference` inside a local Miuix `Scaffold` popup host.
+- Migrated Search input from custom `BasicTextField`/clear chip to Miuix `TextField`/`IconButton`, preserving the old stable muted border affordance with an outer 1dp border container.
+- Audited Library rows, album cards, artwork/equalizer pieces, and Clear Library dialog. Kept product-specific rows/artwork/equalizer/route overlay custom; confirmed existing clear-library inner content already uses Miuix `Card`, `Button`, and `Text`.
+Verification:
+- `openspec validate miuix-component-migration --strict`: pass (`Change 'miuix-component-migration' is valid`).
+- Initial `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: failed once in `JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion`; targeted rerun passed, matching prior transient playback-test behavior.
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion' --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`).
+- Rerun `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`; `99 actionable tasks: 7 executed, 92 up-to-date`).
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 18s`; `43 actionable tasks: 23 executed, 20 up-to-date`).
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `gradle/libs.versions.toml`
+- `shared/build.gradle.kts`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/settings/SettingsScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/search/SearchScreen.kt`
+- `docs/superpowers/specs/2026-07-07-miuix-component-migration-design.md`
+- `docs/superpowers/plans/2026-07-07-miuix-component-migration.md`
+- `openspec/changes/miuix-component-migration/proposal.md`
+- `openspec/changes/miuix-component-migration/design.md`
+- `openspec/changes/miuix-component-migration/specs/library-ui/spec.md`
+- `openspec/changes/miuix-component-migration/tasks.md`
+- `progress.md`
+- `roadmap.md`
+Next owner: user for manual visual/runtime validation of Settings dropdown overlay and Search field affordance on target devices.
+Blockers: none for automated OpenSpec/JVM/desktop/Android/iOS verification. Pre-existing modified `iosApp/iosApp.xcodeproj/xcshareddata/xcschemes/iosApp.xcscheme` remains out of scope and was not touched by this migration.
+Commit: pending staged diff review.
+
 ## Handoff - 2026-07-07 iOS locked-screen track-end completion
 
 Route: systematic-debugging

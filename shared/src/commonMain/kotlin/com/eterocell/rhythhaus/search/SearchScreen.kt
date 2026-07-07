@@ -8,16 +8,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.ui.BackChip
@@ -37,8 +37,11 @@ import rhythhaus.shared.generated.resources.search_placeholder
 import rhythhaus.shared.generated.resources.search_results_count_many
 import rhythhaus.shared.generated.resources.search_results_count_one
 import rhythhaus.shared.generated.resources.search_results_count_zero
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import com.eterocell.rhythhaus.library.ui.EqualizerStrip
 import com.eterocell.rhythhaus.library.ui.LibraryScrollPosition
 
@@ -106,43 +109,50 @@ fun SearchScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .border(1.dp, HausColors.current.muted.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                        .background(HausColors.current.paper)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .border(
+                            width = 1.dp,
+                            color = HausColors.current.muted.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(12.dp),
+                        ),
                 ) {
-                    if (query.isEmpty()) {
-                        Text(
-                            stringResource(Res.string.search_placeholder),
-                            color = HausColors.current.muted,
-                            fontSize = 15.sp,
-                        )
-                    }
-                    BasicTextField(
+                    TextField(
                         value = query,
                         onValueChange = { query = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(end = if (query.isNotEmpty()) 44.dp else 0.dp)
                             .focusRequester(focusRequester),
+                        insideMargin = DpSize(16.dp, 14.dp),
+                        colors = TextFieldDefaults.textFieldColors(
+                            backgroundColor = HausColors.current.paper,
+                            labelColor = HausColors.current.muted,
+                            borderColor = Color.Transparent,
+                        ),
+                        cornerRadius = 12.dp,
+                        label = stringResource(Res.string.search_placeholder),
+                        useLabelAsPlaceholder = true,
                         singleLine = true,
                         textStyle = TextStyle(color = HausColors.current.ink, fontSize = 15.sp),
                         cursorBrush = SolidColor(HausColors.current.pulse),
+                        trailingIcon = if (query.isNotEmpty()) {
+                            {
+                                IconButton(
+                                    onClick = { query = "" },
+                                    backgroundColor = Color.Transparent,
+                                    minWidth = 40.dp,
+                                    minHeight = 40.dp,
+                                ) {
+                                    Text(
+                                        stringResource(Res.string.clear),
+                                        color = HausColors.current.pulse,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Black,
+                                    )
+                                }
+                            }
+                        } else {
+                            null
+                        },
                     )
-                    if (query.isNotEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .height(44.dp)
-                                .padding(horizontal = 8.dp)
-                                .clip(RoundedCornerShape(999.dp))
-                                .hausClickable { query = "" }
-                                .padding(horizontal = 10.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(stringResource(Res.string.clear), color = HausColors.current.pulse, fontSize = 12.sp, fontWeight = FontWeight.Black)
-                        }
-                    }
                 }
 
                 // Results
