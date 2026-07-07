@@ -1,5 +1,37 @@
 # Session Progress
 
+## Handoff - 2026-07-07 Miuix TopAppBar migration
+
+Route: openspec+superpowers
+Owner: implementation
+Input: User asked to use Miuix `TopAppBar` instead of the current custom top bar, with spec, plan, and subagent-driven development.
+Output:
+- Added shared `RhythHausTopAppBar`, a RhythHaus wrapper around Miuix `SmallTopAppBar` and Miuix `IconButton`, using existing Haus colors, localized back content description, and caller-owned insets.
+- Replaced Search and Settings custom `BackChip` + title rows with `RhythHausTopAppBar`, preserving Search field/filter/result behavior and Settings scaffold/dropdown/scan controls.
+- Replaced Library drill-down `BackChip` + subtitle row with `RhythHausTopAppBar(title = subtitle, onBack = onBack)`, preserving the large drill-down title, nested-scroll chrome, track rows, left-edge swipe back, and Now Playing bar behavior.
+Verification:
+- `openspec validate miuix-top-app-bar --strict`: pass (`Change 'miuix-top-app-bar' is valid`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 5s`; 99 actionable tasks: 14 executed, 85 up-to-date; configuration cache reused). Existing Android deprecation warning only: `MediaMetadata.Builder.setArtworkData`.
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 12s`; 34 actionable tasks: 8 executed, 26 up-to-date; configuration cache reused). Existing iOS test warnings only in `IOSNowPlayingBridgingTest`.
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/RhythHausTopAppBar.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/search/SearchScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/settings/SettingsScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRows.kt`
+- `docs/superpowers/specs/2026-07-07-miuix-top-app-bar-design.md`
+- `docs/superpowers/plans/2026-07-07-miuix-top-app-bar.md`
+- `openspec/changes/miuix-top-app-bar/proposal.md`
+- `openspec/changes/miuix-top-app-bar/design.md`
+- `openspec/changes/miuix-top-app-bar/specs/library-ui/spec.md`
+- `openspec/changes/miuix-top-app-bar/tasks.md`
+- `progress.md`
+- `roadmap.md`
+Next owner: user for manual visual/runtime QA of Search, Settings, and Library drill-down top bars on target devices.
+Blockers: none for automated OpenSpec/JVM/desktop/Android/iOS verification. Pre-existing modified `iosApp/iosApp.xcodeproj/xcshareddata/xcschemes/iosApp.xcscheme` remains out of scope and was not touched.
+Commit: pending staged diff review.
+
 ## Handoff - 2026-07-07 Miuix component migration
 
 Route: openspec+superpowers

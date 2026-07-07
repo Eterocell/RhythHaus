@@ -62,8 +62,8 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
-import com.eterocell.rhythhaus.ui.BackChip
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.ui.decodeArtworkCached
@@ -322,18 +322,10 @@ internal fun DrillDownHeader(
             .padding(top = 18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            BackChip(onClick = onBack)
-            Text(
-                text = subtitle,
-                color = HausColors.current.muted,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
+        RhythHausTopAppBar(
+            title = subtitle,
+            onBack = onBack,
+        )
         Text(
             text = title,
             color = HausColors.current.ink,

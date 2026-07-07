@@ -20,10 +20,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.eterocell.rhythhaus.ui.BackChip
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.toPlayableTrack
 import com.eterocell.rhythhaus.library.LibraryTrack
@@ -95,15 +95,10 @@ fun SearchScreen(
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                // Title bar with back
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BackChip(onClick = onDismiss)
-                    Spacer(Modifier.weight(1f))
-                    Text(stringResource(Res.string.search), color = HausColors.current.ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
-                }
+                RhythHausTopAppBar(
+                    title = stringResource(Res.string.search),
+                    onBack = onDismiss,
+                )
 
                 // Search field
                 Box(
