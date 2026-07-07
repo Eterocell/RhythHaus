@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,12 +25,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.eterocell.rhythhaus.ui.BackChip
-import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.theme.RhythHausThemeMode
-import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.ui.ScanningCard
+import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.ui.BackChip
+import com.eterocell.rhythhaus.ui.hausClickable
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
@@ -52,7 +52,6 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
-import com.eterocell.rhythhaus.library.ui.ScanningCard
 
 @Composable
 fun SettingsScreen(
@@ -145,7 +144,9 @@ fun SettingsScreen(
                     ),
                 ) {
                     Text(
-                        text = if (folderPickerLauncher.isAvailable) stringResource(Res.string.add_music_folder) else stringResource(Res.string.folder_picker_unavailable),
+                        text = if (folderPickerLauncher.isAvailable) stringResource(Res.string.add_music_folder) else stringResource(
+                            Res.string.folder_picker_unavailable
+                        ),
                         fontWeight = FontWeight.Black,
                     )
                 }
@@ -165,15 +166,17 @@ fun SettingsScreen(
                 if (hasImportedTracks) {
                     Button(
                         onClick = onClearLibrary,
-                        modifier = Modifier.fillMaxWidth().height(40.dp),
-                        cornerRadius = 12.dp,
-                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        cornerRadius = 18.dp,
                         colors = ButtonDefaults.buttonColors(
                             color = HausColors.current.pulse.copy(alpha = 0.15f),
                             contentColor = HausColors.current.pulse,
                         ),
                     ) {
-                        Text(stringResource(Res.string.clear_library), fontSize = 13.sp, fontWeight = FontWeight.Black)
+                        Text(
+                            text = stringResource(Res.string.clear_library),
+                            fontWeight = FontWeight.Black
+                        )
                     }
                 }
             }
@@ -195,7 +198,11 @@ private fun AppearanceDropdown(
             .fillMaxWidth()
             .clip(shape)
             .background(colors.panel)
-            .border(width = 1.dp, color = if (expanded) colors.pulse else colors.line, shape = shape),
+            .border(
+                width = 1.dp,
+                color = if (expanded) colors.pulse else colors.line,
+                shape = shape
+            ),
     ) {
         Row(
             modifier = Modifier
