@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +26,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.BackChip
+import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.RhythHausThemeMode
+import com.eterocell.rhythhaus.hausClickable
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import kotlinx.coroutines.Job

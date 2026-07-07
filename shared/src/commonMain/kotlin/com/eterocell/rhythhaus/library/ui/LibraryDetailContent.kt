@@ -41,8 +41,8 @@ import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.leftEdgeSwipeBack
 import com.eterocell.rhythhaus.recordRhythHausBackdrop
-import com.eterocell.rhythhaus.NowPlayingBar
-import com.eterocell.rhythhaus.NowPlayingBarContentPadding
+import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
+import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.rememberRhythHausBackdrop
 
 @Composable

@@ -58,9 +58,9 @@ import rhythhaus.shared.generated.resources.library
 import top.yukonga.miuix.kmp.basic.Surface
 import com.eterocell.rhythhaus.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
-import com.eterocell.rhythhaus.NowPlayingBar
-import com.eterocell.rhythhaus.NowPlayingBarHeightPx
-import com.eterocell.rhythhaus.NowPlayingScreen
+import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
+import com.eterocell.rhythhaus.nowplaying.NowPlayingBarHeightPx
+import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus

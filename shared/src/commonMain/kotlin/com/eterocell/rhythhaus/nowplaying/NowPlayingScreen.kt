@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.nowplaying
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,6 +30,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.MusicProgressScrubber
+import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.PlaybackStatus
+import com.eterocell.rhythhaus.RepeatMode
+import com.eterocell.rhythhaus.ShuffleMode
+import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.decodeArtwork
+import com.eterocell.rhythhaus.hausClickable
+import com.eterocell.rhythhaus.leftEdgeSwipeBack
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import org.jetbrains.compose.resources.stringResource

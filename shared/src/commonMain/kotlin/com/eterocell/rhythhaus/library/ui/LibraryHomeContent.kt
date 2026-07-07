@@ -32,7 +32,7 @@ import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import com.eterocell.rhythhaus.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
-import com.eterocell.rhythhaus.NowPlayingBarContentPadding
+import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus

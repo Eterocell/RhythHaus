@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.nowplaying
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
@@ -25,6 +25,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.RhythHausGlassSurfaceAlpha
+import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.decodeArtworkThumbnailCached
+import com.eterocell.rhythhaus.hausClickable
+import com.eterocell.rhythhaus.rhythHausLiquidGlass
+import com.eterocell.rhythhaus.verticalSheetGesture
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.compose.resources.stringResource

@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus
+package com.eterocell.rhythhaus.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,6 +20,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.BackChip
+import com.eterocell.rhythhaus.HausColors
+import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.hausClickable
+import com.eterocell.rhythhaus.toPlayableTrack
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import org.jetbrains.compose.resources.stringResource

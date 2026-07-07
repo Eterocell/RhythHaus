@@ -22,8 +22,8 @@ import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.RhythHausThemeMode
-import com.eterocell.rhythhaus.SearchScreen
-import com.eterocell.rhythhaus.SettingsScreen
+import com.eterocell.rhythhaus.search.SearchScreen
+import com.eterocell.rhythhaus.settings.SettingsScreen
 import com.eterocell.rhythhaus.Track
 
 @Composable
