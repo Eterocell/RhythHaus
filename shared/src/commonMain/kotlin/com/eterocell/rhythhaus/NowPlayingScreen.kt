@@ -120,14 +120,26 @@ fun NowPlayingScreen(
             .leftEdgeSwipeBack(onBack),
         color = HausColors.current.paper,
     ) {
-        CompactNowPlayingLayout(
-            track = track,
-            playbackState = playbackState,
-            playbackController = playbackController,
-            uiState = uiState,
-            artworkBitmap = artworkBitmap,
-            brush = brush,
-        )
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            when (nowPlayingAdaptiveLayoutModeFor(widthDp = maxWidth.value, heightDp = maxHeight.value)) {
+                NowPlayingAdaptiveLayoutMode.Compact -> CompactNowPlayingLayout(
+                    track = track,
+                    playbackState = playbackState,
+                    playbackController = playbackController,
+                    uiState = uiState,
+                    artworkBitmap = artworkBitmap,
+                    brush = brush,
+                )
+                NowPlayingAdaptiveLayoutMode.Split -> WideNowPlayingLayout(
+                    track = track,
+                    playbackState = playbackState,
+                    playbackController = playbackController,
+                    uiState = uiState,
+                    artworkBitmap = artworkBitmap,
+                    brush = brush,
+                )
+            }
+        }
     }
 }
 
@@ -354,6 +366,56 @@ private fun CompactNowPlayingLayout(
             uiState = uiState,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+@Composable
+private fun WideNowPlayingLayout(
+    track: Track,
+    playbackState: PlaybackState,
+    playbackController: PlaybackController,
+    uiState: NowPlayingUiState,
+    artworkBitmap: ImageBitmap?,
+    brush: Brush,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .safeContentPadding()
+            .fillMaxSize()
+            .padding(horizontal = 32.dp, vertical = 28.dp),
+        horizontalArrangement = Arrangement.spacedBy(32.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .weight(0.48f),
+            contentAlignment = Alignment.Center,
+        ) {
+            NowPlayingArtworkPane(
+                track = track,
+                artworkBitmap = artworkBitmap,
+                brush = brush,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .weight(0.52f),
+            contentAlignment = Alignment.Center,
+        ) {
+            NowPlayingControlsPane(
+                track = track,
+                playbackState = playbackState,
+                playbackController = playbackController,
+                uiState = uiState,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
