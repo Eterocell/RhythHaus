@@ -302,536 +302,7 @@ private fun RhythHausTheme(
 }
 
 @Composable
-@OptIn(ExperimentalComposeUiApi::class, ExperimentalAnimationApi::class)
-fun LibraryHomeScreen(
-    snapshot: LibrarySnapshot,
-    libraryTracks: List<LibraryTrack>,
-    tagLibReader: TagLibReader,
-    playbackController: PlaybackController,
-    folderPickerLauncher: PlatformFolderPickerLauncher,
-    importMessage: String?,
-    scanProgress: ScanProgress?,
-    scanJob: Job?,
-    currentThemeMode: RhythHausThemeMode,
-    onThemeModeSelected: (RhythHausThemeMode) -> Unit,
-    onClearLibrary: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val playbackState by playbackController.state.collectAsState()
-    val appState = rememberLibraryAppState(snapshot = snapshot)
-    LaunchedEffect(playbackState.currentTrack?.id) {
-        appState.syncSelectedTrackWithPlayback(playbackState.currentTrack?.id)
-    }
-    val selectedTrack = snapshot.tracks.firstOrNull { it.id == appState.selectedTrackId } ?: snapshot.tracks.firstOrNull()
-    val homeListState = rememberLazyListState()
-    val expandProgress = remember { Animatable(0f) }
-    var screenHeightPx by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(appState.showNowPlaying) {
-        val target = if (appState.showNowPlaying) 1f else 0f
-        expandProgress.animateTo(target, tween(300))
-    }
-    var backGestureProgressAtCompletion by remember { mutableStateOf<Float?>(null) }
-    val navState = rememberNavigationEventState(NavigationEventInfo.None)
-    NavigationBackHandler(
-        state = navState,
-        isBackEnabled = appState.showNowPlaying || appState.navigation.canPop,
-        onBackCancelled = { },
-        onBackCompleted = {
-            if (appState.showNowPlaying) {
-                appState.hideNowPlaying()
-            } else {
-                backGestureProgressAtCompletion = when (val ts = navState.transitionState) {
-                    is NavigationEventTransitionState.InProgress -> ts.latestEvent.progress
-                    else -> null
-                }
-                // Skip the AnimatedContent slide when predictive back drove the pop
-                val next = appState.navigation.pop()
-                backGestureProgressAtCompletion = null
-                appState.completePredictivePop(next)
-            }
-        },
-    )
-    val albums = remember(snapshot.tracks) { groupTracksByAlbum(snapshot.tracks) }
-    val artists = remember(snapshot.tracks) { groupTracksByArtist(snapshot.tracks) }
-
-    val predictiveBackProgress = when (val ts = navState.transitionState) {
-        is NavigationEventTransitionState.InProgress -> {
-            if (ts.direction == NavigationEventTransitionState.TRANSITIONING_BACK) ts.latestEvent.progress
-            else 0f
-        }
-        else -> 0f
-    }
-    val predictiveBackOffset = remember { Animatable(0f) }
-    LaunchedEffect(predictiveBackProgress) {
-        if (predictiveBackProgress > 0f) {
-            predictiveBackOffset.snapTo(40 * predictiveBackProgress)
-        } else {
-            predictiveBackOffset.animateTo(0f, tween(150))
-        }
-    }
-
-    val previousRoute = if (appState.navigation.routes.size >= 2) appState.navigation.routes[appState.navigation.routes.size - 2] else null
-
-    LaunchedEffect(homeListState.firstVisibleItemIndex, homeListState.firstVisibleItemScrollOffset) {
-        appState.updateNowPlayingBarVisibilityForScroll(homeListState.toLibraryScrollPosition())
-    }
-    val homeScrollChromeState by remember(homeListState) {
-        derivedStateOf { nestedScrollChromeStateFor(homeListState.toLibraryScrollPosition()) }
-    }
-
-    @Composable
-    fun HomeContent(onOpenDetailRoute: (LibraryRoute) -> Unit) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            val homeStatusBarHeight = rememberSystemBarTopPadding()
-            val homeBackdrop = rememberRhythHausBackdrop()
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .recordRhythHausBackdrop(homeBackdrop),
-            ) {
-                Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
-                    LazyColumn(
-                        state = homeListState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp),
-                        contentPadding = PaddingValues(top = homeStatusBarHeight),
-                        verticalArrangement = Arrangement.spacedBy(18.dp),
-                    ) {
-                        item {
-                            HeaderSection(snapshot)
-                        }
-                        if (snapshot.tracks.isEmpty()) {
-                            item {
-                                ImportAudioCard(
-                                    folderPickerLauncher = folderPickerLauncher,
-                                    importMessage = importMessage,
-                                    hasImportedTracks = false,
-                                    onClearLibrary = onClearLibrary,
-                                )
-                            }
-                        }
-                        if (scanProgress?.isActive == true) {
-                            item {
-                                val sp = scanProgress
-                                val ss = sp.session!!
-                                ScanningCard(
-                                    foldersVisited = ss.foldersVisited,
-                                    filesVisited = ss.filesVisited,
-                                    tracksAdded = ss.tracksAdded,
-                                    onCancel = { scanJob?.cancel() },
-                                )
-                            }
-                        }
-                        item {
-                            SectionLabel(
-                                title = stringResource(Res.string.library_queue),
-                                subtitle = null,
-                            )
-                        }
-                        item {
-                            BrowseModePicker(
-                                browseMode = appState.browseMode,
-                                onModeChange = { appState.setBrowseMode(it) }
-                            )
-                        }
-                        when (appState.browseMode) {
-                            BrowseMode.Albums -> {
-                                item {
-                                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                                        val columns = albumGridColumnsForWidth(maxWidth.value)
-                                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            albums.chunked(columns).forEach { row ->
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                                ) {
-                                                    row.forEach { albumGroup ->
-                                                        AlbumCard(
-                                                            album = albumGroup,
-                                                            modifier = Modifier.weight(1f),
-                                                            onClick = { onOpenDetailRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
-                                                        )
-                                                    }
-                                                    repeat(columns - row.size) {
-                                                        Spacer(Modifier.weight(1f))
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            BrowseMode.Artists -> {
-                                items(artists, key = { it.artist }) { artistGroup ->
-                                    ArtistRow(
-                                        artist = artistGroup,
-                                        onClick = { onOpenDetailRoute(LibraryRoute.ArtistDetail(artistGroup.artist)) },
-                                    )
-                                }
-                            }
-
-                            BrowseMode.Songs -> {
-                                items(snapshot.tracks, key = { it.id }) { track ->
-                                    TrackRow(
-                                        track = track,
-                                        selected = track.id == appState.selectedTrackId,
-                                        onClick = {
-                                            appState.setSelectedTrackId(track.id)
-                                            val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
-                                            if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                                                playbackController.setQueue(playableTracks, track.id)
-                                            }
-                                            playbackController.togglePlayPause()
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                        item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
-                    }
-                }
-            }
-            NestedScrollBlurChrome(
-                state = homeScrollChromeState,
-                title = stringResource(Res.string.library),
-                backdrop = homeBackdrop,
-                statusBarHeight = homeStatusBarHeight,
-                modifier = Modifier.align(Alignment.TopCenter),
-            )
-        }
-    }
-
-    @Composable
-    fun RouteOverlays(route: LibraryRoute) {
-        if (route == LibraryRoute.ClearLibraryDialog) {
-            AnimatedClearLibraryDialogRoute(
-                onDismiss = appState::popRoute,
-                onClearLibrary = {
-                    onClearLibrary()
-                    appState.popRoute()
-                },
-            )
-        }
-
-        if (route == LibraryRoute.Settings) {
-            SettingsScreen(
-                folderPickerLauncher = folderPickerLauncher,
-                importMessage = importMessage,
-                scanProgress = scanProgress,
-                scanJob = scanJob,
-                hasImportedTracks = snapshot.tracks.isNotEmpty(),
-                currentThemeMode = currentThemeMode,
-                onThemeModeSelected = onThemeModeSelected,
-                onClearLibrary = { appState.pushRoute(LibraryRoute.ClearLibraryDialog) },
-                onDismiss = appState::popRoute,
-            )
-        }
-
-        if (route == LibraryRoute.Search) {
-            SearchScreen(
-                libraryTracks = libraryTracks,
-                tagLibReader = tagLibReader,
-                playbackController = playbackController,
-                playbackState = playbackState,
-                onDismiss = appState::popRoute,
-                onScrollPositionChanged = appState::updateNowPlayingBarVisibilityForScroll,
-            )
-        }
-    }
-
-    @Composable
-    fun RouteContent(route: LibraryRoute) {
-        when (route) {
-        is LibraryRoute.AlbumDetail -> {
-            val album = albums.firstOrNull { it.album == route.album }
-            if (album == null) {
-                LaunchedEffect(route) { appState.popRoute() }
-                Box(modifier = Modifier.fillMaxSize())
-            } else {
-                val albumTracks = album.tracks
-                val selectedAlbumTrackId by remember(album.album) { mutableStateOf(albumTracks.firstOrNull()?.id) }
-                val selectedAlbumTrack = albumTracks.firstOrNull { it.id == selectedAlbumTrackId } ?: albumTracks.firstOrNull()
-                DrillDownView(
-                    title = album.album,
-                    subtitle = stringResource(Res.string.album_detail_subtitle_format, albumTracks.size, album.artist ?: stringResource(Res.string.unknown_artist)),
-                    tracks = albumTracks,
-                    selectedTrack = selectedAlbumTrack,
-                    playbackState = playbackState,
-                    playbackController = playbackController,
-                    tagLibReader = tagLibReader,
-                    libraryTracks = libraryTracks,
-                    onBack = appState::popRoute,
-                    onTrackSelected = { /* selection only */ },
-                    onPlayPause = { track ->
-                        val playableTracks = albumTracks.map { it.toPlayableTrack() }
-                        if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                            playbackController.setQueue(playableTracks, track.id)
-                        }
-                        playbackController.togglePlayPause()
-                    },
-                    onExpandNowPlaying = { track ->
-                        appState.setSelectedTrackId(track.id)
-                        appState.showNowPlaying()
-                    },
-                    onShowSettings = { appState.pushRoute(LibraryRoute.Settings) },
-                    onShowSearch = { appState.pushRoute(LibraryRoute.Search) },
-                    isNowPlayingBarVisible = appState.isNowPlayingBarVisible,
-                    onScrollPositionChanged = appState::updateNowPlayingBarVisibilityForScroll,
-                )
-            }
-        }
-
-        is LibraryRoute.ArtistDetail -> {
-            val artist = artists.firstOrNull { it.artist == route.artist }
-            if (artist == null) {
-                LaunchedEffect(route) { appState.popRoute() }
-                Box(modifier = Modifier.fillMaxSize())
-            } else {
-                val artistTracks = artist.tracks
-                val selectedArtistTrackId by remember(artist.artist) { mutableStateOf(artistTracks.firstOrNull()?.id) }
-                val selectedArtistTrack = artistTracks.firstOrNull { it.id == selectedArtistTrackId } ?: artistTracks.firstOrNull()
-                DrillDownView(
-                    title = artist.artist,
-                    subtitle = stringResource(Res.string.artist_detail_subtitle_format, artist.albumCount, artistTracks.size),
-                    tracks = artistTracks,
-                    selectedTrack = selectedArtistTrack,
-                    playbackState = playbackState,
-                    playbackController = playbackController,
-                    tagLibReader = tagLibReader,
-                    libraryTracks = libraryTracks,
-                    onBack = appState::popRoute,
-                    onTrackSelected = { /* selection only */ },
-                    onPlayPause = { track ->
-                        val playableTracks = artistTracks.map { it.toPlayableTrack() }
-                        if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                            playbackController.setQueue(playableTracks, track.id)
-                        }
-                        playbackController.togglePlayPause()
-                    },
-                    onExpandNowPlaying = { track ->
-                        appState.setSelectedTrackId(track.id)
-                        appState.showNowPlaying()
-                    },
-                    onShowSettings = { appState.pushRoute(LibraryRoute.Settings) },
-                    onShowSearch = { appState.pushRoute(LibraryRoute.Search) },
-                    isNowPlayingBarVisible = appState.isNowPlayingBarVisible,
-                    onScrollPositionChanged = appState::updateNowPlayingBarVisibilityForScroll,
-                )
-            }
-        }
-
-        LibraryRoute.NowPlaying -> {
-            // Now Playing is shown as an overlay, not a navigation route
-        }
-
-        LibraryRoute.Home,
-        LibraryRoute.Settings,
-        LibraryRoute.Search,
-        LibraryRoute.ClearLibraryDialog,
-        -> {
-            HomeContent(onOpenDetailRoute = appState::pushRoute)
-            RouteOverlays(route)
-        }
-    }
-    }
-
-    BoxWithConstraints(
-        modifier = modifier
-            .fillMaxSize()
-            .background(HausColors.current.paper)
-            .onSizeChanged { screenHeightPx = it.height.toFloat() },
-    ) {
-        val rootBackdrop = rememberRhythHausBackdrop()
-        val adaptiveLayoutMode = libraryAdaptiveLayoutModeFor(
-            widthDp = maxWidth.value,
-            heightDp = maxHeight.value,
-        )
-        fun openDetailRoute(route: LibraryRoute) {
-            appState.openDetailRoute(route = route, adaptiveLayoutMode = adaptiveLayoutMode)
-        }
-
-        if (adaptiveLayoutMode == LibraryAdaptiveLayoutMode.ListDetail) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .recordRhythHausBackdrop(rootBackdrop),
-            ) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .weight(0.42f),
-                    ) {
-                        HomeContent(onOpenDetailRoute = ::openDetailRoute)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .weight(0.58f),
-                    ) {
-                        when (val route = appState.navigation.current) {
-                        is LibraryRoute.AlbumDetail, is LibraryRoute.ArtistDetail -> {
-                                RouteContent(route = route)
-                        }
-
-                            else -> AdaptiveDetailPlaceholder()
-                        }
-                    }
-                }
-                RouteOverlays(appState.navigation.current)
-            }
-        } else {
-            if (predictiveBackProgress > 0f && previousRoute != null) {
-                RouteContent(route = previousRoute)
-            }
-            AnimatedContent(
-                targetState = appState.navigation.current,
-                transitionSpec = {
-                    routeContentTransform(appState.lastNavigationTransition)
-                },
-                label = "LibraryRouteTransition",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .recordRhythHausBackdrop(rootBackdrop)
-                    .offset(x = predictiveBackOffset.value.dp),
-            ) { currentRoute ->
-                RouteContent(route = currentRoute)
-            }
-        }
-
-    // Fixed bottom bar (outside AnimatedContent). It stays in composition so
-    // returning from Now Playing does not re-trigger the enter animation when
-    // the bar was already visible underneath the overlay.
-    val bottomBarOffset by animateFloatAsState(
-        targetValue = if (appState.isNowPlayingBarVisible) 0f else 1f,
-        animationSpec = tween(250),
-        label = "BottomBarOffset",
-    )
-    Box(
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .offset(y = (bottomBarOffset * NowPlayingBarHeightPx).dp)
-            .alpha(1f - bottomBarOffset),
-    ) {
-        NowPlayingBar(
-            track = selectedTrack,
-            playbackState = playbackState,
-            onPlayPause = {
-                selectedTrack?.let { track ->
-                    val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
-                    if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                        playbackController.setQueue(playableTracks, track.id)
-                    }
-                    playbackController.togglePlayPause()
-                }
-            },
-            onExpand = { if (selectedTrack != null) appState.showNowPlaying() },
-            onSettings = { appState.pushRoute(LibraryRoute.Settings) },
-            onSearch = { appState.pushRoute(LibraryRoute.Search) },
-            expandProgress = expandProgress,
-            isExpanded = appState.showNowPlaying,
-            screenHeightPx = screenHeightPx,
-            backdrop = rootBackdrop,
-        )
-    }
-
-    // Now Playing expand overlay (outside AnimatedContent)
-    NowPlayingExpandOverlay(
-        track = selectedTrack,
-        playbackState = playbackState,
-        playbackController = playbackController,
-        tagLibReader = tagLibReader,
-        currentLibraryTrack = libraryTracks.firstOrNull { it.id == selectedTrack?.id },
-        isVisible = appState.showNowPlaying,
-        expandProgress = expandProgress,
-        onBack = { appState.hideNowPlaying() },
-        modifier = Modifier.fillMaxSize(),
-    )
-    }
-}
-
-@Composable
-private fun AdaptiveDetailPlaceholder() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(HausColors.current.paper)
-            .padding(32.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                text = stringResource(Res.string.library),
-                color = HausColors.current.ink,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black,
-            )
-            Text(
-                text = "Select an album or artist to show details here.",
-                color = HausColors.current.muted,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun NowPlayingExpandOverlay(
-    track: Track?,
-    playbackState: PlaybackState,
-    playbackController: PlaybackController,
-    tagLibReader: TagLibReader,
-    currentLibraryTrack: LibraryTrack?,
-    isVisible: Boolean,
-    expandProgress: Animatable<Float, AnimationVector1D>,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val gestureScope = rememberCoroutineScope()
-    if (expandProgress.value > 0.001f && track != null) {
-        val fraction = expandProgress.value
-        Box(modifier = modifier) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(fraction)
-                    .align(Alignment.BottomCenter)
-                    .verticalSheetGesture(
-                        expandProgress = expandProgress,
-                        isActive = true,
-                        scope = gestureScope,
-                        onSwipeExpand = {},
-                        onSwipeCollapse = onBack,
-                    ),
-                shape = RoundedCornerShape(
-                    topStart = (24 * (1f - fraction).coerceAtLeast(0f)).dp,
-                    topEnd = (24 * (1f - fraction).coerceAtLeast(0f)).dp,
-                    bottomStart = 0.dp,
-                    bottomEnd = 0.dp,
-                ),
-                color = HausColors.current.paper,
-            ) {
-                NowPlayingScreen(
-                    track = track,
-                    playbackState = playbackState,
-                    playbackController = playbackController,
-                    tagLibReader = tagLibReader,
-                    currentLibraryTrack = currentLibraryTrack,
-                    onBack = onBack,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AnimatedClearLibraryDialogRoute(
+internal fun AnimatedClearLibraryDialogRoute(
     onDismiss: () -> Unit,
     onClearLibrary: () -> Unit,
 ) {
@@ -900,43 +371,8 @@ private fun AnimatedClearLibraryDialogRoute(
     }
 }
 
-private const val NavigationAnimationMillis = 240
-private const val NavigationSlideDistancePx = 90
-
-private fun routeContentTransform(transition: LibraryNavigationTransition): ContentTransform = when (transition) {
-    LibraryNavigationTransition.Push -> routeSlideContentTransform(forward = true)
-    LibraryNavigationTransition.Pop,
-    LibraryNavigationTransition.Root,
-    -> routeSlideContentTransform(forward = false)
-    LibraryNavigationTransition.Replace -> routeFadeContentTransform()
-    LibraryNavigationTransition.None -> routeFadeContentTransform()
-}
-
-private fun routeSlideContentTransform(forward: Boolean): ContentTransform {
-    val direction = if (forward) 1 else -1
-    return (
-        fadeIn(animationSpec = tween(NavigationAnimationMillis)) +
-            slideInHorizontally(
-                animationSpec = tween(NavigationAnimationMillis),
-                initialOffsetX = { NavigationSlideDistancePx * direction },
-            )
-        ).togetherWith(
-        fadeOut(animationSpec = tween(NavigationAnimationMillis)) +
-            slideOutHorizontally(
-                animationSpec = tween(NavigationAnimationMillis),
-                targetOffsetX = { -NavigationSlideDistancePx * direction },
-            ),
-    )
-}
-
-private fun routeFadeContentTransform(): ContentTransform = fadeIn(
-    animationSpec = tween(NavigationAnimationMillis),
-).togetherWith(
-    fadeOut(animationSpec = tween(NavigationAnimationMillis)),
-)
-
 @Composable
-private fun HeaderSection(snapshot: LibrarySnapshot) {
+internal fun HeaderSection(snapshot: LibrarySnapshot) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -963,7 +399,7 @@ private fun HeaderSection(snapshot: LibrarySnapshot) {
 }
 
 @Composable
-private fun ImportAudioCard(
+internal fun ImportAudioCard(
     folderPickerLauncher: PlatformFolderPickerLauncher,
     importMessage: String?,
     hasImportedTracks: Boolean,
@@ -1199,7 +635,7 @@ internal fun EqualizerStrip(active: Boolean) {
 }
 
 @Composable
-private fun SectionLabel(title: String, subtitle: String?) {
+internal fun SectionLabel(title: String, subtitle: String?) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Bottom,
@@ -1223,7 +659,7 @@ private fun SectionLabel(title: String, subtitle: String?) {
 }
 
 @Composable
-private fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
+internal fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
     val selectTrackContentDescription = stringResource(Res.string.select_track_format, track.title)
     Row(
         modifier = Modifier
@@ -1316,7 +752,7 @@ private fun AlbumMark(track: Track, selected: Boolean) {
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
-private fun DrillDownView(
+internal fun DrillDownView(
     title: String,
     subtitle: String,
     tracks: List<Track>,
@@ -1421,7 +857,7 @@ private fun DrillDownView(
     }
 }
 
-private fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = LibraryScrollPosition(
+internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = LibraryScrollPosition(
     firstVisibleItemIndex = firstVisibleItemIndex,
     firstVisibleItemScrollOffset = firstVisibleItemScrollOffset,
 )
@@ -1429,14 +865,14 @@ private fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = Lib
 private val NestedScrollChromeToolbarHeight = 56.dp
 
 @Composable
-private fun rememberSystemBarTopPadding(): Dp {
+internal fun rememberSystemBarTopPadding(): Dp {
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val systemBarHeight = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
     return max(statusBarHeight.value, systemBarHeight.value).dp
 }
 
 @Composable
-private fun NestedScrollBlurChrome(
+internal fun NestedScrollBlurChrome(
     state: NestedScrollChromeState,
     title: String,
     backdrop: LayerBackdrop?,
@@ -1603,7 +1039,7 @@ private fun DrillDownHeader(
 }
 
 @Composable
-private fun BrowseModePicker(
+internal fun BrowseModePicker(
     browseMode: BrowseMode,
     onModeChange: (BrowseMode) -> Unit,
 ) {
@@ -1637,7 +1073,7 @@ private fun BrowseModePicker(
 }
 
 @Composable
-private fun AlbumCard(
+internal fun AlbumCard(
     album: AlbumGroup,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
@@ -1707,7 +1143,7 @@ private fun AlbumCard(
 }
 
 @Composable
-private fun ArtistRow(
+internal fun ArtistRow(
     artist: ArtistGroup,
     onClick: () -> Unit,
 ) {
