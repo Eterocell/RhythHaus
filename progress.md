@@ -1,5 +1,35 @@
 # Session Progress
 
+## Handoff - 2026-07-07 adaptive now playing screen
+
+Route: openspec+superpowers
+Owner: implementation
+Input: adaptive-now-playing-screen spec/plan
+Output: compact-preserving adaptive Now Playing split layout
+Verification:
+- `openspec validate adaptive-now-playing-screen --strict`: pass (`Change 'adaptive-now-playing-screen' is valid`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 322ms`; 25 actionable tasks: 4 executed, 21 up-to-date; configuration cache entry reused).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 5s`; 99 actionable tasks: 13 executed, 5 from cache, 81 up-to-date; configuration cache entry reused). Existing warning only: `PlaybackEngine.android.kt:252:17 'fun setArtworkData(p0: ByteArray?): MediaMetadata.Builder' is deprecated`.
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 22s`; 34 actionable tasks: 8 executed, 26 up-to-date; configuration cache entry reused). Existing warnings only in `IOSNowPlayingBridgingTest.kt` about unnecessary non-null assertions/no casts needed.
+- `git diff --check`: pass (no output, exit 0).
+- `grep -R "miuix-navigation3-adaptive\|ListDetailPaneScaffold\|androidx.navigation3.adaptive" -n gradle shared/src androidApp/src || true`: pass (no output).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/LibraryNavigation.kt` (implementation commit `35b44ac`)
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibraryNavigationTest.kt` (implementation commit `35b44ac`)
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/NowPlayingScreen.kt` (implementation commits `e5f825e`, `9ac2af4`)
+- `docs/superpowers/specs/2026-07-07-adaptive-now-playing-screen-design.md` (tracked into final evidence commit)
+- `docs/superpowers/plans/2026-07-07-adaptive-now-playing-screen.md` (tracked into final evidence commit)
+- `openspec/changes/adaptive-now-playing-screen/proposal.md` (tracked into final evidence commit)
+- `openspec/changes/adaptive-now-playing-screen/design.md` (tracked into final evidence commit)
+- `openspec/changes/adaptive-now-playing-screen/specs/now-playing-ui/spec.md` (tracked into final evidence commit)
+- `openspec/changes/adaptive-now-playing-screen/tasks.md`
+- `progress.md`
+- `.superpowers/sdd/task-4-report.md`
+Next owner: user for manual wide/compact visual validation
+Blockers: none for automated OpenSpec/JVM/desktop/Android/iOS verification. Manual visual validation remains.
+Commit: final evidence commit (current HEAD after commit).
+
 ## Handoff - 2026-07-07 adaptive layout miuix blur final verification
 
 Route: openspec+superpowers
