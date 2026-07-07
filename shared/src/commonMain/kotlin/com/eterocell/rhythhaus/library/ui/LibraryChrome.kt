@@ -3,10 +3,8 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -15,12 +13,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -31,20 +27,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
+import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
+import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import kotlin.math.max
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
-import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
 
 internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = LibraryScrollPosition(
     firstVisibleItemIndex = firstVisibleItemIndex,
@@ -93,29 +87,20 @@ internal fun NestedScrollBlurChrome(
                 .align(Alignment.BottomCenter)
                 .height(NestedScrollChromeToolbarHeight),
         ) {
-            Row(
+            RhythHausTopAppBar(
+                title = title,
+                onBack = null,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(horizontal = 20.dp)
+                    .fillMaxWidth()
                     .alpha(titleProgress),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(HausColors.current.pulse.copy(alpha = 0.72f * titleProgress)),
-                )
-                Text(
-                    text = title,
-                    color = HausColors.current.ink.copy(alpha = 0.86f),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+                color = Color.Transparent,
+                titleColor = HausColors.current.ink.copy(alpha = 0.86f),
+                defaultWindowInsetsPadding = false,
+                titlePadding = 20.dp,
+                navigationIconPadding = 0.dp,
+                actionIconPadding = 0.dp,
+            )
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

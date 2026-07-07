@@ -1,5 +1,35 @@
 # Session Progress
 
+## Handoff - 2026-07-07 Miuix nested-scroll TopAppBar migration
+
+Route: openspec+superpowers
+Owner: implementation
+Input: User asked to also migrate nested scroll to use the Miuix TopAppBar.
+Output:
+- Extended `RhythHausTopAppBar` with optional color, inset, and padding customization points while preserving existing defaults and Search/Settings/Library drill-down call-site compatibility.
+- Migrated `NestedScrollBlurChrome` collapsed title content from a custom pulse-dot/title row to the Miuix TopAppBar path via `RhythHausTopAppBar(title = title, onBack = null, ...)`.
+- Preserved RhythHaus glass/backdrop overlay, status-bar coverage, scroll progress threshold, bottom divider, Library scroll reporting, route transitions, bottom-bar visibility, and Now Playing behavior.
+Verification:
+- `openspec validate miuix-nested-scroll-top-app-bar --strict`: pass (`Change 'miuix-nested-scroll-top-app-bar' is valid`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 5s`; 99 actionable tasks: 13 executed, 5 from cache, 81 up-to-date; configuration cache reused). Existing Android deprecation warning only: `MediaMetadata.Builder.setArtworkData`.
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 11s`; 34 actionable tasks: 8 executed, 26 up-to-date; configuration cache reused). Existing iOS test warnings only in `IOSNowPlayingBridgingTest`.
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/RhythHausTopAppBar.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`
+- `docs/superpowers/specs/2026-07-07-miuix-nested-scroll-top-app-bar-design.md`
+- `docs/superpowers/plans/2026-07-07-miuix-nested-scroll-top-app-bar.md`
+- `openspec/changes/miuix-nested-scroll-top-app-bar/proposal.md`
+- `openspec/changes/miuix-nested-scroll-top-app-bar/design.md`
+- `openspec/changes/miuix-nested-scroll-top-app-bar/specs/library-ui/spec.md`
+- `openspec/changes/miuix-nested-scroll-top-app-bar/tasks.md`
+- `progress.md`
+- `roadmap.md`
+Next owner: user for manual visual/runtime QA of Library home and drill-down nested-scroll chrome on target devices.
+Blockers: none for automated verification. Pre-existing modified `iosApp/iosApp.xcodeproj/xcshareddata/xcschemes/iosApp.xcscheme` remains out of scope and was not touched.
+Commit: pending staged diff review.
+
 ## Handoff - 2026-07-07 Miuix TopAppBar migration
 
 Route: openspec+superpowers
