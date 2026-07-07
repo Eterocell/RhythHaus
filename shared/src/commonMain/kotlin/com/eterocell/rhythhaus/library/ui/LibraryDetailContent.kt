@@ -99,7 +99,7 @@ internal fun DrillDownView(
                     contentPadding = PaddingValues(top = drillDownStatusBarHeight),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
-                    item { DrillDownHeader(title = title, subtitle = subtitle, onBack = onBack) }
+                    item { DrillDownHeader(title = title, onBack = onBack) }
                     item { SectionLabel(title = title, subtitle = subtitle) }
                     items(tracks, key = { it.id }) { track ->
                         TrackRow(
@@ -123,6 +123,7 @@ internal fun DrillDownView(
         NestedScrollBlurChrome(
             state = scrollChromeState,
             title = title,
+            onBack = onBack,
             backdrop = drillDownBackdrop,
             statusBarHeight = drillDownStatusBarHeight,
             modifier = Modifier.align(Alignment.TopCenter),

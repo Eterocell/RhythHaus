@@ -58,6 +58,7 @@ internal fun rememberSystemBarTopPadding(): Dp {
 internal fun NestedScrollBlurChrome(
     state: NestedScrollChromeState,
     title: String,
+    onBack: (() -> Unit)? = null,
     backdrop: LayerBackdrop?,
     modifier: Modifier = Modifier,
     statusBarHeight: Dp = rememberSystemBarTopPadding(),
@@ -89,7 +90,7 @@ internal fun NestedScrollBlurChrome(
         ) {
             RhythHausTopAppBar(
                 title = title,
-                onBack = null,
+                onBack = onBack,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .fillMaxWidth()

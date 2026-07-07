@@ -313,7 +313,6 @@ private fun AlbumMark(track: Track, selected: Boolean) {
 @Composable
 internal fun DrillDownHeader(
     title: String,
-    subtitle: String,
     onBack: () -> Unit,
 ) {
     Column(
@@ -323,8 +322,9 @@ internal fun DrillDownHeader(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         RhythHausTopAppBar(
-            title = subtitle,
+            title = "",
             onBack = onBack,
+            color = Color.Transparent,
         )
         Text(
             text = title,

@@ -28,3 +28,12 @@
   - Verified `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 11s`; 34 actionable tasks: 8 executed, 26 up-to-date; configuration cache entry reused). Existing iOS test warnings only in `IOSNowPlayingBridgingTest`.
   - Verified `git diff --check`: pass (no output, exit 0).
   - Updated `progress.md` and `roadmap.md` with handoff evidence and manual QA next action.
+
+- [x] 4. Drill-down track-list scroll correction: title/back action moves into collapsed top bar.
+  - Removed the expanded-state `DrillDownHeader` subtitle top-bar title (`xx 首曲目` / artist-style subtitle) by rendering the expanded header top bar with an empty title and the back action only.
+  - Passed `onBack` into `NestedScrollBlurChrome` for drill-down track lists so the collapsed Miuix top app bar shows both the drill-down title and the back action.
+  - Preserved the large drill-down title, `SectionLabel`, track rows, scroll reporting, left-edge swipe back, glass/backdrop shell, and Now Playing behavior.
+  - Verified `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 417ms`; 16 actionable tasks: 3 executed, 13 up-to-date; configuration cache entry reused).
+  - Verified `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 896ms`; 25 actionable tasks: 6 executed, 19 up-to-date; configuration cache entry reused).
+  - Verified `openspec validate miuix-nested-scroll-top-app-bar --strict`: pass (`Change 'miuix-nested-scroll-top-app-bar' is valid`).
+  - Verified `git diff --check`: pass (no output, exit 0).

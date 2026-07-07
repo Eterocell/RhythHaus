@@ -1,5 +1,30 @@
 # Session Progress
 
+## Handoff - 2026-07-07 Miuix nested-scroll drill-down correction
+
+Route: openspec+superpowers correction
+Owner: implementation
+Input: User clarified Track list nested-scroll behavior: the expanded title/album name should move toward the collapsed top-bar title; the back button should also appear in the collapsed top bar; the expanded-state top-bar title such as `xx 首曲目` / artist subtitle should be removed.
+Output:
+- Removed the expanded-state drill-down subtitle top-bar title by rendering `DrillDownHeader` with an empty Miuix top-bar title and back action only.
+- Passed `onBack` into `NestedScrollBlurChrome` from `DrillDownView`, so the collapsed Miuix top bar shows both the drill-down title and the back action after scrolling.
+- Preserved the large drill-down title, `SectionLabel`, track rows, scroll reporting, left-edge swipe back, glass/backdrop shell, and Now Playing behavior.
+Verification:
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 417ms`; 16 actionable tasks: 3 executed, 13 up-to-date; configuration cache reused).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 896ms`; 25 actionable tasks: 6 executed, 19 up-to-date; configuration cache reused).
+- `openspec validate miuix-nested-scroll-top-app-bar --strict`: pass (`Change 'miuix-nested-scroll-top-app-bar' is valid`).
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRows.kt`
+- `openspec/changes/miuix-nested-scroll-top-app-bar/specs/library-ui/spec.md`
+- `openspec/changes/miuix-nested-scroll-top-app-bar/tasks.md`
+- `progress.md`
+Next owner: user for visual QA of the drill-down title/back-button transition while scrolling.
+Blockers: none for focused automated verification. Pre-existing modified `iosApp/iosApp.xcodeproj/xcshareddata/xcschemes/iosApp.xcscheme` remains out of scope and was not touched.
+Commit: pending staged diff review.
+
 ## Handoff - 2026-07-07 Miuix nested-scroll TopAppBar migration
 
 Route: openspec+superpowers
