@@ -1,5 +1,55 @@
 # Session Progress
 
+## Handoff - 2026-07-08 Coil artwork loading and Koin DI
+
+Route: openspec+superpowers / subagent-driven-development
+Owner: implementation
+Input: User request: "Spec, plan, subagent-driven development: 1. Use coil to cache, generate thumbnail of the project's images including album art image. 2. Add koin for dependency injection, and use it in the exisiting code base"
+Output:
+- Added OpenSpec change `coil-koin-image-di` and Superpowers spec/plan artifacts for Coil-backed artwork loading and Koin dependency injection.
+- Added Coil 3.5.0 and Koin 4.2.2 via the version catalog and shared dependencies.
+- Added shared `rhythHausModule()` and idempotent `startRhythHausKoin()`; Android, desktop, and iOS entry points initialize Koin before rendering shared Compose UI.
+- Refactored `App()` to resolve the existing service graph from Koin while preserving playback-controller disposal, folder picker scan flow, repository refresh, clear-library, and theme selection behavior.
+- Added `ArtworkImage` with stable role/byte-size cache keys and Coil memory/disk cache policies; routed track row, compact NowPlayingBar, album card, artist row, drill-down top bar, and expanded NowPlayingScreen artwork through Coil while preserving existing fallbacks, content descriptions, shapes, content scale, selected overlays, gestures, and controls.
+- Fixed review-discovered fallback regression by using `SubcomposeAsyncImage` error slot so corrupt/unsupported non-null artwork renders the existing fallback UI; drill-down top bar intentionally keeps empty fallback/no placeholder.
+- Fixed final Android compile blocker by using Coil common `LocalPlatformContext.current` instead of JVM-only `coil3.PlatformContext.INSTANCE`.
+Verification:
+- `openspec validate coil-koin-image-di --strict`: pass (`Change 'coil-koin-image-di' is valid`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.di.RhythHausDiTest' --configuration-cache`: pass after transient Maven Central TLS retry (`BUILD SUCCESSFUL`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.ArtworkImageTest' --configuration-cache`: pass after fallback/context fixes (`BUILD SUCCESSFUL in 3s`).
+- Initial `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: failed in `:shared:compileAndroidMain` because `coil3.PlatformContext.INSTANCE` was unavailable for Android; fixed by switching to `LocalPlatformContext.current`.
+- Final `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 44s`; 99 actionable tasks: 24 executed, 75 up-to-date; existing Android `MediaMetadata.Builder.setArtworkData` deprecation warning only).
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass after Coil context fix (`BUILD SUCCESSFUL in 15s`; 34 actionable tasks: 8 executed, 26 up-to-date; existing `IOSNowPlayingBridgingTest` warnings only).
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `gradle/libs.versions.toml`
+- `shared/build.gradle.kts`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/di/RhythHausDi.kt`
+- `androidApp/src/main/kotlin/com/eterocell/rhythhaus/MainActivity.kt`
+- `desktopApp/src/main/kotlin/com/eterocell/rhythhaus/main.kt`
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/MainViewController.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/di/RhythHausDiTest.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/ArtworkImage.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/ui/ArtworkImageTest.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRows.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/nowplaying/NowPlayingBar.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/nowplaying/NowPlayingScreen.kt`
+- `docs/superpowers/specs/2026-07-08-coil-koin-image-di-design.md`
+- `docs/superpowers/plans/2026-07-08-coil-koin-image-di.md`
+- `openspec/changes/coil-koin-image-di/proposal.md`
+- `openspec/changes/coil-koin-image-di/design.md`
+- `openspec/changes/coil-koin-image-di/specs/library-ui/spec.md`
+- `openspec/changes/coil-koin-image-di/tasks.md`
+- `progress.md`
+- `roadmap.md`
+Next owner: user for manual artwork-loading/cache visual QA on target device/simulator.
+Blockers: none for automated OpenSpec/JVM/desktop/Android/iOS verification. Manual cache/performance/visual validation remains.
+Commit: included in final semantic commit after staged diff review.
+
+
 ## Handoff - 2026-07-08 drill-down top-bar artwork
 
 Route: openspec+superpowers / subagent-driven-development / planned scope correction

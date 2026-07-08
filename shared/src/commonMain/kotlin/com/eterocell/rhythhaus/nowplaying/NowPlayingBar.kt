@@ -2,7 +2,6 @@ package com.eterocell.rhythhaus.nowplaying
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -29,7 +28,8 @@ import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.ui.decodeArtworkThumbnailCached
+import com.eterocell.rhythhaus.ui.ArtworkImage
+import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import com.eterocell.rhythhaus.ui.verticalSheetGesture
@@ -77,9 +77,6 @@ fun NowPlayingBar(
 ) {
     val mode = bottomBarModeFor(track)
     val accent = track?.accent ?: TrackAccent(start = 0xFF111827, end = 0xFF776F66)
-    val artworkBitmap = remember(track?.artworkBytes) {
-        track?.artworkBytes?.decodeArtworkThumbnailCached()
-    }
     val progressFraction = if (track == null) 0f else playbackState.progressFraction
     val isPlaying = track != null && playbackState.isPlaying
     val title = track?.title ?: "RhythHaus"
@@ -151,14 +148,13 @@ fun NowPlayingBar(
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (artworkBitmap != null) {
-                        Image(
-                            bitmap = artworkBitmap,
-                            contentDescription = stringResource(Res.string.album_art),
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                        )
-                    } else {
+                    ArtworkImage(
+                        artworkBytes = track?.artworkBytes,
+                        contentDescription = stringResource(Res.string.album_art),
+                        role = ArtworkImageRole.Thumbnail,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    ) {
                         Text(
                             text = track?.title?.firstOrNull()?.uppercase() ?: "♪",
                             color = Color.White,

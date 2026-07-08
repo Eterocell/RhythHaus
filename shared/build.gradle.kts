@@ -99,10 +99,14 @@ kotlin {
         }
         commonMain.dependencies {
             implementation(projects.taglib)
+            implementation(libs.coil.compose)
+            implementation(libs.coil.core)
             implementation(libs.miuix.ui)
             implementation(libs.miuix.blur)
             implementation(libs.miuix.preference)
             implementation(libs.kermit)
+            implementation(libs.koin.compose)
+            implementation(libs.koin.core)
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material.icons.extended)

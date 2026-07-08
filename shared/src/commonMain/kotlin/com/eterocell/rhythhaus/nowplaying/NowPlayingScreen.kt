@@ -1,6 +1,5 @@
 package com.eterocell.rhythhaus.nowplaying
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -22,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -31,6 +29,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.ArtworkImage
+import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.MusicProgressScrubber
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
@@ -38,7 +38,6 @@ import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
 import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.ui.decodeArtwork
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
 import com.eterocell.rhythhaus.library.LibraryTrack
@@ -101,9 +100,6 @@ fun NowPlayingScreen(
     val durationMillis = playbackState.durationMillis ?: track.durationSeconds * 1_000L
     val positionMillis = playbackState.positionMillis.coerceIn(0L, durationMillis)
     val statusText = playbackState.error?.message ?: statusLabel(playbackState.status)
-    val artworkBitmap = remember(track.artworkBytes) {
-        track.artworkBytes?.decodeArtwork()
-    }
     val isPlaying = playbackState.isPlaying
     val shuffleEnabled = playbackState.shuffleMode == ShuffleMode.On
     val repeatContentDescription = when (playbackState.repeatMode) {
@@ -140,7 +136,6 @@ fun NowPlayingScreen(
                     playbackState = playbackState,
                     playbackController = playbackController,
                     uiState = uiState,
-                    artworkBitmap = artworkBitmap,
                     brush = brush,
                 )
                 NowPlayingAdaptiveLayoutMode.Split -> WideNowPlayingLayout(
@@ -148,7 +143,6 @@ fun NowPlayingScreen(
                     playbackState = playbackState,
                     playbackController = playbackController,
                     uiState = uiState,
-                    artworkBitmap = artworkBitmap,
                     brush = brush,
                 )
             }
@@ -159,7 +153,6 @@ fun NowPlayingScreen(
 @Composable
 private fun NowPlayingArtworkPane(
     track: Track,
-    artworkBitmap: ImageBitmap?,
     brush: Brush,
     modifier: Modifier = Modifier,
 ) {
@@ -175,14 +168,13 @@ private fun NowPlayingArtworkPane(
                 .background(brush),
             contentAlignment = Alignment.Center,
         ) {
-            if (artworkBitmap != null) {
-                Image(
-                    bitmap = artworkBitmap,
-                    contentDescription = stringResource(Res.string.album_artwork),
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-            } else {
+            ArtworkImage(
+                artworkBytes = track.artworkBytes,
+                contentDescription = stringResource(Res.string.album_artwork),
+                role = ArtworkImageRole.Hero,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            ) {
                 Text(
                     text = track.title.take(3).uppercase(),
                     color = Color.White.copy(alpha = 0.48f),
@@ -354,7 +346,6 @@ private fun CompactNowPlayingLayout(
     playbackState: PlaybackState,
     playbackController: PlaybackController,
     uiState: NowPlayingUiState,
-    artworkBitmap: ImageBitmap?,
     brush: Brush,
     modifier: Modifier = Modifier,
 ) {
@@ -367,7 +358,6 @@ private fun CompactNowPlayingLayout(
         Spacer(Modifier.height(18.dp))
         NowPlayingArtworkPane(
             track = track,
-            artworkBitmap = artworkBitmap,
             brush = brush,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -388,7 +378,6 @@ private fun WideNowPlayingLayout(
     playbackState: PlaybackState,
     playbackController: PlaybackController,
     uiState: NowPlayingUiState,
-    artworkBitmap: ImageBitmap?,
     brush: Brush,
     modifier: Modifier = Modifier,
 ) {
@@ -408,7 +397,6 @@ private fun WideNowPlayingLayout(
         ) {
             NowPlayingArtworkPane(
                 track = track,
-                artworkBitmap = artworkBitmap,
                 brush = brush,
                 modifier = Modifier
                     .fillMaxWidth()

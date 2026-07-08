@@ -11,3 +11,4 @@
 - [x] 包结构整理：将 Library UI、NowPlaying/Search/Settings、通用 UI 与 theme  helpers 迁入 feature-first 包 (commits f0310e5..adb1e3d); playback/model 包迁移因 Playback.kt 混合模型与引擎逻辑且涉及 AndroidManifest/iOS Swift 桥接而 deferred
 - [x] 修复 iOS 锁屏时曲末可能不自动播放下一首：iOS 播放改由 Swift `AVAudioPlayerDelegate` 事件回调驱动完成通知，Kotlin 轮询只保留进度更新；仍需真机锁屏多曲目手动验证
 - [x] Album/artist drill-down top-bar artwork：album/artist track-list Miuix TopAppBar 现在会在有 embedded artwork 时未滚动时用方形代表性封面，滚动后过渡为矩形顶部栏封面；有封面时移除顶部栏 blur/glass，返回按钮使用圆形背景，album/artist 名称使用 chip 风格背景；无封面或解码失败时保持原有 glass 标题/返回行为，不显示字母占位。
+- [x] Coil artwork loading + Koin DI：添加 Coil 3 KMP 作为 shared Compose artwork 加载/缓存路径，track row、album/artist、drill-down top bar、NowPlayingBar/Screen artwork 改走稳定 cache key 的 `ArtworkImage` helper；添加 Koin 4 shared module 并从 Android/desktop/iOS 启动入口初始化，`App()` 通过 Koin 获取现有 service graph。仍需目标设备/模拟器手动确认 artwork 加载视觉与缓存体感。

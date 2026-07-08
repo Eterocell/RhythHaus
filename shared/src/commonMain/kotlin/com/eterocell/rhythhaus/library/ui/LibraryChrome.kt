@@ -1,7 +1,6 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
@@ -40,9 +39,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.ArtworkImage
+import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
 import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
-import com.eterocell.rhythhaus.ui.decodeArtworkCached
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import kotlin.math.max
 import kotlinx.coroutines.launch
@@ -84,10 +84,10 @@ internal fun DrillDownMiuixScrollChrome(
     backdrop: LayerBackdrop?,
     modifier: Modifier = Modifier,
 ) {
-    val topBarArtwork = remember(topBarArtworkCandidates) {
-        topBarArtworkCandidates.firstNotNullOfOrNull { it.decodeArtworkCached() }
+    val topBarArtworkBytes = remember(topBarArtworkCandidates) {
+        topBarArtworkCandidates.firstOrNull()
     }
-    val hasArtwork = topBarArtwork != null
+    val hasArtwork = topBarArtworkBytes != null
     val collapsedFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
     val collapsedTitleAlpha = (collapsedFraction * 3f).coerceIn(0f, 1f)
     val largeTitleAlpha = (1f - collapsedFraction * 2f).coerceIn(0f, 1f)
@@ -121,12 +121,14 @@ internal fun DrillDownMiuixScrollChrome(
                     )
             },
         ) {
-            if (topBarArtwork != null) {
-                Image(
-                    bitmap = topBarArtwork,
+            if (topBarArtworkBytes != null) {
+                ArtworkImage(
+                    artworkBytes = topBarArtworkBytes,
                     contentDescription = stringResource(Res.string.album_artwork),
+                    role = ArtworkImageRole.Hero,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop,
+                    fallback = {},
                 )
                 Box(
                     modifier = Modifier

@@ -2,7 +2,6 @@ package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -65,8 +64,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.ui.decodeArtworkCached
-import com.eterocell.rhythhaus.ui.decodeArtworkThumbnailCached
+import com.eterocell.rhythhaus.ui.ArtworkImage
+import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.formatDuration
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.importCardDescription
@@ -270,9 +269,7 @@ internal fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun AlbumMark(track: Track, selected: Boolean) {
-    val artworkBitmap = remember(track.artworkBytes) {
-        track.artworkBytes?.decodeArtworkThumbnailCached()
-    }
+    val albumArtContentDescription = stringResource(Res.string.album_art)
     Box(
         modifier = Modifier
             .size(54.dp)
@@ -284,26 +281,26 @@ private fun AlbumMark(track: Track, selected: Boolean) {
             ),
         contentAlignment = Alignment.Center,
     ) {
+        ArtworkImage(
+            artworkBytes = track.artworkBytes,
+            contentDescription = albumArtContentDescription,
+            role = ArtworkImageRole.Thumbnail,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+        ) {
+            Text(
+                text = track.title.firstOrNull()?.uppercase() ?: "♪",
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                fontSize = 20.sp,
+            )
+        }
         if (selected) {
             Box(
                 modifier = Modifier
                     .size(18.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.92f)),
-            )
-        } else if (artworkBitmap != null) {
-            Image(
-                bitmap = artworkBitmap,
-                contentDescription = stringResource(Res.string.album_art),
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            Text(
-                text = track.title.firstOrNull()?.uppercase() ?: "♪",
-                color = Color.White,
-                fontWeight = FontWeight.Black,
-                fontSize = 20.sp,
             )
         }
     }
@@ -369,9 +366,10 @@ internal fun AlbumCard(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val albumArtwork = remember(album.tracks) {
-                album.tracks.firstNotNullOfOrNull { it.artworkBytes?.decodeArtworkCached() }
+            val albumArtworkBytes = remember(album.tracks) {
+                album.tracks.firstNotNullOfOrNull { it.artworkBytes }
             }
+            val albumArtworkContentDescription = stringResource(Res.string.album_artwork)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -384,14 +382,13 @@ internal fun AlbumCard(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                if (albumArtwork != null) {
-                    Image(
-                        bitmap = albumArtwork,
-                        contentDescription = stringResource(Res.string.album_artwork),
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                    )
-                } else {
+                ArtworkImage(
+                    artworkBytes = albumArtworkBytes,
+                    contentDescription = albumArtworkContentDescription,
+                    role = ArtworkImageRole.Card,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                ) {
                     Text(
                         text = album.album.take(2).uppercase(),
                         color = Color.White.copy(alpha = 0.72f),
@@ -438,9 +435,10 @@ internal fun ArtistRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        val artistArtwork = remember(artist.tracks) {
-            artist.tracks.firstNotNullOfOrNull { it.artworkBytes?.decodeArtworkCached() }
+        val artistArtworkBytes = remember(artist.tracks) {
+            artist.tracks.firstNotNullOfOrNull { it.artworkBytes }
         }
+        val artistArtworkContentDescription = stringResource(Res.string.artist_artwork)
         Box(
             modifier = Modifier
                 .size(54.dp)
@@ -452,14 +450,13 @@ internal fun ArtistRow(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            if (artistArtwork != null) {
-                Image(
-                    bitmap = artistArtwork,
-                    contentDescription = stringResource(Res.string.artist_artwork),
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-            } else {
+            ArtworkImage(
+                artworkBytes = artistArtworkBytes,
+                contentDescription = artistArtworkContentDescription,
+                role = ArtworkImageRole.Card,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            ) {
                 Text(
                     text = artist.artist.firstOrNull()?.uppercase() ?: "♪",
                     color = Color.White,

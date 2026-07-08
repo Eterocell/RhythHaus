@@ -10,62 +10,49 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
+import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibraryScanner
-import com.eterocell.rhythhaus.library.PlatformAudioScanner
 import com.eterocell.rhythhaus.library.PlatformFolderPickResult
+import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
-import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
-import com.eterocell.rhythhaus.library.createLibraryDatabase
-import com.eterocell.rhythhaus.library.createPlatformSourceAccess
-import com.eterocell.rhythhaus.library.currentTimeMillis
 import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
-import com.eterocell.rhythhaus.library.uuid4
-import com.eterocell.rhythhaus.taglib.createTagLibReader
+import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
+import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.theme.DarkHausPalette
+import com.eterocell.rhythhaus.theme.LocalHausColors
+import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.theme.ThemePreferenceStore
+import com.eterocell.rhythhaus.theme.resolveHausPalette
+import com.eterocell.rhythhaus.theme.systemPrefersDarkTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.scan_complete_format
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
-import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
-import com.eterocell.rhythhaus.theme.systemPrefersDarkTheme
-import com.eterocell.rhythhaus.theme.RhythHausThemeMode
-import com.eterocell.rhythhaus.theme.resolveHausPalette
-import com.eterocell.rhythhaus.theme.createThemePreferenceStore
-import com.eterocell.rhythhaus.theme.LocalHausColors
-import com.eterocell.rhythhaus.theme.DarkHausPalette
-import org.jetbrains.compose.resources.stringResource
-import rhythhaus.shared.generated.resources.Res
-import rhythhaus.shared.generated.resources.scan_complete_format
 
 @Composable
 @Preview
 fun App() {
-    val controller = remember { PlaybackController() }
-    val metadataReader = remember { AudioMetadataReader() }
-    val tagLibReader = remember { createTagLibReader() }
-    val libraryDb = remember { createLibraryDatabase() }
-    val repository = remember { SqlDelightLibraryRepository(libraryDb) }
-    val platformAccess = remember { createPlatformSourceAccess() }
-    val scanner = remember {
-        LibraryScanner(
-            repository = repository,
-            platformScanner = platformAccess as PlatformAudioScanner,
-            metadataReader = metadataReader,
-            now = { currentTimeMillis() },
-            idFactory = { _ -> uuid4() },
-        )
-    }
+    val controller = koinInject<PlaybackController>()
+    val tagLibReader = koinInject<TagLibReader>()
+    val repository = koinInject<LibraryRepository>()
+    val platformAccess = koinInject<PlatformSourceAccess>()
+    val scanner = koinInject<LibraryScanner>()
+    val themePreferenceStore = koinInject<ThemePreferenceStore>()
     var libraryTracks by remember { mutableStateOf(repository.tracks()) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
     val scanCompleteFormat = stringResource(Res.string.scan_complete_format)
-    val themePreferenceStore = remember { createThemePreferenceStore() }
     val selectedThemeMode by themePreferenceStore.selectedThemeMode.collectAsState(RhythHausThemeMode.System)
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
         when (result) {
