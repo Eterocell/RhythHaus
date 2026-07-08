@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -209,6 +210,7 @@ private fun TitleChip(
 ) {
     Text(
         text = title,
+        fontWeight = FontWeight.Black,
         color = HausColors.current.ink,
         modifier = modifier
             .clip(RoundedCornerShape(999.dp))
