@@ -111,12 +111,14 @@ internal fun LibraryRouteContent(
                 Box(modifier = Modifier.fillMaxSize())
             } else {
                 val albumTracks = album.tracks
+                val albumArtworkCandidates = albumTracks.mapNotNull { it.artworkBytes }
                 val selectedAlbumTrackId by remember(album.album) { mutableStateOf(albumTracks.firstOrNull()?.id) }
                 val selectedAlbumTrack = albumTracks.firstOrNull { it.id == selectedAlbumTrackId } ?: albumTracks.firstOrNull()
                 DrillDownView(
                     title = album.album,
                     subtitle = stringResource(Res.string.album_detail_subtitle_format, albumTracks.size, album.artist ?: stringResource(Res.string.unknown_artist)),
                     tracks = albumTracks,
+                    topBarArtworkCandidates = albumArtworkCandidates,
                     selectedTrack = selectedAlbumTrack,
                     playbackState = playbackState,
                     playbackController = playbackController,
@@ -141,12 +143,14 @@ internal fun LibraryRouteContent(
                 Box(modifier = Modifier.fillMaxSize())
             } else {
                 val artistTracks = artist.tracks
+                val artistArtworkCandidates = artistTracks.mapNotNull { it.artworkBytes }
                 val selectedArtistTrackId by remember(artist.artist) { mutableStateOf(artistTracks.firstOrNull()?.id) }
                 val selectedArtistTrack = artistTracks.firstOrNull { it.id == selectedArtistTrackId } ?: artistTracks.firstOrNull()
                 DrillDownView(
                     title = artist.artist,
                     subtitle = stringResource(Res.string.artist_detail_subtitle_format, artist.albumCount, artistTracks.size),
                     tracks = artistTracks,
+                    topBarArtworkCandidates = artistArtworkCandidates,
                     selectedTrack = selectedArtistTrack,
                     playbackState = playbackState,
                     playbackController = playbackController,

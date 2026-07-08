@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
@@ -30,24 +32,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
 import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
+import com.eterocell.rhythhaus.ui.decodeArtworkCached
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import kotlin.math.max
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.album_artwork
 import rhythhaus.shared.generated.resources.back
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 
 internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = LibraryScrollPosition(
@@ -72,23 +79,72 @@ internal fun rememberMiuixTopAppBarScrollBehavior(): ScrollBehavior = MiuixScrol
 internal fun DrillDownMiuixScrollChrome(
     scrollBehavior: ScrollBehavior,
     title: String,
+    topBarArtworkCandidates: List<ByteArray> = emptyList(),
     onBack: () -> Unit,
     backdrop: LayerBackdrop?,
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    val topBarArtwork = remember(topBarArtworkCandidates) {
+        topBarArtworkCandidates.firstNotNullOfOrNull { it.decodeArtworkCached() }
+    }
+    val hasArtwork = topBarArtwork != null
+    val collapsedFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
+    val collapsedTitleAlpha = (collapsedFraction * 3f).coerceIn(0f, 1f)
+    val largeTitleAlpha = (1f - collapsedFraction * 2f).coerceIn(0f, 1f)
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .zIndex(3f)
-            .rhythHausLiquidGlass(
-                backdrop = backdrop,
-                shape = RoundedCornerShape(0.dp),
-                fallbackColor = HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha),
-            ),
+            .zIndex(3f),
     ) {
+        val collapsedChromeHeight = rememberSystemBarTopPadding() + NestedScrollChromeToolbarHeight
+        val expandedArtworkHeight = maxWidth
+        val chromeHeight = if (hasArtwork) {
+            expandedArtworkHeight - ((expandedArtworkHeight - collapsedChromeHeight) * collapsedFraction)
+        } else {
+            collapsedChromeHeight
+        }
+
+        Box(
+            modifier = if (hasArtwork) {
+                Modifier
+                    .fillMaxWidth()
+                    .height(chromeHeight)
+            } else {
+                Modifier
+                    .fillMaxWidth()
+                    .height(chromeHeight)
+                    .rhythHausLiquidGlass(
+                        backdrop = backdrop,
+                        shape = RoundedCornerShape(0.dp),
+                        fallbackColor = HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha),
+                    )
+            },
+        ) {
+            if (topBarArtwork != null) {
+                Image(
+                    bitmap = topBarArtwork,
+                    contentDescription = stringResource(Res.string.album_artwork),
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop,
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Black.copy(alpha = 0.34f),
+                                    Color.Black.copy(alpha = 0.18f),
+                                    Color.Black.copy(alpha = 0.48f),
+                                ),
+                            ),
+                        ),
+                )
+            }
         TopAppBar(
-            title = title,
-            largeTitle = title,
+            title = if (hasArtwork) "" else title,
+            largeTitle = if (hasArtwork) "" else title,
             subtitle = "",
             modifier = Modifier.fillMaxWidth(),
             color = Color.Transparent,
@@ -102,7 +158,7 @@ internal fun DrillDownMiuixScrollChrome(
             navigationIcon = {
                 IconButton(
                     onClick = onBack,
-                    backgroundColor = Color.Transparent,
+                    backgroundColor = if (hasArtwork) HausColors.current.paper.copy(alpha = 0.78f) else Color.Transparent,
                     minWidth = 44.dp,
                     minHeight = 44.dp,
                 ) {
@@ -114,15 +170,49 @@ internal fun DrillDownMiuixScrollChrome(
                 }
             },
             bottomContent = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(HausColors.current.line.copy(alpha = 0.42f * scrollBehavior.state.collapsedFraction)),
-                )
+                if (!hasArtwork) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(HausColors.current.line.copy(alpha = 0.42f * scrollBehavior.state.collapsedFraction)),
+                    )
+                }
             },
         )
+            if (hasArtwork) {
+                TitleChip(
+                    title = title,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = rememberSystemBarTopPadding() + 10.dp)
+                        .alpha(collapsedTitleAlpha),
+                )
+                TitleChip(
+                    title = title,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 20.dp, end = 20.dp, bottom = 18.dp)
+                        .alpha(largeTitleAlpha),
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun TitleChip(
+    title: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = title,
+        color = HausColors.current.ink,
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(HausColors.current.paper.copy(alpha = 0.82f))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
 }
 
 @Composable

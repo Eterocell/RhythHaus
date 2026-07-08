@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,6 +53,7 @@ internal fun DrillDownView(
     title: String,
     subtitle: String,
     tracks: List<Track>,
+    topBarArtworkCandidates: List<ByteArray> = emptyList(),
     selectedTrack: Track?,
     playbackState: PlaybackState,
     playbackController: PlaybackController,
@@ -72,7 +74,7 @@ internal fun DrillDownView(
     }
     val currentTrack = tracks.firstOrNull { it.id == selectedTrackId } ?: selectedTrack
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .leftEdgeSwipeBack(onBack),
@@ -81,6 +83,11 @@ internal fun DrillDownView(
         val drillDownBackdrop = rememberRhythHausBackdrop()
         val listState = rememberLazyListState()
         val miuixScrollBehavior = rememberMiuixTopAppBarScrollBehavior()
+        val drillDownTopPadding = if (topBarArtworkCandidates.isNotEmpty()) {
+            maxWidth + 20.dp
+        } else {
+            drillDownStatusBarHeight + DrillDownMiuixScrollContentTopPadding
+        }
         LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
             onScrollPositionChanged(listState.toLibraryScrollPosition())
         }
@@ -96,7 +103,7 @@ internal fun DrillDownView(
                         .fillMaxSize()
                         .nestedScroll(miuixScrollBehavior.nestedScrollConnection)
                         .padding(horizontal = 20.dp),
-                    contentPadding = PaddingValues(top = drillDownStatusBarHeight + DrillDownMiuixScrollContentTopPadding),
+                    contentPadding = PaddingValues(top = drillDownTopPadding),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
                     item { SectionLabel(title = title, subtitle = subtitle) }
@@ -122,6 +129,7 @@ internal fun DrillDownView(
         DrillDownMiuixScrollChrome(
             scrollBehavior = miuixScrollBehavior,
             title = title,
+            topBarArtworkCandidates = topBarArtworkCandidates,
             onBack = onBack,
             backdrop = drillDownBackdrop,
             modifier = Modifier.align(Alignment.TopCenter),

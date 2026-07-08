@@ -1,5 +1,39 @@
 # Session Progress
 
+## Handoff - 2026-07-08 drill-down top-bar artwork
+
+Route: openspec+superpowers / subagent-driven-development / planned scope correction
+Owner: implementation
+Input: User request: "Spec, plan, subagent-driven development: Show album art image in album/artis track list top bar"; corrections: image should fill the top bar, back button should have a circular background, album/artist name should have Material-chip-like backgrounds, blur should be removed when artwork owns the top bar, and the unscrolled state should be a full-width square top bar that compacts into a rectangular top bar while scrolling.
+Output:
+- Added OpenSpec change `drilldown-topbar-artwork` and Superpowers spec/plan artifacts for showing representative artwork in album/artist drill-down track-list top bars.
+- Album and artist detail routes now derive ordered non-null `artworkBytes` candidates from their grouped tracks and pass them through `DrillDownView`.
+- `DrillDownMiuixScrollChrome` now tries optional top-bar artwork candidates via `decodeArtworkCached()` until the first decodable image, then renders it as a full-width square top bar that height-animates into a compact rectangular top bar while scrolling, with a readability scrim, circular back-button background, and chip-style expanded/collapsed title overlays.
+- No placeholder is rendered when artwork is absent or all candidates fail to decode; that fallback keeps the existing glass title top bar. When artwork is present, the drill-down top bar intentionally removes the blur/glass effect so the image can own the bar: full-width square top bar before scroll, compact rectangular top bar after scroll. Existing nested scroll, track rows, and Now Playing behavior remain scoped unchanged.
+Verification:
+- `openspec validate drilldown-topbar-artwork --strict`: pass (`Change 'drilldown-topbar-artwork' is valid`).
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`; 16 actionable tasks: 4 executed, 12 up-to-date; configuration cache reused).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryBrowserTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`; 25 actionable tasks: 13 executed, 12 up-to-date; configuration cache reused).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass from previous same-scope verification (`BUILD SUCCESSFUL in 3s`; 99 actionable tasks: 12 executed, 87 up-to-date; existing Android deprecation warning only: `MediaMetadata.Builder.setArtworkData`).
+- `/usr/bin/xcrun xcodebuild -version`: pass from previous same-scope verification (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass from previous same-scope verification (`BUILD SUCCESSFUL in 12s`; 34 actionable tasks: 8 executed, 26 up-to-date; existing iOS test warnings only in `IOSNowPlayingBridgingTest` plus link warnings for unknown `SWIFT_DEBUG_INFORMATION_*` environment variables).
+- `git diff --check`: pass (no output, exit 0).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`
+- `docs/superpowers/specs/2026-07-08-drilldown-topbar-artwork-design.md`
+- `docs/superpowers/plans/2026-07-08-drilldown-topbar-artwork.md`
+- `openspec/changes/drilldown-topbar-artwork/proposal.md`
+- `openspec/changes/drilldown-topbar-artwork/design.md`
+- `openspec/changes/drilldown-topbar-artwork/specs/library-ui/spec.md`
+- `openspec/changes/drilldown-topbar-artwork/tasks.md`
+- `progress.md`
+- `roadmap.md`
+Next owner: user for manual visual QA of full-width square-to-rectangle top-bar compaction animation, chip readability, and touch target feel on target devices/simulator.
+Blockers: none for focused automated verification. Manual visual validation remains.
+Commit: pending staged diff review.
+
 ## Handoff - 2026-07-07 Adopt MiuixScrollBehavior for drill-down track list
 
 Route: openspec+superpowers / planned scope correction / systematic debugging
