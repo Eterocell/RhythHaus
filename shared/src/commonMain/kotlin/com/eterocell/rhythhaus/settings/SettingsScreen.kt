@@ -104,6 +104,7 @@ fun SettingsScreen(
                             foldersVisited = ss.foldersVisited,
                             filesVisited = ss.filesVisited,
                             tracksAdded = ss.tracksAdded,
+                            latestItem = sp.latestItem,
                             onCancel = onCancelScan,
                         )
                     }

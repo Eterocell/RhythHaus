@@ -46,6 +46,41 @@ class LibraryScannerTest {
     }
 
     @Test
+    fun scannerReportsProgressAfterEachScanEvent() {
+        val repository = InMemoryLibraryRepository()
+        val source = LibrarySource("source-1", LibraryPlatformKind.JvmFolder, "Music", "/Music", 1L)
+        val platform = FakePlatformAudioScanner(
+            events = listOf(
+                PlatformScanEvent.FolderVisited("/Music"),
+                PlatformScanEvent.AudioCandidate(
+                    AudioScanCandidate(
+                        sourceId = "source-1",
+                        sourceLocalKey = "first.mp3",
+                        displayPath = "/Music/first.mp3",
+                        displayName = "first.mp3",
+                        audioSource = AudioSource.FilePath("/Music/first.mp3"),
+                    ),
+                ),
+                PlatformScanEvent.Skipped("bad.txt", "/Music/bad.txt", "Unsupported file", true),
+            ),
+        )
+        val progress = mutableListOf<ScanProgress>()
+        val scanner = LibraryScanner(repository, platform, now = { 100L }, idFactory = { prefix -> "$prefix-id" })
+
+        scanner.scan(source, onProgress = progress::add)
+
+        assertEquals(
+            listOf(0, 0, 1, 2, 2),
+            progress.map { it.session?.filesVisited },
+        )
+        assertEquals(
+            listOf(null, "/Music", "/Music/first.mp3", "/Music/bad.txt", null),
+            progress.map { it.latestItem },
+        )
+        assertEquals(ScanStatus.Completed, progress.last().session?.status)
+    }
+
+    @Test
     fun cancellationStopsBeforeLaterCandidatesAndPreservesImportedTracks() {
         val repository = InMemoryLibraryRepository()
         val source = LibrarySource("source-1", LibraryPlatformKind.JvmFolder, "Music", "/Music", 1L)

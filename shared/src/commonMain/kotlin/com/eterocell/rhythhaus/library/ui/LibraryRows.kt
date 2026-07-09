@@ -491,6 +491,7 @@ internal fun ScanningCard(
     foldersVisited: Int,
     filesVisited: Int,
     tracksAdded: Int,
+    latestItem: String?,
     onCancel: () -> Unit,
 ) {
     Card(
@@ -502,6 +503,10 @@ internal fun ScanningCard(
             Text(stringResource(Res.string.scanning), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = HausColors.current.ink)
             Spacer(Modifier.height(6.dp))
             Text(stringResource(Res.string.scan_progress_format, foldersVisited, filesVisited, tracksAdded), fontSize = 12.sp, color = HausColors.current.ink.copy(alpha = 0.7f))
+            if (!latestItem.isNullOrBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(latestItem, fontSize = 11.sp, color = HausColors.current.ink.copy(alpha = 0.56f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             Spacer(Modifier.height(6.dp))
             LinearProgressIndicator(
                 modifier = Modifier.fillMaxWidth(),

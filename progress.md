@@ -1,5 +1,36 @@
 # Session Progress
 
+## Handoff - 2026-07-09 scan progress live updates
+
+Route: systematic-debugging + TDD
+Owner: implementation
+Input: User report: "Fix: Scan process is not updated in the scanning process, at least on Android"
+Root cause:
+- `LibraryScanner` updated the repository after each `PlatformScanEvent`, but `App()` only assigned Compose `scanProgress` before starting the scan and after `scanner.scan(...)` returned.
+- The Android SAF scanner emits folder/file events during traversal, but those intermediate sessions never reached Compose state, so the scanning card counters appeared frozen until completion.
+Fix:
+- Added an `onProgress: (ScanProgress) -> Unit` callback to `LibraryScanner.scan(...)` with a no-op default to preserve existing callers.
+- `LibraryScanner` now emits progress at session start, after each scan event, on cooperative cancellation, on completion, and on failure.
+- `App()` passes the progress callback and updates `scanProgress` on `Dispatchers.Main` while scanning continues on `Dispatchers.Default`.
+- `ScanningCard` now receives and displays `latestItem` so users can see the currently traversed folder/file path in addition to counters.
+Verification:
+- RED: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest.scannerReportsProgressAfterEachScanEvent' --configuration-cache`: failed because `LibraryScanner.scan` had no `onProgress` parameter.
+- Targeted: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest.scannerReportsProgressAfterEachScanEvent' --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`).
+- Scanner suite: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`).
+- Focused platform build: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 7s`; existing Android `MediaMetadata.Builder.setArtworkData` deprecation warning only).
+- `git diff --check`: pass (no output).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryScanner.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContent.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRows.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/settings/SettingsScreen.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryScannerTest.kt`
+- `progress.md`
+Next owner: user for manual Android scan progress validation on a large SAF folder.
+Blockers: none for automated JVM/desktop/Android verification. Live Android UI validation was not run in this session.
+Commit: skipped; user did not ask to commit.
+
 ## Handoff - 2026-07-09 scan cancel button state
 
 Route: systematic-debugging

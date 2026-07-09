@@ -26,7 +26,11 @@ class LibraryScanner(
     private val now: () -> Long,
     private val idFactory: (String) -> String,
 ) {
-    fun scan(source: LibrarySource, isCancelled: () -> Boolean = { false }): ScanSession {
+    fun scan(
+        source: LibrarySource,
+        isCancelled: () -> Boolean = { false },
+        onProgress: (ScanProgress) -> Unit = {},
+    ): ScanSession {
         val scanId = idFactory("scan")
         var session = ScanSession(
             id = scanId,
@@ -37,12 +41,14 @@ class LibraryScanner(
 
         repository.upsertSource(source)
         repository.insertScanSession(session)
+        onProgress(ScanProgress(session = session))
 
         return try {
             for (event in platformScanner.scan(source)) {
                 if (isCancelled()) {
                     session = session.cancelled()
                     repository.updateScanSession(session)
+                    onProgress(ScanProgress(session = session))
                     return session
                 }
 
@@ -56,6 +62,7 @@ class LibraryScanner(
                     is PlatformScanEvent.AudioCandidate -> session.importCandidate(scanId, event.candidate)
                 }
                 repository.updateScanSession(session)
+                onProgress(ScanProgress(session = session, latestItem = event.displayPath))
             }
 
             if (isCancelled()) {
@@ -69,6 +76,7 @@ class LibraryScanner(
                 repository.upsertSource(source.copy(lastScanAtEpochMillis = completedAt))
             }
             repository.updateScanSession(session)
+            onProgress(ScanProgress(session = session))
             session
         } catch (cancellation: CancellationException) {
             throw cancellation
@@ -79,9 +87,17 @@ class LibraryScanner(
                 terminalMessage = throwable.message ?: throwable::class.simpleName ?: "Scan failed",
             )
             repository.updateScanSession(session)
+            onProgress(ScanProgress(session = session))
             session
         }
     }
+
+    private val PlatformScanEvent.displayPath: String
+        get() = when (this) {
+            is PlatformScanEvent.AudioCandidate -> candidate.displayPath
+            is PlatformScanEvent.FolderVisited -> displayPath
+            is PlatformScanEvent.Skipped -> displayPath
+        }
 
     private fun ScanSession.recordSkipped(
         scanId: String,

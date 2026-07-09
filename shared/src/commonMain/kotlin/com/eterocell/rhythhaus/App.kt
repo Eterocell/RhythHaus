@@ -67,7 +67,15 @@ fun App() {
                     )
                     withContext(Dispatchers.Main) { scanProgress = progress }
 
-                    val session = scanner.scan(source) { scanCancellationRequested.value }
+                    val session = scanner.scan(
+                        source = source,
+                        isCancelled = { scanCancellationRequested.value },
+                        onProgress = { progress ->
+                            scope.launch(Dispatchers.Main) {
+                                scanProgress = progress
+                            }
+                        },
+                    )
 
                     withContext(Dispatchers.Main) {
                         scanProgress = ScanProgress(session = session)
