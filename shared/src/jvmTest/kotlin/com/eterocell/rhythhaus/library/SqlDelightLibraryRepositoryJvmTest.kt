@@ -4,7 +4,10 @@ import app.cash.sqldelight.db.SqlDriver
 import com.eterocell.rhythhaus.AudioSource
 import java.nio.file.Files
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class SqlDelightLibraryRepositoryJvmTest {
     @Test
@@ -22,6 +25,89 @@ class SqlDelightLibraryRepositoryJvmTest {
         openRepository(databaseFile).use { secondOpen ->
             assertEquals(listOf("source-1"), secondOpen.repository.sources().map { it.id })
             assertEquals(listOf("track-a", "track-b"), secondOpen.repository.tracksForSource("source-1").map { it.id })
+        }
+    }
+
+    @Test
+    fun oversizedArtworkIsNotLoadedWithTrackRows() {
+        val databaseFile = Files.createTempFile("rhythhaus-library-large-artwork", ".db").toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(
+                testTrack(
+                    id = "track-large-artwork",
+                    sourceLocalKey = "large-artwork.mp3",
+                    title = "Large Artwork",
+                    artist = "Artist",
+                ).copy(
+                    artworkBytes = ByteArray(600_000) { 1 },
+                    artworkMimeType = "image/jpeg",
+                ),
+            )
+
+            val track = open.repository.tracks().single()
+
+            assertNull(track.artworkBytes)
+            assertNull(track.artworkMimeType)
+        }
+    }
+
+    @Test
+    fun boundedArtworkIsNotLoadedWithRoutineTrackRows() {
+        val databaseFile = Files.createTempFile("rhythhaus-library-bounded-artwork", ".db").toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(
+                testTrack(
+                    id = "track-bounded-artwork",
+                    sourceLocalKey = "bounded-artwork.mp3",
+                    title = "Bounded Artwork",
+                    artist = "Artist",
+                ).copy(
+                    artworkBytes = ByteArray(128_000) { 1 },
+                    artworkMimeType = "image/jpeg",
+                ),
+            )
+
+            val track = open.repository.tracks().single()
+
+            assertNull(track.artworkBytes)
+            assertNull(track.artworkMimeType)
+        }
+    }
+
+    @Test
+    fun artworkCanBeLoadedLazilyByTrackId() {
+        val databaseFile = Files.createTempFile("rhythhaus-library-lazy-artwork", ".db").toFile()
+        databaseFile.deleteOnExit()
+        val artworkBytes = ByteArray(128_000) { 7 }
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(
+                testTrack(
+                    id = "track-lazy-artwork",
+                    sourceLocalKey = "lazy-artwork.mp3",
+                    title = "Lazy Artwork",
+                    artist = "Artist",
+                ).copy(
+                    artworkBytes = artworkBytes,
+                    artworkMimeType = "image/jpeg",
+                ),
+            )
+
+            val routineTrack = open.repository.tracks().single()
+            assertNull(routineTrack.artworkBytes)
+            assertNull(routineTrack.artworkMimeType)
+
+            val artwork = open.repository.artworkForTrack("track-lazy-artwork")
+            assertNotNull(artwork)
+            assertContentEquals(artworkBytes, artwork.bytes)
+            assertEquals("image/jpeg", artwork.mimeType)
         }
     }
 

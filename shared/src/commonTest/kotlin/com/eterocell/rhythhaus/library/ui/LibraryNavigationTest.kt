@@ -59,8 +59,13 @@ class LibraryNavigationTest {
     }
 
     @Test
-    fun clearDialogRouteRequiresInWindowContentAnimation() {
-        assertTrue(routeRequiresInWindowContentAnimation(LibraryRoute.ClearLibraryDialog))
+    fun clearDialogDoesNotUseRouteContentAnimation() {
+        val stack = LibraryNavigationStack()
+            .push(LibraryRoute.Settings)
+            .push(LibraryRoute.ClearLibraryDialog)
+
+        assertEquals(LibraryRoute.ClearLibraryDialog, stack.current)
+        assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.ClearLibraryDialog))
         assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.Settings))
         assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.Search))
         assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.Home))

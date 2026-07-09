@@ -29,8 +29,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
 import com.eterocell.rhythhaus.ui.MusicProgressScrubber
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
@@ -168,8 +168,9 @@ private fun NowPlayingArtworkPane(
                 .background(brush),
             contentAlignment = Alignment.Center,
         ) {
-            ArtworkImage(
-                artworkBytes = track.artworkBytes,
+            LazyTrackArtworkImage(
+                trackId = track.id,
+                eagerArtworkBytes = track.artworkBytes,
                 contentDescription = stringResource(Res.string.album_artwork),
                 role = ArtworkImageRole.Hero,
                 modifier = Modifier.fillMaxSize(),

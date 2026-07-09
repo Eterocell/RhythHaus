@@ -30,13 +30,31 @@ INSERT OR REPLACE INTO library_track(id, sourceId, sourceLocalKey, audioSourceKi
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 selectAllTracks:
-SELECT * FROM library_track ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
+SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
+    displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
+    lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
+    NULL AS artworkBytes,
+    NULL AS artworkMimeType
+FROM library_track ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
 
 selectTracksForSource:
-SELECT * FROM library_track WHERE sourceId = ? ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
+SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
+    displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
+    lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
+    NULL AS artworkBytes,
+    NULL AS artworkMimeType
+FROM library_track WHERE sourceId = ? ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
 
 selectTrackBySourceKey:
-SELECT * FROM library_track WHERE sourceId = ? AND sourceLocalKey = ?;
+SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
+    displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
+    lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
+    NULL AS artworkBytes,
+    NULL AS artworkMimeType
+FROM library_track WHERE sourceId = ? AND sourceLocalKey = ?;
+
+selectArtworkForTrack:
+SELECT artworkBytes, artworkMimeType FROM library_track WHERE id = ? AND artworkBytes IS NOT NULL;
 
 removeMissingTracks:
 DELETE FROM library_track WHERE sourceId = ? AND (lastSeenScanId IS NULL OR lastSeenScanId != ?);

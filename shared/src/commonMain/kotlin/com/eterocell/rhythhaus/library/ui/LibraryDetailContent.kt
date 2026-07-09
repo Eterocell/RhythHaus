@@ -53,7 +53,7 @@ internal fun DrillDownView(
     title: String,
     subtitle: String,
     tracks: List<Track>,
-    topBarArtworkCandidates: List<ByteArray> = emptyList(),
+    topBarArtworkTrack: Track? = null,
     selectedTrack: Track?,
     playbackState: PlaybackState,
     playbackController: PlaybackController,
@@ -83,7 +83,7 @@ internal fun DrillDownView(
         val drillDownBackdrop = rememberRhythHausBackdrop()
         val listState = rememberLazyListState()
         val miuixScrollBehavior = rememberMiuixTopAppBarScrollBehavior()
-        val drillDownTopPadding = if (topBarArtworkCandidates.isNotEmpty()) {
+        val drillDownTopPadding = if (topBarArtworkTrack != null) {
             maxWidth + 20.dp
         } else {
             drillDownStatusBarHeight + DrillDownMiuixScrollContentTopPadding
@@ -129,7 +129,8 @@ internal fun DrillDownView(
         DrillDownMiuixScrollChrome(
             scrollBehavior = miuixScrollBehavior,
             title = title,
-            topBarArtworkCandidates = topBarArtworkCandidates,
+            topBarArtworkTrackId = topBarArtworkTrack?.id,
+            topBarArtworkBytes = topBarArtworkTrack?.artworkBytes,
             onBack = onBack,
             backdrop = drillDownBackdrop,
             modifier = Modifier.align(Alignment.TopCenter),

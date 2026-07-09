@@ -40,8 +40,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
 import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
 import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
@@ -80,15 +80,13 @@ internal fun rememberMiuixTopAppBarScrollBehavior(): ScrollBehavior = MiuixScrol
 internal fun DrillDownMiuixScrollChrome(
     scrollBehavior: ScrollBehavior,
     title: String,
-    topBarArtworkCandidates: List<ByteArray> = emptyList(),
+    topBarArtworkTrackId: String? = null,
+    topBarArtworkBytes: ByteArray? = null,
     onBack: () -> Unit,
     backdrop: LayerBackdrop?,
     modifier: Modifier = Modifier,
 ) {
-    val topBarArtworkBytes = remember(topBarArtworkCandidates) {
-        topBarArtworkCandidates.firstOrNull()
-    }
-    val hasArtwork = topBarArtworkBytes != null
+    val hasArtwork = topBarArtworkTrackId != null || topBarArtworkBytes != null
     val collapsedFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
     val collapsedTitleAlpha = (collapsedFraction * 3f).coerceIn(0f, 1f)
     val largeTitleAlpha = (1f - collapsedFraction * 2f).coerceIn(0f, 1f)
@@ -122,9 +120,10 @@ internal fun DrillDownMiuixScrollChrome(
                     )
             },
         ) {
-            if (topBarArtworkBytes != null) {
-                ArtworkImage(
-                    artworkBytes = topBarArtworkBytes,
+            if (hasArtwork) {
+                LazyTrackArtworkImage(
+                    trackId = topBarArtworkTrackId,
+                    eagerArtworkBytes = topBarArtworkBytes,
                     contentDescription = stringResource(Res.string.album_artwork),
                     role = ArtworkImageRole.Hero,
                     modifier = Modifier.matchParentSize(),

@@ -8,6 +8,7 @@ interface LibraryRepository {
     fun upsertTrack(track: LibraryTrack): TrackUpsertResult
     fun tracks(): List<LibraryTrack>
     fun tracksForSource(sourceId: String): List<LibraryTrack>
+    fun artworkForTrack(trackId: String): TrackArtwork?
     fun insertScanSession(session: ScanSession)
     fun updateScanSession(session: ScanSession)
     fun insertScanError(error: ScanError)
@@ -48,9 +49,15 @@ class InMemoryLibraryRepository : LibraryRepository {
 
     override fun tracks(): List<LibraryTrack> = tracks.values.sortedWith(
         compareBy<LibraryTrack> { it.title.lowercase() }.thenBy { it.artist.lowercase() },
-    )
+    ).map { it.withoutArtwork() }
 
     override fun tracksForSource(sourceId: String): List<LibraryTrack> = tracks().filter { it.sourceId == sourceId }
+
+    override fun artworkForTrack(trackId: String): TrackArtwork? {
+        val track = tracks[trackId] ?: return null
+        val bytes = track.artworkBytes ?: return null
+        return TrackArtwork(bytes = bytes, mimeType = track.artworkMimeType)
+    }
 
     override fun insertScanSession(session: ScanSession) {
         scanSessions[session.id] = session
@@ -81,3 +88,8 @@ class InMemoryLibraryRepository : LibraryRepository {
         scanErrors.clear()
     }
 }
+
+private fun LibraryTrack.withoutArtwork(): LibraryTrack = copy(
+    artworkBytes = null,
+    artworkMimeType = null,
+)

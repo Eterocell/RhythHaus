@@ -157,6 +157,12 @@ class SqlDelightLibraryRepository(
         )
     }.executeAsList()
 
+    override fun artworkForTrack(trackId: String): TrackArtwork? = database.libraryTrackQueries
+        .selectArtworkForTrack(trackId) { artworkBytes, artworkMimeType ->
+            TrackArtwork(bytes = artworkBytes, mimeType = artworkMimeType)
+        }
+        .executeAsOneOrNull()
+
     override fun insertScanSession(session: ScanSession) {
         database.scanSessionQueries.insertScanSession(
             id = session.id,

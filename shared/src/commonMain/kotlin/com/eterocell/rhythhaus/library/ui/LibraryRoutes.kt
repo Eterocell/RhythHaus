@@ -12,6 +12,7 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.taglib.TagLibReader
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
@@ -39,23 +40,13 @@ internal fun LibraryRouteOverlays(
     scanProgress: ScanProgress?,
     scanJob: Job?,
     currentThemeMode: RhythHausThemeMode,
+    backdrop: LayerBackdrop?,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
     onCancelScan: () -> Unit,
     onDismiss: () -> Unit,
-    onShowClearLibrary: () -> Unit,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit,
 ) {
-    if (route == LibraryRoute.ClearLibraryDialog) {
-        AnimatedClearLibraryDialogRoute(
-            onDismiss = onDismiss,
-            onClearLibrary = {
-                onClearLibrary()
-                onDismiss()
-            },
-        )
-    }
-
     if (route == LibraryRoute.Settings) {
         SettingsScreen(
             folderPickerLauncher = folderPickerLauncher,
@@ -64,8 +55,9 @@ internal fun LibraryRouteOverlays(
             scanJob = scanJob,
             hasImportedTracks = snapshot.tracks.isNotEmpty(),
             currentThemeMode = currentThemeMode,
+            clearLibraryDialogBackdrop = backdrop,
             onThemeModeSelected = onThemeModeSelected,
-            onClearLibrary = onShowClearLibrary,
+            onClearLibrary = onClearLibrary,
             onCancelScan = onCancelScan,
             onDismiss = onDismiss,
         )
@@ -113,14 +105,13 @@ internal fun LibraryRouteContent(
                 Box(modifier = Modifier.fillMaxSize())
             } else {
                 val albumTracks = album.tracks
-                val albumArtworkCandidates = albumTracks.mapNotNull { it.artworkBytes }
                 val selectedAlbumTrackId by remember(album.album) { mutableStateOf(albumTracks.firstOrNull()?.id) }
                 val selectedAlbumTrack = albumTracks.firstOrNull { it.id == selectedAlbumTrackId } ?: albumTracks.firstOrNull()
                 DrillDownView(
                     title = album.album,
                     subtitle = stringResource(Res.string.album_detail_subtitle_format, albumTracks.size, album.artist ?: stringResource(Res.string.unknown_artist)),
                     tracks = albumTracks,
-                    topBarArtworkCandidates = albumArtworkCandidates,
+                    topBarArtworkTrack = albumTracks.firstOrNull(),
                     selectedTrack = selectedAlbumTrack,
                     playbackState = playbackState,
                     playbackController = playbackController,
@@ -145,14 +136,13 @@ internal fun LibraryRouteContent(
                 Box(modifier = Modifier.fillMaxSize())
             } else {
                 val artistTracks = artist.tracks
-                val artistArtworkCandidates = artistTracks.mapNotNull { it.artworkBytes }
                 val selectedArtistTrackId by remember(artist.artist) { mutableStateOf(artistTracks.firstOrNull()?.id) }
                 val selectedArtistTrack = artistTracks.firstOrNull { it.id == selectedArtistTrackId } ?: artistTracks.firstOrNull()
                 DrillDownView(
                     title = artist.artist,
                     subtitle = stringResource(Res.string.artist_detail_subtitle_format, artist.albumCount, artistTracks.size),
                     tracks = artistTracks,
-                    topBarArtworkCandidates = artistArtworkCandidates,
+                    topBarArtworkTrack = artistTracks.firstOrNull(),
                     selectedTrack = selectedArtistTrack,
                     playbackState = playbackState,
                     playbackController = playbackController,
@@ -177,9 +167,13 @@ internal fun LibraryRouteContent(
         LibraryRoute.Home,
         LibraryRoute.Settings,
         LibraryRoute.Search,
-        LibraryRoute.ClearLibraryDialog,
         -> {
             homeContent(onOpenDetailRoute)
+        }
+
+        LibraryRoute.ClearLibraryDialog -> {
+            LaunchedEffect(route) { onBack() }
+            Box(modifier = Modifier.fillMaxSize())
         }
     }
 }

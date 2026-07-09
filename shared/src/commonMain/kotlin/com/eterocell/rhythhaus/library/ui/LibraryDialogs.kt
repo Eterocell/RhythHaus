@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,6 +21,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.cancel
@@ -31,12 +34,13 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import com.eterocell.rhythhaus.theme.HausColors
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 
 @Composable
 internal fun AnimatedClearLibraryDialogRoute(
     onDismiss: () -> Unit,
     onClearLibrary: () -> Unit,
+    backdrop: LayerBackdrop?,
 ) {
     Box(
         modifier = Modifier
@@ -46,12 +50,18 @@ internal fun AnimatedClearLibraryDialogRoute(
             .padding(24.dp),
         contentAlignment = Alignment.Center,
     ) {
+        val dialogShape = RoundedCornerShape(24.dp)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
+                .rhythHausLiquidGlass(
+                    backdrop = backdrop,
+                    shape = dialogShape,
+                    fallbackColor = HausColors.current.panel.copy(alpha = 0.92f),
+                )
                 .pointerInput(Unit) { detectTapGestures(onTap = { }) },
             cornerRadius = 24.dp,
-            colors = CardDefaults.defaultColors(color = HausColors.current.panel),
+            colors = CardDefaults.defaultColors(color = HausColors.current.panel.copy(alpha = 0f)),
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text(

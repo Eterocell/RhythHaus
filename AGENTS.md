@@ -49,6 +49,12 @@ Modules:
 - `desktopApp`: desktop JVM/macOS entry point and packaging. Current native distribution target is macOS DMG only.
 - `iosApp`: SwiftUI/Xcode wrapper around the shared Compose `MainViewController`.
 
+Database persistence rule:
+
+- Every SQLDelight database schema change must include the corresponding migration in the same change set.
+- Treat table/column/index/constraint/default/version changes as schema changes; query-only changes that do not alter persisted schema do not require a migration.
+- Verify schema changes with the relevant SQLDelight generation/build task and repository/database tests before claiming completion.
+
 Shared-first rule:
 
 - Put cross-platform domain models, formatting helpers, state models, and Compose UI in `shared/src/commonMain/kotlin/com/eterocell/rhythhaus`.

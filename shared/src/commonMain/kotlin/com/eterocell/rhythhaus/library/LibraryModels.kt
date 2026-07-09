@@ -83,6 +83,21 @@ data class LibraryTrack(
     }
 }
 
+data class TrackArtwork(
+    val bytes: ByteArray,
+    val mimeType: String?,
+) {
+    override fun equals(other: Any?): Boolean = other is TrackArtwork &&
+        mimeType == other.mimeType &&
+        bytes.contentEquals(other.bytes)
+
+    override fun hashCode(): Int {
+        var result = bytes.contentHashCode()
+        result = 31 * result + (mimeType?.hashCode() ?: 0)
+        return result
+    }
+}
+
 data class AudioScanCandidate(
     val sourceId: String,
     val sourceLocalKey: String,

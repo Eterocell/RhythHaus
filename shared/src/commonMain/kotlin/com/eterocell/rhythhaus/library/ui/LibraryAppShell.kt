@@ -57,6 +57,7 @@ import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.adaptive_detail_placeholder
 import rhythhaus.shared.generated.resources.library
 import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
@@ -161,7 +162,7 @@ fun LibraryHomeScreen(
     }
 
     @Composable
-    fun RouteOverlays(route: LibraryRoute) {
+    fun RouteOverlays(route: LibraryRoute, backdrop: LayerBackdrop?) {
         LibraryRouteOverlays(
             route = route,
             snapshot = snapshot,
@@ -174,11 +175,11 @@ fun LibraryHomeScreen(
             scanProgress = scanProgress,
             scanJob = scanJob,
             currentThemeMode = currentThemeMode,
+            backdrop = backdrop,
             onThemeModeSelected = onThemeModeSelected,
             onClearLibrary = onClearLibrary,
             onCancelScan = onCancelScan,
             onDismiss = appState::popRoute,
-            onShowClearLibrary = { appState.pushRoute(LibraryRoute.ClearLibraryDialog) },
             onScrollPositionChanged = appState::updateNowPlayingBarVisibilityForScroll,
         )
     }
@@ -225,7 +226,7 @@ fun LibraryHomeScreen(
                     onOpenDetailRoute = onOpenDetailRoute,
                     onTrackSelected = appState::setSelectedTrackId,
                 )
-                RouteOverlays(route)
+                RouteOverlays(route = route, backdrop = null)
             },
         )
     }
@@ -246,12 +247,12 @@ fun LibraryHomeScreen(
         }
 
         if (adaptiveLayoutMode == LibraryAdaptiveLayoutMode.ListDetail) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .recordRhythHausBackdrop(rootBackdrop),
-            ) {
-                Row(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .recordRhythHausBackdrop(rootBackdrop),
+                ) {
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
@@ -292,7 +293,7 @@ fun LibraryHomeScreen(
                         }
                     }
                 }
-                RouteOverlays(appState.navigation.current)
+                RouteOverlays(route = appState.navigation.current, backdrop = rootBackdrop)
             }
         } else {
             if (predictiveBackProgress > 0f && previousRoute != null) {

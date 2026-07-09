@@ -64,8 +64,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
 import com.eterocell.rhythhaus.formatDuration
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.importCardDescription
@@ -281,8 +281,9 @@ private fun AlbumMark(track: Track, selected: Boolean) {
             ),
         contentAlignment = Alignment.Center,
     ) {
-        ArtworkImage(
-            artworkBytes = track.artworkBytes,
+        LazyTrackArtworkImage(
+            trackId = track.id,
+            eagerArtworkBytes = track.artworkBytes,
             contentDescription = albumArtContentDescription,
             role = ArtworkImageRole.Thumbnail,
             modifier = Modifier.fillMaxSize(),
@@ -366,9 +367,7 @@ internal fun AlbumCard(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val albumArtworkBytes = remember(album.tracks) {
-                album.tracks.firstNotNullOfOrNull { it.artworkBytes }
-            }
+            val albumArtworkTrack = remember(album.tracks) { album.tracks.firstOrNull() }
             val albumArtworkContentDescription = stringResource(Res.string.album_artwork)
             Box(
                 modifier = Modifier
@@ -382,8 +381,9 @@ internal fun AlbumCard(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                ArtworkImage(
-                    artworkBytes = albumArtworkBytes,
+                LazyTrackArtworkImage(
+                    trackId = albumArtworkTrack?.id,
+                    eagerArtworkBytes = albumArtworkTrack?.artworkBytes,
                     contentDescription = albumArtworkContentDescription,
                     role = ArtworkImageRole.Card,
                     modifier = Modifier.fillMaxSize(),
@@ -435,9 +435,7 @@ internal fun ArtistRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        val artistArtworkBytes = remember(artist.tracks) {
-            artist.tracks.firstNotNullOfOrNull { it.artworkBytes }
-        }
+        val artistArtworkTrack = remember(artist.tracks) { artist.tracks.firstOrNull() }
         val artistArtworkContentDescription = stringResource(Res.string.artist_artwork)
         Box(
             modifier = Modifier
@@ -450,8 +448,9 @@ internal fun ArtistRow(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            ArtworkImage(
-                artworkBytes = artistArtworkBytes,
+            LazyTrackArtworkImage(
+                trackId = artistArtworkTrack?.id,
+                eagerArtworkBytes = artistArtworkTrack?.artworkBytes,
                 contentDescription = artistArtworkContentDescription,
                 role = ArtworkImageRole.Card,
                 modifier = Modifier.fillMaxSize(),

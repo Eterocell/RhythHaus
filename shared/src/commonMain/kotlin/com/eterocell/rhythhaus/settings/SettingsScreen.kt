@@ -12,12 +12,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.ui.AnimatedClearLibraryDialogRoute
 import com.eterocell.rhythhaus.library.ui.ScanningCard
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
@@ -42,6 +47,7 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 
 @Composable
@@ -52,12 +58,15 @@ fun SettingsScreen(
     scanJob: Job?,
     hasImportedTracks: Boolean,
     currentThemeMode: RhythHausThemeMode,
+    clearLibraryDialogBackdrop: LayerBackdrop?,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
     onCancelScan: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showClearLibraryDialog by remember { mutableStateOf(false) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -146,7 +155,7 @@ fun SettingsScreen(
                     // Clear Library
                     if (hasImportedTracks) {
                         Button(
-                            onClick = onClearLibrary,
+                            onClick = { showClearLibraryDialog = true },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             cornerRadius = 18.dp,
                             colors = ButtonDefaults.buttonColors(
@@ -162,6 +171,16 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+        if (showClearLibraryDialog) {
+            AnimatedClearLibraryDialogRoute(
+                onDismiss = { showClearLibraryDialog = false },
+                onClearLibrary = {
+                    onClearLibrary()
+                    showClearLibraryDialog = false
+                },
+                backdrop = clearLibraryDialogBackdrop,
+            )
         }
     }
 }

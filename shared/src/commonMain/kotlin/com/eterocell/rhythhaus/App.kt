@@ -11,6 +11,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
 import com.eterocell.rhythhaus.library.LibraryRepository
+import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.PlatformFolderPickResult
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
@@ -24,10 +25,12 @@ import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.LocalHausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.theme.ThemePreferenceStore
+import com.eterocell.rhythhaus.ui.LocalTrackArtworkLoader
 import com.eterocell.rhythhaus.theme.resolveHausPalette
 import com.eterocell.rhythhaus.theme.systemPrefersDarkTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -99,31 +102,52 @@ fun App() {
     val snapshot = remember(libraryTracks) { librarySnapshot(libraryTracks) }
 
     RhythHausTheme(selectedThemeMode = selectedThemeMode) {
-        LibraryHomeScreen(
-            snapshot = snapshot,
-            libraryTracks = libraryTracks,
-            tagLibReader = tagLibReader,
-            playbackController = controller,
-            folderPickerLauncher = folderPickerLauncher,
-            importMessage = importMessage,
-            scanProgress = scanProgress,
-            scanJob = scanJob,
-            currentThemeMode = selectedThemeMode,
-            onThemeModeSelected = { mode ->
-                scope.launch {
-                    themePreferenceStore.setSelectedThemeMode(mode)
-                }
-            },
-            onClearLibrary = {
-                repository.clearAll()
-                libraryTracks = emptyList()
-            },
-            onCancelScan = {
-                scanCancellationRequested.value = true
-                scanProgress = scanProgress.requestScanCancellation()
-            },
-        )
+        CompositionLocalProvider(
+            LocalTrackArtworkLoader provides { trackId -> repository.artworkForTrack(trackId) },
+        ) {
+            LibraryHomeScreen(
+                snapshot = snapshot,
+                libraryTracks = libraryTracks,
+                tagLibReader = tagLibReader,
+                playbackController = controller,
+                folderPickerLauncher = folderPickerLauncher,
+                importMessage = importMessage,
+                scanProgress = scanProgress,
+                scanJob = scanJob,
+                currentThemeMode = selectedThemeMode,
+                onThemeModeSelected = { mode ->
+                    scope.launch {
+                        themePreferenceStore.setSelectedThemeMode(mode)
+                    }
+                },
+                onClearLibrary = {
+                    scope.launch {
+                        clearLibraryInBackground(
+                            repository = repository,
+                            ioDispatcher = Dispatchers.Default,
+                            updateTracks = { tracks -> libraryTracks = tracks },
+                        )
+                    }
+                },
+                onCancelScan = {
+                    scanCancellationRequested.value = true
+                    scanProgress = scanProgress.requestScanCancellation()
+                },
+            )
+        }
     }
+}
+
+internal suspend fun clearLibraryInBackground(
+    repository: LibraryRepository,
+    ioDispatcher: CoroutineDispatcher,
+    updateTracks: (List<LibraryTrack>) -> Unit,
+) {
+    val tracks = withContext(ioDispatcher) {
+        repository.clearAll()
+        repository.tracks()
+    }
+    updateTracks(tracks)
 }
 
 internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {

@@ -1,5 +1,91 @@
 # Session Progress
 
+## Handoff - 2026-07-09 clear-library dialog route and glass background
+
+Follow-up adjustment:
+- User reported the route-level dialog still showed a screen-to-screen transition animation and asked for the dialog to behave like a real alert dialog on Settings.
+- Changed Settings to own local `showClearLibraryDialog` state; the clear button now opens `AnimatedClearLibraryDialogRoute` inside `SettingsScreen` instead of pushing `LibraryRoute.ClearLibraryDialog`.
+- `ClearLibraryDialog` is no longer used for normal Settings clear-library flow; if encountered via old/stale navigation state, it immediately pops back.
+- `routeRequiresInWindowContentAnimation(ClearLibraryDialog)` now returns false, and the regression test asserts the dialog route does not require route content animation.
+- Additional verification: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest.clearDialogDoesNotUseRouteContentAnimation' --configuration-cache`: RED before implementation, then pass (`BUILD SUCCESSFUL in 3s`); `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 670ms`); `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`); `git diff --check`: pass.
+
+Follow-up adjustment 2:
+- User reported clearing the library blocks the UI thread.
+- Added `clearLibraryInBackground(...)`, which runs `repository.clearAll()` plus the post-clear repository read on a supplied background dispatcher, then applies the Compose state update after the background work returns.
+- `App()` now launches the clear operation from the remembered coroutine scope and passes `Dispatchers.Default`, instead of calling `repository.clearAll()` synchronously from the UI callback.
+- Added `AppScanCancellationTest.clearLibraryRunsRepositoryWorkOnProvidedDispatcher`, which captures the thread used by `clearAll()` and proves it differs from the caller thread while the UI update receives an empty track list.
+- Additional verification: RED `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.AppScanCancellationTest.clearLibraryRunsRepositoryWorkOnProvidedDispatcher' --configuration-cache` failed with unresolved `clearLibraryInBackground`; after implementation the same test passed (`BUILD SUCCESSFUL in 3s`); `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --configuration-cache` passed (`BUILD SUCCESSFUL in 607ms`); `./gradlew :shared:compileKotlinJvm --configuration-cache` passed (`BUILD SUCCESSFUL in 338ms`); `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` passed (`BUILD SUCCESSFUL in 3s`); `git diff --check` passed.
+
+Follow-up adjustment 3:
+- User reported repeated Android `CursorWindow Failed alloc ... NO_MEMORY` logs when opening the app, likely while loading the library.
+- Root cause refinement: previous mitigation still selected artwork BLOBs up to 512 KiB for every routine track row. Many rows with individually bounded artwork can still fill Android CursorWindow during app startup/library refresh.
+- Changed routine SQLDelight track-list/update-lookup queries (`selectAllTracks`, `selectTracksForSource`, `selectTrackBySourceKey`) to project metadata only and always return `NULL` for `artworkBytes`/`artworkMimeType`, avoiding BLOB materialization in library startup paths.
+- Added `SqlDelightLibraryRepositoryJvmTest.boundedArtworkIsNotLoadedWithRoutineTrackRows` proving even 128 KiB artwork is not loaded by `tracks()`.
+- Verification: RED `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.boundedArtworkIsNotLoadedWithRoutineTrackRows' --configuration-cache` failed at `SqlDelightLibraryRepositoryJvmTest.kt:76` before SQL change; after implementation the same test passed (`BUILD SUCCESSFUL in 4s`); `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --configuration-cache` passed (`BUILD SUCCESSFUL in 1s`); `./gradlew :shared:compileKotlinJvm --configuration-cache` passed (`BUILD SUCCESSFUL in 353ms`); `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` passed (`BUILD SUCCESSFUL in 3s`); `git diff --check` passed.
+
+Follow-up adjustment 4:
+- User corrected the previous artwork mitigation: artwork must not disappear from the library; it should be lazy-loaded instead of eagerly loaded with every library row.
+- Added a `TrackArtwork` model and `LibraryRepository.artworkForTrack(trackId)` so routine track-list queries can remain metadata-only while visible artwork surfaces can fetch one track's artwork on demand.
+- Added SQLDelight `selectArtworkForTrack` and repository implementation for lazy BLOB lookup by track id.
+- Kept `tracks()` / `tracksForSource()` metadata-only to avoid Android CursorWindow pressure, but wired UI artwork rendering through `LazyTrackArtworkImage` and `LocalTrackArtworkLoader` so thumbnails/cards/Now Playing/artwork chrome load artwork only when those composables enter composition.
+- Updated in-memory repository to mirror production behavior: routine `tracks()` strips artwork, `artworkForTrack()` returns stored artwork.
+- Added `ArtworkLazyLoadingTest.routineLibrarySnapshotDoesNotCarryArtworkButRepositoryCanLoadItByTrackId` and `SqlDelightLibraryRepositoryJvmTest.artworkCanBeLoadedLazilyByTrackId` to prove metadata-only list loading plus lazy artwork retrieval.
+- Verification: RED `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ArtworkLazyLoadingTest.routineLibrarySnapshotDoesNotCarryArtworkButRepositoryCanLoadItByTrackId' --configuration-cache` failed with unresolved `artworkForTrack`; after implementation passed (`BUILD SUCCESSFUL in 4s`); `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.artworkCanBeLoadedLazilyByTrackId' --configuration-cache` passed (`BUILD SUCCESSFUL in 1s`); combined `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --tests 'com.eterocell.rhythhaus.library.ArtworkLazyLoadingTest' --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --configuration-cache` passed (`BUILD SUCCESSFUL in 1s`); `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` passed (`BUILD SUCCESSFUL in 7s`); `git diff --check` passed.
+
+Route: systematic-debugging + TDD
+Owner: implementation
+Input: User report: Settings page click "清空资料库" shows the confirmation dialog back on the Library page; also requested the dialog background use miuix-blur and remove the white background layer.
+Root cause:
+- `LibraryRoute.ClearLibraryDialog` was pushed as a normal route, but `LibraryRouteContent` treated that route like home content. In compact layout the dialog route therefore rendered `homeContent(...)` under the route overlay instead of the previous Settings route.
+- The clear-library dialog card used an opaque `HausColors.current.panel` Miuix `Card` fill, so it kept a solid/white panel layer instead of sampling the recorded Miuix blur backdrop.
+Fix:
+- Added `visibleContentRouteForOverlay(...)` so the clear-library overlay keeps the previous route, e.g. Settings, as the visible in-window content while the dialog is current.
+- Moved the compact clear-library overlay outside `AnimatedContent` and pass the root recorded backdrop into the dialog.
+- Applied `rhythHausLiquidGlass(...)` to the dialog card with a transparent Miuix `Card` fill and a tinted fallback color for unsupported blur paths.
+- Adjusted list/detail recording so overlays remain siblings of the backdrop-recorded content instead of being recorded into their own sampled backdrop.
+Verification:
+- RED: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest.clearDialogUsesPreviousRouteAsVisibleContent' --configuration-cache`: failed with unresolved `visibleContentRouteForOverlay`, proving the missing routing behavior.
+- Targeted: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest.clearDialogUsesPreviousRouteAsVisibleContent' --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`).
+- Navigation suite: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`).
+- Focused compile: `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 719ms`).
+- `git diff --check`: pass (no output).
+- Wider platform command: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: failed only in unrelated existing `JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion` at `JvmPlaybackEngineTest.kt:190`; `:desktopApp:compileKotlin` and `:androidApp:assembleDebug` completed. Re-running just that playback test reproduced the same failure.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDialogs.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigation.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigationTest.kt`
+- `progress.md`
+Next owner: user for manual visual QA of Settings -> 清空资料库 on target device/simulator, especially blur appearance on Android API levels that support RuntimeShader.
+Blockers: full `:shared:jvmTest` remains blocked by unrelated `JvmPlaybackEngineTest.controllerAutoAdvancesToNextTrackOnCompletion` failure.
+Commit: skipped; user did not ask to commit.
+
+## Handoff - 2026-07-09 Android SQLite CursorWindow large artwork crash
+
+Route: systematic-debugging + TDD
+Owner: implementation
+Input: User crash report: Android `SQLiteBlobTooBigException: Row too big to fit into CursorWindow` in `SqlDelightLibraryRepository.tracks()` while Compose initializes `App()`.
+Root cause:
+- `LibraryTrack.sq` used `SELECT *` for `selectAllTracks`, `selectTracksForSource`, and `selectTrackBySourceKey`, so every library refresh loaded embedded album-art BLOBs into Android's CursorWindow.
+- A library containing enough rows and/or large embedded artwork can exceed the Android CursorWindow row/window limit before UI code can render or Coil can cache thumbnails.
+Fix:
+- Changed the track-list SQLDelight queries to project scalar track metadata plus only bounded embedded artwork (`<= 524288` bytes); larger artwork returns `NULL` for `artworkBytes`/`artworkMimeType`, keeping oversized BLOBs out of Android CursorWindow during routine list reads and source-key update lookups while preserving small artwork thumbnails.
+- Added a JVM SQLDelight regression test proving a row with 600 KB artwork can be inserted but `tracks()` does not materialize artwork bytes or MIME type.
+Verification:
+- RED: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.oversizedArtworkIsNotLoadedWithTrackRows' --configuration-cache`: failed at `SqlDelightLibraryRepositoryJvmTest.kt:50` because `tracks()` still loaded artwork bytes.
+- Targeted: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.oversizedArtworkIsNotLoadedWithTrackRows' --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`).
+- Repository suite: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`).
+- Focused platform build: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 6s`; existing Android `MediaMetadata.Builder.setArtworkData` deprecation warning only).
+- `git diff --check`: pass (no output).
+Changed files:
+- `shared/src/commonMain/sqldelight/com/eterocell/rhythhaus/library/LibraryTrack.sq`
+- `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepositoryJvmTest.kt`
+- `progress.md`
+Next owner: user for manual Android launch validation against the library that previously crashed.
+Blockers: none for automated JVM/desktop/Android verification. Live Android validation against the crashing device library was not run in this session.
+Commit: skipped; user did not ask to commit.
+
 ## Handoff - 2026-07-09 scan progress live updates
 
 Route: systematic-debugging + TDD

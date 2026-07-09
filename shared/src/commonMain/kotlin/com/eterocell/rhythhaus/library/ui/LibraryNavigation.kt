@@ -30,7 +30,7 @@ fun classifyNavigationTransition(
     else -> LibraryNavigationTransition.None
 }
 
-fun routeRequiresInWindowContentAnimation(route: LibraryRoute): Boolean = route == LibraryRoute.ClearLibraryDialog
+fun routeRequiresInWindowContentAnimation(route: LibraryRoute): Boolean = false
 
 enum class LibraryAdaptiveLayoutMode {
     Compact,

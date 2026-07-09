@@ -28,8 +28,8 @@ import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import com.eterocell.rhythhaus.ui.verticalSheetGesture
@@ -148,8 +148,9 @@ fun NowPlayingBar(
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    ArtworkImage(
-                        artworkBytes = track?.artworkBytes,
+                    LazyTrackArtworkImage(
+                        trackId = track?.id,
+                        eagerArtworkBytes = track?.artworkBytes,
                         contentDescription = stringResource(Res.string.album_art),
                         role = ArtworkImageRole.Thumbnail,
                         modifier = Modifier.fillMaxSize(),
