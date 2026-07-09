@@ -1,5 +1,36 @@
 # Session Progress
 
+## Handoff - 2026-07-09 drill-down track-list safe inset and scroll background
+
+Route: systematic-debugging + visual QA
+Owner: implementation
+Input: User report: track-list back button is too close to the start edge; apply safe insets, and make nested-scroll chrome avoid a solid background when unscrolled while fading to a solid background after scroll.
+Root cause:
+- `DrillDownMiuixScrollChrome` opted out of Miuix default window insets and used `navigationIconPadding = 0.dp`, so the back button could hug the start edge on safe-area devices.
+- The artwork drill-down chrome rendered artwork/scrim/title chips but did not have a scroll-driven solid background layer that is transparent at rest and fades in with nested-scroll collapse progress.
+Fix:
+- Added a safe-drawing start inset helper using `WindowInsets.safeDrawing` plus layout-direction-aware `calculateStartPadding`, then applied that value plus 12.dp to the Miuix `TopAppBar` navigation icon padding.
+- Added an `animateFloatAsState`-driven paper overlay in the artwork chrome path, with alpha `0f` when unscrolled and fading toward near-solid as `collapsedFraction` increases.
+Verification:
+- `lsp_diagnostics` for `LibraryChrome.kt`: blocked because `kotlin-ls` is not installed and the user previously declined installation.
+- Initial `./gradlew :shared:compileKotlinJvm --configuration-cache`: failed with unresolved `calculateStartPadding`; fixed by importing `androidx.compose.foundation.layout.calculateStartPadding`.
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 6s`).
+- `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 6s`; existing Android `MediaMetadata.Builder.setArtworkData` deprecation warning only).
+- `git diff --check`: pass (no output).
+- Visual QA source-level Oracle passes: both PASS with MEDIUM confidence; no rendered screenshot/device capture was available, so live visual validation remains manual.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`: safe start inset for drill-down back button and scroll-fade solid artwork chrome layer.
+- `progress.md`: this evidence record.
+Next owner: user for live visual QA on target device/simulator, especially perceived collapsed opacity and long/CJK title chip wrapping.
+Blockers: no automated compile blockers; runtime screenshot/device validation was not available in this session.
+Commit: skipped; user did not ask to commit.
+
+Follow-up adjustment:
+- User reported the back button's own solid circular background was still visible when not scrolled.
+- Root cause: the artwork-mode `IconButton` still hardcoded `HausColors.current.paper.copy(alpha = 0.78f)`, independent of scroll progress.
+- Fix: tied the artwork-mode back-button fill to the same animated scroll alpha, so it is transparent at rest and fades in with the solid chrome background while preserving the 44.dp target and safe-start padding.
+- Additional verification: `lsp_diagnostics` remained blocked because `kotlin-ls` is not installed and the user previously declined installation; `./gradlew :shared:compileKotlinJvm --configuration-cache` passed (`BUILD SUCCESSFUL in 4s`); `git diff --check` passed.
+
 ## Handoff - 2026-07-09 iOS system media artwork after lazy loading
 
 Route: systematic-debugging + TDD

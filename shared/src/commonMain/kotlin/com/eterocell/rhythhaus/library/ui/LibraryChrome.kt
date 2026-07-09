@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus.library.ui
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -7,12 +8,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
@@ -35,6 +38,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -74,6 +78,11 @@ internal fun rememberSystemBarTopPadding(): Dp {
 }
 
 @Composable
+private fun rememberSafeDrawingStartPadding(): Dp = WindowInsets.safeDrawing
+    .asPaddingValues()
+    .calculateStartPadding(LocalLayoutDirection.current)
+
+@Composable
 internal fun rememberMiuixTopAppBarScrollBehavior(): ScrollBehavior = MiuixScrollBehavior()
 
 @Composable
@@ -90,6 +99,9 @@ internal fun DrillDownMiuixScrollChrome(
     val collapsedFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
     val collapsedTitleAlpha = (collapsedFraction * 3f).coerceIn(0f, 1f)
     val largeTitleAlpha = (1f - collapsedFraction * 2f).coerceIn(0f, 1f)
+    val solidBackgroundAlpha by animateFloatAsState(
+        targetValue = if (collapsedFraction <= 0f) 0f else collapsedFraction,
+    )
 
     BoxWithConstraints(
         modifier = modifier
@@ -97,6 +109,7 @@ internal fun DrillDownMiuixScrollChrome(
             .zIndex(3f),
     ) {
         val collapsedChromeHeight = rememberSystemBarTopPadding() + NestedScrollChromeToolbarHeight
+        val navigationStartPadding = rememberSafeDrawingStartPadding() + 12.dp
         val expandedArtworkHeight = maxWidth
         val chromeHeight = if (hasArtwork) {
             expandedArtworkHeight - ((expandedArtworkHeight - collapsedChromeHeight) * collapsedFraction)
@@ -143,6 +156,11 @@ internal fun DrillDownMiuixScrollChrome(
                             ),
                         ),
                 )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(HausColors.current.paper.copy(alpha = 0.92f * solidBackgroundAlpha)),
+                )
             }
         TopAppBar(
             title = if (hasArtwork) "" else title,
@@ -154,13 +172,17 @@ internal fun DrillDownMiuixScrollChrome(
             largeTitleColor = HausColors.current.ink,
             defaultWindowInsetsPadding = false,
             titlePadding = 20.dp,
-            navigationIconPadding = 0.dp,
+            navigationIconPadding = navigationStartPadding,
             actionIconPadding = 0.dp,
             scrollBehavior = scrollBehavior,
             navigationIcon = {
                 IconButton(
                     onClick = onBack,
-                    backgroundColor = if (hasArtwork) HausColors.current.paper.copy(alpha = 0.78f) else Color.Transparent,
+                    backgroundColor = if (hasArtwork) {
+                        HausColors.current.paper.copy(alpha = 0.78f * solidBackgroundAlpha)
+                    } else {
+                        Color.Transparent
+                    },
                     minWidth = 44.dp,
                     minHeight = 44.dp,
                 ) {
