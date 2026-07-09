@@ -1,5 +1,36 @@
 # Session Progress
 
+## Handoff - 2026-07-09 iOS system media artwork after lazy loading
+
+Route: systematic-debugging + TDD
+Owner: implementation
+Input: User report: after the lazy-load library artwork commit, iOS artwork no longer shows in system media controls.
+Root cause:
+- The lazy-loading artwork change intentionally made routine library/queue track rows metadata-only (`artworkBytes = null`) to avoid eager BLOB materialization.
+- `PlaybackController` still handed those metadata-only `PlayableTrack`s directly to the platform engine.
+- On iOS, `IOSPlaybackEngine.updateNowPlayingInfo()` only calls `NowPlayingArtworkBridge.provider?.setArtwork(..., artworkBytes = track.artworkBytes)` from the loaded `PlayableTrack`, so the Swift `RhythHausArtworkProvider` removed artwork from `MPNowPlayingInfoCenter` when playback loaded a metadata-only track.
+Fix:
+- Added an optional `artworkLoader` seam to `PlaybackController` and wired Koin production construction to `LibraryRepository.artworkForTrack(trackId)?.bytes`.
+- `PlaybackController` now resolves lazy artwork inside the existing playback load coroutine before calling `engine.load(trackWithArtwork)`, leaving routine library rows metadata-only while giving platform engines artwork for system media metadata.
+- Added `PlaybackControllerTest.playbackLoadsLazyArtworkBeforeHandingTrackToEngine` regression coverage proving a metadata-only queue track is handed to the engine with lazily loaded artwork bytes.
+Verification:
+- RED: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest.playbackLoadsLazyArtworkBeforeHandingTrackToEngine' --configuration-cache` first failed with `No parameter with name 'artworkLoader' found`, proving the missing lazy-artwork playback seam.
+- Targeted: same command passed after implementation (`BUILD SUCCESSFUL in 3s`).
+- Controller suite: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`).
+- iOS compile: `./gradlew :shared:compileKotlinIosSimulatorArm64 --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`).
+- Desktop/Android focused build: `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`).
+- `git diff --check`: pass (no output).
+- Wider `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` remains blocked only by existing macOS-native `JvmPlaybackEngineTest.nativeMacPlaybackEngineLoadsGeneratedWavFile` and `nativeMacPlaybackEnginePublishesProgressWhilePlaying` failures; desktop and Android tasks completed in that run.
+- `./gradlew :shared:iosSimulatorArm64Test --tests 'com.eterocell.rhythhaus.IOSNowPlayingInfoTest' --configuration-cache` is blocked by unrelated common-test iOS compilation errors in `AppScanCancellationTest.kt` (`Thread` unresolved on iOS), so iOS validation used the focused iOS main compilation above.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt`: loads lazy artwork before platform engine load.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/di/RhythHausDi.kt`: wires playback artwork loader to repository lazy artwork lookup.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/PlaybackControllerTest.kt`: regression test for lazy artwork handoff to playback engine.
+- `progress.md`: this evidence record.
+Next owner: user for manual iOS Control Center / lock-screen artwork validation on a simulator or device with scanned tracks containing embedded artwork.
+Blockers: automated iOS test task blocked by existing common-test `Thread` usage; full JVM suite blocked by existing macOS-native playback test failures.
+Commit: skipped; user did not ask to commit.
+
 ## Handoff - 2026-07-09 clear-library dialog route and glass background
 
 Follow-up adjustment:

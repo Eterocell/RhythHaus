@@ -135,6 +135,7 @@ internal expect val playbackEngineDispatcher: CoroutineDispatcher
 class PlaybackController(
     private val engine: PlatformPlaybackEngine = createPlatformPlaybackEngine(),
     private val shuffleOrderFactory: (List<String>, String?) -> List<String> = ::defaultShuffleOrder,
+    private val artworkLoader: (String) -> ByteArray? = { null },
 ) : PlaybackEngineListener {
     private val scope = CoroutineScope(SupervisorJob() + playbackEngineDispatcher)
     private val engineMutex = Mutex()
@@ -290,14 +291,22 @@ class PlaybackController(
             error = null,
         )
         loadJob = scope.launch {
+            val trackWithArtwork = track.withLazyArtwork()
             runEngineAction {
-                engine.load(track)
-                if (_state.value.currentTrack?.id == track.id && (autoPlay || playWhenLoaded)) {
+                if (_state.value.currentTrack?.id != track.id) return@runEngineAction
+                engine.load(trackWithArtwork)
+                if (_state.value.currentTrack?.id == trackWithArtwork.id && (autoPlay || playWhenLoaded)) {
                     playWhenLoaded = false
                     engine.play()
                 }
             }
         }
+    }
+
+    private fun PlayableTrack.withLazyArtwork(): PlayableTrack {
+        if (artworkBytes != null) return this
+        val loadedArtwork = artworkLoader(id) ?: return this
+        return copy(artworkBytes = loadedArtwork)
     }
 
     private fun launchEngineAction(action: () -> Unit) {

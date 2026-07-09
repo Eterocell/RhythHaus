@@ -26,7 +26,11 @@ fun rhythHausModule(): Module = module {
     single<LibraryDatabase> { createLibraryDatabase() }
     single<LibraryRepository> { SqlDelightLibraryRepository(get()) }
     single<PlatformSourceAccess> { createPlatformSourceAccess() }
-    single { PlaybackController() }
+    single {
+        PlaybackController(
+            artworkLoader = { trackId -> get<LibraryRepository>().artworkForTrack(trackId)?.bytes },
+        )
+    }
     single<ThemePreferenceStore> { createThemePreferenceStore() }
     single {
         val platformAccess = get<PlatformSourceAccess>()

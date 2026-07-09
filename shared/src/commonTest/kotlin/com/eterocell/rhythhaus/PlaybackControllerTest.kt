@@ -1,7 +1,9 @@
 package com.eterocell.rhythhaus
 
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlinx.coroutines.runBlocking
 
 class PlaybackControllerTest {
     @Test
@@ -213,6 +215,24 @@ class PlaybackControllerTest {
         assertEquals(PlaybackStatus.Playing, controller.state.value.status)
     }
 
+    @Test
+    fun playbackLoadsLazyArtworkBeforeHandingTrackToEngine() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val lazyArtwork = byteArrayOf(9, 8, 7, 6)
+        val controller = PlaybackController(
+            engine = engine,
+            artworkLoader = { trackId -> if (trackId == "track-1") lazyArtwork else null },
+        )
+        val track = testTracks(1).single()
+
+        controller.setQueue(listOf(track), selectedTrackId = track.id)
+
+        engine.awaitLoad()
+
+        assertEquals("track-1", engine.loadedTracks.single().id)
+        assertContentEquals(lazyArtwork, engine.loadedTracks.single().artworkBytes)
+    }
+
     private fun testTracks(count: Int): List<PlayableTrack> = (1..count).map { index ->
         PlayableTrack(
             id = "track-$index",
@@ -228,6 +248,31 @@ class PlaybackControllerTest {
         override var listener: PlaybackEngineListener? = null
 
         override fun load(track: PlayableTrack) = Unit
+
+        override fun play() = Unit
+
+        override fun pause() = Unit
+
+        override fun stop() = Unit
+
+        override fun seekTo(positionMillis: Long) = Unit
+
+        override fun release() = Unit
+    }
+
+    private class RecordingPlaybackEngine : PlatformPlaybackEngine {
+        override var listener: PlaybackEngineListener? = null
+        val loadedTracks = mutableListOf<PlayableTrack>()
+        private val loadSignal = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+        override fun load(track: PlayableTrack) {
+            loadedTracks += track
+            listener?.onPlaybackProgress(0L, track.durationMillis)
+            listener?.onPlaybackStatus(PlaybackStatus.Paused)
+            loadSignal.complete(Unit)
+        }
+
+        suspend fun awaitLoad() = loadSignal.await()
 
         override fun play() = Unit
 
