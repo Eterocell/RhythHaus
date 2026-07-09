@@ -18,9 +18,8 @@ expect fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
 ): PlatformFolderPickerLauncher
 
-interface PlatformSourceAccess {
+interface PlatformSourceAccess : PlatformAudioScanner {
     fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus = LibrarySourceAccessStatus.Available
-    fun scan(source: LibrarySource): Sequence<PlatformScanEvent>
 }
 
 fun audioCandidateForSourceFile(

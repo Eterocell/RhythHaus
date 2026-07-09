@@ -5,7 +5,6 @@ import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.library.LibraryDatabase
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibraryScanner
-import com.eterocell.rhythhaus.library.PlatformAudioScanner
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
 import com.eterocell.rhythhaus.library.createLibraryDatabase
@@ -27,13 +26,13 @@ fun rhythHausModule(): Module = module {
     single<LibraryDatabase> { createLibraryDatabase() }
     single<LibraryRepository> { SqlDelightLibraryRepository(get()) }
     single<PlatformSourceAccess> { createPlatformSourceAccess() }
-    single<PlatformAudioScanner> { get<PlatformSourceAccess>() as PlatformAudioScanner }
     single { PlaybackController() }
     single<ThemePreferenceStore> { createThemePreferenceStore() }
     single {
+        val platformAccess = get<PlatformSourceAccess>()
         LibraryScanner(
             repository = get(),
-            platformScanner = get(),
+            platformScanner = platformAccess,
             metadataReader = get(),
             now = { currentTimeMillis() },
             idFactory = { _ -> uuid4() },

@@ -28,6 +28,7 @@ import com.eterocell.rhythhaus.theme.resolveHausPalette
 import com.eterocell.rhythhaus.theme.systemPrefersDarkTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
@@ -51,6 +52,7 @@ fun App() {
     var importMessage by remember { mutableStateOf<String?>(null) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
+    val scanCancellationRequested = remember { MutableStateFlow(false) }
     val scope = rememberCoroutineScope()
     val scanCompleteFormat = stringResource(Res.string.scan_complete_format)
     val selectedThemeMode by themePreferenceStore.selectedThemeMode.collectAsState(RhythHausThemeMode.System)
@@ -58,13 +60,14 @@ fun App() {
         when (result) {
             is PlatformFolderPickResult.Success -> {
                 val source = result.source
+                scanCancellationRequested.value = false
                 scanJob = scope.launch(Dispatchers.Default) {
                     var progress = ScanProgress(
                         session = ScanSession(id = "", sourceId = source.id, status = ScanStatus.Scanning, startedAtEpochMillis = 0L),
                     )
                     withContext(Dispatchers.Main) { scanProgress = progress }
 
-                    val session = scanner.scan(source) { scanJob?.isActive != true }
+                    val session = scanner.scan(source) { scanCancellationRequested.value }
 
                     withContext(Dispatchers.Main) {
                         scanProgress = ScanProgress(session = session)
@@ -107,8 +110,18 @@ fun App() {
                 repository.clearAll()
                 libraryTracks = emptyList()
             },
+            onCancelScan = {
+                scanCancellationRequested.value = true
+                scanProgress = scanProgress.requestScanCancellation()
+            },
         )
     }
+}
+
+internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
+    val session = this?.session ?: return this
+    if (session.status != ScanStatus.Scanning) return this
+    return copy(session = session.copy(status = ScanStatus.Cancelling))
 }
 
 @Composable

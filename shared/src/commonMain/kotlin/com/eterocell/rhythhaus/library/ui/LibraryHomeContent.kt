@@ -56,6 +56,7 @@ internal fun LibraryHomeContent(
     homeBackdrop: LayerBackdrop?,
     onBrowseModeChange: (BrowseMode) -> Unit,
     onClearLibrary: () -> Unit,
+    onCancelScan: () -> Unit,
     onOpenDetailRoute: (LibraryRoute) -> Unit,
     onTrackSelected: (String) -> Unit,
 ) {
@@ -99,7 +100,7 @@ internal fun LibraryHomeContent(
                                 foldersVisited = ss.foldersVisited,
                                 filesVisited = ss.filesVisited,
                                 tracksAdded = ss.tracksAdded,
-                                onCancel = { scanJob?.cancel() },
+                                onCancel = onCancelScan,
                             )
                         }
                     }

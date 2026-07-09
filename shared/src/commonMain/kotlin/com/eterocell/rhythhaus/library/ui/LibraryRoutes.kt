@@ -41,6 +41,7 @@ internal fun LibraryRouteOverlays(
     currentThemeMode: RhythHausThemeMode,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
+    onCancelScan: () -> Unit,
     onDismiss: () -> Unit,
     onShowClearLibrary: () -> Unit,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit,
@@ -65,6 +66,7 @@ internal fun LibraryRouteOverlays(
             currentThemeMode = currentThemeMode,
             onThemeModeSelected = onThemeModeSelected,
             onClearLibrary = onShowClearLibrary,
+            onCancelScan = onCancelScan,
             onDismiss = onDismiss,
         )
     }

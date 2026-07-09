@@ -86,6 +86,7 @@ fun LibraryHomeScreen(
     currentThemeMode: RhythHausThemeMode,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
+    onCancelScan: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val playbackState by playbackController.state.collectAsState()
@@ -175,6 +176,7 @@ fun LibraryHomeScreen(
             currentThemeMode = currentThemeMode,
             onThemeModeSelected = onThemeModeSelected,
             onClearLibrary = onClearLibrary,
+            onCancelScan = onCancelScan,
             onDismiss = appState::popRoute,
             onShowClearLibrary = { appState.pushRoute(LibraryRoute.ClearLibraryDialog) },
             onScrollPositionChanged = appState::updateNowPlayingBarVisibilityForScroll,
@@ -219,6 +221,7 @@ fun LibraryHomeScreen(
                     homeBackdrop = rememberRhythHausBackdrop(),
                     onBrowseModeChange = appState::setBrowseMode,
                     onClearLibrary = onClearLibrary,
+                    onCancelScan = onCancelScan,
                     onOpenDetailRoute = onOpenDetailRoute,
                     onTrackSelected = appState::setSelectedTrackId,
                 )
@@ -270,6 +273,7 @@ fun LibraryHomeScreen(
                             homeBackdrop = rememberRhythHausBackdrop(),
                             onBrowseModeChange = appState::setBrowseMode,
                             onClearLibrary = onClearLibrary,
+                            onCancelScan = onCancelScan,
                             onOpenDetailRoute = ::openDetailRoute,
                             onTrackSelected = appState::setSelectedTrackId,
                         )

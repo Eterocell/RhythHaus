@@ -1,5 +1,65 @@
 # Session Progress
 
+## Handoff - 2026-07-09 scan cancel button state
+
+Route: systematic-debugging
+Owner: implementation
+Input: User report: "Fix: It seems like clicking cancel does not take effect, at least on Android, iOS, macOS unknown"
+Root cause:
+- The scan cancel buttons in Library home and Settings called `scanJob?.cancel()` directly.
+- The running scan coroutine used `scanner.scan(source) { scanJob?.isActive != true }` as a cooperative cancellation predicate.
+- Cancelling the coroutine while `LibraryScanner.scan()` was iterating platform scanner sequences could surface as coroutine cancellation instead of a controlled `ScanStatus.Cancelled` session update, so the UI had no immediate state change and could appear to ignore the click.
+Fix:
+- Added an explicit remembered cancellation flag owned by `App()` and passed a single `onCancelScan` callback through Library home and Settings.
+- Cancel now sets the flag for `LibraryScanner`'s cooperative cancellation path and immediately changes active UI progress from `Scanning` to `Cancelling`, preserving current counters until the scanner records the terminal `Cancelled` session.
+- Added `AppScanCancellationTest` regression coverage for immediate active-scan state transition and terminal-session no-op behavior.
+Verification:
+- RED: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --configuration-cache`: failed with unresolved `requestScanCancellation`, proving the regression test targeted missing behavior.
+- Targeted: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`).
+- Existing scanner regression: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`).
+- Focused platform build: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 5s`; existing Android `MediaMetadata.Builder.setArtworkData` deprecation warning only).
+- `git diff --check`: pass (no output).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContent.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/settings/SettingsScreen.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/AppScanCancellationTest.kt`
+- `progress.md`
+Next owner: user for manual Android scan-cancel validation on a large folder; implementation if the platform scan still takes too long to observe cancellation between deep tree events.
+Blockers: none for automated JVM/desktop/Android verification. Live Android/iOS/macOS UI validation was not run in this session.
+Commit: skipped; user did not ask to commit.
+
+## Handoff - 2026-07-09 Android release R8 Koin startup stack overflow
+
+Route: systematic-debugging
+Owner: implementation
+Input: User report: Android debug build starts, release build crashes immediately with `java.lang.StackOverflowError`; retraced stack repeats through `org.koin.core.scope.Scope.resolve`, `SingleInstanceFactory.get`, and `RhythHausDiKt.rhythHausModule$lambda$0$5`.
+Root cause:
+- The release mapping retraced the loop to Koin resolving `PlatformAudioScanner` from a provider that called `get<PlatformSourceAccess>() as PlatformAudioScanner`.
+- Under R8/Kotlin class-reference minification, that interface-alias binding triggered recursive Koin resolution/name lookup during app startup. Debug avoided the R8 path.
+Fix:
+- Made `PlatformSourceAccess` extend `PlatformAudioScanner`, so the platform source-access object is the scanner contract directly.
+- Removed the separate Koin `single<PlatformAudioScanner>` alias and inject `PlatformSourceAccess` directly into `LibraryScanner` as its `PlatformAudioScanner` dependency.
+- Removed redundant platform class/test double dual-interface declarations.
+Verification:
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.di.RhythHausDiTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug :androidApp:assembleRelease --configuration-cache`: pass (`BUILD SUCCESSFUL in 39s`; release R8/minify executed via `:androidApp:minifyReleaseWithR8`; existing Android artwork deprecation warning only, plus existing AAPT2 `SWIFT_DEBUG_INFORMATION_*` environment-variable warnings).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 13s`; existing `IOSNowPlayingBridgingTest` warnings and `SWIFT_DEBUG_INFORMATION_*` warnings only).
+- `git diff --check`: pass (no output).
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/di/RhythHausDi.kt`
+- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.android.kt`
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.jvm.kt`
+- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.ios.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/di/RhythHausDiTest.kt`
+- `progress.md`
+Next owner: user for installing/running the generated release APK on the target Android device, since no adb device was connected in this session.
+Blockers: automated release build/minification passed; live release app-start validation was not run because `adb devices` showed no connected devices.
+Commit: skipped; user did not ask to commit.
+
 ## Handoff - 2026-07-08 Coil artwork loading and Koin DI
 
 Route: openspec+superpowers / subagent-driven-development

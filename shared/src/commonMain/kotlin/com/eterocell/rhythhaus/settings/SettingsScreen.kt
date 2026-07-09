@@ -54,6 +54,7 @@ fun SettingsScreen(
     currentThemeMode: RhythHausThemeMode,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
+    onCancelScan: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -103,7 +104,7 @@ fun SettingsScreen(
                             foldersVisited = ss.foldersVisited,
                             filesVisited = ss.filesVisited,
                             tracksAdded = ss.tracksAdded,
-                            onCancel = { scanJob?.cancel() },
+                            onCancel = onCancelScan,
                         )
                     }
 

@@ -37,9 +37,7 @@ actual fun rememberPlatformFolderPickerLauncher(
     }
 }
 
-class IOSAppLocalSourceAccess :
-    PlatformSourceAccess,
-    PlatformAudioScanner {
+class IOSAppLocalSourceAccess : PlatformSourceAccess {
     override fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus {
         if (source.platformKind != LibraryPlatformKind.IosAppLocal) return LibrarySourceAccessStatus.LostAccess
         return if (NSFileManager.defaultManager.fileExistsAtPath(source.handle)) {

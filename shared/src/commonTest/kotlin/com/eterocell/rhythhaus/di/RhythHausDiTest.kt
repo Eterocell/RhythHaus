@@ -6,7 +6,6 @@ import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.LibrarySource
-import com.eterocell.rhythhaus.library.PlatformAudioScanner
 import com.eterocell.rhythhaus.library.PlatformScanEvent
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.ScanStatus
@@ -30,11 +29,11 @@ class RhythHausDiTest {
                     single { AudioMetadataReader(tagLibReader = get()) }
                     single<LibraryRepository> { InMemoryLibraryRepository() }
                     single<PlatformSourceAccess> { FakePlatformSourceAccess }
-                    single<PlatformAudioScanner> { get<PlatformSourceAccess>() as PlatformAudioScanner }
                     single {
+                        val platformAccess = get<PlatformSourceAccess>()
                         LibraryScanner(
                             repository = get(),
-                            platformScanner = get(),
+                            platformScanner = platformAccess,
                             metadataReader = get(),
                             now = { 100L },
                             idFactory = { prefix -> "$prefix-id" },
@@ -65,7 +64,7 @@ class RhythHausDiTest {
     }
 }
 
-private object FakePlatformSourceAccess : PlatformSourceAccess, PlatformAudioScanner {
+private object FakePlatformSourceAccess : PlatformSourceAccess {
     override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> = emptySequence()
 }
 
