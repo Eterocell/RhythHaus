@@ -14,6 +14,7 @@ interface LibraryRepository {
     fun insertScanError(error: ScanError)
     fun scanErrors(scanId: String): List<ScanError>
     fun removeMissingTracks(sourceId: String, latestScanId: String): Int
+    fun removeSource(sourceId: String)
     fun clearAll()
 }
 
@@ -79,6 +80,14 @@ class InMemoryLibraryRepository : LibraryRepository {
             .map { it.id }
         ids.forEach { tracks.remove(it) }
         return ids.size
+    }
+
+    override fun removeSource(sourceId: String) {
+        val scanIds = scanSessions.values.filter { it.sourceId == sourceId }.mapTo(mutableSetOf()) { it.id }
+        scanErrors.removeAll { it.scanId in scanIds }
+        scanIds.forEach { scanSessions.remove(it) }
+        tracks.entries.removeAll { it.value.sourceId == sourceId }
+        sources.remove(sourceId)
     }
 
     override fun clearAll() {

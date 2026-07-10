@@ -12,5 +12,8 @@ insertScanError:
 INSERT INTO scan_error(id, scanId, sourceLocalKey, displayPath, reason, recoverable, createdAtEpochMillis)
 VALUES (?, ?, ?, ?, ?, ?, ?);
 
+removeErrorsForSource:
+DELETE FROM scan_error WHERE scanId IN (SELECT id FROM scan_session WHERE sourceId = ?);
+
 clearAllErrors:
 DELETE FROM scan_error;

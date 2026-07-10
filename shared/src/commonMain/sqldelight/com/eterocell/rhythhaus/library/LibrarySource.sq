@@ -15,5 +15,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
 selectAllSources:
 SELECT * FROM library_source;
 
+removeSource:
+DELETE FROM library_source WHERE id = ?;
+
 clearAllSources:
 DELETE FROM library_source;

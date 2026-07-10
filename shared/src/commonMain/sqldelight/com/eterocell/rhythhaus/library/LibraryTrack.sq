@@ -59,5 +59,8 @@ SELECT artworkBytes, artworkMimeType FROM library_track WHERE id = ? AND artwork
 removeMissingTracks:
 DELETE FROM library_track WHERE sourceId = ? AND (lastSeenScanId IS NULL OR lastSeenScanId != ?);
 
+removeTracksForSource:
+DELETE FROM library_track WHERE sourceId = ?;
+
 clearAllTracks:
 DELETE FROM library_track;

@@ -222,6 +222,15 @@ class SqlDelightLibraryRepository(
         return result.value.toInt()
     }
 
+    override fun removeSource(sourceId: String) {
+        database.transaction {
+            database.scanErrorQueries.removeErrorsForSource(sourceId)
+            database.scanSessionQueries.removeSessionsForSource(sourceId)
+            database.libraryTrackQueries.removeTracksForSource(sourceId)
+            database.librarySourceQueries.removeSource(sourceId)
+        }
+    }
+
     override fun clearAll() {
         database.libraryTrackQueries.clearAllTracks()
         database.librarySourceQueries.clearAllSources()

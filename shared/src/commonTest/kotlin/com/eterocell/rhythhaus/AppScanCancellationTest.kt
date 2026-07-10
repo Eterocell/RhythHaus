@@ -87,6 +87,7 @@ private class ThreadCapturingRepository : LibraryRepository {
     override fun insertScanError(error: ScanError) = Unit
     override fun scanErrors(scanId: String): List<ScanError> = emptyList()
     override fun removeMissingTracks(sourceId: String, latestScanId: String): Int = 0
+    override fun removeSource(sourceId: String) = Unit
 
     override fun clearAll() {
         clearThreadName = Thread.currentThread().name

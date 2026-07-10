@@ -111,6 +111,30 @@ class SqlDelightLibraryRepositoryJvmTest {
         }
     }
 
+    @Test
+    fun removeSourceDeletesOnlySelectedSourceData() {
+        val databaseFile = Files.createTempFile("rhythhaus-library-remove-source", ".db").toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource(id = "source-1"))
+            open.repository.upsertSource(testSource(id = "source-2"))
+            open.repository.upsertTrack(testTrack(id = "track-1", sourceId = "source-1", sourceLocalKey = "one.mp3", title = "One", artist = "Artist"))
+            open.repository.upsertTrack(testTrack(id = "track-2", sourceId = "source-2", sourceLocalKey = "two.mp3", title = "Two", artist = "Artist"))
+            open.repository.insertScanSession(testScanSession(id = "scan-1", sourceId = "source-1"))
+            open.repository.insertScanSession(testScanSession(id = "scan-2", sourceId = "source-2"))
+            open.repository.insertScanError(testScanError(id = "error-1", scanId = "scan-1"))
+            open.repository.insertScanError(testScanError(id = "error-2", scanId = "scan-2"))
+
+            open.repository.removeSource("source-1")
+
+            assertEquals(listOf("source-2"), open.repository.sources().map { it.id })
+            assertEquals(listOf("track-2"), open.repository.tracks().map { it.id })
+            assertEquals(emptyList(), open.repository.scanErrors("scan-1"))
+            assertEquals(listOf("error-2"), open.repository.scanErrors("scan-2").map { it.id })
+        }
+    }
+
     private fun openRepository(databaseFile: java.io.File): OpenRepository {
         val database = LibraryDatabase(databaseFile)
         return OpenRepository(
@@ -141,12 +165,13 @@ private fun testSource(
 
 private fun testTrack(
     id: String,
+    sourceId: String = "source-1",
     sourceLocalKey: String,
     title: String,
     artist: String,
 ) = LibraryTrack(
     id = id,
-    sourceId = "source-1",
+    sourceId = sourceId,
     sourceLocalKey = sourceLocalKey,
     audioSource = AudioSource.FilePath("/Music/$sourceLocalKey"),
     displayName = sourceLocalKey,
@@ -159,4 +184,28 @@ private fun testTrack(
     lastSeenScanId = "scan-1",
     createdAtEpochMillis = 1L,
     updatedAtEpochMillis = 2L,
+)
+
+private fun testScanSession(
+    id: String,
+    sourceId: String,
+) = ScanSession(
+    id = id,
+    sourceId = sourceId,
+    status = ScanStatus.Completed,
+    startedAtEpochMillis = 1L,
+    completedAtEpochMillis = 2L,
+)
+
+private fun testScanError(
+    id: String,
+    scanId: String,
+) = ScanError(
+    id = id,
+    scanId = scanId,
+    sourceLocalKey = "$id.mp3",
+    displayPath = "/Music/$id.mp3",
+    reason = "Test error",
+    recoverable = true,
+    createdAtEpochMillis = 2L,
 )
