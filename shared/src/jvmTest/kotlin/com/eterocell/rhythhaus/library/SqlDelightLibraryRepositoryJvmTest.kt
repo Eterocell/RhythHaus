@@ -119,8 +119,8 @@ class SqlDelightLibraryRepositoryJvmTest {
         openRepository(databaseFile).use { open ->
             open.repository.upsertSource(testSource(id = "source-1"))
             open.repository.upsertSource(testSource(id = "source-2"))
-            open.repository.upsertTrack(testTrack(id = "track-1", sourceId = "source-1", sourceLocalKey = "one.mp3", title = "One", artist = "Artist"))
-            open.repository.upsertTrack(testTrack(id = "track-2", sourceId = "source-2", sourceLocalKey = "two.mp3", title = "Two", artist = "Artist"))
+            open.repository.upsertTrack(testTrack(id = "track-1", sourceId = "source-1", sourceLocalKey = "one.mp3", title = "One", artist = "Artist", lastSeenScanId = "scan-1"))
+            open.repository.upsertTrack(testTrack(id = "track-2", sourceId = "source-2", sourceLocalKey = "two.mp3", title = "Two", artist = "Artist", lastSeenScanId = "scan-2"))
             open.repository.insertScanSession(testScanSession(id = "scan-1", sourceId = "source-1"))
             open.repository.insertScanSession(testScanSession(id = "scan-2", sourceId = "source-2"))
             open.repository.insertScanError(testScanError(id = "error-1", scanId = "scan-1"))
@@ -130,6 +130,8 @@ class SqlDelightLibraryRepositoryJvmTest {
 
             assertEquals(listOf("source-2"), open.repository.sources().map { it.id })
             assertEquals(listOf("track-2"), open.repository.tracks().map { it.id })
+            assertEquals(null, open.database.scanSessionQueries.selectScanSessionById("scan-1").executeAsOneOrNull())
+            assertEquals("scan-2", open.database.scanSessionQueries.selectScanSessionById("scan-2").executeAsOneOrNull()?.id)
             assertEquals(emptyList(), open.repository.scanErrors("scan-1"))
             assertEquals(listOf("error-2"), open.repository.scanErrors("scan-2").map { it.id })
         }
@@ -139,12 +141,14 @@ class SqlDelightLibraryRepositoryJvmTest {
         val database = LibraryDatabase(databaseFile)
         return OpenRepository(
             repository = SqlDelightLibraryRepository(database),
+            database = database.database,
             driver = database.driver,
         )
     }
 
     private class OpenRepository(
         val repository: SqlDelightLibraryRepository,
+        val database: RhythHausDatabase,
         private val driver: SqlDriver,
     ) : AutoCloseable {
         override fun close() {
@@ -169,6 +173,7 @@ private fun testTrack(
     sourceLocalKey: String,
     title: String,
     artist: String,
+    lastSeenScanId: String = "scan-1",
 ) = LibraryTrack(
     id = id,
     sourceId = sourceId,
@@ -181,7 +186,7 @@ private fun testTrack(
     durationMillis = null,
     sizeBytes = null,
     modifiedAtEpochMillis = null,
-    lastSeenScanId = "scan-1",
+    lastSeenScanId = lastSeenScanId,
     createdAtEpochMillis = 1L,
     updatedAtEpochMillis = 2L,
 )

@@ -22,6 +22,9 @@ UPDATE scan_session SET status = ?, completedAtEpochMillis = ?, foldersVisited =
     filesVisited = ?, tracksAdded = ?, tracksUpdated = ?, filesSkipped = ?, terminalMessage = ?
 WHERE id = ?;
 
+selectScanSessionById:
+SELECT * FROM scan_session WHERE id = ?;
+
 selectScanErrorsForScan:
 SELECT * FROM scan_error WHERE scanId = ?;
 
