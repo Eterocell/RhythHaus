@@ -55,21 +55,27 @@ class AppScanCancellationTest {
         val repository = ThreadCapturingRepository()
         val callerThread = Thread.currentThread().name
 
-        var clearedTracks: List<LibraryTrack>? = null
+        var clearedContent: LibraryContentState? = null
 
         clearLibraryInBackground(
             repository = repository,
+            platformAccess = TestPlatformSourceAccess,
             ioDispatcher = Dispatchers.Default,
-            updateTracks = { tracks -> clearedTracks = tracks },
+            updateLibrary = { content -> clearedContent = content },
         )
 
-        assertEquals(emptyList(), clearedTracks)
+        assertEquals(emptyList(), clearedContent?.tracks)
+        assertEquals(emptyList(), clearedContent?.sources)
         val clearThread = repository.clearThreadName
         check(clearThread != null)
         check(clearThread != callerThread) {
             "clearAll ran on caller thread $callerThread"
         }
     }
+}
+
+private object TestPlatformSourceAccess : com.eterocell.rhythhaus.library.PlatformSourceAccess {
+    override fun scan(source: LibrarySource): Sequence<com.eterocell.rhythhaus.library.PlatformScanEvent> = emptySequence()
 }
 
 private class ThreadCapturingRepository : LibraryRepository {
