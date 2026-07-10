@@ -20,6 +20,7 @@ actual fun rememberPlatformFolderPickerLauncher(
     return remember(onResult) {
         object : PlatformFolderPickerLauncher {
             override val isAvailable: Boolean = true
+            override val supportsAdditionalSources: Boolean = true
 
             override fun launch() {
                 val result = runCatching { openNativeFolderDialog() }

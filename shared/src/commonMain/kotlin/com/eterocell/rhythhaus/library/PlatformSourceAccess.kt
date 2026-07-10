@@ -10,8 +10,14 @@ sealed interface PlatformFolderPickResult {
 
 interface PlatformFolderPickerLauncher {
     val isAvailable: Boolean
+    val supportsAdditionalSources: Boolean
     fun launch()
 }
+
+fun sourcePickerActionVisible(
+    supportsAdditionalSources: Boolean,
+    sourceCount: Int,
+): Boolean = supportsAdditionalSources || sourceCount == 0
 
 @Composable
 expect fun rememberPlatformFolderPickerLauncher(

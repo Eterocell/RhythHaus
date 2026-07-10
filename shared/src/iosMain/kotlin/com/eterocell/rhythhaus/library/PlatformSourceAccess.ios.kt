@@ -21,6 +21,7 @@ actual fun rememberPlatformFolderPickerLauncher(
     return remember(onResult) {
         object : PlatformFolderPickerLauncher {
             override val isAvailable: Boolean = true
+            override val supportsAdditionalSources: Boolean = false
 
             override fun launch() {
                 val result = runCatching {

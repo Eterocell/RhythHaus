@@ -38,6 +38,7 @@ actual fun rememberPlatformFolderPickerLauncher(
     return remember(launcher) {
         object : PlatformFolderPickerLauncher {
             override val isAvailable: Boolean = true
+            override val supportsAdditionalSources: Boolean = true
             override fun launch() {
                 launcher.launch(null)
             }
