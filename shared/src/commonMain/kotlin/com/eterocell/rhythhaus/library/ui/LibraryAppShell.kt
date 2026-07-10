@@ -48,6 +48,7 @@ import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.taglib.TagLibReader
@@ -80,13 +81,17 @@ fun LibraryHomeScreen(
     libraryTracks: List<LibraryTrack>,
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
+    sources: List<LibrarySource>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
+    sourcePickerActionVisible: Boolean,
     importMessage: String?,
     scanProgress: ScanProgress?,
     scanJob: Job?,
     currentThemeMode: RhythHausThemeMode,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
+    onRescanSource: (LibrarySource) -> Unit,
+    onRemoveSource: (LibrarySource) -> Unit,
     onCancelScan: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -170,7 +175,9 @@ fun LibraryHomeScreen(
             tagLibReader = tagLibReader,
             playbackController = playbackController,
             playbackState = playbackState,
+            sources = sources,
             folderPickerLauncher = folderPickerLauncher,
+            sourcePickerActionVisible = sourcePickerActionVisible,
             importMessage = importMessage,
             scanProgress = scanProgress,
             scanJob = scanJob,
@@ -178,6 +185,8 @@ fun LibraryHomeScreen(
             backdrop = backdrop,
             onThemeModeSelected = onThemeModeSelected,
             onClearLibrary = onClearLibrary,
+            onRescanSource = onRescanSource,
+            onRemoveSource = onRemoveSource,
             onCancelScan = onCancelScan,
             onDismiss = appState::popRoute,
             onScrollPositionChanged = appState::updateNowPlayingBarVisibilityForScroll,

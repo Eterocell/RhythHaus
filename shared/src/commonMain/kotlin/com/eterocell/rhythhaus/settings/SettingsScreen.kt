@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ui.AnimatedClearLibraryDialogRoute
 import com.eterocell.rhythhaus.library.ui.ScanningCard
@@ -52,7 +53,9 @@ import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 
 @Composable
 fun SettingsScreen(
+    sources: List<LibrarySource>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
+    sourcePickerActionVisible: Boolean,
     importMessage: String?,
     scanProgress: ScanProgress?,
     scanJob: Job?,
@@ -61,6 +64,8 @@ fun SettingsScreen(
     clearLibraryDialogBackdrop: LayerBackdrop?,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
+    onRescanSource: (LibrarySource) -> Unit,
+    onRemoveSource: (LibrarySource) -> Unit,
     onCancelScan: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -119,26 +124,28 @@ fun SettingsScreen(
                     }
 
                     // Add music folder button
-                    Button(
-                        onClick = folderPickerLauncher::launch,
-                        enabled = folderPickerLauncher.isAvailable && scanProgress?.isActive != true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        cornerRadius = 16.dp,
-                        colors = ButtonDefaults.buttonColors(
-                            color = HausColors.current.ink,
-                            contentColor = HausColors.current.paper,
-                            disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                            disabledContentColor = HausColors.current.muted,
-                        ),
-                    ) {
-                        Text(
-                            text = if (folderPickerLauncher.isAvailable) stringResource(Res.string.add_music_folder) else stringResource(
-                                Res.string.folder_picker_unavailable
+                    if (sourcePickerActionVisible) {
+                        Button(
+                            onClick = folderPickerLauncher::launch,
+                            enabled = folderPickerLauncher.isAvailable && scanProgress?.isActive != true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            cornerRadius = 16.dp,
+                            colors = ButtonDefaults.buttonColors(
+                                color = HausColors.current.ink,
+                                contentColor = HausColors.current.paper,
+                                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
+                                disabledContentColor = HausColors.current.muted,
                             ),
-                            fontWeight = FontWeight.Black,
-                        )
+                        ) {
+                            Text(
+                                text = if (folderPickerLauncher.isAvailable) stringResource(Res.string.add_music_folder) else stringResource(
+                                    Res.string.folder_picker_unavailable
+                                ),
+                                fontWeight = FontWeight.Black,
+                            )
+                        }
                     }
 
                     // Status message

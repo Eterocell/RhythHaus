@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.taglib.TagLibReader
@@ -35,7 +36,9 @@ internal fun LibraryRouteOverlays(
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     playbackState: PlaybackState,
+    sources: List<LibrarySource>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
+    sourcePickerActionVisible: Boolean,
     importMessage: String?,
     scanProgress: ScanProgress?,
     scanJob: Job?,
@@ -43,13 +46,17 @@ internal fun LibraryRouteOverlays(
     backdrop: LayerBackdrop?,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
+    onRescanSource: (LibrarySource) -> Unit,
+    onRemoveSource: (LibrarySource) -> Unit,
     onCancelScan: () -> Unit,
     onDismiss: () -> Unit,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit,
 ) {
     if (route == LibraryRoute.Settings) {
         SettingsScreen(
+            sources = sources,
             folderPickerLauncher = folderPickerLauncher,
+            sourcePickerActionVisible = sourcePickerActionVisible,
             importMessage = importMessage,
             scanProgress = scanProgress,
             scanJob = scanJob,
@@ -58,6 +65,8 @@ internal fun LibraryRouteOverlays(
             clearLibraryDialogBackdrop = backdrop,
             onThemeModeSelected = onThemeModeSelected,
             onClearLibrary = onClearLibrary,
+            onRescanSource = onRescanSource,
+            onRemoveSource = onRemoveSource,
             onCancelScan = onCancelScan,
             onDismiss = onDismiss,
         )
