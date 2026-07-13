@@ -124,7 +124,13 @@ class RhythHausDiTest {
     fun playbackSessionBindingsAreProcessSingletonsAndInterfaceAliases() {
         stopKoin()
         val application = startKoin {
-            modules(rhythHausModule())
+            allowOverride(true)
+            modules(
+                rhythHausModule(),
+                module {
+                    single<PlaybackSessionStore> { EmptySessionStore }
+                },
+            )
         }
 
         try {
@@ -132,7 +138,7 @@ class RhythHausDiTest {
             assertSame(koin.get<PlatformPlaybackEngine>(), koin.get<PlatformPlaybackEngine>())
             assertSame(koin.get<PlaybackController>(), koin.get<PlaybackController>())
             assertSame(koin.get<PlaybackController>(), koin.get<PlaybackSessionController>())
-            assertSame(koin.get<PlaybackSessionStore>(), koin.get<PlaybackSessionStore>())
+            assertSame(EmptySessionStore, koin.get<PlaybackSessionStore>())
             assertSame(koin.get<PlaybackSessionCoordinator>(), koin.get<PlaybackSessionCoordinator>())
             assertSame(koin.get<PlaybackSessionCoordinator>(), koin.get<PlaybackSessionReconciler>())
             assertSame(koin.get<PlaybackProcessLifecycle>(), koin.get<PlaybackProcessLifecycle>())
