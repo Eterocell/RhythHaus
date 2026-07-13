@@ -3,7 +3,7 @@
 ## 1. Bounded snapshot codec and store
 
 - [ ] 1.1 Add ID-only snapshot, complete checkpoints, and codec with exact limits `10_000`, `4_096`, `16_384`, and `1_048_576`; exclude effective shuffle order.
-- [ ] 1.2 Add codec tests for delimiters/emoji, empty/duplicate/unpaired-surrogate IDs, malformed/truncated/trailing input, and exact plus one-over bounds.
+- [ ] 1.2 Add codec tests for delimiters/emoji, empty/duplicate/unpaired-surrogate IDs, malformed/truncated/trailing input, exact plus one-over bounds for `maxIds`, `maxIdCharacters`, and `maxEncodedUtf8Bytes`, plus the largest reachable 12,288-byte UTF-8 payload under the defense-in-depth `maxIdUtf8Bytes=16_384` ceiling.
 - [ ] 1.3 Add `PlaybackSessionStore` and Android/iOS/JVM factories for `playback_session.preferences_pb`, corruption replacement, all-field atomic edit, malformed-read empty/default, and pre-edit invalid-save preservation.
 - [ ] 1.4 Run focused JVM codec/store RED then GREEN tests.
 

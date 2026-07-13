@@ -8,7 +8,7 @@ Playback is memory-only. Platform remote handlers can currently act directly in 
 
 The snapshot contains queue IDs, current ID, position, `RepeatMode`, and `ShuffleMode` only. It never stores effective shuffled order. Runtime shuffle order is regenerated after restore and reconciliation.
 
-Every platform factory uses an independent `playback_session.preferences_pb` Preferences DataStore and `ReplaceFileCorruptionHandler { emptyPreferences() }`. IDs are concatenated `<decimal-character-count>:<ID>` values. `maxIds=10_000`, `maxIdCharacters=4_096`, `maxIdUtf8Bytes=16_384`, and `maxEncodedUtf8Bytes=1_048_576`. Encode rejects empty, duplicate, unpaired-surrogate, malformed, and over-bound values before `DataStore.edit`. Decode validates the same constraints and rejects malformed, truncated, or trailing input. Invalid stored state becomes empty/default; invalid in-memory save preserves the prior valid snapshot.
+Every platform factory uses an independent `playback_session.preferences_pb` Preferences DataStore and `ReplaceFileCorruptionHandler { emptyPreferences() }`. IDs are concatenated `<decimal-character-count>:<ID>` values. `maxIds=10_000`, `maxIdCharacters=4_096`, `maxIdUtf8Bytes=16_384`, and `maxEncodedUtf8Bytes=1_048_576`. The UTF-8 ceiling is defense-in-depth: valid strings cannot reach 16,384 bytes under the 4,096-character bound, and the largest reachable three-byte payload is 12,288 bytes. Encode rejects empty, duplicate, unpaired-surrogate, malformed, and over-bound values before `DataStore.edit`. Decode validates the same constraints and rejects malformed, truncated, or trailing input. Invalid stored state becomes empty/default; invalid in-memory save preserves the prior valid snapshot.
 
 ### Generation-provenanced paused loads
 

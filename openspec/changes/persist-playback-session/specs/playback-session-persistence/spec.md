@@ -6,6 +6,7 @@ The system SHALL persist queue IDs, current ID, position, `RepeatMode`, and `Shu
 #### Scenario: Codec accepts supported IDs
 - **WHEN** ordered IDs contain delimiters, newlines, or emoji within the exact bounds `maxIds=10_000`, `maxIdCharacters=4_096`, `maxIdUtf8Bytes=16_384`, and `maxEncodedUtf8Bytes=1_048_576`
 - **THEN** `<decimal-character-count>:<ID>` round-trips their order and contents
+- **AND** `maxIdUtf8Bytes=16_384` is a defense-in-depth ceiling independently unreachable under `maxIdCharacters=4_096`, with tests covering the largest reachable 12,288-byte payload
 
 #### Scenario: Codec rejects invalid input
 - **WHEN** encoding or decoding finds an empty or duplicate ID, unpaired surrogate, malformed count, truncation, trailing input, or bound violation

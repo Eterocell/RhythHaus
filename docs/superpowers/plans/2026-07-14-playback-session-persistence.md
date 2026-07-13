@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Persist only queue IDs, current ID, position, `RepeatMode`, and `ShuffleMode`. Regenerate runtime shuffle order after restore and reconcile.
-- Use `playback_session.preferences_pb`; codec limits are `maxIds=10_000`, `maxIdCharacters=4_096`, `maxIdUtf8Bytes=16_384`, and `maxEncodedUtf8Bytes=1_048_576`.
+- Use `playback_session.preferences_pb`; codec limits are `maxIds=10_000`, `maxIdCharacters=4_096`, `maxIdUtf8Bytes=16_384`, and `maxEncodedUtf8Bytes=1_048_576`. `maxIdUtf8Bytes=16_384` is defense-in-depth and independently unreachable for valid strings under `maxIdCharacters=4_096`; tests cover the largest reachable 12,288-byte payload, while exact/one-over tests apply to `maxIds`, `maxIdCharacters`, and `maxEncodedUtf8Bytes`.
 - Restore is `loadPaused`, clamp, seek, pause/state `Paused`, and never play.
 - `PlaybackController` owns every monotonically increasing load/clear generation. Every platform callback carries an immutable generation.
 - `setCommandsEnabled` must call `PlatformPlaybackEngine.setUserTransportEnabled`; controller and platform transport reject commands while restoring.
@@ -98,7 +98,7 @@ fun encodeIds(ids: List<String>): String {
 }
 ```
 
-Implement `decodeIds` by parsing decimal digits through a colon, requiring a positive count, taking exactly that many Kotlin characters, rejecting malformed/truncated/trailing/duplicate/surrogate/over-bound values, and returning `null` for any invalid stored value. Add `ProgressCheckpointKey(generation, currentTrackId, secondBucket)` and complete `PlaybackCheckpoint` models.
+Implement `decodeIds` by parsing decimal digits through a colon, requiring a positive count, taking exactly that many Kotlin characters, rejecting malformed/truncated/trailing/duplicate/surrogate/over-bound values, and returning `null` for any invalid stored value. Treat `maxIdUtf8Bytes` as an independently unreachable defense-in-depth ceiling under `maxIdCharacters`; test the largest reachable 12,288-byte payload rather than impossible exact/one-over UTF-8 cases. Add `ProgressCheckpointKey(generation, currentTrackId, secondBucket)` and complete `PlaybackCheckpoint` models.
 
 - [ ] **Step 4: Run GREEN**
 
