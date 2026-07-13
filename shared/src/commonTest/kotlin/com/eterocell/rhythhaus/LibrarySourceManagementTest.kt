@@ -23,6 +23,7 @@ import com.eterocell.rhythhaus.settings.sourceDialogName
 import com.eterocell.rhythhaus.settings.sourceManagementLabels
 import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -322,6 +323,63 @@ class LibrarySourceManagementTest {
     }
 
     @Test
+    fun sourceRemovalActiveOwnerCancellationPublishesAuthoritativeContentAndRethrows() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("remove"))
+            upsertSource(source("keep"))
+            upsertTrack(track("remove-track", "remove"))
+            upsertTrack(track("keep-track", "keep"))
+        }
+        val platformAccess = FakePlatformSourceAccess(repository = repository)
+        var published: LibraryContentState? = null
+        var errorMessage: String? = null
+
+        assertFailsWith<CancellationException> {
+            removeSourceInBackground(
+                sourceId = "remove",
+                repository = repository,
+                platformAccess = platformAccess,
+                reconciler = PlaybackSessionReconciler { throw CancellationException("remove cancelled") },
+                ioDispatcher = Dispatchers.Default,
+                ownerIsActive = { true },
+                updateLibrary = { published = it },
+                updateError = { errorMessage = it },
+            )
+        }
+
+        assertEquals(listOf("keep"), published?.sources?.map { it.id })
+        assertEquals(listOf("keep-track"), published?.tracks?.map { it.id })
+        assertEquals("remove cancelled", errorMessage)
+        assertEquals(listOf("remove"), platformAccess.releasedSources.map { it.id })
+        assertEquals(false, platformAccess.sourceWasPresentWhenReleased)
+    }
+
+    @Test
+    fun sourceRemovalGoneOwnerCancellationDoesNotPublishOrReportError() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("remove"))
+        }
+        var published = false
+        var errorReported = false
+
+        assertFailsWith<CancellationException> {
+            removeSourceInBackground(
+                sourceId = "remove",
+                repository = repository,
+                platformAccess = FakePlatformSourceAccess(repository = repository),
+                reconciler = PlaybackSessionReconciler { throw CancellationException("gone") },
+                ioDispatcher = Dispatchers.Default,
+                ownerIsActive = { false },
+                updateLibrary = { published = true },
+                updateError = { errorReported = true },
+            )
+        }
+
+        assertEquals(false, published)
+        assertEquals(false, errorReported)
+    }
+
+    @Test
     fun clearLibraryRefreshesBothSourcesAndTracks() = runBlocking {
         val repository = InMemoryLibraryRepository().apply {
             upsertSource(source("source"))
@@ -443,6 +501,59 @@ class LibrarySourceManagementTest {
         }
 
         assertEquals(false, published)
+    }
+
+    @Test
+    fun clearLibraryActiveOwnerCancellationPublishesEmptyContentAndRethrows() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("source"))
+            upsertTrack(track("track", "source"))
+        }
+        val platformAccess = FakePlatformSourceAccess(repository = repository)
+        var published: LibraryContentState? = null
+        var errorMessage: String? = null
+
+        assertFailsWith<CancellationException> {
+            clearLibraryInBackground(
+                repository = repository,
+                platformAccess = platformAccess,
+                reconciler = PlaybackSessionReconciler { throw CancellationException("clear cancelled") },
+                ioDispatcher = Dispatchers.Default,
+                ownerIsActive = { true },
+                updateLibrary = { published = it },
+                updateError = { errorMessage = it },
+            )
+        }
+
+        assertEquals(emptyList(), published?.sources)
+        assertEquals(emptyList(), published?.tracks)
+        assertEquals("clear cancelled", errorMessage)
+        assertEquals(listOf("source"), platformAccess.releasedSources.map { it.id })
+        assertEquals(false, platformAccess.sourceWasPresentWhenReleased)
+    }
+
+    @Test
+    fun clearLibraryGoneOwnerCancellationDoesNotPublishOrReportError() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("source"))
+        }
+        var published = false
+        var errorReported = false
+
+        assertFailsWith<CancellationException> {
+            clearLibraryInBackground(
+                repository = repository,
+                platformAccess = FakePlatformSourceAccess(repository = repository),
+                reconciler = PlaybackSessionReconciler { throw CancellationException("gone") },
+                ioDispatcher = Dispatchers.Default,
+                ownerIsActive = { false },
+                updateLibrary = { published = true },
+                updateError = { errorReported = true },
+            )
+        }
+
+        assertEquals(false, published)
+        assertEquals(false, errorReported)
     }
 
     private fun source(id: String) = LibrarySource(

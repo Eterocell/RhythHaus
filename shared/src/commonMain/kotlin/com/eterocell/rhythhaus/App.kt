@@ -201,6 +201,7 @@ fun App() {
                                 platformAccess = platformAccess,
                                 reconciler = playbackReconciler,
                                 ioDispatcher = Dispatchers.Default,
+                                ownerIsActive = { currentCoroutineContext().isActive },
                                 updateLibrary = ::updateLibraryContent,
                                 updateError = ::mutationError,
                             )
@@ -221,6 +222,7 @@ fun App() {
                                 platformAccess = platformAccess,
                                 reconciler = playbackReconciler,
                                 ioDispatcher = Dispatchers.Default,
+                                ownerIsActive = { currentCoroutineContext().isActive },
                                 updateLibrary = ::updateLibraryContent,
                                 updateError = ::mutationError,
                             )
@@ -341,6 +343,7 @@ internal suspend fun removeSourceInBackground(
     platformAccess: PlatformSourceAccess,
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
+    ownerIsActive: suspend () -> Boolean = { true },
     updateLibrary: (LibraryContentState) -> Unit,
     updateError: (String) -> Unit = {},
 ) {
@@ -350,7 +353,7 @@ internal suspend fun removeSourceInBackground(
         source?.let(platformAccess::releaseAccess)
         loadLibraryContent(repository, platformAccess)
     }
-    publishLibraryContentAfterReconcileFailureSafe(reconciler, content, updateLibrary, updateError)
+    publishLibraryContentAfterReconcileFailureSafe(reconciler, content, ownerIsActive, updateLibrary, updateError)
 }
 
 internal suspend fun clearLibraryInBackground(
@@ -358,6 +361,7 @@ internal suspend fun clearLibraryInBackground(
     platformAccess: PlatformSourceAccess,
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
+    ownerIsActive: suspend () -> Boolean = { true },
     updateLibrary: (LibraryContentState) -> Unit,
     updateError: (String) -> Unit = {},
 ) {
@@ -367,18 +371,23 @@ internal suspend fun clearLibraryInBackground(
         sources.forEach(platformAccess::releaseAccess)
         loadLibraryContent(repository, platformAccess)
     }
-    publishLibraryContentAfterReconcileFailureSafe(reconciler, content, updateLibrary, updateError)
+    publishLibraryContentAfterReconcileFailureSafe(reconciler, content, ownerIsActive, updateLibrary, updateError)
 }
 
 private suspend fun publishLibraryContentAfterReconcileFailureSafe(
     reconciler: PlaybackSessionReconciler,
     content: LibraryContentState,
+    ownerIsActive: suspend () -> Boolean,
     updateLibrary: (LibraryContentState) -> Unit,
     updateError: (String) -> Unit,
 ) {
     try {
         reconciler.reconcile(content.tracks)
     } catch (cancelled: CancellationException) {
+        if (ownerIsActive()) {
+            updateLibrary(content)
+            updateError(cancelled.appFailureMessage())
+        }
         throw cancelled
     } catch (failure: Throwable) {
         updateLibrary(content)
