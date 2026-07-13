@@ -70,3 +70,21 @@ No dependencies, schemas, UI, roadmap, progress, OpenSpec task status, or Task 1
   - iOS simulator main compile: pass (`BUILD SUCCESSFUL in 370ms`); no iOS test pass is claimed.
   - `openspec validate persist-playback-session --strict`: pass (`Change 'persist-playback-session' is valid`).
   - `GIT_MASTER=1 git diff --check`: pass.
+
+## Final Oracle blocker: permanent macOS bridge release
+
+- Root cause: lifetime serialization prevented native use-after-free, but `releasePlayer()` only zeroed `handle`; a later or queued `resetPlayer()` could acquire the monitor and unconditionally create a new native handle, resurrecting a bridge after final release.
+- RED: both focused regressions failed before production changes: sequential release/reset did not throw, and the controlled single-thread queue allowed release followed by reset to recreate the handle.
+- GREEN: `released` is a one-way Boolean owned exclusively by `lifetimeLock`. Final release and finalizer set it before relinquishing the handle; repeated release remains idempotent. Every handle operation, transport mutation, lifetime test operation, and reset requires the bridge to be unreleased. Reset after final release fails before `nativeCreate`, leaving identity and native handler count at zero.
+- Concurrent ordering: a real production lifetime operation holds the monitor while final release and reset are queued in a single-thread executor. Release acquires the monitor first after the operation exits; queued reset then fails and cannot recreate native state.
+- Preservation: ordinary pre-release reset, retained transport state, exact remote-handler cleanup in `nativeRelease`, and compound progress locking remain unchanged.
+- Files: `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt`, `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/JvmPlaybackEngineTest.kt`.
+- Commit: `95334ce fix: make macos bridge release permanent`.
+- Verification:
+  - Focused sequential/concurrent regressions: pass (`BUILD SUCCESSFUL in 4s`).
+  - Full `JvmPlaybackEngineTest`: pass (`BUILD SUCCESSFUL in 1m 16s`).
+  - Focused `PlaybackControllerTest` and `PlaybackSessionCoordinatorTest`: pass (`BUILD SUCCESSFUL in 699ms`).
+  - Full release command: pass (`BUILD SUCCESSFUL in 1m 18s`, 113 tasks).
+  - iOS simulator main compile: pass (`BUILD SUCCESSFUL in 397ms`); no full iOS test pass is claimed.
+  - Strict OpenSpec validation: pass (`Change 'persist-playback-session' is valid`).
+  - `GIT_MASTER=1 git diff --check`: pass.
