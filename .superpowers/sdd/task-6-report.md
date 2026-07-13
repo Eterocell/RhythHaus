@@ -86,3 +86,54 @@ Task 6 wires playback persistence ownership to the process, restores the session
 - `788e689` `feat: publish library after playback reconcile`
 - `08caffd` `feat: initialize playback graph in application`
 - `2a17c1c` `docs: record process playback integration`
+
+## Review-finding follow-up: deterministic failure publication
+
+### Root causes
+
+- Initial orchestration only published from the success path. A terminal exception from the shared restore deferred or reconciliation left `initialLibraryReady` false and the UI on its initial empty snapshot indefinitely.
+- Scan reconciliation happened before the main-thread terminal publication block. A reconciliation exception or cancellation could therefore leave scan progress at `Scanning`/`Cancelling`, keep the newly scanned repository state hidden, and block future source mutations.
+- Remove/clear helpers correctly completed repository mutation and access release before reconciliation, but a later reconciliation exception prevented publication of the now-authoritative repository snapshot and left removed/cleared sources visible.
+- The lifecycle retained one terminal deferred by design, but tests covered only success and individual waiter cancellation, not shared failure or process-scope cancellation observed by later callers.
+
+### Failure policy
+
+- `InitialLibraryPublicationState` is the production App gate and owns pending/ready content plus error state. Before a terminal result it blocks mutations and publishes no library content. Normal restore/reconcile completion and non-cancellation terminal failure both publish the authoritative snapshot exactly once and make mutations available. Failure also flows through the existing `importMessage` UI mechanism.
+- The process lifecycle retains the same failed or cancelled shared deferred. Later callers observe the same outcome and no automatic restore retry occurs.
+- Cancellation from a gone Compose/job owner is rethrown without error publication. Scan cancellation with a still-live owner first publishes authoritative content with a non-active terminal scan state, then rethrows.
+- Scan/remove/clear reconciliation exceptions publish their already-authoritative repository content and an error message. Repository mutation and source-access release failures still propagate and never publish a false success.
+
+### Follow-up RED evidence
+
+1. Initial policy and lifecycle failures:
+   - Command: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.di.RhythHausDiTest' --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --configuration-cache`
+   - Result: `BUILD FAILED`; `InitialLibraryPublicationState`/`updateState` were absent. After adding the state seam, the retained-failure test exposed that the real coordinator intentionally converts controller restore failure to failed-safe success, so lifecycle terminal-failure behavior was isolated through the lifecycle's real shared restore action seam.
+2. Scan failure cleanup:
+   - Command: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --configuration-cache`
+   - Result: `BUILD FAILED`; `ScanPublicationState` and `publishScanContentAfterReconcile` were absent.
+3. Remove/clear review cases were added before running their focused suite; they exercise the newly required error callback and failure-safe publication path, plus access-release failure propagation.
+
+### Follow-up GREEN and platform evidence
+
+- Focused suites:
+  - Command: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.di.RhythHausDiTest' --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache`
+  - Result: `BUILD SUCCESSFUL in 1s`.
+- JVM/desktop/Android:
+  - Command: `./gradlew :shared:compileKotlinJvm :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`
+  - Result: `BUILD SUCCESSFUL in 11s`; existing Android artwork deprecation warning only.
+- iOS main:
+  - Command: `./gradlew :shared:compileKotlinIosSimulatorArm64 --configuration-cache`
+  - Result: `BUILD SUCCESSFUL in 12s`.
+- Diff hygiene:
+  - Command: `GIT_MASTER=1 git diff --check`
+  - Result: pass, no output.
+- Kotlin LSP remains unavailable because `kotlin-ls` is not installed and installation was previously declined.
+
+### Follow-up self-review
+
+- Normal returns still reconcile before publication, including `Applied` and `FailedSafeApplied`.
+- Non-cancellation initial restore/reconcile failures publish once, set ready, unlock mutations, and expose an error.
+- Ordinary cancellation is never converted into an error publication.
+- Scan cleanup retains an existing terminal session outcome; only active/cancelling sessions are converted to deterministic `Cancelled` or `Failed` terminal states.
+- Remove/clear only enter failure-safe publication after repository mutation, access release, and authoritative reload all succeeded. Earlier failures propagate unchanged.
+- No engine, codec/store, coordinator behavior, dependency, SQL, UI layout, product docs, OpenSpec, progress, roadmap, or Task 1-5 report was changed.
