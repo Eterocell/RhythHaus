@@ -10,6 +10,7 @@
 @property(nonatomic, assign) BOOL remoteCommandsRegistered;
 @property(nonatomic, strong) MPMediaItemArtwork *artwork;
 @property(nonatomic, assign) BOOL transportEnabled;
+@property(nonatomic, strong) NSMutableArray<NSDictionary *> *remoteCommandTargets;
 @end
 
 @implementation RhythHausAudioPlayer
@@ -46,6 +47,8 @@ static MPRemoteCommandHandlerStatus performRemoteSeek(RhythHausAudioPlayer *play
     [player seekToMillis:positionMillis];
     return MPRemoteCommandHandlerStatusSuccess;
 }
+
+static NSInteger liveRemoteHandlerCount = 0;
 
 - (instancetype)init {
     self = [super init];
@@ -174,28 +177,50 @@ static MPRemoteCommandHandlerStatus performRemoteSeek(RhythHausAudioPlayer *play
     commandCenter.changePlaybackPositionCommand.enabled = YES;
 
     __weak RhythHausAudioPlayer *weakSelf = self;
-    [commandCenter.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
+    self.remoteCommandTargets = [NSMutableArray arrayWithCapacity:5];
+    id playTarget = [commandCenter.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
         RhythHausAudioPlayer *strongSelf = weakSelf;
         return performRemotePlay(strongSelf);
     }];
-    [commandCenter.pauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
+    id pauseTarget = [commandCenter.pauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
         RhythHausAudioPlayer *strongSelf = weakSelf;
         return performRemotePause(strongSelf);
     }];
-    [commandCenter.togglePlayPauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
+    id toggleTarget = [commandCenter.togglePlayPauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
         RhythHausAudioPlayer *strongSelf = weakSelf;
         return performRemoteToggle(strongSelf);
     }];
-    [commandCenter.stopCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
+    id stopTarget = [commandCenter.stopCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
         RhythHausAudioPlayer *strongSelf = weakSelf;
         return performRemoteStop(strongSelf);
     }];
-    [commandCenter.changePlaybackPositionCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+    id seekTarget = [commandCenter.changePlaybackPositionCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         RhythHausAudioPlayer *strongSelf = weakSelf;
         if (strongSelf == nil || ![event isKindOfClass:[MPChangePlaybackPositionCommandEvent class]]) return MPRemoteCommandHandlerStatusNoSuchContent;
         MPChangePlaybackPositionCommandEvent *positionEvent = (MPChangePlaybackPositionCommandEvent *)event;
         return performRemoteSeek(strongSelf, (jlong)(positionEvent.positionTime * 1000.0));
     }];
+    NSArray *registrations = @[
+        @{ @"command": commandCenter.playCommand, @"target": playTarget },
+        @{ @"command": commandCenter.pauseCommand, @"target": pauseTarget },
+        @{ @"command": commandCenter.togglePlayPauseCommand, @"target": toggleTarget },
+        @{ @"command": commandCenter.stopCommand, @"target": stopTarget },
+        @{ @"command": commandCenter.changePlaybackPositionCommand, @"target": seekTarget },
+    ];
+    [self.remoteCommandTargets addObjectsFromArray:registrations];
+    @synchronized([RhythHausAudioPlayer class]) { liveRemoteHandlerCount += registrations.count; }
+}
+
+- (void)removeRemoteCommands {
+    if (!self.remoteCommandsRegistered) return;
+    for (NSDictionary *registration in self.remoteCommandTargets) {
+        MPRemoteCommand *command = registration[@"command"];
+        [command removeTarget:registration[@"target"]];
+    }
+    @synchronized([RhythHausAudioPlayer class]) { liveRemoteHandlerCount -= self.remoteCommandTargets.count; }
+    [self.remoteCommandTargets removeAllObjects];
+    self.remoteCommandTargets = nil;
+    self.remoteCommandsRegistered = NO;
 }
 
 - (void)setArtworkFromBytes:(const unsigned char *)bytes length:(NSUInteger)length {
@@ -362,9 +387,14 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlaye
     return player != nil && player.player.isPlaying ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeLiveRemoteHandlerCountForTest(JNIEnv *, jobject) {
+    @synchronized([RhythHausAudioPlayer class]) { return (jlong)liveRemoteHandlerCount; }
+}
+
 extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeRelease(JNIEnv *, jobject, jlong handle) {
     RhythHausAudioPlayer *player = playerFromHandle(handle);
     if (player != nil) {
+        [player removeRemoteCommands];
         [player clearNowPlayingInfo];
         [player stop];
         CFRelease((__bridge CFTypeRef)player);

@@ -58,6 +58,26 @@ class JvmPlaybackEngineTest {
     }
 
     @Test
+    fun macOSRemoteHandlersFollowNativeHandleLifetimeAcrossResets() {
+        val bridge = MacAudioPlayerBridge()
+        try {
+            bridge.registerNowPlayingRemoteCommands()
+            bridge.registerNowPlayingRemoteCommands()
+            assertEquals(5, bridge.liveRemoteHandlerCountForTest())
+
+            repeat(3) {
+                bridge.resetPlayer()
+                assertEquals(0, bridge.liveRemoteHandlerCountForTest())
+                bridge.registerNowPlayingRemoteCommands()
+                assertEquals(5, bridge.liveRemoteHandlerCountForTest())
+            }
+        } finally {
+            bridge.releasePlayer()
+        }
+        assertEquals(0, bridge.liveRemoteHandlerCountForTest())
+    }
+
+    @Test
     fun nativeMacPlaybackEngineLoadsGeneratedWavFile() {
         val wavPath = createSilentWavFile()
         val engine = createPlatformPlaybackEngine()

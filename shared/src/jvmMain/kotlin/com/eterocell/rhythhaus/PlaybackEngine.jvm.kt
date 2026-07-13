@@ -189,6 +189,7 @@ internal class MacAudioPlayerBridge {
     internal fun invokeRemoteStopForTest(): Boolean = nativeInvokeRemoteStopForTest(requireHandle())
     internal fun invokeRemoteSeekForTest(positionMillis: Long): Boolean = nativeInvokeRemoteSeekForTest(requireHandle(), positionMillis)
     internal fun isPlayingForTest(): Boolean = nativeIsPlayingForTest(requireHandle())
+    internal fun liveRemoteHandlerCountForTest(): Long = nativeLiveRemoteHandlerCountForTest()
 
     fun resetPlayer() {
         if (handle != 0L) {
@@ -237,6 +238,7 @@ internal class MacAudioPlayerBridge {
     private external fun nativeInvokeRemoteStopForTest(handle: Long): Boolean
     private external fun nativeInvokeRemoteSeekForTest(handle: Long, positionMillis: Long): Boolean
     private external fun nativeIsPlayingForTest(handle: Long): Boolean
+    private external fun nativeLiveRemoteHandlerCountForTest(): Long
     private external fun nativeRelease(handle: Long)
 
     companion object {
