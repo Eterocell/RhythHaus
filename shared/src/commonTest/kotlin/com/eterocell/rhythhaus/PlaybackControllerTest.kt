@@ -6,7 +6,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -398,6 +400,28 @@ class PlaybackControllerTest {
         assertEquals(listOf(firstGeneration, engine.activeGeneration), engine.loadedGenerations)
     }
 
+    @Test
+    fun supersededBlockedLoadCancelsNormallyAndReplacementCanBecomeReady() = runBlocking {
+        val engine = ReplacingLoadPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val tracks = testTracks(2)
+
+        controller.setQueue(tracks, selectedTrackId = "track-1")
+        engine.firstStarted.await()
+        controller.selectTrack("track-2")
+        engine.secondStarted.await()
+        engine.completeSecond()
+
+        withTimeout(5_000) {
+            while (controller.state.value.status != PlaybackStatus.Paused) kotlinx.coroutines.yield()
+        }
+        assertEquals("track-2", controller.state.value.currentTrack?.id)
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+        assertNull(controller.state.value.error)
+        assertTrue(engine.firstCancelled)
+        assertFalse(engine.oldCompletionWasPublished)
+    }
+
     private suspend fun loadedController(
         engine: RecordingPlaybackEngine,
         status: PlaybackStatus,
@@ -561,5 +585,52 @@ class PlaybackControllerTest {
         private fun record(event: EngineEvent) {
             check(events.trySend(event).isSuccess)
         }
+    }
+
+    private class ReplacingLoadPlaybackEngine : PlatformPlaybackEngine {
+        override var listener: PlaybackEngineListener? = null
+        val firstStarted = CompletableDeferred<Unit>()
+        val secondStarted = CompletableDeferred<Unit>()
+        private val firstResult = CompletableDeferred<LoadedPlayback>()
+        private val secondResult = CompletableDeferred<LoadedPlayback>()
+        var firstCancelled: Boolean = false
+            private set
+        var oldCompletionWasPublished: Boolean = false
+            private set
+        private var firstGeneration: Long = 0L
+        private var secondGeneration: Long = 0L
+
+        override suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback {
+            return if (firstGeneration == 0L) {
+                firstGeneration = generation
+                firstStarted.complete(Unit)
+                try {
+                    firstResult.await()
+                } catch (cancelled: CancellationException) {
+                    firstCancelled = true
+                    throw cancelled
+                }
+            } else {
+                secondGeneration = generation
+                secondStarted.complete(Unit)
+                secondResult.await()
+            }
+        }
+
+        fun completeFirst(): Boolean = firstResult.complete(LoadedPlayback(firstGeneration, 1_000L)).also {
+            oldCompletionWasPublished = it && !firstCancelled
+        }
+
+        fun completeSecond() {
+            secondResult.complete(LoadedPlayback(secondGeneration, 2_000L))
+        }
+
+        override fun clear(generation: Long) = Unit
+        override fun setUserTransportEnabled(enabled: Boolean) = Unit
+        override fun play() = Unit
+        override fun pause() = Unit
+        override fun stop() = Unit
+        override fun seekTo(positionMillis: Long) = Unit
+        override fun release() = Unit
     }
 }
