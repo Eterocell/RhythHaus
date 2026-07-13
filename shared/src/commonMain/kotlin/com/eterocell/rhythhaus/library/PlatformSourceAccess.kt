@@ -24,6 +24,30 @@ fun sourceMutationsAllowed(
     isJobActive: Boolean,
 ): Boolean = !isProgressActive && !isJobActive
 
+fun emptyLibrarySourceMutationsAllowed(
+    isProgressActive: Boolean,
+    isJobActive: Boolean,
+): Boolean = sourceMutationsAllowed(isProgressActive, isJobActive)
+
+fun normalizePickedSource(
+    pickedSource: LibrarySource,
+    existingSources: List<LibrarySource>,
+): LibrarySource {
+    val existingSource = existingSources.firstOrNull { it.handle == pickedSource.handle }
+        ?: return pickedSource
+    return pickedSource.copy(
+        id = existingSource.id,
+        createdAtEpochMillis = existingSource.createdAtEpochMillis,
+    )
+}
+
+fun androidSafSourceId(stableUri: String): String = buildString {
+    append("android-saf-uri-")
+    stableUri.encodeToByteArray().forEach { byte ->
+        append(byte.toUByte().toString(16).padStart(2, '0'))
+    }
+}
+
 @Composable
 expect fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,

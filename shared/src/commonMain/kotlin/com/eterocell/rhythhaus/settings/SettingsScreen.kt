@@ -68,6 +68,7 @@ import rhythhaus.shared.generated.resources.configured_folders
 import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.folder_picker_unavailable
 import rhythhaus.shared.generated.resources.manage_music
+import rhythhaus.shared.generated.resources.unnamed_folder
 import rhythhaus.shared.generated.resources.remove
 import rhythhaus.shared.generated.resources.remove_folder
 import rhythhaus.shared.generated.resources.remove_folder_message
@@ -295,8 +296,8 @@ internal data class SourceDialogName(
     val accessibility: String,
 )
 
-internal fun sourceDialogName(source: LibrarySource): SourceDialogName {
-    val fullName = source.displayName.ifBlank { source.handle }
+internal fun sourceDialogName(source: LibrarySource, unnamedLabel: String): SourceDialogName {
+    val fullName = source.displayName.ifBlank { unnamedLabel }
     val visualName = if (fullName.length <= 64) fullName else fullName.take(63) + "…"
     return SourceDialogName(visual = visualName, accessibility = fullName)
 }
@@ -308,7 +309,7 @@ private fun ConfiguredSourceRow(
     onRescan: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    val displayName = source.displayName.ifBlank { source.handle }
+    val displayName = source.displayName.ifBlank { stringResource(Res.string.unnamed_folder) }
     val labels = sourceManagementLabels(source)
     val accessLabel = when (labels.first) {
         SourceAccessLabel.Available -> stringResource(Res.string.source_access_available)
@@ -393,7 +394,7 @@ private fun RemoveSourceDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val name = sourceDialogName(source)
+    val name = sourceDialogName(source, stringResource(Res.string.unnamed_folder))
     val dialogTitle = stringResource(Res.string.remove_folder)
     val dismissLabel = stringResource(Res.string.cancel)
     Box(

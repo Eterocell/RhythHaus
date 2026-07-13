@@ -73,6 +73,7 @@
     <string name="folder_picker_error_prepare">Could not prepare the app-local music folder</string>
     <string name="folder_picker_no_folder_selected">No folder selected</string>
     <string name="configured_folders">Configured folders</string>
+    <string name="unnamed_folder">Unnamed folder</string>
     <string name="source_access_available">Available</string>
     <string name="source_access_lost">Access lost</string>
     <string name="source_never_scanned">Never scanned</string>

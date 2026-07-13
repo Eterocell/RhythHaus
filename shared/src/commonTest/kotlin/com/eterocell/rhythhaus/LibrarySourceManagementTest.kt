@@ -12,6 +12,9 @@ import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.sourceMutationsAllowed
+import com.eterocell.rhythhaus.library.androidSafSourceId
+import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
+import com.eterocell.rhythhaus.library.normalizePickedSource
 import com.eterocell.rhythhaus.settings.SourceAccessLabel
 import com.eterocell.rhythhaus.settings.SourceDialogName
 import com.eterocell.rhythhaus.settings.SourceScanLabel
@@ -50,6 +53,45 @@ class LibrarySourceManagementTest {
     }
 
     @Test
+    fun emptyLibraryMutationGateBlocksJobOnlyScanStartupWindow() {
+        assertFalse(emptyLibrarySourceMutationsAllowed(isProgressActive = false, isJobActive = true))
+    }
+
+    @Test
+    fun pickedSourceReusesPersistedIdentityAndCreationTimeWhenHandleMatches() {
+        val persisted = source("legacy-id").copy(
+            handle = "content://provider/tree/Aa",
+            createdAtEpochMillis = 42L,
+        )
+        val picked = persisted.copy(
+            id = "android-saf-new-id",
+            displayName = "Renamed folder",
+            createdAtEpochMillis = 99L,
+        )
+
+        assertEquals(
+            picked.copy(id = "legacy-id", createdAtEpochMillis = 42L),
+            normalizePickedSource(picked, listOf(persisted)),
+        )
+    }
+
+    @Test
+    fun pickedSourceKeepsNewIdentityWhenHandleDoesNotMatch() {
+        val picked = source("new-id").copy(handle = "content://provider/tree/new", createdAtEpochMillis = 99L)
+
+        assertEquals(picked, normalizePickedSource(picked, listOf(source("existing-id"))))
+    }
+
+    @Test
+    fun androidSafIdentityDistinguishesKnownJavaHashCollisionUris() {
+        val first = "content://provider/tree/Aa"
+        val second = "content://provider/tree/BB"
+        assertEquals(first.hashCode(), second.hashCode())
+
+        assertTrue(androidSafSourceId(first) != androidSafSourceId(second))
+    }
+
+    @Test
     fun sourceManagementLabelsMapAccessAndLastScanState() {
         assertEquals(
             SourceAccessLabel.Available to SourceScanLabel.NeverScanned,
@@ -83,7 +125,17 @@ class LibrarySourceManagementTest {
                 visual = "${"A".repeat(63)}…",
                 accessibility = fullName,
             ),
-            sourceDialogName(source("source").copy(displayName = fullName)),
+            sourceDialogName(source("source").copy(displayName = fullName), unnamedLabel = "Unnamed folder"),
+        )
+    }
+
+    @Test
+    fun blankSourceDisplayNameUsesNeutralLabelWithoutExposingHandle() {
+        val unnamed = source("source").copy(displayName = "", handle = "content://private/provider/tree/secret")
+
+        assertEquals(
+            SourceDialogName(visual = "Unnamed folder", accessibility = "Unnamed folder"),
+            sourceDialogName(unnamed, unnamedLabel = "Unnamed folder"),
         )
     }
 
