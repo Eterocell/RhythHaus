@@ -119,6 +119,35 @@ class LibraryScannerTest {
     }
 
     @Test
+    fun cancellationBeforeCandidateImportCleansUpMetadataAudioSource() {
+        val repository = InMemoryLibraryRepository()
+        val source = LibrarySource("source-1", LibraryPlatformKind.AndroidSafTree, "Music", "content://tree/music", 1L)
+        var cleanupCount = 0
+        val platform = FakePlatformAudioScanner(
+            events = listOf(
+                PlatformScanEvent.AudioCandidate(
+                    AudioScanCandidate(
+                        sourceId = source.id,
+                        sourceLocalKey = "cancelled.mp3",
+                        displayPath = "cancelled.mp3",
+                        displayName = "cancelled.mp3",
+                        audioSource = AudioSource.Uri("content://provider/cancelled.mp3"),
+                        metadataAudioSource = AudioSource.FileDescriptor(fd = 42, displayName = "cancelled.mp3"),
+                        cleanupMetadataAudioSource = { cleanupCount += 1 },
+                    ),
+                ),
+            ),
+        )
+        val scanner = LibraryScanner(repository, platform, now = { 100L }, idFactory = { prefix -> "$prefix-id" })
+
+        val result = scanner.scan(source, isCancelled = { true })
+
+        assertEquals(ScanStatus.Cancelled, result.status)
+        assertEquals(1, cleanupCount)
+        assertEquals(emptyList(), repository.tracks())
+    }
+
+    @Test
     fun thrownCancellationExceptionIsNotSwallowedAsFailedScan() {
         val repository = InMemoryLibraryRepository()
         val source = LibrarySource("source-1", LibraryPlatformKind.JvmFolder, "Music", "/Music", 1L)
@@ -213,7 +242,7 @@ class LibraryScannerTest {
     fun scannerCanReadMetadataFromSeparateFilesystemSourceWhilePreservingPlaybackUri() {
         val repository = InMemoryLibraryRepository()
         val source = LibrarySource("source-1", LibraryPlatformKind.AndroidSafTree, "Music", "content://tree/music", 1L)
-        var metadataSourceCleanedUp = false
+        var metadataSourceCleanupCount = 0
         val platform = FakePlatformAudioScanner(
             events = listOf(
                 PlatformScanEvent.AudioCandidate(
@@ -224,7 +253,7 @@ class LibraryScannerTest {
                         displayName = "song.flac",
                         audioSource = AudioSource.Uri("content://provider/tree/music/document/song"),
                         metadataAudioSource = AudioSource.FileDescriptor(fd = 42, displayName = "song.flac"),
-                        cleanupMetadataAudioSource = { metadataSourceCleanedUp = true },
+                        cleanupMetadataAudioSource = { metadataSourceCleanupCount += 1 },
                     ),
                 ),
             ),
@@ -246,7 +275,7 @@ class LibraryScannerTest {
         assertEquals("Android TagLib Artist", track.artist)
         assertEquals("Android TagLib Album", track.album)
         assertEquals(123_000L, track.durationMillis)
-        assertEquals(true, metadataSourceCleanedUp)
+        assertEquals(1, metadataSourceCleanupCount)
     }
 
     @Test

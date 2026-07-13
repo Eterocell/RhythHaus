@@ -46,6 +46,9 @@ class LibraryScanner(
         return try {
             for (event in platformScanner.scan(source)) {
                 if (isCancelled()) {
+                    if (event is PlatformScanEvent.AudioCandidate) {
+                        event.candidate.cleanupMetadataAudioSource?.invoke()
+                    }
                     session = session.cancelled()
                     repository.updateScanSession(session)
                     onProgress(ScanProgress(session = session))
