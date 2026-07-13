@@ -62,3 +62,27 @@ Result: `BUILD SUCCESSFUL in 4s`; `25 actionable tasks: 8 executed, 17 up-to-dat
 ## Concerns
 
 None.
+
+## Review Fix
+
+### Findings resolved
+
+- Replaced the cross-thread `MutableList` event recorder with an unlimited coroutine `Channel`, and routed event recording, clearing, snapshots, waits, and assertions through channel operations with defined memory visibility.
+- Added synchronous assertions that restart resets `positionMillis` to `0L` and clears `error` while loading remains gated and before the Error-state reload completes.
+- Removed the arbitrary `delay(50)` from the no-current-track test; it now immediately compares the complete state and the concurrency-safe event snapshot.
+- Kept `PlaybackController` production behavior unchanged.
+
+### Changed files
+
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/PlaybackControllerTest.kt`
+- `.superpowers/sdd/task-1-report.md`
+
+### Verification
+
+Command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
+```
+
+Output: `BUILD SUCCESSFUL in 1s`; `25 actionable tasks: 5 executed, 20 up-to-date`; configuration cache reused. All `PlaybackControllerTest` tests passed.

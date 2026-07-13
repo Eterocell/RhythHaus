@@ -4,8 +4,10 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
@@ -242,11 +244,10 @@ class PlaybackControllerTest {
         val engine = RecordingPlaybackEngine()
         val controller = loadedController(engine, PlaybackStatus.Playing)
 
-        engine.events.clear()
+        engine.clearEvents()
         controller.restartCurrentTrack()
-        engine.awaitEvents(2)
 
-        assertEquals(listOf(EngineEvent.Seek(0L), EngineEvent.Play), engine.events)
+        assertEquals(listOf(EngineEvent.Seek(0L), EngineEvent.Play), engine.awaitEvents(2))
     }
 
     @Test
@@ -254,11 +255,10 @@ class PlaybackControllerTest {
         val engine = RecordingPlaybackEngine()
         val controller = loadedController(engine, PlaybackStatus.Paused)
 
-        engine.events.clear()
+        engine.clearEvents()
         controller.restartCurrentTrack()
-        engine.awaitEvents(2)
 
-        assertEquals(listOf(EngineEvent.Seek(0L), EngineEvent.Play), engine.events)
+        assertEquals(listOf(EngineEvent.Seek(0L), EngineEvent.Play), engine.awaitEvents(2))
     }
 
     @Test
@@ -266,11 +266,10 @@ class PlaybackControllerTest {
         val engine = RecordingPlaybackEngine()
         val controller = loadedController(engine, PlaybackStatus.Stopped)
 
-        engine.events.clear()
+        engine.clearEvents()
         controller.restartCurrentTrack()
-        engine.awaitEvents(2)
 
-        assertEquals(listOf(EngineEvent.Seek(0L), EngineEvent.Play), engine.events)
+        assertEquals(listOf(EngineEvent.Seek(0L), EngineEvent.Play), engine.awaitEvents(2))
     }
 
     @Test
@@ -283,22 +282,25 @@ class PlaybackControllerTest {
 
         controller.restartCurrentTrack()
 
-        assertFalse(engine.events.any { it is EngineEvent.Seek })
+        assertEquals(0L, controller.state.value.positionMillis)
+        assertNull(controller.state.value.error)
+        assertFalse(engine.eventSnapshot().any { it is EngineEvent.Seek })
         engine.releaseLoad()
-        engine.awaitEvents(2)
-        assertEquals(listOf(EngineEvent.Load(track.id), EngineEvent.Play), engine.events)
+        assertEquals(listOf(EngineEvent.Play), engine.awaitEvents(1))
     }
 
     @Test
     fun restartCurrentErrorTrackReloadsAndAutoplays() = runBlocking {
         val engine = RecordingPlaybackEngine()
         val controller = loadedController(engine, PlaybackStatus.Error)
+        assertNotNull(controller.state.value.error)
 
-        engine.events.clear()
+        engine.clearEvents()
         controller.restartCurrentTrack()
-        engine.awaitEvents(2)
 
-        assertEquals(listOf(EngineEvent.Load("track-1"), EngineEvent.Play), engine.events)
+        assertEquals(0L, controller.state.value.positionMillis)
+        assertNull(controller.state.value.error)
+        assertEquals(listOf(EngineEvent.Load("track-1"), EngineEvent.Play), engine.awaitEvents(2))
     }
 
     @Test
@@ -311,8 +313,9 @@ class PlaybackControllerTest {
         controller.setRepeatMode(RepeatMode.RepeatOne)
         controller.setShuffleMode(ShuffleMode.On)
 
+        engine.clearEvents()
         controller.restartCurrentTrack()
-        engine.awaitEvents(3)
+        engine.awaitEvents(2)
 
         assertEquals(tracks.map { it.id }, controller.state.value.queue.map { it.id })
         assertEquals(RepeatMode.RepeatOne, controller.state.value.repeatMode)
@@ -323,11 +326,12 @@ class PlaybackControllerTest {
     fun restartWithoutCurrentTrackIsNoOp() = runBlocking {
         val engine = RecordingPlaybackEngine()
         val controller = PlaybackController(engine)
+        val initialState = controller.state.value
 
         controller.restartCurrentTrack()
-        delay(50)
 
-        assertEquals(emptyList(), engine.events)
+        assertEquals(initialState, controller.state.value)
+        assertEquals(emptyList(), engine.eventSnapshot())
     }
 
     @Test
@@ -335,11 +339,10 @@ class PlaybackControllerTest {
         val engine = RecordingPlaybackEngine()
         val controller = loadedController(engine, PlaybackStatus.Playing)
 
-        engine.events.clear()
+        engine.clearEvents()
         controller.togglePlayPause()
-        engine.awaitEvents(1)
 
-        assertEquals(listOf<EngineEvent>(EngineEvent.Pause), engine.events)
+        assertEquals(listOf<EngineEvent>(EngineEvent.Pause), engine.awaitEvents(1))
     }
 
     private suspend fun loadedController(
@@ -351,7 +354,11 @@ class PlaybackControllerTest {
         controller.setQueue(listOf(track), selectedTrackId = track.id)
         engine.awaitLoad()
         engine.listener?.onPlaybackProgress(500L, track.durationMillis)
-        engine.listener?.onPlaybackStatus(status)
+        if (status == PlaybackStatus.Error) {
+            engine.listener?.onPlaybackError(PlaybackError("Test error"))
+        } else {
+            engine.listener?.onPlaybackStatus(status)
+        }
         return controller
     }
 
@@ -394,12 +401,12 @@ class PlaybackControllerTest {
     ) : PlatformPlaybackEngine {
         override var listener: PlaybackEngineListener? = null
         val loadedTracks = mutableListOf<PlayableTrack>()
-        val events = mutableListOf<EngineEvent>()
+        private val events = Channel<EngineEvent>(Channel.UNLIMITED)
         private val loadStarted = CompletableDeferred<Unit>()
         private val loadSignal = CompletableDeferred<Unit>()
 
         override fun load(track: PlayableTrack) {
-            events += EngineEvent.Load(track.id)
+            record(EngineEvent.Load(track.id))
             loadedTracks += track
             loadStarted.complete(Unit)
             loadGate?.let { runBlocking { it.await() } }
@@ -416,29 +423,39 @@ class PlaybackControllerTest {
             loadGate?.complete(Unit)
         }
 
-        suspend fun awaitEvents(count: Int) {
-            withTimeout(5_000) {
-                while (events.size < count) delay(1)
-            }
+        fun clearEvents() {
+            while (events.tryReceive().isSuccess) {}
+        }
+
+        fun eventSnapshot(): List<EngineEvent> = buildList {
+            while (true) add(events.tryReceive().getOrNull() ?: break)
+        }
+
+        suspend fun awaitEvents(count: Int): List<EngineEvent> = withTimeout(5_000) {
+            List(count) { events.receive() }
         }
 
         override fun play() {
-            events += EngineEvent.Play
+            record(EngineEvent.Play)
             listener?.onPlaybackStatus(PlaybackStatus.Playing)
         }
 
         override fun pause() {
-            events += EngineEvent.Pause
+            record(EngineEvent.Pause)
             listener?.onPlaybackStatus(PlaybackStatus.Paused)
         }
 
         override fun stop() = Unit
 
         override fun seekTo(positionMillis: Long) {
-            events += EngineEvent.Seek(positionMillis)
+            record(EngineEvent.Seek(positionMillis))
             listener?.onPlaybackProgress(positionMillis, loadedTracks.lastOrNull()?.durationMillis)
         }
 
         override fun release() = Unit
+
+        private fun record(event: EngineEvent) {
+            check(events.trySend(event).isSuccess)
+        }
     }
 }
