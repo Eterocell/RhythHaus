@@ -20,6 +20,7 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.library.normalizePickedSource
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
@@ -106,11 +107,13 @@ fun App() {
 
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
         when (result) {
-            is PlatformFolderPickResult.Success -> launchSourceScan(result.source)
+            is PlatformFolderPickResult.Success -> launchSourceScan(
+                normalizePickedSource(result.source, librarySources),
+            )
 
             is PlatformFolderPickResult.Unavailable -> importMessage = result.message
 
-            is PlatformFolderPickResult.Failure -> importMessage = result.cause?.let { "${result.message}: $it" } ?: result.message
+            is PlatformFolderPickResult.Failure -> importMessage = result.message
         }
     }
     DisposableEffect(controller) {
