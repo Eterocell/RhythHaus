@@ -171,3 +171,23 @@ Task 6 wires playback persistence ownership to the process, restores the session
 - Active-owner clear cancellation publishes empty authoritative content, reports the cancellation, proves snapshotted access was released after clear, then rethrows.
 - Gone-owner remove/clear cancellation publishes and reports nothing.
 - Existing repository mutation and access-release failure tests continue to prove no false publication before authoritative reload.
+
+## Release verification follow-up: Android-host DI identity isolation
+
+### Root cause and test policy
+
+- The common singleton/alias identity test loaded the real production module and resolved the Android `PlaybackSessionStore`. Android-host tests do not execute `RhythHausApplication.onCreate()`, so the real Android factory correctly failed on its required uninitialized `LibraryDatabaseContext.applicationContext`.
+- This test verifies Koin singleton and alias identity, not platform DataStore file construction. It now loads the real `rhythHausModule()` and a later test module with Koin overrides explicitly enabled, replacing only `PlaybackSessionStore` with the existing `EmptySessionStore`.
+- The assertion now proves the resolved store is exactly `EmptySessionStore`; engine/controller/coordinator/reconciler/lifecycle production identity assertions remain unchanged. Cleanup still cancels the production process scope and stops Koin.
+
+### Release RED/GREEN evidence
+
+- RED:
+  - Command: `./gradlew :shared:testAndroidHostTest --tests 'com.eterocell.rhythhaus.di.RhythHausDiTest.playbackSessionBindingsAreProcessSingletonsAndInterfaceAliases' --configuration-cache`
+  - Result: test failed with `InstanceCreationException` caused by `UninitializedPropertyAccessException` while the real Android store factory accessed `LibraryDatabaseContext.applicationContext`.
+- GREEN Android host:
+  - Same command.
+  - Result: `BUILD SUCCESSFUL in 4s`.
+- GREEN JVM:
+  - Command: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.di.RhythHausDiTest' --configuration-cache`
+  - Result: `BUILD SUCCESSFUL in 6s`.
