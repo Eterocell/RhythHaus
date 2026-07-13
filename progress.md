@@ -1,5 +1,36 @@
 # Session Progress
 
+## Handoff - 2026-07-13 Settings component padding alignment
+
+Route: systematic-debugging + strict RED-GREEN TDD + source-level visual QA
+Owner: implementation
+Input: User report that Settings still had incorrect padding: the Appearance option and Settings back/title TopBar retained component-owned padding and were more inset than “管理音乐”.
+Root cause:
+- The Settings page already applies 16 dp horizontal content padding.
+- Miuix 0.9.3 `SmallTopAppBar` additionally defaults to 26 dp `titlePadding` and 16 dp `navigationIconPadding`.
+- Miuix `OverlayDropdownPreference` additionally defaults to `insideMargin = PaddingValues(16.dp)`.
+- Those defaults stacked with the page inset, producing 42 dp title, 32 dp navigation, and 32 dp Appearance content insets versus the 16 dp “管理音乐” edge.
+Fix:
+- Extended `SettingsLayoutPolicy` with Settings-local component padding values.
+- Settings TopBar now uses 0 dp title and navigation slot padding; global `RhythHausTopAppBar` defaults remain unchanged.
+- Appearance preference now uses 0 dp horizontal and 16 dp vertical `insideMargin`.
+- Preserved `safeContentPadding()`, page spacing 16/8/12/8, 44 dp back target, callbacks, semantics, source management, and dropdown behavior.
+Verification:
+- RED: `SettingsScreenTest` failed with unresolved `topBarTitlePadding`, `topBarNavigationIconPadding`, `appearanceHorizontalInsidePadding`, and `appearanceVerticalInsidePadding` before production changes.
+- Focused GREEN: `SettingsScreenTest` plus `LibrarySourceManagementTest`: pass.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 7s`; existing Android artwork deprecation warning only).
+- `git diff --check`: pass.
+- Independent code review: PASS with no Critical, Important, or Minor findings.
+- Two source-level visual QA Oracle passes: PASS with MEDIUM confidence; no runtime screenshots were available.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/settings/SettingsScreen.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/settings/SettingsScreenTest.kt`
+- `roadmap.md`
+- `progress.md`
+Next owner: user for live visual confirmation on a representative target device/window.
+Blockers: no automated JVM/desktop/Android blocker. Kotlin LSP unavailable by prior user choice; runtime screenshots unavailable.
+Commit: code/test and documentation evidence committed separately after explicit user integration request.
+
 ## Handoff - 2026-07-13 Library home chrome and Settings spacing
 
 Route: openspec+superpowers / subagent-driven-development / TDD / visual QA
