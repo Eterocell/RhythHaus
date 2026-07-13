@@ -27,10 +27,7 @@ actual fun rememberPlatformFolderPickerLauncher(
             persistTreePermission(context, uri)
             PlatformFolderPickResult.Success(uri.toAndroidSafSource(context))
         }.getOrElse { throwable ->
-            PlatformFolderPickResult.Failure(
-                message = couldNotAccessMessage,
-                cause = throwable.message ?: throwable::class.simpleName,
-            )
+            PlatformFolderPickResult.Failure(message = couldNotAccessMessage)
         }
         onResult(result)
     }
@@ -47,19 +44,18 @@ actual fun rememberPlatformFolderPickerLauncher(
 }
 
 private fun persistTreePermission(context: Context, uri: Uri) {
-    val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-    runCatching { context.contentResolver.takePersistableUriPermission(uri, flags) }
-        .recoverCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+    context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
 }
 
 private fun Uri.toAndroidSafSource(context: Context): LibrarySource {
     val document = DocumentFile.fromTreeUri(context, this)
-    val displayName = document?.name ?: lastPathSegment ?: toString()
+    val stableUri = toString()
+    val displayName = document?.name.orEmpty()
     return LibrarySource(
-        id = "android-saf-${toString().hashCode().toUInt().toString(16)}",
+        id = androidSafSourceId(stableUri),
         platformKind = LibraryPlatformKind.AndroidSafTree,
         displayName = displayName,
-        handle = toString(),
+        handle = stableUri,
         createdAtEpochMillis = System.currentTimeMillis(),
     )
 }
