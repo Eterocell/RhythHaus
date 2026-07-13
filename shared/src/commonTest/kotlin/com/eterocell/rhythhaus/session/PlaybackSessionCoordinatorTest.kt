@@ -365,6 +365,34 @@ class PlaybackSessionCoordinatorTest {
     }
 
     @Test
+    fun replacementLoadFailureEntersFailedSafeWithoutOverwritingDurableSnapshot() = runBlocking {
+        val durable = snapshot("missing")
+        val controller = RecordingSessionController(
+            initialSnapshot = durable,
+            reconcileFailure = IllegalStateException("replacement load failed"),
+        )
+        val store = RecordingStore(initial = durable)
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        coordinator.restoreOnce(playableTracks("missing", "survivor"))
+        val savesBeforeFailure = store.saveAttempts
+        val contentBeforeFailure = store.saved.toList()
+
+        assertEquals(
+            PlaybackSessionReconcileResult.FailedSafeApplied,
+            coordinator.reconcile(libraryTracks("survivor")),
+        )
+        coordinator.flush()
+        assertEquals(PlaybackSessionReconcileResult.FailedSafeApplied, coordinator.reconcile(libraryTracks("future")))
+        coordinator.flush()
+
+        assertEquals(PlaybackSessionPhase.FailedSafe, coordinator.phase.value)
+        assertEquals(savesBeforeFailure, store.saveAttempts)
+        assertEquals(contentBeforeFailure, store.saved)
+        scope.cancel()
+    }
+
+    @Test
     fun throwingReadAppliesEmptyPausedBoundaryReenablesCommandsAndCompletesRestore() = runBlocking {
         val controller = RecordingSessionController(initialSnapshot = snapshot("old"))
         val store = RecordingStore(readFailure = IllegalStateException("read failed"))
@@ -452,6 +480,7 @@ private class RecordingSessionController(
     private val failCheckpointCollection: Boolean = false,
     private val throwFirstRestore: Boolean = false,
     private val failFenceWhenInactive: Boolean = false,
+    private val reconcileFailure: Throwable? = null,
 ) : PlaybackSessionController {
     private val checkpointChannel = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
     var collectionCount: Int = 0
@@ -509,6 +538,7 @@ private class RecordingSessionController(
             queueIds = tracks.map { it.id },
             currentTrackId = current,
         )
+        reconcileFailure?.let { throw it }
     }
 
     override fun setCommandsEnabled(enabled: Boolean) {

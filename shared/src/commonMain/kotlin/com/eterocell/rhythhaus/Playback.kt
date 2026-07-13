@@ -485,6 +485,7 @@ class PlaybackController(
             } catch (throwable: Throwable) {
                 log.e { throwable.stackTraceToString() }
                 clearPausedState(previous.repeatMode, previous.shuffleMode)
+                throw throwable
             }
             emitImmediateCheckpoint()
         }

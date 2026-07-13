@@ -6,6 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -612,6 +613,24 @@ class PlaybackControllerTest {
     }
 
     @Test
+    fun reconcileReplacementLoadFailurePropagatesAfterApplyingPausedFailSafeState() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        controller.setQueue(testTracks(2), selectedTrackId = "track-2")
+        engine.awaitLoad()
+        engine.nextLoadFailure = IllegalStateException("replacement failed")
+        val survivor = testTracks(2).first()
+
+        assertFailsWith<IllegalStateException> {
+            controller.reconcileSession(listOf(survivor))
+        }
+
+        assertEquals(emptyList(), controller.state.value.queue)
+        assertNull(controller.state.value.currentTrack)
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+    }
+
+    @Test
     fun discreteCommandsEmitCompleteImmediateSnapshots() = runBlocking {
         val engine = RecordingPlaybackEngine()
         val controller = PlaybackController(engine)
@@ -949,6 +968,7 @@ class PlaybackControllerTest {
         val loadedGenerations = mutableListOf<Long>()
         var activeGeneration: Long = 0L
             private set
+        var nextLoadFailure: Throwable? = null
         private val events = Channel<EngineEvent>(Channel.UNLIMITED)
         private val loadStarted = CompletableDeferred<Unit>()
         private val loadSignal = CompletableDeferred<Unit>()
@@ -962,6 +982,7 @@ class PlaybackControllerTest {
             loadStarted.complete(Unit)
             loadGate?.await()
             loadFailure?.let { throw it }
+            nextLoadFailure?.also { nextLoadFailure = null }?.let { throw it }
             val durationMillis = loadedDurationMillis ?: track.durationMillis
             listener?.onPlaybackProgress(generation, 0L, durationMillis)
             listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
