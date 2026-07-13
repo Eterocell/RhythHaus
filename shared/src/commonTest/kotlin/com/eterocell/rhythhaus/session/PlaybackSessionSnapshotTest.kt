@@ -5,7 +5,6 @@ import com.eterocell.rhythhaus.ShuffleMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class PlaybackSessionSnapshotTest {
@@ -25,10 +24,9 @@ class PlaybackSessionSnapshotTest {
             "x:a" to "non-decimal length",
             "1a" to "missing colon",
             "1:\uD800" to "unpaired surrogate",
-            "10001:" to "over-count",
+            overCountEncoded() to "over-count",
             "${PlaybackSessionCodec.maxIdCharacters + 1}:${"a".repeat(PlaybackSessionCodec.maxIdCharacters + 1)}" to "over-character",
-            "8192:${"🎧".repeat(8192)}" to "over-UTF-8",
-            "${PlaybackSessionCodec.maxEncodedUtf8Bytes}:" to "over-total-size",
+            framedEncoded(List(256) { index -> "id-$index" + "x".repeat(PlaybackSessionCodec.maxIdCharacters - "id-$index".length) }) to "over-total-size",
             "2:ab!" to "trailing data",
             "2:a" to "truncated value",
         ).forEach { (encoded, reason) ->
@@ -57,10 +55,12 @@ class PlaybackSessionSnapshotTest {
             PlaybackSessionCodec.encodeIds(exactMaxEncodedBytes + "overflow")
         }
 
-        val largestUtf8IdWithinCharacterBound = "🎧".repeat(PlaybackSessionCodec.maxIdCharacters / 2)
-        assertNotNull(PlaybackSessionCodec.encodeIds(listOf(largestUtf8IdWithinCharacterBound)))
+        val largestReachableUtf8Id = "\u0800".repeat(PlaybackSessionCodec.maxIdCharacters)
+        assertEquals(PlaybackSessionCodec.maxIdCharacters, largestReachableUtf8Id.length)
+        assertEquals(12_288, largestReachableUtf8Id.encodeToByteArray().size)
+        assertEquals(listOf(largestReachableUtf8Id), PlaybackSessionCodec.decodeIds(PlaybackSessionCodec.encodeIds(listOf(largestReachableUtf8Id))))
         assertFailsWith<IllegalArgumentException> {
-            PlaybackSessionCodec.encodeIds(listOf("🎧".repeat(PlaybackSessionCodec.maxIdCharacters + 1)))
+            PlaybackSessionCodec.encodeIds(listOf("x".repeat(PlaybackSessionCodec.maxIdCharacters + 1)))
         }
 
         assertNull(PlaybackSessionCodec.decodeIds("1:a1:"))
@@ -94,5 +94,11 @@ class PlaybackSessionSnapshotTest {
             lastLength--
         }
         return base + "z".repeat(lastLength)
+    }
+
+    private fun overCountEncoded(): String = framedEncoded(List(PlaybackSessionCodec.maxIds + 1) { it.toString() })
+
+    private fun framedEncoded(ids: List<String>): String = buildString {
+        ids.forEach { id -> append(id.length).append(':').append(id) }
     }
 }
