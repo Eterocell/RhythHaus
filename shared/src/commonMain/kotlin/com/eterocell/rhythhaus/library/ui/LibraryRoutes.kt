@@ -99,7 +99,7 @@ internal fun LibraryRouteContent(
     onBack: () -> Unit,
     onOpenDetailRoute: (LibraryRoute) -> Unit,
     onTrackSelected: (String) -> Unit,
-    onPlayPauseFromTracks: (List<Track>, Track) -> Unit,
+    onTrackClickFromTracks: (List<Track>, Track) -> Unit,
     onExpandNowPlaying: (Track) -> Unit,
     onShowSettings: () -> Unit,
     onShowSearch: () -> Unit,
@@ -127,8 +127,11 @@ internal fun LibraryRouteContent(
                     tagLibReader = tagLibReader,
                     libraryTracks = libraryTracks,
                     onBack = onBack,
-                    onTrackSelected = { /* selection only */ },
-                    onPlayPause = { track -> onPlayPauseFromTracks(albumTracks, track) },
+                    onTrackClick = { track ->
+                        onTrackSelected(track.id)
+                        onTrackClickFromTracks(albumTracks, track)
+                    },
+                    onPlayPause = { playbackController.togglePlayPause() },
                     onExpandNowPlaying = onExpandNowPlaying,
                     onShowSettings = onShowSettings,
                     onShowSearch = onShowSearch,
@@ -158,8 +161,11 @@ internal fun LibraryRouteContent(
                     tagLibReader = tagLibReader,
                     libraryTracks = libraryTracks,
                     onBack = onBack,
-                    onTrackSelected = { /* selection only */ },
-                    onPlayPause = { track -> onPlayPauseFromTracks(artistTracks, track) },
+                    onTrackClick = { track ->
+                        onTrackSelected(track.id)
+                        onTrackClickFromTracks(artistTracks, track)
+                    },
+                    onPlayPause = { playbackController.togglePlayPause() },
                     onExpandNowPlaying = onExpandNowPlaying,
                     onShowSettings = onShowSettings,
                     onShowSearch = onShowSearch,

@@ -51,6 +51,7 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
@@ -66,7 +67,6 @@ import com.eterocell.rhythhaus.nowplaying.NowPlayingBarHeightPx
 import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
-import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
@@ -153,12 +153,12 @@ fun LibraryHomeScreen(
     LaunchedEffect(homeListState.firstVisibleItemIndex, homeListState.firstVisibleItemScrollOffset) {
         appState.updateNowPlayingBarVisibilityForScroll(homeListState.toLibraryScrollPosition())
     }
-    fun playPauseFromTracks(tracks: List<Track>, track: Track) {
-        val playableTracks = tracks.map { it.toPlayableTrack() }
-        if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-            playbackController.setQueue(playableTracks, track.id)
-        }
-        playbackController.togglePlayPause()
+    fun selectTrackFromTracks(tracks: List<Track>, track: Track) {
+        selectLibraryTrackForPlayback(
+            playbackController = playbackController,
+            visibleQueue = tracks.map { it.toPlayableTrack() },
+            selectedTrackId = track.id,
+        )
     }
 
     fun expandNowPlaying(track: Track) {
@@ -209,7 +209,7 @@ fun LibraryHomeScreen(
             onBack = appState::popRoute,
             onOpenDetailRoute = appState::pushRoute,
             onTrackSelected = appState::setSelectedTrackId,
-            onPlayPauseFromTracks = ::playPauseFromTracks,
+            onTrackClickFromTracks = ::selectTrackFromTracks,
             onExpandNowPlaying = ::expandNowPlaying,
             onShowSettings = { appState.pushRoute(LibraryRoute.Settings) },
             onShowSearch = { appState.pushRoute(LibraryRoute.Search) },
@@ -343,9 +343,7 @@ fun LibraryHomeScreen(
                 track = selectedTrack,
                 playbackState = playbackState,
                 onPlayPause = {
-                    selectedTrack?.let { track ->
-                        playPauseFromTracks(snapshot.tracks, track)
-                    }
+                    playbackController.togglePlayPause()
                 },
                 onExpand = { if (selectedTrack != null) appState.showNowPlaying() },
                 onSettings = { appState.pushRoute(LibraryRoute.Settings) },

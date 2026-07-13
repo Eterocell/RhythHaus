@@ -47,6 +47,11 @@ import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
 
+internal enum class DrillDownTrackAction { SelectTrack, ToggleTransport }
+
+internal fun drillDownTrackAction(isTransportControl: Boolean): DrillDownTrackAction =
+    if (isTransportControl) DrillDownTrackAction.ToggleTransport else DrillDownTrackAction.SelectTrack
+
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
 internal fun DrillDownView(
@@ -60,7 +65,7 @@ internal fun DrillDownView(
     tagLibReader: TagLibReader,
     libraryTracks: List<LibraryTrack>,
     onBack: () -> Unit,
-    onTrackSelected: (String) -> Unit,
+    onTrackClick: (Track) -> Unit,
     onPlayPause: (Track) -> Unit,
     onExpandNowPlaying: (Track) -> Unit,
     onShowSettings: () -> Unit = {},
@@ -113,8 +118,7 @@ internal fun DrillDownView(
                             selected = track.id == selectedTrackId,
                             onClick = {
                                 selectedTrackId = track.id
-                                onTrackSelected(track.id)
-                                onPlayPause(track)
+                                onTrackClick(track)
                             },
                         )
                     }

@@ -8,6 +8,18 @@ import kotlin.test.assertTrue
 
 class LibraryNavigationTest {
     @Test
+    fun drillDownRowAndTransportActionsRemainSeparate() {
+        assertEquals(
+            DrillDownTrackAction.SelectTrack,
+            drillDownTrackAction(isTransportControl = false),
+        )
+        assertEquals(
+            DrillDownTrackAction.ToggleTransport,
+            drillDownTrackAction(isTransportControl = true),
+        )
+    }
+
+    @Test
     fun libraryHomeTopContentPaddingPreservesSystemBarInset() {
         assertEquals(
             37.dp,

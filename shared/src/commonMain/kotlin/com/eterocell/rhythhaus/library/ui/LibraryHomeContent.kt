@@ -32,7 +32,7 @@ import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
-import com.eterocell.rhythhaus.PlaybackStatus
+import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.toPlayableTrack
 
@@ -163,11 +163,11 @@ internal fun LibraryHomeContent(
                                     selected = track.id == selectedTrackId,
                                     onClick = {
                                         onTrackSelected(track.id)
-                                        val playableTracks = snapshot.tracks.map { it.toPlayableTrack() }
-                                        if (playbackState.currentTrack?.id != track.id || playbackState.status == PlaybackStatus.Idle) {
-                                            playbackController.setQueue(playableTracks, track.id)
-                                        }
-                                        playbackController.togglePlayPause()
+                                        selectLibraryTrackForPlayback(
+                                            playbackController = playbackController,
+                                            visibleQueue = snapshot.tracks.map { it.toPlayableTrack() },
+                                            selectedTrackId = track.id,
+                                        )
                                     },
                                 )
                             }
