@@ -167,6 +167,7 @@ internal class MacAudioPlayerBridge {
     private var transportEnabled: Boolean = true
     private var handle: Long = 0L
     private var lifetimeIdentity: Long = 0L
+    private var released: Boolean = false
 
     init {
         synchronized(lifetimeLock) {
@@ -197,8 +198,9 @@ internal class MacAudioPlayerBridge {
     fun setArtwork(artworkBytes: ByteArray?) = withHandle { nativeSetArtwork(it, artworkBytes) }
     fun setTransportEnabled(enabled: Boolean) {
         synchronized(lifetimeLock) {
+            requireNotReleasedLocked()
             transportEnabled = enabled
-            if (handle != 0L) nativeSetTransportEnabled(handle, enabled)
+            nativeSetTransportEnabled(requireHandleLocked(), enabled)
         }
     }
     internal fun invokeRemotePlayForTest(): Boolean = withHandle(::nativeInvokeRemotePlayForTest)
@@ -218,6 +220,7 @@ internal class MacAudioPlayerBridge {
 
     fun resetPlayer() {
         synchronized(lifetimeLock) {
+            requireNotReleasedLocked()
             if (handle != 0L) nativeRelease(handle)
             handle = createConfiguredHandleLocked()
         }
@@ -225,6 +228,8 @@ internal class MacAudioPlayerBridge {
 
     fun releasePlayer() {
         synchronized(lifetimeLock) {
+            if (released) return
+            released = true
             if (handle != 0L) {
                 nativeRelease(handle)
                 handle = 0L
@@ -235,6 +240,8 @@ internal class MacAudioPlayerBridge {
     @Suppress("ProtectedInFinal")
     protected fun finalize() {
         synchronized(lifetimeLock) {
+            if (released) return
+            released = true
             if (handle != 0L) {
                 nativeRelease(handle)
                 handle = 0L
@@ -252,10 +259,18 @@ internal class MacAudioPlayerBridge {
     }
 
     private inline fun <T> withHandle(operation: (Long) -> T): T = synchronized(lifetimeLock) {
+        requireNotReleasedLocked()
         operation(requireHandleLocked())
     }
 
-    private fun requireHandleLocked(): Long = require(handle != 0L) { "Native macOS audio bridge has been released" }.let { handle }
+    private fun requireNotReleasedLocked() {
+        require(!released) { "Native macOS audio bridge has been released" }
+    }
+
+    private fun requireHandleLocked(): Long {
+        requireNotReleasedLocked()
+        return require(handle != 0L) { "Native macOS audio bridge has been released" }.let { handle }
+    }
 
     private fun createConfiguredHandleLocked(): Long = nativeCreate().also {
         lifetimeIdentity++

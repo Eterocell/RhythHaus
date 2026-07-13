@@ -140,6 +140,51 @@ class JvmPlaybackEngineTest {
     }
 
     @Test
+    fun finalReleasePermanentlyRejectsResetWithoutRecreatingHandlers() {
+        val bridge = MacAudioPlayerBridge()
+        bridge.registerNowPlayingRemoteCommands()
+
+        bridge.releasePlayer()
+        bridge.releasePlayer()
+
+        assertFailsWith<IllegalArgumentException> { bridge.resetPlayer() }
+        assertEquals(0L, bridge.currentHandleIdentityForTest())
+        assertEquals(0L, bridge.liveRemoteHandlerCountForTest())
+    }
+
+    @Test
+    fun queuedReleaseWinsBeforeQueuedResetAndPermanentlyPreventsResurrection() {
+        val bridge = MacAudioPlayerBridge()
+        bridge.registerNowPlayingRemoteCommands()
+        val operationEntered = CountDownLatch(1)
+        val releaseOperation = CountDownLatch(1)
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val operation = executor.submit {
+                bridge.withLifetimeBoundaryForTest {
+                    operationEntered.countDown()
+                    assertTrue(releaseOperation.await(1, TimeUnit.SECONDS))
+                }
+            }
+            assertTrue(operationEntered.await(1, TimeUnit.SECONDS))
+            val release = executor.submit { bridge.releasePlayer() }
+            val reset = executor.submit { bridge.resetPlayer() }
+
+            releaseOperation.countDown()
+            operation.get(1, TimeUnit.SECONDS)
+            release.get(1, TimeUnit.SECONDS)
+            assertFailsWith<java.util.concurrent.ExecutionException> { reset.get(1, TimeUnit.SECONDS) }
+
+            assertEquals(0L, bridge.currentHandleIdentityForTest())
+            assertEquals(0L, bridge.liveRemoteHandlerCountForTest())
+        } finally {
+            releaseOperation.countDown()
+            executor.shutdownNow()
+            bridge.releasePlayer()
+        }
+    }
+
+    @Test
     fun nativeMacPlaybackEngineLoadsGeneratedWavFile() {
         val wavPath = createSilentWavFile()
         val engine = createPlatformPlaybackEngine()
