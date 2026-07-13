@@ -110,3 +110,112 @@ Result: pass.
 - Kotlin LSP is unavailable by contract; Gradle and native compilation were used as diagnostic gates.
 - iOS test sources were updated for the pure gate, but the authoritative Task 3 GREEN chain requires iOS main compilation rather than the full iOS test task. The iOS gate test is therefore compile-covered when the project later runs its full iOS simulator test convention.
 - Android host tests cannot instantiate several Android framework-backed Media3 value objects without Robolectric-style implementations. Token encoding and production gate functions are tested as pure production-used seams; the production `SkipRoutingPlayer` wiring is compiler-checked in Android main.
+
+## Review-Fix Addendum
+
+### Root Causes
+
+1. Android connection failure and matching-token `onPlayerError` reported errors but never settled `pendingLoad`, so `loadPaused()` could suspend forever and block later serialized engine work.
+2. Controller engine-action handling caught `CancellationException` as a generic failure and published `PlaybackStatus.Error`. Android request cleanup was global mutable state without request ownership, so a superseded load's cancellation could clear a replacement.
+3. Android's temporary `Dispatchers.Default` workaround removed Media3 Main-looper confinement. Connected calls and request-state mutation could run from arbitrary threads.
+4. macOS scheduled callbacks captured generation/version only for the initial predicate, then `publishProgress()` read mutable active values during emission, allowing a replacement between check and publish.
+5. macOS JNI test seams duplicated native remote-handler gate conditions and actions rather than exercising the same production functions.
+6. Android host transport tests exercised a synthetic recorder instead of the adapter used by `SkipRoutingPlayer`.
+7. Android release did not invalidate the token or cancel an outstanding load acknowledgement.
+
+### Focused RED Evidence
+
+Android request-state/router tests were added first and failed during Android-host test compilation with unresolved production seams:
+
+```text
+./gradlew :shared:testAndroidHostTest \
+  --tests 'com.eterocell.rhythhaus.AndroidPlaybackMediaSessionTest' \
+  --tests 'com.eterocell.rhythhaus.RhythHausTransportBridgeTest' \
+  --configuration-cache
+
+Unresolved reference 'AndroidPlaybackRequestState'.
+Unresolved reference 'AndroidControllerOperations'.
+Unresolved reference 'AndroidControllerExecutor'.
+Unresolved reference 'ServiceTransportRouter'.
+```
+
+The controller cancellation regression then failed after cancellation was logged and converted through the generic error path; the test proved generation N was superseded while generation N+1 loaded, but the old cancellation was not treated as normal cancellation.
+
+The macOS focused tests were added before production changes and failed compilation with:
+
+```text
+Unresolved reference 'MacProgressPublicationGate'.
+Unresolved reference 'invokeRemotePauseForTest'.
+Unresolved reference 'invokeRemoteToggleForTest'.
+Unresolved reference 'invokeRemoteStopForTest'.
+```
+
+### Fixes
+
+- Added synchronized `AndroidPlaybackRequestState` with request ownership, exceptional settlement, owner-only cancellation cleanup, clear/release invalidation, and replacement-safe token handling.
+- Connection failure now atomically fails the active request; matching-token player error fails the matching request before publishing the listener error.
+- `loadPaused` uses `finally` owner cleanup. `clear` and `release` cancel/invalidate outstanding requests.
+- `PlaybackController.runEngineAction` rethrows `CancellationException` before generic error publication.
+- Restored Android production Main-looper confinement through `AndroidControllerExecutor` and `AndroidControllerOperations`; production uses the application Main handler, while Android host tests use a deterministic single-thread fallback or an injected recording executor.
+- Added production `ServiceTransportRouter`; `SkipRoutingPlayer` and host tests use its exact command-availability and routing methods for play, pause, stop, both seek overloads, next, and previous.
+- Added `MacProgressPublicationGate`; progress callbacks carry immutable generation/version through position collection and revalidate immediately before progress and completion emission.
+- Extracted native production remote functions for play, pause, toggle, stop, and seek. Both `MPRemoteCommand` handlers and JNI tests call those same functions.
+
+### Review-Fix GREEN Evidence
+
+Focused controller/macOS mechanisms:
+
+```text
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.PlaybackControllerTest.supersededBlockedLoadCancelsNormallyAndReplacementCanBecomeReady' \
+  --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest.staleMacProgressPublicationIsRejectedAfterSourceReplacement' \
+  --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest.nativeRemoteOperationsShareProductionGateForAllCommands' \
+  --configuration-cache
+BUILD SUCCESSFUL
+```
+
+Focused Android failure/routing mechanisms:
+
+```text
+./gradlew :shared:testAndroidHostTest \
+  --tests 'com.eterocell.rhythhaus.AndroidPlaybackMediaSessionTest' \
+  --tests 'com.eterocell.rhythhaus.RhythHausTransportBridgeTest' \
+  --configuration-cache
+BUILD SUCCESSFUL
+```
+
+Complete required Task 3 chain:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest' --configuration-cache
+BUILD SUCCESSFUL
+
+./gradlew :shared:testAndroidHostTest --configuration-cache
+BUILD SUCCESSFUL
+
+./gradlew :shared:compileKotlinIosSimulatorArm64 --configuration-cache
+BUILD SUCCESSFUL
+
+GIT_MASTER=1 git diff --check
+exit 0, no output
+```
+
+### Review-Fix Self-Review
+
+- Every Android pending load reaches ready, exceptional failure, owner cancellation, clear, or release settlement.
+- Superseded load cleanup checks token ownership and cannot clear a replacement request.
+- Android controller operations are serialized through the production executor seam; production resolves to Main looper semantics.
+- `SkipRoutingPlayer` and host tests share `ServiceTransportRouter`; no duplicate test-only routing logic remains.
+- macOS publication uses captured generation/version for both progress and completion and revalidates after the deterministic race gate.
+- Native remote handler/JNI test behavior shares the same five production operation functions.
+- Enabled transport behavior remains covered.
+- No Task 4, persistence coordinator, DI, App, OpenSpec, progress, roadmap, SQL, dependency, or UI files were touched.
+
+### Review-Fix Commits
+
+- Recorded after implementation verification.
+
+### Review-Fix Concerns
+
+- Kotlin LSP remains unavailable; Gradle and native compilation are the diagnostic gates.
+- Android host runtime does not provide a real `Looper`; the production executor resolves to the Main handler on Android and uses a deterministic single-thread fallback only when framework Main-looper construction is unavailable in host tests.
