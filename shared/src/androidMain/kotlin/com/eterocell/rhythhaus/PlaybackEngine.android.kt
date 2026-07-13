@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal fun interface AndroidControllerExecutor {
     fun execute(action: () -> Unit)
@@ -45,6 +46,26 @@ internal class AndroidControllerOperations(
     private val executor: AndroidControllerExecutor = androidControllerExecutor,
 ) {
     fun dispatch(action: () -> Unit) = executor.execute(action)
+}
+
+internal class AndroidControllerLifecycle(
+    private val operations: AndroidControllerOperations,
+) {
+    private val releaseRequested = AtomicBoolean(false)
+
+    fun dispatchControllerWork(action: () -> Unit) {
+        if (releaseRequested.get()) return
+        operations.dispatch {
+            if (!releaseRequested.get()) action()
+        }
+    }
+
+    fun release(teardown: () -> Unit) {
+        if (!releaseRequested.compareAndSet(false, true)) return
+        operations.dispatch(teardown)
+    }
+
+    internal fun isDisposedForTest(): Boolean = releaseRequested.get()
 }
 
 private var rhythHausAndroidContext: Context? = null
@@ -80,6 +101,7 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     private var loadedTrackDurationMillis: Long? = null
     private val scope = CoroutineScope(SupervisorJob() + playbackEngineDispatcher)
     private val controllerOperations = AndroidControllerOperations()
+    private val controllerLifecycle = AndroidControllerLifecycle(controllerOperations)
     private var progressJob: Job? = null
     private var activeGeneration: Long = 0L
     private val requestState = AndroidPlaybackRequestState()
@@ -96,12 +118,12 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     private val pendingActions = ArrayDeque<(MediaController) -> Unit>()
 
     private fun withController(action: (MediaController) -> Unit) {
-        controllerOperations.dispatch {
-            if (disposed) return@dispatch
+        controllerLifecycle.dispatchControllerWork {
+            if (disposed) return@dispatchControllerWork
             val connected = controller
             if (connected != null) {
                 action(connected)
-                return@dispatch
+                return@dispatchControllerWork
             }
             pendingActions.addLast(action)
             ensureControllerConnecting()
@@ -145,7 +167,7 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
                 }
             },
             // Run the completion callback on the main thread (controller is single-threaded).
-            { runnable -> controllerOperations.dispatch { runnable.run() } },
+            { runnable -> controllerLifecycle.dispatchControllerWork { runnable.run() } },
         )
     }
 
@@ -222,25 +244,25 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     }
 
     override fun release() {
-        disposed = true
         requestState.release()
         progressJob?.cancel()
         RhythHausTransportBridge.onSkipToNext = null
         RhythHausTransportBridge.onSkipToPrevious = null
-        pendingActions.clear()
-        val connected = controller
-        if (connected != null) {
-            // Connection completed: release the controller we hold.
-            connected.release()
-        } else {
-            // Still connecting: cancel/release the in-flight future. The connection callback
-            // checks `disposed` and releases any controller it produces after this point.
-            controllerFuture?.let(MediaController::releaseFuture)
+        controllerLifecycle.release {
+            if (disposed) return@release
+            disposed = true
+            pendingActions.clear()
+            val connected = controller
+            if (connected != null) {
+                connected.release()
+            } else {
+                controllerFuture?.let(MediaController::releaseFuture)
+            }
+            controller = null
+            controllerFuture = null
+            loadedTrackDurationMillis = null
+            scope.cancel()
         }
-        controller = null
-        controllerFuture = null
-        loadedTrackDurationMillis = null
-        scope.cancel()
     }
 
     private fun publishProgress(controller: MediaController) {

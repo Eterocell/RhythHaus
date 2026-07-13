@@ -9,6 +9,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 class AndroidPlaybackMediaSessionTest {
 
@@ -126,6 +129,34 @@ class AndroidPlaybackMediaSessionTest {
         assertEquals(2, executor.pendingCount)
         executor.runAll()
         assertEquals(listOf("load", "clear"), calls)
+    }
+
+    @Test
+    fun releaseIsSerializedAndSuppressesQueuedAndPostReleaseControllerWork() {
+        val executor = RecordingAndroidControllerExecutor()
+        val operations = AndroidControllerOperations(executor)
+        val lifecycle = AndroidControllerLifecycle(operations)
+        val calls = mutableListOf<String>()
+        val releaseQueued = CountDownLatch(1)
+
+        lifecycle.dispatchControllerWork { calls += "queued-before-release" }
+        val releaseThread = thread(start = true) {
+            lifecycle.release {
+                calls += "release-controller"
+                calls += "release-future"
+            }
+            releaseQueued.countDown()
+        }
+        assertTrue(releaseQueued.await(1, TimeUnit.SECONDS))
+        releaseThread.join()
+        lifecycle.dispatchControllerWork { calls += "queued-after-release" }
+
+        assertEquals(emptyList(), calls)
+        executor.runAll()
+
+        assertEquals(listOf("release-controller", "release-future"), calls)
+        assertTrue(lifecycle.isDisposedForTest())
+        assertEquals(0, executor.pendingCount)
     }
 
     private class RecordingAndroidControllerExecutor : AndroidControllerExecutor {
