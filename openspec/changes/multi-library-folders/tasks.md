@@ -33,4 +33,5 @@
   - Pass: `git diff --check` returned no output; status and scoped planning/evidence diffs were reviewed with no production/test implementation changes after the Task 4 base.
 - [x] 4.5 Update this task list, `progress.md`, and `roadmap.md` with exact evidence and remaining manual QA.
   - Recorded below and in the repository handoff; live Android/desktop multi-folder behavior and iOS app-local rescan remain manual QA, and no device or visual pass is claimed.
-- [ ] 4.6 Commit the completed OpenSpec + Superpowers workflow with a semantic commit message.
+- [x] 4.6 Commit the completed OpenSpec + Superpowers workflow with semantic commit messages.
+  - Commits succeeded: `f8621b9` (Superpowers plan), `d1d33cc` (OpenSpec artifacts), and `2dcf856` (completion evidence); final workflow-state commit records this checkbox and schema marker.
