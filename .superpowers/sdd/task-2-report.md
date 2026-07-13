@@ -120,3 +120,54 @@ Gradle compilation and focused tests supplied Kotlin compiler validation instead
 
 - `SettingsScreen` accepts `sources`, `onRescanSource`, and `onRemoveSource` before Task 3 renders/invokes them; Kotlin compilation permits the intentionally unused parameters.
 - Live picker/rescan/removal behavior was not device-tested; automated shared tests and Android/JVM/iOS compilation passed.
+
+## Final Review Race Fix
+
+Root cause evidence confirmed that Settings derived mutation availability only from `scanProgress`, leaving a scan-start window where `scanJob` was active before progress reached Compose. Clear Library also remained enabled and `App.onClearLibrary` launched without checking either active signal, allowing the scanner and clear operation to write concurrently.
+
+### RED
+
+Added a pure shared decision test requiring mutations to be denied when either progress or job is active, including the job-only scan-start window.
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
+```
+
+Observed before production edits:
+
+```text
+Unresolved reference 'sourceMutationsAllowed'
+BUILD FAILED
+```
+
+### GREEN
+
+Added `sourceMutationsAllowed(isProgressActive, isJobActive)` and used it consistently for:
+
+- Settings add, rescan, remove, and clear controls;
+- disabled Clear Library button state;
+- `App()` scan-start, remove-source, and clear-library callback guards.
+
+The job-active signal now closes the interval before active progress is published.
+
+Focused gate test after implementation:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
+BUILD SUCCESSFUL in 1s
+```
+
+Final requested verification:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --configuration-cache
+BUILD SUCCESSFUL in 831ms
+
+./gradlew :shared:compileKotlinJvm :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache
+BUILD SUCCESSFUL in 4s
+
+git diff --check
+pass (no output)
+```
+
+Kotlin LSP diagnostics remained unavailable because `kotlin-ls` is not installed and installation was previously declined; the requested compiler/test commands passed.
