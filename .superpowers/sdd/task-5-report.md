@@ -11,11 +11,11 @@
 - `PlaybackSessionCoordinator` owns one unlimited FIFO `Channel<Command>` and one process-scope actor coroutine.
 - Commands are `Restore`, `Checkpoint`, `Reconcile`, and `Flush`.
 - Only an immediately adjacent run of `Checkpoint` commands is drained and collapsed to its newest complete snapshot. The first non-checkpoint is retained and processed next, so restore, reconcile, and flush remain strict barriers.
-- Restore disables controller/platform commands before reading, applies the persisted snapshot through `PlaybackSessionController`, saves the controller's normalized `sessionSnapshot()`, starts exactly one single-consumer checkpoint collector, reenables commands, and only then exposes `Ready` or `FailedSafe`.
+- Restore disables controller/platform commands before reading, applies the persisted snapshot through `PlaybackSessionController`, and saves the normalized `sessionSnapshot()` before collection on normal success. Every non-cancelled restore terminal path then starts exactly one checkpoint collector, marks it ready, reenables commands, and only then exposes `Ready` or `FailedSafe`.
 - Reconciliation submitted during restore stays in the actor queue. Normal reconciliation applies controller state, saves its normalized snapshot, and returns `Applied`. Failed-safe reconciliation still applies controller state in memory, skips persistence, and returns `FailedSafeApplied`.
 - Unexpected read failure applies the empty paused controller boundary, reenables commands, completes restore, and enters process-lifetime `FailedSafe`.
 - Any save failure transitions once to process-lifetime `FailedSafe`; later checkpoints and restores do not persist, while flush/reconcile/restore replies still complete.
-- `flush()` yields once before placing its actor barrier so a checkpoint already emitted into the controller's process-owned single-consumer flow can enqueue before the barrier.
+- `flush()` awaits collector readiness, then awaits the ordered checkpoint fence before placing its actor barrier.
 
 ## Strict TDD evidence
 
@@ -77,7 +77,7 @@ Result: `BUILD SUCCESSFUL in 1s`; 10 focused coordinator tests passed.
 - The actor is the sole persistence serialization boundary.
 - Checkpoint collapse does not consume across a barrier.
 - Restore replies and command reenabling are in a finally-equivalent path.
-- The collector starts only after normalized restore persistence succeeds and is guarded against duplicates.
+- Normal restore preserves normalized-save-before-collection order; failed and pre-existing `FailedSafe` restore paths use the same guarded terminal collector startup.
 - Persistence is permanently disabled after the first read/save failure; no future waiter depends on actor failure propagation.
 - No dependencies, platform engines, lifecycle/DI wiring, store semantics, SQL, UI, OpenSpec, progress, roadmap, or earlier task reports were changed.
 
@@ -142,3 +142,47 @@ Result: `BUILD FAILED` in `:shared:compileTestKotlinJvm` because `PlaybackSessio
 - `3767734` — `fix: fence playback checkpoints before flush`
 - `be17cc1` — `fix: complete playback coordinator shutdown`
 - Durable review evidence commit follows.
+
+## Collector readiness follow-up
+
+### Root cause
+
+The production checkpoint fence correctly rejects calls while its sole collector is inactive. Coordinator `flush()` called that fence immediately, so a flush concurrent with the first restore failed instead of waiting. The pre-existing `FailedSafe` restore branch also returned before terminal collector startup.
+
+### RED evidence
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionCoordinatorTest' --configuration-cache
+```
+
+Result: `BUILD FAILED`; four controlled tests failed. Flush during blocked successful restore, flush during a blocked throwing read, and cancellation while waiting completed too early because the inactive fence threw. Pre-restore reconcile save failure followed by restore also threw `collector inactive` because the early `FailedSafe` branch skipped collector startup.
+
+### Readiness contract
+
+- The coordinator owns one process-lifetime `CompletableDeferred<Unit>` for collector readiness.
+- Flush awaits readiness before requesting the ordered controller fence and enqueueing `Flush`.
+- Normal successful restore still saves normalized state before collection.
+- Every non-cancelled restore terminal path, including throwing read/save/restore and pre-existing `FailedSafe`, starts the same collector exactly once, completes readiness, reenables commands, and completes restore.
+- Actor/collector shutdown completes readiness exceptionally, so waiting flush callers cannot hang.
+- Cancellation unwind does not start a replacement collector.
+
+### GREEN evidence
+
+- `PlaybackSessionCoordinatorTest`: pass (`BUILD SUCCESSFUL in 387ms`; 19 tests).
+- Full `PlaybackControllerTest`: pass (`BUILD SUCCESSFUL in 4s`).
+- `LibraryPlaybackSelectionTest`: pass (`BUILD SUCCESSFUL in 717ms`).
+- `:shared:compileKotlinJvm`: pass (`BUILD SUCCESSFUL in 5s`).
+- `GIT_MASTER=1 git diff --check`: pass.
+
+### Readiness self-review
+
+- Flush cannot invoke the production fence before the coordinator collector is active.
+- Flush submitted during restore remains pending and then uses normal fence/barrier ordering.
+- Early `FailedSafe` restore no longer bypasses collector startup, command reenabling, or reply completion.
+- Collector startup remains single-instance across repeated restore calls.
+- Cancellation and collector failure terminate readiness exceptionally and preserve actor draining.
+
+### Readiness fix commits
+
+- `584e73d` — `fix: await playback checkpoint collector readiness`
+- Durable readiness evidence commit follows.
