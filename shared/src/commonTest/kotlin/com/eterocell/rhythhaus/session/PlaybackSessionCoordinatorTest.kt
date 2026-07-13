@@ -6,6 +6,7 @@ import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryTrack
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
@@ -15,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
@@ -25,6 +27,115 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class PlaybackSessionCoordinatorTest {
+    @Test
+    fun flushWaitsForCollectorFenceBeforeEnqueueingItsBarrier() = runBlocking {
+        val controller = RecordingSessionController(blockCheckpointCollection = true)
+        val store = RecordingStore()
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        coordinator.restoreOnce(emptyList())
+
+        controller.emit(snapshot("fenced"))
+        controller.checkpointOffered.await()
+        val flush = async { coordinator.flush() }
+
+        controller.fenceRequested.await()
+        assertFalse(flush.isCompleted)
+        assertEquals(listOf(PlaybackSessionSnapshot()), store.saved)
+        controller.allowCheckpointCollection.complete(Unit)
+        flush.await()
+
+        assertEquals(snapshot("fenced"), store.saved.last())
+        scope.cancel()
+    }
+
+    @Test
+    fun controlledCheckpointFenceOrderingIsStableAcrossRepeatedFlushes() = runBlocking {
+        repeat(25) { index ->
+            val controller = RecordingSessionController(blockCheckpointCollection = true)
+            val store = RecordingStore()
+            val scope = detachedScope(coroutineContext)
+            val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+            coordinator.restoreOnce(emptyList())
+
+            controller.emit(snapshot("fenced-$index"))
+            controller.checkpointOffered.await()
+            val flush = async { coordinator.flush() }
+            controller.fenceRequested.await()
+            assertFalse(flush.isCompleted)
+            controller.allowCheckpointCollection.complete(Unit)
+            flush.await()
+            assertEquals("fenced-$index", store.saved.last().currentTrackId)
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun processCancellationCompletesQueuedAndFutureCallersWithoutOrphanedAwait() = runBlocking {
+        val controller = RecordingSessionController(blockRestore = true)
+        val store = RecordingStore()
+        val processJob = SupervisorJob()
+        val scope = CoroutineScope(coroutineContext.minusKey(Job) + processJob)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        val restore = async { runCatching { coordinator.restoreOnce(emptyList()) } }
+        controller.restoreStarted.await()
+        val reconcile = async { runCatching { coordinator.reconcile(libraryTracks("queued")) } }
+        val flush = async { runCatching { coordinator.flush() } }
+
+        processJob.cancel()
+
+        withTimeout(5_000) {
+            assertTrue(restore.await().isFailure)
+            assertTrue(reconcile.await().isFailure)
+            assertTrue(flush.await().isFailure)
+            assertFails { coordinator.restoreOnce(emptyList()) }
+            assertFails { coordinator.reconcile(emptyList()) }
+            assertFails { coordinator.flush() }
+        }
+        Unit
+    }
+
+    @Test
+    fun checkpointCollectorFailureTerminatesCoordinatorAndRejectsFutureCommands() = runBlocking {
+        val controller = RecordingSessionController(failCheckpointCollection = true)
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, RecordingStore(), scope)
+        coordinator.restoreOnce(emptyList())
+        controller.collectionFailed.await()
+
+        withTimeout(5_000) {
+            assertFails { coordinator.flush() }
+            assertFails { coordinator.reconcile(emptyList()) }
+            assertFails { coordinator.restoreOnce(emptyList()) }
+        }
+        scope.cancel()
+    }
+
+    @Test
+    fun throwingControllerRestoreAttemptsEmptyFallbackAndCompletesFailedSafeCallers() = runBlocking {
+        val controller = RecordingSessionController(throwFirstRestore = true)
+        val store = RecordingStore(initial = snapshot("persisted"))
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+
+        withTimeout(5_000) { coordinator.restoreOnce(playableTracks("persisted")) }
+
+        assertEquals(listOf(snapshot("persisted"), PlaybackSessionSnapshot()), controller.restoredSnapshots)
+        assertEquals(PlaybackSessionSnapshot(), controller.snapshot)
+        assertTrue(controller.commandsEnabled)
+        assertEquals(PlaybackSessionPhase.FailedSafe, coordinator.phase.value)
+        assertEquals(0, store.saveAttempts)
+        assertEquals(
+            PlaybackSessionReconcileResult.FailedSafeApplied,
+            withTimeout(5_000) { coordinator.reconcile(libraryTracks("future")) },
+        )
+        withTimeout(5_000) { coordinator.flush() }
+        controller.emit(snapshot("ignored"))
+        withTimeout(5_000) { coordinator.flush() }
+        assertEquals(0, store.saveAttempts)
+        scope.cancel()
+    }
+
     @Test
     fun restoreDisablesCommandsBeforeReadAndRestoreThenSavesNormalizedStateBeforeCollecting() = runBlocking {
         val events = mutableListOf<String>()
@@ -255,6 +366,9 @@ private class RecordingSessionController(
     private val blockRestore: Boolean = false,
     private val normalizeRestoreToEmpty: Boolean = false,
     private val normalizedRestoreSnapshot: PlaybackSessionSnapshot? = null,
+    private val blockCheckpointCollection: Boolean = false,
+    private val failCheckpointCollection: Boolean = false,
+    private val throwFirstRestore: Boolean = false,
 ) : PlaybackSessionController {
     private val checkpointChannel = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
     var collectionCount: Int = 0
@@ -262,7 +376,16 @@ private class RecordingSessionController(
     override val checkpoints: Flow<PlaybackCheckpoint> = flow {
         collectionCount++
         events += "collect"
-        checkpointChannel.receiveAsFlow().collect { emit(it) }
+        if (failCheckpointCollection) {
+            collectionFailed.complete(Unit)
+            error("checkpoint collection failed")
+        }
+        checkpointChannel.receiveAsFlow().collect {
+            checkpointOffered.complete(Unit)
+            if (blockCheckpointCollection) allowCheckpointCollection.await()
+            emit(it)
+            checkpointForwarded.complete(Unit)
+        }
     }
     var snapshot: PlaybackSessionSnapshot = initialSnapshot
     var commandsEnabled: Boolean = true
@@ -270,6 +393,12 @@ private class RecordingSessionController(
     val restoreStarted = CompletableDeferred<Unit>()
     val allowRestore = CompletableDeferred<Unit>()
     val restoredSnapshots = mutableListOf<PlaybackSessionSnapshot>()
+    val checkpointOffered = CompletableDeferred<Unit>()
+    val allowCheckpointCollection = CompletableDeferred<Unit>()
+    val fenceRequested = CompletableDeferred<Unit>()
+    val checkpointForwarded = CompletableDeferred<Unit>()
+    val collectionFailed = CompletableDeferred<Unit>()
+    private var restoreAttempts = 0
 
     override fun sessionSnapshot(): PlaybackSessionSnapshot {
         events += "snapshot:${snapshot.currentTrackId ?: "empty"}"
@@ -281,6 +410,8 @@ private class RecordingSessionController(
         restoreStarted.complete(Unit)
         if (blockRestore) allowRestore.await()
         restoredSnapshots += snapshot
+        restoreAttempts++
+        if (throwFirstRestore && restoreAttempts == 1) throw IllegalStateException("restore failed")
         this.snapshot = when {
             normalizeRestoreToEmpty -> PlaybackSessionSnapshot()
             normalizedRestoreSnapshot != null -> normalizedRestoreSnapshot
@@ -300,6 +431,11 @@ private class RecordingSessionController(
     override fun setCommandsEnabled(enabled: Boolean) {
         commandsEnabled = enabled
         events += "commands:$enabled"
+    }
+
+    override suspend fun awaitCheckpointFence() {
+        fenceRequested.complete(Unit)
+        if (checkpointOffered.isCompleted) checkpointForwarded.await()
     }
 
     fun emit(snapshot: PlaybackSessionSnapshot) {
