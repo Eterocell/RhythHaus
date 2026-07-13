@@ -2,6 +2,10 @@ package com.eterocell.rhythhaus.session
 
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.PlayableTrack
+import com.eterocell.rhythhaus.FakePlaybackEngine
+import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackStatus
+import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryTrack
 import kotlin.test.Test
@@ -27,6 +31,30 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class PlaybackSessionCoordinatorTest {
+    @Test
+    fun terminalCompletionFlushPersistsExactNonWholeSecondDurationWithoutProgress() = runBlocking {
+        val engine = FakePlaybackEngine()
+        val controller = PlaybackController(engine)
+        val store = RecordingStore()
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        coordinator.restoreOnce(emptyList())
+        val track = playableTracks("terminal").single().copy(durationMillis = 1_234L)
+        controller.setQueue(listOf(track))
+        withTimeout(5_000) {
+            while (controller.state.value.status != PlaybackStatus.Paused) kotlinx.coroutines.yield()
+        }
+        controller.setRepeatMode(RepeatMode.StopAfterCurrent)
+        coordinator.flush()
+
+        engine.complete()
+        coordinator.flush()
+
+        assertEquals(1_234L, store.saved.last().positionMillis)
+        assertEquals("terminal", store.saved.last().currentTrackId)
+        scope.cancel()
+    }
+
     @Test
     fun flushDuringFirstRestoreWaitsForCollectorReadinessThenCompletes() = runBlocking {
         val controller = RecordingSessionController(blockRestore = true, failFenceWhenInactive = true)

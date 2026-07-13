@@ -645,6 +645,8 @@ class PlaybackController(
             positionMillis = duration ?: max(0L, _state.value.positionMillis),
             error = null,
         )
+        resetProgressCheckpointKey()
+        emitImmediateCheckpoint()
     }
 
     override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) {

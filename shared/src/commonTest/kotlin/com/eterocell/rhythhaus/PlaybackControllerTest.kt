@@ -798,6 +798,31 @@ class PlaybackControllerTest {
     }
 
     @Test
+    fun terminalCompletionEmitsExactlyOneImmediateCheckpointAtExactDuration() = runBlocking {
+        for (mode in listOf(RepeatMode.StopAfterCurrent, RepeatMode.StopAfterQueue)) {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection = launch(start = CoroutineStart.UNDISPATCHED) { controller.checkpoints.collect(checkpoints::send) }
+            val track = testTracks(1).single().copy(durationMillis = 1_234L)
+            controller.setQueue(listOf(track))
+            engine.awaitLoad()
+            checkpoints.receive()
+            controller.setRepeatMode(mode)
+            if (mode != RepeatMode.StopAfterQueue) checkpoints.receive()
+
+            engine.listener?.onPlaybackCompleted(engine.activeGeneration)
+
+            val terminal = withTimeout(1_000) { checkpoints.receive() }
+            assertTrue(terminal is PlaybackCheckpoint.Immediate)
+            assertEquals(1_234L, terminal.snapshot.positionMillis)
+            assertEquals("track-1", terminal.snapshot.currentTrackId)
+            assertNull(checkpoints.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+    }
+
+    @Test
     fun checkpointsProducedBeforeCollectorStartsAreDeliveredInOrder() = runBlocking {
         val controller = PlaybackController(RecordingPlaybackEngine())
         controller.setRepeatMode(RepeatMode.RepeatOne)
