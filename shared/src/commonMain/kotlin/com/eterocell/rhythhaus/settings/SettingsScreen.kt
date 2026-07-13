@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +37,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.dialog
+import androidx.compose.ui.semantics.dismiss
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -279,6 +287,17 @@ internal fun sourceManagementLabels(source: LibrarySource): Pair<SourceAccessLab
 
 internal fun sourceMutationsEnabled(scanProgress: ScanProgress?): Boolean = scanProgress?.isActive != true
 
+internal data class SourceDialogName(
+    val visual: String,
+    val accessibility: String,
+)
+
+internal fun sourceDialogName(source: LibrarySource): SourceDialogName {
+    val fullName = source.displayName.ifBlank { source.handle }
+    val visualName = if (fullName.length <= 64) fullName else fullName.take(63) + "…"
+    return SourceDialogName(visual = visualName, accessibility = fullName)
+}
+
 @Composable
 private fun ConfiguredSourceRow(
     source: LibrarySource,
@@ -371,12 +390,22 @@ private fun RemoveSourceDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val displayName = source.displayName.ifBlank { source.handle }
+    val name = sourceDialogName(source)
+    val dialogTitle = stringResource(Res.string.remove_folder)
+    val dismissLabel = stringResource(Res.string.cancel)
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(HausColors.current.ink.copy(alpha = 0.36f))
             .pointerInput(onDismiss) { detectTapGestures(onTap = { onDismiss() }) }
+            .semantics {
+                dialog()
+                paneTitle = dialogTitle
+                dismiss(label = dismissLabel) {
+                    onDismiss()
+                    true
+                }
+            }
             .padding(24.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -384,6 +413,7 @@ private fun RemoveSourceDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = 480.dp)
                 .rhythHausLiquidGlass(
                     backdrop = backdrop,
                     shape = dialogShape,
@@ -395,18 +425,37 @@ private fun RemoveSourceDialog(
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text(
-                    text = stringResource(Res.string.remove_folder),
+                    text = dialogTitle,
                     color = HausColors.current.ink,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black,
                 )
                 Spacer(Modifier.height(12.dp))
-                Text(
-                    text = stringResource(Res.string.remove_folder_message, displayName),
-                    color = HausColors.current.muted,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = name.visual,
+                        modifier = Modifier.clearAndSetSemantics {
+                            contentDescription = name.accessibility
+                        },
+                        color = HausColors.current.ink,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = stringResource(Res.string.remove_folder_message),
+                        color = HausColors.current.muted,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                    )
+                }
                 Spacer(Modifier.height(20.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),

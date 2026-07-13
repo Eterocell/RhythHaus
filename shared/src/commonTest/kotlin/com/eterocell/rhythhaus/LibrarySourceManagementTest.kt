@@ -12,7 +12,9 @@ import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.settings.SourceAccessLabel
+import com.eterocell.rhythhaus.settings.SourceDialogName
 import com.eterocell.rhythhaus.settings.SourceScanLabel
+import com.eterocell.rhythhaus.settings.sourceDialogName
 import com.eterocell.rhythhaus.settings.sourceManagementLabels
 import com.eterocell.rhythhaus.settings.sourceMutationsEnabled
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +64,19 @@ class LibrarySourceManagementTest {
         assertFalse(sourceMutationsEnabled(scanProgress(ScanStatus.Scanning)))
         assertFalse(sourceMutationsEnabled(scanProgress(ScanStatus.Cancelling)))
         assertTrue(sourceMutationsEnabled(scanProgress(ScanStatus.Completed)))
+    }
+
+    @Test
+    fun removalDialogBoundsVisualNameButPreservesFullAccessibilityName() {
+        val fullName = "A".repeat(80)
+
+        assertEquals(
+            SourceDialogName(
+                visual = "${"A".repeat(63)}…",
+                accessibility = fullName,
+            ),
+            sourceDialogName(source("source").copy(displayName = fullName)),
+        )
     }
 
     @Test

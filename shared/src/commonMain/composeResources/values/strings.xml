@@ -81,6 +81,6 @@
     <string name="rescan_source_format">Rescan %1$s</string>
     <string name="remove_source_format">Remove %1$s</string>
     <string name="remove_folder">Remove folder</string>
-    <string name="remove_folder_message">Remove “%1$s” and its scanned tracks from RhythHaus? Your music files will not be deleted.</string>
+    <string name="remove_folder_message">Remove this folder and its scanned tracks from RhythHaus? Your music files will not be deleted.</string>
     <string name="remove">Remove</string>
 </resources>
