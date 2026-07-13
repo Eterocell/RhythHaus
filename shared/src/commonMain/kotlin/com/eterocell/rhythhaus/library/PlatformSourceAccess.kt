@@ -48,6 +48,13 @@ fun androidSafSourceId(stableUri: String): String = buildString {
     }
 }
 
+fun jvmFolderSourceId(stableCanonicalPath: String): String = buildString {
+    append("jvm-folder-path-")
+    stableCanonicalPath.encodeToByteArray().forEach { byte ->
+        append(byte.toUByte().toString(16).padStart(2, '0'))
+    }
+}
+
 @Composable
 expect fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,

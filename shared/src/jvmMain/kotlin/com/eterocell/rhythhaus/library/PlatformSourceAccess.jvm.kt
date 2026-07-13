@@ -59,7 +59,7 @@ private fun openNativeFolderDialog(initialDirectory: String? = null): File? {
 }
 
 private fun File.toJvmFolderSource(): LibrarySource = LibrarySource(
-    id = "jvm-folder-${canonicalPath.hashCode().toUInt().toString(16)}",
+    id = jvmFolderSourceId(canonicalPath),
     platformKind = LibraryPlatformKind.JvmFolder,
     displayName = name.ifBlank { canonicalPath },
     handle = canonicalPath,

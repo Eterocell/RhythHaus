@@ -14,6 +14,7 @@ import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.androidSafSourceId
 import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
+import com.eterocell.rhythhaus.library.jvmFolderSourceId
 import com.eterocell.rhythhaus.library.normalizePickedSource
 import com.eterocell.rhythhaus.settings.SourceAccessLabel
 import com.eterocell.rhythhaus.settings.SourceDialogName
@@ -89,6 +90,33 @@ class LibrarySourceManagementTest {
         assertEquals(first.hashCode(), second.hashCode())
 
         assertTrue(androidSafSourceId(first) != androidSafSourceId(second))
+    }
+
+    @Test
+    fun jvmFolderIdentityDistinguishesCanonicalPathsWithLegacyHashCollision() {
+        val first = "/music/Aa"
+        val second = "/music/BB"
+        assertEquals(first.hashCode(), second.hashCode())
+
+        assertTrue(jvmFolderSourceId(first) != jvmFolderSourceId(second))
+    }
+
+    @Test
+    fun repickedJvmFolderKeepsPersistedLegacyIdentityForExactHandle() {
+        val canonicalPath = "/music/Aa"
+        val persisted = source("jvm-folder-legacy-hash").copy(
+            handle = canonicalPath,
+            createdAtEpochMillis = 42L,
+        )
+        val picked = persisted.copy(
+            id = jvmFolderSourceId(canonicalPath),
+            createdAtEpochMillis = 99L,
+        )
+
+        assertEquals(
+            picked.copy(id = persisted.id, createdAtEpochMillis = persisted.createdAtEpochMillis),
+            normalizePickedSource(picked, listOf(persisted)),
+        )
     }
 
     @Test
