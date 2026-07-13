@@ -258,4 +258,4 @@ internal class PlaybackSessionCoordinator(
 }
 
 private fun cancellation(message: String, cause: Throwable): CancellationException =
-    CancellationException(message).apply { initCause(cause) }
+    CancellationException(message, cause)
