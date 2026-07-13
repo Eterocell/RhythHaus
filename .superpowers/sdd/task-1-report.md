@@ -1,109 +1,64 @@
-# Task 1 Report: Source-Scoped Repository Removal
+# Task 1 Report: Playback controller restart command
 
 ## Status
 
 DONE
 
-## Commit
+## Changed files
 
-- `0bc1881e00f589a4db0db747929430d13de47f13` — `feat: add source-scoped repository removal`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt`
+  - Added `PlaybackController.restartCurrentTrack()` beside the existing transport methods.
+  - Loading requests autoplay after the in-flight load; idle/error reload the selected track with autoplay; loaded states serialize `seekTo(0L)` before `play()` in one engine action.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/PlaybackControllerTest.kt`
+  - Extended the recording engine with ordered load/seek/play/pause events and a suspendable load gate.
+  - Added all eight restart and toggle regression tests required by the task brief.
+- `.superpowers/sdd/task-1-report.md`
+  - Records RED/GREEN evidence, scope, self-review, commit, and concerns.
 
-## Implementation
-
-- Added `LibraryRepository.removeSource(sourceId)`.
-- Implemented in-memory removal by resolving the source's scan IDs first, then removing dependent errors, sessions, tracks, and the source.
-- Added query-only SQLDelight deletes for source-scoped errors, sessions, tracks, and source rows; no schema shape or migration changes.
-- Implemented SQLDelight removal inside one `database.transaction`, deleting dependent rows before the source.
-- Updated the required `ThreadCapturingRepository` test fake for interface compilation.
-- Added `removeSourceDeletesOnlySelectedSourceData`, persisting two independent sources with one track/session/error each and proving removal preserves the second source and its data.
-
-## Strict RED-GREEN Evidence
-
-### RED
+## Strict RED evidence
 
 Command:
 
-```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.removeSourceDeletesOnlySelectedSourceData' --configuration-cache
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
 ```
 
-Expected failure observed before production edits:
+Result: `BUILD FAILED in 1s` during `:shared:compileTestKotlinJvm` before any production edit. The compiler reported seven `Unresolved reference 'restartCurrentTrack'` errors at the new restart test call sites. The same run also exposed one independent test generic-inference typo at the pause-event assertion; that assertion was corrected while production code remained unchanged. The required missing-command RED was therefore observed directly.
 
-```text
-e: .../SqlDelightLibraryRepositoryJvmTest.kt:129:29 Unresolved reference 'removeSource'.
-FAILURE: Build failed with an exception.
-BUILD FAILED in 1s
+## GREEN evidence
+
+Command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
 ```
 
-### GREEN
+Result: `BUILD SUCCESSFUL in 4s`; `25 actionable tasks: 8 executed, 17 up-to-date`; configuration cache reused. All `PlaybackControllerTest` tests passed.
 
-Focused method:
+## Requirement coverage
 
-```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.removeSourceDeletesOnlySelectedSourceData' --configuration-cache
-BUILD SUCCESSFUL in 8s
-```
+- Playing, paused, and stopped loaded tracks emit exactly `Seek(0L), Play` after restart.
+- Loading restart emits no stale seek, waits for the existing load, then plays.
+- Error restart reloads the current track and autoplays.
+- Queue IDs, repeat mode, and shuffle mode remain unchanged.
+- Restart without a current track is a no-op.
+- `togglePlayPause()` remains unchanged and does not seek.
+- Seek and play execute inside one `launchEngineAction`, preserving engine mutex serialization and ordering.
+- `PlatformPlaybackEngine`, platform engines, UI, dependencies, OpenSpec, roadmap, progress, plan, and spec files were not changed.
 
-Focused repository test class:
+## Self-review
 
-```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --configuration-cache
-BUILD SUCCESSFUL in 992ms
-```
+- Diff is limited to the controller, its direct tests, and this required report.
+- Implementation matches the exact state branches and values in the task brief.
+- No queue/repeat/shuffle mutation was introduced.
+- No change was made to `togglePlayPause()` or platform interfaces/engines.
+- Test engine records events before listener notifications and supports a gated load.
+- No type suppression, skipped tests, deleted tests, unrelated refactor, or dependency change was introduced.
 
-SQLDelight generation ran as part of the focused GREEN command (`:shared:generateCommonMainRhythHausDatabaseInterface`) and completed successfully.
+## Commit
 
-## Review and Scope
-
-- `git diff --check`: pass.
-- Kotlin LSP diagnostics could not run because `kotlin-ls` is not installed and installation was previously declined; Gradle Kotlin compilation and focused tests passed instead.
-- Reviewed the scoped diff before commit.
-- Commit contains only the eight Task 1 implementation/test files.
-- Pre-existing `roadmap.md`, Superpowers planning docs, and OpenSpec artifacts were not staged or edited by this task.
+- `53801dfd069ce3ade34bf75dc2beba86ec4dac85` — `feat: add current track restart command`
 
 ## Concerns
 
-- None for Task 1 behavior or focused JVM verification.
-- The report is intentionally written after the atomic implementation commit so it can record the final commit hash; it is not included in that implementation commit.
-
-## Review Fix: Observable Scan Session Removal
-
-### Fix Summary
-
-- Added the narrow query-only SQLDelight `selectScanSessionById` query so the repository regression test can observe persisted scan-session rows directly.
-- Extended `removeSourceDeletesOnlySelectedSourceData` to assert `scan-1` is absent and `scan-2` remains after removing `source-1`.
-- Updated the JVM `testTrack` helper to accept `lastSeenScanId`; the source-1 track now references `scan-1`, and the source-2 track references `scan-2`.
-- No schema shape or migration changes were made.
-
-### Review Fix RED
-
-Command:
-
-```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.removeSourceDeletesOnlySelectedSourceData' --configuration-cache
-```
-
-Output before adding the observation query:
-
-```text
-e: .../SqlDelightLibraryRepositoryJvmTest.kt:133:65 Unresolved reference 'selectScanSessionById'.
-e: .../SqlDelightLibraryRepositoryJvmTest.kt:134:69 Unresolved reference 'selectScanSessionById'.
-FAILURE: Build failed with an exception.
-BUILD FAILED in 1s
-```
-
-### Review Fix GREEN
-
-Command:
-
-```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --configuration-cache
-```
-
-Output:
-
-```text
-BUILD SUCCESSFUL in 7s
-25 actionable tasks: 9 executed, 16 up-to-date
-Configuration cache entry reused.
-```
+None.
