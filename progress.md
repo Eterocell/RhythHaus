@@ -1,5 +1,33 @@
 # Session Progress
 
+## Handoff - 2026-07-13 Android oversized lazy-artwork CursorWindow crash
+
+Route: systematic-debugging + strict RED-GREEN TDD
+Owner: implementation
+Input: Android crash after adding a second music folder: `SQLiteBlobTooBigException` in generated `SelectArtworkForTrackQuery.execute`, called by `SqlDelightLibraryRepository.artworkForTrack()` and lazy Compose artwork loading.
+Root cause:
+- Routine library queries already excluded artwork BLOBs, but the lazy `selectArtworkForTrack` query still selected one complete embedded-art BLOB into a single Android `CursorWindow` row.
+- Android failed before Kotlin received the result when one track's artwork exceeded the cursor-window capacity. The second folder was incidental; it introduced a track with sufficiently large embedded artwork.
+Fix:
+- Replaced the full-BLOB query with `selectArtworkMetadataForTrack`, which reads only `length(artworkBytes)` and MIME, plus `selectArtworkChunkForTrack`, which reads bounded SQLite `substr(BLOB, offset, length)` chunks.
+- `SqlDelightLibraryRepository.artworkForTrack()` now requests at most 256 KiB per query, preallocates the exact `ByteArray`, and reassembles chunks with `copyInto` off the UI thread through the existing lazy artwork loader.
+- Missing, short, invalid-length, or over-`Int.MAX_VALUE` artwork returns `null` rather than partial/corrupt data. No table shape or SQLDelight migration changed.
+Verification:
+- RED: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.largeArtworkIsLoadedLazilyInMultipleBoundedChunks' --configuration-cache` failed with unresolved bounded-query/helper APIs (`BUILD FAILED in 2s`).
+- Focused 3 MiB + 137 byte regression: pass; 13 bounded reads, exact byte reassembly, and MIME preservation (`BUILD SUCCESSFUL in 5s`; fresh QA rerun also passed).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --configuration-cache --rerun-tasks`: pass (`BUILD SUCCESSFUL in 10s`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ArtworkLazyLoadingTest' --configuration-cache --rerun-tasks`: pass (`BUILD SUCCESSFUL in 21s`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`; existing Android `MediaMetadata.Builder.setArtworkData` deprecation warning only).
+- `git diff --check`: pass for the implementation; independent code review and QA: PASS.
+Changed files:
+- `shared/src/commonMain/sqldelight/com/eterocell/rhythhaus/library/LibraryTrack.sq`: metadata and bounded artwork-chunk queries; removed full-BLOB lazy query.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepository.kt`: bounded chunk count, validation, allocation, and exact reassembly.
+- `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepositoryJvmTest.kt`: 3 MiB+ chunked artwork regression.
+- `progress.md`: this handoff.
+Next owner: user for launch validation on the Android device/database that previously crashed, including artwork from both configured folders.
+Blockers: no automated JVM/desktop/Android blocker. Live Android CursorWindow validation was not available; Kotlin LSP remains unavailable because installation was previously declined.
+Commit: `11778a3` (`fix: load large artwork in bounded chunks`) and `ffb14f3` (`docs: record artwork cursor window fix evidence`). This `progress.md` handoff is left uncommitted because the user did not request an additional commit; unrelated user edits in `roadmap.md` remain untouched.
+
 ## Handoff - 2026-07-13 multi-library folders final evidence
 
 Route: openspec+superpowers / final post-review evidence
