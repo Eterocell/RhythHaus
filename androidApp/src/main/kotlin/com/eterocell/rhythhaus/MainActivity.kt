@@ -11,7 +11,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
-import com.eterocell.rhythhaus.di.startRhythHausKoin
 
 class MainActivity : ComponentActivity() {
 
@@ -21,8 +20,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setRhythHausAndroidContext(this)
-        startRhythHausKoin()
         ensureNotificationPermission()
 
         setContent {
