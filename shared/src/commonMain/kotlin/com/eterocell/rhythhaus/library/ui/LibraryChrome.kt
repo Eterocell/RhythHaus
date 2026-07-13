@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -47,7 +46,6 @@ import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
 import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
-import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import kotlin.math.max
 import kotlinx.coroutines.launch
@@ -238,65 +236,6 @@ private fun TitleChip(
             .background(HausColors.current.paper.copy(alpha = 0.82f))
             .padding(horizontal = 14.dp, vertical = 8.dp),
     )
-}
-
-@Composable
-internal fun NestedScrollBlurChrome(
-    state: NestedScrollChromeState,
-    title: String,
-    onBack: (() -> Unit)? = null,
-    backdrop: LayerBackdrop?,
-    modifier: Modifier = Modifier,
-    statusBarHeight: Dp = rememberSystemBarTopPadding(),
-) {
-    val progress = state.progress.coerceIn(0f, 1f)
-    if (progress <= 0f) return
-    val titleProgress = ((progress - 0.68f) / 0.32f).coerceIn(0f, 1f)
-
-    // The chrome still needs one known, fixed total height (status bar inset + toolbar) so the
-    // glass surface is bounded to exactly that box instead of bleeding into the content below.
-    val chromeHeight = statusBarHeight + NestedScrollChromeToolbarHeight
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .requiredHeight(chromeHeight)
-            .zIndex(3f)
-            .rhythHausLiquidGlass(
-                backdrop = backdrop,
-                shape = RoundedCornerShape(0.dp),
-                fallbackColor = HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha),
-            ),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .height(NestedScrollChromeToolbarHeight),
-        ) {
-            RhythHausTopAppBar(
-                title = title,
-                onBack = onBack,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxWidth()
-                    .alpha(titleProgress),
-                color = Color.Transparent,
-                titleColor = HausColors.current.ink.copy(alpha = 0.86f),
-                defaultWindowInsetsPadding = false,
-                titlePadding = 20.dp,
-                navigationIconPadding = 0.dp,
-                actionIconPadding = 0.dp,
-            )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(HausColors.current.line.copy(alpha = 0.42f * progress)),
-            )
-        }
-    }
 }
 
 @Composable

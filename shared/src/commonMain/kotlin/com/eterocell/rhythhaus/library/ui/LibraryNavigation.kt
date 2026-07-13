@@ -64,27 +64,6 @@ data class LibraryScrollPosition(
     val firstVisibleItemScrollOffset: Int,
 )
 
-data class NestedScrollChromeState(
-    val progress: Float,
-    val headerOffsetPx: Float,
-)
-
-fun nestedScrollChromeStateFor(
-    position: LibraryScrollPosition,
-    activationDistancePx: Float = 96f,
-    maxHeaderOffsetPx: Float = 0f,
-): NestedScrollChromeState {
-    val progress = when {
-        position.firstVisibleItemIndex > 0 -> 1f
-        activationDistancePx <= 0f -> 1f
-        else -> (position.firstVisibleItemScrollOffset / activationDistancePx).coerceIn(0f, 1f)
-    }
-    return NestedScrollChromeState(
-        progress = progress,
-        headerOffsetPx = if (progress == 0f) 0f else -maxHeaderOffsetPx * progress,
-    )
-}
-
 fun decideNowPlayingBarVisibilityForLibraryScroll(
     previous: LibraryScrollPosition,
     current: LibraryScrollPosition,

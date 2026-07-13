@@ -15,11 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
@@ -27,7 +24,6 @@ import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
-import rhythhaus.shared.generated.resources.library
 import rhythhaus.shared.generated.resources.library_queue
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
@@ -39,6 +35,9 @@ import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.toPlayableTrack
+
+internal fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
+    systemBarTopPadding
 
 @Composable
 internal fun LibraryHomeContent(
@@ -63,10 +62,7 @@ internal fun LibraryHomeContent(
     onTrackSelected: (String) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        val homeStatusBarHeight = rememberSystemBarTopPadding()
-        val homeScrollChromeState by remember(homeListState) {
-            derivedStateOf { nestedScrollChromeStateFor(homeListState.toLibraryScrollPosition()) }
-        }
+        val homeTopContentPadding = libraryHomeTopContentPadding(rememberSystemBarTopPadding())
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -78,7 +74,7 @@ internal fun LibraryHomeContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 20.dp),
-                    contentPadding = PaddingValues(top = homeStatusBarHeight),
+                    contentPadding = PaddingValues(top = homeTopContentPadding),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
                     item {
@@ -181,12 +177,5 @@ internal fun LibraryHomeContent(
                 }
             }
         }
-        NestedScrollBlurChrome(
-            state = homeScrollChromeState,
-            title = stringResource(Res.string.library),
-            backdrop = homeBackdrop,
-            statusBarHeight = homeStatusBarHeight,
-            modifier = Modifier.align(Alignment.TopCenter),
-        )
     }
 }
