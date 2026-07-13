@@ -12,8 +12,8 @@
 
 ## 3. Library and Search wiring
 
-- [ ] 3.1 Route Library home track rows through the shared selection policy.
-- [ ] 3.2 Separate drill-down track selection from dedicated play/pause transport and route album/artist rows through the shared policy.
+- [x] 3.1 Route Library home track rows through the shared selection policy.
+- [x] 3.2 Separate drill-down track selection from dedicated play/pause transport and route album/artist rows through the shared policy.
 - [ ] 3.3 Route Search results through the shared policy using the current filtered results as the visible queue.
 - [ ] 3.4 Run focused controller, selection-policy, Library navigation, and shared JVM compilation checks.
 
