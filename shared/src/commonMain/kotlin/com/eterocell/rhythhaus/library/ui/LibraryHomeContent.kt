@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
@@ -89,7 +90,10 @@ internal fun LibraryHomeContent(
                                 folderPickerLauncher = folderPickerLauncher,
                                 importMessage = importMessage,
                                 hasImportedTracks = false,
-                                mutationsEnabled = scanProgress?.isActive != true,
+                                mutationsEnabled = emptyLibrarySourceMutationsAllowed(
+                                    isProgressActive = scanProgress?.isActive == true,
+                                    isJobActive = scanJob?.isActive == true,
+                                ),
                                 onClearLibrary = onClearLibrary,
                             )
                         }
