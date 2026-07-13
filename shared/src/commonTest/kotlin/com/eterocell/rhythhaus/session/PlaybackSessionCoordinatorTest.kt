@@ -28,6 +28,88 @@ import kotlinx.coroutines.withTimeout
 
 class PlaybackSessionCoordinatorTest {
     @Test
+    fun flushDuringFirstRestoreWaitsForCollectorReadinessThenCompletes() = runBlocking {
+        val controller = RecordingSessionController(blockRestore = true, failFenceWhenInactive = true)
+        val store = RecordingStore()
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        val restore = async { coordinator.restoreOnce(emptyList()) }
+        controller.restoreStarted.await()
+
+        val flush = async { runCatching { coordinator.flush() } }
+        kotlinx.coroutines.yield()
+        assertFalse(flush.isCompleted)
+        controller.allowRestore.complete(Unit)
+
+        restore.await()
+        assertTrue(flush.await().isSuccess)
+        assertEquals(1, controller.collectionCount)
+        scope.cancel()
+    }
+
+    @Test
+    fun flushDuringThrowingReadWaitsForFailedSafeCollectorThenCompletes() = runBlocking {
+        val controller = RecordingSessionController(failFenceWhenInactive = true)
+        val store = RecordingStore(readFailure = BlockingReadFailure())
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        val restore = async { coordinator.restoreOnce(emptyList()) }
+        store.readStarted.await()
+
+        val flush = async { runCatching { coordinator.flush() } }
+        kotlinx.coroutines.yield()
+        assertFalse(flush.isCompleted)
+        store.allowReadFailure.complete(Unit)
+
+        restore.await()
+        assertTrue(flush.await().isSuccess)
+        assertEquals(PlaybackSessionPhase.FailedSafe, coordinator.phase.value)
+        assertEquals(1, controller.collectionCount)
+        scope.cancel()
+    }
+
+    @Test
+    fun preRestoreReconcileSaveFailureStillStartsOneCollectorOnRestore() = runBlocking {
+        val controller = RecordingSessionController(failFenceWhenInactive = true)
+        val store = RecordingStore(failSaveNumber = 1)
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+
+        assertEquals(
+            PlaybackSessionReconcileResult.FailedSafeApplied,
+            coordinator.reconcile(libraryTracks("pre-restore")),
+        )
+        assertEquals(PlaybackSessionPhase.FailedSafe, coordinator.phase.value)
+        coordinator.restoreOnce(playableTracks("pre-restore"))
+        coordinator.flush()
+
+        assertEquals(1, controller.collectionCount)
+        assertTrue(controller.commandsEnabled)
+        assertEquals(1, store.saveAttempts)
+        scope.cancel()
+    }
+
+    @Test
+    fun cancellationWhileFlushWaitsForCollectorReadinessFailsWithoutHanging() = runBlocking {
+        val controller = RecordingSessionController(blockRestore = true, failFenceWhenInactive = true)
+        val processJob = SupervisorJob()
+        val scope = CoroutineScope(coroutineContext.minusKey(Job) + processJob)
+        val coordinator = PlaybackSessionCoordinator(controller, RecordingStore(), scope)
+        val restore = async { runCatching { coordinator.restoreOnce(emptyList()) } }
+        controller.restoreStarted.await()
+        val flush = async { runCatching { coordinator.flush() } }
+        kotlinx.coroutines.yield()
+        assertFalse(flush.isCompleted)
+
+        processJob.cancel()
+
+        withTimeout(5_000) {
+            assertTrue(flush.await().isFailure)
+            assertTrue(restore.await().isFailure)
+        }
+    }
+
+    @Test
     fun flushWaitsForCollectorFenceBeforeEnqueueingItsBarrier() = runBlocking {
         val controller = RecordingSessionController(blockCheckpointCollection = true)
         val store = RecordingStore()
@@ -369,6 +451,7 @@ private class RecordingSessionController(
     private val blockCheckpointCollection: Boolean = false,
     private val failCheckpointCollection: Boolean = false,
     private val throwFirstRestore: Boolean = false,
+    private val failFenceWhenInactive: Boolean = false,
 ) : PlaybackSessionController {
     private val checkpointChannel = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
     var collectionCount: Int = 0
@@ -434,6 +517,7 @@ private class RecordingSessionController(
     }
 
     override suspend fun awaitCheckpointFence() {
+        if (failFenceWhenInactive && collectionCount == 0) error("collector inactive")
         fenceRequested.complete(Unit)
         if (checkpointOffered.isCompleted) checkpointForwarded.await()
     }
@@ -457,11 +541,19 @@ private class RecordingStore(
         private set
     val blockedSaveStarted = CompletableDeferred<Unit>()
     val allowBlockedSave = CompletableDeferred<Unit>()
+    val readStarted = CompletableDeferred<Unit>()
+    val allowReadFailure = CompletableDeferred<Unit>()
 
     override suspend fun read(): PlaybackSessionSnapshot {
         readAttempts++
         events += "read"
-        readFailure?.let { throw it }
+        readFailure?.let {
+            if (it is BlockingReadFailure) {
+                readStarted.complete(Unit)
+                allowReadFailure.await()
+            }
+            throw it
+        }
         return initial
     }
 
@@ -476,6 +568,8 @@ private class RecordingStore(
         saved += snapshot
     }
 }
+
+private class BlockingReadFailure : IllegalStateException("read failed")
 
 private fun snapshot(id: String, positionMillis: Long = 0L) = PlaybackSessionSnapshot(
     queueIds = listOf(id),

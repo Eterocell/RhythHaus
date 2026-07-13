@@ -33,6 +33,7 @@ internal class PlaybackSessionCoordinator(
     private var durableSnapshot = PlaybackSessionSnapshot()
     private var checkpointCollectionStarted = false
     private var checkpointCollectorJob: Job? = null
+    private val checkpointCollectorReady = CompletableDeferred<Unit>()
     private var terminalFailure: Throwable? = null
     private val actorJob: Job
 
@@ -57,6 +58,7 @@ internal class PlaybackSessionCoordinator(
     }
 
     suspend fun flush() {
+        checkpointCollectorReady.await()
         controller.awaitCheckpointFence()
         val reply = CompletableDeferred<Unit>()
         enqueue(Command.Flush(reply))
@@ -119,14 +121,11 @@ internal class PlaybackSessionCoordinator(
     }
 
     private suspend fun restore(command: Command.Restore) {
-        if (_phase.value == PlaybackSessionPhase.FailedSafe) {
-            controller.setCommandsEnabled(true)
-            command.reply.complete(Unit)
-            return
-        }
-        _phase.value = PlaybackSessionPhase.Restoring
+        if (_phase.value != PlaybackSessionPhase.FailedSafe) _phase.value = PlaybackSessionPhase.Restoring
         controller.setCommandsEnabled(false)
+        var cancelled = false
         try {
+            if (_phase.value == PlaybackSessionPhase.FailedSafe) return
             val persisted = try {
                 store.read()
             } catch (cancelled: CancellationException) {
@@ -139,14 +138,15 @@ internal class PlaybackSessionCoordinator(
             controller.restoreSession(persisted, command.tracks)
             val normalized = controller.sessionSnapshot()
             persist(normalized)
-        } catch (cancelled: CancellationException) {
-            command.reply.completeExceptionally(cancelled)
-            throw cancelled
+        } catch (cancellation: CancellationException) {
+            cancelled = true
+            command.reply.completeExceptionally(cancellation)
+            throw cancellation
         } catch (_: Throwable) {
             enterFailedSafe()
             applyEmptyPaused(command.tracks)
         } finally {
-            startCheckpointCollection()
+            if (!cancelled) startCheckpointCollection()
             controller.setCommandsEnabled(true)
             if (_phase.value != PlaybackSessionPhase.FailedSafe) _phase.value = PlaybackSessionPhase.Ready
             if (!command.reply.isCompleted) command.reply.complete(Unit)
@@ -187,6 +187,14 @@ internal class PlaybackSessionCoordinator(
                 actorJob.cancel(cancellation("Playback checkpoint collector failed", throwable))
             }
         }
+        val collector = checkpointCollectorJob
+        if (collector?.isActive == true) {
+            checkpointCollectorReady.complete(Unit)
+        } else if (!checkpointCollectorReady.isCompleted) {
+            checkpointCollectorReady.completeExceptionally(
+                terminalFailure ?: CancellationException("Playback checkpoint collector did not start"),
+            )
+        }
     }
 
     private suspend fun persist(snapshot: PlaybackSessionSnapshot): Boolean {
@@ -219,6 +227,7 @@ internal class PlaybackSessionCoordinator(
     private fun terminate(failure: Throwable, active: Command?, pending: Command?) {
         terminalFailure = failure
         commands.close(failure)
+        checkpointCollectorReady.completeExceptionally(failure)
         checkpointCollectorJob?.cancel(cancellation("Playback session coordinator stopped", failure))
         active?.completeExceptionally(failure)
         pending?.completeExceptionally(failure)
