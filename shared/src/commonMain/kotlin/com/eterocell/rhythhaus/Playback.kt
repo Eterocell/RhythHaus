@@ -11,10 +11,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -150,6 +151,7 @@ class PlaybackController(
 ) : PlaybackEngineListener, PlaybackSessionController {
     private val scope = CoroutineScope(SupervisorJob() + playbackEngineDispatcher)
     private val engineMutex = Mutex()
+    private val sessionOperationMutex = Mutex()
     private var loadJob: Job? = null
     private var playWhenLoaded: Boolean = false
     private var activeGeneration: Long = 0L
@@ -158,8 +160,10 @@ class PlaybackController(
     private var lastProgressCheckpointKey: ProgressCheckpointKey? = null
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
-    private val _checkpoints = MutableSharedFlow<PlaybackCheckpoint>(extraBufferCapacity = 64)
-    override val checkpoints: Flow<PlaybackCheckpoint> = _checkpoints
+    // One process-owned persistence coordinator is the sole consumer. Unlimited buffering keeps
+    // synchronous controller methods and platform callbacks non-blocking without dropping order.
+    private val checkpointChannel = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+    override val checkpoints: Flow<PlaybackCheckpoint> = checkpointChannel.receiveAsFlow()
 
     init {
         engine.listener = this
@@ -319,24 +323,32 @@ class PlaybackController(
                 engine.play()
             }
         }
+        emitImmediateCheckpoint()
     }
 
     fun skipToNext() {
         if (!commandsEnabled) return
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
-        nextTrack(wrap)?.let { loadSelected(it, autoPlay = true) }
+        nextTrack(wrap)?.let {
+            loadSelected(it, autoPlay = true)
+            emitImmediateCheckpoint()
+        }
     }
 
     fun skipToPrevious() {
         if (!commandsEnabled) return
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
-        previousTrack(wrap)?.let { loadSelected(it, autoPlay = true) }
+        previousTrack(wrap)?.let {
+            loadSelected(it, autoPlay = true)
+            emitImmediateCheckpoint()
+        }
     }
 
     fun release() {
         scope.cancel()
         engine.listener = null
         engine.release()
+        checkpointChannel.close()
         _state.value = _state.value.copy(status = PlaybackStatus.Stopped)
     }
 
@@ -348,88 +360,94 @@ class PlaybackController(
     override fun sessionSnapshot(): PlaybackSessionSnapshot = _state.value.toSessionSnapshot()
 
     override suspend fun restoreSession(snapshot: PlaybackSessionSnapshot, tracks: List<PlayableTrack>) {
-        loadJob?.cancel()
-        playWhenLoaded = false
-        resetProgressCheckpointKey()
-        val tracksById = tracks.associateBy { it.id }
-        val reconciledQueue = snapshot.queueIds.mapNotNull(tracksById::get)
-        val restoredCurrent = snapshot.currentTrackId?.let(tracksById::get)?.takeIf { it in reconciledQueue }
-            ?: reconciledQueue.firstOrNull()
-        val restoredPosition = if (restoredCurrent?.id == snapshot.currentTrackId) snapshot.positionMillis.coerceAtLeast(0L) else 0L
-        applyModesAndQueue(reconciledQueue, restoredCurrent, snapshot.repeatMode, snapshot.shuffleMode)
-        if (restoredCurrent == null) {
-            clearPausedState(snapshot.repeatMode, snapshot.shuffleMode)
-            emitImmediateCheckpoint()
-            return
-        }
-        val generation = nextGeneration()
-        try {
-            val loaded = engineMutex.withLock { engine.loadPaused(restoredCurrent.withLazyArtwork(), generation) }
-            check(loaded.generation == generation)
-            if (generation != activeGeneration) return
-            val clamped = loaded.durationMillis?.let { restoredPosition.coerceIn(0L, it) } ?: restoredPosition
-            engineMutex.withLock {
-                engine.seekTo(clamped)
-                engine.pause()
+        sessionOperationMutex.withLock {
+            loadJob?.cancel()
+            playWhenLoaded = false
+            resetProgressCheckpointKey()
+            val stableTracks = tracks.distinctBy { it.id }
+            val tracksById = stableTracks.associateBy { it.id }
+            val reconciledQueue = snapshot.queueIds.distinct().mapNotNull(tracksById::get)
+            val restoredCurrent = snapshot.currentTrackId?.let(tracksById::get)?.takeIf { it in reconciledQueue }
+                ?: reconciledQueue.firstOrNull()
+            val restoredPosition = if (restoredCurrent?.id == snapshot.currentTrackId) snapshot.positionMillis.coerceAtLeast(0L) else 0L
+            applyModesAndQueue(reconciledQueue, restoredCurrent, snapshot.repeatMode, snapshot.shuffleMode)
+            if (restoredCurrent == null) {
+                clearPausedState(snapshot.repeatMode, snapshot.shuffleMode)
+                emitImmediateCheckpoint()
+                return@withLock
             }
-            _state.value = _state.value.copy(
-                status = PlaybackStatus.Paused,
-                positionMillis = clamped,
-                durationMillis = loaded.durationMillis ?: restoredCurrent.durationMillis,
-                error = null,
-            )
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (throwable: Throwable) {
-            log.e { throwable.stackTraceToString() }
-            clearPausedState(snapshot.repeatMode, snapshot.shuffleMode)
+            try {
+                engineMutex.withLock {
+                    val generation = nextGeneration()
+                    val loaded = engine.loadPaused(restoredCurrent.withLazyArtwork(), generation)
+                    check(loaded.generation == generation)
+                    check(generation == activeGeneration)
+                    val clamped = loaded.durationMillis?.let { restoredPosition.coerceIn(0L, it) } ?: restoredPosition
+                    engine.seekTo(clamped)
+                    engine.pause()
+                    _state.value = _state.value.copy(
+                        status = PlaybackStatus.Paused,
+                        positionMillis = clamped,
+                        durationMillis = loaded.durationMillis ?: restoredCurrent.durationMillis,
+                        error = null,
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                log.e { throwable.stackTraceToString() }
+                clearPausedState(snapshot.repeatMode, snapshot.shuffleMode)
+            }
+            emitImmediateCheckpoint()
         }
-        emitImmediateCheckpoint()
     }
 
     override suspend fun reconcileSession(tracks: List<PlayableTrack>) {
-        loadJob?.cancel()
-        playWhenLoaded = false
-        resetProgressCheckpointKey()
-        val previous = _state.value
-        val tracksById = tracks.associateBy { it.id }
-        val reconciledQueue = previous.queue.mapNotNull { tracksById[it.id] }
-        val current = previous.currentTrack?.id?.let(tracksById::get)?.takeIf { it in reconciledQueue }
-        if (current != null) {
-            _state.value = previous.copy(currentTrack = current, queue = reconciledQueue)
-            regenerateRuntimeShuffleOrder()
-            emitImmediateCheckpoint()
-            return
-        }
-        val replacement = reconciledQueue.firstOrNull()
-        if (replacement == null) {
-            clearPausedState(previous.repeatMode, previous.shuffleMode)
-            emitImmediateCheckpoint()
-            return
-        }
-        applyModesAndQueue(reconciledQueue, replacement, previous.repeatMode, previous.shuffleMode)
-        val generation = nextGeneration()
-        try {
-            val loaded = engineMutex.withLock { engine.loadPaused(replacement.withLazyArtwork(), generation) }
-            check(loaded.generation == generation)
-            if (generation != activeGeneration) return
-            engineMutex.withLock {
-                engine.seekTo(0L)
-                engine.pause()
+        sessionOperationMutex.withLock {
+            loadJob?.cancel()
+            playWhenLoaded = false
+            resetProgressCheckpointKey()
+            val previous = _state.value
+            val stableTracks = tracks.distinctBy { it.id }
+            val tracksById = stableTracks.associateBy { it.id }
+            val reconciledQueue = previous.queue.distinctBy { it.id }.mapNotNull { tracksById[it.id] }
+            val current = previous.currentTrack?.id?.let(tracksById::get)?.takeIf { it in reconciledQueue }
+            if (current != null) {
+                _state.value = previous.copy(currentTrack = current, queue = reconciledQueue)
+                regenerateRuntimeShuffleOrder()
+                emitImmediateCheckpoint()
+                return@withLock
             }
-            _state.value = _state.value.copy(
-                status = PlaybackStatus.Paused,
-                positionMillis = 0L,
-                durationMillis = loaded.durationMillis ?: replacement.durationMillis,
-                error = null,
-            )
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (throwable: Throwable) {
-            log.e { throwable.stackTraceToString() }
-            clearPausedState(previous.repeatMode, previous.shuffleMode)
+            val replacement = reconciledQueue.firstOrNull()
+            if (replacement == null) {
+                clearPausedState(previous.repeatMode, previous.shuffleMode)
+                emitImmediateCheckpoint()
+                return@withLock
+            }
+            applyModesAndQueue(reconciledQueue, replacement, previous.repeatMode, previous.shuffleMode)
+            try {
+                engineMutex.withLock {
+                    val generation = nextGeneration()
+                    val loaded = engine.loadPaused(replacement.withLazyArtwork(), generation)
+                    check(loaded.generation == generation)
+                    check(generation == activeGeneration)
+                    engine.seekTo(0L)
+                    engine.pause()
+                    _state.value = _state.value.copy(
+                        status = PlaybackStatus.Paused,
+                        positionMillis = 0L,
+                        durationMillis = loaded.durationMillis ?: replacement.durationMillis,
+                        error = null,
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                log.e { throwable.stackTraceToString() }
+                clearPausedState(previous.repeatMode, previous.shuffleMode)
+            }
+            emitImmediateCheckpoint()
         }
-        emitImmediateCheckpoint()
     }
 
     private fun loadSelected(track: PlayableTrack, autoPlay: Boolean) {
@@ -506,7 +524,7 @@ class PlaybackController(
     )
 
     private fun emitImmediateCheckpoint() {
-        _checkpoints.tryEmit(PlaybackCheckpoint.Immediate(sessionSnapshot()))
+        check(checkpointChannel.trySend(PlaybackCheckpoint.Immediate(sessionSnapshot())).isSuccess)
     }
 
     private fun resetProgressCheckpointKey() {
@@ -604,7 +622,7 @@ class PlaybackController(
         val key = ProgressCheckpointKey(generation, currentId, max(0L, positionMillis) / 1_000L)
         if (lastProgressCheckpointKey == key) return
         lastProgressCheckpointKey = key
-        _checkpoints.tryEmit(PlaybackCheckpoint.PlayingProgress(key, sessionSnapshot()))
+        check(checkpointChannel.trySend(PlaybackCheckpoint.PlayingProgress(key, sessionSnapshot())).isSuccess)
     }
 
     override fun onPlaybackCompleted(generation: Long) {
@@ -613,15 +631,22 @@ class PlaybackController(
             RepeatMode.RepeatOne -> {
                 val current = _state.value.currentTrack ?: return stopAtCurrentTrackEnd()
                 loadSelected(current, autoPlay = true)
+                emitImmediateCheckpoint()
             }
             RepeatMode.RepeatPlaylist -> {
                 val next = nextTrack(wrap = true)
-                if (next != null) loadSelected(next, autoPlay = true) else stopAtCurrentTrackEnd()
+                if (next != null) {
+                    loadSelected(next, autoPlay = true)
+                    emitImmediateCheckpoint()
+                } else stopAtCurrentTrackEnd()
             }
             RepeatMode.StopAfterCurrent -> stopAtCurrentTrackEnd()
             RepeatMode.StopAfterQueue -> {
                 val next = nextTrack(wrap = false)
-                if (next != null) loadSelected(next, autoPlay = true) else stopAtCurrentTrackEnd()
+                if (next != null) {
+                    loadSelected(next, autoPlay = true)
+                    emitImmediateCheckpoint()
+                } else stopAtCurrentTrackEnd()
             }
         }
     }
