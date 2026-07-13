@@ -20,5 +20,5 @@
 ## 4. Verification and durable evidence
 
 - [x] 4.1 Run strict OpenSpec validation, shared JVM tests, desktop compile, Android debug assembly, Xcode availability, iOS simulator tests, and `git diff --check`.
-- [ ] 4.2 Complete task-level and whole-change reviews and resolve all Critical or Important findings.
-- [ ] 4.3 Update `roadmap.md`, `progress.md`, and this checklist with exact verification evidence and manual playback-QA limitations.
+- [x] 4.2 Complete task-level and whole-change reviews and resolve all Critical or Important findings.
+- [x] 4.3 Update `roadmap.md`, `progress.md`, and this checklist with exact verification evidence and manual playback-QA limitations.

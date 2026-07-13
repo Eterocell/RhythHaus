@@ -1,5 +1,35 @@
 # Session Progress
 
+## Handoff - 2026-07-14 restart current track selection final evidence
+
+Route: openspec+superpowers
+Owner: implementation
+Input: Approved `restart-current-track-selection` change, Task 5 durable-evidence brief.
+Output:
+- Selecting the current track row restarts it at zero and plays without replacing the queue.
+- Selecting a non-current row replaces playback with the exact visible queue from Library home, album, artist, or filtered Search results, then plays the selected track.
+- Dedicated Now Playing play/pause controls still toggle transport. Repeat and shuffle values remain unchanged.
+Verification:
+- Focused integration: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --tests 'com.eterocell.rhythhaus.library.LibraryPlaybackSelectionTest' --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 732ms`).
+- Shared compiler gate: `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 331ms`).
+- Full scoped command: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 529ms`, 99 tasks).
+- `openspec validate restart-current-track-selection --strict`: pass.
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, build `17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: blocked only by pre-existing `AppScanCancellationTest.kt:56:28` and `:99:27` unresolved `Thread` references. No iOS simulator pass is claimed.
+- `GIT_MASTER=1 git diff --check`: pass.
+- Task-level reviews and final Oracle release gate: PASS, with no Critical or Important findings. The sole follow-up is optional direct UI-level cross-surface queue-wiring coverage.
+Acceptance:
+- Requirement matched: yes for source behavior, focused integration, JVM, desktop, Android, and OpenSpec validation.
+- Scope controlled: yes, production/test code, specs/design/plan, platform code, dependencies, and persistence remained unchanged during Task 5.
+- Manual QA limit: audible playback and visible-queue behavior still require manual validation on target surfaces.
+Changed files:
+- `openspec/changes/restart-current-track-selection/tasks.md`: completed final review and durable-evidence tasks.
+- `roadmap.md`: completed item 17 with behavior, validation, blocker, and manual-QA summary.
+- `progress.md`: this final handoff.
+Next owner: user for manual audible playback and queue QA, then OpenSpec archival only on explicit request.
+Blockers: iOS simulator tests are blocked by the unchanged common-test `Thread` references above. Optional UI-level cross-surface queue-wiring tests remain a non-blocking follow-up.
+Commit: recorded in the history immediately following this handoff.
+
 ## Handoff - 2026-07-13 Settings component padding alignment
 
 Route: systematic-debugging + strict RED-GREEN TDD + source-level visual QA
