@@ -71,3 +71,40 @@ Additional checks:
 
 - The UI reports whether a source has ever been scanned (`Never scanned` / `Last scanned`) but does not format the raw epoch as a date/time; this follows the brief's pure state-mapping requirement and avoids adding a cross-platform date-formatting dependency.
 - Live verification should exercise a narrow mobile viewport with long English and Chinese source names, active scan disabled actions, lost access, and the removal dialog backdrop.
+
+## Visual QA Fixes - 2026-07-13
+
+Addressed the Task 3 visual QA findings without changing persistence, orchestration, planning, progress, or roadmap files:
+
+- The removal dialog now separates the source name from generic confirmation copy. Visual source names are capped at 64 characters and rendered on at most two lines with ellipsis, while `clearAndSetSemantics` exposes the complete display name or fallback handle to accessibility services.
+- The dialog content region is vertically scrollable within a 480dp maximum card height. The cancel/remove action row remains outside that scroll region with both controls fixed at 44dp height.
+- The custom overlay now declares `dialog()` semantics, a localized `paneTitle`, and a labelled semantic `dismiss` action that invokes the same dismiss callback as scrim taps and the Cancel button.
+- Simplified Chinese scan-state copy changed from `上次已扫描` to idiomatic `上次扫描`.
+
+TDD RED:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
+BUILD FAILED in 1s
+Unresolved references: SourceDialogName, sourceDialogName
+```
+
+TDD GREEN:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
+BUILD SUCCESSFUL in 4s
+```
+
+Required build verification:
+
+```text
+./gradlew :shared:compileKotlinJvm :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache
+BUILD SUCCESSFUL in 5s
+```
+
+Diagnostics and visual QA:
+
+- Kotlin `lsp_diagnostics` remained unavailable because `kotlin-ls` is not installed and installation was previously declined; JVM and Android Kotlin compilation passed.
+- Source-level checks cover bounded/elided naming, full-name accessibility semantics, scroll containment, fixed action sizing, dialog/dismiss semantics, and corrected Chinese copy.
+- Remaining gap: no live Android/iOS/desktop screenshot or screen-reader capture was available, so rendered focus order, announcement wording, extreme font scaling, and liquid-glass appearance remain manual QA items.
