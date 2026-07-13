@@ -1,5 +1,48 @@
 # Session Progress
 
+## Handoff - 2026-07-13 Library home chrome and Settings spacing
+
+Route: openspec+superpowers / subagent-driven-development / TDD / visual QA
+Owner: implementation
+Input: Roadmap item 16: remove the Library home Nested Top Bar and reduce oversized Settings insets/padding.
+Output:
+- Removed the Library home's scroll-triggered `NestedScrollBlurChrome`, its home-only state model, and obsolete progression tests without adding a replacement bar.
+- Preserved the platform-derived top system inset, in-content Library header, browse content, Now Playing spacing, and scroll-driven Now Playing bar visibility.
+- Preserved album/artist `DrillDownMiuixScrollChrome`, artwork transitions, safe-start back inset, title treatment, and Miuix scroll behavior.
+- Added `SettingsLayoutPolicy` and applied the approved compact values: 16 dp horizontal, 8 dp vertical, 12 dp inter-item, and 8 dp final bottom padding while retaining `safeContentPadding()`.
+Verification:
+- Settings RED: focused test failed with unresolved `CompactSettingsLayoutPolicy`; GREEN plus `LibrarySourceManagementTest`: pass (`BUILD SUCCESSFUL in 9s`).
+- Library RED: focused test failed with unresolved `libraryHomeTopContentPadding`; GREEN: pass (`BUILD SUCCESSFUL in 4s`).
+- `LibraryNavigationTest`: pass (`BUILD SUCCESSFUL in 1s`).
+- `:shared:compileKotlinJvm`: pass (`BUILD SUCCESSFUL in 444ms`).
+- `openspec validate library-home-settings-spacing --strict`: pass.
+- `./gradlew :shared:jvmTest --configuration-cache`: pass (`BUILD SUCCESSFUL in 21s`).
+- `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`).
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, build `17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: blocked by unchanged common-test errors at `AppScanCancellationTest.kt:56:28` and `:99:27`, both `Unresolved reference 'Thread'` (`BUILD FAILED in 1s`).
+- `git diff --check`: pass.
+- Task reviews: both spec compliant and quality approved; final whole-branch Oracle review PASS with no findings.
+- Visual QA: two source-level Oracle passes PASS with MEDIUM confidence. Live screenshots were not captured because the desktop run exited before capture and the Orca runtime was not running.
+Acceptance:
+- Requirement matched: yes for source, tests, JVM, desktop, Android, and OpenSpec validation.
+- Scope controlled: shared Library/Settings UI and tests plus required workflow/evidence artifacts only.
+- Accessibility: safe areas, existing semantics, 44 dp icon targets, and 48 dp primary buttons preserved.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/settings/SettingsScreen.kt`: compact immutable spacing policy and wiring.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/settings/SettingsScreenTest.kt`: exact-value layout policy coverage.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContent.kt`: retained top inset and removed home chrome state/overlay.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`: removed dead home-only chrome composable.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigation.kt`: removed dead home-only chrome state policy.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigationTest.kt`: safe-top coverage and obsolete test removal.
+- `docs/superpowers/specs/2026-07-13-library-home-settings-spacing-design.md`: approved design.
+- `docs/superpowers/plans/2026-07-13-library-home-settings-spacing.md`: executable TDD plan.
+- `openspec/changes/library-home-settings-spacing/`: proposal, design, requirements, tasks, and evidence.
+- `roadmap.md`: item 16 completion and manual-QA limitation.
+- `progress.md`: this handoff.
+Next owner: user for manual visual QA on Android/iOS and compact/wide desktop windows, then OpenSpec archival on explicit request.
+Blockers: automated iOS tests remain blocked by the pre-existing common-test `Thread` references above; live visual capture was unavailable. No JVM/desktop/Android/OpenSpec blocker.
+Commits: `8804a7b` (`feat: compact settings layout spacing`), `cd72078` (`feat: remove library home nested chrome`), plus documentation/evidence commits created at workflow completion.
+
 ## Handoff - 2026-07-13 Android oversized lazy-artwork CursorWindow crash
 
 Route: systematic-debugging + strict RED-GREEN TDD
