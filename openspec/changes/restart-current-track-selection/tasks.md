@@ -15,10 +15,10 @@
 - [x] 3.1 Route Library home track rows through the shared selection policy.
 - [x] 3.2 Separate drill-down track selection from dedicated play/pause transport and route album/artist rows through the shared policy.
 - [x] 3.3 Route Search results through the shared policy using the current filtered results as the visible queue.
-- [ ] 3.4 Run focused controller, selection-policy, Library navigation, and shared JVM compilation checks.
+- [x] 3.4 Run focused controller, selection-policy, Library navigation, and shared JVM compilation checks.
 
 ## 4. Verification and durable evidence
 
-- [ ] 4.1 Run strict OpenSpec validation, shared JVM tests, desktop compile, Android debug assembly, Xcode availability, iOS simulator tests, and `git diff --check`.
+- [x] 4.1 Run strict OpenSpec validation, shared JVM tests, desktop compile, Android debug assembly, Xcode availability, iOS simulator tests, and `git diff --check`.
 - [ ] 4.2 Complete task-level and whole-change reviews and resolve all Critical or Important findings.
 - [ ] 4.3 Update `roadmap.md`, `progress.md`, and this checklist with exact verification evidence and manual playback-QA limitations.
