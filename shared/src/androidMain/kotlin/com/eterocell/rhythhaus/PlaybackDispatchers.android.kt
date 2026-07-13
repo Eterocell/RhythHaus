@@ -1,6 +1,10 @@
 package com.eterocell.rhythhaus
 
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
+import kotlin.coroutines.CoroutineContext
 
-internal actual val playbackEngineDispatcher: CoroutineDispatcher = Dispatchers.Default
+internal actual val playbackEngineDispatcher: CoroutineDispatcher = object : CoroutineDispatcher() {
+    override fun dispatch(context: CoroutineContext, block: Runnable) {
+        androidControllerExecutor.execute(block::run)
+    }
+}
