@@ -14,6 +14,39 @@
 
 @implementation RhythHausAudioPlayer
 
+static MPRemoteCommandHandlerStatus performRemotePlay(RhythHausAudioPlayer *player) {
+    if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
+    if (!player.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
+    return [player play] ? MPRemoteCommandHandlerStatusSuccess : MPRemoteCommandHandlerStatusCommandFailed;
+}
+
+static MPRemoteCommandHandlerStatus performRemotePause(RhythHausAudioPlayer *player) {
+    if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
+    if (!player.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
+    [player pause];
+    return MPRemoteCommandHandlerStatusSuccess;
+}
+
+static MPRemoteCommandHandlerStatus performRemoteToggle(RhythHausAudioPlayer *player) {
+    if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
+    if (!player.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
+    return player.player.isPlaying ? performRemotePause(player) : performRemotePlay(player);
+}
+
+static MPRemoteCommandHandlerStatus performRemoteStop(RhythHausAudioPlayer *player) {
+    if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
+    if (!player.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
+    [player stop];
+    return MPRemoteCommandHandlerStatusSuccess;
+}
+
+static MPRemoteCommandHandlerStatus performRemoteSeek(RhythHausAudioPlayer *player, jlong positionMillis) {
+    if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
+    if (!player.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
+    [player seekToMillis:positionMillis];
+    return MPRemoteCommandHandlerStatusSuccess;
+}
+
 - (instancetype)init {
     self = [super init];
     if (self != nil) {
@@ -143,41 +176,25 @@
     __weak RhythHausAudioPlayer *weakSelf = self;
     [commandCenter.playCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
         RhythHausAudioPlayer *strongSelf = weakSelf;
-        if (strongSelf == nil || strongSelf.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
-        if (!strongSelf.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
-        return [strongSelf play] ? MPRemoteCommandHandlerStatusSuccess : MPRemoteCommandHandlerStatusCommandFailed;
+        return performRemotePlay(strongSelf);
     }];
     [commandCenter.pauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
         RhythHausAudioPlayer *strongSelf = weakSelf;
-        if (strongSelf == nil || strongSelf.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
-        if (!strongSelf.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
-        [strongSelf pause];
-        return MPRemoteCommandHandlerStatusSuccess;
+        return performRemotePause(strongSelf);
     }];
     [commandCenter.togglePlayPauseCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
         RhythHausAudioPlayer *strongSelf = weakSelf;
-        if (strongSelf == nil || strongSelf.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
-        if (!strongSelf.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
-        if (strongSelf.player.isPlaying) {
-            [strongSelf pause];
-            return MPRemoteCommandHandlerStatusSuccess;
-        }
-        return [strongSelf play] ? MPRemoteCommandHandlerStatusSuccess : MPRemoteCommandHandlerStatusCommandFailed;
+        return performRemoteToggle(strongSelf);
     }];
     [commandCenter.stopCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *) {
         RhythHausAudioPlayer *strongSelf = weakSelf;
-        if (strongSelf == nil || strongSelf.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
-        if (!strongSelf.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
-        [strongSelf stop];
-        return MPRemoteCommandHandlerStatusSuccess;
+        return performRemoteStop(strongSelf);
     }];
     [commandCenter.changePlaybackPositionCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         RhythHausAudioPlayer *strongSelf = weakSelf;
-        if (strongSelf == nil || strongSelf.player == nil || ![event isKindOfClass:[MPChangePlaybackPositionCommandEvent class]]) return MPRemoteCommandHandlerStatusNoSuchContent;
-        if (!strongSelf.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
+        if (strongSelf == nil || ![event isKindOfClass:[MPChangePlaybackPositionCommandEvent class]]) return MPRemoteCommandHandlerStatusNoSuchContent;
         MPChangePlaybackPositionCommandEvent *positionEvent = (MPChangePlaybackPositionCommandEvent *)event;
-        [strongSelf seekToMillis:(jlong)(positionEvent.positionTime * 1000.0)];
-        return MPRemoteCommandHandlerStatusSuccess;
+        return performRemoteSeek(strongSelf, (jlong)(positionEvent.positionTime * 1000.0));
     }];
 }
 
@@ -321,16 +338,23 @@ extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBri
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeInvokeRemotePlayForTest(JNIEnv *, jobject, jlong handle) {
-    RhythHausAudioPlayer *player = playerFromHandle(handle);
-    if (player == nil || player.player == nil || !player.transportEnabled) return JNI_FALSE;
-    return [player play] ? JNI_TRUE : JNI_FALSE;
+    return performRemotePlay(playerFromHandle(handle)) == MPRemoteCommandHandlerStatusSuccess ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeInvokeRemotePauseForTest(JNIEnv *, jobject, jlong handle) {
+    return performRemotePause(playerFromHandle(handle)) == MPRemoteCommandHandlerStatusSuccess ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeInvokeRemoteToggleForTest(JNIEnv *, jobject, jlong handle) {
+    return performRemoteToggle(playerFromHandle(handle)) == MPRemoteCommandHandlerStatusSuccess ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeInvokeRemoteStopForTest(JNIEnv *, jobject, jlong handle) {
+    return performRemoteStop(playerFromHandle(handle)) == MPRemoteCommandHandlerStatusSuccess ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeInvokeRemoteSeekForTest(JNIEnv *, jobject, jlong handle, jlong positionMillis) {
-    RhythHausAudioPlayer *player = playerFromHandle(handle);
-    if (player == nil || player.player == nil || !player.transportEnabled) return JNI_FALSE;
-    [player seekToMillis:positionMillis];
-    return JNI_TRUE;
+    return performRemoteSeek(playerFromHandle(handle), positionMillis) == MPRemoteCommandHandlerStatusSuccess ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeIsPlayingForTest(JNIEnv *, jobject, jlong handle) {

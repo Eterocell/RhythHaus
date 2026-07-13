@@ -15,6 +15,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
+import java.util.concurrent.CyclicBarrier
 
 class JvmPlaybackEngineTest {
     @Test
@@ -295,6 +296,67 @@ class JvmPlaybackEngineTest {
             assertTrue(bridge.invokeRemoteSeekForTest(200L))
             assertTrue(bridge.currentPositionMillis() >= 150L)
             assertTrue(bridge.invokeRemotePlayForTest() || bridge.isPlayingForTest())
+        } finally {
+            bridge.releasePlayer()
+            wavPath.deleteIfExists()
+        }
+    }
+
+    @Test
+    fun staleMacProgressPublicationIsRejectedAfterSourceReplacement() {
+        val events = mutableListOf<Long>()
+        val publication = MacProgressPublicationGate()
+        publication.activate(generation = 70L, sourceVersion = 1L)
+        val callbackPassedInitialCheck = CyclicBarrier(2)
+        val allowCallbackToPublish = CyclicBarrier(2)
+        val executor = Executors.newSingleThreadExecutor()
+
+        try {
+            val oldCallback = executor.submit {
+                publication.publish(
+                    generation = 70L,
+                    sourceVersion = 1L,
+                    beforeEmit = {
+                        callbackPassedInitialCheck.await(1, TimeUnit.SECONDS)
+                        allowCallbackToPublish.await(1, TimeUnit.SECONDS)
+                    },
+                    emitProgress = { events += it },
+                    emitCompletion = { events += it },
+                )
+            }
+            callbackPassedInitialCheck.await(1, TimeUnit.SECONDS)
+            publication.activate(generation = 71L, sourceVersion = 2L)
+            allowCallbackToPublish.await(1, TimeUnit.SECONDS)
+            oldCallback.get(1, TimeUnit.SECONDS)
+
+            assertEquals(emptyList(), events)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun nativeRemoteOperationsShareProductionGateForAllCommands() {
+        val wavPath = createSilentWavFile(durationMillis = 500)
+        val bridge = MacAudioPlayerBridge()
+        try {
+            assertTrue(bridge.load(wavPath.toString()))
+            bridge.setTransportEnabled(false)
+
+            assertFalse(bridge.invokeRemotePlayForTest())
+            assertFalse(bridge.invokeRemotePauseForTest())
+            assertFalse(bridge.invokeRemoteToggleForTest())
+            assertFalse(bridge.invokeRemoteStopForTest())
+            assertFalse(bridge.invokeRemoteSeekForTest(200L))
+            assertEquals(0L, bridge.currentPositionMillis())
+
+            bridge.setTransportEnabled(true)
+            assertTrue(bridge.invokeRemoteSeekForTest(200L))
+            assertTrue(bridge.invokeRemotePlayForTest())
+            assertTrue(bridge.invokeRemotePauseForTest())
+            assertTrue(bridge.invokeRemoteToggleForTest())
+            assertTrue(bridge.invokeRemoteStopForTest())
+            assertEquals(0L, bridge.currentPositionMillis())
         } finally {
             bridge.releasePlayer()
             wavPath.deleteIfExists()

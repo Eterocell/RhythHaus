@@ -21,11 +21,13 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
     private var completionReported: Boolean = false
     private var activeGeneration: Long = 0L
     private var sourceVersion: Long = 0L
+    private val publicationGate = MacProgressPublicationGate()
 
     override suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback {
         stopProgressUpdates()
         activeGeneration = generation
         sourceVersion++
+        publicationGate.activate(generation, sourceVersion)
         bridge.resetPlayer()
         listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
         val loaded = bridge.load(track.source.jvmFile().absolutePath)
@@ -44,6 +46,7 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
         stopProgressUpdates()
         activeGeneration = generation
         sourceVersion++
+        publicationGate.activate(generation, sourceVersion)
         bridge.resetPlayer()
         durationMillis = null
         completionReported = false
@@ -57,7 +60,7 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
         require(bridge.play()) { "No native macOS player has been loaded" }
         bridge.updateNowPlayingPlaybackState(PlaybackStatus.Playing)
         listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
-        publishProgress()
+        publishProgress(activeGeneration, sourceVersion)
         startProgressUpdates(activeGeneration, sourceVersion)
     }
 
@@ -65,7 +68,7 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
         stopProgressUpdates()
         bridge.pause()
         bridge.updateNowPlayingPlaybackState(PlaybackStatus.Paused)
-        publishProgress()
+        publishProgress(activeGeneration, sourceVersion)
         listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Paused)
     }
 
@@ -79,7 +82,7 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
 
     override fun seekTo(positionMillis: Long) {
         bridge.seekTo(positionMillis)
-        publishProgress()
+        publishProgress(activeGeneration, sourceVersion)
     }
 
     override fun release() {
@@ -92,7 +95,7 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
     private fun startProgressUpdates(generation: Long, version: Long) {
         stopProgressUpdates()
         progressTask = progressExecutor.scheduleAtFixedRate(
-            { if (generation == activeGeneration && version == sourceVersion) publishProgress() },
+            { publishProgress(generation, version) },
             100L,
             100L,
             TimeUnit.MILLISECONDS,
@@ -104,19 +107,52 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
         progressTask = null
     }
 
-    private fun publishProgress() {
+    private fun publishProgress(generation: Long, version: Long) {
+        if (!publicationGate.isCurrent(generation, version)) return
         val positionMillis = bridge.currentPositionMillis().coerceAtLeast(0L)
         val latestDurationMillis = bridge.durationMillis().takeIf { it > 0L } ?: durationMillis
-        bridge.updateNowPlayingPosition(positionMillis, latestDurationMillis)
-        listener?.onPlaybackProgress(
-            activeGeneration,
-            positionMillis = positionMillis,
-            durationMillis = latestDurationMillis,
+        publicationGate.publish(
+            generation = generation,
+            sourceVersion = version,
+            beforeEmit = { bridge.updateNowPlayingPosition(positionMillis, latestDurationMillis) },
+            emitProgress = { listener?.onPlaybackProgress(generation, positionMillis, latestDurationMillis) },
+            emitCompletion = {
+                if (!completionReported && latestDurationMillis != null && positionMillis >= latestDurationMillis) {
+                    completionReported = true
+                    listener?.onPlaybackCompleted(generation)
+                }
+            },
         )
-        if (!completionReported && latestDurationMillis != null && positionMillis >= latestDurationMillis) {
-            completionReported = true
-            listener?.onPlaybackCompleted(activeGeneration)
-        }
+    }
+}
+
+internal class MacProgressPublicationGate {
+    private var activeGeneration: Long = 0L
+    private var activeSourceVersion: Long = 0L
+
+    @Synchronized
+    fun activate(generation: Long, sourceVersion: Long) {
+        activeGeneration = generation
+        activeSourceVersion = sourceVersion
+    }
+
+    @Synchronized
+    fun isCurrent(generation: Long, sourceVersion: Long): Boolean =
+        generation == activeGeneration && sourceVersion == activeSourceVersion
+
+    fun publish(
+        generation: Long,
+        sourceVersion: Long,
+        beforeEmit: () -> Unit,
+        emitProgress: (Long) -> Unit,
+        emitCompletion: (Long) -> Unit,
+    ) {
+        if (!isCurrent(generation, sourceVersion)) return
+        beforeEmit()
+        if (!isCurrent(generation, sourceVersion)) return
+        emitProgress(generation)
+        if (!isCurrent(generation, sourceVersion)) return
+        emitCompletion(generation)
     }
 }
 
@@ -148,6 +184,9 @@ internal class MacAudioPlayerBridge {
         if (handle != 0L) nativeSetTransportEnabled(handle, enabled)
     }
     internal fun invokeRemotePlayForTest(): Boolean = nativeInvokeRemotePlayForTest(requireHandle())
+    internal fun invokeRemotePauseForTest(): Boolean = nativeInvokeRemotePauseForTest(requireHandle())
+    internal fun invokeRemoteToggleForTest(): Boolean = nativeInvokeRemoteToggleForTest(requireHandle())
+    internal fun invokeRemoteStopForTest(): Boolean = nativeInvokeRemoteStopForTest(requireHandle())
     internal fun invokeRemoteSeekForTest(positionMillis: Long): Boolean = nativeInvokeRemoteSeekForTest(requireHandle(), positionMillis)
     internal fun isPlayingForTest(): Boolean = nativeIsPlayingForTest(requireHandle())
 
@@ -193,6 +232,9 @@ internal class MacAudioPlayerBridge {
     private external fun nativeSetArtwork(handle: Long, artworkBytes: ByteArray?)
     private external fun nativeSetTransportEnabled(handle: Long, enabled: Boolean)
     private external fun nativeInvokeRemotePlayForTest(handle: Long): Boolean
+    private external fun nativeInvokeRemotePauseForTest(handle: Long): Boolean
+    private external fun nativeInvokeRemoteToggleForTest(handle: Long): Boolean
+    private external fun nativeInvokeRemoteStopForTest(handle: Long): Boolean
     private external fun nativeInvokeRemoteSeekForTest(handle: Long, positionMillis: Long): Boolean
     private external fun nativeIsPlayingForTest(handle: Long): Boolean
     private external fun nativeRelease(handle: Long)
