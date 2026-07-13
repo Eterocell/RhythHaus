@@ -19,15 +19,22 @@ object PlaybackSessionCodec {
 
     fun encodeIds(ids: List<String>): String {
         require(ids.size <= maxIds)
-        require(ids.distinct().size == ids.size)
+        val seen = HashSet<String>(ids.size)
+        ids.forEach { require(seen.add(it)) }
 
         return buildString {
+            var encodedSize = 0
             ids.forEach { id ->
                 require(id.isNotEmpty() && id.length <= maxIdCharacters)
-                require(!id.hasUnpairedSurrogate() && id.encodeToByteArray().size <= maxIdUtf8Bytes)
+                require(!id.hasUnpairedSurrogate())
+                val idUtf8Size = id.encodeToByteArray().size
+                require(idUtf8Size <= maxIdUtf8Bytes)
+                val frameSize = id.length.toString().length + 1L + idUtf8Size
+                require(frameSize <= maxEncodedUtf8Bytes.toLong() - encodedSize)
+                encodedSize += frameSize.toInt()
                 append(id.length).append(':').append(id)
             }
-        }.also { require(it.encodeToByteArray().size <= maxEncodedUtf8Bytes) }
+        }
     }
 
     fun decodeIds(encoded: String): List<String>? {
@@ -35,6 +42,7 @@ object PlaybackSessionCodec {
         if (encoded.encodeToByteArray().size > maxEncodedUtf8Bytes) return null
 
         val ids = ArrayList<String>()
+        val seen = HashSet<String>()
         var index = 0
         while (index < encoded.length) {
             if (ids.size == maxIds) return null
@@ -57,7 +65,7 @@ object PlaybackSessionCodec {
 
             val id = encoded.substring(index, index + length)
             if (id.isEmpty() || id.hasUnpairedSurrogate() || id.encodeToByteArray().size > maxIdUtf8Bytes) return null
-            if (ids.contains(id)) return null
+            if (!seen.add(id)) return null
             ids += id
             index += length
         }
