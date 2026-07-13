@@ -35,7 +35,7 @@ Changed files:
 - `.superpowers/sdd/progress.md`: Task 4 review ledger.
 Next owner: user for manual Android/desktop add/rescan/remove validation and iOS app-local rescan validation; OpenSpec for archival only when explicitly requested.
 Blockers: iOS simulator tests do not pass because of the pre-existing `Thread` references above. No live device or manual visual QA was run or claimed.
-Commit: `f8621b9` (`docs: add multiple library folders plan`), `d1d33cc` (`docs: add multiple library folders OpenSpec`), `2dcf856` (`docs: record multiple library folders completion`), `e507b30` (`docs: complete multiple library folders workflow`), `92a20fc` (`docs: correct multiple library folders evidence`), `79d16b5` (`fix: block source mutations during scan startup`), `539aeff` (`docs: record source mutation race evidence`), plus this follow-up evidence commit (`docs: record source mutation race completion evidence`).
+Commit: `f8621b9` (`docs: add multiple library folders plan`), `d1d33cc` (`docs: add multiple library folders OpenSpec`), `2dcf856` (`docs: record multiple library folders completion`), `e507b30` (`docs: complete multiple library folders workflow`), `92a20fc` (`docs: correct multiple library folders evidence`), `79d16b5` (`fix: block source mutations during scan startup`), `539aeff` (`docs: record source mutation race evidence`), and `3111e5f` (`docs: record source mutation race completion evidence`).
 
 ## Handoff - 2026-07-09 drill-down track-list safe inset and scroll background
 
