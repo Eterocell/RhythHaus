@@ -6,6 +6,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -137,6 +138,52 @@ class SqlDelightLibraryRepositoryJvmTest {
         }
     }
 
+    @Test
+    fun clearAllAtomicallyRemovesChildRowsBeforeSources() {
+        val databaseFile = Files.createTempFile("rhythhaus-library-clear-all", ".db").toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(testTrack(id = "track-1", sourceLocalKey = "one.mp3", title = "One", artist = "Artist"))
+            open.repository.insertScanSession(testScanSession(id = "scan-1", sourceId = "source-1"))
+            open.repository.insertScanError(testScanError(id = "error-1", scanId = "scan-1"))
+
+            open.repository.clearAll()
+
+            assertEquals(emptyList(), open.repository.sources())
+            assertEquals(emptyList(), open.repository.tracks())
+            assertEquals(null, open.database.scanSessionQueries.selectScanSessionById("scan-1").executeAsOneOrNull())
+            assertEquals(emptyList(), open.repository.scanErrors("scan-1"))
+        }
+    }
+
+    @Test
+    fun clearAllRollsBackEveryTableWhenSourceDeletionFails() {
+        val databaseFile = Files.createTempFile("rhythhaus-library-clear-all-rollback", ".db").toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(testTrack(id = "track-1", sourceLocalKey = "one.mp3", title = "One", artist = "Artist"))
+            open.repository.insertScanSession(testScanSession(id = "scan-1", sourceId = "source-1"))
+            open.repository.insertScanError(testScanError(id = "error-1", scanId = "scan-1"))
+            open.driver.execute(
+                identifier = null,
+                sql = "CREATE TRIGGER reject_source_clear BEFORE DELETE ON library_source BEGIN SELECT RAISE(ABORT, 'reject source clear'); END",
+                parameters = 0,
+            )
+
+            assertFails { open.repository.clearAll() }
+
+            assertEquals(listOf("source-1"), open.repository.sources().map { it.id })
+            assertEquals(listOf("track-1"), open.repository.tracks().map { it.id })
+            assertEquals("scan-1", open.database.scanSessionQueries.selectScanSessionById("scan-1").executeAsOneOrNull()?.id)
+            assertEquals(listOf("error-1"), open.repository.scanErrors("scan-1").map { it.id })
+        }
+    }
+
     private fun openRepository(databaseFile: java.io.File): OpenRepository {
         val database = LibraryDatabase(databaseFile)
         return OpenRepository(
@@ -149,7 +196,7 @@ class SqlDelightLibraryRepositoryJvmTest {
     private class OpenRepository(
         val repository: SqlDelightLibraryRepository,
         val database: RhythHausDatabase,
-        private val driver: SqlDriver,
+        val driver: SqlDriver,
     ) : AutoCloseable {
         override fun close() {
             driver.close()

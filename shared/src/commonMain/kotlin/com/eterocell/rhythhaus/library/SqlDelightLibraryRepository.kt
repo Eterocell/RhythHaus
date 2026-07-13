@@ -232,10 +232,12 @@ class SqlDelightLibraryRepository(
     }
 
     override fun clearAll() {
-        database.libraryTrackQueries.clearAllTracks()
-        database.librarySourceQueries.clearAllSources()
-        database.scanSessionQueries.clearAllSessions()
-        database.scanErrorQueries.clearAllErrors()
+        database.transaction {
+            database.scanErrorQueries.clearAllErrors()
+            database.scanSessionQueries.clearAllSessions()
+            database.libraryTrackQueries.clearAllTracks()
+            database.librarySourceQueries.clearAllSources()
+        }
     }
 }
 
