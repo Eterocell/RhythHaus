@@ -1,8 +1,8 @@
 ## 1. Playback restart command
 
-- [ ] 1.1 Add failing common tests for restarting playing, paused, stopped, loading, error, and absent current-track states.
-- [ ] 1.2 Implement `PlaybackController.restartCurrentTrack()` with ordered seek-before-play behavior and loading-safe autoplay.
-- [ ] 1.3 Run the complete `PlaybackControllerTest` suite and record RED/GREEN evidence.
+- [x] 1.1 Add failing common tests for restarting playing, paused, stopped, loading, error, and absent current-track states.
+- [x] 1.2 Implement `PlaybackController.restartCurrentTrack()` with ordered seek-before-play behavior and loading-safe autoplay.
+- [x] 1.3 Run the complete `PlaybackControllerTest` suite and record RED/GREEN evidence.
 
 ## 2. Shared track-selection policy
 
