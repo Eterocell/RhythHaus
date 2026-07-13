@@ -26,11 +26,8 @@ actual fun rememberPlatformFolderPickerLauncher(
             override fun launch() {
                 val result = runCatching {
                     PlatformFolderPickResult.Success(appLocalMusicSource())
-                }.getOrElse { throwable ->
-                    PlatformFolderPickResult.Failure(
-                        message = couldNotPrepareMessage,
-                        cause = throwable.message ?: throwable::class.simpleName,
-                    )
+                }.getOrElse {
+                    PlatformFolderPickResult.Failure(message = couldNotPrepareMessage)
                 }
                 onResult(result)
             }

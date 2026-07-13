@@ -32,11 +32,8 @@ actual fun rememberPlatformFolderPickerLauncher(
                                 PlatformFolderPickResult.Success(folder.toJvmFolderSource())
                             }
                         },
-                        onFailure = { throwable ->
-                            PlatformFolderPickResult.Failure(
-                                message = couldNotSelectMessage,
-                                cause = throwable.message ?: throwable::class.simpleName,
-                            )
+                        onFailure = {
+                            PlatformFolderPickResult.Failure(message = couldNotSelectMessage)
                         },
                     )
                 onResult(result)
