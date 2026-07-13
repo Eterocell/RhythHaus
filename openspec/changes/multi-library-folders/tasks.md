@@ -9,15 +9,19 @@
 - [x] 2.1 Add failing tests for first-source/additional-source action visibility and source-state refresh behavior.
 - [x] 2.2 Add explicit additional-source capability to platform folder launchers: Android/JVM enabled, iOS disabled after its first source.
 - [x] 2.3 Generalize `App()` scan launch for picker additions and source rescans, maintain accessible source state, and refresh sources/tracks after scan, removal, and clear.
+  - Post-review race fix (`79d16b5`): shared `sourceMutationsAllowed(isProgressActive, isJobActive)` now guards scan start, source removal, and Clear Library against the job-active window before progress reaches Compose.
 - [x] 2.4 Verify focused shared tests and Android/JVM/iOS compilation.
+  - RED: focused `LibrarySourceManagementTest` failed with unresolved `sourceMutationsAllowed`; GREEN: combined `LibrarySourceManagementTest` and `AppScanCancellationTest` passed (`BUILD SUCCESSFUL in 831ms`).
 
 ## 3. Shared source management UI
 
 - [x] 3.1 Add localized English and Chinese source-management copy.
 - [x] 3.2 Show configured source rows in Settings with access/last-scan state and source-scoped rescan/remove actions.
 - [x] 3.3 Add source-removal confirmation and disable source mutations while a scan is active.
+  - Post-review UI fix: Settings add/rescan/remove/Clear Library controls share the progress/job gate, Clear Library is disabled while either signal is active, and `App.onClearLibrary` repeats the guard before launching work.
 - [x] 3.4 Preserve the empty-library add card and iOS first-source setup without exposing iOS additional-folder selection.
 - [x] 3.5 Verify focused UI decision tests and shared/desktop/Android compilation.
+  - `./gradlew :shared:compileKotlinJvm :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`); `git diff --check`: pass; re-review: PASS (`539aeff` evidence record).
 
 ## 4. Verification and durable handoff
 

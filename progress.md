@@ -9,6 +9,8 @@ Output:
 - Verified the completed Tasks 1-3 implementation and recorded OpenSpec tasks 4.1-4.5 evidence.
 - Completed roadmap item 15 for additive Android/desktop library folders while retaining the explicit iOS single app-local source limitation.
 - Reviewed the Task 4 worktree scope: planning artifacts and completion evidence only; `.superpowers/sdd/task-4-report.md` remains scratch evidence and is not staged.
+- Post-review active-scan mutation race correction: Settings previously derived mutation availability only from `scanProgress`, leaving a job-active window before progress reached Compose; Clear Library also remained enabled and `App.onClearLibrary` had no active-scan guard, permitting scanner and clear writes to overlap.
+- Fix: `sourceMutationsAllowed(isProgressActive, isJobActive)` is the shared gate for Settings add/rescan/remove/Clear Library controls and `App()` scan-start/remove/clear callbacks; Clear Library is disabled in UI and guarded again in `App()`.
 Verification:
 - `openspec validate multi-library-folders --strict`: pass (`Change 'multi-library-folders' is valid`).
 - `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`; 34 actionable tasks: 5 executed, 29 up-to-date).
@@ -16,6 +18,10 @@ Verification:
 - `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`; `Build version 17F113`).
 - `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: blocked by pre-existing common-test compilation errors: `AppScanCancellationTest.kt:56:28 Unresolved reference 'Thread'` and `AppScanCancellationTest.kt:99:27 Unresolved reference 'Thread'`; both calls exist unchanged at the supplied Task 4 base. Result: `BUILD FAILED in 9s`, 41 actionable tasks: 12 executed, 29 up-to-date.
 - `git diff --check`: pass (no output).
+- Race-fix RED: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache` failed before implementation with unresolved `sourceMutationsAllowed` (`BUILD FAILED`).
+- Race-fix GREEN: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 831ms`).
+- Race-fix JVM/desktop/Android: `./gradlew :shared:compileKotlinJvm :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`).
+- Race-fix `git diff --check`: pass (no output); final re-review: PASS.
 Acceptance:
 - Requirement matched: yes for automated repository, source-management, JVM, desktop, Android, and OpenSpec checks.
 - Scope controlled: yes; no production or test implementation files changed in Task 4.
@@ -29,7 +35,7 @@ Changed files:
 - `.superpowers/sdd/progress.md`: Task 4 review ledger.
 Next owner: user for manual Android/desktop add/rescan/remove validation and iOS app-local rescan validation; OpenSpec for archival only when explicitly requested.
 Blockers: iOS simulator tests do not pass because of the pre-existing `Thread` references above. No live device or manual visual QA was run or claimed.
-Commit: `f8621b9` (`docs: add multiple library folders plan`), `d1d33cc` (`docs: add multiple library folders OpenSpec`), `2dcf856` (`docs: record multiple library folders completion`), and `e507b30` (`docs: complete multiple library folders workflow`).
+Commit: `f8621b9` (`docs: add multiple library folders plan`), `d1d33cc` (`docs: add multiple library folders OpenSpec`), `2dcf856` (`docs: record multiple library folders completion`), `e507b30` (`docs: complete multiple library folders workflow`), `92a20fc` (`docs: correct multiple library folders evidence`), `79d16b5` (`fix: block source mutations during scan startup`), `539aeff` (`docs: record source mutation race evidence`), plus this follow-up evidence commit (`docs: record source mutation race completion evidence`).
 
 ## Handoff - 2026-07-09 drill-down track-list safe inset and scroll background
 
