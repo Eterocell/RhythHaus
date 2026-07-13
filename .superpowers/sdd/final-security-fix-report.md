@@ -164,3 +164,95 @@ Kotlin LSP diagnostics were requested for all three changed Kotlin files, but `k
 - New JVM IDs are longer than legacy hash IDs because they losslessly encode the full canonical path; this is intentional and dependency-free.
 - The encoded ID does not expose a raw path in UI. It remains internal persistence identity, while existing display-name behavior is unchanged.
 - Persisted legacy IDs are retained only when the exact canonical handle matches, which is the existing required normalization contract; no migration or fuzzy path matching was added.
+
+## Follow-up: source-access lifecycle, transactional clear, and cancellation cleanup
+
+### Scope and root cause
+
+Base HEAD: `f08e810` (`docs: record JVM source ID collision fix evidence`).
+
+Implemented only the three requested direct multi-library lifecycle/cancellation findings:
+
+1. `removeSourceInBackground` and `clearLibraryInBackground` deleted persisted library state but never released Android's persisted SAF read grant.
+2. SQLDelight `clearAll()` issued four independent deletes and deleted parents before some children, so a later failure could leave a partially cleared repository and foreign-key enforcement could reject the order.
+3. `LibraryScanner` checked cooperative cancellation after obtaining each scan event. When that event was an `AudioCandidate`, Android had already opened its metadata descriptor, but cancellation returned before `toLibraryTrack()` reached its existing `finally` cleanup.
+
+No symlink traversal, source-local-key normalization, terminal-message sanitization, schema, dependency, UI, iOS expansion, OpenSpec, `progress.md`, or `roadmap.md` changes were made.
+
+### RED evidence
+
+Initial focused command:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' \
+  --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest' \
+  --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' \
+  --configuration-cache
+```
+
+First RED result: `BUILD FAILED in 1s` during test compilation because `FakePlatformSourceAccess.releaseAccess` overrode no method, proving the platform release seam was absent.
+
+After adding only the default no-op seam so behavioral tests could compile, the same focused command failed three regressions:
+
+- `sourceRemovalReleasesAccessOnlyAfterRepositoryDeletion`;
+- `clearLibraryReleasesEverySnapshottedSourceAfterRepositoryClear`;
+- `cancellationBeforeCandidateImportCleansUpMetadataAudioSource`.
+
+Transactional RED command:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.clearAllRollsBackEveryTableWhenSourceDeletionFails' \
+  --configuration-cache
+```
+
+Result: `BUILD FAILED in 2s`; the source-delete trigger raised as intended, but the earlier child deletes remained committed, proving `clearAll()` was not atomic.
+
+### Implementation
+
+- Added `PlatformSourceAccess.releaseAccess(source)` with a default no-op, preserving JVM/iOS behavior without new actual implementations.
+- Android releases only `AndroidSafTree` persisted read access through `releasePersistableUriPermission(Uri.parse(handle), FLAG_GRANT_READ_URI_PERMISSION)` inside `runCatching`, so stale/missing grants do not turn a successful repository mutation into a failed UI operation.
+- `removeSourceInBackground` snapshots the matching source, successfully removes repository data, then releases access and refreshes content. Failed removal does not release access.
+- `clearLibraryInBackground` snapshots all sources, successfully clears the repository, then releases each removed source and refreshes content. Failed clear does not release access.
+- SQLDelight `clearAll()` now uses one database transaction and child-first order: scan errors, scan sessions, tracks, sources.
+- `LibraryScanner` invokes an `AudioCandidate`'s metadata cleanup before returning from the pre-import cancellation branch. Imported candidates still use the existing `toLibraryTrack()` `finally`, so each path closes exactly once.
+
+### GREEN evidence
+
+Focused source-management, cancellation, scanner, and repository suites:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' \
+  --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' \
+  --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest' \
+  --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' \
+  --configuration-cache
+```
+
+Result: `BUILD SUCCESSFUL in 4s`; 34 actionable tasks, 7 executed, 27 up-to-date.
+
+JVM tests plus desktop and Android build:
+
+```bash
+./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache
+```
+
+Result: `BUILD SUCCESSFUL in 3s`; 99 actionable tasks, 12 executed, 87 up-to-date. The only compiler warning was the existing Android `MediaMetadata.Builder.setArtworkData` deprecation.
+
+Diff validation:
+
+```bash
+GIT_MASTER=1 git diff --check
+```
+
+Result: pass with no output.
+
+Kotlin LSP diagnostics were requested for every changed Kotlin file, but `kotlin-ls` is not installed and installation was previously declined. The focused tests and common/JVM/Android/desktop compilation provide the available compiler validation.
+
+### Remaining concerns
+
+- Persisted Android SAF grant release was compile-verified but not exercised on a device/emulator.
+- Android release intentionally suppresses platform exceptions after a successful repository mutation; retrying or surfacing stale-grant cleanup is outside this scoped task.
+- iOS and JVM inherit the default no-op release seam as requested.
