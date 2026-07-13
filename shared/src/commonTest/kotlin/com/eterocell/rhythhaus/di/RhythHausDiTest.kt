@@ -1,6 +1,10 @@
 package com.eterocell.rhythhaus.di
 
 import com.eterocell.rhythhaus.AudioMetadataReader
+import com.eterocell.rhythhaus.PlayableTrack
+import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackProcessLifecycle
+import com.eterocell.rhythhaus.PlatformPlaybackEngine
 import com.eterocell.rhythhaus.library.InMemoryLibraryRepository
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryRepository
@@ -11,14 +15,94 @@ import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
+import com.eterocell.rhythhaus.session.PlaybackCheckpoint
+import com.eterocell.rhythhaus.session.PlaybackSessionController
+import com.eterocell.rhythhaus.session.PlaybackSessionCoordinator
+import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
+import com.eterocell.rhythhaus.session.PlaybackSessionStore
+import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertSame
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 
 class RhythHausDiTest {
+    @Test
+    fun concurrentAndRepeatedRestoreOnceInvocationsRunOneCoordinatorRestore() = runBlocking {
+        val controller = CountingRestoreController()
+        val processScope = detachedScope(coroutineContext)
+        val lifecycle = PlaybackProcessLifecycle(
+            coordinator = PlaybackSessionCoordinator(controller, EmptySessionStore, processScope),
+            processScope = processScope,
+        )
+
+        coroutineScope {
+            repeat(20) { launch { lifecycle.restoreOnce(emptyList()) } }
+        }
+        lifecycle.restoreOnce(emptyList())
+
+        assertEquals(1, controller.restoreCount)
+        processScope.cancel()
+    }
+
+    @Test
+    fun cancelledFirstWaiterDoesNotReplaceSharedRestoreAttempt() = runBlocking {
+        val controller = CountingRestoreController(blockRestore = true)
+        val processScope = detachedScope(coroutineContext)
+        val lifecycle = PlaybackProcessLifecycle(
+            coordinator = PlaybackSessionCoordinator(controller, EmptySessionStore, processScope),
+            processScope = processScope,
+        )
+
+        val first = launch { lifecycle.restoreOnce(emptyList()) }
+        controller.restoreStarted.await()
+        first.cancelAndJoin()
+
+        val second = async { lifecycle.restoreOnce(emptyList()) }
+        controller.allowRestore.complete(Unit)
+        second.await()
+
+        assertEquals(1, controller.restoreCount)
+        processScope.cancel()
+    }
+
+    @Test
+    fun playbackSessionBindingsAreProcessSingletonsAndInterfaceAliases() {
+        stopKoin()
+        val application = startKoin {
+            modules(rhythHausModule())
+        }
+
+        try {
+            val koin = application.koin
+            assertSame(koin.get<PlatformPlaybackEngine>(), koin.get<PlatformPlaybackEngine>())
+            assertSame(koin.get<PlaybackController>(), koin.get<PlaybackController>())
+            assertSame(koin.get<PlaybackController>(), koin.get<PlaybackSessionController>())
+            assertSame(koin.get<PlaybackSessionStore>(), koin.get<PlaybackSessionStore>())
+            assertSame(koin.get<PlaybackSessionCoordinator>(), koin.get<PlaybackSessionCoordinator>())
+            assertSame(koin.get<PlaybackSessionCoordinator>(), koin.get<PlaybackSessionReconciler>())
+            assertSame(koin.get<PlaybackProcessLifecycle>(), koin.get<PlaybackProcessLifecycle>())
+        } finally {
+            application.koin.get<CoroutineScope>().cancel()
+            stopKoin()
+        }
+    }
+
     @Test
     fun koinResolvesLibraryScannerFromTestSafeDependencies() {
         stopKoin()
@@ -63,6 +147,39 @@ class RhythHausDiTest {
         }
     }
 }
+
+private class CountingRestoreController(
+    private val blockRestore: Boolean = false,
+) : PlaybackSessionController {
+    override val checkpoints: Flow<PlaybackCheckpoint> = emptyFlow()
+    val restoreStarted = CompletableDeferred<Unit>()
+    val allowRestore = CompletableDeferred<Unit>()
+    var restoreCount: Int = 0
+        private set
+
+    override fun sessionSnapshot(): PlaybackSessionSnapshot = PlaybackSessionSnapshot()
+
+    override suspend fun restoreSession(snapshot: PlaybackSessionSnapshot, tracks: List<PlayableTrack>) {
+        restoreCount++
+        restoreStarted.complete(Unit)
+        if (blockRestore) allowRestore.await()
+    }
+
+    override suspend fun reconcileSession(tracks: List<PlayableTrack>) = Unit
+
+    override suspend fun awaitCheckpointFence() = Unit
+
+    override fun setCommandsEnabled(enabled: Boolean) = Unit
+}
+
+private object EmptySessionStore : PlaybackSessionStore {
+    override suspend fun read(): PlaybackSessionSnapshot = PlaybackSessionSnapshot()
+
+    override suspend fun save(snapshot: PlaybackSessionSnapshot) = Unit
+}
+
+private fun detachedScope(context: kotlin.coroutines.CoroutineContext): CoroutineScope =
+    CoroutineScope(context.minusKey(Job) + SupervisorJob())
 
 private object FakePlatformSourceAccess : PlatformSourceAccess {
     override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> = emptySequence()
