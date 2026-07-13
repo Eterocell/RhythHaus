@@ -93,3 +93,74 @@ Kotlin LSP diagnostics could not run because `kotlin-ls` is not installed and in
 - Android SAF permission and picker behavior were compile/test verified but not exercised on a physical device or emulator in this session.
 - The new Android ID is longer than the previous hash ID by design; it remains deterministic and collision-free for distinct UTF-8 URI strings without adding dependencies.
 - Existing persisted sources remain compatible only through handle normalization before scanning, as required; no migration is performed.
+
+## Follow-up: JVM folder source ID collision fix
+
+### Scope and root cause
+
+Base HEAD: `564822b` (`docs: record final security fix evidence`).
+
+The JVM folder picker still generated IDs from `canonicalPath.hashCode()`. Kotlin/JVM `String.hashCode()` is a 32-bit Java hash, so distinct canonical paths can produce the same persisted source ID. This was isolated to new JVM folder picks: `normalizePickedSource` already compares exact handles and restores the existing persisted `id` and `createdAtEpochMillis`, so compatibility required keeping that normalization flow unchanged rather than migrating stored rows.
+
+No schema, dependency, iOS, OpenSpec, `progress.md`, or `roadmap.md` changes were made. `.superpowers/sdd/task-2-report.md` was not touched.
+
+### RED evidence
+
+Command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
+```
+
+Result: `BUILD FAILED in 1s` during `:shared:compileTestKotlinJvm` with unresolved `jvmFolderSourceId` references at the new regression assertions.
+
+The RED regression proves:
+
+- canonical-like paths `/music/Aa` and `/music/BB` have the same legacy Java/Kotlin hash;
+- the required new JVM identity helper must return distinct IDs for those paths;
+- re-picking an exact JVM handle must retain its persisted legacy ID and original creation time through `normalizePickedSource`.
+
+### Implementation
+
+- Added common pure `jvmFolderSourceId(stableCanonicalPath)`, encoding every UTF-8 path byte as lowercase hexadecimal after the `jvm-folder-path-` prefix.
+- Changed `File.toJvmFolderSource()` to pass its full `canonicalPath` to the helper instead of truncating identity to a 32-bit hash.
+- Left exact-handle normalization unchanged, preserving existing stored IDs and `createdAtEpochMillis` when a folder is picked again.
+
+### GREEN evidence
+
+Focused command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
+```
+
+Result: `BUILD SUCCESSFUL in 4s`; 25 actionable tasks, 8 executed, 17 up-to-date.
+
+Required regression suites:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' \
+  --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' \
+  --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest' \
+  --configuration-cache
+```
+
+Result: `BUILD SUCCESSFUL in 1s`; 25 actionable tasks, 5 executed, 20 up-to-date.
+
+JVM/desktop/Android verification and diff check:
+
+```bash
+./gradlew :shared:compileKotlinJvm :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache
+GIT_MASTER=1 git diff --check
+```
+
+Result: Gradle `BUILD SUCCESSFUL in 4s`; 94 actionable tasks, 10 executed, 84 up-to-date. `git diff --check` produced no output. The only compiler warning was the existing Android `MediaMetadata.Builder.setArtworkData` deprecation.
+
+Kotlin LSP diagnostics were requested for all three changed Kotlin files, but `kotlin-ls` is not installed and installation was previously declined. Successful common/JVM test compilation plus JVM, desktop, and Android builds provide the available compiler validation.
+
+### Remaining concerns
+
+- New JVM IDs are longer than legacy hash IDs because they losslessly encode the full canonical path; this is intentional and dependency-free.
+- The encoded ID does not expose a raw path in UI. It remains internal persistence identity, while existing display-name behavior is unchanged.
+- Persisted legacy IDs are retained only when the exact canonical handle matches, which is the existing required normalization contract; no migration or fuzzy path matching was added.
