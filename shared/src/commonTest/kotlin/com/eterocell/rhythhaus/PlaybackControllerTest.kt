@@ -796,6 +796,26 @@ class PlaybackControllerTest {
     }
 
     @Test
+    fun checkpointFenceCompletesAfterCollectorConsumesEveryPriorCheckpoint() = runBlocking {
+        val controller = PlaybackController(RecordingPlaybackEngine())
+        controller.setRepeatMode(RepeatMode.RepeatOne)
+        controller.setShuffleMode(ShuffleMode.On)
+        val received = mutableListOf<PlaybackCheckpoint>()
+        val collector = launch(start = CoroutineStart.UNDISPATCHED) {
+            controller.checkpoints.collect { checkpoint ->
+                received += checkpoint
+            }
+        }
+
+        controller.awaitCheckpointFence()
+
+        assertEquals(2, received.size)
+        assertEquals(RepeatMode.RepeatOne, received.first().snapshot.repeatMode)
+        assertEquals(ShuffleMode.On, received.last().snapshot.shuffleMode)
+        collector.cancelAndJoin()
+    }
+
+    @Test
     fun slowCollectorReceivesMoreThanSixtyFourDiscreteCheckpointsWithoutLoss() = runBlocking {
         val controller = PlaybackController(RecordingPlaybackEngine())
         repeat(80) { index ->

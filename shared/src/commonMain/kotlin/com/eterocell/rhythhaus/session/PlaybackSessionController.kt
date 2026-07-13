@@ -8,5 +8,6 @@ internal interface PlaybackSessionController {
     fun sessionSnapshot(): PlaybackSessionSnapshot
     suspend fun restoreSession(snapshot: PlaybackSessionSnapshot, tracks: List<PlayableTrack>)
     suspend fun reconcileSession(tracks: List<PlayableTrack>)
+    suspend fun awaitCheckpointFence()
     fun setCommandsEnabled(enabled: Boolean)
 }

@@ -6,6 +6,7 @@ import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
 import com.eterocell.rhythhaus.session.ProgressCheckpointKey
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -162,8 +164,36 @@ class PlaybackController(
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
     // One process-owned persistence coordinator is the sole consumer. Unlimited buffering keeps
     // synchronous controller methods and platform callbacks non-blocking without dropping order.
-    private val checkpointChannel = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
-    override val checkpoints: Flow<PlaybackCheckpoint> = checkpointChannel.receiveAsFlow()
+    private val checkpointChannel = Channel<CheckpointEnvelope>(Channel.UNLIMITED)
+    private val checkpointTransportMutex = Mutex()
+    private var checkpointCollectorActive = false
+    private var checkpointTransportFailure: Throwable? = null
+    override val checkpoints: Flow<PlaybackCheckpoint> = flow {
+        checkpointTransportMutex.withLock {
+            check(!checkpointCollectorActive)
+            checkpointTransportFailure?.let { throw it }
+            checkpointCollectorActive = true
+        }
+        try {
+            for (envelope in checkpointChannel) {
+                when (envelope) {
+                    is CheckpointEnvelope.Checkpoint -> emit(envelope.value)
+                    is CheckpointEnvelope.Fence -> envelope.reply.complete(Unit)
+                }
+            }
+        } finally {
+            val failure = CancellationException("Playback checkpoint collector stopped")
+            checkpointTransportMutex.withLock {
+                checkpointCollectorActive = false
+                checkpointTransportFailure = failure
+                checkpointChannel.close(failure)
+                while (true) {
+                    val queued = checkpointChannel.tryReceive().getOrNull() ?: break
+                    if (queued is CheckpointEnvelope.Fence) queued.reply.completeExceptionally(failure)
+                }
+            }
+        }
+    }
 
     init {
         engine.listener = this
@@ -359,6 +389,16 @@ class PlaybackController(
 
     override fun sessionSnapshot(): PlaybackSessionSnapshot = _state.value.toSessionSnapshot()
 
+    override suspend fun awaitCheckpointFence() {
+        val reply = CompletableDeferred<Unit>()
+        checkpointTransportMutex.withLock {
+            checkpointTransportFailure?.let { throw it }
+            check(checkpointCollectorActive) { "Playback checkpoint collector is not active" }
+            check(checkpointChannel.trySend(CheckpointEnvelope.Fence(reply)).isSuccess)
+        }
+        reply.await()
+    }
+
     override suspend fun restoreSession(snapshot: PlaybackSessionSnapshot, tracks: List<PlayableTrack>) {
         sessionOperationMutex.withLock {
             loadJob?.cancel()
@@ -524,7 +564,7 @@ class PlaybackController(
     )
 
     private fun emitImmediateCheckpoint() {
-        check(checkpointChannel.trySend(PlaybackCheckpoint.Immediate(sessionSnapshot())).isSuccess)
+        check(checkpointChannel.trySend(CheckpointEnvelope.Checkpoint(PlaybackCheckpoint.Immediate(sessionSnapshot()))).isSuccess)
     }
 
     private fun resetProgressCheckpointKey() {
@@ -622,7 +662,11 @@ class PlaybackController(
         val key = ProgressCheckpointKey(generation, currentId, max(0L, positionMillis) / 1_000L)
         if (lastProgressCheckpointKey == key) return
         lastProgressCheckpointKey = key
-        check(checkpointChannel.trySend(PlaybackCheckpoint.PlayingProgress(key, sessionSnapshot())).isSuccess)
+        check(
+            checkpointChannel.trySend(
+                CheckpointEnvelope.Checkpoint(PlaybackCheckpoint.PlayingProgress(key, sessionSnapshot())),
+            ).isSuccess,
+        )
     }
 
     override fun onPlaybackCompleted(generation: Long) {
@@ -665,6 +709,11 @@ class PlaybackController(
         if (generation != activeGeneration) return
         skipToPrevious()
     }
+}
+
+private sealed interface CheckpointEnvelope {
+    data class Checkpoint(val value: PlaybackCheckpoint) : CheckpointEnvelope
+    data class Fence(val reply: CompletableDeferred<Unit>) : CheckpointEnvelope
 }
 
 private fun defaultShuffleOrder(ids: List<String>, currentId: String?): List<String> {
