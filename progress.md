@@ -29,7 +29,7 @@ Changed files:
 - `.superpowers/sdd/progress.md`: Task 4 review ledger.
 Next owner: user for manual Android/desktop add/rescan/remove validation and iOS app-local rescan validation; OpenSpec for archival only when explicitly requested.
 Blockers: iOS simulator tests do not pass because of the pre-existing `Thread` references above. No live device or manual visual QA was run or claimed.
-Commit: `f8621b9` (`docs: add multiple library folders plan`), `d1d33cc` (`docs: add multiple library folders OpenSpec`), and `2dcf856` (`docs: record multiple library folders completion`); final workflow-state commit records Task 4.6 and the OpenSpec schema marker.
+Commit: `f8621b9` (`docs: add multiple library folders plan`), `d1d33cc` (`docs: add multiple library folders OpenSpec`), `2dcf856` (`docs: record multiple library folders completion`), and `e507b30` (`docs: complete multiple library folders workflow`).
 
 ## Handoff - 2026-07-09 drill-down track-list safe inset and scroll background
 

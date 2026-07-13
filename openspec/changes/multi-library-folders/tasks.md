@@ -24,7 +24,7 @@
 - [x] 4.1 Run `openspec validate multi-library-folders --strict`.
   - Pass: `Change 'multi-library-folders' is valid`.
 - [x] 4.2 Run focused repository/orchestration tests and the JVM/desktop/Android verification command.
-  - Pass: focused `SqlDelightLibraryRepositoryJvmTest` and `LibrarySourceManagementTest` command, `BUILD SUCCESSFUL in 2s` (`34 actionable tasks: 5 executed, 29 up-to-date`).
+  - Pass: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache`, `BUILD SUCCESSFUL in 2s` (`34 actionable tasks: 5 executed, 29 up-to-date`).
   - Pass: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`, `BUILD SUCCESSFUL in 4s` (`108 actionable tasks: 5 executed, 103 up-to-date`).
 - [x] 4.3 Verify Xcode availability and run iOS simulator tests.
   - Pass: `/usr/bin/xcrun xcodebuild -version` reported `Xcode 26.6` and `Build version 17F113`.
@@ -34,4 +34,4 @@
 - [x] 4.5 Update this task list, `progress.md`, and `roadmap.md` with exact evidence and remaining manual QA.
   - Recorded below and in the repository handoff; live Android/desktop multi-folder behavior and iOS app-local rescan remain manual QA, and no device or visual pass is claimed.
 - [x] 4.6 Commit the completed OpenSpec + Superpowers workflow with semantic commit messages.
-  - Commits succeeded: `f8621b9` (Superpowers plan), `d1d33cc` (OpenSpec artifacts), and `2dcf856` (completion evidence); final workflow-state commit records this checkbox and schema marker.
+  - Commits succeeded: `f8621b9` (Superpowers plan), `d1d33cc` (OpenSpec artifacts), `2dcf856` (completion evidence), and `e507b30` (`docs: complete multiple library folders workflow`, final workflow state and schema marker).
