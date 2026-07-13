@@ -35,7 +35,7 @@ Changed files:
 - `.superpowers/sdd/progress.md`: Task 4 review ledger.
 Next owner: user for manual Android SAF picker/access-release and Android/desktop add/rescan/remove validation, plus iOS app-local rescan validation. OpenSpec archival only on explicit request.
 Blockers: iOS simulator tests remain blocked by the pre-existing common-test `Thread` references above. No iOS automated test, live device, or manual visual QA pass is claimed.
-Commit: initial workflow `f8621b9`, `d1d33cc`, `2dcf856`, `e507b30`; late review/evidence `92a20fc..52f53d9` (`92a20fc`, `79d16b5`, `539aeff`, `3111e5f`, `4812308`, `c157233`, `1d9759d`, `fc2fb25`, `9187499`, `2e84847`, `564822b`, `104e087`, `f08e810`, `9de167c`, `733e560`, `c54e232`, `52f53d9`).
+Commit: initial workflow `f8621b9`, `d1d33cc`, `2dcf856`, `e507b30`; late review/evidence `92a20fc..52f53d9` (`92a20fc`, `79d16b5`, `539aeff`, `3111e5f`, `4812308`, `c157233`, `1d9759d`, `fc2fb25`, `9187499`, `2e84847`, `564822b`, `104e087`, `f08e810`, `9de167c`, `733e560`, `c54e232`, `52f53d9`); final durable evidence `389aeb7` (`docs: finalize multi-library folders evidence`).
 
 ## Handoff - 2026-07-09 drill-down track-list safe inset and scroll background
 
