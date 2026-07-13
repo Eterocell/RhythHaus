@@ -22,6 +22,7 @@ import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
 import com.eterocell.rhythhaus.session.PlaybackSessionStore
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -35,6 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import org.koin.core.context.startKoin
@@ -79,6 +81,43 @@ class RhythHausDiTest {
 
         assertEquals(1, controller.restoreCount)
         processScope.cancel()
+    }
+
+    @Test
+    fun failedSharedRestoreIsRetainedAndObservedByLaterCallers() = runBlocking {
+        var restoreCount = 0
+        val processScope = detachedScope(coroutineContext)
+        val lifecycle = PlaybackProcessLifecycle(
+            restoreAction = {
+                restoreCount++
+                throw IllegalStateException("restore failed")
+            },
+            processScope = processScope,
+        )
+
+        assertFailsWith<IllegalStateException> { lifecycle.restoreOnce(emptyList()) }
+        assertFailsWith<IllegalStateException> { lifecycle.restoreOnce(emptyList()) }
+        assertEquals(1, restoreCount)
+        processScope.cancel()
+    }
+
+    @Test
+    fun processScopeCancellationTerminatesSharedRestoreAndLaterCallerDoesNotHang() = runBlocking {
+        val controller = CountingRestoreController(blockRestore = true)
+        val processScope = detachedScope(coroutineContext)
+        val lifecycle = PlaybackProcessLifecycle(
+            coordinator = PlaybackSessionCoordinator(controller, EmptySessionStore, processScope),
+            processScope = processScope,
+        )
+
+        val first = async { runCatching { lifecycle.restoreOnce(emptyList()) }.exceptionOrNull() }
+        controller.restoreStarted.await()
+        processScope.cancel()
+        assertEquals(true, first.await() is CancellationException)
+
+        val second = async { runCatching { lifecycle.restoreOnce(emptyList()) }.exceptionOrNull() }
+        assertEquals(true, second.await() is CancellationException)
+        assertEquals(1, controller.restoreCount)
     }
 
     @Test
@@ -150,6 +189,7 @@ class RhythHausDiTest {
 
 private class CountingRestoreController(
     private val blockRestore: Boolean = false,
+    private val restoreFailure: Throwable? = null,
 ) : PlaybackSessionController {
     override val checkpoints: Flow<PlaybackCheckpoint> = emptyFlow()
     val restoreStarted = CompletableDeferred<Unit>()
@@ -163,6 +203,7 @@ private class CountingRestoreController(
         restoreCount++
         restoreStarted.complete(Unit)
         if (blockRestore) allowRestore.await()
+        restoreFailure?.let { throw it }
     }
 
     override suspend fun reconcileSession(tracks: List<PlayableTrack>) = Unit

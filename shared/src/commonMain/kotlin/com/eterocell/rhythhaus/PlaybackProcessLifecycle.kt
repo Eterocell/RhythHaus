@@ -12,16 +12,21 @@ internal fun interface PlaybackSessionRestorer {
 }
 
 internal class PlaybackProcessLifecycle(
-    private val coordinator: PlaybackSessionCoordinator,
+    private val restoreAction: suspend (List<PlayableTrack>) -> Unit,
     private val processScope: CoroutineScope,
 ) : PlaybackSessionRestorer {
+    constructor(
+        coordinator: PlaybackSessionCoordinator,
+        processScope: CoroutineScope,
+    ) : this(coordinator::restoreOnce, processScope)
+
     private val restoreMutex = Mutex()
     private var restoreAttempt: Deferred<Unit>? = null
 
     override suspend fun restoreOnce(tracks: List<PlayableTrack>) {
         val sharedAttempt = restoreMutex.withLock {
             restoreAttempt ?: processScope.async {
-                coordinator.restoreOnce(tracks)
+                restoreAction(tracks)
             }.also { restoreAttempt = it }
         }
         sharedAttempt.await()
