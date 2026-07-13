@@ -53,8 +53,15 @@ SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     NULL AS artworkMimeType
 FROM library_track WHERE sourceId = ? AND sourceLocalKey = ?;
 
-selectArtworkForTrack:
-SELECT artworkBytes, artworkMimeType FROM library_track WHERE id = ? AND artworkBytes IS NOT NULL;
+selectArtworkMetadataForTrack:
+SELECT length(artworkBytes) AS artworkByteLength, artworkMimeType
+FROM library_track
+WHERE id = ? AND artworkBytes IS NOT NULL;
+
+selectArtworkChunkForTrack:
+SELECT CAST(substr(artworkBytes, :startPosition, :chunkLength) AS BLOB) AS artworkChunk
+FROM library_track
+WHERE id = :id AND artworkBytes IS NOT NULL;
 
 removeMissingTracks:
 DELETE FROM library_track WHERE sourceId = ? AND (lastSeenScanId IS NULL OR lastSeenScanId != ?);

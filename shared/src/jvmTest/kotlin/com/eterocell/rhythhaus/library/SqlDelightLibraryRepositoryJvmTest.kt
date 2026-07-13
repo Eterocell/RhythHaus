@@ -113,6 +113,63 @@ class SqlDelightLibraryRepositoryJvmTest {
     }
 
     @Test
+    fun largeArtworkIsLoadedLazilyInMultipleBoundedChunks() {
+        val databaseFile = Files.createTempFile("rhythhaus-library-chunked-artwork", ".db").toFile()
+        databaseFile.deleteOnExit()
+        val artworkBytes = ByteArray(3 * 1024 * 1024 + 137) { index ->
+            (index * 31 + 17).toByte()
+        }
+
+        assertEquals(13, artworkChunkCount(artworkBytes.size.toLong()))
+        assertEquals(256 * 1024, ARTWORK_CHUNK_SIZE_BYTES)
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(
+                testTrack(
+                    id = "track-chunked-artwork",
+                    sourceLocalKey = "chunked-artwork.mp3",
+                    title = "Chunked Artwork",
+                    artist = "Artist",
+                ).copy(
+                    artworkBytes = artworkBytes,
+                    artworkMimeType = "image/png",
+                ),
+            )
+
+            val metadata = open.database.libraryTrackQueries
+                .selectArtworkMetadataForTrack("track-chunked-artwork")
+                .executeAsOne()
+            assertEquals(artworkBytes.size.toLong(), metadata.artworkByteLength)
+            assertEquals("image/png", metadata.artworkMimeType)
+
+            val firstChunk = open.database.libraryTrackQueries
+                .selectArtworkChunkForTrack(
+                    id = "track-chunked-artwork",
+                    startPosition = "1",
+                    chunkLength = ARTWORK_CHUNK_SIZE_BYTES.toString(),
+                )
+                .executeAsOne().artworkChunk
+            val finalChunk = open.database.libraryTrackQueries
+                .selectArtworkChunkForTrack(
+                    id = "track-chunked-artwork",
+                    startPosition = ((12L * ARTWORK_CHUNK_SIZE_BYTES) + 1L).toString(),
+                    chunkLength = ARTWORK_CHUNK_SIZE_BYTES.toString(),
+                )
+                .executeAsOne().artworkChunk
+            assertNotNull(firstChunk)
+            assertNotNull(finalChunk)
+            assertEquals(ARTWORK_CHUNK_SIZE_BYTES, firstChunk.size)
+            assertEquals(137, finalChunk.size)
+
+            val artwork = open.repository.artworkForTrack("track-chunked-artwork")
+            assertNotNull(artwork)
+            assertContentEquals(artworkBytes, artwork.bytes)
+            assertEquals("image/png", artwork.mimeType)
+        }
+    }
+
+    @Test
     fun removeSourceDeletesOnlySelectedSourceData() {
         val databaseFile = Files.createTempFile("rhythhaus-library-remove-source", ".db").toFile()
         databaseFile.deleteOnExit()

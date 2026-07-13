@@ -2,6 +2,14 @@ package com.eterocell.rhythhaus.library
 
 import com.eterocell.rhythhaus.AudioSource
 
+internal const val ARTWORK_CHUNK_SIZE_BYTES = 256 * 1024
+
+internal fun artworkChunkCount(byteLength: Long): Int {
+    if (byteLength < 0L || byteLength > Int.MAX_VALUE.toLong()) return 0
+    if (byteLength == 0L) return 0
+    return ((byteLength - 1L) / ARTWORK_CHUNK_SIZE_BYTES + 1L).toInt()
+}
+
 class SqlDelightLibraryRepository(
     private val libraryDatabase: LibraryDatabase,
 ) : LibraryRepository {
@@ -157,11 +165,33 @@ class SqlDelightLibraryRepository(
         )
     }.executeAsList()
 
-    override fun artworkForTrack(trackId: String): TrackArtwork? = database.libraryTrackQueries
-        .selectArtworkForTrack(trackId) { artworkBytes, artworkMimeType ->
-            TrackArtwork(bytes = artworkBytes, mimeType = artworkMimeType)
+    override fun artworkForTrack(trackId: String): TrackArtwork? {
+        val metadata = database.libraryTrackQueries
+            .selectArtworkMetadataForTrack(trackId)
+            .executeAsOneOrNull() ?: return null
+        val byteLength = metadata.artworkByteLength ?: return null
+        if (byteLength < 0L || byteLength > Int.MAX_VALUE.toLong()) return null
+        if (byteLength == 0L) return TrackArtwork(bytes = ByteArray(0), mimeType = metadata.artworkMimeType)
+
+        val artworkBytes = ByteArray(byteLength.toInt())
+        repeat(artworkChunkCount(byteLength)) { chunkIndex ->
+            val destinationOffset = chunkIndex * ARTWORK_CHUNK_SIZE_BYTES
+            val requestedLength = minOf(ARTWORK_CHUNK_SIZE_BYTES, artworkBytes.size - destinationOffset)
+            val chunk = database.libraryTrackQueries
+                .selectArtworkChunkForTrack(
+                    startPosition = (destinationOffset.toLong() + 1L).toString(),
+                    chunkLength = requestedLength.toString(),
+                    id = trackId,
+                )
+                .executeAsOneOrNull()?.artworkChunk ?: return null
+            if (chunk.size != requestedLength) return null
+            chunk.copyInto(
+                destination = artworkBytes,
+                destinationOffset = destinationOffset,
+            )
         }
-        .executeAsOneOrNull()
+        return TrackArtwork(bytes = artworkBytes, mimeType = metadata.artworkMimeType)
+    }
 
     override fun insertScanSession(session: ScanSession) {
         database.scanSessionQueries.insertScanSession(
