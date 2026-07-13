@@ -1,5 +1,7 @@
 package com.eterocell.rhythhaus
 
+import com.eterocell.rhythhaus.session.PlaybackCheckpoint
+import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -9,7 +11,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
@@ -422,6 +428,277 @@ class PlaybackControllerTest {
         assertFalse(engine.oldCompletionWasPublished)
     }
 
+    @Test
+    fun disabledCommandsPropagateToTransportAndEveryPublicUserCommandIsNoOp() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val tracks = testTracks(3)
+        controller.setQueue(tracks, selectedTrackId = "track-2")
+        engine.awaitLoad()
+        controller.setRepeatMode(RepeatMode.RepeatOne)
+        controller.setShuffleMode(ShuffleMode.On)
+        val before = controller.state.value
+        val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+        val collection = launch(start = CoroutineStart.UNDISPATCHED) { controller.checkpoints.collect(checkpoints::send) }
+        engine.clearEvents()
+
+        controller.setCommandsEnabled(false)
+        assertEquals(listOf(EngineEvent.TransportEnabled(false)), engine.awaitEvents(1))
+        engine.clearEvents()
+        controller.setQueue(testTracks(2), selectedTrackId = "track-1")
+        controller.selectTrack("track-1", autoPlay = true)
+        controller.setRepeatMode(RepeatMode.StopAfterQueue)
+        controller.cycleRepeatMode()
+        controller.setShuffleMode(ShuffleMode.Off)
+        controller.toggleShuffleMode()
+        controller.play()
+        controller.pause()
+        controller.stop()
+        controller.seekTo(900L)
+        controller.togglePlayPause()
+        controller.restartCurrentTrack()
+        controller.skipToNext()
+        controller.skipToPrevious()
+
+        assertEquals(before, controller.state.value)
+        assertEquals(emptyList(), engine.eventSnapshot())
+        assertNull(checkpoints.tryReceive().getOrNull())
+        collection.cancelAndJoin()
+    }
+
+    @Test
+    fun restoreLoadsClampsSeeksAndPausesWithoutPlayAndEmitsNormalizedSnapshot() = runBlocking {
+        val engine = RecordingPlaybackEngine(loadedDurationMillis = 1_000L)
+        val controller = PlaybackController(engine)
+        val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+        val collection = launch(start = CoroutineStart.UNDISPATCHED) { controller.checkpoints.collect(checkpoints::send) }
+
+        controller.restoreSession(
+            PlaybackSessionSnapshot(
+                queueIds = listOf("missing", "track-1"),
+                currentTrackId = "track-1",
+                positionMillis = 2_000L,
+                repeatMode = RepeatMode.RepeatOne,
+                shuffleMode = ShuffleMode.On,
+            ),
+            testTracks(2),
+        )
+
+        assertEquals(
+            listOf(EngineEvent.Load("track-1"), EngineEvent.Seek(1_000L), EngineEvent.Pause),
+            engine.awaitEvents(3),
+        )
+        assertFalse(engine.eventSnapshot().any { it == EngineEvent.Play })
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+        assertEquals(1_000L, controller.state.value.positionMillis)
+        assertEquals(listOf("track-1"), controller.state.value.queue.map { it.id })
+        assertEquals(RepeatMode.RepeatOne, controller.state.value.repeatMode)
+        assertEquals(ShuffleMode.On, controller.state.value.shuffleMode)
+        assertEquals(
+            PlaybackCheckpoint.Immediate(
+                PlaybackSessionSnapshot(
+                    queueIds = listOf("track-1"),
+                    currentTrackId = "track-1",
+                    positionMillis = 1_000L,
+                    repeatMode = RepeatMode.RepeatOne,
+                    shuffleMode = ShuffleMode.On,
+                ),
+            ),
+            checkpoints.receive(),
+        )
+        collection.cancelAndJoin()
+    }
+
+    @Test
+    fun restoreFallsBackToFirstSurvivorAtZeroAndClearsWhenNoneSurvive() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        controller.restoreSession(
+            PlaybackSessionSnapshot(
+                queueIds = listOf("missing", "track-2", "track-1"),
+                currentTrackId = "missing",
+                positionMillis = 700L,
+                repeatMode = RepeatMode.StopAfterCurrent,
+                shuffleMode = ShuffleMode.On,
+            ),
+            testTracks(2),
+        )
+
+        assertEquals("track-2", controller.state.value.currentTrack?.id)
+        assertEquals(0L, controller.state.value.positionMillis)
+        assertEquals(listOf(EngineEvent.Load("track-2"), EngineEvent.Seek(0L), EngineEvent.Pause), engine.awaitEvents(3))
+        engine.clearEvents()
+
+        controller.restoreSession(
+            PlaybackSessionSnapshot(
+                queueIds = listOf("missing"),
+                currentTrackId = "missing",
+                positionMillis = 700L,
+                repeatMode = RepeatMode.StopAfterCurrent,
+                shuffleMode = ShuffleMode.On,
+            ),
+            testTracks(2),
+        )
+
+        assertEquals(listOf(EngineEvent.Clear), engine.awaitEvents(1))
+        assertEquals(emptyList(), controller.state.value.queue)
+        assertNull(controller.state.value.currentTrack)
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+        assertEquals(RepeatMode.StopAfterCurrent, controller.state.value.repeatMode)
+        assertEquals(ShuffleMode.On, controller.state.value.shuffleMode)
+    }
+
+    @Test
+    fun restoreLoadFailureAppliesEmptyPausedFailSafeState() = runBlocking {
+        val engine = RecordingPlaybackEngine(loadFailure = IllegalStateException("load failed"))
+        val controller = PlaybackController(engine)
+
+        controller.restoreSession(
+            PlaybackSessionSnapshot(
+                queueIds = listOf("track-1"),
+                currentTrackId = "track-1",
+                positionMillis = 500L,
+                repeatMode = RepeatMode.RepeatPlaylist,
+                shuffleMode = ShuffleMode.On,
+            ),
+            testTracks(1),
+        )
+
+        assertEquals(emptyList(), controller.state.value.queue)
+        assertNull(controller.state.value.currentTrack)
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+        assertEquals(RepeatMode.RepeatPlaylist, controller.state.value.repeatMode)
+        assertEquals(ShuffleMode.On, controller.state.value.shuffleMode)
+        assertTrue(engine.eventSnapshot().none { it == EngineEvent.Play })
+    }
+
+    @Test
+    fun reconcilePreservesSurvivingCurrentWithoutReloadPositionOrStatusChange() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = loadedController(engine, PlaybackStatus.Playing)
+        engine.clearEvents()
+
+        controller.reconcileSession(testTracks(2))
+
+        assertEquals("track-1", controller.state.value.currentTrack?.id)
+        assertEquals(500L, controller.state.value.positionMillis)
+        assertEquals(PlaybackStatus.Playing, controller.state.value.status)
+        assertEquals(emptyList(), engine.eventSnapshot())
+    }
+
+    @Test
+    fun reconcileMissingCurrentLoadsFirstSurvivorPausedAndNoSurvivorsClear() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        controller.setQueue(testTracks(3), selectedTrackId = "track-2")
+        engine.awaitLoad()
+        engine.clearEvents()
+
+        controller.reconcileSession(listOf(testTracks(3)[2], testTracks(3)[0]))
+
+        assertEquals("track-1", controller.state.value.currentTrack?.id)
+        assertEquals(0L, controller.state.value.positionMillis)
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+        assertEquals(listOf(EngineEvent.Load("track-1"), EngineEvent.Seek(0L), EngineEvent.Pause), engine.awaitEvents(3))
+        engine.clearEvents()
+
+        controller.reconcileSession(emptyList())
+
+        assertEquals(listOf(EngineEvent.Clear), engine.awaitEvents(1))
+        assertEquals(emptyList(), controller.state.value.queue)
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+    }
+
+    @Test
+    fun discreteCommandsEmitCompleteImmediateSnapshots() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+        val collection = launch(start = CoroutineStart.UNDISPATCHED) { controller.checkpoints.collect(checkpoints::send) }
+
+        controller.setQueue(testTracks(1))
+        engine.awaitLoad()
+        assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
+        controller.seekTo(500L)
+        assertEquals(500L, checkpoints.receive().snapshot.positionMillis)
+        controller.pause()
+        assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
+        controller.setRepeatMode(RepeatMode.RepeatOne)
+        assertEquals(RepeatMode.RepeatOne, checkpoints.receive().snapshot.repeatMode)
+        controller.setShuffleMode(ShuffleMode.On)
+        assertEquals(ShuffleMode.On, checkpoints.receive().snapshot.shuffleMode)
+        controller.stop()
+        assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
+
+        collection.cancelAndJoin()
+    }
+
+    @Test
+    fun playingProgressUsesGenerationTrackAndSecondBucketAndResetsAfterSeek() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = loadedController(engine, PlaybackStatus.Playing)
+        val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+        val collection = launch(start = CoroutineStart.UNDISPATCHED) { controller.checkpoints.collect(checkpoints::send) }
+        val generation = engine.activeGeneration
+
+        engine.listener?.onPlaybackProgress(generation, 1_100L, 10_000L)
+        engine.listener?.onPlaybackProgress(generation, 1_900L, 10_000L)
+        val first = checkpoints.receive()
+        assertTrue(first is PlaybackCheckpoint.PlayingProgress)
+        assertNull(checkpoints.tryReceive().getOrNull())
+
+        controller.seekTo(1_500L)
+        assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
+        engine.listener?.onPlaybackProgress(generation, 1_600L, 10_000L)
+        assertTrue(checkpoints.receive() is PlaybackCheckpoint.PlayingProgress)
+        collection.cancelAndJoin()
+    }
+
+    @Test
+    fun progressKeyResetsAcrossStopAndSurvivingCurrentReconciliation() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = loadedController(engine, PlaybackStatus.Playing)
+        val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+        val collection = launch(start = CoroutineStart.UNDISPATCHED) { controller.checkpoints.collect(checkpoints::send) }
+        val generation = engine.activeGeneration
+
+        engine.listener?.onPlaybackProgress(generation, 1_100L, 10_000L)
+        assertTrue(checkpoints.receive() is PlaybackCheckpoint.PlayingProgress)
+        controller.stop()
+        assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
+        engine.listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
+        engine.listener?.onPlaybackProgress(generation, 1_200L, 10_000L)
+        assertTrue(checkpoints.receive() is PlaybackCheckpoint.PlayingProgress)
+
+        controller.reconcileSession(testTracks(1))
+        assertTrue(checkpoints.receive() is PlaybackCheckpoint.Immediate)
+        engine.listener?.onPlaybackProgress(generation, 1_300L, 10_000L)
+        assertTrue(checkpoints.receive() is PlaybackCheckpoint.PlayingProgress)
+        collection.cancelAndJoin()
+    }
+
+    @Test
+    fun staleCallbacksDoNotEmitCheckpoints() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        controller.setQueue(testTracks(2), selectedTrackId = "track-1")
+        engine.awaitLoad()
+        val staleGeneration = engine.activeGeneration
+        controller.selectTrack("track-2")
+        engine.awaitLoadCount(2)
+        val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+        val collection = launch(start = CoroutineStart.UNDISPATCHED) { controller.checkpoints.collect(checkpoints::send) }
+
+        engine.listener?.onPlaybackStatus(staleGeneration, PlaybackStatus.Playing)
+        engine.listener?.onPlaybackProgress(staleGeneration, 1_500L, 2_000L)
+        engine.listener?.onPlaybackCompleted(staleGeneration)
+        engine.listener?.onPlaybackError(staleGeneration, PlaybackError("stale"))
+        engine.listener?.onSkipToNext(staleGeneration)
+
+        assertNull(checkpoints.tryReceive().getOrNull())
+        collection.cancelAndJoin()
+    }
+
     private suspend fun loadedController(
         engine: RecordingPlaybackEngine,
         status: PlaybackStatus,
@@ -494,13 +771,18 @@ class PlaybackControllerTest {
     private sealed interface EngineEvent {
         data class Load(val trackId: String) : EngineEvent
         data class Seek(val positionMillis: Long) : EngineEvent
+        data class TransportEnabled(val enabled: Boolean) : EngineEvent
         data object Play : EngineEvent
         data object Pause : EngineEvent
+        data object Stop : EngineEvent
+        data object Clear : EngineEvent
     }
 
     private class RecordingPlaybackEngine(
         private val loadGate: CompletableDeferred<Unit>? = null,
         private val seekGate: CompletableDeferred<Unit>? = null,
+        private val loadedDurationMillis: Long? = null,
+        private val loadFailure: Throwable? = null,
     ) : PlatformPlaybackEngine {
         override var listener: PlaybackEngineListener? = null
         val loadedTracks = mutableListOf<PlayableTrack>()
@@ -519,10 +801,12 @@ class PlaybackControllerTest {
             loadedGenerations += generation
             loadStarted.complete(Unit)
             loadGate?.await()
-            listener?.onPlaybackProgress(generation, 0L, track.durationMillis)
+            loadFailure?.let { throw it }
+            val durationMillis = loadedDurationMillis ?: track.durationMillis
+            listener?.onPlaybackProgress(generation, 0L, durationMillis)
             listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
             loadSignal.complete(Unit)
-            return LoadedPlayback(generation, track.durationMillis)
+            return LoadedPlayback(generation, durationMillis)
         }
 
         suspend fun awaitLoadStarted() = loadStarted.await()
@@ -565,7 +849,9 @@ class PlaybackControllerTest {
             listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Paused)
         }
 
-        override fun stop() = Unit
+        override fun stop() {
+            record(EngineEvent.Stop)
+        }
 
         override fun seekTo(positionMillis: Long) {
             seekStarted.complete(Unit)
@@ -576,9 +862,12 @@ class PlaybackControllerTest {
 
         override fun clear(generation: Long) {
             activeGeneration = generation
+            record(EngineEvent.Clear)
         }
 
-        override fun setUserTransportEnabled(enabled: Boolean) = Unit
+        override fun setUserTransportEnabled(enabled: Boolean) {
+            record(EngineEvent.TransportEnabled(enabled))
+        }
 
         override fun release() = Unit
 
