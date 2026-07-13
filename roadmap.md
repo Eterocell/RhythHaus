@@ -13,3 +13,6 @@
 - [x] Album/artist drill-down top-bar artwork：album/artist track-list Miuix TopAppBar 现在会在有 embedded artwork 时未滚动时用方形代表性封面，滚动后过渡为矩形顶部栏封面；有封面时移除顶部栏 blur/glass，返回按钮使用圆形背景，album/artist 名称使用 chip 风格背景；无封面或解码失败时保持原有 glass 标题/返回行为，不显示字母占位。
 - [x] Coil artwork loading + Koin DI：添加 Coil 3 KMP 作为 shared Compose artwork 加载/缓存路径，track row、album/artist、drill-down top bar、NowPlayingBar/Screen artwork 改走稳定 cache key 的 `ArtworkImage` helper；添加 Koin 4 shared module 并从 Android/desktop/iOS 启动入口初始化，`App()` 通过 Koin 获取现有 service graph。仍需目标设备/模拟器手动确认 artwork 加载视觉与缓存体感。
 - [x] 除 iOS 因平台限制以外，Android 与 desktop JVM/macOS 可重复选择、重扫及移除多个独立音乐库文件夹，含空库卡片 progress+job gate、Android SAF 只读权限/移除或清空后释放、完整 URI/路径无碰撞 identity 与 legacy exact-handle 复用、generic picker error、child-first transactional clear 和取消资源清理；iOS 仍限单一 app-local source。JVM/desktop/Android 验证通过，iOS simulator tests 仍受既有 common-test `Thread` 不兼容阻塞。后续非阻塞风险：JVM symlink containment/cycle detection、lossless `sourceLocalKey`、persisted terminal message sanitization；仍需设备手动验证。
+- [ ] UI/UX: 去除首页的 Nested Top Bar; 检查设置页的 insets, 似乎有些太大了
+- [ ] UX: 点击当前音乐不是 播放/暂停, 而是从头重新开始播放音乐
+- [ ] feat: 记住上次的播放列表/播放进度/循环播放/随机播放设置
