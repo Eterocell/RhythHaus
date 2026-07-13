@@ -23,7 +23,7 @@ Implemented the Task 3 engine contract and production transport gates only. No T
 - `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/RhythHausPlaybackService.kt`
   - Made `SkipRoutingPlayer` remove gated commands and reject play, pause, stop, seek, next, and previous before forwarding.
 - `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/PlaybackDispatchers.android.kt`
-  - Uses `Dispatchers.Default` for controller engine serialization so Android host tests and blocking preparation do not depend on an Android main Looper.
+  - Confines production controller engine serialization to the Android application Main-looper executor, with a deterministic single-thread fallback when the Android host-test runtime cannot construct a Main looper.
 - `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt`
   - Added immutable generation/source-version capture for completion and progress sources.
   - Invalidated old sources on load, clear, and release.
@@ -219,3 +219,69 @@ exit 0, no output
 
 - Kotlin LSP remains unavailable; Gradle and native compilation are the diagnostic gates.
 - Android host runtime does not provide a real `Looper`; the production executor resolves to the Main handler on Android and uses a deterministic single-thread fallback only when framework Main-looper construction is unavailable in host tests.
+
+## Final Android Release Serialization Fix
+
+### Root Cause
+
+`AndroidPlaybackEngine.release()` promptly invalidated the pending request, but directly changed `disposed`, cleared `pendingActions`, read/cleared `controller` and `controllerFuture`, and called `MediaController.release()` / `MediaController.releaseFuture()` on the caller thread. Those fields and callbacks otherwise run through `AndroidControllerOperations`, so release could race queued work, connection completion, and player callbacks.
+
+### RED
+
+Added `releaseIsSerializedAndSuppressesQueuedAndPostReleaseControllerWork` first. It queues controller work, invokes release from another thread, then drains a recording executor deterministically.
+
+```text
+./gradlew :shared:testAndroidHostTest \
+  --tests 'com.eterocell.rhythhaus.AndroidPlaybackMediaSessionTest.releaseIsSerializedAndSuppressesQueuedAndPostReleaseControllerWork' \
+  --configuration-cache
+
+BUILD FAILED during :shared:compileAndroidHostTest
+Unresolved reference 'AndroidControllerLifecycle'.
+```
+
+### Fix
+
+- Added production-used `AndroidControllerLifecycle` around `AndroidControllerOperations`.
+- Release request ownership uses an atomic one-way flag, so release is idempotent and later controller work is rejected immediately.
+- Already queued work rechecks the release flag when drained and becomes a no-op.
+- Pending request invalidation, progress cancellation, and transport callback removal remain prompt on the caller thread.
+- `disposed`, `pendingActions`, `controller`, `controllerFuture`, loaded-duration cleanup, controller/future teardown, and scope cancellation now execute as one serialized operation on the controller executor.
+
+### GREEN
+
+Focused regression:
+
+```text
+./gradlew :shared:testAndroidHostTest \
+  --tests 'com.eterocell.rhythhaus.AndroidPlaybackMediaSessionTest.releaseIsSerializedAndSuppressesQueuedAndPostReleaseControllerWork' \
+  --configuration-cache
+BUILD SUCCESSFUL
+```
+
+Complete Task 3 verification:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest' --configuration-cache
+BUILD SUCCESSFUL
+
+./gradlew :shared:testAndroidHostTest --configuration-cache
+BUILD SUCCESSFUL
+
+./gradlew :shared:compileKotlinIosSimulatorArm64 --configuration-cache
+BUILD SUCCESSFUL
+
+GIT_MASTER=1 git diff --check
+exit 0, no output
+```
+
+### Self-Review
+
+- Release teardown shares the same executor ordering as controller work and connection completion.
+- Release is idempotent and does not block waiting for the executor, avoiding deadlock.
+- Queued-before-release and queued-after-release controller work cannot reach the controller after the release request is observed.
+- Controller and future teardown run only inside the serialized release operation.
+- No non-Task-3 product behavior or Task 4 persistence behavior changed.
+
+### Commit
+
+- Recorded after final verification.
