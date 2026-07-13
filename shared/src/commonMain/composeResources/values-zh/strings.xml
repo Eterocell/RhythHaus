@@ -72,4 +72,15 @@
     <string name="folder_picker_error_select">无法选择音乐文件夹</string>
     <string name="folder_picker_error_prepare">无法准备应用本地音乐文件夹</string>
     <string name="folder_picker_no_folder_selected">未选择文件夹</string>
+    <string name="configured_folders">已配置的文件夹</string>
+    <string name="source_access_available">可访问</string>
+    <string name="source_access_lost">访问权限已失效</string>
+    <string name="source_never_scanned">从未扫描</string>
+    <string name="source_last_scanned">上次已扫描</string>
+    <string name="source_status_format">%1$s · %2$s</string>
+    <string name="rescan_source_format">重新扫描 %1$s</string>
+    <string name="remove_source_format">移除 %1$s</string>
+    <string name="remove_folder">移除文件夹</string>
+    <string name="remove_folder_message">要从 RhythHaus 中移除“%1$s”及其已扫描曲目吗？你的音乐文件不会被删除。</string>
+    <string name="remove">移除</string>
 </resources>

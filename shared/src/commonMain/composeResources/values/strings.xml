@@ -72,4 +72,15 @@
     <string name="folder_picker_error_select">Could not select music folder</string>
     <string name="folder_picker_error_prepare">Could not prepare the app-local music folder</string>
     <string name="folder_picker_no_folder_selected">No folder selected</string>
+    <string name="configured_folders">Configured folders</string>
+    <string name="source_access_available">Available</string>
+    <string name="source_access_lost">Access lost</string>
+    <string name="source_never_scanned">Never scanned</string>
+    <string name="source_last_scanned">Last scanned</string>
+    <string name="source_status_format">%1$s · %2$s</string>
+    <string name="rescan_source_format">Rescan %1$s</string>
+    <string name="remove_source_format">Remove %1$s</string>
+    <string name="remove_folder">Remove folder</string>
+    <string name="remove_folder_message">Remove “%1$s” and its scanned tracks from RhythHaus? Your music files will not be deleted.</string>
+    <string name="remove">Remove</string>
 </resources>

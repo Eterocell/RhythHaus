@@ -7,7 +7,14 @@ import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformScanEvent
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
+import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.ScanSession
+import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
+import com.eterocell.rhythhaus.settings.SourceAccessLabel
+import com.eterocell.rhythhaus.settings.SourceScanLabel
+import com.eterocell.rhythhaus.settings.sourceManagementLabels
+import com.eterocell.rhythhaus.settings.sourceMutationsEnabled
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -30,6 +37,31 @@ class LibrarySourceManagementTest {
     @Test
     fun pickerActionIsHiddenForExistingSourceWhenAdditionalSourcesAreUnsupported() {
         assertFalse(sourcePickerActionVisible(supportsAdditionalSources = false, sourceCount = 1))
+    }
+
+    @Test
+    fun sourceManagementLabelsMapAccessAndLastScanState() {
+        assertEquals(
+            SourceAccessLabel.Available to SourceScanLabel.NeverScanned,
+            sourceManagementLabels(source("available")),
+        )
+        assertEquals(
+            SourceAccessLabel.LostAccess to SourceScanLabel.LastScanned,
+            sourceManagementLabels(
+                source("lost").copy(
+                    accessStatus = LibrarySourceAccessStatus.LostAccess,
+                    lastScanAtEpochMillis = 2L,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun sourceMutationsAreDisabledOnlyWhileScanIsActive() {
+        assertTrue(sourceMutationsEnabled(scanProgress = null))
+        assertFalse(sourceMutationsEnabled(scanProgress(ScanStatus.Scanning)))
+        assertFalse(sourceMutationsEnabled(scanProgress(ScanStatus.Cancelling)))
+        assertTrue(sourceMutationsEnabled(scanProgress(ScanStatus.Completed)))
     }
 
     @Test
@@ -112,6 +144,15 @@ class LibrarySourceManagementTest {
         lastSeenScanId = null,
         createdAtEpochMillis = 1L,
         updatedAtEpochMillis = 1L,
+    )
+
+    private fun scanProgress(status: ScanStatus) = ScanProgress(
+        session = ScanSession(
+            id = "scan",
+            sourceId = "source",
+            status = status,
+            startedAtEpochMillis = 1L,
+        ),
     )
 }
 
