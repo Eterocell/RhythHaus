@@ -1,16 +1,14 @@
 # Session Progress
 
-## Handoff - 2026-07-13 multiple library folders completion
+## Handoff - 2026-07-13 multi-library folders final evidence
 
-Route: openspec+superpowers / Task 4 verification and durable handoff
+Route: openspec+superpowers / final post-review evidence
 Owner: implementation
-Input: Execute Task 4 for `multi-library-folders` from base `f2eede0d60545bdbe00f1bad64cfe67df9a1f108` without changing production/test implementation.
+Input: Finalize durable evidence for all post-review fixes to `multi-library-folders` without modifying source, tests, specs, design, plans, or SDD reports.
 Output:
-- Verified the completed Tasks 1-3 implementation and recorded OpenSpec tasks 4.1-4.5 evidence.
-- Completed roadmap item 15 for additive Android/desktop library folders while retaining the explicit iOS single app-local source limitation.
-- Reviewed the Task 4 worktree scope: planning artifacts and completion evidence only; `.superpowers/sdd/task-4-report.md` remains scratch evidence and is not staged.
-- Post-review active-scan mutation race correction: Settings previously derived mutation availability only from `scanProgress`, leaving a job-active window before progress reached Compose; Clear Library also remained enabled and `App.onClearLibrary` had no active-scan guard, permitting scanner and clear writes to overlap.
-- Fix: `sourceMutationsAllowed(isProgressActive, isJobActive)` is the shared gate for Settings add/rescan/remove/Clear Library controls and `App()` scan-start/remove/clear callbacks; Clear Library is disabled in UI and guarded again in `App()`.
+- Final review fixes are recorded: the empty-library Add Folder card uses the progress-plus-job mutation gate; Android SAF persists read-only access; Android SAF URI and JVM canonical-path identities encode their full values while exact-handle normalization preserves legacy IDs and creation times; picker failures and unnamed labels are generic and neutral.
+- Lifecycle fixes are recorded: remove and clear release Android persisted SAF access only after successful repository mutation; `clearAll()` is a single child-first transaction; cancellation before candidate import releases metadata resources.
+- Roadmap item 15 remains complete for Android and desktop JVM/macOS additive sources, with iOS intentionally limited to one app-local source.
 Verification:
 - `openspec validate multi-library-folders --strict`: pass (`Change 'multi-library-folders' is valid`).
 - `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`; 34 actionable tasks: 5 executed, 29 up-to-date).
@@ -22,10 +20,12 @@ Verification:
 - Race-fix GREEN: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 831ms`).
 - Race-fix JVM/desktop/Android: `./gradlew :shared:compileKotlinJvm :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`).
 - Race-fix `git diff --check`: pass (no output); final re-review: PASS.
+- Latest focused suites: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --tests 'com.eterocell.rhythhaus.library.LibraryScannerTest' --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`; 34 actionable tasks: 7 executed, 27 up-to-date).
+- Latest scoped full verification: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`; 99 actionable tasks: 12 executed, 87 up-to-date; existing Android `MediaMetadata.Builder.setArtworkData` deprecation warning only).
 Acceptance:
 - Requirement matched: yes for automated repository, source-management, JVM, desktop, Android, and OpenSpec checks.
-- Scope controlled: yes; no production or test implementation files changed in Task 4.
-- Edge cases/risk reviewed: iOS remains intentionally single-source; automated iOS tests are blocked by unrelated pre-existing JVM-only test code.
+- Scope controlled: only `openspec/changes/multi-library-folders/tasks.md`, `progress.md`, and `roadmap.md` change in this evidence handoff.
+- Deferred non-blocking legacy scanner hardening: JVM symlink containment and cycle detection, lossless `sourceLocalKey` semantics, and persisted terminal-message sanitization.
 Changed files:
 - `docs/superpowers/specs/2026-07-10-multi-library-folders-design.md`: approved design artifact.
 - `docs/superpowers/plans/2026-07-10-multi-library-folders.md`: approved implementation plan.
@@ -33,9 +33,9 @@ Changed files:
 - `progress.md`: this handoff.
 - `roadmap.md`: item 15 completion and concise platform/manual-QA limitation.
 - `.superpowers/sdd/progress.md`: Task 4 review ledger.
-Next owner: user for manual Android/desktop add/rescan/remove validation and iOS app-local rescan validation; OpenSpec for archival only when explicitly requested.
-Blockers: iOS simulator tests do not pass because of the pre-existing `Thread` references above. No live device or manual visual QA was run or claimed.
-Commit: `f8621b9` (`docs: add multiple library folders plan`), `d1d33cc` (`docs: add multiple library folders OpenSpec`), `2dcf856` (`docs: record multiple library folders completion`), `e507b30` (`docs: complete multiple library folders workflow`), `92a20fc` (`docs: correct multiple library folders evidence`), `79d16b5` (`fix: block source mutations during scan startup`), `539aeff` (`docs: record source mutation race evidence`), and `3111e5f` (`docs: record source mutation race completion evidence`).
+Next owner: user for manual Android SAF picker/access-release and Android/desktop add/rescan/remove validation, plus iOS app-local rescan validation. OpenSpec archival only on explicit request.
+Blockers: iOS simulator tests remain blocked by the pre-existing common-test `Thread` references above. No iOS automated test, live device, or manual visual QA pass is claimed.
+Commit: initial workflow `f8621b9`, `d1d33cc`, `2dcf856`, `e507b30`; late review/evidence `92a20fc..52f53d9` (`92a20fc`, `79d16b5`, `539aeff`, `3111e5f`, `4812308`, `c157233`, `1d9759d`, `fc2fb25`, `9187499`, `2e84847`, `564822b`, `104e087`, `f08e810`, `9de167c`, `733e560`, `c54e232`, `52f53d9`).
 
 ## Handoff - 2026-07-09 drill-down track-list safe inset and scroll background
 
