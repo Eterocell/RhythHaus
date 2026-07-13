@@ -6,9 +6,9 @@
 
 ## 2. Shared track-selection policy
 
-- [ ] 2.1 Add failing common tests for current-track queue preservation, visible-list queue replacement, invalid IDs, and repeat/shuffle preservation.
-- [ ] 2.2 Add the shared Library playback-selection helper and make non-current selection auto-play.
-- [ ] 2.3 Run the focused selection-policy test suite and record RED/GREEN evidence.
+- [x] 2.1 Add failing common tests for current-track queue preservation, visible-list queue replacement, invalid IDs, and repeat/shuffle preservation.
+- [x] 2.2 Add the shared Library playback-selection helper and make non-current selection auto-play.
+- [x] 2.3 Run the focused selection-policy test suite and record RED/GREEN evidence.
 
 ## 3. Library and Search wiring
 
