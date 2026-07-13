@@ -1,5 +1,36 @@
 # Session Progress
 
+## Handoff - 2026-07-13 multiple library folders completion
+
+Route: openspec+superpowers / Task 4 verification and durable handoff
+Owner: implementation
+Input: Execute Task 4 for `multi-library-folders` from base `f2eede0d60545bdbe00f1bad64cfe67df9a1f108` without changing production/test implementation.
+Output:
+- Verified the completed Tasks 1-3 implementation and recorded OpenSpec tasks 4.1-4.5 evidence.
+- Completed roadmap item 15 for additive Android/desktop library folders while retaining the explicit iOS single app-local source limitation.
+- Reviewed the Task 4 worktree scope: planning artifacts and completion evidence only; `.superpowers/sdd/task-4-report.md` remains scratch evidence and is not staged.
+Verification:
+- `openspec validate multi-library-folders --strict`: pass (`Change 'multi-library-folders' is valid`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest' --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`; 34 actionable tasks: 5 executed, 29 up-to-date).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`; 108 actionable tasks: 5 executed, 103 up-to-date).
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`; `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: blocked by pre-existing common-test compilation errors: `AppScanCancellationTest.kt:56:28 Unresolved reference 'Thread'` and `AppScanCancellationTest.kt:99:27 Unresolved reference 'Thread'`; both calls exist unchanged at the supplied Task 4 base. Result: `BUILD FAILED in 9s`, 41 actionable tasks: 12 executed, 29 up-to-date.
+- `git diff --check`: pass (no output).
+Acceptance:
+- Requirement matched: yes for automated repository, source-management, JVM, desktop, Android, and OpenSpec checks.
+- Scope controlled: yes; no production or test implementation files changed in Task 4.
+- Edge cases/risk reviewed: iOS remains intentionally single-source; automated iOS tests are blocked by unrelated pre-existing JVM-only test code.
+Changed files:
+- `docs/superpowers/specs/2026-07-10-multi-library-folders-design.md`: approved design artifact.
+- `docs/superpowers/plans/2026-07-10-multi-library-folders.md`: approved implementation plan.
+- `openspec/changes/multi-library-folders/`: durable proposal, design, requirements, and task evidence.
+- `progress.md`: this handoff.
+- `roadmap.md`: item 15 completion and concise platform/manual-QA limitation.
+- `.superpowers/sdd/progress.md`: Task 4 review ledger.
+Next owner: user for manual Android/desktop add/rescan/remove validation and iOS app-local rescan validation; OpenSpec for archival only when explicitly requested.
+Blockers: iOS simulator tests do not pass because of the pre-existing `Thread` references above. No live device or manual visual QA was run or claimed.
+Commit: pending atomic documentation/evidence commits; task 4.6 will be checked only after those commits succeed.
+
 ## Handoff - 2026-07-09 drill-down track-list safe inset and scroll background
 
 Route: systematic-debugging + visual QA
