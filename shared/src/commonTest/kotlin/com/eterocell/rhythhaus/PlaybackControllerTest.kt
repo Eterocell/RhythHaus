@@ -241,12 +241,17 @@ class PlaybackControllerTest {
 
     @Test
     fun restartCurrentPlayingTrackSeeksToZeroBeforePlaying() = runBlocking {
-        val engine = RecordingPlaybackEngine()
+        val engine = RecordingPlaybackEngine(seekGate = CompletableDeferred())
         val controller = loadedController(engine, PlaybackStatus.Playing)
 
         engine.clearEvents()
         controller.restartCurrentTrack()
+        engine.awaitSeekStarted()
 
+        assertEquals(0L, controller.state.value.positionMillis)
+        assertNull(controller.state.value.error)
+        assertEquals(emptyList(), engine.eventSnapshot())
+        engine.releaseSeek()
         assertEquals(listOf(EngineEvent.Seek(0L), EngineEvent.Play), engine.awaitEvents(2))
     }
 
@@ -398,12 +403,14 @@ class PlaybackControllerTest {
 
     private class RecordingPlaybackEngine(
         private val loadGate: CompletableDeferred<Unit>? = null,
+        private val seekGate: CompletableDeferred<Unit>? = null,
     ) : PlatformPlaybackEngine {
         override var listener: PlaybackEngineListener? = null
         val loadedTracks = mutableListOf<PlayableTrack>()
         private val events = Channel<EngineEvent>(Channel.UNLIMITED)
         private val loadStarted = CompletableDeferred<Unit>()
         private val loadSignal = CompletableDeferred<Unit>()
+        private val seekStarted = CompletableDeferred<Unit>()
 
         override fun load(track: PlayableTrack) {
             record(EngineEvent.Load(track.id))
@@ -421,6 +428,12 @@ class PlaybackControllerTest {
 
         fun releaseLoad() {
             loadGate?.complete(Unit)
+        }
+
+        suspend fun awaitSeekStarted() = seekStarted.await()
+
+        fun releaseSeek() {
+            seekGate?.complete(Unit)
         }
 
         fun clearEvents() {
@@ -448,6 +461,8 @@ class PlaybackControllerTest {
         override fun stop() = Unit
 
         override fun seekTo(positionMillis: Long) {
+            seekStarted.complete(Unit)
+            seekGate?.let { runBlocking { it.await() } }
             record(EngineEvent.Seek(positionMillis))
             listener?.onPlaybackProgress(positionMillis, loadedTracks.lastOrNull()?.durationMillis)
         }

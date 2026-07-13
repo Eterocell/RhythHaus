@@ -86,3 +86,23 @@ Command:
 ```
 
 Output: `BUILD SUCCESSFUL in 1s`; `25 actionable tasks: 5 executed, 20 up-to-date`; configuration cache reused. All `PlaybackControllerTest` tests passed.
+
+## Final Review Fix
+
+- Added a deterministic seek gate and seek-start signal to the recording engine.
+- Updated the loaded Playing-state restart test to wait until the asynchronous engine action enters `seekTo` but before it records the seek or invokes the progress callback.
+- While the seek remains gated, the test immediately verifies `positionMillis == 0L`, `error == null`, and no engine event has been emitted; after releasing the gate it verifies exact `Seek(0L), Play` ordering.
+- Production behavior remains unchanged.
+
+Changed files:
+
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/PlaybackControllerTest.kt`
+- `.superpowers/sdd/task-1-report.md`
+
+Verification command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
+```
+
+Output: `BUILD SUCCESSFUL in 1s`; `25 actionable tasks: 6 executed, 19 up-to-date`; configuration cache reused. All `PlaybackControllerTest` tests passed.
