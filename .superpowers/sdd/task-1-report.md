@@ -1,4 +1,4 @@
-# Task 1 Report: Playback controller restart command
+# Task 1 Report: Bounded playback-session snapshot codec
 
 ## Status
 
@@ -6,103 +6,147 @@ DONE
 
 ## Changed files
 
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt`
-  - Added `PlaybackController.restartCurrentTrack()` beside the existing transport methods.
-  - Loading requests autoplay after the in-flight load; idle/error reload the selected track with autoplay; loaded states serialize `seekTo(0L)` before `play()` in one engine action.
-- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/PlaybackControllerTest.kt`
-  - Extended the recording engine with ordered load/seek/play/pause events and a suspendable load gate.
-  - Added all eight restart and toggle regression tests required by the task brief.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionSnapshot.kt`
+  - Added `PlaybackSessionSnapshot` with ID-only queue/current state and repeat/shuffle modes.
+  - Added `PlaybackSessionCodec` with exact bounds: `10_000`, `4_096`, `16_384`, and `1_048_576`.
+  - Added all-or-null decoding and checkpoint models: `ProgressCheckpointKey` and `PlaybackCheckpoint`.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionSnapshotTest.kt`
+  - Added direct round-trip, invalid-form, bounds, all-or-null, and checkpoint-model tests.
 - `.superpowers/sdd/task-1-report.md`
-  - Records RED/GREEN evidence, scope, self-review, commit, and concerns.
+  - This durable evidence report; not included in the implementation commit.
 
 ## Strict RED evidence
 
 Command:
 
 ```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionSnapshotTest' --configuration-cache
 ```
 
-Result: `BUILD FAILED in 1s` during `:shared:compileTestKotlinJvm` before any production edit. The compiler reported seven `Unresolved reference 'restartCurrentTrack'` errors at the new restart test call sites. The same run also exposed one independent test generic-inference typo at the pause-event assertion; that assertion was corrected while production code remained unchanged. The required missing-command RED was therefore observed directly.
+Result: `BUILD FAILED in 1s` during `:shared:compileTestKotlinJvm` before any production edit. The compiler reported unresolved references for `PlaybackSessionCodec`, `PlaybackSessionSnapshot`, `ProgressCheckpointKey`, and `PlaybackCheckpoint`, confirming the expected missing-symbol RED.
 
 ## GREEN evidence
 
 Command:
 
 ```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionSnapshotTest' --configuration-cache
 ```
 
-Result: `BUILD SUCCESSFUL in 4s`; `25 actionable tasks: 8 executed, 17 up-to-date`; configuration cache reused. All `PlaybackControllerTest` tests passed.
+Result: `BUILD SUCCESSFUL in 1s`; `25 actionable tasks: 6 executed, 19 up-to-date`; configuration cache reused. All four focused tests passed.
 
 ## Requirement coverage
 
-- Playing, paused, and stopped loaded tracks emit exactly `Seek(0L), Play` after restart.
-- Loading restart emits no stale seek, waits for the existing load, then plays.
-- Error restart reloads the current track and autoplays.
-- Queue IDs, repeat mode, and shuffle mode remain unchanged.
-- Restart without a current track is a no-op.
-- `togglePlayPause()` remains unchanged and does not seek.
-- Seek and play execute inside one `launchEngineAction`, preserving engine mutex serialization and ordering.
-- `PlatformPlaybackEngine`, platform engines, UI, dependencies, OpenSpec, roadmap, progress, plan, and spec files were not changed.
+- Queue snapshots contain IDs only; effective shuffle order is not persisted.
+- Encoding rejects empty, duplicate, unpaired-surrogate, per-ID over-bound, count over-bound, and encoded-size over-bound input.
+- Decoding parses decimal lengths, requires positive lengths, rejects malformed/truncated/trailing/duplicate/surrogate/over-bound values, and returns `null` for any invalid stored value.
+- Checkpoints carry complete snapshots; playing-progress checkpoints carry generation, current-track ID, and second bucket.
+- No dependencies, store/platform/controller/coordinator/DI/App/OpenSpec/docs/progress/roadmap files were changed.
 
-## Self-review
-
-- Diff is limited to the controller, its direct tests, and this required report.
-- Implementation matches the exact state branches and values in the task brief.
-- No queue/repeat/shuffle mutation was introduced.
-- No change was made to `togglePlayPause()` or platform interfaces/engines.
-- Test engine records events before listener notifications and supports a gated load.
-- No type suppression, skipped tests, deleted tests, unrelated refactor, or dependency change was introduced.
-
-## Commit
-
-- `53801dfd069ce3ade34bf75dc2beba86ec4dac85` — `feat: add current track restart command`
-
-## Concerns
-
-None.
-
-## Review Fix
-
-### Findings resolved
-
-- Replaced the cross-thread `MutableList` event recorder with an unlimited coroutine `Channel`, and routed event recording, clearing, snapshots, waits, and assertions through channel operations with defined memory visibility.
-- Added synchronous assertions that restart resets `positionMillis` to `0L` and clears `error` while loading remains gated and before the Error-state reload completes.
-- Removed the arbitrary `delay(50)` from the no-current-track test; it now immediately compares the complete state and the concurrency-safe event snapshot.
-- Kept `PlaybackController` production behavior unchanged.
-
-### Changed files
-
-- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/PlaybackControllerTest.kt`
-- `.superpowers/sdd/task-1-report.md`
-
-### Verification
+## Diff check
 
 Command:
 
 ```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
+GIT_MASTER=1 git diff --check
 ```
 
-Output: `BUILD SUCCESSFUL in 1s`; `25 actionable tasks: 5 executed, 20 up-to-date`; configuration cache reused. All `PlaybackControllerTest` tests passed.
+Result: pass with no output.
 
-## Final Review Fix
+## Self-review
 
-- Added a deterministic seek gate and seek-start signal to the recording engine.
-- Updated the loaded Playing-state restart test to wait until the asynchronous engine action enters `seekTo` but before it records the seek or invokes the progress callback.
-- While the seek remains gated, the test immediately verifies `positionMillis == 0L`, `error == null`, and no engine event has been emitted; after releasing the gate it verifies exact `Seek(0L), Play` ordering.
-- Production behavior remains unchanged.
+- Only the exact Task 1 production and direct test files are staged for commit.
+- Public names, defaults, constants, and checkpoint shapes match the authoritative brief.
+- Codec validation is conservative and never returns a partial decode.
+- No type suppression, dependency change, unrelated refactor, exact shuffle-order persistence, or skipped RED phase was introduced.
+- `lsp_diagnostics` was attempted for the changed production file but could not run because `kotlin-ls` is not installed and installation was previously declined; Gradle compilation and focused JVM tests passed.
 
-Changed files:
+## Commit
 
-- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/PlaybackControllerTest.kt`
-- `.superpowers/sdd/task-1-report.md`
+`fd21d161e5f426c24697e8f64b3276a5001d98c4` — `feat: add playback session codec`
 
-Verification command:
+Commit scope: exactly the two Task 1 implementation/direct-test files. The report remains uncommitted as requested by the exact-file commit command.
+
+## Concerns
+
+None beyond the unavailable Kotlin LSP noted in self-review.
+
+## Review-fix evidence
+
+### Findings addressed
+
+- Expanded `PlaybackSessionSnapshotTest` with table-driven malformed decode cases for non-decimal lengths, missing colons, unpaired surrogates, over-count, over-character, over-UTF-8, over-total-size, trailing data, and truncation.
+- Added successful exact-limit coverage and one-over rejection coverage for `maxIds`, `maxIdCharacters`, `maxIdUtf8Bytes`, and `maxEncodedUtf8Bytes`.
+- Replaced decoder duplicate checks based on `List.contains` with an ordered `ArrayList` plus `HashSet`, preserving output order with expected O(n) duplicate detection.
+- Changed encoding to validate each framed entry's UTF-8 size incrementally before append, using subtraction-based overflow-safe arithmetic and avoiding construction/re-encoding of an oversized final string.
+
+### RED evidence
+
+Command:
 
 ```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionSnapshotTest' --configuration-cache
 ```
 
-Output: `BUILD SUCCESSFUL in 1s`; `25 actionable tasks: 6 executed, 19 up-to-date`; configuration cache reused. All `PlaybackControllerTest` tests passed.
+Result: the newly added boundary suite initially failed at the exact `maxEncodedUtf8Bytes` assertion because the test fixture's computed frame total was incorrect. This was a test-fixture arithmetic error, not fabricated production behavior; it was corrected before production changes. The existing implementation already passed the behavioral boundary assertions, so no meaningful production-behavior RED was available for the complexity/allocation-only fixes. This is recorded honestly per the TDD contract.
+
+### GREEN evidence
+
+Command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionSnapshotTest' --configuration-cache
+```
+
+Result: `BUILD SUCCESSFUL in 3s`; `25 actionable tasks: 8 executed, 17 up-to-date`; configuration cache reused. All four focused tests passed.
+
+### Diff check
+
+Command:
+
+```bash
+GIT_MASTER=1 git diff --check
+```
+
+Result: pass with no output.
+
+### Self-review
+
+- Changed only the Task 1 production/test files plus this uncommitted report.
+- Exact-limit and one-over tests cover all four published bounds.
+- Decoder remains all-or-null and preserves ID order.
+- Encoding checks malformed surrogate input before UTF-8 sizing and rejects total-size overflow before appending the frame.
+- No dependencies, unrelated files, type suppression, amend, or commit rewrite was used.
+- Kotlin LSP diagnostics were attempted for both changed Kotlin files but remain unavailable because `kotlin-ls` is not installed and installation was previously declined.
+
+### Review-fix commit
+
+`11af03fcb4af68d377a33115b74315440a4906fa` — `fix: harden playback session codec bounds`
+
+Commit scope: exactly `PlaybackSessionSnapshot.kt` and `PlaybackSessionSnapshotTest.kt`; this report remains uncommitted as requested.
+
+## Approved artifact clarification and remaining review evidence
+
+### Test corrections
+
+- Replaced the prior mislabeled over-count decode fixture with a syntactically valid concatenation of exactly `maxIds + 1` distinct valid frames. Its encoded size remains below `maxEncodedUtf8Bytes`, so decoding reaches the ID-count guard.
+- Replaced the prior mislabeled over-total fixture with a syntactically valid unique-frame stream whose UTF-8 size exceeds `maxEncodedUtf8Bytes` while each ID remains individually valid and the count remains within `maxIds`.
+- Removed the impossible exact/one-over `maxIdUtf8Bytes` claim. The test now constructs `"\u0800".repeat(maxIdCharacters)`, asserts 4,096 Kotlin characters and 12,288 UTF-8 bytes, and verifies round-trip. Exact/one-over coverage remains for `maxIds`, `maxIdCharacters`, and `maxEncodedUtf8Bytes`.
+- Production codec remained unchanged because no real defect was exposed.
+
+### Verification
+
+- Focused JVM test: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionSnapshotTest' --configuration-cache` — `BUILD SUCCESSFUL in 1s`.
+- OpenSpec: `openspec validate persist-playback-session --strict` — `Change 'persist-playback-session' is valid`.
+- Diff check: `GIT_MASTER=1 git diff --check` — pass with no output.
+
+### TDD note
+
+This was review-driven fixture and artifact correction, not a new production behavior change. The focused suite passed against the unchanged codec after the syntactic fixtures and reachable UTF-8 assertions were corrected; no production RED was fabricated.
+
+### Separate commits
+
+- `d23c3c6b3dc67caa90601ede3594a9639b77c647` — `test: correct playback session codec boundaries`
+- `552f7b48241022d72e360c2e3ea3ce750d8bc6d6` — `docs: clarify playback codec bounds`
+
+The first commit contains only the direct Task 1 test correction. The second contains exactly the five approved planning artifacts. This report remains uncommitted.
