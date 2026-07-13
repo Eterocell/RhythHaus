@@ -137,3 +137,37 @@ Task 6 wires playback persistence ownership to the process, restores the session
 - Scan cleanup retains an existing terminal session outcome; only active/cancelling sessions are converted to deterministic `Cancelled` or `Failed` terminal states.
 - Remove/clear only enter failure-safe publication after repository mutation, access release, and authoritative reload all succeeded. Earlier failures propagate unchanged.
 - No engine, codec/store, coordinator behavior, dependency, SQL, UI layout, product docs, OpenSpec, progress, roadmap, or Task 1-5 report was changed.
+
+## Final review finding: remove/clear cancellation owner liveness
+
+### Root cause and policy
+
+- After remove/clear mutation, access release, and authoritative reload completed, `publishLibraryContentAfterReconcileFailureSafe` rethrew every reconciliation `CancellationException` before publication. Unlike scan, it did not distinguish a disposed owner from an independently cancelled reconciliation while the mutation owner remained live.
+- Remove/clear now receive the same owner-liveness seam used by scan. A gone owner gets cancellation rethrown with no publication or error. A live owner first receives the authoritative post-mutation content and cancellation message, then cancellation is rethrown so the launch wrapper continues to treat cancellation distinctly.
+- Repository mutation, access release, and authoritative reload remain outside this failure-safe publication boundary. Their failures or cancellations still propagate without false publication.
+
+### Final RED/GREEN evidence
+
+- RED:
+  - Command: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache`
+  - Result: `BUILD FAILED`; the new active/gone owner remove/clear tests could not compile because `ownerIsActive` was absent from the helpers.
+- GREEN focused suites:
+  - Command: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --tests 'com.eterocell.rhythhaus.di.RhythHausDiTest' --configuration-cache`
+  - Result: `BUILD SUCCESSFUL in 7s`.
+- JVM/desktop/Android:
+  - Command: `./gradlew :shared:compileKotlinJvm :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`
+  - Result: `BUILD SUCCESSFUL in 16s`; existing Android artwork deprecation warning only.
+- iOS main:
+  - Command: `./gradlew :shared:compileKotlinIosSimulatorArm64 --configuration-cache`
+  - Result: `BUILD SUCCESSFUL in 15s`.
+- Diff hygiene:
+  - Command: `GIT_MASTER=1 git diff --check`
+  - Result: pass, no output.
+- Kotlin LSP remained unavailable because `kotlin-ls` is not installed and installation was previously declined.
+
+### Final self-review
+
+- Active-owner remove cancellation publishes the repository state without the removed source/track, reports the cancellation, proves access was released after deletion, then rethrows.
+- Active-owner clear cancellation publishes empty authoritative content, reports the cancellation, proves snapshotted access was released after clear, then rethrows.
+- Gone-owner remove/clear cancellation publishes and reports nothing.
+- Existing repository mutation and access-release failure tests continue to prove no false publication before authoritative reload.
