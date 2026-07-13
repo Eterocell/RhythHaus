@@ -212,7 +212,9 @@ internal suspend fun removeSourceInBackground(
     updateLibrary: (LibraryContentState) -> Unit,
 ) {
     val content = withContext(ioDispatcher) {
+        val source = repository.sources().firstOrNull { it.id == sourceId }
         repository.removeSource(sourceId)
+        source?.let(platformAccess::releaseAccess)
         loadLibraryContent(repository, platformAccess)
     }
     updateLibrary(content)
@@ -225,7 +227,9 @@ internal suspend fun clearLibraryInBackground(
     updateLibrary: (LibraryContentState) -> Unit,
 ) {
     val content = withContext(ioDispatcher) {
+        val sources = repository.sources()
         repository.clearAll()
+        sources.forEach(platformAccess::releaseAccess)
         loadLibraryContent(repository, platformAccess)
     }
     updateLibrary(content)

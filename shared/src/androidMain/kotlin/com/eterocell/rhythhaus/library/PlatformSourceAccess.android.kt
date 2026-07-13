@@ -75,6 +75,16 @@ class AndroidSafSourceAccess(
         }
     }
 
+    override fun releaseAccess(source: LibrarySource) {
+        if (source.platformKind != LibraryPlatformKind.AndroidSafTree) return
+        runCatching {
+            context.contentResolver.releasePersistableUriPermission(
+                Uri.parse(source.handle),
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
+    }
+
     override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> = sequence {
         require(source.platformKind == LibraryPlatformKind.AndroidSafTree) {
             "AndroidSafSourceAccess can only scan AndroidSafTree sources"

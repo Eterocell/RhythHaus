@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -206,6 +207,43 @@ class LibrarySourceManagementTest {
     }
 
     @Test
+    fun sourceRemovalReleasesAccessOnlyAfterRepositoryDeletion() = runBlocking {
+        val removedSource = source("remove")
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(removedSource)
+        }
+        val platformAccess = FakePlatformSourceAccess(repository = repository)
+
+        removeSourceInBackground(
+            sourceId = removedSource.id,
+            repository = repository,
+            platformAccess = platformAccess,
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = {},
+        )
+
+        assertEquals(listOf(removedSource), platformAccess.releasedSources)
+        assertEquals(false, platformAccess.sourceWasPresentWhenReleased)
+    }
+
+    @Test
+    fun sourceRemovalDoesNotReleaseAccessWhenRepositoryDeletionFails() = runBlocking {
+        val platformAccess = FakePlatformSourceAccess()
+
+        assertFailsWith<IllegalStateException> {
+            removeSourceInBackground(
+                sourceId = "remove",
+                repository = FailingMutationRepository(),
+                platformAccess = platformAccess,
+                ioDispatcher = Dispatchers.Default,
+                updateLibrary = {},
+            )
+        }
+
+        assertEquals(emptyList(), platformAccess.releasedSources)
+    }
+
+    @Test
     fun clearLibraryRefreshesBothSourcesAndTracks() = runBlocking {
         val repository = InMemoryLibraryRepository().apply {
             upsertSource(source("source"))
@@ -222,6 +260,43 @@ class LibrarySourceManagementTest {
 
         assertEquals(emptyList(), refreshedState?.sources)
         assertEquals(emptyList(), refreshedState?.tracks)
+    }
+
+    @Test
+    fun clearLibraryReleasesEverySnapshottedSourceAfterRepositoryClear() = runBlocking {
+        val first = source("first")
+        val second = source("second")
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(first)
+            upsertSource(second)
+        }
+        val platformAccess = FakePlatformSourceAccess(repository = repository)
+
+        clearLibraryInBackground(
+            repository = repository,
+            platformAccess = platformAccess,
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = {},
+        )
+
+        assertEquals(listOf(first, second), platformAccess.releasedSources)
+        assertEquals(false, platformAccess.sourceWasPresentWhenReleased)
+    }
+
+    @Test
+    fun clearLibraryDoesNotReleaseAccessWhenRepositoryClearFails() = runBlocking {
+        val platformAccess = FakePlatformSourceAccess()
+
+        assertFailsWith<IllegalStateException> {
+            clearLibraryInBackground(
+                repository = FailingMutationRepository(sources = listOf(source("first"))),
+                platformAccess = platformAccess,
+                ioDispatcher = Dispatchers.Default,
+                updateLibrary = {},
+            )
+        }
+
+        assertEquals(emptyList(), platformAccess.releasedSources)
     }
 
     private fun source(id: String) = LibrarySource(
@@ -261,9 +336,37 @@ class LibrarySourceManagementTest {
 
 private class FakePlatformSourceAccess(
     private val lostSourceId: String? = null,
+    private val repository: com.eterocell.rhythhaus.library.LibraryRepository? = null,
 ) : PlatformSourceAccess {
+    val releasedSources = mutableListOf<LibrarySource>()
+    var sourceWasPresentWhenReleased = false
+        private set
+
     override fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus =
         if (source.id == lostSourceId) LibrarySourceAccessStatus.LostAccess else LibrarySourceAccessStatus.Available
 
+    override fun releaseAccess(source: LibrarySource) {
+        sourceWasPresentWhenReleased = sourceWasPresentWhenReleased || repository?.sources()?.any { it.id == source.id } == true
+        releasedSources += source
+    }
+
     override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> = emptySequence()
+}
+
+private class FailingMutationRepository(
+    private val sources: List<LibrarySource> = emptyList(),
+) : com.eterocell.rhythhaus.library.LibraryRepository {
+    override fun upsertSource(source: LibrarySource) = Unit
+    override fun sources(): List<LibrarySource> = sources
+    override fun upsertTrack(track: LibraryTrack) = error("unused")
+    override fun tracks(): List<LibraryTrack> = emptyList()
+    override fun tracksForSource(sourceId: String): List<LibraryTrack> = emptyList()
+    override fun artworkForTrack(trackId: String) = null
+    override fun insertScanSession(session: ScanSession) = Unit
+    override fun updateScanSession(session: ScanSession) = Unit
+    override fun insertScanError(error: com.eterocell.rhythhaus.library.ScanError) = Unit
+    override fun scanErrors(scanId: String) = emptyList<com.eterocell.rhythhaus.library.ScanError>()
+    override fun removeMissingTracks(sourceId: String, latestScanId: String) = 0
+    override fun removeSource(sourceId: String): Unit = throw IllegalStateException("remove failed")
+    override fun clearAll(): Unit = throw IllegalStateException("clear failed")
 }
