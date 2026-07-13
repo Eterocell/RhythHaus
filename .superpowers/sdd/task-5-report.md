@@ -1,76 +1,87 @@
-# Task 5 Report: Final Verification and Durable Evidence
+# Task 5 Report: Playback Session FIFO Coordinator
 
-## Result
+## Scope
 
-DONE_WITH_CONCERNS
+- Implemented only the Task 5 coordinator and focused common tests.
+- Preserved the review-clean Task 1-4 controller, store, platform engines, dependencies, lifecycle wiring, UI, SQL, OpenSpec, progress, and roadmap files.
+- Existing unrelated modifications to `.superpowers/sdd/task-1-report.md` and `.superpowers/sdd/task-2-report.md` were left untouched.
 
-Task 5 records durable evidence only. It does not modify production or test code, approved specs/design/plan artifacts, platform code, dependencies, persistence, or navigation.
+## Root design
 
-## Completed OpenSpec Tasks
+- `PlaybackSessionCoordinator` owns one unlimited FIFO `Channel<Command>` and one process-scope actor coroutine.
+- Commands are `Restore`, `Checkpoint`, `Reconcile`, and `Flush`.
+- Only an immediately adjacent run of `Checkpoint` commands is drained and collapsed to its newest complete snapshot. The first non-checkpoint is retained and processed next, so restore, reconcile, and flush remain strict barriers.
+- Restore disables controller/platform commands before reading, applies the persisted snapshot through `PlaybackSessionController`, saves the controller's normalized `sessionSnapshot()`, starts exactly one single-consumer checkpoint collector, reenables commands, and only then exposes `Ready` or `FailedSafe`.
+- Reconciliation submitted during restore stays in the actor queue. Normal reconciliation applies controller state, saves its normalized snapshot, and returns `Applied`. Failed-safe reconciliation still applies controller state in memory, skips persistence, and returns `FailedSafeApplied`.
+- Unexpected read failure applies the empty paused controller boundary, reenables commands, completes restore, and enters process-lifetime `FailedSafe`.
+- Any save failure transitions once to process-lifetime `FailedSafe`; later checkpoints and restores do not persist, while flush/reconcile/restore replies still complete.
+- `flush()` yields once before placing its actor barrier so a checkpoint already emitted into the controller's process-owned single-consumer flow can enqueue before the barrier.
 
-- 4.2: Task-level and whole-change reviews completed. The final Oracle release gate reported PASS with no Critical or Important findings.
-- 4.3: `tasks.md`, roadmap item 17, and the top `progress.md` handoff now record the verified behavior, commands, blocker, and manual-QA limit.
+## Strict TDD evidence
 
-## Verified Behavior
+### RED
 
-- Selecting the current track row restarts it from zero and ensures playback without replacing its existing queue.
-- Selecting a non-current row replaces the queue with the exact visible order from Library home, album, artist, or filtered Search results, then plays that selected track.
-- Dedicated Now Playing play/pause controls continue to toggle transport without row-selection restart behavior.
-- Repeat and shuffle settings are preserved.
-
-## Verification Evidence
-
-- Focused integration suite:
-
-  ```text
-  ./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --tests 'com.eterocell.rhythhaus.library.LibraryPlaybackSelectionTest' --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache
-  BUILD SUCCESSFUL in 732ms
-  ```
-
-- Shared JVM compiler gate:
-
-  ```text
-  ./gradlew :shared:compileKotlinJvm --configuration-cache
-  BUILD SUCCESSFUL in 331ms
-  ```
-
-- Full scoped JVM, desktop, and Android verification:
-
-  ```text
-  ./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache
-  BUILD SUCCESSFUL in 529ms
-  99 tasks
-  ```
-
-- Strict OpenSpec validation passed for `restart-current-track-selection`.
-- Xcode availability passed: Xcode 26.6, build 17F113.
-- `GIT_MASTER=1 git diff --check` passed.
-- Task-level reviews and the whole-change Oracle release review passed. The only follow-up is optional direct UI-level tests for cross-surface queue wiring.
-
-## iOS and Manual QA Limits
-
-`./gradlew :shared:iosSimulatorArm64Test --configuration-cache` remains blocked only by unchanged common-test code:
+Command:
 
 ```text
-AppScanCancellationTest.kt:56:28 Unresolved reference 'Thread'
-AppScanCancellationTest.kt:99:27 Unresolved reference 'Thread'
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionCoordinatorTest' --configuration-cache
 ```
 
-No iOS simulator test pass is claimed. Audible playback and visible-queue behavior also remain manual QA on target surfaces.
+Result: `BUILD FAILED` during `:shared:compileTestKotlinJvm` because `PlaybackSessionCoordinator`, `PlaybackSessionPhase`, and `PlaybackSessionReconcileResult` were absent. This was the expected meaningful RED before production implementation.
 
-## Scope and Diff Review
+The tests cover:
 
-- Task 5 changes only `openspec/changes/restart-current-track-selection/tasks.md`, `roadmap.md`, `progress.md`, and this report.
-- No platform-engine, dependency, database, persistence, navigation, styling, Windows, or Linux changes were made in Task 5.
-- Diff review confirmed the durable records match the approved OpenSpec behavior and the supplied verification evidence.
+- command gating and restore order;
+- normalized save before checkpoint collection;
+- reconciliation queued during restore;
+- adjacent-checkpoint-only collapse;
+- restore/reconcile/flush barriers;
+- flush completion;
+- save failure;
+- throwing read;
+- restore load normalization failure;
+- process-lifetime failed-safe future callers;
+- one checkpoint collector after repeated restore.
+
+### GREEN
+
+Command:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionCoordinatorTest' --configuration-cache
+```
+
+Result: `BUILD SUCCESSFUL in 1s`; 10 focused coordinator tests passed.
+
+## Verification
+
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionCoordinatorTest' --configuration-cache`: pass.
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 690ms`).
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`).
+- `GIT_MASTER=1 git diff --check`: pass (no output).
+- Kotlin LSP is unavailable in this repository; Gradle compilation is the required compiler gate.
+
+## Files
+
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionCoordinator.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionCoordinatorTest.kt`
+- `.superpowers/sdd/task-5-report.md`
 
 ## Commits
 
-- Durable-evidence commit: `dfb679a` (`docs: complete restart current track selection`).
-- This report is committed separately after writing.
+- `d2abf52` — `feat: coordinate playback session persistence`
+- Durable report commit follows this implementation commit.
+
+## Self-review
+
+- The actor is the sole persistence serialization boundary.
+- Checkpoint collapse does not consume across a barrier.
+- Restore replies and command reenabling are in a finally-equivalent path.
+- The collector starts only after normalized restore persistence succeeds and is guarded against duplicates.
+- Persistence is permanently disabled after the first read/save failure; no future waiter depends on actor failure propagation.
+- No dependencies, platform engines, lifecycle/DI wiring, store semantics, SQL, UI, OpenSpec, progress, roadmap, or earlier task reports were changed.
 
 ## Concerns
 
-- iOS simulator verification remains blocked by the pre-existing `Thread` references above.
-- Manual audible playback and queue QA remain.
-- Optional direct UI-level cross-surface queue-wiring coverage remains a non-blocking follow-up.
+- Abrupt process termination may still lose an in-flight write, matching the approved durability limit.
+- Task 6 must provide the actual process-owned scope and singleton lifecycle wiring; this task intentionally does not implement it.
