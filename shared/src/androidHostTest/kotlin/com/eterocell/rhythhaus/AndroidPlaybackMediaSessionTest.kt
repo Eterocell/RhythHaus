@@ -117,6 +117,46 @@ class AndroidPlaybackMediaSessionTest {
     }
 
     @Test
+    fun readySourceRetainsObservableGenerationForLaterCallbacks() = runBlocking {
+        val requests = AndroidPlaybackRequestState()
+        val request = requests.begin(70L)
+
+        assertTrue(requests.ready(request.token, durationMillis = 1_234L))
+        assertEquals(LoadedPlayback(70L, 1_234L), request.result.await())
+
+        assertEquals(70L, requests.observableGeneration(request.token))
+        assertEquals(70L, requests.observableGeneration(request.token))
+        assertEquals(70L, requests.observableGeneration(request.token))
+        assertEquals(70L, requests.observableGeneration(request.token))
+    }
+
+    @Test
+    fun replacementInvalidatesReadySourceAndRejectsLateCallbacks() {
+        val requests = AndroidPlaybackRequestState()
+        val first = requests.begin(80L)
+        assertTrue(requests.ready(first.token, durationMillis = 2_000L))
+
+        val second = requests.begin(81L)
+
+        assertNull(requests.observableGeneration(first.token))
+        assertEquals(81L, requests.observableGeneration(second.token))
+    }
+
+    @Test
+    fun progressCaptureCannotBeRelabelledAcrossSourceReplacement() {
+        val requests = AndroidPlaybackRequestState()
+        val first = requests.begin(90L)
+        assertTrue(requests.ready(first.token, durationMillis = 3_000L))
+        val captured = requireNotNull(requests.captureObservable(first.token))
+
+        val second = requests.begin(91L)
+
+        assertFalse(requests.revalidate(captured, first.token))
+        assertFalse(requests.revalidate(captured, second.token))
+        assertEquals(90L, captured.generation)
+    }
+
+    @Test
     fun controllerOperationsAreDispatchedThroughProductionExecutorSeam() {
         val executor = RecordingAndroidControllerExecutor()
         val calls = mutableListOf<String>()

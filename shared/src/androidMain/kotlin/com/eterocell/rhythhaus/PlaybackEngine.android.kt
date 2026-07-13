@@ -266,10 +266,15 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     }
 
     private fun publishProgress(controller: MediaController) {
+        val observedToken = currentRequestToken(controller)
+        val provenance = requestState.captureObservable(observedToken) ?: return
+        val positionMillis = controller.currentPosition.coerceAtLeast(0L)
+        val durationMillis = controller.duration.takeIf { it > 0L } ?: loadedTrackDurationMillis
+        if (!requestState.revalidate(provenance, currentRequestToken(controller))) return
         listener?.onPlaybackProgress(
-            activeGeneration,
-            positionMillis = controller.currentPosition.coerceAtLeast(0L),
-            durationMillis = controller.duration.takeIf { it > 0L } ?: loadedTrackDurationMillis,
+            provenance.generation,
+            positionMillis = positionMillis,
+            durationMillis = durationMillis,
         )
     }
 
@@ -280,11 +285,7 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
                 delay(250)
                 val c = controller ?: break
                 if (!c.isPlaying) continue
-                listener?.onPlaybackProgress(
-                    activeGeneration,
-                    positionMillis = c.currentPosition.coerceAtLeast(0L),
-                    durationMillis = c.duration.takeIf { it > 0L } ?: loadedTrackDurationMillis,
-                )
+                publishProgress(c)
             }
         }
     }
@@ -293,8 +294,7 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         override fun onPlaybackStateChanged(playbackState: Int) {
             val c = controller ?: return
             val token = currentRequestToken(c) ?: return
-            val generation = requestState.activeTokenForTest()?.generation ?: return
-            if (!requestState.accepts(token)) return
+            val generation = requestState.observableGeneration(token) ?: return
             when (playbackState) {
                 Player.STATE_BUFFERING -> listener?.onPlaybackStatus(generation, PlaybackStatus.Buffering)
 
@@ -314,21 +314,19 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             val c = controller ?: return
-            val active = requestState.activeTokenForTest() ?: return
-            if (!requestState.accepts(currentRequestToken(c))) return
-            listener?.onPlaybackStatus(active.generation, if (isPlaying) PlaybackStatus.Playing else PlaybackStatus.Paused)
+            val generation = requestState.observableGeneration(currentRequestToken(c)) ?: return
+            listener?.onPlaybackStatus(generation, if (isPlaying) PlaybackStatus.Playing else PlaybackStatus.Paused)
             publishProgress(c)
         }
 
         override fun onPlayerError(error: PlaybackException) {
             val c = controller ?: return
-            val active = requestState.activeTokenForTest() ?: return
             val observed = currentRequestToken(c)
-            if (!requestState.accepts(observed)) return
+            val generation = requestState.observableGeneration(observed) ?: return
             val cause = IllegalStateException(error.message ?: error.errorCodeName)
-            requestState.fail(active, observed, cause)
+            requestState.failPending(observed, cause)
             listener?.onPlaybackError(
-                active.generation,
+                generation,
                 PlaybackError(
                     message = "Android could not play this audio file.",
                     cause = error.message ?: error.errorCodeName,
@@ -368,62 +366,94 @@ internal data class AndroidPlaybackRequest(
     val result: CompletableDeferred<LoadedPlayback>,
 )
 
+internal data class AndroidObservablePlayback(
+    val token: Media3RequestToken,
+    val generation: Long,
+)
+
 internal class AndroidPlaybackRequestState {
     private var nonce: Long = 0L
-    private var active: AndroidPlaybackRequest? = null
+    private var pending: AndroidPlaybackRequest? = null
+    private var observable: AndroidObservablePlayback? = null
 
     @Synchronized
     fun begin(generation: Long): AndroidPlaybackRequest {
-        active?.result?.cancel(CancellationException("Superseded Android playback load"))
+        pending?.result?.cancel(CancellationException("Superseded Android playback load"))
         return AndroidPlaybackRequest(
             token = Media3RequestToken(generation, ++nonce),
             result = CompletableDeferred(),
-        ).also { active = it }
+        ).also {
+            pending = it
+            observable = AndroidObservablePlayback(it.token, generation)
+        }
     }
 
     @Synchronized
-    fun accepts(observedCurrentToken: Media3RequestToken?): Boolean = active?.token == observedCurrentToken
+    fun accepts(observedCurrentToken: Media3RequestToken?): Boolean = observable?.token == observedCurrentToken
 
     @Synchronized
     fun ready(token: Media3RequestToken, durationMillis: Long?): Boolean {
-        val request = active?.takeIf { it.token == token } ?: return false
-        active = null
+        val request = pending?.takeIf { it.token == token && observable?.token == token } ?: return false
+        pending = null
         return request.result.complete(LoadedPlayback(token.generation, durationMillis))
     }
 
     @Synchronized
     fun fail(token: Media3RequestToken, observedCurrentToken: Media3RequestToken?, error: Throwable): Boolean {
-        val request = active?.takeIf { it.token == token && it.token == observedCurrentToken } ?: return false
-        active = null
+        val request = pending?.takeIf { it.token == token && it.token == observedCurrentToken } ?: return false
+        pending = null
+        observable = null
+        return request.result.completeExceptionally(error)
+    }
+
+    @Synchronized
+    fun failPending(observedCurrentToken: Media3RequestToken?, error: Throwable): Boolean {
+        val request = pending?.takeIf { it.token == observedCurrentToken } ?: return false
+        pending = null
         return request.result.completeExceptionally(error)
     }
 
     @Synchronized
     fun failActive(error: Throwable): Boolean {
-        val request = active ?: return false
-        active = null
+        val request = pending ?: return false
+        pending = null
+        observable = null
         return request.result.completeExceptionally(error)
     }
 
     @Synchronized
     fun cancelIfOwner(token: Media3RequestToken, cause: CancellationException): Boolean {
-        val request = active?.takeIf { it.token == token } ?: return false
-        active = null
+        val request = pending?.takeIf { it.token == token } ?: return false
+        pending = null
+        if (observable?.token == token) observable = null
         request.result.cancel(cause)
         return true
     }
 
     @Synchronized
     fun clear(cause: CancellationException) {
-        val request = active
-        active = null
+        val request = pending
+        pending = null
+        observable = null
         request?.result?.cancel(cause)
     }
 
     fun release() = clear(CancellationException("Android playback engine released"))
 
     @Synchronized
-    fun activeTokenForTest(): Media3RequestToken? = active?.token
+    fun activeTokenForTest(): Media3RequestToken? = pending?.token
+
+    @Synchronized
+    fun observableGeneration(observedCurrentToken: Media3RequestToken?): Long? =
+        observable?.takeIf { it.token == observedCurrentToken }?.generation
+
+    @Synchronized
+    fun captureObservable(observedCurrentToken: Media3RequestToken?): AndroidObservablePlayback? =
+        observable?.takeIf { it.token == observedCurrentToken }
+
+    @Synchronized
+    fun revalidate(captured: AndroidObservablePlayback, observedCurrentToken: Media3RequestToken?): Boolean =
+        observable == captured && captured.token == observedCurrentToken
 }
 
 private fun currentRequestToken(controller: MediaController): Media3RequestToken? =
