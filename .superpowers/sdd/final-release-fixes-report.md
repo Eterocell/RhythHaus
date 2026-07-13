@@ -52,3 +52,21 @@ Base: `65f7c9e`
 - LSP: Kotlin diagnostics unavailable because `kotlin-ls` was previously declined. Standalone clang diagnostics could not resolve `jni.h`; the Gradle native helper build compiled the Objective-C++ source successfully in focused and full verification.
 
 No dependencies, schemas, UI, roadmap, progress, OpenSpec task status, or Task 1-6 reports were changed.
+
+## Final Oracle blocker: macOS native-handle lifetime serialization
+
+- Root cause: `MacAudioPlayerBridge` read `handle` independently for every JNI call, while the scheduled progress callback could remain in flight after `ScheduledFuture.cancel(false)`. Concurrent `resetPlayer()` or `releasePlayer()` could therefore release that native object between progress position/duration/Now Playing calls, causing use-after-free or mixing old/new source handles. Generation publication checks protected Kotlin events, not native object lifetime.
+- RED: focused `JvmPlaybackEngineTest` compilation failed with unresolved `withLifetimeBoundaryForTest` and `currentHandleIdentityForTest`, proving the production bridge had no lifetime-owner boundary or deterministic identity seam.
+- Lifetime contract: one per-bridge monitor now owns `handle`, retained transport configuration, every handle-using JNI call, reset, final release, and finalizer cleanup. Reset/release cannot call `nativeRelease` until an in-flight operation exits; after final release no handle operation can enter. Public one-call bridge methods use the same boundary without nested helper locking. Progress position read, duration read, and Now Playing position update are one compound `readAndUpdateProgress` operation against one owned handle/source lifetime.
+- GREEN regressions: an operation blocked inside the production lifetime boundary prevents reset, then observes its original lifetime identity before reset safely creates a new identity; a second blocked operation prevents final release, after which the handle identity is zero and later normal/test operations retain the existing released-bridge failure contract.
+- Preservation: native remote-handler token cleanup remains in `nativeRelease`; reset still creates/configures a new handle with retained transport state; remote command behavior is unchanged.
+- Files: `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt`, `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/JvmPlaybackEngineTest.kt`.
+- Commit: `eb115e8 fix: serialize macos native handle lifetime`.
+- Verification:
+  - Focused lifetime regressions: pass (`BUILD SUCCESSFUL in 5s`).
+  - Full `JvmPlaybackEngineTest`: pass (`BUILD SUCCESSFUL in 1m 17s`).
+  - Focused `PlaybackControllerTest` and `PlaybackSessionCoordinatorTest`: pass (`BUILD SUCCESSFUL in 1s`).
+  - Full release command: pass (`BUILD SUCCESSFUL in 1m 18s`, 113 tasks).
+  - iOS simulator main compile: pass (`BUILD SUCCESSFUL in 370ms`); no iOS test pass is claimed.
+  - `openspec validate persist-playback-session --strict`: pass (`Change 'persist-playback-session' is valid`).
+  - `GIT_MASTER=1 git diff --check`: pass.
