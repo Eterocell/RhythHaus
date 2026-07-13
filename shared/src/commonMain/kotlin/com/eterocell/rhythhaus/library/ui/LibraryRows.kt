@@ -107,6 +107,7 @@ internal fun ImportAudioCard(
     folderPickerLauncher: PlatformFolderPickerLauncher,
     importMessage: String?,
     hasImportedTracks: Boolean,
+    mutationsEnabled: Boolean,
     onClearLibrary: () -> Unit,
 ) {
     Card(
@@ -134,7 +135,7 @@ internal fun ImportAudioCard(
             )
             Button(
                 onClick = folderPickerLauncher::launch,
-                enabled = folderPickerLauncher.isAvailable,
+                enabled = folderPickerLauncher.isAvailable && mutationsEnabled,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)

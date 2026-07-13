@@ -47,6 +47,7 @@ internal fun LibraryHomeContent(
     browseMode: BrowseMode,
     homeListState: LazyListState,
     folderPickerLauncher: PlatformFolderPickerLauncher,
+    sourcePickerActionVisible: Boolean,
     importMessage: String?,
     scanProgress: ScanProgress?,
     scanJob: Job?,
@@ -82,12 +83,13 @@ internal fun LibraryHomeContent(
                     item {
                         HeaderSection(snapshot)
                     }
-                    if (snapshot.tracks.isEmpty()) {
+                    if (snapshot.tracks.isEmpty() && sourcePickerActionVisible) {
                         item {
                             ImportAudioCard(
                                 folderPickerLauncher = folderPickerLauncher,
                                 importMessage = importMessage,
                                 hasImportedTracks = false,
+                                mutationsEnabled = scanProgress?.isActive != true,
                                 onClearLibrary = onClearLibrary,
                             )
                         }
