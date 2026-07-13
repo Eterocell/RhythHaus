@@ -51,6 +51,7 @@ import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
 import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.ui.AnimatedClearLibraryDialogRoute
 import com.eterocell.rhythhaus.library.ui.ScanningCard
 import com.eterocell.rhythhaus.theme.HausColors
@@ -116,7 +117,10 @@ fun SettingsScreen(
 ) {
     var showClearLibraryDialog by remember { mutableStateOf(false) }
     var sourcePendingRemoval by remember { mutableStateOf<LibrarySource?>(null) }
-    val mutationsEnabled = sourceMutationsEnabled(scanProgress)
+    val mutationsEnabled = sourceMutationsAllowed(
+        isProgressActive = scanProgress?.isActive == true,
+        isJobActive = scanJob?.isActive == true,
+    )
 
     Box(
         modifier = modifier
@@ -235,6 +239,7 @@ fun SettingsScreen(
                         item {
                             Button(
                                 onClick = { showClearLibraryDialog = true },
+                                enabled = mutationsEnabled,
                                 modifier = Modifier.fillMaxWidth().height(48.dp),
                                 cornerRadius = 18.dp,
                                 colors = ButtonDefaults.buttonColors(
@@ -284,8 +289,6 @@ internal enum class SourceScanLabel { NeverScanned, LastScanned }
 internal fun sourceManagementLabels(source: LibrarySource): Pair<SourceAccessLabel, SourceScanLabel> =
     (if (source.accessStatus == LibrarySourceAccessStatus.Available) SourceAccessLabel.Available else SourceAccessLabel.LostAccess) to
         (if (source.lastScanAtEpochMillis == null) SourceScanLabel.NeverScanned else SourceScanLabel.LastScanned)
-
-internal fun sourceMutationsEnabled(scanProgress: ScanProgress?): Boolean = scanProgress?.isActive != true
 
 internal data class SourceDialogName(
     val visual: String,

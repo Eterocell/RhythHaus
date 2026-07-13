@@ -19,6 +19,11 @@ fun sourcePickerActionVisible(
     sourceCount: Int,
 ): Boolean = supportsAdditionalSources || sourceCount == 0
 
+fun sourceMutationsAllowed(
+    isProgressActive: Boolean,
+    isJobActive: Boolean,
+): Boolean = !isProgressActive && !isJobActive
+
 @Composable
 expect fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,

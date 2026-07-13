@@ -21,6 +21,7 @@ import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
+import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.DarkHausPalette
@@ -70,7 +71,11 @@ fun App() {
     }
 
     fun launchSourceScan(source: LibrarySource) {
-        if (scanProgress?.isActive == true || scanJob?.isActive == true) return
+        if (!sourceMutationsAllowed(
+                isProgressActive = scanProgress?.isActive == true,
+                isJobActive = scanJob?.isActive == true,
+            )
+        ) return
         scanCancellationRequested.value = false
         scanJob = scope.launch(Dispatchers.Default) {
             val progress = ScanProgress(
@@ -139,18 +144,28 @@ fun App() {
                     }
                 },
                 onClearLibrary = {
-                    scope.launch {
-                        clearLibraryInBackground(
-                            repository = repository,
-                            platformAccess = platformAccess,
-                            ioDispatcher = Dispatchers.Default,
-                            updateLibrary = ::updateLibraryContent,
+                    if (sourceMutationsAllowed(
+                            isProgressActive = scanProgress?.isActive == true,
+                            isJobActive = scanJob?.isActive == true,
                         )
+                    ) {
+                        scope.launch {
+                            clearLibraryInBackground(
+                                repository = repository,
+                                platformAccess = platformAccess,
+                                ioDispatcher = Dispatchers.Default,
+                                updateLibrary = ::updateLibraryContent,
+                            )
+                        }
                     }
                 },
                 onRescanSource = ::launchSourceScan,
                 onRemoveSource = { source ->
-                    if (scanProgress?.isActive != true && scanJob?.isActive != true) {
+                    if (sourceMutationsAllowed(
+                            isProgressActive = scanProgress?.isActive == true,
+                            isJobActive = scanJob?.isActive == true,
+                        )
+                    ) {
                         scope.launch {
                             removeSourceInBackground(
                                 sourceId = source.id,

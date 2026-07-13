@@ -11,12 +11,12 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
+import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.settings.SourceAccessLabel
 import com.eterocell.rhythhaus.settings.SourceDialogName
 import com.eterocell.rhythhaus.settings.SourceScanLabel
 import com.eterocell.rhythhaus.settings.sourceDialogName
 import com.eterocell.rhythhaus.settings.sourceManagementLabels
-import com.eterocell.rhythhaus.settings.sourceMutationsEnabled
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -42,6 +42,14 @@ class LibrarySourceManagementTest {
     }
 
     @Test
+    fun sourceMutationsAreAllowedOnlyWhenProgressAndJobAreInactive() {
+        assertTrue(sourceMutationsAllowed(isProgressActive = false, isJobActive = false))
+        assertFalse(sourceMutationsAllowed(isProgressActive = true, isJobActive = false))
+        assertFalse(sourceMutationsAllowed(isProgressActive = false, isJobActive = true))
+        assertFalse(sourceMutationsAllowed(isProgressActive = true, isJobActive = true))
+    }
+
+    @Test
     fun sourceManagementLabelsMapAccessAndLastScanState() {
         assertEquals(
             SourceAccessLabel.Available to SourceScanLabel.NeverScanned,
@@ -59,11 +67,11 @@ class LibrarySourceManagementTest {
     }
 
     @Test
-    fun sourceMutationsAreDisabledOnlyWhileScanIsActive() {
-        assertTrue(sourceMutationsEnabled(scanProgress = null))
-        assertFalse(sourceMutationsEnabled(scanProgress(ScanStatus.Scanning)))
-        assertFalse(sourceMutationsEnabled(scanProgress(ScanStatus.Cancelling)))
-        assertTrue(sourceMutationsEnabled(scanProgress(ScanStatus.Completed)))
+    fun sourceMutationsFollowTerminalProgressWhenNoJobIsActive() {
+        assertTrue(sourceMutationsAllowed(isProgressActive = false, isJobActive = false))
+        assertFalse(sourceMutationsAllowed(isProgressActive = scanProgress(ScanStatus.Scanning).isActive, isJobActive = false))
+        assertFalse(sourceMutationsAllowed(isProgressActive = scanProgress(ScanStatus.Cancelling).isActive, isJobActive = false))
+        assertTrue(sourceMutationsAllowed(isProgressActive = scanProgress(ScanStatus.Completed).isActive, isJobActive = false))
     }
 
     @Test
