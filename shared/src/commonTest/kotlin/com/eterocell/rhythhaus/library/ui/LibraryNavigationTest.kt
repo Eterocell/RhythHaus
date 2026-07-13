@@ -1,6 +1,9 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.ui.unit.dp
+import com.eterocell.rhythhaus.AudioSource
+import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.TrackAccent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -8,15 +11,34 @@ import kotlin.test.assertTrue
 
 class LibraryNavigationTest {
     @Test
-    fun drillDownRowAndTransportActionsRemainSeparate() {
-        assertEquals(
-            DrillDownTrackAction.SelectTrack,
-            drillDownTrackAction(isTransportControl = false),
+    fun drillDownRowDispatchesOnlyTrackSelectionWithSelectedTrack() {
+        val selectedTrack = testTrack(id = "selected")
+        val selectedTracks = mutableListOf<Track>()
+        var transportToggleCount = 0
+
+        dispatchDrillDownAction(
+            action = DrillDownAction.SelectTrack(selectedTrack),
+            onTrackClick = { selectedTracks.add(it) },
+            onPlayPause = { transportToggleCount += 1 },
         )
-        assertEquals(
-            DrillDownTrackAction.ToggleTransport,
-            drillDownTrackAction(isTransportControl = true),
+
+        assertEquals(listOf(selectedTrack), selectedTracks)
+        assertEquals(0, transportToggleCount)
+    }
+
+    @Test
+    fun drillDownTransportDispatchesOnlyPlayPause() {
+        val selectedTracks = mutableListOf<Track>()
+        var transportToggleCount = 0
+
+        dispatchDrillDownAction(
+            action = DrillDownAction.ToggleTransport,
+            onTrackClick = { selectedTracks.add(it) },
+            onPlayPause = { transportToggleCount += 1 },
         )
+
+        assertTrue(selectedTracks.isEmpty())
+        assertEquals(1, transportToggleCount)
     }
 
     @Test
@@ -443,3 +465,13 @@ class LibraryNavigationTest {
         assertFalse(state.isNowPlayingBarVisible)
     }
 }
+
+private fun testTrack(id: String): Track = Track(
+    id = id,
+    title = "Title $id",
+    artist = "Artist",
+    album = "Album",
+    durationSeconds = 180,
+    accent = TrackAccent(start = 0xFF111111, end = 0xFF222222),
+    source = AudioSource.FilePath("audio/$id.mp3"),
+)

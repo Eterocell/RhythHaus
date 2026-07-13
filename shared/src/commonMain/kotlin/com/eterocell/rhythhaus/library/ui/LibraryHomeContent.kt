@@ -31,7 +31,6 @@ import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.PlaybackController
-import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.toPlayableTrack
@@ -52,7 +51,6 @@ internal fun LibraryHomeContent(
     scanProgress: ScanProgress?,
     scanJob: Job?,
     selectedTrackId: String?,
-    playbackState: PlaybackState,
     playbackController: PlaybackController,
     homeBackdrop: LayerBackdrop?,
     onBrowseModeChange: (BrowseMode) -> Unit,

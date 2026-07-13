@@ -106,3 +106,51 @@ Kotlin LSP diagnostics were not run because Kotlin LSP is unavailable by prior u
 ## Concerns
 
 - None. Automated verification is intentionally limited to the focused suites and shared JVM compilation required by the Task 3 brief.
+
+## Review Fix - Production-Used Callback Dispatch
+
+Resolved all Task 3 review findings:
+
+- Replaced the test-only `DrillDownTrackAction` classification with `DrillDownAction` plus `dispatchDrillDownAction(...)`, a deterministic seam used directly by both the real `TrackRow` click path and drill-down `NowPlayingBar` transport path.
+- Regression tests now assert callback counts and selected-track arguments: row dispatch invokes selection exactly once and transport zero times; transport dispatch invokes transport exactly once and selection zero times.
+- Changed drill-down `onPlayPause` from `(Track) -> Unit` to `() -> Unit`, because transport targets the controller's current track. Album and artist route wiring pass `playbackController::togglePlayPause` directly.
+- Removed the unused `playbackState` parameter from `LibraryHomeContent` and both call sites.
+- Preserved selection visuals, selection helper queues, Now Playing expansion, navigation, backdrop, scrolling, styling, and transport runtime behavior.
+
+Review-fix RED:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache
+BUILD FAILED in 944ms
+Unresolved reference 'dispatchDrillDownAction'.
+Unresolved reference 'DrillDownAction'.
+```
+
+The expected missing-seam failure occurred before production implementation. The same compile also exposed test-fixture typing issues; those fixture issues were corrected without adding production behavior before implementing the dispatch seam.
+
+Review-fix focused GREEN:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache
+BUILD SUCCESSFUL in 3s
+```
+
+Review-fix required suite:
+
+```text
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' \
+  --tests 'com.eterocell.rhythhaus.library.LibraryPlaybackSelectionTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' \
+  --configuration-cache
+BUILD SUCCESSFUL in 665ms
+```
+
+Review-fix compiler gate:
+
+```text
+./gradlew :shared:compileKotlinJvm --configuration-cache
+BUILD SUCCESSFUL in 302ms
+```
+
+Kotlin LSP remains unavailable by prior user choice; the required Gradle compiler gate passed.

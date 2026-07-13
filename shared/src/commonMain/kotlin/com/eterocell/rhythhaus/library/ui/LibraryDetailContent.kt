@@ -47,10 +47,22 @@ import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
 
-internal enum class DrillDownTrackAction { SelectTrack, ToggleTransport }
+internal sealed interface DrillDownAction {
+    data class SelectTrack(val track: Track) : DrillDownAction
 
-internal fun drillDownTrackAction(isTransportControl: Boolean): DrillDownTrackAction =
-    if (isTransportControl) DrillDownTrackAction.ToggleTransport else DrillDownTrackAction.SelectTrack
+    data object ToggleTransport : DrillDownAction
+}
+
+internal fun dispatchDrillDownAction(
+    action: DrillDownAction,
+    onTrackClick: (Track) -> Unit,
+    onPlayPause: () -> Unit,
+) {
+    when (action) {
+        is DrillDownAction.SelectTrack -> onTrackClick(action.track)
+        DrillDownAction.ToggleTransport -> onPlayPause()
+    }
+}
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
@@ -66,7 +78,7 @@ internal fun DrillDownView(
     libraryTracks: List<LibraryTrack>,
     onBack: () -> Unit,
     onTrackClick: (Track) -> Unit,
-    onPlayPause: (Track) -> Unit,
+    onPlayPause: () -> Unit,
     onExpandNowPlaying: (Track) -> Unit,
     onShowSettings: () -> Unit = {},
     onShowSearch: () -> Unit = {},
@@ -118,7 +130,11 @@ internal fun DrillDownView(
                             selected = track.id == selectedTrackId,
                             onClick = {
                                 selectedTrackId = track.id
-                                onTrackClick(track)
+                                dispatchDrillDownAction(
+                                    action = DrillDownAction.SelectTrack(track),
+                                    onTrackClick = onTrackClick,
+                                    onPlayPause = onPlayPause,
+                                )
                             },
                         )
                     }
@@ -151,7 +167,13 @@ internal fun DrillDownView(
                 NowPlayingBar(
                     track = currentTrack,
                     playbackState = playbackState,
-                    onPlayPause = { onPlayPause(currentTrack) },
+                    onPlayPause = {
+                        dispatchDrillDownAction(
+                            action = DrillDownAction.ToggleTransport,
+                            onTrackClick = onTrackClick,
+                            onPlayPause = onPlayPause,
+                        )
+                    },
                     onExpand = { onExpandNowPlaying(currentTrack) },
                     onSettings = onShowSettings,
                     onSearch = onShowSearch,

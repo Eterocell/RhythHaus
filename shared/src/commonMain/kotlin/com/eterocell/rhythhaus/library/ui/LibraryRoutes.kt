@@ -131,7 +131,7 @@ internal fun LibraryRouteContent(
                         onTrackSelected(track.id)
                         onTrackClickFromTracks(albumTracks, track)
                     },
-                    onPlayPause = { playbackController.togglePlayPause() },
+                    onPlayPause = playbackController::togglePlayPause,
                     onExpandNowPlaying = onExpandNowPlaying,
                     onShowSettings = onShowSettings,
                     onShowSearch = onShowSearch,
@@ -165,7 +165,7 @@ internal fun LibraryRouteContent(
                         onTrackSelected(track.id)
                         onTrackClickFromTracks(artistTracks, track)
                     },
-                    onPlayPause = { playbackController.togglePlayPause() },
+                    onPlayPause = playbackController::togglePlayPause,
                     onExpandNowPlaying = onExpandNowPlaying,
                     onShowSettings = onShowSettings,
                     onShowSearch = onShowSearch,
