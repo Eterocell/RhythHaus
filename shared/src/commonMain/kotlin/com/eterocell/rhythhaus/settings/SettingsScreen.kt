@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
@@ -97,6 +98,20 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 
+internal data class SettingsLayoutPolicy(
+    val horizontalPagePadding: Dp,
+    val verticalPagePadding: Dp,
+    val itemSpacing: Dp,
+    val bottomContentPadding: Dp,
+)
+
+internal val CompactSettingsLayoutPolicy = SettingsLayoutPolicy(
+    horizontalPagePadding = 16.dp,
+    verticalPagePadding = 8.dp,
+    itemSpacing = 12.dp,
+    bottomContentPadding = 8.dp,
+)
+
 @Composable
 fun SettingsScreen(
     sources: List<LibrarySource>,
@@ -118,6 +133,7 @@ fun SettingsScreen(
 ) {
     var showClearLibraryDialog by remember { mutableStateOf(false) }
     var sourcePendingRemoval by remember { mutableStateOf<LibrarySource?>(null) }
+    val layoutPolicy = CompactSettingsLayoutPolicy
     val mutationsEnabled = sourceMutationsAllowed(
         isProgressActive = scanProgress?.isActive == true,
         isJobActive = scanJob?.isActive == true,
@@ -139,9 +155,12 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .safeContentPadding()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                        .padding(
+                            horizontal = layoutPolicy.horizontalPagePadding,
+                            vertical = layoutPolicy.verticalPagePadding,
+                        ),
+                    contentPadding = PaddingValues(bottom = layoutPolicy.bottomContentPadding),
+                    verticalArrangement = Arrangement.spacedBy(layoutPolicy.itemSpacing),
                 ) {
                     item {
                         RhythHausTopAppBar(
