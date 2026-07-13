@@ -9,7 +9,11 @@ import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.TrackArtwork
 import com.eterocell.rhythhaus.library.TrackUpsertResult
+import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
+import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -60,6 +64,7 @@ class AppScanCancellationTest {
         clearLibraryInBackground(
             repository = repository,
             platformAccess = TestPlatformSourceAccess,
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
             ioDispatcher = Dispatchers.Default,
             updateLibrary = { content -> clearedContent = content },
         )
@@ -71,6 +76,80 @@ class AppScanCancellationTest {
         check(clearThread != callerThread) {
             "clearAll ran on caller thread $callerThread"
         }
+    }
+
+    @Test
+    fun initialLibraryAvailabilityRestoresBeforePublishing() = runBlocking {
+        val events = mutableListOf<String>()
+        val content = LibraryContentState(sources = emptyList(), tracks = emptyList())
+
+        publishInitialLibraryContent(
+            lifecycle = PlaybackSessionRestorer { events += "restore" },
+            reconciler = PlaybackSessionReconciler {
+                events += "reconcile"
+                PlaybackSessionReconcileResult.Applied
+            },
+            content = content,
+            updateLibrary = { events += "publish" },
+        )
+
+        assertEquals(listOf("restore", "reconcile", "publish"), events)
+    }
+
+    @Test
+    fun playbackMutationsStayDisabledUntilInitialRestoreCompletes() = runBlocking {
+        val restoreStarted = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val allowRestore = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val publication = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+        coroutineScope {
+            val job = async {
+                publishInitialLibraryContent(
+                    lifecycle = PlaybackSessionRestorer {
+                        restoreStarted.complete(Unit)
+                        allowRestore.await()
+                    },
+                    reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
+                    content = LibraryContentState(emptyList(), emptyList()),
+                    updateLibrary = { publication.complete(Unit) },
+                )
+            }
+
+            restoreStarted.await()
+            assertEquals(false, publication.isCompleted)
+            allowRestore.complete(Unit)
+            job.await()
+            assertEquals(true, publication.isCompleted)
+        }
+    }
+
+    @Test
+    fun scanRefreshPublishesAfterReconcileCompletes() = runBlocking {
+        val events = mutableListOf<String>()
+
+        publishLibraryContentAfterReconcile(
+            reconciler = PlaybackSessionReconciler {
+                events += "reconcile"
+                PlaybackSessionReconcileResult.Applied
+            },
+            content = LibraryContentState(emptyList(), emptyList()),
+            updateLibrary = { events += "publish" },
+        )
+
+        assertEquals(listOf("reconcile", "publish"), events)
+    }
+
+    @Test
+    fun failedSafeAppliedContentStillPublishes() = runBlocking {
+        var published = false
+
+        publishLibraryContentAfterReconcile(
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.FailedSafeApplied },
+            content = LibraryContentState(emptyList(), emptyList()),
+            updateLibrary = { published = true },
+        )
+
+        assertEquals(true, published)
     }
 }
 

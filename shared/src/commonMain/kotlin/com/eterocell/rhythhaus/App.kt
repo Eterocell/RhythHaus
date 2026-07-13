@@ -2,7 +2,7 @@ package com.eterocell.rhythhaus
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +32,7 @@ import com.eterocell.rhythhaus.theme.ThemePreferenceStore
 import com.eterocell.rhythhaus.ui.LocalTrackArtworkLoader
 import com.eterocell.rhythhaus.theme.resolveHausPalette
 import com.eterocell.rhythhaus.theme.systemPrefersDarkTheme
+import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineDispatcher
@@ -55,9 +56,12 @@ fun App() {
     val platformAccess = koinInject<PlatformSourceAccess>()
     val scanner = koinInject<LibraryScanner>()
     val themePreferenceStore = koinInject<ThemePreferenceStore>()
+    val playbackLifecycle = koinInject<PlaybackProcessLifecycle>()
+    val playbackReconciler = koinInject<PlaybackSessionReconciler>()
     val initialLibraryContent = remember { loadLibraryContent(repository, platformAccess) }
-    var librarySources by remember { mutableStateOf(initialLibraryContent.sources) }
-    var libraryTracks by remember { mutableStateOf(initialLibraryContent.tracks) }
+    var librarySources by remember { mutableStateOf(emptyList<LibrarySource>()) }
+    var libraryTracks by remember { mutableStateOf(emptyList<LibraryTrack>()) }
+    var initialLibraryReady by remember { mutableStateOf(false) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
@@ -66,13 +70,26 @@ fun App() {
     val scanCompleteFormat = stringResource(Res.string.scan_complete_format)
     val selectedThemeMode by themePreferenceStore.selectedThemeMode.collectAsState(RhythHausThemeMode.System)
 
+    LaunchedEffect(initialLibraryContent) {
+        publishInitialLibraryContent(
+            lifecycle = playbackLifecycle,
+            reconciler = playbackReconciler,
+            content = initialLibraryContent,
+            updateLibrary = {
+                librarySources = it.sources
+                libraryTracks = it.tracks
+                initialLibraryReady = true
+            },
+        )
+    }
+
     fun updateLibraryContent(content: LibraryContentState) {
         librarySources = content.sources
         libraryTracks = content.tracks
     }
 
     fun launchSourceScan(source: LibrarySource) {
-        if (!sourceMutationsAllowed(
+        if (!initialLibraryReady || !sourceMutationsAllowed(
                 isProgressActive = scanProgress?.isActive == true,
                 isJobActive = scanJob?.isActive == true,
             )
@@ -95,6 +112,7 @@ fun App() {
             )
 
             val content = loadLibraryContent(repository, platformAccess)
+            playbackReconciler.reconcile(content.tracks)
             withContext(Dispatchers.Main) {
                 scanProgress = ScanProgress(session = session)
                 importMessage = scanCompleteFormat
@@ -116,10 +134,6 @@ fun App() {
             is PlatformFolderPickResult.Failure -> importMessage = result.message
         }
     }
-    DisposableEffect(controller) {
-        onDispose { controller.release() }
-    }
-
     val snapshot = remember(libraryTracks) { librarySnapshot(libraryTracks) }
 
     RhythHausTheme(selectedThemeMode = selectedThemeMode) {
@@ -147,7 +161,7 @@ fun App() {
                     }
                 },
                 onClearLibrary = {
-                    if (sourceMutationsAllowed(
+                    if (initialLibraryReady && sourceMutationsAllowed(
                             isProgressActive = scanProgress?.isActive == true,
                             isJobActive = scanJob?.isActive == true,
                         )
@@ -156,6 +170,7 @@ fun App() {
                             clearLibraryInBackground(
                                 repository = repository,
                                 platformAccess = platformAccess,
+                                reconciler = playbackReconciler,
                                 ioDispatcher = Dispatchers.Default,
                                 updateLibrary = ::updateLibraryContent,
                             )
@@ -164,7 +179,7 @@ fun App() {
                 },
                 onRescanSource = ::launchSourceScan,
                 onRemoveSource = { source ->
-                    if (sourceMutationsAllowed(
+                    if (initialLibraryReady && sourceMutationsAllowed(
                             isProgressActive = scanProgress?.isActive == true,
                             isJobActive = scanJob?.isActive == true,
                         )
@@ -174,6 +189,7 @@ fun App() {
                                 sourceId = source.id,
                                 repository = repository,
                                 platformAccess = platformAccess,
+                                reconciler = playbackReconciler,
                                 ioDispatcher = Dispatchers.Default,
                                 updateLibrary = ::updateLibraryContent,
                             )
@@ -194,6 +210,25 @@ internal data class LibraryContentState(
     val tracks: List<LibraryTrack>,
 )
 
+internal suspend fun publishInitialLibraryContent(
+    lifecycle: PlaybackSessionRestorer,
+    reconciler: PlaybackSessionReconciler,
+    content: LibraryContentState,
+    updateLibrary: (LibraryContentState) -> Unit,
+) {
+    lifecycle.restoreOnce(content.tracks.map(LibraryTrack::toPlayableTrack))
+    publishLibraryContentAfterReconcile(reconciler, content, updateLibrary)
+}
+
+internal suspend fun publishLibraryContentAfterReconcile(
+    reconciler: PlaybackSessionReconciler,
+    content: LibraryContentState,
+    updateLibrary: (LibraryContentState) -> Unit,
+) {
+    reconciler.reconcile(content.tracks)
+    updateLibrary(content)
+}
+
 internal fun loadLibraryContent(
     repository: LibraryRepository,
     platformAccess: PlatformSourceAccess,
@@ -208,6 +243,7 @@ internal suspend fun removeSourceInBackground(
     sourceId: String,
     repository: LibraryRepository,
     platformAccess: PlatformSourceAccess,
+    reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     updateLibrary: (LibraryContentState) -> Unit,
 ) {
@@ -217,12 +253,13 @@ internal suspend fun removeSourceInBackground(
         source?.let(platformAccess::releaseAccess)
         loadLibraryContent(repository, platformAccess)
     }
-    updateLibrary(content)
+    publishLibraryContentAfterReconcile(reconciler, content, updateLibrary)
 }
 
 internal suspend fun clearLibraryInBackground(
     repository: LibraryRepository,
     platformAccess: PlatformSourceAccess,
+    reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     updateLibrary: (LibraryContentState) -> Unit,
 ) {
@@ -232,7 +269,7 @@ internal suspend fun clearLibraryInBackground(
         sources.forEach(platformAccess::releaseAccess)
         loadLibraryContent(repository, platformAccess)
     }
-    updateLibrary(content)
+    publishLibraryContentAfterReconcile(reconciler, content, updateLibrary)
 }
 
 internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {

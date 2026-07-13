@@ -21,6 +21,8 @@ import com.eterocell.rhythhaus.settings.SourceDialogName
 import com.eterocell.rhythhaus.settings.SourceScanLabel
 import com.eterocell.rhythhaus.settings.sourceDialogName
 import com.eterocell.rhythhaus.settings.sourceManagementLabels
+import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
+import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -198,12 +200,37 @@ class LibrarySourceManagementTest {
             sourceId = "remove",
             repository = repository,
             platformAccess = FakePlatformSourceAccess(),
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
             ioDispatcher = Dispatchers.Default,
             updateLibrary = { refreshedState = it },
         )
 
         assertEquals(listOf("keep"), refreshedState?.sources?.map { it.id })
         assertEquals(listOf("keep-track"), refreshedState?.tracks?.map { it.id })
+    }
+
+    @Test
+    fun sourceRemovalReconcilesBeforePublishing() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("remove"))
+            upsertSource(source("keep"))
+            upsertTrack(track("keep-track", "keep"))
+        }
+        val events = mutableListOf<String>()
+
+        removeSourceInBackground(
+            sourceId = "remove",
+            repository = repository,
+            platformAccess = FakePlatformSourceAccess(),
+            reconciler = PlaybackSessionReconciler {
+                events += "reconcile"
+                PlaybackSessionReconcileResult.Applied
+            },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = { events += "publish" },
+        )
+
+        assertEquals(listOf("reconcile", "publish"), events)
     }
 
     @Test
@@ -218,6 +245,7 @@ class LibrarySourceManagementTest {
             sourceId = removedSource.id,
             repository = repository,
             platformAccess = platformAccess,
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
             ioDispatcher = Dispatchers.Default,
             updateLibrary = {},
         )
@@ -235,6 +263,7 @@ class LibrarySourceManagementTest {
                 sourceId = "remove",
                 repository = FailingMutationRepository(),
                 platformAccess = platformAccess,
+                reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
                 ioDispatcher = Dispatchers.Default,
                 updateLibrary = {},
             )
@@ -254,12 +283,35 @@ class LibrarySourceManagementTest {
         clearLibraryInBackground(
             repository = repository,
             platformAccess = FakePlatformSourceAccess(),
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
             ioDispatcher = Dispatchers.Default,
             updateLibrary = { refreshedState = it },
         )
 
         assertEquals(emptyList(), refreshedState?.sources)
         assertEquals(emptyList(), refreshedState?.tracks)
+    }
+
+    @Test
+    fun clearLibraryReconcilesBeforePublishingFailedSafeContent() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("source"))
+            upsertTrack(track("track", "source"))
+        }
+        val events = mutableListOf<String>()
+
+        clearLibraryInBackground(
+            repository = repository,
+            platformAccess = FakePlatformSourceAccess(),
+            reconciler = PlaybackSessionReconciler {
+                events += "reconcile"
+                PlaybackSessionReconcileResult.FailedSafeApplied
+            },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = { events += "publish" },
+        )
+
+        assertEquals(listOf("reconcile", "publish"), events)
     }
 
     @Test
@@ -275,6 +327,7 @@ class LibrarySourceManagementTest {
         clearLibraryInBackground(
             repository = repository,
             platformAccess = platformAccess,
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
             ioDispatcher = Dispatchers.Default,
             updateLibrary = {},
         )
@@ -291,6 +344,7 @@ class LibrarySourceManagementTest {
             clearLibraryInBackground(
                 repository = FailingMutationRepository(sources = listOf(source("first"))),
                 platformAccess = platformAccess,
+                reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
                 ioDispatcher = Dispatchers.Default,
                 updateLibrary = {},
             )
