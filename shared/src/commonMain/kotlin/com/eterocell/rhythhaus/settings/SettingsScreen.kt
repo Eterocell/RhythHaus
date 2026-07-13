@@ -103,6 +103,10 @@ internal data class SettingsLayoutPolicy(
     val verticalPagePadding: Dp,
     val itemSpacing: Dp,
     val bottomContentPadding: Dp,
+    val topBarTitlePadding: Dp,
+    val topBarNavigationIconPadding: Dp,
+    val appearanceHorizontalInsidePadding: Dp,
+    val appearanceVerticalInsidePadding: Dp,
 )
 
 internal val CompactSettingsLayoutPolicy = SettingsLayoutPolicy(
@@ -110,6 +114,10 @@ internal val CompactSettingsLayoutPolicy = SettingsLayoutPolicy(
     verticalPagePadding = 8.dp,
     itemSpacing = 12.dp,
     bottomContentPadding = 8.dp,
+    topBarTitlePadding = 0.dp,
+    topBarNavigationIconPadding = 0.dp,
+    appearanceHorizontalInsidePadding = 0.dp,
+    appearanceVerticalInsidePadding = 16.dp,
 )
 
 @Composable
@@ -166,6 +174,8 @@ fun SettingsScreen(
                         RhythHausTopAppBar(
                             title = stringResource(Res.string.settings),
                             onBack = onDismiss,
+                            titlePadding = layoutPolicy.topBarTitlePadding,
+                            navigationIconPadding = layoutPolicy.topBarNavigationIconPadding,
                         )
                     }
 
@@ -173,6 +183,8 @@ fun SettingsScreen(
                         AppearanceDropdown(
                             currentThemeMode = currentThemeMode,
                             onThemeModeSelected = onThemeModeSelected,
+                            horizontalInsidePadding = layoutPolicy.appearanceHorizontalInsidePadding,
+                            verticalInsidePadding = layoutPolicy.appearanceVerticalInsidePadding,
                         )
                     }
 
@@ -522,6 +534,8 @@ private fun RemoveSourceDialog(
 private fun AppearanceDropdown(
     currentThemeMode: RhythHausThemeMode,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
+    horizontalInsidePadding: Dp,
+    verticalInsidePadding: Dp,
 ) {
     val options = RhythHausThemeMode.settingsOptions
     val selectedIndex = options.indexOf(currentThemeMode).coerceAtLeast(0)
@@ -531,6 +545,10 @@ private fun AppearanceDropdown(
         title = stringResource(Res.string.appearance),
         summary = currentThemeMode.displayDescriptionResource(),
         modifier = Modifier.fillMaxWidth(),
+        insideMargin = PaddingValues(
+            horizontal = horizontalInsidePadding,
+            vertical = verticalInsidePadding,
+        ),
         renderInRootScaffold = false,
         onSelectedIndexChange = { index ->
             options.getOrNull(index)?.let(onThemeModeSelected)

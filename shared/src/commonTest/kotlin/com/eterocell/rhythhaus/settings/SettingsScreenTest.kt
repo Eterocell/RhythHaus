@@ -12,4 +12,12 @@ class SettingsScreenTest {
         assertEquals(12.dp, CompactSettingsLayoutPolicy.itemSpacing)
         assertEquals(8.dp, CompactSettingsLayoutPolicy.bottomContentPadding)
     }
+
+    @Test
+    fun compactSettingsLayoutPolicyZerosOutComponentOwnedHorizontalPaddingInsidePageInset() {
+        assertEquals(0.dp, CompactSettingsLayoutPolicy.topBarTitlePadding)
+        assertEquals(0.dp, CompactSettingsLayoutPolicy.topBarNavigationIconPadding)
+        assertEquals(0.dp, CompactSettingsLayoutPolicy.appearanceHorizontalInsidePadding)
+        assertEquals(16.dp, CompactSettingsLayoutPolicy.appearanceVerticalInsidePadding)
+    }
 }
