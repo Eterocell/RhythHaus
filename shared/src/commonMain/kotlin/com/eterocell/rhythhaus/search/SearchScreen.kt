@@ -27,6 +27,7 @@ import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.toPlayableTrack
 import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
@@ -176,9 +177,11 @@ fun SearchScreen(
                                     isNowPlaying = playbackState.currentTrack?.id == track.id,
                                     isPlaying = playbackState.isPlaying,
                                     onClick = {
-                                        val playable = libraryTracks.map { it.toPlayableTrack() }
-                                        playbackController.setQueue(playable, track.id)
-                                        playbackController.play()
+                                        selectLibraryTrackForPlayback(
+                                            playbackController = playbackController,
+                                            visibleQueue = filtered.map { it.toPlayableTrack() },
+                                            selectedTrackId = track.id,
+                                        )
                                         onDismiss()
                                     },
                                 )
