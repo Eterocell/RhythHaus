@@ -87,61 +87,46 @@ class RhythHausPlaybackService : MediaSessionService() {
  * delegate to the wrapped ExoPlayer unchanged.
  */
 internal class SkipRoutingPlayer(player: Player) : androidx.media3.common.ForwardingPlayer(player) {
+    private val transportRouter = ServiceTransportRouter()
 
     override fun getAvailableCommands(): Player.Commands = transportAvailableCommands(super.getAvailableCommands())
 
-    override fun isCommandAvailable(command: Int): Boolean = when (command) {
-        Player.COMMAND_SEEK_TO_NEXT,
-        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
-        Player.COMMAND_SEEK_TO_PREVIOUS,
-        Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
-        -> RhythHausTransportBridge.isTransportEnabled()
-
-        Player.COMMAND_PLAY_PAUSE,
-        Player.COMMAND_STOP,
-        Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
-        Player.COMMAND_SEEK_TO_DEFAULT_POSITION,
-        Player.COMMAND_SEEK_TO_MEDIA_ITEM,
-        Player.COMMAND_SEEK_BACK,
-        Player.COMMAND_SEEK_FORWARD,
-        -> RhythHausTransportBridge.isTransportEnabled() && super.isCommandAvailable(command)
-
-        else -> super.isCommandAvailable(command)
-    }
+    override fun isCommandAvailable(command: Int): Boolean =
+        transportRouter.isCommandAvailable(command, super.isCommandAvailable(command))
 
     override fun play() {
-        routeTransport { super.play() }
+        transportRouter.play { super.play() }
     }
 
     override fun pause() {
-        routeTransport { super.pause() }
+        transportRouter.pause { super.pause() }
     }
 
     override fun stop() {
-        routeTransport { super.stop() }
+        transportRouter.stop { super.stop() }
     }
 
     override fun seekTo(positionMs: Long) {
-        routeTransport { super.seekTo(positionMs) }
+        transportRouter.seekTo(positionMs) { super.seekTo(it) }
     }
 
     override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
-        routeTransport { super.seekTo(mediaItemIndex, positionMs) }
+        transportRouter.seekTo(mediaItemIndex, positionMs) { index, position -> super.seekTo(index, position) }
     }
 
     override fun seekToNext() {
-        routeTransport { RhythHausTransportBridge.skipToNext() }
+        transportRouter.next { RhythHausTransportBridge.skipToNext() }
     }
 
     override fun seekToNextMediaItem() {
-        routeTransport { RhythHausTransportBridge.skipToNext() }
+        transportRouter.next { RhythHausTransportBridge.skipToNext() }
     }
 
     override fun seekToPrevious() {
-        routeTransport { RhythHausTransportBridge.skipToPrevious() }
+        transportRouter.previous { RhythHausTransportBridge.skipToPrevious() }
     }
 
     override fun seekToPreviousMediaItem() {
-        routeTransport { RhythHausTransportBridge.skipToPrevious() }
+        transportRouter.previous { RhythHausTransportBridge.skipToPrevious() }
     }
 }

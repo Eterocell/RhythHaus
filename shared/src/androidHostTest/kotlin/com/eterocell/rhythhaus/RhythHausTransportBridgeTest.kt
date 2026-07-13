@@ -90,13 +90,39 @@ class RhythHausTransportBridgeTest {
 
     @Test
     fun serviceBridgePreservesEnabledPlaySeekAndSkipPaths() {
-        val bridge = RhythHausTransportBridge.forHostTest()
+        val actions = mutableListOf<String>()
+        val bridge = ServiceTransportRouter()
         bridge.setTransportEnabled(true)
 
-        assertTrue(bridge.handleServicePlayForTest())
-        assertTrue(bridge.handleServiceSeekForTest(2_000L))
-        assertTrue(bridge.handleServiceNextForTest())
-        assertTrue(bridge.isCommandAvailableForTest(Player.COMMAND_PLAY_PAUSE))
-        assertEquals(listOf("play", "seek:2000", "next"), bridge.forwardedActionsForTest())
+        assertTrue(bridge.play { actions += "play" })
+        assertTrue(bridge.pause { actions += "pause" })
+        assertTrue(bridge.stop { actions += "stop" })
+        assertTrue(bridge.seekTo(2_000L) { actions += "seek:-1:$it" })
+        assertTrue(bridge.seekTo(4, 3_000L) { index, position -> actions += "seek:$index:$position" })
+        assertTrue(bridge.next { actions += "next" })
+        assertTrue(bridge.previous { actions += "previous" })
+        assertTrue(bridge.isCommandAvailable(Player.COMMAND_PLAY_PAUSE, delegateAvailable = true))
+        assertEquals(
+            listOf("play", "pause", "stop", "seek:-1:2000", "seek:4:3000", "next", "previous"),
+            actions,
+        )
+    }
+
+    @Test
+    fun productionRouterRejectsEveryGatedOperationWhenDisabled() {
+        val actions = mutableListOf<String>()
+        val bridge = ServiceTransportRouter()
+        bridge.setTransportEnabled(false)
+
+        assertFalse(bridge.play { actions += "play" })
+        assertFalse(bridge.pause { actions += "pause" })
+        assertFalse(bridge.stop { actions += "stop" })
+        assertFalse(bridge.seekTo(2_000L) { actions += "seek:-1:$it" })
+        assertFalse(bridge.seekTo(4, 3_000L) { index, position -> actions += "seek:$index:$position" })
+        assertFalse(bridge.next { actions += "next" })
+        assertFalse(bridge.previous { actions += "previous" })
+        assertFalse(bridge.isCommandAvailable(Player.COMMAND_PLAY_PAUSE, delegateAvailable = true))
+        assertFalse(bridge.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT, delegateAvailable = true))
+        assertEquals(emptyList(), actions)
     }
 }

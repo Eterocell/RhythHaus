@@ -62,8 +62,30 @@ internal inline fun routeTransport(action: () -> Unit): Boolean {
     return true
 }
 
+internal class ServiceTransportRouter {
+    fun setTransportEnabled(enabled: Boolean) = RhythHausTransportBridge.setTransportEnabled(enabled)
+
+    fun play(action: () -> Unit): Boolean = routeTransport(action)
+    fun pause(action: () -> Unit): Boolean = routeTransport(action)
+    fun stop(action: () -> Unit): Boolean = routeTransport(action)
+    fun seekTo(positionMillis: Long, action: (Long) -> Unit): Boolean = routeTransport { action(positionMillis) }
+    fun seekTo(mediaItemIndex: Int, positionMillis: Long, action: (Int, Long) -> Unit): Boolean =
+        routeTransport { action(mediaItemIndex, positionMillis) }
+    fun next(action: () -> Unit): Boolean = routeTransport(action)
+    fun previous(action: () -> Unit): Boolean = routeTransport(action)
+    fun isCommandAvailable(command: Int, delegateAvailable: Boolean): Boolean =
+        transportCommandAllowed(command) && (command in skipTransportCommands || delegateAvailable)
+}
+
 internal fun transportCommandAllowed(command: Int): Boolean =
     RhythHausTransportBridge.isTransportEnabled() || command !in gatedTransportCommands
+
+private val skipTransportCommands = setOf(
+    androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT,
+    androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+    androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS,
+    androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+)
 
 private val gatedTransportCommands = setOf(
     androidx.media3.common.Player.COMMAND_PLAY_PAUSE,
@@ -73,11 +95,7 @@ private val gatedTransportCommands = setOf(
     androidx.media3.common.Player.COMMAND_SEEK_TO_MEDIA_ITEM,
     androidx.media3.common.Player.COMMAND_SEEK_BACK,
     androidx.media3.common.Player.COMMAND_SEEK_FORWARD,
-    androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT,
-    androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
-    androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS,
-    androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
-)
+) + skipTransportCommands
 
 internal fun transportAvailableCommands(base: androidx.media3.common.Player.Commands): androidx.media3.common.Player.Commands {
     val builder = base.buildUpon()
