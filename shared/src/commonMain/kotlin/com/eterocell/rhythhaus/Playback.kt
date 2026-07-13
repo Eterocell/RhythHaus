@@ -109,18 +109,22 @@ data class PlaybackState(
 }
 
 interface PlaybackEngineListener {
-    fun onPlaybackStatus(status: PlaybackStatus)
-    fun onPlaybackProgress(positionMillis: Long, durationMillis: Long?)
-    fun onPlaybackCompleted()
-    fun onPlaybackError(error: PlaybackError)
-    fun onSkipToNext()
-    fun onSkipToPrevious()
+    fun onPlaybackStatus(generation: Long, status: PlaybackStatus)
+    fun onPlaybackProgress(generation: Long, positionMillis: Long, durationMillis: Long?)
+    fun onPlaybackCompleted(generation: Long)
+    fun onPlaybackError(generation: Long, error: PlaybackError)
+    fun onSkipToNext(generation: Long)
+    fun onSkipToPrevious(generation: Long)
 }
+
+data class LoadedPlayback(val generation: Long, val durationMillis: Long?)
 
 interface PlatformPlaybackEngine {
     var listener: PlaybackEngineListener?
 
-    fun load(track: PlayableTrack)
+    suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback
+    fun clear(generation: Long)
+    fun setUserTransportEnabled(enabled: Boolean)
     fun play()
     fun pause()
     fun stop()
@@ -141,6 +145,7 @@ class PlaybackController(
     private val engineMutex = Mutex()
     private var loadJob: Job? = null
     private var playWhenLoaded: Boolean = false
+    private var activeGeneration: Long = 0L
     private var shuffledOrder: List<String> = emptyList()
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
@@ -155,6 +160,8 @@ class PlaybackController(
             loadJob?.cancel()
             playWhenLoaded = false
             shuffledOrder = emptyList()
+            val generation = nextGeneration()
+            launchEngineAction { engine.clear(generation) }
             _state.value = PlaybackState(
                 queue = tracks,
                 repeatMode = _state.value.repeatMode,
@@ -297,6 +304,7 @@ class PlaybackController(
 
     private fun loadSelected(track: PlayableTrack, autoPlay: Boolean) {
         loadJob?.cancel()
+        val generation = nextGeneration()
         playWhenLoaded = autoPlay
         _state.value = _state.value.copy(
             currentTrack = track,
@@ -309,7 +317,13 @@ class PlaybackController(
             val trackWithArtwork = track.withLazyArtwork()
             runEngineAction {
                 if (_state.value.currentTrack?.id != track.id) return@runEngineAction
-                engine.load(trackWithArtwork)
+                val loaded = engine.loadPaused(trackWithArtwork, generation)
+                check(loaded.generation == generation)
+                if (generation != activeGeneration) return@runEngineAction
+                _state.value = _state.value.copy(
+                    status = PlaybackStatus.Paused,
+                    durationMillis = loaded.durationMillis ?: _state.value.durationMillis,
+                )
                 if (_state.value.currentTrack?.id == trackWithArtwork.id && (autoPlay || playWhenLoaded)) {
                     playWhenLoaded = false
                     engine.play()
@@ -318,19 +332,21 @@ class PlaybackController(
         }
     }
 
+    private fun nextGeneration(): Long = ++activeGeneration
+
     private fun PlayableTrack.withLazyArtwork(): PlayableTrack {
         if (artworkBytes != null) return this
         val loadedArtwork = artworkLoader(id) ?: return this
         return copy(artworkBytes = loadedArtwork)
     }
 
-    private fun launchEngineAction(action: () -> Unit) {
+    private fun launchEngineAction(action: suspend () -> Unit) {
         scope.launch {
             runEngineAction(action)
         }
     }
 
-    private suspend fun runEngineAction(action: () -> Unit) {
+    private suspend fun runEngineAction(action: suspend () -> Unit) {
         try {
             engineMutex.withLock {
                 action()
@@ -338,6 +354,7 @@ class PlaybackController(
         } catch (throwable: Throwable) {
             log.e { throwable.stackTraceToString() }
             onPlaybackError(
+                activeGeneration,
                 PlaybackError(
                     message = "Playback failed",
                     cause = throwable.message ?: throwable::class.simpleName,
@@ -391,18 +408,21 @@ class PlaybackController(
         )
     }
 
-    override fun onPlaybackStatus(status: PlaybackStatus) {
+    override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) {
+        if (generation != activeGeneration) return
         _state.value = _state.value.copy(status = status, error = null)
     }
 
-    override fun onPlaybackProgress(positionMillis: Long, durationMillis: Long?) {
+    override fun onPlaybackProgress(generation: Long, positionMillis: Long, durationMillis: Long?) {
+        if (generation != activeGeneration) return
         _state.value = _state.value.copy(
             positionMillis = max(0L, positionMillis),
             durationMillis = durationMillis ?: _state.value.durationMillis,
         )
     }
 
-    override fun onPlaybackCompleted() {
+    override fun onPlaybackCompleted(generation: Long) {
+        if (generation != activeGeneration) return
         when (_state.value.repeatMode) {
             RepeatMode.RepeatOne -> {
                 val current = _state.value.currentTrack ?: return stopAtCurrentTrackEnd()
@@ -420,15 +440,18 @@ class PlaybackController(
         }
     }
 
-    override fun onPlaybackError(error: PlaybackError) {
+    override fun onPlaybackError(generation: Long, error: PlaybackError) {
+        if (generation != activeGeneration) return
         _state.value = _state.value.copy(status = PlaybackStatus.Error, error = error)
     }
 
-    override fun onSkipToNext() {
+    override fun onSkipToNext(generation: Long) {
+        if (generation != activeGeneration) return
         skipToNext()
     }
 
-    override fun onSkipToPrevious() {
+    override fun onSkipToPrevious(generation: Long) {
+        if (generation != activeGeneration) return
         skipToPrevious()
     }
 }
@@ -445,44 +468,58 @@ class FakePlaybackEngine : PlatformPlaybackEngine {
     private var loaded: PlayableTrack? = null
     private var positionMillis: Long = 0L
     private var durationMillis: Long? = null
+    private var generation: Long = 0L
     var released: Boolean = false
         private set
 
-    override fun load(track: PlayableTrack) {
+    override suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback {
+        this.generation = generation
         loaded = track
         positionMillis = 0L
         durationMillis = track.durationMillis
-        listener?.onPlaybackProgress(positionMillis, durationMillis)
-        listener?.onPlaybackStatus(PlaybackStatus.Paused)
+        listener?.onPlaybackProgress(generation, positionMillis, durationMillis)
+        listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+        return LoadedPlayback(generation, durationMillis)
     }
+
+    override fun clear(generation: Long) {
+        this.generation = generation
+        loaded = null
+        positionMillis = 0L
+        durationMillis = null
+    }
+
+    override fun setUserTransportEnabled(enabled: Boolean) = Unit
 
     override fun play() {
         requireNotNull(loaded) { "No track loaded" }
-        listener?.onPlaybackStatus(PlaybackStatus.Playing)
+        listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
     }
 
     override fun pause() {
-        listener?.onPlaybackStatus(PlaybackStatus.Paused)
+        listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
     }
 
     override fun stop() {
         positionMillis = 0L
-        listener?.onPlaybackProgress(positionMillis, durationMillis)
-        listener?.onPlaybackStatus(PlaybackStatus.Stopped)
+        listener?.onPlaybackProgress(generation, positionMillis, durationMillis)
+        listener?.onPlaybackStatus(generation, PlaybackStatus.Stopped)
     }
 
     override fun seekTo(positionMillis: Long) {
         this.positionMillis = positionMillis
-        listener?.onPlaybackProgress(positionMillis, durationMillis)
+        listener?.onPlaybackProgress(generation, positionMillis, durationMillis)
     }
 
     fun fail(message: String) {
-        listener?.onPlaybackError(PlaybackError(message))
+        listener?.onPlaybackError(generation, PlaybackError(message))
     }
 
     fun complete() {
-        listener?.onPlaybackCompleted()
+        listener?.onPlaybackCompleted(generation)
     }
+
+    fun activeGenerationForTest(): Long = generation
 
     override fun release() {
         released = true

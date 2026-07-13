@@ -6,6 +6,7 @@ import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackEngineListener
 import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.PlatformPlaybackEngine
+import com.eterocell.rhythhaus.LoadedPlayback
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
 import kotlinx.coroutines.CompletableDeferred
@@ -24,7 +25,7 @@ class LibraryPlaybackSelectionTest {
         val visibleQueue = tracks("visible-1", "existing-2", "visible-3")
         controller.setQueue(existingQueue, selectedTrackId = "existing-2")
         engine.awaitLoad()
-        engine.listener?.onPlaybackProgress(750L, existingQueue[1].durationMillis)
+        engine.listener?.onPlaybackProgress(engine.generation, 750L, existingQueue[1].durationMillis)
         engine.clearEvents()
 
         selectLibraryTrackForPlayback(controller, visibleQueue, selectedTrackId = "existing-2")
@@ -123,13 +124,23 @@ class LibraryPlaybackSelectionTest {
         override var listener: PlaybackEngineListener? = null
         private val events = Channel<EngineEvent>(Channel.UNLIMITED)
         private var loadSignal = CompletableDeferred<Unit>()
+        var generation: Long = 0L
+            private set
 
-        override fun load(track: PlayableTrack) {
+        override suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback {
+            this.generation = generation
             record(EngineEvent.Load(track.id))
-            listener?.onPlaybackProgress(0L, track.durationMillis)
-            listener?.onPlaybackStatus(PlaybackStatus.Paused)
+            listener?.onPlaybackProgress(generation, 0L, track.durationMillis)
+            listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
             loadSignal.complete(Unit)
+            return LoadedPlayback(generation, track.durationMillis)
         }
+
+        override fun clear(generation: Long) {
+            this.generation = generation
+        }
+
+        override fun setUserTransportEnabled(enabled: Boolean) = Unit
 
         suspend fun awaitLoad() = loadSignal.await()
 
@@ -148,7 +159,7 @@ class LibraryPlaybackSelectionTest {
 
         override fun play() {
             record(EngineEvent.Play)
-            listener?.onPlaybackStatus(PlaybackStatus.Playing)
+            listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
         }
 
         override fun pause() = Unit
@@ -157,7 +168,7 @@ class LibraryPlaybackSelectionTest {
 
         override fun seekTo(positionMillis: Long) {
             record(EngineEvent.Seek(positionMillis))
-            listener?.onPlaybackProgress(positionMillis, null)
+            listener?.onPlaybackProgress(generation, positionMillis, null)
         }
 
         override fun release() = Unit

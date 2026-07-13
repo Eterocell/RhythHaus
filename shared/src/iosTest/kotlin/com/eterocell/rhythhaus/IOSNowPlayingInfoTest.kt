@@ -5,6 +5,8 @@ import kotlinx.coroutines.Dispatchers
 import platform.MediaPlayer.MPMediaItemPropertyArtwork
 import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
+import platform.MediaPlayer.MPRemoteCommandHandlerStatusCommandFailed
+import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -97,5 +99,21 @@ class IOSNowPlayingInfoTest {
 
         assertEquals(artworkSentinel, nowPlayingInfo[MPMediaItemPropertyArtwork])
         assertEquals(0.0, nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate])
+    }
+
+    @Test
+    fun iosRemoteTransportGateRejectsDisabledPlayAndSeekWithoutProviderAction() {
+        val actions = mutableListOf<String>()
+        val gate = IOSRemoteTransportGate()
+        gate.setEnabled(false)
+
+        assertEquals(MPRemoteCommandHandlerStatusCommandFailed, gate.play { actions += "play" })
+        assertEquals(MPRemoteCommandHandlerStatusCommandFailed, gate.seek(2_000L) { actions += "seek:$it" })
+        assertEquals(emptyList(), actions)
+
+        gate.setEnabled(true)
+        assertEquals(MPRemoteCommandHandlerStatusSuccess, gate.play { actions += "play" })
+        assertEquals(MPRemoteCommandHandlerStatusSuccess, gate.seek(2_000L) { actions += "seek:$it" })
+        assertEquals(listOf("play", "seek:2000"), actions)
     }
 }

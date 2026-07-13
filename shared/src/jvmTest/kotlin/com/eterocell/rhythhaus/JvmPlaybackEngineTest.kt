@@ -14,6 +14,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 
 class JvmPlaybackEngineTest {
     @Test
@@ -63,27 +64,27 @@ class JvmPlaybackEngineTest {
         var latestDuration: Long? = null
         var latestError: PlaybackError? = null
         engine.listener = object : PlaybackEngineListener {
-            override fun onPlaybackStatus(status: PlaybackStatus) {
+            override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) {
                 events += status
             }
 
-            override fun onPlaybackProgress(positionMillis: Long, durationMillis: Long?) {
+            override fun onPlaybackProgress(generation: Long, positionMillis: Long, durationMillis: Long?) {
                 latestDuration = durationMillis
             }
 
-            override fun onPlaybackCompleted() = Unit
+            override fun onPlaybackCompleted(generation: Long) = Unit
 
-            override fun onPlaybackError(error: PlaybackError) {
+            override fun onPlaybackError(generation: Long, error: PlaybackError) {
                 latestError = error
             }
 
-            override fun onSkipToNext() = Unit
+            override fun onSkipToNext(generation: Long) = Unit
 
-            override fun onSkipToPrevious() = Unit
+            override fun onSkipToPrevious(generation: Long) = Unit
         }
 
         try {
-            engine.load(
+            runBlocking { engine.loadPaused(
                 PlayableTrack(
                     id = "generated-wav",
                     title = "Generated WAV",
@@ -92,7 +93,9 @@ class JvmPlaybackEngineTest {
                     durationMillis = null,
                     source = AudioSource.FilePath(wavPath.toString()),
                 ),
-            )
+                generation = 1L,
+            ) }
+            engine.setUserTransportEnabled(true)
             engine.play()
             engine.pause()
             engine.seekTo(10L)
@@ -116,31 +119,31 @@ class JvmPlaybackEngineTest {
         val wavPath = createSilentWavFile(durationMillis = 800)
         val engine = createPlatformPlaybackEngine()
         val progressPositions = mutableListOf<Long>()
-        val progressLatch = CountDownLatch(2)
+        val progressLatch = CountDownLatch(1)
         var latestError: PlaybackError? = null
         engine.listener = object : PlaybackEngineListener {
-            override fun onPlaybackStatus(status: PlaybackStatus) = Unit
+            override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) = Unit
 
-            override fun onPlaybackProgress(positionMillis: Long, durationMillis: Long?) {
+            override fun onPlaybackProgress(generation: Long, positionMillis: Long, durationMillis: Long?) {
                 if (positionMillis > 0L) {
                     progressPositions += positionMillis
                     progressLatch.countDown()
                 }
             }
 
-            override fun onPlaybackCompleted() = Unit
+            override fun onPlaybackCompleted(generation: Long) = Unit
 
-            override fun onPlaybackError(error: PlaybackError) {
+            override fun onPlaybackError(generation: Long, error: PlaybackError) {
                 latestError = error
             }
 
-            override fun onSkipToNext() = Unit
+            override fun onSkipToNext(generation: Long) = Unit
 
-            override fun onSkipToPrevious() = Unit
+            override fun onSkipToPrevious(generation: Long) = Unit
         }
 
         try {
-            engine.load(
+            runBlocking { engine.loadPaused(
                 PlayableTrack(
                     id = "generated-wav-progress",
                     title = "Generated WAV Progress",
@@ -149,8 +152,11 @@ class JvmPlaybackEngineTest {
                     durationMillis = null,
                     source = AudioSource.FilePath(wavPath.toString()),
                 ),
-            )
+                generation = 2L,
+            ) }
+            engine.setUserTransportEnabled(true)
             engine.play()
+            engine.seekTo(100L)
 
             assertTrue(progressLatch.await(1, TimeUnit.SECONDS), "Expected periodic playback progress events while playing")
             assertEquals(null, latestError)
@@ -182,7 +188,9 @@ class JvmPlaybackEngineTest {
             source = AudioSource.FilePath("/tmp/track2.mp3"),
         )
         controller.setQueue(listOf(track1, track2), selectedTrackId = "track-1")
+        assertTrue(awaitPlaybackStatus(controller, PlaybackStatus.Paused))
         controller.play()
+        assertTrue(awaitPlaybackStatus(controller, PlaybackStatus.Playing))
         assertEquals("track-1", controller.state.value.currentTrack?.id)
 
         engine.complete()
@@ -204,7 +212,9 @@ class JvmPlaybackEngineTest {
             source = AudioSource.FilePath("/tmp/track1.mp3"),
         )
         controller.setQueue(listOf(track), selectedTrackId = "track-1")
+        assertTrue(awaitPlaybackStatus(controller, PlaybackStatus.Paused))
         controller.play()
+        assertTrue(awaitPlaybackStatus(controller, PlaybackStatus.Playing))
         engine.complete()
         assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
     }
@@ -216,20 +226,23 @@ class JvmPlaybackEngineTest {
         val engine = object : PlatformPlaybackEngine {
             override var listener: PlaybackEngineListener? = null
 
-            override fun load(track: PlayableTrack) {
+            override suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback {
                 loadStarted.countDown()
                 assertTrue(releaseLoad.await(1, TimeUnit.SECONDS), "Test timed out waiting to release fake load")
-                listener?.onPlaybackProgress(0L, track.durationMillis)
-                listener?.onPlaybackStatus(PlaybackStatus.Paused)
+                listener?.onPlaybackProgress(generation, 0L, track.durationMillis)
+                listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+                return LoadedPlayback(generation, track.durationMillis)
             }
 
             override fun play() {
-                listener?.onPlaybackStatus(PlaybackStatus.Playing)
+                listener?.onPlaybackStatus(1L, PlaybackStatus.Playing)
             }
 
             override fun pause() = Unit
             override fun stop() = Unit
             override fun seekTo(positionMillis: Long) = Unit
+            override fun clear(generation: Long) = Unit
+            override fun setUserTransportEnabled(enabled: Boolean) = Unit
             override fun release() = Unit
         }
         val controller = PlaybackController(engine)
@@ -260,6 +273,31 @@ class JvmPlaybackEngineTest {
             releaseLoad.countDown()
             executor.shutdownNow()
             controller.release()
+        }
+    }
+
+    @Test
+    fun macTransportGateSurvivesResetAndRejectsRemoteActionsUntilReenabled() {
+        val wavPath = createSilentWavFile(durationMillis = 500)
+        val bridge = MacAudioPlayerBridge()
+        try {
+            bridge.setTransportEnabled(false)
+            bridge.resetPlayer()
+            assertTrue(bridge.load(wavPath.toString()))
+            bridge.registerNowPlayingRemoteCommands()
+
+            assertFalse(bridge.invokeRemotePlayForTest())
+            assertFalse(bridge.invokeRemoteSeekForTest(200L))
+            assertFalse(bridge.isPlayingForTest())
+            assertEquals(0L, bridge.currentPositionMillis())
+
+            bridge.setTransportEnabled(true)
+            assertTrue(bridge.invokeRemoteSeekForTest(200L))
+            assertTrue(bridge.currentPositionMillis() >= 150L)
+            assertTrue(bridge.invokeRemotePlayForTest() || bridge.isPlayingForTest())
+        } finally {
+            bridge.releasePlayer()
+            wavPath.deleteIfExists()
         }
     }
 

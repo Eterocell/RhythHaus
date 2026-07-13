@@ -57,20 +57,23 @@ class PlaybackControllerTest {
     }
 
     @Test
-    fun stopAfterQueueAdvancesMiddleTrackAndStopsAtFinalTrackEnd() {
+    fun stopAfterQueueAdvancesMiddleTrackAndStopsAtFinalTrackEnd() = runBlocking {
         val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(engine)
         val tracks = testTracks(3)
         controller.setQueue(tracks, selectedTrackId = "track-1")
+        engine.awaitLoadCount(1)
         controller.play()
 
-        engine.listener?.onPlaybackCompleted()
+        engine.complete()
+        engine.awaitLoadCount(2)
         assertEquals("track-2", controller.state.value.currentTrack?.id)
 
-        engine.listener?.onPlaybackCompleted()
+        engine.complete()
+        engine.awaitLoadCount(3)
         assertEquals("track-3", controller.state.value.currentTrack?.id)
 
-        engine.listener?.onPlaybackCompleted()
+        engine.complete()
         assertEquals("track-3", controller.state.value.currentTrack?.id)
         assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
         assertEquals(3_000L, controller.state.value.positionMillis)
@@ -85,7 +88,7 @@ class PlaybackControllerTest {
         controller.setRepeatMode(RepeatMode.StopAfterCurrent)
         controller.play()
 
-        engine.listener?.onPlaybackCompleted()
+        engine.complete()
 
         assertEquals("track-1", controller.state.value.currentTrack?.id)
         assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
@@ -101,7 +104,7 @@ class PlaybackControllerTest {
         controller.setRepeatMode(RepeatMode.RepeatPlaylist)
         controller.play()
 
-        engine.listener?.onPlaybackCompleted()
+        engine.complete()
         assertEquals("track-1", controller.state.value.currentTrack?.id)
 
         controller.skipToPrevious()
@@ -119,7 +122,7 @@ class PlaybackControllerTest {
         controller.setRepeatMode(RepeatMode.RepeatOne)
         controller.play()
 
-        engine.listener?.onPlaybackCompleted()
+        engine.complete()
         assertEquals("track-1", controller.state.value.currentTrack?.id)
 
         controller.skipToPrevious()
@@ -187,37 +190,41 @@ class PlaybackControllerTest {
     }
 
     @Test
-    fun autoAdvanceRemainsLoadingUntilEngineReportsPlaying() {
+    fun autoAdvanceRemainsLoadingUntilEngineReportsPlaying() = runBlocking {
         val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(engine)
         val tracks = testTracks(2)
         controller.setQueue(tracks, selectedTrackId = "track-1")
+        engine.awaitLoadCount(1)
 
-        engine.listener?.onPlaybackCompleted()
+        engine.complete()
+        engine.awaitLoadCount(2)
 
         assertEquals("track-2", controller.state.value.currentTrack?.id)
-        assertEquals(PlaybackStatus.Loading, controller.state.value.status)
-
-        engine.listener?.onPlaybackStatus(PlaybackStatus.Paused)
         assertEquals(PlaybackStatus.Paused, controller.state.value.status)
 
-        engine.listener?.onPlaybackStatus(PlaybackStatus.Playing)
+        engine.listener?.onPlaybackStatus(engine.activeGeneration, PlaybackStatus.Paused)
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+
+        engine.listener?.onPlaybackStatus(engine.activeGeneration, PlaybackStatus.Playing)
         assertEquals(PlaybackStatus.Playing, controller.state.value.status)
     }
 
     @Test
-    fun manualSkipRemainsLoadingUntilEngineReportsPlaying() {
+    fun manualSkipRemainsLoadingUntilEngineReportsPlaying() = runBlocking {
         val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(engine)
         val tracks = testTracks(2)
         controller.setQueue(tracks, selectedTrackId = "track-1")
+        engine.awaitLoadCount(1)
 
         controller.skipToNext()
+        engine.awaitLoadCount(2)
 
         assertEquals("track-2", controller.state.value.currentTrack?.id)
-        assertEquals(PlaybackStatus.Loading, controller.state.value.status)
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
 
-        engine.listener?.onPlaybackStatus(PlaybackStatus.Playing)
+        engine.reportStatus(PlaybackStatus.Playing)
         assertEquals(PlaybackStatus.Playing, controller.state.value.status)
     }
 
@@ -350,6 +357,47 @@ class PlaybackControllerTest {
         assertEquals(listOf<EngineEvent>(EngineEvent.Pause), engine.awaitEvents(1))
     }
 
+    @Test
+    fun staleGenerationCallbacksCannotMutateCurrentPlayback() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        controller.setQueue(testTracks(2), selectedTrackId = "track-1")
+        engine.awaitLoad()
+        val firstGeneration = engine.activeGeneration
+
+        controller.selectTrack("track-2", autoPlay = false)
+        engine.awaitLoadCount(2)
+        val secondGeneration = engine.activeGeneration
+        assertFalse(firstGeneration == secondGeneration)
+
+        engine.listener?.onPlaybackStatus(firstGeneration, PlaybackStatus.Playing)
+        engine.listener?.onPlaybackProgress(firstGeneration, 999L, 1_000L)
+        engine.listener?.onPlaybackCompleted(firstGeneration)
+        engine.listener?.onPlaybackError(firstGeneration, PlaybackError("stale"))
+        engine.listener?.onSkipToPrevious(firstGeneration)
+
+        assertEquals("track-2", controller.state.value.currentTrack?.id)
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+        assertEquals(0L, controller.state.value.positionMillis)
+        assertNull(controller.state.value.error)
+    }
+
+    @Test
+    fun controllerAllocatesDistinctGenerationsForSameTrackReloads() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val track = testTracks(1).single()
+
+        controller.setQueue(listOf(track), selectedTrackId = track.id)
+        engine.awaitLoad()
+        val firstGeneration = engine.activeGeneration
+        controller.selectTrack(track.id)
+        engine.awaitLoadCount(2)
+
+        assertFalse(firstGeneration == engine.activeGeneration)
+        assertEquals(listOf(firstGeneration, engine.activeGeneration), engine.loadedGenerations)
+    }
+
     private suspend fun loadedController(
         engine: RecordingPlaybackEngine,
         status: PlaybackStatus,
@@ -358,11 +406,11 @@ class PlaybackControllerTest {
         val track = testTracks(1).single()
         controller.setQueue(listOf(track), selectedTrackId = track.id)
         engine.awaitLoad()
-        engine.listener?.onPlaybackProgress(500L, track.durationMillis)
+        engine.listener?.onPlaybackProgress(engine.activeGeneration, 500L, track.durationMillis)
         if (status == PlaybackStatus.Error) {
-            engine.listener?.onPlaybackError(PlaybackError("Test error"))
+            engine.listener?.onPlaybackError(engine.activeGeneration, PlaybackError("Test error"))
         } else {
-            engine.listener?.onPlaybackStatus(status)
+            engine.listener?.onPlaybackStatus(engine.activeGeneration, status)
         }
         return controller
     }
@@ -380,8 +428,33 @@ class PlaybackControllerTest {
 
     private class DelayedStatusPlaybackEngine : PlatformPlaybackEngine {
         override var listener: PlaybackEngineListener? = null
+        var activeGeneration: Long = 0L
+            private set
+        private var loadCount: Int = 0
 
-        override fun load(track: PlayableTrack) = Unit
+        override suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback {
+            activeGeneration = generation
+            loadCount++
+            return LoadedPlayback(generation, track.durationMillis)
+        }
+
+        override fun clear(generation: Long) {
+            activeGeneration = generation
+        }
+
+        override fun setUserTransportEnabled(enabled: Boolean) = Unit
+
+        fun complete() {
+            listener?.onPlaybackCompleted(activeGeneration)
+        }
+
+        fun reportStatus(status: PlaybackStatus) {
+            listener?.onPlaybackStatus(activeGeneration, status)
+        }
+
+        suspend fun awaitLoadCount(count: Int) = withTimeout(5_000) {
+            while (loadCount < count) kotlinx.coroutines.yield()
+        }
 
         override fun play() = Unit
 
@@ -407,24 +480,34 @@ class PlaybackControllerTest {
     ) : PlatformPlaybackEngine {
         override var listener: PlaybackEngineListener? = null
         val loadedTracks = mutableListOf<PlayableTrack>()
+        val loadedGenerations = mutableListOf<Long>()
+        var activeGeneration: Long = 0L
+            private set
         private val events = Channel<EngineEvent>(Channel.UNLIMITED)
         private val loadStarted = CompletableDeferred<Unit>()
         private val loadSignal = CompletableDeferred<Unit>()
         private val seekStarted = CompletableDeferred<Unit>()
 
-        override fun load(track: PlayableTrack) {
+        override suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback {
+            activeGeneration = generation
             record(EngineEvent.Load(track.id))
             loadedTracks += track
+            loadedGenerations += generation
             loadStarted.complete(Unit)
-            loadGate?.let { runBlocking { it.await() } }
-            listener?.onPlaybackProgress(0L, track.durationMillis)
-            listener?.onPlaybackStatus(PlaybackStatus.Paused)
+            loadGate?.await()
+            listener?.onPlaybackProgress(generation, 0L, track.durationMillis)
+            listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
             loadSignal.complete(Unit)
+            return LoadedPlayback(generation, track.durationMillis)
         }
 
         suspend fun awaitLoadStarted() = loadStarted.await()
 
         suspend fun awaitLoad() = loadSignal.await()
+
+        suspend fun awaitLoadCount(count: Int) = withTimeout(5_000) {
+            while (loadedGenerations.size < count) kotlinx.coroutines.yield()
+        }
 
         fun releaseLoad() {
             loadGate?.complete(Unit)
@@ -450,12 +533,12 @@ class PlaybackControllerTest {
 
         override fun play() {
             record(EngineEvent.Play)
-            listener?.onPlaybackStatus(PlaybackStatus.Playing)
+            listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
         }
 
         override fun pause() {
             record(EngineEvent.Pause)
-            listener?.onPlaybackStatus(PlaybackStatus.Paused)
+            listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Paused)
         }
 
         override fun stop() = Unit
@@ -464,8 +547,14 @@ class PlaybackControllerTest {
             seekStarted.complete(Unit)
             seekGate?.let { runBlocking { it.await() } }
             record(EngineEvent.Seek(positionMillis))
-            listener?.onPlaybackProgress(positionMillis, loadedTracks.lastOrNull()?.durationMillis)
+            listener?.onPlaybackProgress(activeGeneration, positionMillis, loadedTracks.lastOrNull()?.durationMillis)
         }
+
+        override fun clear(generation: Long) {
+            activeGeneration = generation
+        }
+
+        override fun setUserTransportEnabled(enabled: Boolean) = Unit
 
         override fun release() = Unit
 
