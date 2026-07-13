@@ -109,12 +109,13 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
 
     private fun publishProgress(generation: Long, version: Long) {
         if (!publicationGate.isCurrent(generation, version)) return
-        val positionMillis = bridge.currentPositionMillis().coerceAtLeast(0L)
-        val latestDurationMillis = bridge.durationMillis().takeIf { it > 0L } ?: durationMillis
+        val progress = bridge.readAndUpdateProgress(durationMillis)
+        val positionMillis = progress.positionMillis
+        val latestDurationMillis = progress.durationMillis
         publicationGate.publish(
             generation = generation,
             sourceVersion = version,
-            beforeEmit = { bridge.updateNowPlayingPosition(positionMillis, latestDurationMillis) },
+            beforeEmit = {},
             emitProgress = { listener?.onPlaybackProgress(generation, positionMillis, latestDurationMillis) },
             emitCompletion = {
                 if (!completionReported && latestDurationMillis != null && positionMillis >= latestDurationMillis) {
@@ -156,66 +157,110 @@ internal class MacProgressPublicationGate {
     }
 }
 
-internal class MacAudioPlayerBridge {
-    private var transportEnabled: Boolean = true
-    private var handle: Long = createConfiguredHandle()
+internal data class MacProgressSample(
+    val positionMillis: Long,
+    val durationMillis: Long?,
+)
 
-    fun load(path: String): Boolean = nativeLoad(requireHandle(), path)
-    fun play(): Boolean = nativePlay(requireHandle())
-    fun pause() = nativePause(requireHandle())
-    fun stop() = nativeStop(requireHandle())
-    fun seekTo(positionMillis: Long) = nativeSeekTo(requireHandle(), positionMillis)
-    fun currentPositionMillis(): Long = nativeCurrentPositionMillis(requireHandle())
-    fun durationMillis(): Long = nativeDurationMillis(requireHandle())
+internal class MacAudioPlayerBridge {
+    private val lifetimeLock = Any()
+    private var transportEnabled: Boolean = true
+    private var handle: Long = 0L
+    private var lifetimeIdentity: Long = 0L
+
+    init {
+        synchronized(lifetimeLock) {
+            handle = createConfiguredHandleLocked()
+        }
+    }
+
+    fun load(path: String): Boolean = withHandle { nativeLoad(it, path) }
+    fun play(): Boolean = withHandle(::nativePlay)
+    fun pause() = withHandle(::nativePause)
+    fun stop() = withHandle(::nativeStop)
+    fun seekTo(positionMillis: Long) = withHandle { nativeSeekTo(it, positionMillis) }
+    fun currentPositionMillis(): Long = withHandle(::nativeCurrentPositionMillis)
+    fun durationMillis(): Long = withHandle(::nativeDurationMillis)
     fun updateNowPlayingInfo(
         title: String,
         artist: String,
         album: String?,
         durationMillis: Long?,
         positionMillis: Long,
-    ) = nativeUpdateNowPlayingInfo(requireHandle(), title, artist, album, durationMillis ?: 0L, positionMillis)
-    fun updateNowPlayingPosition(positionMillis: Long, durationMillis: Long?) = nativeUpdateNowPlayingPosition(requireHandle(), positionMillis, durationMillis ?: 0L)
-    fun updateNowPlayingPlaybackState(status: PlaybackStatus) = nativeUpdateNowPlayingPlaybackState(requireHandle(), status.macosPlaybackStateCode())
-    fun registerNowPlayingRemoteCommands() = nativeRegisterNowPlayingRemoteCommands(requireHandle())
-    fun clearNowPlayingInfo() = nativeClearNowPlayingInfo(requireHandle())
-    fun setArtwork(artworkBytes: ByteArray?) = nativeSetArtwork(requireHandle(), artworkBytes)
+    ) = withHandle { nativeUpdateNowPlayingInfo(it, title, artist, album, durationMillis ?: 0L, positionMillis) }
+    fun updateNowPlayingPosition(positionMillis: Long, durationMillis: Long?) =
+        withHandle { nativeUpdateNowPlayingPosition(it, positionMillis, durationMillis ?: 0L) }
+    fun updateNowPlayingPlaybackState(status: PlaybackStatus) =
+        withHandle { nativeUpdateNowPlayingPlaybackState(it, status.macosPlaybackStateCode()) }
+    fun registerNowPlayingRemoteCommands() = withHandle(::nativeRegisterNowPlayingRemoteCommands)
+    fun clearNowPlayingInfo() = withHandle(::nativeClearNowPlayingInfo)
+    fun setArtwork(artworkBytes: ByteArray?) = withHandle { nativeSetArtwork(it, artworkBytes) }
     fun setTransportEnabled(enabled: Boolean) {
-        transportEnabled = enabled
-        if (handle != 0L) nativeSetTransportEnabled(handle, enabled)
+        synchronized(lifetimeLock) {
+            transportEnabled = enabled
+            if (handle != 0L) nativeSetTransportEnabled(handle, enabled)
+        }
     }
-    internal fun invokeRemotePlayForTest(): Boolean = nativeInvokeRemotePlayForTest(requireHandle())
-    internal fun invokeRemotePauseForTest(): Boolean = nativeInvokeRemotePauseForTest(requireHandle())
-    internal fun invokeRemoteToggleForTest(): Boolean = nativeInvokeRemoteToggleForTest(requireHandle())
-    internal fun invokeRemoteStopForTest(): Boolean = nativeInvokeRemoteStopForTest(requireHandle())
-    internal fun invokeRemoteSeekForTest(positionMillis: Long): Boolean = nativeInvokeRemoteSeekForTest(requireHandle(), positionMillis)
-    internal fun isPlayingForTest(): Boolean = nativeIsPlayingForTest(requireHandle())
-    internal fun liveRemoteHandlerCountForTest(): Long = nativeLiveRemoteHandlerCountForTest()
+    internal fun invokeRemotePlayForTest(): Boolean = withHandle(::nativeInvokeRemotePlayForTest)
+    internal fun invokeRemotePauseForTest(): Boolean = withHandle(::nativeInvokeRemotePauseForTest)
+    internal fun invokeRemoteToggleForTest(): Boolean = withHandle(::nativeInvokeRemoteToggleForTest)
+    internal fun invokeRemoteStopForTest(): Boolean = withHandle(::nativeInvokeRemoteStopForTest)
+    internal fun invokeRemoteSeekForTest(positionMillis: Long): Boolean = withHandle { nativeInvokeRemoteSeekForTest(it, positionMillis) }
+    internal fun isPlayingForTest(): Boolean = withHandle(::nativeIsPlayingForTest)
+    internal fun liveRemoteHandlerCountForTest(): Long = synchronized(lifetimeLock) { nativeLiveRemoteHandlerCountForTest() }
+
+    internal fun readAndUpdateProgress(fallbackDurationMillis: Long?): MacProgressSample = withHandle { ownedHandle ->
+        val positionMillis = nativeCurrentPositionMillis(ownedHandle).coerceAtLeast(0L)
+        val durationMillis = nativeDurationMillis(ownedHandle).takeIf { it > 0L } ?: fallbackDurationMillis
+        nativeUpdateNowPlayingPosition(ownedHandle, positionMillis, durationMillis ?: 0L)
+        MacProgressSample(positionMillis, durationMillis)
+    }
 
     fun resetPlayer() {
-        if (handle != 0L) {
-            nativeRelease(handle)
+        synchronized(lifetimeLock) {
+            if (handle != 0L) nativeRelease(handle)
+            handle = createConfiguredHandleLocked()
         }
-        handle = createConfiguredHandle()
     }
 
     fun releasePlayer() {
-        if (handle != 0L) {
-            nativeRelease(handle)
-            handle = 0L
+        synchronized(lifetimeLock) {
+            if (handle != 0L) {
+                nativeRelease(handle)
+                handle = 0L
+            }
         }
     }
 
     @Suppress("ProtectedInFinal")
     protected fun finalize() {
-        if (handle != 0L) {
-            nativeRelease(handle)
-            handle = 0L
+        synchronized(lifetimeLock) {
+            if (handle != 0L) {
+                nativeRelease(handle)
+                handle = 0L
+            }
         }
     }
 
-    private fun requireHandle(): Long = require(handle != 0L) { "Native macOS audio bridge has been released" }.let { handle }
+    internal fun <T> withLifetimeBoundaryForTest(operation: (Long) -> T): T = synchronized(lifetimeLock) {
+        requireHandleLocked()
+        operation(lifetimeIdentity)
+    }
 
-    private fun createConfiguredHandle(): Long = nativeCreate().also { nativeSetTransportEnabled(it, transportEnabled) }
+    internal fun currentHandleIdentityForTest(): Long = synchronized(lifetimeLock) {
+        if (handle == 0L) 0L else lifetimeIdentity
+    }
+
+    private inline fun <T> withHandle(operation: (Long) -> T): T = synchronized(lifetimeLock) {
+        operation(requireHandleLocked())
+    }
+
+    private fun requireHandleLocked(): Long = require(handle != 0L) { "Native macOS audio bridge has been released" }.let { handle }
+
+    private fun createConfiguredHandleLocked(): Long = nativeCreate().also {
+        lifetimeIdentity++
+        nativeSetTransportEnabled(it, transportEnabled)
+    }
 
     private external fun nativeCreate(): Long
     private external fun nativeLoad(handle: Long, path: String): Boolean

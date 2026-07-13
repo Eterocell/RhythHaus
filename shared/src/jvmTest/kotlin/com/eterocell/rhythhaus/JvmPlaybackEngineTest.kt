@@ -12,6 +12,7 @@ import kotlin.io.path.deleteIfExists
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
@@ -75,6 +76,67 @@ class JvmPlaybackEngineTest {
             bridge.releasePlayer()
         }
         assertEquals(0, bridge.liveRemoteHandlerCountForTest())
+    }
+
+    @Test
+    fun inFlightBridgeOperationBlocksResetAndKeepsOneHandleIdentity() {
+        val bridge = MacAudioPlayerBridge()
+        val operationEntered = CountDownLatch(1)
+        val releaseOperation = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val originalHandle = bridge.currentHandleIdentityForTest()
+            val operation = executor.submit<Long> {
+                bridge.withLifetimeBoundaryForTest { ownedHandle ->
+                    operationEntered.countDown()
+                    assertTrue(releaseOperation.await(1, TimeUnit.SECONDS))
+                    ownedHandle
+                }
+            }
+            assertTrue(operationEntered.await(1, TimeUnit.SECONDS))
+            val reset = executor.submit { bridge.resetPlayer() }
+
+            assertFailsWith<TimeoutException> { reset.get(100, TimeUnit.MILLISECONDS) }
+            releaseOperation.countDown()
+            assertEquals(originalHandle, operation.get(1, TimeUnit.SECONDS))
+            reset.get(1, TimeUnit.SECONDS)
+            assertFalse(originalHandle == bridge.currentHandleIdentityForTest())
+        } finally {
+            releaseOperation.countDown()
+            executor.shutdownNow()
+            bridge.releasePlayer()
+        }
+    }
+
+    @Test
+    fun inFlightBridgeOperationBlocksFinalReleaseAndPreventsLaterEntry() {
+        val bridge = MacAudioPlayerBridge()
+        val operationEntered = CountDownLatch(1)
+        val releaseOperation = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val operation = executor.submit {
+                bridge.withLifetimeBoundaryForTest {
+                    operationEntered.countDown()
+                    assertTrue(releaseOperation.await(1, TimeUnit.SECONDS))
+                }
+            }
+            assertTrue(operationEntered.await(1, TimeUnit.SECONDS))
+            val release = executor.submit { bridge.releasePlayer() }
+
+            assertFailsWith<TimeoutException> { release.get(100, TimeUnit.MILLISECONDS) }
+            releaseOperation.countDown()
+            operation.get(1, TimeUnit.SECONDS)
+            release.get(1, TimeUnit.SECONDS)
+
+            assertEquals(0L, bridge.currentHandleIdentityForTest())
+            assertFailsWith<IllegalArgumentException> { bridge.currentPositionMillis() }
+            assertFailsWith<IllegalArgumentException> { bridge.withLifetimeBoundaryForTest { } }
+        } finally {
+            releaseOperation.countDown()
+            executor.shutdownNow()
+            bridge.releasePlayer()
+        }
     }
 
     @Test
