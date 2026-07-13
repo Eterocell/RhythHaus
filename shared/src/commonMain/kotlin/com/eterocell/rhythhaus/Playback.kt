@@ -263,6 +263,21 @@ class PlaybackController(
         if (_state.value.isPlaying) pause() else play()
     }
 
+    fun restartCurrentTrack() {
+        val current = _state.value.currentTrack ?: return
+        _state.value = _state.value.copy(positionMillis = 0L, error = null)
+        when (_state.value.status) {
+            PlaybackStatus.Loading -> playWhenLoaded = true
+            PlaybackStatus.Idle,
+            PlaybackStatus.Error,
+            -> loadSelected(current, autoPlay = true)
+            else -> launchEngineAction {
+                engine.seekTo(0L)
+                engine.play()
+            }
+        }
+    }
+
     fun skipToNext() {
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
         nextTrack(wrap)?.let { loadSelected(it, autoPlay = true) }
