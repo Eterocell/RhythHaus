@@ -81,4 +81,8 @@ Task 6 wires playback persistence ownership to the process, restores the session
 
 ## Commits
 
-Recorded after implementation in atomic dependency order; see the final Task 6 response for the exact range.
+- `9d6da3a` `fix: keep coordinator cancellation multiplatform`
+- `8f91102` `feat: own playback restore by process`
+- `788e689` `feat: publish library after playback reconcile`
+- `08caffd` `feat: initialize playback graph in application`
+- `2a17c1c` `docs: record process playback integration`
