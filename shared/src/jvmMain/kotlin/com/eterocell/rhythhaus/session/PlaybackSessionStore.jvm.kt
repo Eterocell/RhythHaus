@@ -11,19 +11,31 @@ import okio.Path.Companion.toOkioPath
 
 private const val PlaybackSessionPreferenceFileName = "playback_session.preferences_pb"
 
-private val playbackSessionDataStore by lazy {
-    PreferenceDataStoreFactory.createWithPath(
-        corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
-        migrations = emptyList(),
-        scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
-        produceFile = { defaultPlaybackSessionPreferenceFile().toOkioPath() },
-    )
+internal class JvmPlaybackSessionStoreFactory(
+    homeDirectory: File,
+    private val scope: CoroutineScope,
+) {
+    val preferenceFile: File = File(
+        homeDirectory,
+        "Library/Application Support/RhythHaus/$PlaybackSessionPreferenceFileName",
+    ).also { file -> file.parentFile?.mkdirs() }
+
+    val dataStore by lazy {
+        PreferenceDataStoreFactory.createWithPath(
+            corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+            migrations = emptyList(),
+            scope = scope,
+            produceFile = { preferenceFile.toOkioPath() },
+        )
+    }
+
+    fun createStore(): PlaybackSessionStore = DataStorePlaybackSessionStore(dataStore)
 }
 
-actual fun createPlaybackSessionStore(): PlaybackSessionStore =
-    DataStorePlaybackSessionStore(playbackSessionDataStore)
+private val playbackSessionStoreFactory = JvmPlaybackSessionStoreFactory(
+    homeDirectory = File(System.getProperty("user.home")),
+    scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+)
 
-private fun defaultPlaybackSessionPreferenceFile(): File = File(
-    System.getProperty("user.home"),
-    "Library/Application Support/RhythHaus/$PlaybackSessionPreferenceFileName",
-).also { file -> file.parentFile?.mkdirs() }
+actual fun createPlaybackSessionStore(): PlaybackSessionStore =
+    playbackSessionStoreFactory.createStore()
