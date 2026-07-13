@@ -68,3 +68,51 @@ Result: `BUILD SUCCESSFUL in 1s`; `25 actionable tasks: 6 executed, 19 up-to-dat
 
 - Kotlin LSP diagnostics are unavailable; focused Gradle tests and compilation are the source diagnostic evidence.
 - The authoritative OpenSpec task checklist remains globally unchecked from prior task execution; this task intentionally does not modify OpenSpec artifacts per the user scope prohibition.
+
+## Review findings fix
+
+### Root causes
+
+- Restore/reconcile released `engineMutex` after `loadPaused` validation and reacquired it for seek/pause. A newer operation could allocate/load another generation in that gap, allowing stale seek/pause to target the newer native item.
+- `restartCurrentTrack`, manual next/previous, and completion-driven replacements changed persisted current/position state through `loadSelected` or direct position reset without their own immediate checkpoint.
+- `MutableSharedFlow(extraBufferCapacity = 64)` plus unchecked `tryEmit` had no replay before collector startup and silently discarded checkpoints once the extra buffer was exhausted.
+- `associateBy` selected the last supplied duplicate track while queue mapping retained repeated runtime IDs, so malformed runtime input had neither stable first-wins metadata nor unique queue order.
+
+### RED evidence
+
+Command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
+```
+
+Result: the focused run reproduced the findings before production edits. `restoreAndReconcileEngineTransactionsCannotInterleave` failed because reconciliation replaced state while restore A remained between load acknowledgement and seek/pause. `restoreAndReconcileDeduplicateRuntimeTrackIdsWithStableFirstWinsMetadata` failed because duplicate supplied IDs selected last-occurrence metadata and repeated queue IDs remained. The pre-collector and slow-collector checkpoint tests did not complete under the lossy non-replay flow, and the command exceeded the 120-second test timeout after reporting the deterministic assertion failures.
+
+### Fixes
+
+- Added a session-operation mutex and hold it across restore/reconcile state normalization and the complete engine transaction. Generation allocation, `loadPaused`, returned-generation checks, clamp, seek, pause, and final state publication now run inside one `engineMutex` section; a newer session operation cannot begin between validation and seek/pause.
+- Added exactly one immediate checkpoint after restart, successful manual next/previous replacement, and each completion-driven replacement. Existing `setQueue` and `selectTrack` emissions remain unchanged and are not duplicated.
+- Replaced the shared flow with an unlimited `Channel<PlaybackCheckpoint>` exposed through `receiveAsFlow()`. The documented contract is one process-owned persistence consumer; synchronous producers use non-blocking `trySend`, delivery is ordered/lossless while open, and release closes the channel.
+- Restore and reconciliation deduplicate supplied tracks and queue IDs with stable first-occurrence order/metadata. The persisted codec is unchanged.
+
+### GREEN and regression evidence
+
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache` — `BUILD SUCCESSFUL in 1s`; 40 focused controller tests passed.
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryPlaybackSelectionTest' --configuration-cache` — `BUILD SUCCESSFUL in 640ms`.
+- `./gradlew :shared:compileKotlinJvm --configuration-cache` — `BUILD SUCCESSFUL in 3s`.
+- `GIT_MASTER=1 git diff --check` — pass with no output.
+- Kotlin LSP remains unavailable because `kotlin-ls` is not installed and installation was previously declined.
+
+### Review-fix self-review
+
+- The blocked-load test proves safe ordering: restore A completes seek/pause before reconciliation B can load/seek/pause its replacement.
+- Existing Task 3 superseded-load cancellation coverage remains green; the added operation mutex does not replace engine serialization or swallow cancellation.
+- Immediate transition tests verify zero-position/current snapshots before any playing-progress checkpoint.
+- Checkpoint tests prove ordered delivery before collector startup and lossless delivery of 80 discrete mutations to a slow collector.
+- Duplicate-ID tests prove stable first-wins metadata and unique order for restore input and an existing duplicate queue at reconciliation.
+- Scope remains `Playback.kt`, `PlaybackControllerTest.kt`, and this Task 4 report. Task 1-2 report modifications remain untouched and excluded.
+
+### Review-fix commits
+
+- `92e5480` — `fix: harden playback session controller ordering`
+- Durable report evidence is recorded in the following documentation commit.
