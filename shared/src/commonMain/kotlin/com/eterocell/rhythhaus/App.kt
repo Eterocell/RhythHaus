@@ -36,6 +36,9 @@ import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,9 +62,9 @@ fun App() {
     val playbackLifecycle = koinInject<PlaybackProcessLifecycle>()
     val playbackReconciler = koinInject<PlaybackSessionReconciler>()
     val initialLibraryContent = remember { loadLibraryContent(repository, platformAccess) }
+    var initialPublication by remember { mutableStateOf(InitialLibraryPublicationState()) }
     var librarySources by remember { mutableStateOf(emptyList<LibrarySource>()) }
     var libraryTracks by remember { mutableStateOf(emptyList<LibraryTrack>()) }
-    var initialLibraryReady by remember { mutableStateOf(false) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
@@ -75,10 +78,13 @@ fun App() {
             lifecycle = playbackLifecycle,
             reconciler = playbackReconciler,
             content = initialLibraryContent,
-            updateLibrary = {
-                librarySources = it.sources
-                libraryTracks = it.tracks
-                initialLibraryReady = true
+            updateState = { state ->
+                initialPublication = state
+                state.content?.let {
+                    librarySources = it.sources
+                    libraryTracks = it.tracks
+                }
+                state.errorMessage?.let { importMessage = it }
             },
         )
     }
@@ -89,7 +95,7 @@ fun App() {
     }
 
     fun launchSourceScan(source: LibrarySource) {
-        if (!initialLibraryReady || !sourceMutationsAllowed(
+        if (!initialPublication.mutationsAllowed || !sourceMutationsAllowed(
                 isProgressActive = scanProgress?.isActive == true,
                 isJobActive = scanJob?.isActive == true,
             )
@@ -112,13 +118,36 @@ fun App() {
             )
 
             val content = loadLibraryContent(repository, platformAccess)
-            playbackReconciler.reconcile(content.tracks)
-            withContext(Dispatchers.Main) {
-                scanProgress = ScanProgress(session = session)
-                importMessage = scanCompleteFormat
-                    .replaceFirst("%1\$d", session.tracksAdded.toString())
-                    .replaceFirst("%2\$d", session.tracksUpdated.toString())
-                updateLibraryContent(content)
+            publishScanContentAfterReconcile(
+                reconciler = playbackReconciler,
+                content = content,
+                session = session,
+                ownerIsActive = { currentCoroutineContext().isActive },
+                publish = { publication ->
+                    withContext(Dispatchers.Main) {
+                        scanProgress = publication.progress
+                        importMessage = publication.errorMessage ?: scanCompleteFormat
+                            .replaceFirst("%1\$d", session.tracksAdded.toString())
+                            .replaceFirst("%2\$d", session.tracksUpdated.toString())
+                        updateLibraryContent(publication.content)
+                    }
+                },
+            )
+        }
+    }
+
+    fun mutationError(message: String) {
+        importMessage = message
+    }
+
+    fun launchLibraryMutation(block: suspend () -> Unit) {
+        scope.launch {
+            try {
+                block()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                mutationError(failure.appFailureMessage())
             }
         }
     }
@@ -161,30 +190,31 @@ fun App() {
                     }
                 },
                 onClearLibrary = {
-                    if (initialLibraryReady && sourceMutationsAllowed(
+                    if (initialPublication.mutationsAllowed && sourceMutationsAllowed(
                             isProgressActive = scanProgress?.isActive == true,
                             isJobActive = scanJob?.isActive == true,
                         )
                     ) {
-                        scope.launch {
+                        launchLibraryMutation {
                             clearLibraryInBackground(
                                 repository = repository,
                                 platformAccess = platformAccess,
                                 reconciler = playbackReconciler,
                                 ioDispatcher = Dispatchers.Default,
                                 updateLibrary = ::updateLibraryContent,
+                                updateError = ::mutationError,
                             )
                         }
                     }
                 },
                 onRescanSource = ::launchSourceScan,
                 onRemoveSource = { source ->
-                    if (initialLibraryReady && sourceMutationsAllowed(
+                    if (initialPublication.mutationsAllowed && sourceMutationsAllowed(
                             isProgressActive = scanProgress?.isActive == true,
                             isJobActive = scanJob?.isActive == true,
                         )
                     ) {
-                        scope.launch {
+                        launchLibraryMutation {
                             removeSourceInBackground(
                                 sourceId = source.id,
                                 repository = repository,
@@ -192,6 +222,7 @@ fun App() {
                                 reconciler = playbackReconciler,
                                 ioDispatcher = Dispatchers.Default,
                                 updateLibrary = ::updateLibraryContent,
+                                updateError = ::mutationError,
                             )
                         }
                     }
@@ -210,14 +241,42 @@ internal data class LibraryContentState(
     val tracks: List<LibraryTrack>,
 )
 
+internal data class InitialLibraryPublicationState(
+    val content: LibraryContentState? = null,
+    val errorMessage: String? = null,
+    val isReady: Boolean = false,
+) {
+    val mutationsAllowed: Boolean get() = isReady
+
+    fun complete(content: LibraryContentState): InitialLibraryPublicationState = copy(
+        content = content,
+        errorMessage = null,
+        isReady = true,
+    )
+
+    fun failSafe(content: LibraryContentState, failure: Throwable): InitialLibraryPublicationState = copy(
+        content = content,
+        errorMessage = failure.appFailureMessage(),
+        isReady = true,
+    )
+}
+
 internal suspend fun publishInitialLibraryContent(
     lifecycle: PlaybackSessionRestorer,
     reconciler: PlaybackSessionReconciler,
     content: LibraryContentState,
-    updateLibrary: (LibraryContentState) -> Unit,
+    updateState: (InitialLibraryPublicationState) -> Unit,
 ) {
-    lifecycle.restoreOnce(content.tracks.map(LibraryTrack::toPlayableTrack))
-    publishLibraryContentAfterReconcile(reconciler, content, updateLibrary)
+    val pending = InitialLibraryPublicationState()
+    try {
+        lifecycle.restoreOnce(content.tracks.map(LibraryTrack::toPlayableTrack))
+        reconciler.reconcile(content.tracks)
+        updateState(pending.complete(content))
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        updateState(pending.failSafe(content, failure))
+    }
 }
 
 internal suspend fun publishLibraryContentAfterReconcile(
@@ -227,6 +286,43 @@ internal suspend fun publishLibraryContentAfterReconcile(
 ) {
     reconciler.reconcile(content.tracks)
     updateLibrary(content)
+}
+
+internal data class ScanPublicationState(
+    val content: LibraryContentState,
+    val progress: ScanProgress,
+    val errorMessage: String? = null,
+)
+
+internal suspend fun publishScanContentAfterReconcile(
+    reconciler: PlaybackSessionReconciler,
+    content: LibraryContentState,
+    session: ScanSession,
+    ownerIsActive: suspend () -> Boolean,
+    publish: suspend (ScanPublicationState) -> Unit,
+) {
+    try {
+        reconciler.reconcile(content.tracks)
+        publish(ScanPublicationState(content, ScanProgress(session)))
+    } catch (cancelled: CancellationException) {
+        if (ownerIsActive()) {
+            publish(
+                ScanPublicationState(
+                    content = content,
+                    progress = ScanProgress(session.terminalAfterCancellation()),
+                ),
+            )
+        }
+        throw cancelled
+    } catch (failure: Throwable) {
+        publish(
+            ScanPublicationState(
+                content = content,
+                progress = ScanProgress(session.terminalAfterFailure(failure)),
+                errorMessage = failure.appFailureMessage(),
+            ),
+        )
+    }
 }
 
 internal fun loadLibraryContent(
@@ -246,6 +342,7 @@ internal suspend fun removeSourceInBackground(
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     updateLibrary: (LibraryContentState) -> Unit,
+    updateError: (String) -> Unit = {},
 ) {
     val content = withContext(ioDispatcher) {
         val source = repository.sources().firstOrNull { it.id == sourceId }
@@ -253,7 +350,7 @@ internal suspend fun removeSourceInBackground(
         source?.let(platformAccess::releaseAccess)
         loadLibraryContent(repository, platformAccess)
     }
-    publishLibraryContentAfterReconcile(reconciler, content, updateLibrary)
+    publishLibraryContentAfterReconcileFailureSafe(reconciler, content, updateLibrary, updateError)
 }
 
 internal suspend fun clearLibraryInBackground(
@@ -262,6 +359,7 @@ internal suspend fun clearLibraryInBackground(
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     updateLibrary: (LibraryContentState) -> Unit,
+    updateError: (String) -> Unit = {},
 ) {
     val content = withContext(ioDispatcher) {
         val sources = repository.sources()
@@ -269,7 +367,25 @@ internal suspend fun clearLibraryInBackground(
         sources.forEach(platformAccess::releaseAccess)
         loadLibraryContent(repository, platformAccess)
     }
-    publishLibraryContentAfterReconcile(reconciler, content, updateLibrary)
+    publishLibraryContentAfterReconcileFailureSafe(reconciler, content, updateLibrary, updateError)
+}
+
+private suspend fun publishLibraryContentAfterReconcileFailureSafe(
+    reconciler: PlaybackSessionReconciler,
+    content: LibraryContentState,
+    updateLibrary: (LibraryContentState) -> Unit,
+    updateError: (String) -> Unit,
+) {
+    try {
+        reconciler.reconcile(content.tracks)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        updateLibrary(content)
+        updateError(failure.appFailureMessage())
+        return
+    }
+    updateLibrary(content)
 }
 
 internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
@@ -277,6 +393,23 @@ internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
     if (session.status != ScanStatus.Scanning) return this
     return copy(session = session.copy(status = ScanStatus.Cancelling))
 }
+
+private fun Throwable.appFailureMessage(): String =
+    message?.takeIf(String::isNotBlank) ?: "Playback session unavailable"
+
+private fun ScanSession.terminalAfterCancellation(): ScanSession =
+    if (status == ScanStatus.Scanning || status == ScanStatus.Cancelling) {
+        copy(status = ScanStatus.Cancelled, terminalMessage = "Scan cancelled")
+    } else {
+        this
+    }
+
+private fun ScanSession.terminalAfterFailure(failure: Throwable): ScanSession =
+    if (status == ScanStatus.Scanning || status == ScanStatus.Cancelling) {
+        copy(status = ScanStatus.Failed, terminalMessage = failure.appFailureMessage())
+    } else {
+        this
+    }
 
 @Composable
 private fun RhythHausTheme(

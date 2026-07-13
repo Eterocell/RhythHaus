@@ -12,11 +12,15 @@ import com.eterocell.rhythhaus.library.TrackUpsertResult
 import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 
 class AppScanCancellationTest {
@@ -90,7 +94,7 @@ class AppScanCancellationTest {
                 PlaybackSessionReconcileResult.Applied
             },
             content = content,
-            updateLibrary = { events += "publish" },
+            updateState = { events += "publish" },
         )
 
         assertEquals(listOf("restore", "reconcile", "publish"), events)
@@ -111,7 +115,7 @@ class AppScanCancellationTest {
                     },
                     reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
                     content = LibraryContentState(emptyList(), emptyList()),
-                    updateLibrary = { publication.complete(Unit) },
+                    updateState = { publication.complete(Unit) },
                 )
             }
 
@@ -151,7 +155,165 @@ class AppScanCancellationTest {
 
         assertEquals(true, published)
     }
+
+    @Test
+    fun initialPublicationPolicyBlocksMutationsUntilTerminalOutcome() {
+        val content = LibraryContentState(emptyList(), emptyList())
+        val pending = InitialLibraryPublicationState()
+
+        assertEquals(false, pending.isReady)
+        assertEquals(false, pending.mutationsAllowed)
+        assertEquals(null, pending.content)
+
+        val succeeded = pending.complete(content)
+        assertEquals(true, succeeded.isReady)
+        assertEquals(true, succeeded.mutationsAllowed)
+        assertSame(content, succeeded.content)
+        assertEquals(null, succeeded.errorMessage)
+
+        val failed = pending.failSafe(content, IllegalStateException("restore failed"))
+        assertEquals(true, failed.isReady)
+        assertEquals(true, failed.mutationsAllowed)
+        assertSame(content, failed.content)
+        assertEquals("restore failed", failed.errorMessage)
+    }
+
+    @Test
+    fun restoreFailurePublishesAuthoritativeContentOnceAndReleasesGates() = runBlocking {
+        val content = LibraryContentState(emptyList(), listOf(testTrack("one")))
+        val states = mutableListOf<InitialLibraryPublicationState>()
+
+        publishInitialLibraryContent(
+            lifecycle = PlaybackSessionRestorer { throw IllegalStateException("restore failed") },
+            reconciler = PlaybackSessionReconciler { error("must not reconcile") },
+            content = content,
+            updateState = states::add,
+        )
+
+        assertEquals(1, states.size)
+        assertEquals(true, states.single().isReady)
+        assertEquals(true, states.single().mutationsAllowed)
+        assertSame(content, states.single().content)
+        assertEquals("restore failed", states.single().errorMessage)
+    }
+
+    @Test
+    fun reconcileFailureAfterRestorePublishesAuthoritativeContentOnceAndError() = runBlocking {
+        val content = LibraryContentState(emptyList(), listOf(testTrack("one")))
+        val states = mutableListOf<InitialLibraryPublicationState>()
+
+        publishInitialLibraryContent(
+            lifecycle = PlaybackSessionRestorer { },
+            reconciler = PlaybackSessionReconciler { throw IllegalStateException("reconcile failed") },
+            content = content,
+            updateState = states::add,
+        )
+
+        assertEquals(1, states.size)
+        assertSame(content, states.single().content)
+        assertEquals("reconcile failed", states.single().errorMessage)
+    }
+
+    @Test
+    fun initialPublicationCancellationDoesNotPublishErrorState() = runBlocking {
+        val states = mutableListOf<InitialLibraryPublicationState>()
+
+        assertFailsWith<CancellationException> {
+            publishInitialLibraryContent(
+                lifecycle = PlaybackSessionRestorer { throw CancellationException("gone") },
+                reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
+                content = LibraryContentState(emptyList(), emptyList()),
+                updateState = states::add,
+            )
+        }
+
+        assertEquals(emptyList(), states)
+    }
+
+    @Test
+    fun scanReconcileFailurePublishesAuthoritativeContentAndTerminalError() = runBlocking {
+        val content = LibraryContentState(emptyList(), listOf(testTrack("one")))
+        val session = testScanSession(ScanStatus.Completed)
+        val publications = mutableListOf<ScanPublicationState>()
+
+        publishScanContentAfterReconcile(
+            reconciler = PlaybackSessionReconciler { throw IllegalStateException("scan reconcile failed") },
+            content = content,
+            session = session,
+            ownerIsActive = { true },
+            publish = publications::add,
+        )
+
+        assertEquals(1, publications.size)
+        assertSame(content, publications.single().content)
+        assertSame(session, publications.single().progress.session)
+        assertEquals(false, publications.single().progress.isActive)
+        assertEquals("scan reconcile failed", publications.single().errorMessage)
+    }
+
+    @Test
+    fun scanCancellationAfterMutationCleansActiveProgressThenRethrows() = runBlocking {
+        val content = LibraryContentState(emptyList(), listOf(testTrack("one")))
+        val publications = mutableListOf<ScanPublicationState>()
+
+        assertFailsWith<CancellationException> {
+            publishScanContentAfterReconcile(
+                reconciler = PlaybackSessionReconciler { throw CancellationException("cancelled") },
+                content = content,
+                session = testScanSession(ScanStatus.Scanning),
+                ownerIsActive = { true },
+                publish = publications::add,
+            )
+        }
+
+        assertEquals(1, publications.size)
+        assertSame(content, publications.single().content)
+        assertEquals(ScanStatus.Cancelled, publications.single().progress.session?.status)
+        assertEquals(false, publications.single().progress.isActive)
+        assertEquals(null, publications.single().errorMessage)
+    }
+
+    @Test
+    fun scanCancellationWithGoneOwnerDoesNotPublishCleanup() = runBlocking {
+        val publications = mutableListOf<ScanPublicationState>()
+
+        assertFailsWith<CancellationException> {
+            publishScanContentAfterReconcile(
+                reconciler = PlaybackSessionReconciler { throw CancellationException("cancelled") },
+                content = LibraryContentState(emptyList(), emptyList()),
+                session = testScanSession(ScanStatus.Scanning),
+                ownerIsActive = { false },
+                publish = publications::add,
+            )
+        }
+
+        assertEquals(emptyList(), publications)
+    }
 }
+
+private fun testScanSession(status: ScanStatus) = ScanSession(
+    id = "scan",
+    sourceId = "source",
+    status = status,
+    startedAtEpochMillis = 1L,
+)
+
+private fun testTrack(id: String) = LibraryTrack(
+    id = id,
+    sourceId = "source",
+    sourceLocalKey = "$id.mp3",
+    audioSource = AudioSource.FilePath("/$id.mp3"),
+    displayName = "$id.mp3",
+    title = id,
+    artist = "Artist",
+    album = "Album",
+    durationMillis = null,
+    sizeBytes = null,
+    modifiedAtEpochMillis = null,
+    lastSeenScanId = null,
+    createdAtEpochMillis = 1L,
+    updatedAtEpochMillis = 1L,
+)
 
 private object TestPlatformSourceAccess : com.eterocell.rhythhaus.library.PlatformSourceAccess {
     override fun scan(source: LibrarySource): Sequence<com.eterocell.rhythhaus.library.PlatformScanEvent> = emptySequence()

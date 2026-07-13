@@ -273,6 +273,55 @@ class LibrarySourceManagementTest {
     }
 
     @Test
+    fun sourceRemovalReconcileFailurePublishesAuthoritativeContentAndError() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("remove"))
+            upsertSource(source("keep"))
+            upsertTrack(track("remove-track", "remove"))
+            upsertTrack(track("keep-track", "keep"))
+        }
+        val platformAccess = FakePlatformSourceAccess(repository = repository)
+        var published: LibraryContentState? = null
+        var errorMessage: String? = null
+
+        removeSourceInBackground(
+            sourceId = "remove",
+            repository = repository,
+            platformAccess = platformAccess,
+            reconciler = PlaybackSessionReconciler { throw IllegalStateException("remove reconcile failed") },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = { published = it },
+            updateError = { errorMessage = it },
+        )
+
+        assertEquals(listOf("keep"), published?.sources?.map { it.id })
+        assertEquals(listOf("keep-track"), published?.tracks?.map { it.id })
+        assertEquals("remove reconcile failed", errorMessage)
+        assertEquals(listOf("remove"), platformAccess.releasedSources.map { it.id })
+    }
+
+    @Test
+    fun sourceRemovalAccessReleaseFailurePropagatesWithoutPublishing() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("remove"))
+        }
+        var published = false
+
+        assertFailsWith<IllegalStateException> {
+            removeSourceInBackground(
+                sourceId = "remove",
+                repository = repository,
+                platformAccess = ThrowingReleasePlatformSourceAccess,
+                reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
+                ioDispatcher = Dispatchers.Default,
+                updateLibrary = { published = true },
+            )
+        }
+
+        assertEquals(false, published)
+    }
+
+    @Test
     fun clearLibraryRefreshesBothSourcesAndTracks() = runBlocking {
         val repository = InMemoryLibraryRepository().apply {
             upsertSource(source("source"))
@@ -353,6 +402,49 @@ class LibrarySourceManagementTest {
         assertEquals(emptyList(), platformAccess.releasedSources)
     }
 
+    @Test
+    fun clearLibraryReconcileFailurePublishesEmptyContentAndError() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("source"))
+            upsertTrack(track("track", "source"))
+        }
+        var published: LibraryContentState? = null
+        var errorMessage: String? = null
+
+        clearLibraryInBackground(
+            repository = repository,
+            platformAccess = FakePlatformSourceAccess(repository = repository),
+            reconciler = PlaybackSessionReconciler { throw IllegalStateException("clear reconcile failed") },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = { published = it },
+            updateError = { errorMessage = it },
+        )
+
+        assertEquals(emptyList(), published?.sources)
+        assertEquals(emptyList(), published?.tracks)
+        assertEquals("clear reconcile failed", errorMessage)
+    }
+
+    @Test
+    fun clearLibraryAccessReleaseFailurePropagatesWithoutPublishing() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("source"))
+        }
+        var published = false
+
+        assertFailsWith<IllegalStateException> {
+            clearLibraryInBackground(
+                repository = repository,
+                platformAccess = ThrowingReleasePlatformSourceAccess,
+                reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
+                ioDispatcher = Dispatchers.Default,
+                updateLibrary = { published = true },
+            )
+        }
+
+        assertEquals(false, published)
+    }
+
     private fun source(id: String) = LibrarySource(
         id = id,
         platformKind = LibraryPlatformKind.JvmFolder,
@@ -404,6 +496,11 @@ private class FakePlatformSourceAccess(
         releasedSources += source
     }
 
+    override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> = emptySequence()
+}
+
+private object ThrowingReleasePlatformSourceAccess : PlatformSourceAccess {
+    override fun releaseAccess(source: LibrarySource): Unit = throw IllegalStateException("release failed")
     override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> = emptySequence()
 }
 
