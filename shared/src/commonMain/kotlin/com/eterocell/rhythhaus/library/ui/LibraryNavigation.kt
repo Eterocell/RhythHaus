@@ -1,5 +1,7 @@
 package com.eterocell.rhythhaus.library.ui
 
+import kotlin.math.roundToInt
+
 sealed interface LibraryRoute {
     data object Home : LibraryRoute
     data class AlbumDetail(val album: String) : LibraryRoute
@@ -33,6 +35,29 @@ fun classifyNavigationTransition(
 }
 
 fun routeRequiresInWindowContentAnimation(route: LibraryRoute): Boolean = false
+
+fun routePermitsNowPlayingBar(route: LibraryRoute): Boolean = when (route) {
+    LibraryRoute.Settings,
+    LibraryRoute.SettingsAbout,
+    LibraryRoute.OpenSourceLibraries,
+    -> false
+
+    LibraryRoute.Home,
+    is LibraryRoute.AlbumDetail,
+    is LibraryRoute.ArtistDetail,
+    LibraryRoute.NowPlaying,
+    LibraryRoute.Search,
+    LibraryRoute.ClearLibraryDialog,
+    -> true
+}
+
+fun shouldShowNowPlayingBar(
+    route: LibraryRoute,
+    existingVisibility: Boolean,
+): Boolean = existingVisibility && routePermitsNowPlayingBar(route)
+
+fun nowPlayingBarOffsetPx(hiddenFraction: Float, measuredHeightPx: Int): Int =
+    (hiddenFraction.coerceIn(0f, 1f) * measuredHeightPx).roundToInt()
 
 enum class LibraryAdaptiveLayoutMode {
     Compact,

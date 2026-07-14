@@ -49,11 +49,6 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 
 internal val NowPlayingBarContentPadding = 144.dp
 
-// Approximate collapsed NowPlayingBar height in px for the hide/show offset animation.
-// The bar's actual height is dynamic (text + navigation bars + padding), but a fixed
-// visual target keeps the animation simple and avoids measuring during composition.
-internal const val NowPlayingBarHeightPx = 156f
-
 enum class BottomBarMode {
     TrackLoaded,
     EmptyLibraryNavigation,

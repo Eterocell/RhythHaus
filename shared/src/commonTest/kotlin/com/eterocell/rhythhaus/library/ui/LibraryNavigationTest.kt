@@ -498,6 +498,61 @@ class LibraryNavigationTest {
         state.updateNowPlayingBarVisibilityForScroll(LibraryScrollPosition(0, 30))
         assertFalse(state.isNowPlayingBarVisible)
     }
+
+    @Test
+    fun settingsInformationRoutesSuppressNowPlayingBar() {
+        assertFalse(routePermitsNowPlayingBar(LibraryRoute.Settings))
+        assertFalse(routePermitsNowPlayingBar(LibraryRoute.SettingsAbout))
+        assertFalse(routePermitsNowPlayingBar(LibraryRoute.OpenSourceLibraries))
+    }
+
+    @Test
+    fun otherRoutesPermitNowPlayingBar() {
+        val permittedRoutes = listOf(
+            LibraryRoute.Home,
+            LibraryRoute.AlbumDetail("Album"),
+            LibraryRoute.ArtistDetail("Artist"),
+            LibraryRoute.NowPlaying,
+            LibraryRoute.Search,
+            LibraryRoute.ClearLibraryDialog,
+        )
+
+        permittedRoutes.forEach { route ->
+            assertTrue(routePermitsNowPlayingBar(route), "Expected $route to permit the bar")
+        }
+    }
+
+    @Test
+    fun routeEligibilityCombinesWithExistingVisibility() {
+        assertTrue(shouldShowNowPlayingBar(LibraryRoute.Home, existingVisibility = true))
+        assertFalse(shouldShowNowPlayingBar(LibraryRoute.Home, existingVisibility = false))
+        assertFalse(shouldShowNowPlayingBar(LibraryRoute.Settings, existingVisibility = true))
+        assertFalse(shouldShowNowPlayingBar(LibraryRoute.SettingsAbout, existingVisibility = true))
+    }
+
+    @Test
+    fun nowPlayingBarOffsetPxIsZeroWhenFullyShown() {
+        assertEquals(0, nowPlayingBarOffsetPx(hiddenFraction = 0f, measuredHeightPx = 312))
+    }
+
+    @Test
+    fun nowPlayingBarOffsetPxMatchesMeasuredHeightWhenFullyHidden() {
+        // Regression guard: measured height can exceed the old 156px estimate
+        // (e.g. after platform navigation-bar insets), so the offset must move
+        // the entire measured wrapper off-screen, not a fixed fallback amount.
+        assertEquals(312, nowPlayingBarOffsetPx(hiddenFraction = 1f, measuredHeightPx = 312))
+    }
+
+    @Test
+    fun nowPlayingBarOffsetPxScalesLinearlyWithFraction() {
+        assertEquals(78, nowPlayingBarOffsetPx(hiddenFraction = 0.25f, measuredHeightPx = 312))
+    }
+
+    @Test
+    fun nowPlayingBarOffsetPxCoercesFractionOutsideUnitRange() {
+        assertEquals(0, nowPlayingBarOffsetPx(hiddenFraction = -0.5f, measuredHeightPx = 312))
+        assertEquals(312, nowPlayingBarOffsetPx(hiddenFraction = 1.5f, measuredHeightPx = 312))
+    }
 }
 
 private fun testTrack(id: String): Track = Track(

@@ -31,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
@@ -63,7 +65,6 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
-import com.eterocell.rhythhaus.nowplaying.NowPlayingBarHeightPx
 import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
@@ -342,15 +343,29 @@ fun LibraryHomeScreen(
         // Fixed bottom bar (outside AnimatedContent). It stays in composition so
         // returning from Now Playing does not re-trigger the enter animation when
         // the bar was already visible underneath the overlay.
+        val shouldShowBottomBar = shouldShowNowPlayingBar(
+            route = appState.navigation.current,
+            existingVisibility = appState.isNowPlayingBarVisible,
+        )
         val bottomBarOffset by animateFloatAsState(
-            targetValue = if (appState.isNowPlayingBarVisible) 0f else 1f,
+            targetValue = if (shouldShowBottomBar) 0f else 1f,
             animationSpec = tween(250),
             label = "BottomBarOffset",
         )
+        var bottomBarMeasuredHeightPx by remember { mutableIntStateOf(0) }
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .offset(y = (bottomBarOffset * NowPlayingBarHeightPx).dp)
+                .onSizeChanged { bottomBarMeasuredHeightPx = it.height }
+                .offset {
+                    IntOffset(
+                        x = 0,
+                        y = nowPlayingBarOffsetPx(
+                            hiddenFraction = bottomBarOffset,
+                            measuredHeightPx = bottomBarMeasuredHeightPx,
+                        ),
+                    )
+                }
                 .alpha(1f - bottomBarOffset),
         ) {
             NowPlayingBar(
