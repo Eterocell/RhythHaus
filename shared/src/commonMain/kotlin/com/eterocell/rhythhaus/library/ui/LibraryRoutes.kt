@@ -25,6 +25,8 @@ import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.search.SearchScreen
+import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
+import com.eterocell.rhythhaus.settings.SettingsAboutScreen
 import com.eterocell.rhythhaus.settings.SettingsScreen
 import com.eterocell.rhythhaus.Track
 
@@ -49,11 +51,13 @@ internal fun LibraryRouteOverlays(
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveSource: (LibrarySource) -> Unit,
     onCancelScan: () -> Unit,
+    onShowSettingsAbout: () -> Unit,
+    onShowOpenSourceLibraries: () -> Unit,
     onDismiss: () -> Unit,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit,
 ) {
-    if (route == LibraryRoute.Settings) {
-        SettingsScreen(
+    when (route) {
+        LibraryRoute.Settings -> SettingsScreen(
             sources = sources,
             folderPickerLauncher = folderPickerLauncher,
             sourcePickerActionVisible = sourcePickerActionVisible,
@@ -68,12 +72,11 @@ internal fun LibraryRouteOverlays(
             onRescanSource = onRescanSource,
             onRemoveSource = onRemoveSource,
             onCancelScan = onCancelScan,
+            onAboutClick = onShowSettingsAbout,
             onDismiss = onDismiss,
         )
-    }
 
-    if (route == LibraryRoute.Search) {
-        SearchScreen(
+        LibraryRoute.Search -> SearchScreen(
             libraryTracks = libraryTracks,
             tagLibReader = tagLibReader,
             playbackController = playbackController,
@@ -81,6 +84,20 @@ internal fun LibraryRouteOverlays(
             onDismiss = onDismiss,
             onScrollPositionChanged = onScrollPositionChanged,
         )
+
+        LibraryRoute.SettingsAbout -> SettingsAboutScreen(
+            onOpenLibraries = onShowOpenSourceLibraries,
+            onDismiss = onDismiss,
+        )
+        LibraryRoute.OpenSourceLibraries -> OpenSourceLibrariesScreen(
+            onDismiss = onDismiss,
+        )
+        LibraryRoute.Home,
+        is LibraryRoute.AlbumDetail,
+        is LibraryRoute.ArtistDetail,
+        LibraryRoute.NowPlaying,
+        LibraryRoute.ClearLibraryDialog,
+        -> Unit
     }
 }
 
@@ -181,6 +198,8 @@ internal fun LibraryRouteContent(
 
         LibraryRoute.Home,
         LibraryRoute.Settings,
+        LibraryRoute.SettingsAbout,
+        LibraryRoute.OpenSourceLibraries,
         LibraryRoute.Search,
         -> {
             homeContent(onOpenDetailRoute)

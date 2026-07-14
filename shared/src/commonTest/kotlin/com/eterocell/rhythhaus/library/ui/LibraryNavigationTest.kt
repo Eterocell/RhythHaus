@@ -102,6 +102,40 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun settingsAboutAndLibrariesPopBackThroughSettingsToHome() {
+        val stack = LibraryNavigationStack()
+            .push(LibraryRoute.Settings)
+            .push(LibraryRoute.SettingsAbout)
+            .push(LibraryRoute.OpenSourceLibraries)
+
+        assertEquals(LibraryRoute.OpenSourceLibraries, stack.current)
+        assertEquals(LibraryRoute.SettingsAbout, stack.pop().current)
+        assertEquals(LibraryRoute.Settings, stack.pop().pop().current)
+        assertEquals(LibraryRoute.Home, stack.pop().pop().pop().current)
+    }
+
+    @Test
+    fun settingsAboutRoutesUseActiveOverlayOwnershipInCompactAndWideLayouts() {
+        val routes = listOf(
+            LibraryRoute.SettingsAbout,
+            LibraryRoute.OpenSourceLibraries,
+        )
+
+        LibraryAdaptiveLayoutMode.entries.forEach { mode ->
+            routes.forEach { route ->
+                assertTrue(libraryRouteRendersAsActiveOverlay(route = route, mode = mode))
+            }
+        }
+
+        assertFalse(
+            libraryRouteRendersAsActiveOverlay(
+                route = LibraryRoute.AlbumDetail("Blue Train"),
+                mode = LibraryAdaptiveLayoutMode.ListDetail,
+            ),
+        )
+    }
+
+    @Test
     fun clearDialogDoesNotUseRouteContentAnimation() {
         val stack = LibraryNavigationStack()
             .push(LibraryRoute.Settings)

@@ -7,6 +7,8 @@ sealed interface LibraryRoute {
     data object NowPlaying : LibraryRoute
     data object Search : LibraryRoute
     data object Settings : LibraryRoute
+    data object SettingsAbout : LibraryRoute
+    data object OpenSourceLibraries : LibraryRoute
     data object ClearLibraryDialog : LibraryRoute
 }
 
@@ -57,6 +59,28 @@ fun nowPlayingAdaptiveLayoutModeFor(
 ): NowPlayingAdaptiveLayoutMode = when (libraryAdaptiveLayoutModeFor(widthDp, heightDp)) {
     LibraryAdaptiveLayoutMode.Compact -> NowPlayingAdaptiveLayoutMode.Compact
     LibraryAdaptiveLayoutMode.ListDetail -> NowPlayingAdaptiveLayoutMode.Split
+}
+
+internal fun libraryRouteRendersAsActiveOverlay(
+    route: LibraryRoute,
+    mode: LibraryAdaptiveLayoutMode,
+): Boolean = when (mode) {
+    LibraryAdaptiveLayoutMode.Compact,
+    LibraryAdaptiveLayoutMode.ListDetail,
+    -> when (route) {
+        LibraryRoute.Search,
+        LibraryRoute.Settings,
+        LibraryRoute.SettingsAbout,
+        LibraryRoute.OpenSourceLibraries,
+        -> true
+
+        LibraryRoute.Home,
+        is LibraryRoute.AlbumDetail,
+        is LibraryRoute.ArtistDetail,
+        LibraryRoute.NowPlaying,
+        LibraryRoute.ClearLibraryDialog,
+        -> false
+    }
 }
 
 data class LibraryScrollPosition(
