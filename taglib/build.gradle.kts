@@ -107,7 +107,7 @@ val iosNativeBuildTasks = iosTagLibBuilds.associate { build ->
 
 // Android NDK native TagLib builds per ABI
 
-val androidNdkVersion = System.getenv("ANDROID_NDK_VERSION") ?: "30.0.14904198"
+val androidNdkVersion = System.getenv("ANDROID_NDK_VERSION") ?: "30.0.15729638"
 val androidHome = System.getenv("ANDROID_HOME") ?: "${System.getProperty("user.home")}/Library/Android/sdk"
 val androidNdkDir = file("$androidHome/ndk/$androidNdkVersion")
 val androidTagLibToolchainFile = file("$androidNdkDir/build/cmake/android.toolchain.cmake")
