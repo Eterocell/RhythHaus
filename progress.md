@@ -1,5 +1,36 @@
 # Session Progress
 
+## Handoff - 2026-07-14 playback session persistence final evidence
+
+Route: openspec+superpowers / subagent-driven-development / final Oracle release gate
+Owner: implementation
+Input: Approved `persist-playback-session` change and roadmap item 18.
+Output:
+- Persist queue IDs, current track ID, playback position, repeat mode, and shuffle mode in the dedicated `playback_session.preferences_pb` DataStore; metadata, paths, artwork, URIs, engine objects, errors, and effective shuffled order are excluded.
+- Process-owned restoration runs exactly once, reconciles against authoritative library state before publication, regenerates runtime shuffle order, and always completes paused without autoplay.
+- One FIFO coordinator serializes restore, checkpoints, reconciliation, and flush barriers; only adjacent checkpoints coalesce, and persistence failures enter process-lifetime failed-safe behavior while callers and authoritative library publication still complete.
+- Android MediaItem request tokens and iOS/JVM immutable generation/source provenance reject stale callbacks. macOS JNI operations, reset, and final release share one native-handle lifetime boundary; final release is permanent and reset cannot recreate native state or remote handlers.
+Verification:
+- `openspec validate persist-playback-session --strict`: pass (`Change 'persist-playback-session' is valid`).
+- `./gradlew :shared:jvmTest :shared:testAndroidHostTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, build `17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: blocked by pre-existing JVM-only `Thread` references at `AppScanCancellationTest.kt:64` and `:340`; no iOS simulator test pass is claimed. iOS simulator main compilation passed separately.
+- `GIT_MASTER=1 git diff --check`: pass.
+- Complete review package `.superpowers/sdd/review-f98d5d0..616f7e5.diff`: 49 commits and 44 changed files through `616f7e5`.
+- Final Oracle integration gate: PASS, zero Critical and zero Important findings; explicitly approved permanent macOS release, paused restore, FIFO failure safety, exactly-once process ownership, and platform provenance as safe to integrate.
+Acceptance:
+- Requirement matched: yes for persisted session fields, paused/no-autoplay restore, reconciliation, checkpointing, failure safety, process ownership, and platform callback provenance.
+- Scope controlled: no cloud sync, SQLDelight migration, UI redesign, Windows/Linux support, or abrupt-process-death durability guarantee was added.
+- Manual QA limit: audible playback restoration and platform lock-screen/remote controls still require target-device validation.
+Changed files:
+- `openspec/changes/persist-playback-session/`: completed requirements, design, and task ledger.
+- `shared/`, `androidApp/`, and `desktopApp/`: persistence, controller/coordinator, process integration, platform engines, native bridge, and regression coverage.
+- `roadmap.md`: completed item 18 with verification and iOS blocker.
+- `progress.md`: this final handoff.
+Next owner: user for manual target-device playback/remote-control QA, then OpenSpec archival only on explicit request.
+Blockers: iOS simulator tests remain blocked by the unchanged common-test `Thread` references above; no iOS simulator test pass is claimed. No JVM, Android host, desktop, Android, OpenSpec, diff-hygiene, or final-review blocker remains.
+Commit: recorded in the history immediately following this handoff.
+
 ## Handoff - 2026-07-14 restart current track selection final evidence
 
 Route: openspec+superpowers
