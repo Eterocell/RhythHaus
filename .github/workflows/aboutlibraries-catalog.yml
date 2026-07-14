@@ -1,0 +1,55 @@
+name: AboutLibraries catalog
+
+on:
+  pull_request:
+    paths:
+      - "gradle/**"
+      - "*.gradle.kts"
+      - "**/*.gradle.kts"
+      - "shared/config/**"
+      - "shared/src/commonMain/composeResources/files/aboutlibraries.json"
+      - ".github/workflows/aboutlibraries-catalog.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "gradle/**"
+      - "*.gradle.kts"
+      - "**/*.gradle.kts"
+      - "shared/config/**"
+      - "shared/src/commonMain/composeResources/files/aboutlibraries.json"
+      - ".github/workflows/aboutlibraries-catalog.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-catalog:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Regenerate catalog
+        run: ./gradlew :shared:exportLibraryDefinitions --configuration-cache
+
+      - name: Verify catalog content
+        run: >-
+          ./gradlew :shared:jvmTest
+          --tests 'com.eterocell.rhythhaus.settings.AboutLibrariesCatalogTest'
+          --configuration-cache
+
+      - name: Reject uncommitted attribution changes
+        run: >-
+          git diff --exit-code --
+          shared/src/commonMain/composeResources/files/aboutlibraries.json
+          shared/config
