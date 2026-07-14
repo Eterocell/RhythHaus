@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Standalone common Compose logo mark for the shared About screen.
+     Recreated from the RhythHaus launcher house + waveform mark
+     (see androidApp/src/main/res/drawable-v24/ic_launcher_foreground.xml) as a
+     self-contained vector so it renders identically on Android, desktop
+     JVM/macOS, and iOS through Compose Multiplatform resources. It does not
+     reuse or duplicate the Android adaptive-icon layers. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="1200"
+    android:viewportHeight="1200">
+
+    <!-- Outer house mark with brand gradient -->
+    <path
+        android:pathData="M250,530 L600,230 L950,530 V855 C950,895 918,927 878,927 H322 C282,927 250,895 250,855 V530 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="180"
+                android:startY="180"
+                android:endX="1020"
+                android:endY="1020">
+                <item android:offset="0.0" android:color="#FF7C3AED" />
+                <item android:offset="0.45" android:color="#FFEC4899" />
+                <item android:offset="1.0" android:color="#FFF97316" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Inner house body (matches the dark background, creating the framed look) -->
+    <path
+        android:fillColor="#FF111827"
+        android:pathData="M340,555 L600,335 L860,555 V800 C860,828 838,850 810,850 H390 C362,850 340,828 340,800 V555 Z" />
+
+    <!-- Rhythm waveform with accent gradient -->
+    <path
+        android:strokeWidth="34"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M335,600 C390,600 390,510 445,510 C500,510 500,690 555,690 C610,690 610,455 665,455 C720,455 720,630 775,630 C830,630 830,570 885,570">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="320"
+                android:startY="600"
+                android:endX="880"
+                android:endY="600">
+                <item android:offset="0.0" android:color="#FF22D3EE" />
+                <item android:offset="1.0" android:color="#FFA7F3D0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

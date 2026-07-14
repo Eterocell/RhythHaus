@@ -84,4 +84,13 @@
     <string name="remove_folder">Remove folder</string>
     <string name="remove_folder_message">Remove this folder and its scanned tracks from RhythHaus? Your music files will not be deleted.</string>
     <string name="remove">Remove</string>
+    <string name="about">About</string>
+    <string name="about_app_name">RhythHaus</string>
+    <string name="about_logo_description">RhythHaus logo</string>
+    <string name="about_version_format">Version %1$s</string>
+    <string name="about_view_source">View source on GitHub</string>
+    <string name="about_open_source_libraries">Open Source Libraries</string>
+    <string name="open_source_libraries_loading">Loading open source libraries…</string>
+    <string name="open_source_libraries_error">Could not load open source libraries</string>
+    <string name="open_source_libraries_retry">Retry</string>
 </resources>

@@ -3,8 +3,14 @@ package com.eterocell.rhythhaus.settings
 import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class SettingsScreenTest {
+    @Test
+    fun generatedBuildVersionIsNonblank() {
+        assertTrue(RhythHausBuildInfo.versionName.isNotBlank())
+    }
+
     @Test
     fun compactSettingsLayoutPolicyUsesApprovedSpacing() {
         assertEquals(16.dp, CompactSettingsLayoutPolicy.horizontalPagePadding)
@@ -19,5 +25,21 @@ class SettingsScreenTest {
         assertEquals(0.dp, CompactSettingsLayoutPolicy.topBarNavigationIconPadding)
         assertEquals(0.dp, CompactSettingsLayoutPolicy.appearanceHorizontalInsidePadding)
         assertEquals(16.dp, CompactSettingsLayoutPolicy.appearanceVerticalInsidePadding)
+    }
+
+    @Test
+    fun rhythHausSourceUrlIsExactRepositoryAddress() {
+        assertEquals("https://github.com/Eterocell/RhythHaus", RhythHausSourceUrl)
+    }
+
+    @Test
+    fun aboutScreenPresentsNonblankGeneratedVersion() {
+        assertTrue(RhythHausBuildInfo.versionName.isNotBlank())
+    }
+
+    @Test
+    fun aboutScreensUseReadableWideLayoutAndProminentLogo() {
+        assertEquals(720.dp, AboutScreenLayoutPolicy.maxContentWidth)
+        assertEquals(80.dp, AboutScreenLayoutPolicy.logoImageSize)
     }
 }

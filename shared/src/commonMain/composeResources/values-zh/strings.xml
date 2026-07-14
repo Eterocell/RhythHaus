@@ -84,4 +84,13 @@
     <string name="remove_folder">移除文件夹</string>
     <string name="remove_folder_message">要从 RhythHaus 中移除此文件夹及其已扫描曲目吗？你的音乐文件不会被删除。</string>
     <string name="remove">移除</string>
+    <string name="about">关于</string>
+    <string name="about_app_name">RhythHaus</string>
+    <string name="about_logo_description">RhythHaus 标志</string>
+    <string name="about_version_format">版本 %1$s</string>
+    <string name="about_view_source">在 GitHub 上查看源代码</string>
+    <string name="about_open_source_libraries">开源库</string>
+    <string name="open_source_libraries_loading">正在加载开源库…</string>
+    <string name="open_source_libraries_error">无法加载开源库</string>
+    <string name="open_source_libraries_retry">重试</string>
 </resources>

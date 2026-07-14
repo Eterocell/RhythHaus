@@ -188,6 +188,8 @@ fun LibraryHomeScreen(
             onRescanSource = onRescanSource,
             onRemoveSource = onRemoveSource,
             onCancelScan = onCancelScan,
+            onShowSettingsAbout = { appState.pushRoute(LibraryRoute.SettingsAbout) },
+            onShowOpenSourceLibraries = { appState.pushRoute(LibraryRoute.OpenSourceLibraries) },
             onDismiss = appState::popRoute,
             onScrollPositionChanged = appState::updateNowPlayingBarVisibilityForScroll,
         )
@@ -235,7 +237,14 @@ fun LibraryHomeScreen(
                     onOpenDetailRoute = onOpenDetailRoute,
                     onTrackSelected = appState::setSelectedTrackId,
                 )
-                RouteOverlays(route = route, backdrop = null)
+                if (
+                    libraryRouteRendersAsActiveOverlay(
+                        route = route,
+                        mode = LibraryAdaptiveLayoutMode.Compact,
+                    )
+                ) {
+                    RouteOverlays(route = route, backdrop = null)
+                }
             },
         )
     }
@@ -302,7 +311,14 @@ fun LibraryHomeScreen(
                         }
                     }
                 }
-                RouteOverlays(route = appState.navigation.current, backdrop = rootBackdrop)
+                if (
+                    libraryRouteRendersAsActiveOverlay(
+                        route = appState.navigation.current,
+                        mode = adaptiveLayoutMode,
+                    )
+                ) {
+                    RouteOverlays(route = appState.navigation.current, backdrop = rootBackdrop)
+                }
             }
         } else {
             if (predictiveBackProgress > 0f && previousRoute != null) {
