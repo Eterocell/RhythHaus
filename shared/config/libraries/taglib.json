@@ -1,0 +1,20 @@
+{
+  "uniqueId": "taglib:taglib",
+  "artifactVersion": "2.3",
+  "name": "TagLib",
+  "description": "Library for reading and editing the metadata of several popular audio formats, used by the RhythHaus native metadata reader.",
+  "website": "https://taglib.org/",
+  "developers": [
+    {
+      "name": "TagLib contributors"
+    }
+  ],
+  "scm": {
+    "connection": "scm:git:https://github.com/taglib/taglib.git",
+    "url": "https://github.com/taglib/taglib"
+  },
+  "licenses": [
+    "LGPL-2.1-only",
+    "MPL-1.1"
+  ]
+}
