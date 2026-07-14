@@ -18,6 +18,7 @@ Verification:
 - `GIT_MASTER=1 git diff --check`: pass.
 - Complete review package `.superpowers/sdd/review-f98d5d0..616f7e5.diff`: 49 commits and 44 changed files through `616f7e5`.
 - Final Oracle integration gate: PASS, zero Critical and zero Important findings; explicitly approved permanent macOS release, paused restore, FIFO failure safety, exactly-once process ownership, and platform provenance as safe to integrate.
+- Post-integration verification initially exposed a test-only scheduling race in `staleGenerationCallbacksCannotMutateCurrentPlayback`: `awaitLoadCount(2)` observed the replacement load before it published `Paused`. The test now waits conditionally for paused readiness without weakening stale-callback assertions; it passed 20/20 stress iterations, the complete supported matrix, and a focused Oracle review with zero Critical/Important findings.
 Acceptance:
 - Requirement matched: yes for persisted session fields, paused/no-autoplay restore, reconciliation, checkpointing, failure safety, process ownership, and platform callback provenance.
 - Scope controlled: no cloud sync, SQLDelight migration, UI redesign, Windows/Linux support, or abrupt-process-death durability guarantee was added.
@@ -29,7 +30,7 @@ Changed files:
 - `progress.md`: this final handoff.
 Next owner: user for manual target-device playback/remote-control QA, then OpenSpec archival only on explicit request.
 Blockers: iOS simulator tests remain blocked by the unchanged common-test `Thread` references above; no iOS simulator test pass is claimed. No JVM, Android host, desktop, Android, OpenSpec, diff-hygiene, or final-review blocker remains.
-Commit: recorded in the history immediately following this handoff.
+Commits: completion evidence `9811dc4` and `7cb751c`; post-integration test synchronization `50ade31`; this verification addendum is recorded immediately afterward.
 
 ## Handoff - 2026-07-14 restart current track selection final evidence
 
