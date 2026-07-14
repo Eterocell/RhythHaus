@@ -1,5 +1,59 @@
 # Session Progress
 
+## Handoff - 2026-07-14 hide Now Playing bar on settings information screens final evidence
+
+Route: openspec+superpowers
+Owner: implementation
+Scope: Verification and durable evidence for approved `hide-now-playing-settings-about`; Task 2 covered verification and durable evidence only, while Task 1 source/test changes were reviewed but not modified in this session.
+Verification:
+- `openspec validate hide-now-playing-settings-about --strict`: pass (`Change 'hide-now-playing-settings-about' is valid`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 413ms`; 26 actionable tasks: 4 executed, 22 up-to-date; configuration cache reused).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 7s`; 110 actionable tasks: 12 executed, 98 up-to-date; existing Android `MediaMetadata.Builder.setArtworkData` deprecation warning only).
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`; `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: fail at `:shared:compileTestKotlinIosSimulatorArm64` (`BUILD FAILED in 9s`; 42 actionable tasks: 6 executed, 36 up-to-date) because `AppScanCancellationTest.kt:64:28` and `AppScanCancellationTest.kt:340:27` each report `Unresolved reference 'Thread'`; iOS main compilation completed first and no iOS simulator test pass is claimed.
+- `GIT_MASTER=1 git diff --check`: pass (no output).
+- Scoped diff review: pass; suppression is exhaustive for `LibraryRoute.Settings`, `LibraryRoute.SettingsAbout`, and `LibraryRoute.OpenSourceLibraries`; every route outside that group retains existing behavior. The policy composes with existing visibility through logical conjunction and does not call playback APIs or remove the bar from composition.
+- Final visual-QA fix: replaced the fixed 156 px translation estimate with the measured wrapper height and a pixel `IntOffset`, so the complete transparent hit region moves outside the window while the bar remains composed.
+- Measured-offset RED: focused `LibraryNavigationTest` compilation failed only with unresolved `nowPlayingBarOffsetPx` references before production code was restored.
+- Measured-offset GREEN: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 5s`).
+- Post-fix full matrix: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 5s`; existing Android artwork deprecation warning only).
+- Post-fix iOS attempt: main compilation passed; common-test compilation remains blocked only at `AppScanCancellationTest.kt:64:28` and `:340:27` (`BUILD FAILED in 3s`), and no iOS simulator pass is claimed.
+- Final source-level visual QA: PASS with high confidence after measured-height correction; no blocking findings, with runtime route-transition/accessibility validation retained as a manual gap.
+- Final broad Oracle review: PASS with zero Critical or Important findings; approved as safe to deliver before the explicit commit request.
+- Open Source Libraries follow-up RED: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest.settingsInformationRoutesSuppressNowPlayingBar' --configuration-cache` failed only at `LibraryNavigationTest.kt:506`, proving the route was still permitted before the policy change.
+- Open Source Libraries follow-up GREEN: the focused regression, complete `LibraryNavigationTest`, and `:shared:compileKotlinJvm` passed (`BUILD SUCCESSFUL in 1s`).
+- Follow-up full matrix: strict OpenSpec validation and `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` passed (`BUILD SUCCESSFUL in 5s`; existing Android artwork deprecation warning only).
+- Follow-up iOS attempt: iOS main compilation completed; common-test compilation remains blocked only by `AppScanCancellationTest.kt:64:28` and `:340:27` (`BUILD FAILED in 9s`), and no iOS simulator pass is claimed.
+- `lsp_diagnostics`: not run because Kotlin LSP is unavailable by prior user decision; Gradle compilation/tests are the executable language checks.
+Acceptance:
+- Requirement matched: yes; Settings, About, and Open Source Libraries suppress the shell bar, while the scroll-derived visibility state and all non-settings route behavior remain unchanged.
+- Scope controlled: yes; changes are limited to shared bottom-bar presentation/tests plus approved OpenSpec, plan/spec, roadmap/progress, and change-specific SDD evidence.
+- Edge cases/risk reviewed: exhaustive route policy and true/false existing-visibility combinations are covered; playback/queue state is untouched. Route-transition animation remains a manual visual-QA limitation.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigation.kt`: exhaustive route policy plus measured-offset helper.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`: route/scroll visibility composition and measured-height offset animation.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/nowplaying/NowPlayingBar.kt`: removed the obsolete fixed-height animation estimate after switching the shell to measured height.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigationTest.kt`: route policy and measured-offset regression coverage.
+- `openspec/changes/hide-now-playing-settings-about/tasks.md`: all seven implementation, verification, and follow-up tasks marked complete after evidence collection.
+- `roadmap.md`: concise three-route completion, verification, iOS blocker, and manual-QA note.
+- `progress.md`: this prepended completion handoff.
+- `.superpowers/sdd/hide-now-playing-settings-about-task-1-report.md`: preserved change-specific Task 1 report.
+- `.superpowers/sdd/hide-now-playing-settings-about-task-2-report.md`: preserved change-specific Task 2 command/status evidence and review-fix verification.
+Next owner: user for manual route-transition visual QA, then OpenSpec archival on explicit request.
+Blockers: iOS simulator tests remain blocked by the unrelated common-test JVM-only `Thread` references at `AppScanCancellationTest.kt:64:28` and `:340:27`; no OpenSpec, focused JVM, JVM/desktop/Android, or diff-hygiene blocker.
+Commits:
+- `4f8e793` (`docs: specify settings information bar visibility`)
+- `7bab179` (`docs: propose settings information bar change`)
+- `448b6da` (`docs: plan settings information bar visibility`)
+- `e7eb6eb` (`feat: hide player bar on settings information screens`)
+- Final roadmap/progress evidence: recorded by the commit containing this handoff.
+Push: skipped; not requested.
+
+Review fix:
+- Preserved the current change evidence under the two change-specific report paths above before restoring the generic reports.
+- Restored `.superpowers/sdd/task-1-report.md` and `.superpowers/sdd/task-2-report.md` exactly from `HEAD`; these generic reports are not part of this change's scope.
+- Appended the same preservation/restoration verification to `.superpowers/sdd/hide-now-playing-settings-about-task-2-report.md`.
+
 ## Handoff - 2026-07-14 settings About + Open Source Libraries final evidence
 
 Route: openspec+superpowers
