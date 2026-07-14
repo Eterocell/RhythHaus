@@ -377,6 +377,9 @@ class PlaybackControllerTest {
 
         controller.selectTrack("track-2", autoPlay = false)
         engine.awaitLoadCount(2)
+        withTimeout(5_000) {
+            while (controller.state.value.status != PlaybackStatus.Paused) kotlinx.coroutines.yield()
+        }
         val secondGeneration = engine.activeGeneration
         assertFalse(firstGeneration == secondGeneration)
 
