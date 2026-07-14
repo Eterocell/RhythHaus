@@ -1,5 +1,43 @@
 # Session Progress
 
+## Handoff - 2026-07-14 settings About + Open Source Libraries final evidence
+
+Route: openspec+superpowers
+Owner: implementation
+Input: Approved `add-settings-about-page` change; Tasks 1-4 already implemented in the working tree (build metadata/catalog, route stack/Settings entry, shared About screen, Open Source Libraries screen with TagLib attribution override).
+Output:
+- Completed the build metadata/catalog, typed routes/Settings entry, shared About screen, and Open Source Libraries screen with deterministic TagLib attribution.
+- Added recoverable attribution loading failure and retry behavior; malformed/empty catalogs no longer render as successful empty content.
+- Added a centered 720 dp readable-width policy for the new About surfaces while preserving compact insets; enlarged the logo mark to 80 dp and centered multiline error copy.
+- Preserved earlier generic SDD reports and stored this change's task evidence under `.superpowers/sdd/add-settings-about-page-task-1..4-report.md`.
+Verification:
+- `openspec validate add-settings-about-page --strict`: pass (`Change 'add-settings-about-page' is valid`).
+- `./gradlew :shared:jvmTest :shared:testAndroidHostTest :desktopApp:compileKotlin :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 --configuration-cache`: pass after the responsive correction (`BUILD SUCCESSFUL in 16s`; existing Android MediaMetadata artwork deprecation warning only).
+- `./gradlew :shared:verifyRhythHausVersionOverride -Prhythhaus.versionName=9.9.9 --configuration-cache`: pass (`BUILD SUCCESSFUL in 655ms`).
+- Explicit `./gradlew :shared:exportLibraryDefinitions --rerun --configuration-cache`: pass and byte-stable; checked-in catalog MD5 remained `add5f05b1501c353a736f45aaa21eac4`.
+- `.github/workflows/aboutlibraries-catalog.yml`: regenerates the catalog, runs its parser/TagLib tests, and rejects uncommitted catalog or override drift for relevant dependency/configuration changes.
+- `GIT_MASTER=1 git diff --check`: pass.
+- `./gradlew spotlessCheck --configuration-cache`: the changed `shared/build.gradle.kts` violation was corrected; the repository-wide gate remains blocked by pre-existing formatting violations in untouched TagLib and shared Android/playback files. No broad unrelated `spotlessApply` was run.
+- Generic `.superpowers/sdd/task-1..4-report.md` files match `HEAD`; change-specific task reports are preserved separately.
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, build `17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: blocked at the previously documented `AppScanCancellationTest.kt:64`/`:340` JVM-only `Thread` references; iOS main/resource compilation completed before common-test compilation failed, and no iOS simulator test pass is claimed.
+- `lsp_diagnostics`: `kotlin-ls` not installed, installation previously declined (same blocker recorded in all four task reports).
+- Final code-quality gate: PASS with no Critical, Major, or Minor findings after recoverable catalog failure handling, responsive modifier-order correction, OpenSpec reconciliation, and SDD evidence preservation.
+- Focused security/supply-chain gate: PASS with no Critical or High findings after adding catalog regeneration/test/drift CI; upstream HTTP metadata links and repository-wide Gradle checksum policy remain non-blocking hardening suggestions.
+- Source-level visual gate: PASS with high confidence for layout structure; screenshot/device confirmation remains manual because Orca computer-use was unavailable.
+Acceptance:
+- Requirement matched: yes, both `settings-about-page` and `open-source-attributions` OpenSpec spec deltas are satisfied by the implemented screens/routes/catalog per the task reports.
+- Scope controlled: shared UI/resources, AboutLibraries build metadata/overrides, focused tests, and required workflow/evidence artifacts only.
+- Manual QA limit: runtime/device visual QA (light/dark, logo rendering, license dialog, source-link open behavior) was not performed in any task; no simulator/device/desktop-run harness available in this environment, consistent with all four task reports.
+Changed files:
+- `shared/`, root Gradle catalog/configuration, and focused tests: shared About/attribution feature and build metadata.
+- `docs/superpowers/` and `openspec/changes/add-settings-about-page/`: approved design, plan, requirements, and completed task state.
+- `.superpowers/sdd/add-settings-about-page-task-1..4-report.md`: collision-free task evidence.
+- `roadmap.md` and `progress.md`: completion and validation evidence.
+Next owner: user for manual visual QA on target device/simulator/desktop window, then OpenSpec archival on explicit request.
+Blockers: iOS simulator tests remain blocked by the pre-existing common-test `Thread` references above (unrelated to this change). No JVM/desktop/Android/OpenSpec blocker.
+Commit: skipped; no explicit commit request was made.
+
 ## Handoff - 2026-07-14 playback session persistence final evidence
 
 Route: openspec+superpowers / subagent-driven-development / final Oracle release gate
