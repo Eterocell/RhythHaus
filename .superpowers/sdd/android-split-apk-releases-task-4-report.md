@@ -48,7 +48,7 @@ BUILD FAILED
 
 Production implementation then added cacheable `VerifyReleaseAabTask`, configured
 build-tools `aapt2` resolution, temporary-directory conversion, SDK identity validation,
-and a deterministic report. The focused suite passed all seven tests:
+and a deterministic report. The focused suite passed all nine tests present at that point:
 
 ```text
 ./gradlew -p build-logic :convention:test \
@@ -146,7 +146,78 @@ the duplicate-entry and mixed-task tests passed, followed by the complete 42-tes
 suite, plugin validation, ordinary AAB verification, exact-true AAB verification, and
 exact-true split APK verification. No Critical or Important review finding remains.
 
-## Scope and baseline
+## Abbreviated Gradle task review fix
+
+Repository-level reproduction confirmed that Gradle preserves user-entered abbreviations in
+`gradle.startParameter.taskNames` while resolving them to registered tasks later:
+
+```text
+./gradlew :androidApp:bR -Prhythhaus.android.splitApk=true ...
+resolved bundleRelease but failed buildReleasePreBundle with split resources enabled
+
+./gradlew :androidApp:vRelApks -Prhythhaus.android.splitApk=true ...
+resolved verifyReleaseApks and passed with exact split outputs
+
+./gradlew :androidApp:vRelApks :androidApp:vRelAab \
+  -Prhythhaus.android.splitApk=true ...
+resolved both verifiers but bypassed the actionable mixed-channel guard
+```
+
+A new Gradle TestKit consumer registers all four supported release-channel tasks and invokes
+their real full and abbreviated names. Witnessed RED had exactly two failures: abbreviated
+pure AAB reported `RELEASE_SPLITS=true`, and abbreviated mixed requests unexpectedly
+succeeded. Full and abbreviated APK requests already reported `RELEASE_SPLITS=true`.
+
+The minimal fix canonicalizes only the four supported terminal task names with Gradle's own
+`NameMatcher` before applying the existing channel rules. Focused GREEN:
+
+```text
+./gradlew -p build-logic :convention:test \
+  --tests 'com.eterocell.gradle.android.AndroidReleaseChannelFunctionalTest'
+BUILD SUCCESSFUL in 5s
+4 tests passed; configuration cache reused.
+```
+
+Fresh post-fix acceptance:
+
+```text
+./gradlew -p build-logic :convention:test :convention:validatePlugins \
+  -Prhythhaus.aabProbeFile='<repo>/androidApp/build/outputs/bundle/release/<release-aab>' \
+  --configuration-cache --configuration-cache-problems=fail
+BUILD SUCCESSFUL; 46 tests passed; plugin validation passed; configuration cache reused.
+
+./gradlew :androidApp:clean :androidApp:bR \
+  -Prhythhaus.android.splitApk=true --configuration-cache --configuration-cache-problems=fail
+BUILD SUCCESSFUL in 23s; abbreviation resolved to bundleRelease with split DSL disabled.
+
+./gradlew :androidApp:clean :androidApp:verifyReleaseAab ...
+BUILD SUCCESSFUL in 5s.
+
+./gradlew :androidApp:clean :androidApp:verifyReleaseAab \
+  -Prhythhaus.android.splitApk=true ...
+BUILD SUCCESSFUL in 2s.
+
+./gradlew :androidApp:clean :androidApp:verifyReleaseApks \
+  -Prhythhaus.android.splitApk=true ...
+BUILD SUCCESSFUL in 9s; exact split APK verification preserved.
+
+./gradlew :androidApp:vRelApks :androidApp:vRelAab \
+  -Prhythhaus.android.splitApk=true ...
+BUILD FAILED at configuration with the required separate-Gradle-invocations message.
+```
+
+Strict OpenSpec validation passed. `GIT_MASTER=1 git diff --check` produced no output.
+Initial parallel Android verification attempts were discarded because concurrent Gradle
+processes raced on the same `androidApp/build` intermediates; all acceptance evidence above
+comes from isolated sequential runs.
+
+## Pre-revision blocked history (retained for root-cause evidence)
+
+The remainder of this report records the earlier exact-two-entry contract and stop decision.
+Every statement below about no verifier, registration, or implementation describes that
+historical pre-revision state only and is superseded by the revised evidence above.
+
+### Scope and baseline
 
 - Base/HEAD: `8630c6a1e3025281c88c430dec51aacf0889dc4f` on `main`.
 - AGP: `9.3.0`.
@@ -155,7 +226,7 @@ exact-true split APK verification. No Critical or Important review finding remai
 - No production AAB verifier, `SingleArtifact.BUNDLE` registration, custom packaging,
   dependency, signing action, filename/config/APK-metadata fallback, or design change was made.
 
-## Real AGP AAB
+### Real AGP AAB
 
 Command:
 
@@ -176,7 +247,7 @@ The probe input was the resulting non-empty AGP release AAB under the standard
 `androidApp/build/outputs/bundle/release/` directory. No artifact filename was used as
 identity evidence.
 
-## Contract RED
+### Contract RED
 
 Before any conversion helper existed, the focused probe test required an explicit
 existing, non-empty AAB and asserted canonical SDK-derived identity only.
@@ -199,7 +270,7 @@ BUILD FAILED
 This was the expected test-first failure: no production verifier or conversion helper
 existed.
 
-## Required exact-two-entry conversion attempt
+### Required exact-two-entry conversion attempt
 
 The minimal test-only helper then performed exactly this flow in a temporary directory:
 
@@ -230,7 +301,7 @@ res/drawable-v24/$ic_launcher_foreground__0.xml type=protoXML.
 
 No repository path, SDK path, credential, certificate, or secret is included above.
 
-## Root-cause control
+### Root-cause control
 
 One temporary diagnostic control added the real AAB's 92 `base/res/**` payload entries in
 addition to the manifest and resource table. This was not accepted as proof and was not
@@ -250,7 +321,7 @@ Therefore the configured SDK tools and the AAB manifest identity are usable, but
 the two mandated entries is not self-contained and cannot pass `aapt2 convert` for this real
 AAB.
 
-## Stop decision and omitted work
+### Stop decision and omitted work
 
 The required feasibility path did not become GREEN. Per the Task 4 hard stop:
 
@@ -269,7 +340,7 @@ repository retains no weaker verifier implementation. Continuing requires explic
 approval of a design revision, such as allowing the resource payloads required by the proto
 resource table; this report does not approve or implement that alternative.
 
-## Concerns
+### Concerns
 
 - The approved exact-two-entry archive contract is incompatible with the observed real AGP
   9.3 bundle resource table.

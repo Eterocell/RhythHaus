@@ -3,6 +3,7 @@ package com.eterocell.gradle.android
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.util.internal.NameMatcher
 import javax.inject.Inject
 
 const val RHYTHHAUS_ANDROID_ABIS_PROPERTY = "rhythhaus.android.abis"
@@ -57,7 +58,16 @@ fun shouldConfigureSplitApks(
     requestedTasks: List<String>,
 ): Boolean {
     if (!splitRequested) return false
-    val taskNames = requestedTasks.map { it.substringAfterLast(':') }
+    val supportedReleaseTasks = listOf(
+        "assembleRelease",
+        "bundleRelease",
+        "verifyReleaseAab",
+        "verifyReleaseApks",
+    )
+    val taskNames = requestedTasks.map { taskPath ->
+        val requestedName = taskPath.substringAfterLast(':')
+        NameMatcher().find(requestedName, supportedReleaseTasks) ?: requestedName
+    }
     val requestsAab = taskNames.any { it == "bundleRelease" || it == "verifyReleaseAab" }
     val requestsApks = taskNames.any { it == "assembleRelease" || it == "verifyReleaseApks" }
     require(!(requestsAab && requestsApks)) {
