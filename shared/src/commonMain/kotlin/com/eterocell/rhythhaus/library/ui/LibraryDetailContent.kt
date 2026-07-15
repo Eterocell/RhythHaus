@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.taglib.TagLibReader
@@ -100,11 +101,23 @@ internal fun DrillDownView(
         val drillDownBackdrop = rememberRhythHausBackdrop()
         val listState = rememberLazyListState()
         val miuixScrollBehavior = rememberMiuixTopAppBarScrollBehavior()
-        val drillDownTopPadding = if (topBarArtworkTrack != null) {
-            maxWidth + 20.dp
-        } else {
-            drillDownStatusBarHeight + DrillDownMiuixScrollContentTopPadding
+        val hasTopBarArtwork = topBarArtworkTrack != null
+        val collapsedChromeHeight = drillDownStatusBarHeight + NestedScrollChromeToolbarHeight
+        val density = LocalDensity.current
+        val artworkGeometry = ArtworkCollapseGeometry(
+            expandedHeightPx = with(density) { maxWidth.toPx() },
+            collapsedHeightPx = with(density) { collapsedChromeHeight.toPx() },
+        )
+        val artworkCollapseState = rememberArtworkCollapseState(artworkGeometry)
+        val artworkSnapshot = if (hasTopBarArtwork) artworkCollapseState.snapshot else null
+        val scrollOwner = drillDownScrollOwner(hasTopBarArtwork)
+        val drillDownNestedScrollConnection = when (scrollOwner) {
+            DrillDownScrollOwner.Artwork -> artworkCollapseState.nestedScrollConnection
+            DrillDownScrollOwner.Miuix -> miuixScrollBehavior.nestedScrollConnection
         }
+        val drillDownTopPadding = artworkSnapshot
+            ?.let { with(density) { artworkListTopPaddingPx(it).toDp() } }
+            ?: (drillDownStatusBarHeight + DrillDownMiuixScrollContentTopPadding)
         LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
             onScrollPositionChanged(listState.toLibraryScrollPosition())
         }
@@ -118,7 +131,7 @@ internal fun DrillDownView(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .nestedScroll(miuixScrollBehavior.nestedScrollConnection)
+                        .nestedScroll(drillDownNestedScrollConnection)
                         .padding(horizontal = 20.dp),
                     contentPadding = PaddingValues(top = drillDownTopPadding),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -151,6 +164,7 @@ internal fun DrillDownView(
             title = title,
             topBarArtworkTrackId = topBarArtworkTrack?.id,
             topBarArtworkBytes = topBarArtworkTrack?.artworkBytes,
+            artworkCollapseSnapshot = artworkSnapshot,
             onBack = onBack,
             backdrop = drillDownBackdrop,
             modifier = Modifier.align(Alignment.TopCenter),

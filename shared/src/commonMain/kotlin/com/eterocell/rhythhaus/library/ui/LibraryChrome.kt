@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -65,7 +66,7 @@ internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = Li
     firstVisibleItemScrollOffset = firstVisibleItemScrollOffset,
 )
 
-private val NestedScrollChromeToolbarHeight = 56.dp
+internal val NestedScrollChromeToolbarHeight = 56.dp
 internal val DrillDownMiuixScrollContentTopPadding = 128.dp
 
 @Composable
@@ -89,12 +90,19 @@ internal fun DrillDownMiuixScrollChrome(
     title: String,
     topBarArtworkTrackId: String? = null,
     topBarArtworkBytes: ByteArray? = null,
+    artworkCollapseSnapshot: ArtworkCollapseSnapshot? = null,
     onBack: () -> Unit,
     backdrop: LayerBackdrop?,
     modifier: Modifier = Modifier,
 ) {
     val hasArtwork = topBarArtworkTrackId != null || topBarArtworkBytes != null
-    val collapsedFraction = scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
+    val artworkSnapshot = if (hasArtwork) requireNotNull(artworkCollapseSnapshot) else null
+    val artworkProgress = artworkSnapshot?.progress ?: 0f
+    val collapsedFraction = if (hasArtwork) {
+        artworkProgress
+    } else {
+        scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
+    }
     val collapsedTitleAlpha = (collapsedFraction * 3f).coerceIn(0f, 1f)
     val largeTitleAlpha = (1f - collapsedFraction * 2f).coerceIn(0f, 1f)
     val solidBackgroundAlpha by animateFloatAsState(
@@ -108,12 +116,9 @@ internal fun DrillDownMiuixScrollChrome(
     ) {
         val collapsedChromeHeight = rememberSystemBarTopPadding() + NestedScrollChromeToolbarHeight
         val navigationStartPadding = rememberSafeDrawingStartPadding() + 12.dp
-        val expandedArtworkHeight = maxWidth
-        val chromeHeight = if (hasArtwork) {
-            expandedArtworkHeight - ((expandedArtworkHeight - collapsedChromeHeight) * collapsedFraction)
-        } else {
-            collapsedChromeHeight
-        }
+        val chromeHeight = artworkSnapshot
+            ?.let { with(LocalDensity.current) { artworkChromeHeightPx(it).toDp() } }
+            ?: collapsedChromeHeight
 
         Box(
             modifier = if (hasArtwork) {

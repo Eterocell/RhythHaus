@@ -62,4 +62,18 @@ class ArtworkCollapseTest {
 
         assertEquals(ArtworkCollapseSnapshot(120f, 80f, 1f), narrowed.snapshot(offsetPx = 220f))
     }
+
+    @Test
+    fun artworkPagesUseAppOwnedScrollWhileFallbackPagesUseMiuix() {
+        assertEquals(DrillDownScrollOwner.Artwork, drillDownScrollOwner(hasArtwork = true))
+        assertEquals(DrillDownScrollOwner.Miuix, drillDownScrollOwner(hasArtwork = false))
+    }
+
+    @Test
+    fun listTopAndChromeHeightUseTheSameSnapshotValue() {
+        val snapshot = geometry.snapshot(offsetPx = 75f)
+
+        assertEquals(snapshot.headerHeightPx, artworkListTopPaddingPx(snapshot))
+        assertEquals(snapshot.headerHeightPx, artworkChromeHeightPx(snapshot))
+    }
 }

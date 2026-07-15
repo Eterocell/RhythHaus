@@ -1,5 +1,16 @@
 package com.eterocell.rhythhaus.library.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+
 internal data class ArtworkCollapseSnapshot(
     val offsetPx: Float,
     val headerHeightPx: Float,
@@ -10,6 +21,51 @@ internal data class ArtworkCollapseConsumption(
     val offsetPx: Float,
     val consumedY: Float,
 )
+
+internal enum class DrillDownScrollOwner { Artwork, Miuix }
+
+internal fun drillDownScrollOwner(hasArtwork: Boolean): DrillDownScrollOwner =
+    if (hasArtwork) DrillDownScrollOwner.Artwork else DrillDownScrollOwner.Miuix
+
+internal fun artworkListTopPaddingPx(snapshot: ArtworkCollapseSnapshot): Float = snapshot.headerHeightPx
+
+internal fun artworkChromeHeightPx(snapshot: ArtworkCollapseSnapshot): Float = snapshot.headerHeightPx
+
+internal class ArtworkCollapseState internal constructor(
+    private val offsetState: MutableState<Float>,
+    private val geometryState: State<ArtworkCollapseGeometry>,
+) {
+    val snapshot: ArtworkCollapseSnapshot
+        get() = geometryState.value.snapshot(offsetState.value)
+
+    val nestedScrollConnection: NestedScrollConnection = object : NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            val result = geometryState.value.consumeUpward(offsetState.value, available.y)
+            offsetState.value = result.offsetPx
+            return Offset(0f, result.consumedY)
+        }
+
+        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+            val result = geometryState.value.consumeDownward(offsetState.value, available.y)
+            offsetState.value = result.offsetPx
+            return Offset(0f, result.consumedY)
+        }
+    }
+}
+
+@Composable
+internal fun rememberArtworkCollapseState(
+    geometry: ArtworkCollapseGeometry,
+): ArtworkCollapseState {
+    val offsetState = remember { mutableStateOf(0f) }
+    val geometryState = rememberUpdatedState(geometry)
+    val state = remember { ArtworkCollapseState(offsetState, geometryState) }
+    val clampedOffset = geometry.snapshot(offsetState.value).offsetPx
+    SideEffect {
+        if (offsetState.value != clampedOffset) offsetState.value = clampedOffset
+    }
+    return state
+}
 
 internal data class ArtworkCollapseGeometry(
     val expandedHeightPx: Float,
