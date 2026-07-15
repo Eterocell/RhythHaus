@@ -2,8 +2,10 @@ package com.eterocell.rhythhaus.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -14,6 +16,7 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -28,20 +31,53 @@ internal fun artworkMemoryCacheKey(bytes: ByteArray, role: ArtworkImageRole): St
 
 internal val LocalTrackArtworkLoader = staticCompositionLocalOf<suspend (String) -> TrackArtwork?> { { null } }
 
-@Composable
-internal fun rememberLazyTrackArtworkBytes(
+internal sealed interface TrackArtworkLoadState {
+    data object Loading : TrackArtworkLoadState
+
+    data class Available(val bytes: ByteArray) : TrackArtworkLoadState
+
+    data object Unavailable : TrackArtworkLoadState
+}
+
+internal fun initialTrackArtworkLoadState(
     trackId: String?,
     eagerArtworkBytes: ByteArray?,
-): State<ByteArray?> {
+): TrackArtworkLoadState = when {
+    eagerArtworkBytes != null -> TrackArtworkLoadState.Available(eagerArtworkBytes)
+    trackId != null -> TrackArtworkLoadState.Loading
+    else -> TrackArtworkLoadState.Unavailable
+}
+
+internal suspend fun loadTrackArtworkState(
+    trackId: String,
+    artworkLoader: suspend (String) -> TrackArtwork?,
+): TrackArtworkLoadState = try {
+    artworkLoader(trackId)?.bytes
+        ?.let(TrackArtworkLoadState::Available)
+        ?: TrackArtworkLoadState.Unavailable
+} catch (cancellation: CancellationException) {
+    throw cancellation
+} catch (_: Exception) {
+    TrackArtworkLoadState.Unavailable
+}
+
+@Composable
+internal fun rememberLazyTrackArtworkState(
+    trackId: String?,
+    eagerArtworkBytes: ByteArray?,
+): State<TrackArtworkLoadState> {
     val artworkLoader = LocalTrackArtworkLoader.current
-    return produceState<ByteArray?>(initialValue = eagerArtworkBytes, trackId, eagerArtworkBytes, artworkLoader) {
-        value = eagerArtworkBytes
+    val state = remember(trackId, eagerArtworkBytes, artworkLoader) {
+        mutableStateOf(initialTrackArtworkLoadState(trackId, eagerArtworkBytes))
+    }
+    LaunchedEffect(trackId, eagerArtworkBytes, artworkLoader) {
         if (trackId != null && eagerArtworkBytes == null) {
-            value = withContext(Dispatchers.Default) {
-                artworkLoader(trackId)?.bytes
+            state.value = withContext(Dispatchers.Default) {
+                loadTrackArtworkState(trackId, artworkLoader)
             }
         }
     }
+    return state
 }
 
 @Composable
@@ -54,10 +90,11 @@ internal fun LazyTrackArtworkImage(
     contentScale: ContentScale = ContentScale.Crop,
     fallback: @Composable () -> Unit,
 ) {
-    val artworkBytes = rememberLazyTrackArtworkBytes(
+    val artworkState = rememberLazyTrackArtworkState(
         trackId = trackId,
         eagerArtworkBytes = eagerArtworkBytes,
     ).value
+    val artworkBytes = (artworkState as? TrackArtworkLoadState.Available)?.bytes
     ArtworkImage(
         artworkBytes = artworkBytes,
         contentDescription = contentDescription,

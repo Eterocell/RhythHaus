@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus.library.ui
 
+import com.eterocell.rhythhaus.ui.TrackArtworkLoadState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -65,8 +66,60 @@ class ArtworkCollapseTest {
 
     @Test
     fun artworkPagesUseAppOwnedScrollWhileFallbackPagesUseMiuix() {
-        assertEquals(DrillDownScrollOwner.Artwork, drillDownScrollOwner(hasArtwork = true))
-        assertEquals(DrillDownScrollOwner.Miuix, drillDownScrollOwner(hasArtwork = false))
+        assertEquals(
+            DrillDownScrollOwner.Artwork,
+            drillDownScrollOwner(
+                DrillDownArtwork(
+                    representativeTrackId = "track",
+                    state = TrackArtworkLoadState.Available(byteArrayOf(1)),
+                ),
+            ),
+        )
+        assertEquals(
+            DrillDownScrollOwner.Miuix,
+            drillDownScrollOwner(
+                DrillDownArtwork(
+                    representativeTrackId = null,
+                    state = TrackArtworkLoadState.Unavailable,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun albumAndArtistRepresentativeIdentityDoesNotOwnScrollWithoutResolvedArtwork() {
+        listOf(
+            LibraryRoute.AlbumDetail("Album") to "album-first-track",
+            LibraryRoute.ArtistDetail("Artist") to "artist-first-track",
+        ).forEach { (_, representativeTrackId) ->
+            assertEquals(
+                DrillDownScrollOwner.Miuix,
+                drillDownScrollOwner(
+                    DrillDownArtwork(
+                        representativeTrackId = representativeTrackId,
+                        state = TrackArtworkLoadState.Loading,
+                    ),
+                ),
+            )
+            assertEquals(
+                DrillDownScrollOwner.Miuix,
+                drillDownScrollOwner(
+                    DrillDownArtwork(
+                        representativeTrackId = representativeTrackId,
+                        state = TrackArtworkLoadState.Unavailable,
+                    ),
+                ),
+            )
+            assertEquals(
+                DrillDownScrollOwner.Artwork,
+                drillDownScrollOwner(
+                    DrillDownArtwork(
+                        representativeTrackId = representativeTrackId,
+                        state = TrackArtworkLoadState.Available(byteArrayOf(1)),
+                    ),
+                ),
+            )
+        }
     }
 
     @Test

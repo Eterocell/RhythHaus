@@ -44,8 +44,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
-import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
 import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import kotlin.math.max
@@ -88,15 +88,15 @@ internal fun rememberMiuixTopAppBarScrollBehavior(): ScrollBehavior = MiuixScrol
 internal fun DrillDownMiuixScrollChrome(
     scrollBehavior: ScrollBehavior,
     title: String,
-    topBarArtworkTrackId: String? = null,
     topBarArtworkBytes: ByteArray? = null,
     artworkCollapseSnapshot: ArtworkCollapseSnapshot? = null,
     onBack: () -> Unit,
     backdrop: LayerBackdrop?,
     modifier: Modifier = Modifier,
 ) {
-    val hasArtwork = topBarArtworkTrackId != null || topBarArtworkBytes != null
-    val artworkSnapshot = if (hasArtwork) requireNotNull(artworkCollapseSnapshot) else null
+    val artworkSnapshot = artworkCollapseSnapshot
+    val hasArtwork = artworkSnapshot != null
+    val artworkBytes = if (hasArtwork) requireNotNull(topBarArtworkBytes) else null
     val artworkProgress = artworkSnapshot?.progress ?: 0f
     val collapsedFraction = if (hasArtwork) {
         artworkProgress
@@ -137,9 +137,8 @@ internal fun DrillDownMiuixScrollChrome(
             },
         ) {
             if (hasArtwork) {
-                LazyTrackArtworkImage(
-                    trackId = topBarArtworkTrackId,
-                    eagerArtworkBytes = topBarArtworkBytes,
+                ArtworkImage(
+                    artworkBytes = artworkBytes,
                     contentDescription = stringResource(Res.string.album_artwork),
                     role = ArtworkImageRole.Hero,
                     modifier = Modifier.matchParentSize(),

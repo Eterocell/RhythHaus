@@ -10,6 +10,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import com.eterocell.rhythhaus.ui.TrackArtworkLoadState
 
 internal data class ArtworkCollapseSnapshot(
     val offsetPx: Float,
@@ -24,8 +25,13 @@ internal data class ArtworkCollapseConsumption(
 
 internal enum class DrillDownScrollOwner { Artwork, Miuix }
 
-internal fun drillDownScrollOwner(hasArtwork: Boolean): DrillDownScrollOwner =
-    if (hasArtwork) DrillDownScrollOwner.Artwork else DrillDownScrollOwner.Miuix
+internal data class DrillDownArtwork(
+    val representativeTrackId: String?,
+    val state: TrackArtworkLoadState,
+)
+
+internal fun drillDownScrollOwner(artwork: DrillDownArtwork): DrillDownScrollOwner =
+    if (artwork.state is TrackArtworkLoadState.Available) DrillDownScrollOwner.Artwork else DrillDownScrollOwner.Miuix
 
 internal fun artworkListTopPaddingPx(snapshot: ArtworkCollapseSnapshot): Float = snapshot.headerHeightPx
 

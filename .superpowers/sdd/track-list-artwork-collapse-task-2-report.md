@@ -115,3 +115,86 @@ The final commit hash is reported by the task runner after commit creation; a co
 - Remaining manual QA only: validate artwork collapse/expansion gesture feel and resize behavior on a running target, plus long/CJK title chips.
 - Kotlin LSP diagnostics remain unavailable by prior user decision.
 - No code, test, or compilation concern remains in the focused Task 2 scope.
+
+## Final Oracle Important follow-up — resolved artwork availability
+
+### Finding and root cause
+
+The final Oracle found that `LibraryRoutes.kt` correctly supplies the first album/artist track as a lazy-artwork lookup representative, but Task 2 incorrectly treated that non-null track identity as proof that artwork existed. Two checks diverged from actual availability:
+
+- `DrillDownView` used `topBarArtworkTrack != null` to select the app-owned owner, snapshot, and list padding.
+- `DrillDownMiuixScrollChrome` used a non-null `topBarArtworkTrackId` as artwork mode even when lazy lookup later returned `null` or failed.
+
+Routine tracks intentionally omit artwork bytes, and the prior nullable-byte state conflated loading with resolved absence. A representative ID must remain only a loader key.
+
+### Strict RED
+
+Tests were added before production edits to require an explicit loading/available/unavailable state and to prove both shared route kinds ignore representative identity for ownership:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.ui.ArtworkImageTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' \
+  --configuration-cache
+```
+
+Result: `BUILD FAILED in 2s` at `:shared:compileTestKotlinJvm` for the intended missing APIs:
+
+- unresolved `TrackArtworkLoadState`;
+- unresolved `initialTrackArtworkLoadState` and `loadTrackArtworkState`;
+- no availability-based `drillDownScrollOwner` contract.
+
+No production source had changed before this RED run.
+
+### Fix
+
+- Added `TrackArtworkLoadState.Loading`, `Available(bytes)`, and `Unavailable` in `ArtworkImage.kt`.
+- Eager bytes resolve immediately to `Available`; a non-null loader key with no eager bytes starts `Loading`; no key starts `Unavailable`.
+- Lazy lookup resolves bytes to `Available`, and resolves `null` or ordinary loader failure to `Unavailable`; coroutine cancellation is rethrown.
+- `LazyTrackArtworkImage` continues to use the same loader and displays bytes after an available resolution, preserving lazy artwork on all existing call sites.
+- `DrillDownView` performs one representative lookup and constructs `DrillDownArtwork(representativeTrackId, state)`. Only `state is Available` selects the app-owned branch.
+- That one owner decision determines the nested-scroll connection, snapshot, list padding, and the resolved bytes passed to chrome.
+- Chrome no longer treats track identity as availability and does not perform a duplicate hero lookup; it uses the already resolved bytes and snapshot. Loading/unavailable states wholly use the Miuix branch, while later available resolution recomposes into the coordinated artwork branch.
+- `LibraryRoutes.kt`, route behavior, playback behavior, dependencies, and repository lazy-loading behavior remain unchanged.
+
+### Regression coverage
+
+- `ArtworkImageTest.trackIdentityStartsLoadingWithoutClaimingArtworkAvailability`: identity starts `Loading`, not available.
+- `ArtworkImageTest.eagerAndLazyArtworkResolveToAvailableBytes`: eager and successful lazy bytes remain displayable.
+- `ArtworkImageTest.absentOrFailedLazyArtworkResolvesUnavailable`: null and failure converge to resolved absence.
+- `ArtworkCollapseTest.albumAndArtistRepresentativeIdentityDoesNotOwnScrollWithoutResolvedArtwork`: both `AlbumDetail` and `ArtistDetail` with non-null representative IDs use Miuix while loading/unavailable and switch only for `Available`.
+
+### GREEN and diagnostics
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' \
+  --tests 'com.eterocell.rhythhaus.ui.ArtworkImageTest' \
+  --tests 'com.eterocell.rhythhaus.library.ArtworkLazyLoadingTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' \
+  --configuration-cache
+./gradlew :shared:compileKotlinJvm --configuration-cache
+GIT_MASTER=1 git diff --check
+```
+
+Results:
+
+- Focused tests: `BUILD SUCCESSFUL in 3s`; 26 actionable tasks, 7 executed and 19 up-to-date.
+- Shared JVM compilation: `BUILD SUCCESSFUL in 319ms`; 17 actionable tasks, 3 executed and 14 up-to-date.
+- Diff hygiene: exit 0, no output.
+- `lsp_diagnostics` was attempted for all six changed Kotlin files; `kotlin-ls` remains unavailable because installation was previously declined.
+
+### Follow-up commit
+
+Planned as a new atomic commit containing only the resolved-artwork state, drill-down/chrome integration, direct tests, and this appended report evidence:
+
+```text
+fix: classify drill-down artwork after lazy loading
+```
+
+The commit hash is reported after creation because amend is prohibited.
+
+### Remaining concerns
+
+- Runtime gesture/resize and long/CJK title visual QA remains manual, unchanged from the original Task 2 report.
+- No focused code, test, or JVM compilation blocker remains.

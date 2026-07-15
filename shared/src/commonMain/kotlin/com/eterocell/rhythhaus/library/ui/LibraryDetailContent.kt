@@ -42,10 +42,12 @@ import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
-import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
+import com.eterocell.rhythhaus.ui.TrackArtworkLoadState
+import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
+import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
+import com.eterocell.rhythhaus.ui.rememberLazyTrackArtworkState
 import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
 
 internal sealed interface DrillDownAction {
@@ -101,7 +103,16 @@ internal fun DrillDownView(
         val drillDownBackdrop = rememberRhythHausBackdrop()
         val listState = rememberLazyListState()
         val miuixScrollBehavior = rememberMiuixTopAppBarScrollBehavior()
-        val hasTopBarArtwork = topBarArtworkTrack != null
+        val topBarArtworkState = rememberLazyTrackArtworkState(
+            trackId = topBarArtworkTrack?.id,
+            eagerArtworkBytes = topBarArtworkTrack?.artworkBytes,
+        ).value
+        val drillDownArtwork = DrillDownArtwork(
+            representativeTrackId = topBarArtworkTrack?.id,
+            state = topBarArtworkState,
+        )
+        val scrollOwner = drillDownScrollOwner(drillDownArtwork)
+        val hasTopBarArtwork = scrollOwner == DrillDownScrollOwner.Artwork
         val collapsedChromeHeight = drillDownStatusBarHeight + NestedScrollChromeToolbarHeight
         val density = LocalDensity.current
         val artworkGeometry = ArtworkCollapseGeometry(
@@ -110,7 +121,6 @@ internal fun DrillDownView(
         )
         val artworkCollapseState = rememberArtworkCollapseState(artworkGeometry)
         val artworkSnapshot = if (hasTopBarArtwork) artworkCollapseState.snapshot else null
-        val scrollOwner = drillDownScrollOwner(hasTopBarArtwork)
         val drillDownNestedScrollConnection = when (scrollOwner) {
             DrillDownScrollOwner.Artwork -> artworkCollapseState.nestedScrollConnection
             DrillDownScrollOwner.Miuix -> miuixScrollBehavior.nestedScrollConnection
@@ -162,8 +172,7 @@ internal fun DrillDownView(
         DrillDownMiuixScrollChrome(
             scrollBehavior = miuixScrollBehavior,
             title = title,
-            topBarArtworkTrackId = topBarArtworkTrack?.id,
-            topBarArtworkBytes = topBarArtworkTrack?.artworkBytes,
+            topBarArtworkBytes = (topBarArtworkState as? TrackArtworkLoadState.Available)?.bytes,
             artworkCollapseSnapshot = artworkSnapshot,
             onBack = onBack,
             backdrop = drillDownBackdrop,
