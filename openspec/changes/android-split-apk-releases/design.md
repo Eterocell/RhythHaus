@@ -42,6 +42,8 @@ All APK and AAB outputs retain `rhythhaus.versionName` and `rhythhaus.versionCod
 
 Verification classifies APK outputs through AGP `output-metadata.json`, checks native ZIP entries, and uses configured SDK `apkanalyzer` for package and version metadata. It requires one output per supported ABI plus one universal output, and independently checks one non-empty release AAB.
 
+AAB identity verification builds a temporary proto archive from `base/manifest/AndroidManifest.xml`, `base/resources.pb`, and all packaged `base/res/**` payloads, preserving resource paths relative to `base/`. SDK `aapt2` converts that self-contained archive before `apkanalyzer` reads package and version identity. A real AGP 9.3 feasibility run proved that the manifest and resource table alone fail conversion because the table references packaged resources; including the base resource payloads succeeds. The verifier does not use filenames, source configuration, APK metadata, or AGP task inputs as identity evidence.
+
 Signed APKs additionally pass SDK `apksigner verify`. Unsigned local release outputs are accepted only when signing credentials are absent; verification never prints secrets.
 
 ## Risks / Trade-offs
@@ -51,6 +53,7 @@ Signed APKs additionally pass SDK `apksigner verify`. Unsigned local release out
 - **Release verification depends on Android SDK tools** → Resolve tools from the configured SDK and fail with an actionable installation/path error when metadata cannot be verified otherwise.
 - **Four release APKs increase build time and storage** → Generate them only in explicit split mode; default debug and release workflows remain unchanged.
 - **Unsigned local outputs cannot prove release signatures** → Record unsigned status honestly and require `apksigner` only when signing is configured and present.
+- **The AAB resource table references packaged payloads** → Copy all `base/res/**` entries into an isolated temporary proto archive, reject unsafe paths, and leave the release bundle unchanged.
 
 ## Migration Plan
 

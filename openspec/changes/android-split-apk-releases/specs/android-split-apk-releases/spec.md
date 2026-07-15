@@ -44,6 +44,11 @@ Every APK and the release AAB SHALL retain application ID `com.eterocell.rhythha
 - **WHEN** APK and AAB verification runs
 - **THEN** SDK metadata inspection SHALL match package, version name, and version code to the configured canonical values
 
+#### Scenario: Convert bundle metadata for SDK inspection
+- **WHEN** release AAB metadata is verified
+- **THEN** verification SHALL create an isolated temporary proto archive containing the base manifest, base resource table, and packaged `base/res/**` payloads required by that table, convert it with SDK `aapt2`, and inspect the converted artifact with SDK `apkanalyzer`
+- **AND** verification SHALL NOT use artifact filenames, source configuration, APK metadata, or AGP task inputs as identity proof
+
 ### Requirement: Google Play AAB remains independent
 `bundleRelease` SHALL continue to produce one non-empty release AAB without requiring split APK mode.
 
