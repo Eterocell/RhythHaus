@@ -1,5 +1,51 @@
 # Session Progress
 
+## Handoff - 2026-07-15 track-list artwork collapse Task 3 verification evidence
+
+Route: openspec+superpowers / SDD Task 3 verification / visual QA
+Owner: implementation verification; final evidence commit is controller-owned
+Input: Approved `track-list-artwork-collapse` change; implementation commits `01a1011`, `4ec83e9`, and Oracle-finding fix `eeae263`; clean task reviews and final Oracle gate.
+Output:
+- Verified the coordinated pinned-collapse implementation without modifying production or test code.
+- Completed all OpenSpec tasks after available runtime/source visual QA, the resolved no-artwork classification finding, post-fix verification, and the final Oracle PASS. Unverified gesture/pixel/CJK behavior remains an explicit manual acceptance limitation rather than a claimed pass.
+- Updated only roadmap item 21. Roadmap item 22 remains byte-for-byte `- [ ] build(android): 支持 SplitAPK`.
+- Preserved `.superpowers/sdd/track-list-artwork-collapse-task-1-report.md` and `track-list-artwork-collapse-task-2-report.md`; added the change-specific Task 3 report rather than overwriting generic reports.
+Verification:
+- `openspec validate track-list-artwork-collapse --strict`: pass; exact output `Change 'track-list-artwork-collapse' is valid`.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass; `BUILD SUCCESSFUL in 37s`; `110 actionable tasks: 41 executed, 7 from cache, 62 up-to-date`; configuration cache stored. The only source warning was the existing Android `MediaMetadata.Builder.setArtworkData` deprecation at `PlaybackEngine.android.kt:474:17`.
+- `/usr/bin/xcrun xcodebuild -version`: pass; `Xcode 26.6`, `Build version 17F113`.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: fail at `:shared:compileTestKotlinIosSimulatorArm64` after `:shared:compileKotlinIosSimulatorArm64` and `:shared:iosSimulatorArm64MainKlibrary` completed; exact errors are `AppScanCancellationTest.kt:64:28 Unresolved reference 'Thread'.` and `AppScanCancellationTest.kt:340:27 Unresolved reference 'Thread'.`; `BUILD FAILED in 11s`; `42 actionable tasks: 14 executed, 28 up-to-date`. This unrelated blocker was not fixed, and no iOS simulator test pass is claimed.
+- `lsp_status`: Kotlin diagnostics unavailable; `kotlin-ls: missing`, with installation previously declined and zero active LSP clients. Gradle tests/compilation are the executable Kotlin checks.
+- Initial `GIT_MASTER=1 git diff --check`: pass with no output. Initial `GIT_MASTER=1 git status --short` contained only the coordinator/user changes to the OpenSpec checklist and `roadmap.md`.
+- Post-`eeae263` strict validation: `openspec validate track-list-artwork-collapse --strict` passed again with `Change 'track-list-artwork-collapse' is valid`.
+- Post-`eeae263` focused verification: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' --tests 'com.eterocell.rhythhaus.ui.ArtworkImageTest' --tests 'com.eterocell.rhythhaus.library.ArtworkLazyLoadingTest' --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache` passed (`BUILD SUCCESSFUL in 471ms`; 26 actionable tasks: 4 executed, 22 up-to-date; configuration cache reused).
+- Post-`eeae263` full matrix: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` passed (`BUILD SUCCESSFUL in 9s`; 101 actionable tasks: 12 executed, 89 up-to-date; existing Android artwork metadata deprecation only).
+- Post-`eeae263` Xcode check: `/usr/bin/xcrun xcodebuild -version` passed (`Xcode 26.6`; `Build version 17F113`).
+- Post-`eeae263` iOS attempt: `./gradlew :shared:iosSimulatorArm64Test --configuration-cache` compiled iOS main, then failed at `:shared:compileTestKotlinIosSimulatorArm64` only at `AppScanCancellationTest.kt:64:28` and `:340:27` unresolved `Thread` (`BUILD FAILED in 5s`; 33 actionable tasks: 6 executed, 27 up-to-date). No iOS simulator test pass is claimed.
+- Post-`eeae263` `GIT_MASTER=1 git diff --check`: pass with no output.
+Visual QA:
+- Launched `./gradlew :desktopApp:run --configuration-cache`; Orca runtime, Accessibility, and Screenshot permissions were available.
+- Captured real desktop states at compact 800x600 and wide 1728x1084 using the existing local library: artwork album `A Thousand Suns`, no-artwork album `Apologize`, and artwork artist `7!!`. Accessibility trees confirmed real artwork nodes, title/subtitle, selectable tracks, back button, and scrollbar.
+- Attempted forward scroll/collapse and reverse expansion. Orca reported synthetic input as unverified and the accessibility scroll value remained `0`, so these captures are not claimed as proof of partial/full collapse or reverse expansion.
+- Initial visual pass A: PASS with medium overall confidence and high source confidence for shared geometry/chrome integrity; its no-artwork conclusion was later superseded by the Oracle Important finding and corrected by `eeae263`.
+- Visual pass B: REVISE/RETEST with low confidence because the available reviewers could not decode screenshot pixels. OCR confirmed representative English/Chinese/Japanese content, but exact gaps, fades, CJK glyph precision, and gesture transitions were not visually approved. No reference baseline exists, so image-diff JSON is not applicable.
+Acceptance:
+- Requirement matched in source and automated geometry tests: yes. Runtime gesture feel and pixel-level visual fidelity remain unverified.
+- Scope controlled: yes; no production/test/spec/plan changes in Task 3, and no attempt to fix the unrelated iOS blocker.
+- Review history: the initial Oracle broad review found one Important no-artwork issue: representative track identity selected artwork-owned collapse before lazy loading proved that artwork bytes existed. Commit `eeae263` fixed it with explicit `Loading`, `Available`, and `Unavailable` states; only resolved `Available` bytes select coordinated collapse, while loading, missing, and failed artwork use Miuix.
+- Focused post-fix re-review: specification `PASS`; code quality `APPROVED`. Two non-blocking Minors remain: no direct cancellation regression for `loadTrackArtworkState`, and the shared-classifier test name overstates route-level integration.
+- Final post-fix Oracle gate: `PASS` with zero Critical and zero Important findings; safe to deliver with the documented manual visual-QA and unrelated iOS limitations.
+Changed evidence files:
+- `openspec/changes/track-list-artwork-collapse/tasks.md`: all implementation, verification, review, and evidence tasks complete.
+- `roadmap.md`: completed only item 21 with verification and manual-QA limitations; item 22 preserved byte-for-byte.
+- `progress.md`: this prepended handoff.
+- `.superpowers/sdd/progress.md`: appended the Task 3 `DONE_WITH_CONCERNS` handoff without erasing history.
+- `.superpowers/sdd/track-list-artwork-collapse-task-3-report.md`: exact command, runtime, review, and blocker evidence.
+Git tracking note: `.gitignore:21` ignores `.superpowers/`. Task 2's report is already tracked, but `.superpowers/sdd/progress.md`, Task 1's report, and the new Task 3 report appear as `!!` under `GIT_MASTER=1 git status --short --ignored`; the controller must explicitly use `GIT_MASTER=1 git add -f` for intended ignored evidence rather than assuming the brief's plain `git add` will stage it.
+Next owner: user for verified manual pointer/trackpad visual acceptance, then OpenSpec archival on explicit request; roadmap item 22 proceeds through its separate spec/plan workflow.
+Blockers: existing iOS common-test JVM-only `Thread` references; unverified synthetic collapse/expand gestures; unavailable pixel/CJK screenshot inspection. No JVM, desktop, Android, OpenSpec, or diff-hygiene blocker.
+Commits: implementation `01a1011`, `4ec83e9`, and Oracle-finding fix `eeae263`; final evidence commit follows this handoff.
+
 ## Handoff - 2026-07-14 hide Now Playing bar on settings information screens final evidence
 
 Route: openspec+superpowers
