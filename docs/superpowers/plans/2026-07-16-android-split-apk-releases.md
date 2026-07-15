@@ -18,7 +18,7 @@
 - Classify APK outputs through AGP `BuiltArtifactsLoader` metadata, never filenames. Inspect native slices as ZIP entries.
 - Signed APKs require `apksigner verify`; an unsigned APK is accepted only when release signing is not configured. Never print credentials, `local.properties`, command environments, or certificate data.
 - `bundleRelease` and `verifyReleaseAab` remain independent from split mode and APK verification. Never run `apksigner` on an AAB.
-- The AAB base-manifest/resources conversion probe is a hard feasibility gate. If SDK-only conversion cannot work, stop implementation and seek a user-approved design revision. Never substitute filenames, source configuration, APK metadata, or AGP task inputs as AAB proof.
+- The AAB SDK conversion path uses root `AndroidManifest.xml`, root `resources.pb`, and all packaged `base/res/**` payloads required by that resource table. The manifest and table alone are known not to be self-contained under AGP 9.3. Never substitute filenames, source configuration, APK metadata, or AGP task inputs as AAB proof.
 - Preserve runtime Kotlin, TagLib source/JNI behavior, UI, playback, scanning, persistence, dependencies, and non-Android packaging. Preserve unrelated worktree changes. Do not archive this OpenSpec change without an explicit request.
 - Every production change begins with a witnessed RED test. Every commit is atomic, uses its listed Conventional Commit subject, and includes both `Ultraworked with [Sisyphus](https://github.com/code-yeongyu/oh-my-openagent)` and `Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>`.
 
@@ -394,7 +394,7 @@ git commit -m "build(android): verify release APK artifacts" \
 
 - [ ] **Step 1: Write the real SDK-only feasibility probe before production AAB code**
 
-`AabMetadataProbeTest` must require an explicit existing, non-empty AGP release AAB test input and must fail if it is absent. It must read `base/manifest/AndroidManifest.xml` and `base/resources.pb` with `ZipFile`, write only root `AndroidManifest.xml` and `resources.pb` to a temporary proto archive, invoke `aapt2 convert --output-format binary`, then invoke `apkanalyzer manifest application-id`, `version-name`, and `version-code` on the converted temporary APK.
+`AabMetadataProbeTest` must require an explicit existing, non-empty AGP release AAB test input and must fail if it is absent. It must read `base/manifest/AndroidManifest.xml`, `base/resources.pb`, and every `base/res/**` entry with `ZipFile`; write root `AndroidManifest.xml`, root `resources.pb`, and each resource payload at its path relative to `base/` into a temporary proto archive; invoke `aapt2 convert --output-format binary`; then invoke `apkanalyzer manifest application-id`, `version-name`, and `version-code` on the converted temporary APK.
 
 The test must assert `com.eterocell.rhythhaus`, canonical version name, and numeric version code. It must not use output filenames, source configuration, APK metadata, or AGP task inputs as assertions.
 
@@ -407,17 +407,17 @@ The test must assert `com.eterocell.rhythhaus`, canonical version name, and nume
   -Prhythhaus.aabProbeFile="$PWD/androidApp/build/outputs/bundle/release/androidApp-release.aab"
 ```
 
-Expected RED: unresolved probe/verifier code or a failing base-manifest/resources conversion. Implement only the test helper needed to make that exact conversion work, then rerun the same command and require GREEN with all three SDK metadata values.
+Expected RED: unresolved probe/verifier code. The earlier real AGP 9.3 feasibility run already proved that a two-entry archive fails because `resources.pb` references omitted packaged resources, while the revised archive with all `base/res/**` payloads converts and exposes all three canonical SDK metadata values. Implement only the test helper needed for the revised conversion, then rerun the same command and require GREEN with all three SDK metadata values.
 
-**Stop condition:** If the SDK-only archive to `aapt2 convert` to `apkanalyzer` path cannot be made to pass against the real AGP 9.3 AAB, stop Task 4 and the implementation. Record the failing command and sanitized output, then request a user-approved design revision. Never continue by substituting filenames, source config, APK metadata, or AGP task inputs.
+**Stop condition:** If the revised SDK-only archive to `aapt2 convert` to `apkanalyzer` path cannot be made to pass against the real AGP 9.3 AAB, stop Task 4 and the implementation. Record the failing command and sanitized output, then request another user-approved design revision. Never continue by substituting filenames, source config, APK metadata, or AGP task inputs.
 
 - [ ] **Step 3: Add failing task-contract tests after feasibility is proven**
 
-Cover a missing or empty AAB, missing `base/manifest/AndroidManifest.xml`, missing `base/resources.pb`, `aapt2` conversion failure with sanitized stderr, and `apkanalyzer` identity mismatch with expected and actual values.
+Cover a missing or empty AAB, missing `base/manifest/AndroidManifest.xml`, missing `base/resources.pb`, malformed or unsafe `base/res/**` paths, `aapt2` conversion failure with sanitized stderr, and `apkanalyzer` identity mismatch with expected and actual values.
 
 - [ ] **Step 4: Implement the proven task path only**
 
-`VerifyReleaseAabTask` uses `temporaryDir`, never release-output directories. It copies precisely the two AAB entries to the temporary proto archive, runs the exact `aapt2 convert` syntax proved by Step 2, then runs the same three `apkanalyzer manifest` commands as Task 3. It requires one non-empty AAB and writes a deterministic report. It must not run `apksigner`.
+`VerifyReleaseAabTask` uses `temporaryDir`, never release-output directories. It copies the base manifest and resource table to their required root names and copies every packaged `base/res/**` payload to its path relative to `base/`, rejecting entries that cannot remain inside the temporary archive. It runs the exact `aapt2 convert` syntax proved by Step 2, then the same three `apkanalyzer manifest` commands as Task 3. It requires one non-empty AAB and writes a deterministic report. It must not run `apksigner`.
 
 - [ ] **Step 5: Register independent AAB verification**
 

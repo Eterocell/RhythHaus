@@ -109,6 +109,8 @@ With split mode enabled, verification requires:
 
 The verification consumes AGP's `output-metadata.json` to classify ABI and universal APK outputs instead of relying on filename guesses. APK archive contents are inspected as ZIP entries. The configured Android SDK's `apkanalyzer` validates application ID, version name, and version code for both APK and AAB artifacts; no new external dependency is added.
 
+For AAB metadata inspection, verification creates a temporary proto archive from the bundle's `base/manifest/AndroidManifest.xml`, `base/resources.pb`, and every packaged `base/res/**` payload required by that resource table. The manifest and resource table are moved to root `AndroidManifest.xml` and `resources.pb`; resource payloads retain their paths relative to `base/` so SDK `aapt2 convert --output-format binary` can resolve table references before `apkanalyzer` reads canonical identity. A real AGP 9.3 probe established that the manifest and resource table alone are not self-contained, while including the packaged base resource payloads converts successfully. The temporary archive is verification-only and does not alter the release AAB.
+
 Add independent AAB verification that requires `bundleRelease` to produce one non-empty release AAB with the canonical package/version metadata. AAB verification must not assume split APK mode is enabled.
 
 ## Failure Handling
@@ -152,4 +154,5 @@ Where signing credentials are available, signed artifact verification is require
 - Preserve canonical version name and version code across all artifacts.
 - Preserve current signing configuration and secret handling.
 - Do not add density splits, language splits, product flavors, legacy Play multi-APK version codes, bundletool management, custom release renaming, checksums, uploads, publishing, or release-page automation.
+- Do not substitute filenames, source configuration, APK metadata, or AGP task inputs for SDK-derived AAB identity.
 - Do not change TagLib source, JNI behavior, playback, scanning, UI, persistence, or non-Android platform packaging.
