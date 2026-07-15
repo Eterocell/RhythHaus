@@ -2,6 +2,12 @@ plugins {
     `kotlin-dsl`
 }
 
+tasks.withType<Test>().configureEach {
+    providers.gradleProperty("rhythhaus.aabProbeFile").orNull?.let { probeFile ->
+        systemProperty("rhythhaus.aabProbeFile", probeFile)
+    }
+}
+
 gradlePlugin {
     plugins {
         create("androidAbiContract") {

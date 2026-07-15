@@ -1,9 +1,12 @@
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.eterocell.gradle.android.RhythHausAndroidAbiContractExtension
+import com.eterocell.gradle.android.VerifyReleaseAabTask
 import com.eterocell.gradle.android.VerifyReleaseApksTask
+import com.eterocell.gradle.android.resolveAapt2
 import com.eterocell.gradle.android.resolveApkAnalyzer
 import com.eterocell.gradle.android.resolveApkSigner
+import com.eterocell.gradle.android.shouldConfigureSplitApks
 import com.android.build.api.dsl.ApplicationExtension
 import org.gradle.kotlin.dsl.getByType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -34,7 +37,10 @@ val rhythHausVersionName = providers.gradleProperty("rhythhaus.versionName")
 val rhythHausVersionCode = providers.gradleProperty("rhythhaus.versionCode")
     .orElse(provider { throw GradleException("Missing required Gradle property 'rhythhaus.versionCode'") })
 val androidAbiContract = extensions.getByType<RhythHausAndroidAbiContractExtension>()
-val splitApkEnabled = androidAbiContract.splitApkEnabled.get()
+val splitApkEnabled = shouldConfigureSplitApks(
+    androidAbiContract.splitApkEnabled.get(),
+    gradle.startParameter.taskNames,
+)
 val supportedAndroidAbis = androidAbiContract.abis.get()
 
 android {
@@ -83,6 +89,9 @@ android {
 val androidExtension = extensions.getByType<ApplicationExtension>()
 val androidComponents = extensions.getByType<ApplicationAndroidComponentsExtension>()
 val androidSdkDirectory = androidComponents.sdkComponents.sdkDirectory
+val resolvedAapt2 = androidSdkDirectory.map {
+    resolveAapt2(it.asFile, androidExtension.buildToolsVersion)
+}
 val resolvedApkAnalyzer = androidSdkDirectory.map { resolveApkAnalyzer(it.asFile) }
 val resolvedApkSigner = androidSdkDirectory.map {
     resolveApkSigner(it.asFile, androidExtension.buildToolsVersion)
@@ -107,5 +116,21 @@ androidComponents.onVariants(androidComponents.selector().withBuildType("release
         apkAnalyzerExecutable.set(layout.file(resolvedApkAnalyzer))
         apkSignerExecutable.set(layout.file(resolvedApkSigner))
         reportFile.set(layout.buildDirectory.file("reports/androidReleaseVerification/release-apks.txt"))
+    }
+    tasks.register<VerifyReleaseAabTask>("verifyReleaseAab") {
+        aabFile.set(variant.artifacts.get(SingleArtifact.BUNDLE))
+        expectedApplicationId.set("com.eterocell.rhythhaus")
+        expectedVersionName.set(rhythHausVersionName)
+        expectedVersionCode.set(
+            rhythHausVersionCode.map {
+                it.toIntOrNull()
+                    ?: throw GradleException(
+                        "Gradle property 'rhythhaus.versionCode' must be an integer, was '$it'",
+                    )
+            },
+        )
+        aapt2Executable.set(layout.file(resolvedAapt2))
+        apkAnalyzerExecutable.set(layout.file(resolvedApkAnalyzer))
+        reportFile.set(layout.buildDirectory.file("reports/androidReleaseVerification/release-aab.txt"))
     }
 }

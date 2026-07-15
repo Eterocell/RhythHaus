@@ -1,6 +1,150 @@
 # Android split APK releases — Task 4 report
 
-Status: **BLOCKED — hard feasibility gate did not pass**
+Status: **DONE — revised feasibility gate and independent AAB verification passed**
+
+## Revised contract implementation
+
+The user-approved revisions `8c257ee` and `ddd8213` allow every packaged
+`base/res/**` payload required by `base/resources.pb`, preserving each path relative to
+`base/`. The implementation resumed from `ddd8213` and retained the earlier failed
+two-entry experiment below as root-cause history.
+
+The restored real-AGP probe copies root `AndroidManifest.xml`, root `resources.pb`, and
+92 sorted resource payloads, rejects malformed/traversing/backslash paths, converts the
+temporary proto archive with configured SDK `aapt2`, and obtains identity only through
+configured SDK `apkanalyzer`.
+
+Revised feasibility commands and results:
+
+```text
+./gradlew :androidApp:clean :androidApp:bundleRelease \
+  --configuration-cache --configuration-cache-problems=fail
+BUILD SUCCESSFUL in 44s
+128 actionable tasks: 40 executed, 14 from cache, 74 up-to-date
+Configuration cache entry stored.
+
+./gradlew -p build-logic :convention:test \
+  --tests 'com.eterocell.gradle.android.AabMetadataProbeTest' \
+  -Prhythhaus.aabProbeFile='<repo>/androidApp/build/outputs/bundle/release/<release-aab>'
+BUILD SUCCESSFUL in 3s
+12 actionable tasks: 2 executed, 10 up-to-date
+Configuration cache entry reused.
+```
+
+## Task contract RED/GREEN
+
+After revised feasibility was GREEN, contract tests were added for missing/empty AABs,
+missing required entries, sorted resource mapping, malformed/unsafe resource paths,
+sanitized tool failure, and expected-versus-actual AAB identity mismatch.
+
+Witnessed RED:
+
+```text
+AabMetadataProbeTest.kt: unresolved references requireReleaseAab,
+aabProtoEntryMappings, AabProtoEntry, sanitizedAabToolFailure,
+and validateReleaseAabIdentity
+BUILD FAILED
+```
+
+Production implementation then added cacheable `VerifyReleaseAabTask`, configured
+build-tools `aapt2` resolution, temporary-directory conversion, SDK identity validation,
+and a deterministic report. The focused suite passed all seven tests:
+
+```text
+./gradlew -p build-logic :convention:test \
+  --tests 'com.eterocell.gradle.android.AabMetadataProbeTest' \
+  -Prhythhaus.aabProbeFile='<repo>/androidApp/build/outputs/bundle/release/<release-aab>'
+BUILD SUCCESSFUL in 3s
+```
+
+## Independent AAB verification
+
+`verifyReleaseAab` is registered from release `SingleArtifact.BUNDLE`. It has no
+`verifyReleaseApks`, assembly-task-name, split-mode, signing, or `apksigner` dependency.
+The configured AAB artifact provider supplies bundle production.
+
+The first exact-true run exposed an AGP 9.3 bundle-pipeline failure before the verifier:
+
+```text
+buildReleasePreBundle: Multiple shrunk-resources files found
+Please disable building multiple APKs when building an Android app bundle.
+BUILD FAILED
+```
+
+A focused RED test then established that AAB-channel task requests must remain independent
+from split APK configuration while APK assembly/verification retains exact-true splits.
+Before implementation it failed only on unresolved `shouldConfigureSplitApks`. The minimal
+selector disables the split DSL for `bundleRelease` and `verifyReleaseAab` task requests;
+it does not change the exact split property or APK verifier behavior.
+
+Both required clean verification modes then passed:
+
+```text
+./gradlew :androidApp:clean :androidApp:verifyReleaseAab \
+  --configuration-cache --configuration-cache-problems=fail
+BUILD SUCCESSFUL in 1m 6s
+Configuration cache entry stored.
+
+./gradlew :androidApp:clean :androidApp:verifyReleaseAab \
+  -Prhythhaus.android.splitApk=true \
+  --configuration-cache --configuration-cache-problems=fail
+BUILD SUCCESSFUL in 1m 10s
+Configuration cache entry stored.
+```
+
+Both reports were identical:
+
+```text
+outputs: 1
+resources: 92
+applicationId: com.eterocell.rhythhaus
+versionName: 0.1.0
+versionCode: 100
+```
+
+Repeated absent-property and exact-true invocations each reported
+`Reusing configuration cache.`, `verifyReleaseAab UP-TO-DATE`, and `BUILD SUCCESSFUL`.
+
+## Regression and diagnostics
+
+```text
+./gradlew -p build-logic :convention:test :convention:validatePlugins \
+  -Prhythhaus.aabProbeFile='<repo>/androidApp/build/outputs/bundle/release/<release-aab>' \
+  --configuration-cache --configuration-cache-problems=fail
+BUILD SUCCESSFUL in 7s
+42 tests passed; plugin validation passed.
+
+./gradlew :androidApp:verifyReleaseApks \
+  -Prhythhaus.android.splitApk=true \
+  --configuration-cache --configuration-cache-problems=fail
+BUILD SUCCESSFUL in 31s
+```
+
+`GIT_MASTER=1 git diff --check` produced no output. Kotlin LSP diagnostics were
+unavailable because `kotlin-ls` is not installed and installation was previously declined;
+Gradle Kotlin compilation, all build-logic tests, plugin validation, and both Android
+release channels supplied executable diagnostics. Existing Gradle deprecations, the
+TagLib Android host-test warning, and Android artwork metadata deprecation remain unrelated.
+
+No `apksigner` command was run on an AAB. No filename, source configuration, APK metadata,
+or AGP task input was used as AAB identity proof. Unrelated shared UI changes and both
+progress files remained unstaged.
+
+## Review fixes
+
+Task-level review found and the implementation corrected two Important issues through new
+RED/GREEN tests:
+
+- All ZIP entry names, including directory markers and required manifest/table paths, are
+  now checked for duplicates before `ZipFile.getEntry`; unique directory markers are ignored
+  only after duplicate validation.
+- Exact-true mixed APK+AAB release task requests now fail with an actionable requirement to
+  use separate Gradle invocations instead of silently disabling requested APK splits.
+
+The first focused review-fix run failed both new tests as expected. After implementation,
+the duplicate-entry and mixed-task tests passed, followed by the complete 42-test build-logic
+suite, plugin validation, ordinary AAB verification, exact-true AAB verification, and
+exact-true split APK verification. No Critical or Important review finding remains.
 
 ## Scope and baseline
 

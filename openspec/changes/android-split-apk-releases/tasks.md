@@ -21,10 +21,10 @@
 
 ## 4. Independent AAB verification
 
-- [ ] 4.1 Write a RED/GREEN real-AGP-AAB feasibility probe that copies `base/manifest/AndroidManifest.xml`, `base/resources.pb`, and all packaged `base/res/**` payloads into a temporary proto archive, converts it with SDK `aapt2`, and reads canonical identity with SDK `apkanalyzer`.
+- [x] 4.1 Write a RED/GREEN real-AGP-AAB feasibility probe that copies `base/manifest/AndroidManifest.xml`, `base/resources.pb`, and all packaged `base/res/**` payloads into a temporary proto archive, converts it with SDK `aapt2`, and reads canonical identity with SDK `apkanalyzer`.
 - [x] 4.2 Record the failed exact-two-entry AGP 9.3 probe, preserve its sanitized root cause, and apply the user-approved design revision allowing the packaged `base/res/**` payloads required by the resource table without substituting filenames, source configuration, APK metadata, or AGP task inputs as proof.
-- [ ] 4.3 After the probe passes, add RED contract tests and implement `VerifyReleaseAabTask` using the proven temporary conversion path, one non-empty AAB, canonical identity, and deterministic report.
-- [ ] 4.4 Register `verifyReleaseAab` from release `SingleArtifact.BUNDLE`; prove it passes with and without exact split mode and has no APK/signing dependency.
+- [x] 4.3 After the probe passes, add RED contract tests and implement `VerifyReleaseAabTask` using the proven temporary conversion path, one non-empty AAB, canonical identity, and deterministic report.
+- [x] 4.4 Register `verifyReleaseAab` from release `SingleArtifact.BUNDLE`; prove it passes with and without exact split mode and has no APK/signing dependency.
 - [ ] 4.5 Review Task 4 for proven conversion syntax, independent bundle wiring, tool-error sanitization, and no `apksigner` use.
 
 ## 5. Default-mode and configuration-cache acceptance

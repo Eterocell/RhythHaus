@@ -51,3 +51,17 @@ fun parseRhythHausAndroidAbis(value: String?): List<String> {
 }
 
 fun isRhythHausSplitApkEnabled(value: String?): Boolean = value == "true"
+
+fun shouldConfigureSplitApks(
+    splitRequested: Boolean,
+    requestedTasks: List<String>,
+): Boolean {
+    if (!splitRequested) return false
+    val taskNames = requestedTasks.map { it.substringAfterLast(':') }
+    val requestsAab = taskNames.any { it == "bundleRelease" || it == "verifyReleaseAab" }
+    val requestsApks = taskNames.any { it == "assembleRelease" || it == "verifyReleaseApks" }
+    require(!(requestsAab && requestsApks)) {
+        "AGP 9.3 requires split APK and AAB release tasks to run in separate Gradle invocations."
+    }
+    return !requestsAab
+}

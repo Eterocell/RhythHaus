@@ -8,6 +8,33 @@ import kotlin.test.assertTrue
 
 class AndroidAbiContractTest {
     @Test
+    fun aabReleaseTasksRemainIndependentFromSplitApkMode() {
+        listOf(
+            listOf(":androidApp:bundleRelease"),
+            listOf(":androidApp:verifyReleaseAab"),
+            listOf("verifyReleaseAab"),
+        ).forEach { requestedTasks ->
+            assertFalse(shouldConfigureSplitApks(splitRequested = true, requestedTasks))
+        }
+        assertTrue(shouldConfigureSplitApks(true, listOf(":androidApp:assembleRelease")))
+        assertTrue(shouldConfigureSplitApks(true, listOf(":androidApp:verifyReleaseApks")))
+        assertFalse(shouldConfigureSplitApks(false, listOf(":androidApp:assembleRelease")))
+    }
+
+    @Test
+    fun exactSplitModeRejectsMixedApkAndAabReleaseRequests() {
+        listOf(
+            listOf(":androidApp:assembleRelease", ":androidApp:bundleRelease"),
+            listOf(":androidApp:verifyReleaseApks", ":androidApp:verifyReleaseAab"),
+        ).forEach { requestedTasks ->
+            val error = assertFailsWith<IllegalArgumentException> {
+                shouldConfigureSplitApks(splitRequested = true, requestedTasks)
+            }
+            assertTrue(error.message.orEmpty().contains("separate Gradle invocations"))
+        }
+    }
+
+    @Test
     fun approvedOrderedValueIsAccepted() {
         assertEquals(
             APPROVED_RHYTHHAUS_ANDROID_ABIS,
