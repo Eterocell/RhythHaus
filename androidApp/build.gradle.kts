@@ -1,7 +1,10 @@
+import com.eterocell.gradle.android.RhythHausAndroidAbiContractExtension
+import org.gradle.kotlin.dsl.getByType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.build.logic.android.application)
+    id("build-logic.android.abi-contract")
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
 }
@@ -24,6 +27,9 @@ val rhythHausVersionName = providers.gradleProperty("rhythhaus.versionName")
     .orElse(provider { throw GradleException("Missing required Gradle property 'rhythhaus.versionName'") })
 val rhythHausVersionCode = providers.gradleProperty("rhythhaus.versionCode")
     .orElse(provider { throw GradleException("Missing required Gradle property 'rhythhaus.versionCode'") })
+val androidAbiContract = extensions.getByType<RhythHausAndroidAbiContractExtension>()
+val splitApkEnabled = androidAbiContract.splitApkEnabled.get()
+val supportedAndroidAbis = androidAbiContract.abis.get()
 
 android {
     namespace = "com.eterocell.rhythhaus"
@@ -40,6 +46,16 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+    splits {
+        abi {
+            isEnable = splitApkEnabled
+            if (splitApkEnabled) {
+                reset()
+                include(*supportedAndroidAbis.toTypedArray())
+                isUniversalApk = true
+            }
         }
     }
     buildTypes {
