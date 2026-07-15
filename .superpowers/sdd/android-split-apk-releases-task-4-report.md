@@ -117,7 +117,8 @@ The required feasibility path did not become GREEN. Per the Task 4 hard stop:
 - No with/without-split AAB task matrix or task cache claim is made.
 - No `apksigner` command was run on the AAB.
 - No diagnostics claim is made because no Kotlin/Gradle implementation file remains modified.
-- No commit was created or amended, and nothing was pushed.
+- No implementation commit was created or amended, and nothing was pushed. The blocked
+  evidence report was committed separately as required.
 
 The temporary test/helper and property forwarding were removed after the failed gate. The
 repository retains no weaker verifier implementation. Continuing requires explicit user
