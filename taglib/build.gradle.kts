@@ -1,5 +1,12 @@
+import com.eterocell.gradle.android.RhythHausAndroidAbiContractExtension
 import org.gradle.api.tasks.Exec
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+plugins {
+    id("build-logic.android.abi-contract")
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.multiplatform.library)
+}
 
 val nativeTagLibResourceRoot = layout.buildDirectory.dir("generated/nativeTagLibResources/jvmMain")
 val macosTagLibResourceArch = when (System.getProperty("os.arch").lowercase()) {
@@ -112,7 +119,10 @@ val androidHome = System.getenv("ANDROID_HOME") ?: "${System.getProperty("user.h
 val androidNdkDir = file("$androidHome/ndk/$androidNdkVersion")
 val androidTagLibToolchainFile = file("$androidNdkDir/build/cmake/android.toolchain.cmake")
 
-val androidTagLibAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+val androidTagLibAbis = extensions
+    .getByType<RhythHausAndroidAbiContractExtension>()
+    .abis
+    .get()
 val androidTagLibMinSdk = libs.versions.android.minSdk.get().toInt()
 
 val androidTagLibOutputRoot = layout.buildDirectory.dir("generated/androidNativeLibs").get().asFile
@@ -165,11 +175,6 @@ val packageAndroidTagLibJniLibs by tasks.registering(Sync::class) {
     from(androidTagLibOutputRoot)
     into(androidTagLibPackagedJniLibsRoot)
     include("**/librhythhaus_taglib.so")
-}
-
-plugins {
-    alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.multiplatform.library)
 }
 
 kotlin {
