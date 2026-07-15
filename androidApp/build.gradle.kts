@@ -1,4 +1,8 @@
+import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.eterocell.gradle.android.RhythHausAndroidAbiContractExtension
+import com.eterocell.gradle.android.VerifyReleaseApksTask
+import com.android.build.api.dsl.ApplicationExtension
 import org.gradle.kotlin.dsl.getByType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -71,5 +75,30 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+val androidExtension = extensions.getByType<ApplicationExtension>()
+val androidComponents = extensions.getByType<ApplicationAndroidComponentsExtension>()
+androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
+    tasks.register<VerifyReleaseApksTask>("verifyReleaseApks") {
+        apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
+        builtArtifactsLoader.set(variant.artifacts.getBuiltArtifactsLoader())
+        supportedAbis.set(androidAbiContract.abis)
+        splitApkEnabled.set(androidAbiContract.splitApkEnabled)
+        expectedApplicationId.set("com.eterocell.rhythhaus")
+        expectedVersionName.set(rhythHausVersionName)
+        expectedVersionCode.set(
+            rhythHausVersionCode.map {
+                it.toIntOrNull()
+                    ?: throw GradleException(
+                        "Gradle property 'rhythhaus.versionCode' must be an integer, was '$it'",
+                    )
+            },
+        )
+        releaseSigningConfigured.set(androidExtension.buildTypes.getByName("release").signingConfig != null)
+        sdkDirectory.set(androidComponents.sdkComponents.sdkDirectory)
+        buildToolsRevision.set(androidExtension.buildToolsVersion)
+        reportFile.set(layout.buildDirectory.file("reports/androidReleaseVerification/release-apks.txt"))
     }
 }
