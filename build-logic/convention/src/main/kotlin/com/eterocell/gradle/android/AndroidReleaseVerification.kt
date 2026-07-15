@@ -92,6 +92,23 @@ fun parseApkAnalyzerIdentity(
     return ReleaseArtifactIdentity(applicationId, versionName, versionCode)
 }
 
+fun releaseArtifactIdentityFromAgpMetadata(
+    applicationId: String,
+    versionName: String?,
+    versionCode: Int?,
+): ReleaseArtifactIdentity {
+    require(versionName != null) { "Release APK metadata version name is missing." }
+    require(versionCode != null) { "Release APK metadata version code is missing." }
+    return ReleaseArtifactIdentity(applicationId, versionName, versionCode)
+}
+
+fun validateAgpReleaseArtifactIdentity(
+    actual: ReleaseArtifactIdentity,
+    expected: ReleaseArtifactIdentity,
+) {
+    require(actual == expected) { "Release APK metadata identity mismatch: expected $expected, actual $actual." }
+}
+
 fun validateReleaseArtifactIdentity(
     actual: ReleaseArtifactIdentity,
     expected: ReleaseArtifactIdentity,

@@ -167,6 +167,48 @@ class AndroidReleaseVerificationTest {
     }
 
     @Test
+    fun agpMetadataMapsToReleaseArtifactIdentity() {
+        assertEquals(
+            ReleaseArtifactIdentity("com.eterocell.rhythhaus", "0.1.0", 100),
+            releaseArtifactIdentityFromAgpMetadata(
+                applicationId = "com.eterocell.rhythhaus",
+                versionName = "0.1.0",
+                versionCode = 100,
+            ),
+        )
+    }
+
+    @Test
+    fun agpMetadataApplicationIdMismatchIsRejected() {
+        assertFailsWith<IllegalArgumentException> {
+            validateAgpReleaseArtifactIdentity(
+                actual = releaseArtifactIdentityFromAgpMetadata("example.invalid", "0.1.0", 100),
+                expected = ReleaseArtifactIdentity("com.eterocell.rhythhaus", "0.1.0", 100),
+            )
+        }
+    }
+
+    @Test
+    fun agpMetadataVersionNameMismatchIsRejected() {
+        assertFailsWith<IllegalArgumentException> {
+            validateAgpReleaseArtifactIdentity(
+                actual = releaseArtifactIdentityFromAgpMetadata("com.eterocell.rhythhaus", "9.9.9", 100),
+                expected = ReleaseArtifactIdentity("com.eterocell.rhythhaus", "0.1.0", 100),
+            )
+        }
+    }
+
+    @Test
+    fun agpMetadataVersionCodeMismatchIsRejected() {
+        assertFailsWith<IllegalArgumentException> {
+            validateAgpReleaseArtifactIdentity(
+                actual = releaseArtifactIdentityFromAgpMetadata("com.eterocell.rhythhaus", "0.1.0", 101),
+                expected = ReleaseArtifactIdentity("com.eterocell.rhythhaus", "0.1.0", 100),
+            )
+        }
+    }
+
+    @Test
     fun signingMatrixRequiresSuccessfulApksignerOnlyWhenSigningIsConfigured() {
         assertEquals("verified", releaseSigningStatus(true, toolAvailable = true, verificationSucceeded = true))
         assertEquals("verified", releaseSigningStatus(false, toolAvailable = true, verificationSucceeded = true))

@@ -2,6 +2,8 @@ import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.eterocell.gradle.android.RhythHausAndroidAbiContractExtension
 import com.eterocell.gradle.android.VerifyReleaseApksTask
+import com.eterocell.gradle.android.resolveApkAnalyzer
+import com.eterocell.gradle.android.resolveApkSigner
 import com.android.build.api.dsl.ApplicationExtension
 import org.gradle.kotlin.dsl.getByType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -80,6 +82,11 @@ android {
 
 val androidExtension = extensions.getByType<ApplicationExtension>()
 val androidComponents = extensions.getByType<ApplicationAndroidComponentsExtension>()
+val androidSdkDirectory = androidComponents.sdkComponents.sdkDirectory
+val resolvedApkAnalyzer = androidSdkDirectory.map { resolveApkAnalyzer(it.asFile) }
+val resolvedApkSigner = androidSdkDirectory.map {
+    resolveApkSigner(it.asFile, androidExtension.buildToolsVersion)
+}.filter { it != null }.map { it!! }
 androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
     tasks.register<VerifyReleaseApksTask>("verifyReleaseApks") {
         apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
@@ -97,8 +104,8 @@ androidComponents.onVariants(androidComponents.selector().withBuildType("release
             },
         )
         releaseSigningConfigured.set(androidExtension.buildTypes.getByName("release").signingConfig != null)
-        sdkDirectory.set(androidComponents.sdkComponents.sdkDirectory)
-        buildToolsRevision.set(androidExtension.buildToolsVersion)
+        apkAnalyzerExecutable.set(layout.file(resolvedApkAnalyzer))
+        apkSignerExecutable.set(layout.file(resolvedApkSigner))
         reportFile.set(layout.buildDirectory.file("reports/androidReleaseVerification/release-apks.txt"))
     }
 }

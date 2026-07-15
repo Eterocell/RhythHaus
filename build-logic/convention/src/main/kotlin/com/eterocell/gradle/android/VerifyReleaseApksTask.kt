@@ -10,7 +10,9 @@ import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
@@ -49,12 +51,14 @@ abstract class VerifyReleaseApksTask : DefaultTask() {
     @get:Input
     abstract val releaseSigningConfigured: Property<Boolean>
 
-    @get:InputDirectory
-    @get:PathSensitive(PathSensitivity.ABSOLUTE)
-    abstract val sdkDirectory: DirectoryProperty
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val apkAnalyzerExecutable: RegularFileProperty
 
-    @get:Input
-    abstract val buildToolsRevision: Property<String>
+    @get:InputFile
+    @get:Optional
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val apkSignerExecutable: RegularFileProperty
 
     @get:OutputFile
     abstract val reportFile: RegularFileProperty
@@ -83,24 +87,20 @@ abstract class VerifyReleaseApksTask : DefaultTask() {
             require(Files.isRegularFile(path) && Files.size(path) > 0L) {
                 "Release APK metadata references a missing or empty output."
             }
-            require(artifact.versionName == expectedIdentity.versionName) {
-                "Release APK metadata version name mismatch."
-            }
-            require(artifact.versionCode == expectedIdentity.versionCode) {
-                "Release APK metadata version code mismatch."
-            }
+            validateAgpReleaseArtifactIdentity(
+                actual = releaseArtifactIdentityFromAgpMetadata(
+                    applicationId = builtArtifacts.applicationId,
+                    versionName = artifact.versionName,
+                    versionCode = artifact.versionCode,
+                ),
+                expected = expectedIdentity,
+            )
             ReleaseApkDescriptor(path, abi)
-        }
-        require(builtArtifacts.applicationId == expectedIdentity.applicationId) {
-            "Release APK metadata application ID mismatch."
         }
         validateReleaseApkSet(descriptors, supported, splitApkEnabled.get())
 
-        val apkanalyzer = resolveApkAnalyzer(sdkDirectory.get().asFile)
-        val apksigner = resolveApkSigner(
-            sdkDirectory.get().asFile,
-            buildToolsRevision.get(),
-        )
+        val apkanalyzer = apkAnalyzerExecutable.get().asFile
+        val apksigner = apkSignerExecutable.orNull?.asFile
         val entriesByFilter = linkedMapOf<String, Set<String>>()
         var allSignaturesVerified = apksigner != null
         descriptors.sortedWith(compareBy({ it.abi == null }, { it.abi.orEmpty() })).forEach { descriptor ->
@@ -173,7 +173,7 @@ abstract class VerifyReleaseApksTask : DefaultTask() {
     }
 }
 
-internal fun resolveApkAnalyzer(sdkDirectory: File): File {
+fun resolveApkAnalyzer(sdkDirectory: File): File {
     val latest = sdkDirectory.resolve("cmdline-tools/latest/bin/apkanalyzer")
     if (latest.isFile && latest.canExecute()) return latest
     val cmdlineTools = sdkDirectory.resolve("cmdline-tools")
@@ -191,7 +191,7 @@ internal fun resolveApkAnalyzer(sdkDirectory: File): File {
     )
 }
 
-internal fun resolveApkSigner(sdkDirectory: File, buildToolsRevision: String): File? =
+fun resolveApkSigner(sdkDirectory: File, buildToolsRevision: String): File? =
     sdkDirectory.resolve("build-tools/$buildToolsRevision/apksigner")
         .takeIf { it.isFile && it.canExecute() }
 
