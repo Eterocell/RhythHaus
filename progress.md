@@ -1,5 +1,36 @@
 # Session Progress
 
+## Handoff - 2026-07-16 Android Split APK releases final evidence
+
+Route: openspec+superpowers / subagent-driven-development / final five-lane review
+Owner: implementation complete; next owner is user for manual device install/upgrade validation
+Input: Approved `android-split-apk-releases` change and roadmap item 22, including the user-approved AGP 9.3 AAB verifier revision that permits packaged `base/res/**` payloads required by `resources.pb`.
+Output:
+- Exact lowercase `rhythhaus.android.splitApk=true` produces `arm64-v8a`, `armeabi-v7a`, `x86_64`, and universal release APKs from one strict shared ABI contract; absent or every non-exact value preserves one ordinary APK.
+- Cacheable APK verification checks AGP filters, exact TagLib slices, canonical `com.eterocell.rhythhaus / 0.1.0 / 100`, and existing signing policy. Actual release artifacts reported `signed: verified`.
+- Independent `SingleArtifact.BUNDLE` verification creates a temporary proto archive with root manifest/table and 92 safe `base/res/**` payloads, then uses SDK `aapt2` and `apkanalyzer`; no `apksigner` runs on AABs.
+- AGP 9.3 split-APK and AAB channels run separately. Full and abbreviated pure-channel tasks are classified consistently; mixed exact-split requests fail actionably.
+Verification:
+- Build-logic tests and plugin validation passed after focused test-only fix `1398191`; the explicit real-AAB probe also passed against the generated bundle.
+- Reduced ABI and noninteger version-code commands failed with the expected actionable messages.
+- Exact split `verifyReleaseApks`, run unchanged twice after a fresh cache: first stored, second literally reported `Reusing configuration cache.`; report contained four exact filters, exact native slices, canonical identity, and `signed: verified`.
+- Independent `verifyReleaseAab`, run unchanged twice after a fresh cache: first stored, second literally reported `Reusing configuration cache.`; report contained one AAB, 92 resources, and canonical identity.
+- Non-exact `True` produced one ordinary unfiltered signed APK; debug metadata contained one `SINGLE` unfiltered APK.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache --configuration-cache-problems=fail`: pass.
+- `./init.sh`: JVM/desktop/Android passed and Xcode 26.6 was available; iOS main compiled, then common-test compilation failed only at unchanged `AppScanCancellationTest.kt:64:28` and `:340:27` unresolved `Thread` references. No iOS simulator test pass is claimed.
+- `openspec validate android-split-apk-releases --strict`: pass (`Change 'android-split-apk-releases' is valid`). `GIT_MASTER=1 git diff --check`: pass.
+Acceptance:
+- Final five-lane review: goal/constraints PASS, hands-on artifact QA PASS, code quality PASS with no Critical/Important, security PASS with no Critical/High, and context mining found no missed technical requirement after this Task 6 lifecycle evidence.
+- Non-blocking notes: sort duplicate-entry diagnostics; optionally add standalone `aR` and `vRelAab` TestKit cases; revalidate Gradle internal `NameMatcher` on a future Gradle upgrade.
+- Scope controlled: no density/language splits, flavors, ABI version offsets, custom names, bundletool, publishing, dependencies, runtime behavior, TagLib JNI/source, signing-policy, or non-Android packaging changes.
+Changed files:
+- `gradle.properties`, `build-logic/convention/`, `taglib/build.gradle.kts`, `androidApp/build.gradle.kts`: ABI contract, opt-in splits, verifiers, and tests.
+- `docs/superpowers/`, `openspec/changes/android-split-apk-releases/`, `.superpowers/sdd/android-split-apk-releases-task-1..5-report.md`: approved design/plan, durable requirements/tasks, and evidence.
+- `roadmap.md`, `progress.md`: completed item 22 and this handoff; item 21 was preserved.
+Commits: `7aea408`, `340c30d`, `713c60a`, `3a19a64`, `00ca186`, `2cc6140`, `8630c6a`, `c817cc5`, `3243fa7`, `8c257ee`, `ddd8213`, `8c655cc`, `270bcf8`, `1398191`, plus the final evidence commit.
+Next owner: user for manual install/upgrade testing on representative ABIs, then OpenSpec archival only on explicit request.
+Blockers: unchanged iOS common-test `Thread` references; no Android release, build-logic, JVM, desktop, OpenSpec, signing, cache, diff-hygiene, or final-review blocker.
+
 ## Handoff - 2026-07-15 track-list artwork collapse Task 3 verification evidence
 
 Route: openspec+superpowers / SDD Task 3 verification / visual QA

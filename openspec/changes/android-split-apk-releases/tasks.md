@@ -25,19 +25,23 @@
 - [x] 4.2 Record the failed exact-two-entry AGP 9.3 probe, preserve its sanitized root cause, and apply the user-approved design revision allowing the packaged `base/res/**` payloads required by the resource table without substituting filenames, source configuration, APK metadata, or AGP task inputs as proof.
 - [x] 4.3 After the probe passes, add RED contract tests and implement `VerifyReleaseAabTask` using the proven temporary conversion path, one non-empty AAB, canonical identity, and deterministic report.
 - [x] 4.4 Register `verifyReleaseAab` from release `SingleArtifact.BUNDLE`; prove it passes with and without exact split mode and has no APK/signing dependency.
-- [ ] 4.5 Review Task 4 for proven conversion syntax, independent bundle wiring, tool-error sanitization, and no `apksigner` use.
+- [x] 4.5 Review Task 4 for proven conversion syntax, independent bundle wiring, tool-error sanitization, and no `apksigner` use.
 
 ## 5. Default-mode and configuration-cache acceptance
 
-- [ ] 5.1 Run build-logic tests/plugin validation and verify actionable invalid ABI and noninteger version-code failures.
-- [ ] 5.2 Run split APK verification twice and independent AAB verification twice, proving configuration-cache storage and reuse.
-- [ ] 5.3 Verify non-exact split mode remains ordinary, debug assembly remains ordinary, and the supported JVM/desktop/Android regression matrix passes.
-- [ ] 5.4 Attempt `./init.sh`; record exact results and any unchanged unrelated iOS `Thread` compilation blocker without fixing it in this change.
-- [ ] 5.5 Add and verify a focused regression fix only if a witnessed acceptance failure requires it, then review its narrow scope.
+- [x] 5.1 Run build-logic tests/plugin validation and verify actionable invalid ABI and noninteger version-code failures.
+- [x] 5.2 Run split APK verification twice and independent AAB verification twice, proving configuration-cache storage and reuse.
+- [x] 5.3 Verify non-exact split mode remains ordinary, debug assembly remains ordinary, and the supported JVM/desktop/Android regression matrix passes.
+- [x] 5.4 Attempt `./init.sh`; record exact results and any unchanged unrelated iOS `Thread` compilation blocker without fixing it in this change.
+- [x] 5.5 Add and verify a focused regression fix only if a witnessed acceptance failure requires it, then review its narrow scope.
+
+Task 5 evidence, including the acceptance-failure diagnosis, witnessed RED/GREEN commands,
+explicit real-AAB probe, atomic fix commit, cache storage/reuse, artifact reports, and known
+iOS blocker, is recorded in `.superpowers/sdd/android-split-apk-releases-task-5-report.md`.
 
 ## 6. Full regression, review, and durable evidence
 
-- [ ] 6.1 Run diff hygiene and strict OpenSpec validation; review the complete change for all approved constraints and scope boundaries.
-- [ ] 6.2 Complete task-level specification/build-logic reviews and the final `review-work` gate. Resolve any Critical or Important finding through a new RED test and repeat affected evidence.
-- [ ] 6.3 Mark only evidenced task boxes complete, update only roadmap item 22 while preserving item 21, and prepend exact verification/signing/cache/blocker evidence to `progress.md`.
-- [ ] 6.4 Create the final atomic durable-evidence commit with the required Sisyphus footer and co-author trailer; do not push or archive without explicit request.
+- [x] 6.1 Run diff hygiene and strict OpenSpec validation; review the complete change for all approved constraints and scope boundaries.
+- [x] 6.2 Complete task-level specification/build-logic reviews and the final `review-work` gate. Resolve any Critical or Important finding through a new RED test and repeat affected evidence.
+- [x] 6.3 Mark only evidenced task boxes complete, update only roadmap item 22 while preserving item 21, and prepend exact verification/signing/cache/blocker evidence to `progress.md`.
+- [x] 6.4 Create the final atomic durable-evidence commit with the required Sisyphus footer and co-author trailer; do not push or archive without explicit request.
