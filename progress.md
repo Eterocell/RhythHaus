@@ -1,5 +1,103 @@
 # Session Progress
 
+## Prototype gate - 2026-07-16 single-owner macOS artwork scrolling
+
+Route: systematic-debugging / approved disposable architecture prototype / strict RED-GREEN
+Owner: prototype gate complete; next owner is OpenSpec/Superpowers for the production architecture amendment and plan
+Input: User approved the recommended recovery path after framework research and Oracle rejected further sibling-scroll/nested-scroll fixes.
+Scope:
+- Added a desktop-only diagnostic entry point with one `LazyColumn` and one `LazyListState` as the sole vertical input owner.
+- The prototype uses a square placeholder artwork item, an in-list sticky toolbar with a clickable back button, 48 rows for deep scrolling, visible index/offset/collapse diagnostics, and a `Restore top` action that calls `scrollToItem(0, 0)`.
+- Added a dedicated `runArtworkScrollPrototype` `JavaExec` task. Normal `MainKt`, Koin startup, packaging main class, shared production UI, OpenSpec artifacts, and the existing failed-attempt source files were not changed by the prototype.
+- Added a desktop-local pure list-position-to-visual-state mapper and focused tests for expanded, partial, collapsed, restored, zero-range, and inverted-range states.
+TDD evidence:
+- RED: `./gradlew :desktopApp:test --tests 'com.eterocell.rhythhaus.ArtworkScrollPrototypeTest' --configuration-cache` failed at test compilation only because `ArtworkPrototypeVisualState` and `artworkPrototypeVisualState` did not exist.
+- First GREEN attempt exposed missing direct desktop dependencies for the already-versioned Material 3 and material-icons artifacts; those catalog dependencies were added without changing versions or toolchains.
+- GREEN: the focused prototype test passed (`BUILD SUCCESSFUL in 4s`).
+Verification:
+- `./gradlew :desktopApp:compileKotlin :desktopApp:test --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`).
+- `GIT_MASTER=1 git diff --check`: pass.
+- Kotlin LSP remains unavailable because `kotlin-ls` is not installed and installation was previously declined.
+- `./gradlew :desktopApp:runArtworkScrollPrototype --configuration-cache` reached `:desktopApp:runArtworkScrollPrototype`; process PID `43045` was confirmed running with main class `com.eterocell.rhythhaus.ArtworkScrollPrototypeKt`.
+- Launch log: `/var/folders/l_/j8p3d1ln6q1drdptb1hhczrh0000gn/T/opencode/rhythhaus-artwork-prototype.log`.
+- Orca runtime was unavailable (`runtime_unavailable`), so no synthetic gesture or screenshot result is claimed. Synthetic input would not substitute for the required physical trackpad evidence in any case.
+Manual acceptance gate:
+- PASS (user-confirmed): upward physical trackpad scrolling while the pointer is over non-button artwork pixels moves the sole lazy list.
+- PASS (user-confirmed): after deep row scrolling, reverse physical trackpad scrolling reaches the top and fully restores the artwork without the prior dead boundary behavior.
+- PASS (user-confirmed): `Restore top` returns the prototype to its top state (`index=0`, `offset=0`).
+- PASS (user-confirmed): the back-arrow button closes the prototype.
+Acceptance: disposable prototype build/run and all four requested physical macOS interaction checks PASS. This validates the single-`LazyColumn` input topology; no production fix is claimed yet.
+Changed prototype files:
+- `desktopApp/build.gradle.kts`: existing-version UI/test dependencies and isolated launch task.
+- `desktopApp/src/main/kotlin/com/eterocell/rhythhaus/ArtworkScrollPrototype.kt`: disposable one-owner experiment.
+- `desktopApp/src/test/kotlin/com/eterocell/rhythhaus/ArtworkScrollPrototypeTest.kt`: pure mapper regressions.
+Next safe action:
+- Amend the implementation-specific OpenSpec/design wording, obtain plan approval, then replace the production artwork branch with the validated single-`LazyColumn` topology through TDD.
+- Remove the disposable prototype after it has served as production-plan evidence; do not ship its entry point, task, or direct desktop-only UI dependencies as product functionality unless the approved plan explicitly retains them.
+Blockers: production changes still require the OpenSpec/design amendment and an approved implementation plan. No prototype compile, focused test, launch, physical macOS interaction, or diff-hygiene blocker.
+Commit: skipped; user did not request a commit, and this remains a disposable diagnostic experiment.
+
+## Architecture stop - 2026-07-16 macOS artwork-collapse runtime failure
+
+Route: systematic-debugging / architecture reassessment after three failed fixes
+Owner: investigation complete; next owner is implementation only after a prototype and OpenSpec amendment
+Input: User tested the clean, diagnostics-free desktop build after the third artwork-scroll attempt and confirmed both failures remained: trackpad scrolling over artwork was still dead, and reverse-scrolling the track list still could not restore the artwork.
+Runtime acceptance:
+- FAIL: artwork-zone trackpad scrolling did not move/collapse the artwork and list.
+- FAIL: reverse trackpad scrolling after list movement did not restore the full-size artwork.
+- The runtime reproduction todo is closed as failed/superseded, not passed. No fourth production fix was attempted.
+Failed approaches:
+1. Stabilized list geometry with fixed expanded padding, a visual collapse offset, and compensated viewport measurement; runtime restoration still failed.
+2. Gated positive pre-scroll expansion on dynamic `LazyListState.canScrollBackward`; runtime restoration still failed.
+3. Moved one nested-scroll connection to the common parent and made the z-indexed artwork chrome a sibling `Modifier.scrollable` sharing the list's `LazyListState`; both artwork-zone scrolling and restoration still failed in the clean runtime.
+Confirmed evidence:
+- Raw pointer tracing showed artwork-zone events reached the root and chrome hit-test branch but not the `LazyColumn` branch.
+- List-boundary tracing captured a positive event where the child consumed part and post-scroll received the remainder (`+158 -> +53 child / +105 remainder`, with a second observed `+210 -> +55 / +155` sequence). This proved that a remainder can occur, but not that later boundary events reliably enter nested scroll.
+- Compose Multiplatform 1.11.1 framework-source research found that Desktop `MouseWheelScrollingLogic` can reject a wheel delta from `LazyListState.canScrollForward/canScrollBackward` before opening the nested-scroll pipeline. Nested scroll propagates only from a dispatching descendant to ancestors; sibling scrollables sharing one state synchronize position but remain independent input owners.
+- This framework behavior explains why parent `onPreScroll`/`onPostScroll` cannot guarantee macOS wheel restoration and why the z-indexed chrome remains an unreliable second input surface. JetBrains Compose Multiplatform issue #4975 reports the same Desktop/macOS nested-scroll wheel-boundary limitation.
+Review verdict:
+- The final source review of attempt three failed only because the `+210` trace test omitted its explicit matching pre-scroll assertion; it otherwise considered the source wiring coherent. The user's subsequent live failure supersedes that source-level assessment for acceptance.
+- Oracle rejected another nested-scroll patch and selected one vertical input owner: make artwork the first header extent/item in the sole `LazyColumn`, derive collapse visuals from list position, keep collapsed chrome inside the same lazy topology, restore naturally at item `0` offset `0`, and leave the no-artwork Miuix branch unchanged.
+- The observable product requirements remain valid, but implementation-specific OpenSpec language requiring an app-owned `NestedScrollConnection` and positive post-scroll restoration must be narrowly amended before production refactoring.
+Next safe action:
+- First build a disposable desktop-only single-`LazyColumn` prototype with placeholder square artwork, enough rows for deep scrolling, an in-list/sticky collapsed toolbar, the real back-button interaction shape, and scrollbar-to-`scrollToItem(0, 0)` behavior.
+- Require live macOS trackpad/wheel proof that scrolling works over non-button artwork pixels, collapse is continuous, deep reverse scrolling restores the artwork without a dead boundary event, scrollbar-to-top restores item `0` offset `0`, and the back button remains clickable.
+- If the prototype passes, amend the OpenSpec/design and create an approved implementation plan before replacing production architecture. If it fails, capture a fresh single-owner event trace instead of adding a platform input controller speculatively.
+Verification and scope:
+- Existing focused state-machine tests and JVM/desktop/Android compilation passed for attempt three, but they do not model or prove macOS wheel routing.
+- Kotlin LSP remains unavailable because `kotlin-ls` is not installed and installation was previously declined.
+- No commit was created. Current failed-attempt source/test changes remain uncommitted and must not be presented as a completed fix.
+Blockers: production implementation is blocked on the desktop prototype, live macOS input acceptance, and the required narrow OpenSpec/design update.
+
+## Follow-up - 2026-07-16 track-list artwork immediate reverse restoration
+
+Route: systematic-debugging + strict RED-GREEN TDD (second attempt after user-confirmed failure)
+Owner: implementation
+Input: User confirmed the first restoration fix was insufficient: after even a tiny artwork collapse, dragging downward could not restore the full image.
+Corrected root cause:
+- The prior handoff stabilized list layout geometry, but incorrectly assumed artwork expansion could wait for positive `onPostScroll` remainder.
+- A tiny upward drag is consumed entirely by artwork collapse in `onPreScroll`, so the list remains at item zero. On the following downward drag, the `LazyColumn` can consume the positive delta before `onPostScroll`, leaving no remainder and no artwork expansion.
+- The required ownership boundary is the current child scroll state: positive pre-scroll expands artwork only when `LazyListState.canScrollBackward` is false. When true, the list owns the downward delta until it returns to its start.
+Fix:
+- `ArtworkCollapseState` now receives a dynamic `canListScrollBackward` provider and reads it inside nested scroll.
+- Negative pre-scroll still collapses artwork one-for-one.
+- Positive pre-scroll expands artwork one-for-one only when the list cannot scroll backward; otherwise it consumes zero.
+- Post-scroll no longer expands artwork, preventing ambiguous same-delta ownership after the child consumes movement.
+- `DrillDownView` supplies `{ listState.canScrollBackward }`; no-artwork Miuix routing, stable fixed padding, compensated viewport layout, lazy artwork loading, and explicit scrollbar-to-top behavior remain unchanged.
+Verification:
+- RED: focused test compilation failed only because `ArtworkCollapseState` had no `canListScrollBackward` parameter.
+- Connection-level regressions prove a `-1px` collapse followed by `+1px` at list top restores exactly to the expanded snapshot; a list that can scroll backward retains the positive delta; changing the provider to false on a later delta begins expansion; post-scroll consumes zero.
+- First GREEN attempt encountered broad unresolved symbols across untouched common tests due stale Kotlin daemon/cache state; `:shared:compileKotlinJvm` still passed. After `./gradlew --stop`, an uncached `--rerun-tasks` focused run passed (`BUILD SUCCESSFUL in 29s`).
+- Focused artwork/navigation group passed (`BUILD SUCCESSFUL in 1s`).
+- `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 3s`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 7s`; existing Android artwork metadata deprecation warning only).
+- `GIT_MASTER=1 git diff --check`: pass.
+- Kotlin LSP remains unavailable because `kotlin-ls` is not installed and installation was previously declined.
+Runtime QA: User confirmation is still required on the real pointer/touch path; Orca runtime remained unavailable in the prior attempt, so no automated live gesture pass is claimed.
+Next owner: user to retest tiny collapse followed immediately by downward restoration, then deeper list scrolling followed by return-to-top and a subsequent downward delta.
+Blockers: manual target interaction confirmation only; no focused JVM, shared compile, JVM/desktop/Android matrix, or diff-hygiene blocker.
+Commit: skipped; user did not request a commit.
+
 ## Handoff - 2026-07-16 Android Split APK releases final evidence
 
 Route: openspec+superpowers / subagent-driven-development / final five-lane review
@@ -30,6 +128,49 @@ Changed files:
 Commits: `7aea408`, `340c30d`, `713c60a`, `3a19a64`, `00ca186`, `2cc6140`, `8630c6a`, `c817cc5`, `3243fa7`, `8c257ee`, `ddd8213`, `8c655cc`, `270bcf8`, `1398191`, plus the final evidence commit.
 Next owner: user for manual install/upgrade testing on representative ABIs, then OpenSpec archival only on explicit request.
 Blockers: unchanged iOS common-test `Thread` references; no Android release, build-logic, JVM, desktop, OpenSpec, signing, cache, diff-hygiene, or final-review blocker.
+
+## Handoff - 2026-07-16 track-list artwork reverse-scroll restoration
+
+Route: systematic-debugging + strict RED-GREEN TDD
+Owner: implementation
+Input: User report that album artwork on the nested track-list screen could collapse after scrolling down but could not be restored by scrolling back.
+Root cause:
+- Artwork bytes and lazy load state remained available; the failure was not image cache eviction.
+- Artwork expansion correctly consumed only positive `onPostScroll` remainder after the `LazyColumn` returned to its start, but the same collapse snapshot dynamically changed `contentPadding.top`. Increasing that padding during expansion moved the lazy list's start boundary and let the child consume the reverse delta required to continue expanding the artwork.
+- The custom scrollbar uses `scrollToItem`, which bypasses nested-scroll dispatch, so returning it to index zero also required an explicit artwork-state reset.
+Fix:
+- Artwork-mode list padding now remains fixed at the expanded artwork height. A visual offset of `-collapseOffset` keeps the visible first-content edge equal to the current artwork chrome height without changing the lazy list's start boundary.
+- The translated list child is measured taller by the same collapse offset while its wrapper retains the parent viewport, preserving the bottom render and hit-test extent.
+- Scrollbar targets mapped to index zero call `ArtworkCollapseState.expandFully()` before `scrollToItem(0)`; other targets do not reset artwork.
+- `rememberUpdatedState(onScrollToTop)` lets existing pointer-input coroutines observe the callback after lazy artwork changes from Loading to Available.
+- Loading, unavailable, failed, and absent artwork continue using the existing Miuix scroll/chrome path; artwork loading and image cache code are unchanged.
+Verification:
+- Initial RED: focused `ArtworkCollapseTest` compilation failed only on missing fixed-padding/visual-offset and `expandFully` APIs.
+- Review-fix RED: focused test compilation failed only on missing viewport-extension and scrollbar-target helpers.
+- Focused GREEN: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' --configuration-cache`: pass (`BUILD SUCCESSFUL`).
+- Focused artwork/navigation group: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' --tests 'com.eterocell.rhythhaus.ui.ArtworkImageTest' --tests 'com.eterocell.rhythhaus.library.ArtworkLazyLoadingTest' --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --configuration-cache`: pass (`BUILD SUCCESSFUL in 8s`).
+- Shared compiler gate: `./gradlew :shared:compileKotlinJvm --configuration-cache`: pass (`BUILD SUCCESSFUL in 4s`).
+- Fresh supported matrix: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 6s`; existing Android `MediaMetadata.Builder.setArtworkData` deprecation warning only).
+- One earlier full-matrix attempt encountered the unrelated intermittent `PlaybackControllerTest.discreteCommandsEmitCompleteImmediateSnapshots` failure; its forced isolated rerun passed, CodeGraph found no call path from the changed UI files, and the fresh complete matrix passed.
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, build `17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: iOS main compilation passed, then common-test compilation remained blocked by unchanged `AppScanCancellationTest.kt:64:28` and `:340:27` unresolved `Thread` references; no iOS simulator test pass is claimed.
+- Kotlin LSP diagnostics were unavailable because `kotlin-ls` is not installed and installation was previously declined; Gradle compilation/tests are the executable Kotlin checks.
+- `GIT_MASTER=1 git diff --check`: pass.
+- Five-lane review initially found two blockers: moving the entire list could shorten its bottom hit region, and pointer input could capture the initial null Loading-state callback. Both were corrected as described above.
+- Final Oracle re-review: PASS with no Critical or Important findings; viewport extent, callback freshness, top-only reset, and Miuix fallback were approved.
+Runtime QA:
+- `./gradlew :desktopApp:run --configuration-cache` reached `:desktopApp:run` without a reported crash.
+- Live collapse/reverse-scroll/scrollbar screenshots and gestures were blocked because `orca status --json` reported the Orca runtime not running and `orca computer capabilities --json` returned `runtime_unavailable`. No live visual, gesture, pixel, or CJK pass is claimed.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapse.kt`: stable geometry helpers, explicit expansion, and top-target policy.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt`: fixed artwork padding plus coordinated visual offset and compensated viewport measurement.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`: current callback capture and explicit scrollbar-to-top restoration.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapseTest.kt`: stable-boundary, viewport-extension, explicit expansion, and top-target regressions.
+- `progress.md`: this handoff.
+Scope: Unrelated `.superpowers/sdd/progress.md`, build-logic files/tests, and other concurrent workspace changes were preserved and not modified for this fix.
+Next owner: user for manual pointer/trackpad validation on desktop or a target device, especially partial/full collapse, reverse expansion after the list reaches item zero, bottom-edge interaction, and scrollbar-to-top.
+Blockers: manual runtime gesture/pixel validation unavailable; unrelated iOS common-test `Thread` references. No focused JVM, shared compile, JVM/desktop/Android matrix, diff-hygiene, or final-review blocker.
+Commit: skipped; user did not request a commit.
 
 ## Handoff - 2026-07-15 track-list artwork collapse Task 3 verification evidence
 
@@ -2920,3 +3061,13 @@ Verification:
 Next owner: user for manual visual validation of localized strings in English and Chinese on target devices; OpenSpec for archive when satisfied.
 Blockers: none.
 Commit: not created; will describe staged diff before committing per user preference.
+## Handoff - 2026-07-16 artwork topbar solid correction
+
+Route: openspec+superpowers
+Owner: implementation
+Input: User superseded artwork topbar Miuix blur with a progressive solid background and requested bottom-bar behavior remain/revert unchanged.
+Output: Artwork sticky chrome now uses clamped `HausColors.paper` opacity directly inside the sticky lazy item; artwork blur, measured sibling overlay, and placement state were removed. `NowPlayingBar.kt` has no diff and existing backdrop wiring is unchanged. Focused tests/compiler, strict OpenSpec, diff hygiene, isolated playback rerun, and fresh JVM/desktop/Android matrix pass. Production compact/wide artwork routes, back navigation, wide no-artwork Miuix route, CJK accessibility text, and bottom-bar presence were exercised through Orca.
+Next owner: user/manual visual acceptance for partial and pinned solid-background pixels, then OpenSpec final acceptance/archive if desired.
+Blockers: Orca could not drive the final custom detail scrollbar/wheel path; iOS tests remain blocked by unchanged `AppScanCancellationTest.kt` JVM-only `Thread` references at lines 64 and 340. Kotlin LSP remains unavailable by prior user choice.
+
+Acceptance update: user manually confirmed progressive solid fade at partial/pinned artwork states and unchanged bottom-bar rendering. Final spec PASS, quality APPROVED, and Oracle PASS were collected. OpenSpec Tasks 5.3 and 5.4 are complete. Remaining blocker applies only to iOS test compilation, not this requested implementation.
