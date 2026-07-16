@@ -1,5 +1,7 @@
 # Track List Artwork Collapse Implementation Plan
 
+> **SUPERSEDED — DO NOT EXECUTE:** Live macOS testing disproved this plan's nested-scroll architecture. The validated replacement uses one `LazyColumn` with aligned upper/sticky-lower artwork slices. Generate a new implementation plan only after the amended design in `docs/superpowers/specs/2026-07-15-track-list-artwork-collapse-design.md` is approved.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make album and artist Track List artwork collapse progressively with the track content, eliminating the transient gap while preserving no-artwork Miuix behavior.
