@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,12 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -88,141 +90,196 @@ internal fun rememberMiuixTopAppBarScrollBehavior(): ScrollBehavior = MiuixScrol
 internal fun DrillDownMiuixScrollChrome(
     scrollBehavior: ScrollBehavior,
     title: String,
-    topBarArtworkBytes: ByteArray? = null,
-    artworkCollapseSnapshot: ArtworkCollapseSnapshot? = null,
     onBack: () -> Unit,
     backdrop: LayerBackdrop?,
     modifier: Modifier = Modifier,
 ) {
-    val artworkSnapshot = artworkCollapseSnapshot
-    val hasArtwork = artworkSnapshot != null
-    val artworkBytes = if (hasArtwork) requireNotNull(topBarArtworkBytes) else null
-    val artworkProgress = artworkSnapshot?.progress ?: 0f
-    val collapsedFraction = if (hasArtwork) {
-        artworkProgress
-    } else {
-        scrollBehavior.state.collapsedFraction.coerceIn(0f, 1f)
-    }
-    val collapsedTitleAlpha = (collapsedFraction * 3f).coerceIn(0f, 1f)
-    val largeTitleAlpha = (1f - collapsedFraction * 2f).coerceIn(0f, 1f)
-    val solidBackgroundAlpha by animateFloatAsState(
-        targetValue = if (collapsedFraction <= 0f) 0f else collapsedFraction,
-    )
-
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .zIndex(3f),
     ) {
         val collapsedChromeHeight = rememberSystemBarTopPadding() + NestedScrollChromeToolbarHeight
         val navigationStartPadding = rememberSafeDrawingStartPadding() + 12.dp
-        val chromeHeight = artworkSnapshot
-            ?.let { with(LocalDensity.current) { artworkChromeHeightPx(it).toDp() } }
-            ?: collapsedChromeHeight
 
         Box(
-            modifier = if (hasArtwork) {
-                Modifier
-                    .fillMaxWidth()
-                    .height(chromeHeight)
-            } else {
-                Modifier
-                    .fillMaxWidth()
-                    .height(chromeHeight)
-                    .rhythHausLiquidGlass(
-                        backdrop = backdrop,
-                        shape = RoundedCornerShape(0.dp),
-                        fallbackColor = HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha),
-                    )
-            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(collapsedChromeHeight)
+                .rhythHausLiquidGlass(
+                    backdrop = backdrop,
+                    shape = RoundedCornerShape(0.dp),
+                    fallbackColor = HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha),
+                ),
         ) {
-            if (hasArtwork) {
-                ArtworkImage(
-                    artworkBytes = artworkBytes,
-                    contentDescription = stringResource(Res.string.album_artwork),
-                    role = ArtworkImageRole.Hero,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop,
-                    fallback = {},
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.Black.copy(alpha = 0.34f),
-                                    Color.Black.copy(alpha = 0.18f),
-                                    Color.Black.copy(alpha = 0.48f),
-                                ),
-                            ),
-                        ),
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(HausColors.current.paper.copy(alpha = 0.92f * solidBackgroundAlpha)),
-                )
-            }
-        TopAppBar(
-            title = if (hasArtwork) "" else title,
-            largeTitle = if (hasArtwork) "" else title,
-            subtitle = "",
-            modifier = Modifier.fillMaxWidth(),
-            color = Color.Transparent,
-            titleColor = HausColors.current.ink.copy(alpha = 0.90f),
-            largeTitleColor = HausColors.current.ink,
-            defaultWindowInsetsPadding = false,
-            titlePadding = 20.dp,
-            navigationIconPadding = navigationStartPadding,
-            actionIconPadding = 0.dp,
-            scrollBehavior = scrollBehavior,
-            navigationIcon = {
-                IconButton(
-                    onClick = onBack,
-                    backgroundColor = if (hasArtwork) {
-                        HausColors.current.paper.copy(alpha = 0.78f * solidBackgroundAlpha)
-                    } else {
-                        Color.Transparent
-                    },
-                    minWidth = 44.dp,
-                    minHeight = 44.dp,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(Res.string.back),
-                        tint = HausColors.current.ink,
-                    )
-                }
-            },
-            bottomContent = {
-                if (!hasArtwork) {
+            TopAppBar(
+                title = title,
+                largeTitle = title,
+                subtitle = "",
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.Transparent,
+                titleColor = HausColors.current.ink.copy(alpha = 0.90f),
+                largeTitleColor = HausColors.current.ink,
+                defaultWindowInsetsPadding = false,
+                titlePadding = 20.dp,
+                navigationIconPadding = navigationStartPadding,
+                actionIconPadding = 0.dp,
+                scrollBehavior = scrollBehavior,
+                navigationIcon = {
+                    IconButton(
+                        onClick = onBack,
+                        backgroundColor = Color.Transparent,
+                        minWidth = 44.dp,
+                        minHeight = 44.dp,
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(Res.string.back),
+                            tint = HausColors.current.ink,
+                        )
+                    }
+                },
+                bottomContent = {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
                             .background(HausColors.current.line.copy(alpha = 0.42f * scrollBehavior.state.collapsedFraction)),
                     )
-                }
-            },
-        )
-            if (hasArtwork) {
-                TitleChip(
-                    title = title,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = rememberSystemBarTopPadding() + 10.dp)
-                        .alpha(collapsedTitleAlpha),
-                )
-                TitleChip(
-                    title = title,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 20.dp, end = 20.dp, bottom = 18.dp)
-                        .alpha(largeTitleAlpha),
-                )
-            }
+                },
+            )
         }
+    }
+}
+
+@Composable
+internal fun DrillDownArtworkUpperSlice(
+    artworkBytes: ByteArray,
+    expandedHeight: Dp,
+    upperSliceHeight: Dp,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(upperSliceHeight)
+            .clipToBounds(),
+    ) {
+        DrillDownArtworkPlane(
+            artworkBytes = artworkBytes,
+            expandedHeight = expandedHeight,
+        )
+    }
+}
+
+@Composable
+internal fun DrillDownArtworkStickySlice(
+    title: String,
+    artworkBytes: ByteArray,
+    expandedHeight: Dp,
+    collapsedHeight: Dp,
+    imageOffsetY: Dp,
+    progress: Float,
+    modifier: Modifier = Modifier,
+) {
+    val collapsedTitleAlpha = (progress * 3f).coerceIn(0f, 1f)
+    val largeTitleAlpha = (1f - progress * 2f).coerceIn(0f, 1f)
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(collapsedHeight)
+            .clipToBounds(),
+    ) {
+        val titleAvailableWidth = artworkTitleAvailableWidth(
+            containerWidthDp = maxWidth.value,
+            safeStartInsetDp = rememberSafeDrawingStartPadding().value,
+        )
+        DrillDownArtworkPlane(
+            artworkBytes = artworkBytes,
+            expandedHeight = expandedHeight,
+            modifier = Modifier.offset(y = imageOffsetY),
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(HausColors.current.paper.copy(alpha = artworkChromeSolidAlpha(progress))),
+        )
+        TitleChip(
+            title = title,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = rememberSystemBarTopPadding() + 10.dp)
+                .widthIn(max = titleAvailableWidth.collapsedDp.dp)
+                .alpha(collapsedTitleAlpha),
+        )
+        TitleChip(
+            title = title,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 20.dp, end = 20.dp, bottom = 18.dp)
+                .widthIn(max = titleAvailableWidth.expandedDp.dp)
+                .alpha(largeTitleAlpha),
+        )
+    }
+}
+
+@Composable
+private fun DrillDownArtworkPlane(
+    artworkBytes: ByteArray,
+    expandedHeight: Dp,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.size(expandedHeight)) {
+        ArtworkImage(
+            artworkBytes = artworkBytes,
+            contentDescription = stringResource(Res.string.album_artwork),
+            role = ArtworkImageRole.Hero,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop,
+            fallback = {},
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.34f),
+                            Color.Black.copy(alpha = 0.18f),
+                            Color.Black.copy(alpha = 0.48f),
+                        ),
+                    ),
+                ),
+        )
+    }
+}
+
+@Composable
+internal fun DrillDownArtworkBackButton(
+    progress: Float,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val solidBackgroundAlpha by animateFloatAsState(
+        targetValue = if (progress <= 0f) 0f else progress,
+    )
+    IconButton(
+        onClick = onBack,
+        modifier = modifier
+            .offset(
+                x = rememberSafeDrawingStartPadding() + 12.dp,
+                y = rememberSystemBarTopPadding() + 6.dp,
+            )
+            .size(44.dp),
+        backgroundColor = HausColors.current.paper.copy(alpha = 0.78f * solidBackgroundAlpha),
+        minWidth = 44.dp,
+        minHeight = 44.dp,
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = stringResource(Res.string.back),
+            tint = HausColors.current.ink,
+        )
     }
 }
 
@@ -235,6 +292,8 @@ private fun TitleChip(
         text = title,
         fontWeight = FontWeight.Black,
         color = HausColors.current.ink,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier
             .clip(RoundedCornerShape(999.dp))
             .background(HausColors.current.paper.copy(alpha = 0.82f))
@@ -271,7 +330,7 @@ internal fun DrillDownScrollbar(
             // Must be an immediate (non-animated) scroll: animateScrollToItem takes ~300ms
             // and gets cancelled/restarted on every drag-move event, so the list perpetually
             // chases a stale animation and only catches up once the drag ends.
-            listState.scrollToItem(targetIndex)
+            listState.scrollToItem(index = targetIndex, scrollOffset = 0)
         }
     }
 

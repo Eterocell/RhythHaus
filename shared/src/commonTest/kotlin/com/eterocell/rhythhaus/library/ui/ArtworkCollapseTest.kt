@@ -11,57 +11,101 @@ class ArtworkCollapseTest {
     )
 
     @Test
-    fun snapshotKeepsHeaderAndContentOnOneClampedGeometry() {
-        assertEquals(ArtworkCollapseSnapshot(0f, 320f, 0f), geometry.snapshot(0f))
-        assertEquals(ArtworkCollapseSnapshot(120f, 200f, 0.5f), geometry.snapshot(120f))
-        assertEquals(ArtworkCollapseSnapshot(240f, 80f, 1f), geometry.snapshot(500f))
-    }
-
-    @Test
-    fun upwardMovementIsConsumedOneForOneUntilCollapsed() {
+    fun listPositionDerivesExpandedPartialAndCollapsedProgress() {
         assertEquals(
-            ArtworkCollapseConsumption(offsetPx = 50f, consumedY = -50f),
-            geometry.consumeUpward(offsetPx = 0f, availableY = -50f),
+            ArtworkCollapseSnapshot(240f, 80f, -240f, 0f),
+            geometry.snapshot(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 0),
         )
         assertEquals(
-            ArtworkCollapseConsumption(offsetPx = 240f, consumedY = -20f),
-            geometry.consumeUpward(offsetPx = 220f, availableY = -80f),
+            ArtworkCollapseSnapshot(240f, 80f, -240f, 0.5f),
+            geometry.snapshot(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 120),
         )
         assertEquals(
-            ArtworkCollapseConsumption(offsetPx = 240f, consumedY = 0f),
-            geometry.consumeUpward(offsetPx = 240f, availableY = -20f),
+            ArtworkCollapseSnapshot(240f, 80f, -240f, 1f),
+            geometry.snapshot(firstVisibleItemIndex = 1, firstVisibleItemScrollOffset = 0),
         )
     }
 
     @Test
-    fun downwardMovementExpandsSymmetrically() {
-        assertEquals(
-            ArtworkCollapseConsumption(offsetPx = 170f, consumedY = 50f),
-            geometry.consumeDownward(offsetPx = 220f, availableY = 50f),
-        )
-        assertEquals(
-            ArtworkCollapseConsumption(offsetPx = 0f, consumedY = 20f),
-            geometry.consumeDownward(offsetPx = 20f, availableY = 80f),
-        )
+    fun itemZeroOffsetZeroRestoresExpandedArtwork() {
+        assertEquals(0f, geometry.snapshot(0, 0).progress)
     }
 
     @Test
-    fun invalidRangesRenderCollapsedAndConsumeNothing() {
+    fun offsetsClampToTheArtworkRange() {
+        assertEquals(0f, geometry.snapshot(0, -20).progress)
+        assertEquals(1f, geometry.snapshot(0, 500).progress)
+    }
+
+    @Test
+    fun zeroAndInvertedRangesUseOneCollapsedSlice() {
         listOf(
             ArtworkCollapseGeometry(80f, 80f),
             ArtworkCollapseGeometry(60f, 80f),
         ).forEach { invalid ->
-            assertEquals(ArtworkCollapseSnapshot(0f, 80f, 1f), invalid.snapshot(40f))
-            assertEquals(ArtworkCollapseConsumption(0f, 0f), invalid.consumeUpward(0f, -30f))
-            assertEquals(ArtworkCollapseConsumption(0f, 0f), invalid.consumeDownward(0f, 30f))
+            assertEquals(
+                ArtworkCollapseSnapshot(0f, 80f, 0f, 1f),
+                invalid.snapshot(0, 40),
+            )
         }
     }
 
     @Test
-    fun resizedGeometryClampsExistingOffsetImmediately() {
-        val narrowed = ArtworkCollapseGeometry(expandedHeightPx = 200f, collapsedHeightPx = 80f)
+    fun slicesFormOneSquareAndShareOneImagePlacement() {
+        val snapshot = geometry.snapshot(0, 0)
+        assertEquals(320f, snapshot.upperSliceHeightPx + snapshot.lowerSliceHeightPx)
+        assertEquals(-snapshot.upperSliceHeightPx, snapshot.lowerSliceImageOffsetPx)
+    }
 
-        assertEquals(ArtworkCollapseSnapshot(120f, 80f, 1f), narrowed.snapshot(offsetPx = 220f))
+    @Test
+    fun resizedGeometryRecomputesFromCurrentListPosition() {
+        val resized = ArtworkCollapseGeometry(200f, 80f)
+        assertEquals(1f, resized.snapshot(0, 220).progress)
+        assertEquals(120f, resized.snapshot(0, 220).upperSliceHeightPx)
+    }
+
+    @Test
+    fun validRangeUsesUpperAndStickyLowerArtworkItems() {
+        assertEquals(
+            ArtworkHeaderItemPolicy.UpperAndStickyLower,
+            artworkHeaderItemPolicy(geometry),
+        )
+    }
+
+    @Test
+    fun zeroRangeUsesOnlyStickyLowerArtworkItem() {
+        assertEquals(
+            ArtworkHeaderItemPolicy.StickyLowerOnly,
+            artworkHeaderItemPolicy(ArtworkCollapseGeometry(80f, 80f)),
+        )
+    }
+
+    @Test
+    fun artworkListSpacingPreservesRowsWithoutSplittingArtworkSlices() {
+        assertEquals(20f, ArtworkDrillDownListSpacing.horizontalPaddingDp)
+        assertEquals(18f, ArtworkDrillDownListSpacing.itemGapDp)
+        assertEquals(0f, ArtworkDrillDownListSpacing.artworkSliceGapDp)
+    }
+
+    @Test
+    fun artworkChromeSolidAlphaClampsCollapseProgress() {
+        assertEquals(0f, artworkChromeSolidAlpha(-0.2f))
+        assertEquals(0f, artworkChromeSolidAlpha(0f))
+        assertEquals(0.5f, artworkChromeSolidAlpha(0.5f))
+        assertEquals(1f, artworkChromeSolidAlpha(1f))
+        assertEquals(1f, artworkChromeSolidAlpha(1.4f))
+    }
+
+    @Test
+    fun artworkTitleAvailableWidthReservesMarginsAndSafeBackRegion() {
+        assertEquals(
+            ArtworkTitleAvailableWidth(collapsedDp = 176f, expandedDp = 280f),
+            artworkTitleAvailableWidth(containerWidthDp = 320f, safeStartInsetDp = 8f),
+        )
+        assertEquals(
+            ArtworkTitleAvailableWidth(collapsedDp = 0f, expandedDp = 0f),
+            artworkTitleAvailableWidth(containerWidthDp = 32f, safeStartInsetDp = 40f),
+        )
     }
 
     @Test
@@ -122,11 +166,4 @@ class ArtworkCollapseTest {
         }
     }
 
-    @Test
-    fun listTopAndChromeHeightUseTheSameSnapshotValue() {
-        val snapshot = geometry.snapshot(offsetPx = 75f)
-
-        assertEquals(snapshot.headerHeightPx, artworkListTopPaddingPx(snapshot))
-        assertEquals(snapshot.headerHeightPx, artworkChromeHeightPx(snapshot))
-    }
 }

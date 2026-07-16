@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.taglib.TagLibReader
@@ -68,7 +69,7 @@ internal fun dispatchDrillDownAction(
 }
 
 @Composable
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 internal fun DrillDownView(
     title: String,
     subtitle: String,
@@ -112,22 +113,26 @@ internal fun DrillDownView(
             state = topBarArtworkState,
         )
         val scrollOwner = drillDownScrollOwner(drillDownArtwork)
-        val hasTopBarArtwork = scrollOwner == DrillDownScrollOwner.Artwork
+        val artworkBytes = (topBarArtworkState as? TrackArtworkLoadState.Available)?.bytes
+        val hasTopBarArtwork = artworkBytes != null
         val collapsedChromeHeight = drillDownStatusBarHeight + NestedScrollChromeToolbarHeight
         val density = LocalDensity.current
         val artworkGeometry = ArtworkCollapseGeometry(
             expandedHeightPx = with(density) { maxWidth.toPx() },
             collapsedHeightPx = with(density) { collapsedChromeHeight.toPx() },
         )
-        val artworkCollapseState = rememberArtworkCollapseState(artworkGeometry)
-        val artworkSnapshot = if (hasTopBarArtwork) artworkCollapseState.snapshot else null
-        val drillDownNestedScrollConnection = when (scrollOwner) {
-            DrillDownScrollOwner.Artwork -> artworkCollapseState.nestedScrollConnection
-            DrillDownScrollOwner.Miuix -> miuixScrollBehavior.nestedScrollConnection
+        val artworkSnapshot by remember(listState, artworkGeometry) {
+            derivedStateOf {
+                artworkGeometry.snapshot(
+                    firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                    firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
+                )
+            }
         }
-        val drillDownTopPadding = artworkSnapshot
-            ?.let { with(density) { artworkListTopPaddingPx(it).toDp() } }
-            ?: (drillDownStatusBarHeight + DrillDownMiuixScrollContentTopPadding)
+        val expandedArtworkHeight = maxWidth
+        val upperSliceHeight = with(density) { artworkSnapshot.upperSliceHeightPx.toDp() }
+        val lowerSliceHeight = with(density) { artworkSnapshot.lowerSliceHeightPx.toDp() }
+        val lowerSliceImageOffset = with(density) { artworkSnapshot.lowerSliceImageOffsetPx.toDp() }
         LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
             onScrollPositionChanged(listState.toLibraryScrollPosition())
         }
@@ -141,27 +146,76 @@ internal fun DrillDownView(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .nestedScroll(drillDownNestedScrollConnection)
-                        .padding(horizontal = 20.dp),
-                    contentPadding = PaddingValues(top = drillDownTopPadding),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                        .then(
+                            if (hasTopBarArtwork) {
+                                Modifier
+                            } else {
+                                Modifier
+                                    .nestedScroll(miuixScrollBehavior.nestedScrollConnection)
+                                    .padding(horizontal = 20.dp)
+                            },
+                        ),
+                    contentPadding = if (hasTopBarArtwork) {
+                        PaddingValues()
+                    } else {
+                        PaddingValues(top = drillDownStatusBarHeight + DrillDownMiuixScrollContentTopPadding)
+                    },
+                    verticalArrangement = if (hasTopBarArtwork) {
+                        Arrangement.Top
+                    } else {
+                        Arrangement.spacedBy(18.dp)
+                    },
                 ) {
-                    item { SectionLabel(title = title, subtitle = subtitle) }
-                    items(tracks, key = { it.id }) { track ->
-                        TrackRow(
-                            track = track,
-                            selected = track.id == selectedTrackId,
-                            onClick = {
-                                selectedTrackId = track.id
-                                dispatchDrillDownAction(
-                                    action = DrillDownAction.SelectTrack(track),
+                    if (hasTopBarArtwork) {
+                        if (artworkHeaderItemPolicy(artworkGeometry) == ArtworkHeaderItemPolicy.UpperAndStickyLower) {
+                            item(key = "artwork-upper") {
+                                DrillDownArtworkUpperSlice(
+                                    artworkBytes = requireNotNull(artworkBytes),
+                                    expandedHeight = expandedArtworkHeight,
+                                    upperSliceHeight = upperSliceHeight,
+                                )
+                            }
+                        }
+                        stickyHeader(key = "artwork-lower") {
+                            DrillDownArtworkStickySlice(
+                                title = title,
+                                artworkBytes = requireNotNull(artworkBytes),
+                                expandedHeight = expandedArtworkHeight,
+                                collapsedHeight = lowerSliceHeight,
+                                imageOffsetY = lowerSliceImageOffset,
+                                progress = artworkSnapshot.progress,
+                            )
+                        }
+                        item(key = "section") {
+                            DrillDownListItem { SectionLabel(title = title, subtitle = subtitle) }
+                        }
+                        items(tracks, key = { it.id }) { track ->
+                            DrillDownListItem {
+                                DrillDownTrackRow(
+                                    track = track,
+                                    selected = track.id == selectedTrackId,
+                                    onSelected = { selectedTrackId = track.id },
                                     onTrackClick = onTrackClick,
                                     onPlayPause = onPlayPause,
                                 )
-                            },
-                        )
+                            }
+                        }
+                        item(key = "now-playing-spacer") {
+                            Spacer(Modifier.height(NowPlayingBarContentPadding))
+                        }
+                    } else {
+                        item { SectionLabel(title = title, subtitle = subtitle) }
+                        items(tracks, key = { it.id }) { track ->
+                            DrillDownTrackRow(
+                                track = track,
+                                selected = track.id == selectedTrackId,
+                                onSelected = { selectedTrackId = track.id },
+                                onTrackClick = onTrackClick,
+                                onPlayPause = onPlayPause,
+                            )
+                        }
+                        item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
                     }
-                    item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
                 }
             }
         }
@@ -169,15 +223,21 @@ internal fun DrillDownView(
             listState = listState,
             modifier = Modifier.align(Alignment.CenterEnd),
         )
-        DrillDownMiuixScrollChrome(
-            scrollBehavior = miuixScrollBehavior,
-            title = title,
-            topBarArtworkBytes = (topBarArtworkState as? TrackArtworkLoadState.Available)?.bytes,
-            artworkCollapseSnapshot = artworkSnapshot,
-            onBack = onBack,
-            backdrop = drillDownBackdrop,
-            modifier = Modifier.align(Alignment.TopCenter),
-        )
+        if (scrollOwner == DrillDownScrollOwner.Artwork) {
+            DrillDownArtworkBackButton(
+                progress = artworkSnapshot.progress,
+                onBack = onBack,
+                modifier = Modifier.align(Alignment.TopStart),
+            )
+        } else {
+            DrillDownMiuixScrollChrome(
+                scrollBehavior = miuixScrollBehavior,
+                title = title,
+                onBack = onBack,
+                backdrop = drillDownBackdrop,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
 
         if (currentTrack != null) {
             val barExpandProgress = remember { Animatable(0f) }
@@ -207,4 +267,41 @@ internal fun DrillDownView(
             }
         }
     }
+}
+
+@Composable
+private fun DrillDownListItem(
+    bottomGap: Dp = ArtworkDrillDownListSpacing.itemGapDp.dp,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ArtworkDrillDownListSpacing.horizontalPaddingDp.dp)
+            .padding(bottom = bottomGap),
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun DrillDownTrackRow(
+    track: Track,
+    selected: Boolean,
+    onSelected: () -> Unit,
+    onTrackClick: (Track) -> Unit,
+    onPlayPause: () -> Unit,
+) {
+    TrackRow(
+        track = track,
+        selected = selected,
+        onClick = {
+            onSelected()
+            dispatchDrillDownAction(
+                action = DrillDownAction.SelectTrack(track),
+                onTrackClick = onTrackClick,
+                onPlayPause = onPlayPause,
+            )
+        },
+    )
 }
