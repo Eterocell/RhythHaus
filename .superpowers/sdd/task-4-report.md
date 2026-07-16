@@ -1,118 +1,199 @@
-# Task 4 Report: Playback session controller restore and checkpoints
+# Task 4 Report: Automated replacement verification
 
 ## Status
 
 DONE_WITH_CONCERNS
 
-## Changed files
+The strict OpenSpec check, supported JVM/desktop/Android matrix, Xcode availability check, and diff hygiene passed. The required iOS simulator command did not pass because unchanged common-test JVM-only `Thread` references blocked iOS test compilation. Kotlin LSP diagnostics were unavailable because `kotlin-ls` is not installed and installation was previously declined.
 
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionController.kt`
-  - Adds the exact internal session-controller interface from the authoritative brief.
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt`
-  - Implements controller/platform command gating, paused restore, live reconciliation, complete immediate snapshots, and keyed playing-progress checkpoints.
-- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/PlaybackControllerTest.kt`
-  - Adds focused command-gate, restore, reconciliation, checkpoint/coalescing/reset, stale-callback, and restore-load-failure coverage.
+## Inputs and scope
 
-## Strict RED evidence
+Read before verification:
 
-Command:
+- `AGENTS.md`
+- `docs/harness-engineering.md`
+- `progress.md`
+- `.superpowers/sdd/task-4-brief.md`
+- `.superpowers/sdd/task-1-report.md`
+- `.superpowers/sdd/task-2-report.md`
+- `.superpowers/sdd/task-3-report.md`
+- `openspec/changes/track-list-artwork-collapse/tasks.md`
 
-```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
-```
+Tasks 1-3 report replacement geometry/integration and prototype-cleanup evidence. The current OpenSpec ledger has Tasks 4.1-4.5 complete and Tasks 5.1-5.4 pending. This worker did not change source, tests, docs, OpenSpec, progress, roadmap, or task checkboxes; only this Task 4 evidence report was added.
 
-Result: expected `BUILD FAILED in 1s` during `:shared:compileTestKotlinJvm`. The compiler reported unresolved `checkpoints`, `setCommandsEnabled`, `restoreSession`, and `reconcileSession` references at the new focused test call sites. No production files had been edited.
+## Command-by-command evidence
 
-## GREEN evidence
+### 1. Strict OpenSpec validation
 
-Command:
-
-```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
-```
-
-Result: `BUILD SUCCESSFUL in 1s`; `25 actionable tasks: 6 executed, 19 up-to-date`; the complete focused controller suite passed after the final checkpoint-reset test.
-
-## Additional verification
-
-- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryPlaybackSelectionTest' --configuration-cache` — `BUILD SUCCESSFUL in 985ms`; existing selection behavior passed.
-- `./gradlew :shared:compileKotlinJvm --configuration-cache` — `BUILD SUCCESSFUL in 609ms`; common/JVM production compilation passed.
-- `GIT_MASTER=1 git diff --check` — pass with no output.
-- Kotlin `lsp_diagnostics` was attempted for all three changed Kotlin files, but `kotlin-ls` is not installed and installation was previously declined. Gradle is the compiler gate as required by the task context.
-
-## Requirement coverage
-
-- `setCommandsEnabled(false)` propagates to `PlatformPlaybackEngine.setUserTransportEnabled(false)` and makes queue/select, repeat/shuffle setters and toggles, play/pause/stop/seek/toggle/restart/skip APIs no-ops with no state mutation, engine action, or checkpoint.
-- Generation-filtered engine callbacks remain accepted independently of the user-command gate.
-- Restore reconciles saved IDs against supplied tracks, retains modes, regenerates only runtime shuffle order, loads paused, validates generation, clamps/seeks/pauses, publishes `Paused`, never calls play, and emits one normalized immediate snapshot.
-- Missing restore current selects the first survivor at zero; no survivors clear with a new generation and retain modes; load failure applies an empty paused fail-safe state.
-- Reconciliation preserves a surviving current item without reload, position, or status changes; otherwise it loads the first survivor paused at zero or clears when none survive. Every branch emits a complete immediate checkpoint.
-- Complete immediate snapshots cover queue/current, seek, pause, stop, repeat/shuffle, restore normalization, and reconciliation.
-- Playing progress is coalesced by `(activeGeneration, currentTrackId, whole-second bucket)` and the key resets on load/select/seek/stop/restore/reconcile. Immediate transitions do not share or suppress the progress key.
-- Task 3 cancellation, generation provenance, engine mutex serialization, lazy artwork loading, and existing enabled repeat/shuffle/completion/restart behavior remain covered by the full focused controller suite.
-
-## Self-review
-
-- Scope is limited to the exact Task 4 implementation/test files plus this required Task 4 report.
-- No Task 5 coordinator/store observation or Task 6 DI/App/lifecycle integration was added.
-- No platform engine internals, dependencies, SQL, UI, OpenSpec, progress, or roadmap files were changed.
-- Existing unrelated modifications to Task 1 and Task 2 reports were left untouched and are excluded from the Task 4 commit.
-- No type suppression, skipped/deleted tests, exact shuffle-order persistence, amend, or history rewrite was used.
-
-## Commit
-
-- `59a1895` — `feat: restore paused playback sessions`
-- The implementation commit contains the three exact production/direct-test files. This report is committed separately so implementation and durable evidence remain atomic.
-
-## Concerns
-
-- Kotlin LSP diagnostics are unavailable; focused Gradle tests and compilation are the source diagnostic evidence.
-- The authoritative OpenSpec task checklist remains globally unchecked from prior task execution; this task intentionally does not modify OpenSpec artifacts per the user scope prohibition.
-
-## Review findings fix
-
-### Root causes
-
-- Restore/reconcile released `engineMutex` after `loadPaused` validation and reacquired it for seek/pause. A newer operation could allocate/load another generation in that gap, allowing stale seek/pause to target the newer native item.
-- `restartCurrentTrack`, manual next/previous, and completion-driven replacements changed persisted current/position state through `loadSelected` or direct position reset without their own immediate checkpoint.
-- `MutableSharedFlow(extraBufferCapacity = 64)` plus unchecked `tryEmit` had no replay before collector startup and silently discarded checkpoints once the extra buffer was exhausted.
-- `associateBy` selected the last supplied duplicate track while queue mapping retained repeated runtime IDs, so malformed runtime input had neither stable first-wins metadata nor unique queue order.
-
-### RED evidence
-
-Command:
+Exact command:
 
 ```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache
+openspec validate track-list-artwork-collapse --strict
 ```
 
-Result: the focused run reproduced the findings before production edits. `restoreAndReconcileEngineTransactionsCannotInterleave` failed because reconciliation replaced state while restore A remained between load acknowledgement and seek/pause. `restoreAndReconcileDeduplicateRuntimeTrackIdsWithStableFirstWinsMetadata` failed because duplicate supplied IDs selected last-occurrence metadata and repeated queue IDs remained. The pre-collector and slow-collector checkpoint tests did not complete under the lossy non-replay flow, and the command exceeded the 120-second test timeout after reporting the deterministic assertion failures.
+Result: PASS.
 
-### Fixes
+Exact output:
 
-- Added a session-operation mutex and hold it across restore/reconcile state normalization and the complete engine transaction. Generation allocation, `loadPaused`, returned-generation checks, clamp, seek, pause, and final state publication now run inside one `engineMutex` section; a newer session operation cannot begin between validation and seek/pause.
-- Added exactly one immediate checkpoint after restart, successful manual next/previous replacement, and each completion-driven replacement. Existing `setQueue` and `selectTrack` emissions remain unchanged and are not duplicated.
-- Replaced the shared flow with an unlimited `Channel<PlaybackCheckpoint>` exposed through `receiveAsFlow()`. The documented contract is one process-owned persistence consumer; synchronous producers use non-blocking `trySend`, delivery is ordered/lossless while open, and release closes the channel.
-- Restore and reconciliation deduplicate supplied tracks and queue IDs with stable first-occurrence order/metadata. The persisted codec is unchanged.
+```text
+Change 'track-list-artwork-collapse' is valid
+```
 
-### GREEN and regression evidence
+### 2. Supported JVM/desktop/Android matrix
 
-- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache` — `BUILD SUCCESSFUL in 1s`; 40 focused controller tests passed.
-- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryPlaybackSelectionTest' --configuration-cache` — `BUILD SUCCESSFUL in 640ms`.
-- `./gradlew :shared:compileKotlinJvm --configuration-cache` — `BUILD SUCCESSFUL in 3s`.
-- `GIT_MASTER=1 git diff --check` — pass with no output.
-- Kotlin LSP remains unavailable because `kotlin-ls` is not installed and installation was previously declined.
+Exact command:
 
-### Review-fix self-review
+```bash
+./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache
+```
 
-- The blocked-load test proves safe ordering: restore A completes seek/pause before reconciliation B can load/seek/pause its replacement.
-- Existing Task 3 superseded-load cancellation coverage remains green; the added operation mutex does not replace engine serialization or swallow cancellation.
-- Immediate transition tests verify zero-position/current snapshots before any playing-progress checkpoint.
-- Checkpoint tests prove ordered delivery before collector startup and lossless delivery of 80 discrete mutations to a slow collector.
-- Duplicate-ID tests prove stable first-wins metadata and unique order for restore input and an existing duplicate queue at reconciliation.
-- Scope remains `Playback.kt`, `PlaybackControllerTest.kt`, and this Task 4 report. Task 1-2 report modifications remain untouched and excluded.
+Result: PASS.
 
-### Review-fix commits
+Evidence:
 
-- `92e5480` — `fix: harden playback session controller ordering`
-- Durable report evidence is recorded in the following documentation commit.
+```text
+BUILD SUCCESSFUL in 9s
+101 actionable tasks: 11 executed, 90 up-to-date
+Configuration cache entry reused.
+```
+
+The requested `:shared:jvmTest`, `:desktopApp:compileKotlin`, and `:androidApp:assembleDebug` tasks completed. Recorded warnings/notices:
+
+```text
+Parallel Configuration Cache is an incubating feature.
+w: file:///Users/eterocell/Sources/AndroidStudioWorkspace/RhythHaus/shared/src/androidMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.android.kt:474:17 'fun setArtworkData(p0: ByteArray?): MediaMetadata.Builder' is deprecated. Deprecated in Java.
+[Incubating] Problems report is available at: file:///Users/eterocell/Sources/AndroidStudioWorkspace/RhythHaus/build/reports/problems/problems-report.html
+```
+
+No warning was fixed because the brief forbids unrelated fixes.
+
+### 3. Xcode version
+
+Exact command:
+
+```bash
+/usr/bin/xcrun xcodebuild -version
+```
+
+Result: PASS.
+
+Exact output:
+
+```text
+Xcode 26.6
+Build version 17F113
+```
+
+### 4. iOS simulator test attempt
+
+Exact command:
+
+```bash
+./gradlew :shared:iosSimulatorArm64Test --configuration-cache
+```
+
+Result: FAIL; no iOS simulator test pass is claimed.
+
+The attempt reused the configuration cache. `:shared:compileKotlinIosSimulatorArm64` and `:shared:iosSimulatorArm64MainKlibrary` completed before `:shared:compileTestKotlinIosSimulatorArm64` failed. Exact compiler errors:
+
+```text
+e: file:///Users/eterocell/Sources/AndroidStudioWorkspace/RhythHaus/shared/src/commonTest/kotlin/com/eterocell/rhythhaus/AppScanCancellationTest.kt:64:28 Unresolved reference 'Thread'.
+e: file:///Users/eterocell/Sources/AndroidStudioWorkspace/RhythHaus/shared/src/commonTest/kotlin/com/eterocell/rhythhaus/AppScanCancellationTest.kt:340:27 Unresolved reference 'Thread'.
+```
+
+Final outcome:
+
+```text
+> Task :shared:compileTestKotlinIosSimulatorArm64 FAILED
+BUILD FAILED in 9s
+33 actionable tasks: 7 executed, 26 up-to-date
+Configuration cache entry reused.
+```
+
+The command also printed `Parallel Configuration Cache is an incubating feature.` The two errors are the unchanged unrelated blocker anticipated by the brief; they were not modified or suppressed.
+
+### 5. Kotlin diagnostics status
+
+`lsp_status` reported:
+
+```text
+kotlin-ls: missing; source=builtin; extensions=.kt, .kts
+Active LSP clients: 0
+```
+
+Kotlin LSP installation was previously declined, so changed-Kotlin-file `lsp_diagnostics` could not provide a diagnostic pass. The successful shared JVM tests, desktop Kotlin compilation, and Android assembly above are the executable Kotlin language checks. No LSP-clean claim is made.
+
+### 6. Diff hygiene
+
+Exact command:
+
+```bash
+GIT_MASTER=1 git diff --check
+```
+
+Result: PASS with no output; no whitespace errors were reported.
+
+### 7. Working-tree status
+
+Exact command:
+
+```bash
+GIT_MASTER=1 git status --short
+```
+
+Output before this report was added:
+
+```text
+ M .superpowers/sdd/progress.md
+ M .superpowers/sdd/task-1-report.md
+ M .superpowers/sdd/task-2-report.md
+ M .superpowers/sdd/task-3-report.md
+ M docs/superpowers/plans/2026-07-15-track-list-artwork-collapse.md
+ M docs/superpowers/specs/2026-07-15-track-list-artwork-collapse-design.md
+ M openspec/changes/track-list-artwork-collapse/design.md
+ M openspec/changes/track-list-artwork-collapse/proposal.md
+ M openspec/changes/track-list-artwork-collapse/specs/track-list-artwork-collapse/spec.md
+ M openspec/changes/track-list-artwork-collapse/tasks.md
+ M progress.md
+ M shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapse.kt
+ M shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt
+ M shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt
+ M shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapseTest.kt
+?? docs/superpowers/plans/2026-07-16-track-list-artwork-single-lazy-list.md
+```
+
+Additional read-only scope checks:
+
+- `GIT_MASTER=1 git diff --stat`: 15 tracked modified files, 827 insertions, 813 deletions.
+- `GIT_MASTER=1 git diff --cached --stat`: no output; nothing was staged.
+- The one untracked file is the replacement plan whose goal is the same single-`LazyColumn` architecture.
+- Visible paths are limited to intended shared artwork production/test files, design/plan/OpenSpec artifacts, and evidence/progress files described by Tasks 1-3. No unrelated platform implementation, dependency, toolchain, or generated artifact appears in status.
+- This is a path/scope assessment of the current tree, not an authorship claim. Nothing was reset, cleaned, staged, reverted, or committed.
+
+## Acceptance assessment
+
+- Strict OpenSpec validation: PASS.
+- Shared JVM tests: PASS as part of the supported matrix.
+- Desktop Kotlin compilation: PASS as part of the supported matrix.
+- Android debug assembly: PASS as part of the supported matrix.
+- Xcode availability: PASS (`Xcode 26.6`, build `17F113`).
+- iOS simulator tests: FAIL at unchanged `AppScanCancellationTest.kt:64:28` and `:340:27`; no iOS pass claimed.
+- Kotlin LSP diagnostics: UNAVAILABLE (`kotlin-ls` missing, installation previously declined); no LSP pass claimed.
+- Diff whitespace hygiene: PASS.
+- Changed-file scope: PASS by visible path classification; intended replacement/evidence files only.
+- Task 4 brief commands: all exact shell commands were executed.
+- OpenSpec state: Tasks 4.1-4.5 have source/test/cleanup evidence in Tasks 1-3; the automated evidence needed for 5.1 now exists, with the iOS blocker explicitly recorded. Per controller ownership, this report does not mark 5.1 complete. Tasks 5.2-5.4 remain pending and are not claimed by automated verification.
+
+## Blockers and concerns
+
+- iOS simulator tests remain blocked during common-test compilation by the two unchanged JVM-only `Thread` references above.
+- Kotlin LSP diagnostics remain unavailable because `kotlin-ls` is missing and installation was previously declined.
+- The Android deprecation warning at `PlaybackEngine.android.kt:474:17` and Gradle incubating-feature notices are non-failing and out of scope.
+- Physical macOS production QA, visual QA, and final review gates are outside this automated Task 4 run and remain pending in Tasks 5.2-5.4.
+
+Route: openspec+superpowers / automated replacement verification
+Owner: implementation verification worker
+Input: `.superpowers/sdd/task-4-brief.md`, Tasks 1-3 reports, current OpenSpec ledger, and project harness instructions
+Output: exact command evidence and this report; no production/controller-owned state changes
+Next owner: controller to review this evidence and conservatively update Task 5.1; then production physical macOS QA, visual QA, and final review owners for Tasks 5.2-5.4
+Blockers: unchanged iOS common-test `Thread` references and unavailable Kotlin LSP; no OpenSpec, JVM, desktop, Android, Xcode-availability, diff-hygiene, or visible-scope blocker
