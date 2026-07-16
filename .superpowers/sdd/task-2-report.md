@@ -1,128 +1,116 @@
-# Task 2 Report: Validated Playback Session DataStore
+# Task 2 Report: Single-owner artwork lazy sequence and chrome
 
-## Scope
+## Status
 
-Implemented only Task 2 playback-session storage files. Existing Task 1 codec/snapshot files, theme preference storage, playback engines/controller/coordinator/DI/App, dependencies, SQLDelight, OpenSpec, progress, and roadmap were not modified.
+Task 2 is GREEN. The Task 1 pure list-position geometry now has compiling production callers, so Tasks 1 and 2 form one GREEN integration unit.
 
-## Changed files
+## Files changed
 
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionStore.kt`
-  - Adds `PlaybackSessionStore`, `DataStorePlaybackSessionStore`, validated full-snapshot reads, pre-edit save validation, and one atomic Preferences edit.
-- `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionStore.android.kt`
-  - Adds an independent Android DataStore factory using `playback_session.preferences_pb` and `ReplaceFileCorruptionHandler { emptyPreferences() }`.
-- `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionStore.ios.kt`
-  - Adds an independent iOS application-support DataStore factory with the required filename and corruption handler.
-- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionStore.jvm.kt`
-  - Adds an independent JVM/macOS application-support DataStore factory with the required filename and corruption handler.
-- `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionStoreJvmTest.kt`
-  - Covers defaults, all-field round-trip, negative save clamping, invalid queue/current save preservation, malformed queue/current/position/repeat/shuffle full-default fallback, and current-ID consistency.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapse.kt`
+  - Preserved the Task 1 `ArtworkCollapseGeometry.snapshot(firstVisibleItemIndex, firstVisibleItemScrollOffset)` API unchanged.
+  - Added the exact pure `ArtworkHeaderItemPolicy`, `artworkHeaderItemPolicy`, `DrillDownListSpacing`, and `ArtworkDrillDownListSpacing` seams from the brief.
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapseTest.kt`
+  - Added valid-range and zero-range item-policy tests.
+  - Added exact 20 dp row inset, 18 dp item gap, and zero artwork-slice gap coverage.
+  - Retained explicit Loading/Unavailable Miuix and Available Artwork owner coverage.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`
+  - Made `DrillDownMiuixScrollChrome` no-artwork-only.
+  - Added clipped upper and sticky-lower artwork slices that place aligned portions of the same fixed square `ArtworkImage` with `ContentScale.Crop`, `ArtworkImageRole.Hero`, the existing artwork accessibility string, and the existing scrim/alpha curves.
+  - Added a safe-inset, button-sized 44 dp artwork back control with no full-screen input overlay.
+  - Simplified `DrillDownScrollbar` to direct `scrollToItem(index = targetIndex, scrollOffset = 0)` with no reset callback or updated-state capture.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt`
+  - Replaced the failed nested-scroll/sibling-scrollable/layout-compensation architecture with one literal `LazyColumn` and one `LazyListState`.
+  - Artwork order is keyed upper slice, sticky lower slice, section, keyed track rows, and Now Playing spacer.
+  - Artwork rows use local tested 20 dp horizontal inset and 18 dp bottom gaps; artwork slices remain full-bleed with no global spacing.
+  - Loading and Unavailable retain the unchanged Miuix list padding, arrangement, chrome, and sole Miuix nested-scroll connection.
+  - Preserved raw `onScrollPositionChanged(listState.toLibraryScrollPosition())` reporting and the existing scrollbar/Now Playing sibling positions.
 
-## Strict RED evidence
+## RED
 
-Command:
-
-```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionStoreJvmTest' --configuration-cache
-```
-
-Result: expected `BUILD FAILED` at `:shared:compileTestKotlinJvm`. The new direct test could not resolve `DataStorePlaybackSessionStore`, `save`, or `read` because the session store did not yet exist.
-
-## GREEN evidence
-
-Command:
+After adding only the policy/spacing tests, ran:
 
 ```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionStoreJvmTest' --configuration-cache
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' \
+  --configuration-cache
 ```
 
-Result: `BUILD SUCCESSFUL in 2s`; focused JVM store suite passed.
+Result: expected combined Task 1+2 failure at `:shared:compileKotlinJvm` (`BUILD FAILED in 2s`). The compiler stopped before test compilation because the intentionally dirty Task 1 callers still referenced six removed APIs:
 
-## Platform compile evidence
+- `artworkChromeHeightPx`
+- `scrollbarTargetsTop`
+- `rememberArtworkCollapseState`
+- `artworkListTopPaddingPx`
+- `artworkListVisualOffsetPx`
+- `artworkListViewportExtensionPx`
 
-Command:
+This is the exact integration boundary recorded in `task-1-report.md`; no unrelated source or test failure occurred. Because production compilation failed first, Gradle could not yet surface the new missing policy symbols independently. The policy seams were then added exactly as specified, and obsolete callers were replaced rather than restoring compatibility declarations from the rejected architecture.
+
+## GREEN
+
+Initial caller-integration compile:
 
 ```bash
-./gradlew :shared:compileKotlinJvm :shared:compileAndroidMain :shared:compileKotlinIosSimulatorArm64 --configuration-cache
+./gradlew :shared:compileKotlinJvm --configuration-cache
 ```
 
-Result: `BUILD SUCCESSFUL in 20s`. JVM, Android main, and iOS Simulator ARM64 main compiled. The only compiler warning was the pre-existing Android `MediaMetadata.Builder.setArtworkData` deprecation in `PlaybackEngine.android.kt`.
+Result: pass, `BUILD SUCCESSFUL in 5s`. This is the first Task 1 GREEN production integration.
 
-## Diagnostics and diff check
-
-- `lsp_diagnostics` was requested for all five changed Kotlin files, but `kotlin-ls` is not installed and the user previously declined installation. Gradle compilation is the available source diagnostic evidence.
-- `GIT_MASTER=1 git diff --check`: pass with no output.
-
-## Commit
-
-- Commit: `cff6d6d93f243705e5dde49888fb5be0dfe0c6b6`
-- Message: `feat: persist playback session snapshots`
-- Includes the required Sisyphus footer and co-author trailer.
-
-## Self-review
-
-- Storage uses dedicated keys and a dedicated file; it does not share the theme DataStore object or filename.
-- Queue and current IDs are encoded before `DataStore.edit`; an inconsistent current ID or codec violation throws before durable state can change.
-- All five fields are written in one `edit` transaction.
-- Reads validate queue decoding, zero-or-one current ID, current membership in the queue, non-negative persisted position, and exact enum names. Any malformed field returns the full empty/default snapshot rather than a partial snapshot.
-- Save-time negative positions are clamped to zero as specified.
-- Each platform actual uses the exact filename `playback_session.preferences_pb` and `ReplaceFileCorruptionHandler { emptyPreferences() }`.
-- No type suppressions, dependency changes, theme-store changes, Task 1 changes, or out-of-scope integration changes were introduced.
-
-## Review findings follow-up
-
-### Findings addressed
-
-- Added a real corrupt-file recovery test that writes invalid bytes before opening a Preferences DataStore configured with production-equivalent `ReplaceFileCorruptionHandler { emptyPreferences() }`, proves full-default recovery, then saves and reads a valid snapshot to prove continued usability.
-- Added storage-isolation coverage using separate real Preferences DataStores and real `theme_mode`/session keys, proving playback reads no theme-file session-like data and playback saves do not overwrite theme data.
-- Added an internal `JvmPlaybackSessionStoreFactory` seam used by the actual JVM factory. Tests prove the exact `Library/Application Support/RhythHaus/playback_session.preferences_pb` path and one lazy DataStore instance without exposing a public test API.
-- Split malformed-current coverage into truncated encoding, two-ID encoding, and valid single current ID absent from the queue.
-- Added a direct non-empty queue round-trip with null current ID and non-default position, repeat, and shuffle.
-- Updated every test DataStore fixture to retain its `SupervisorJob`, call `cancelAndJoin()` in `finally`, and only then delete files/directories.
-
-### Review-fix RED evidence
-
-Command:
+Initial policy/navigation GREEN:
 
 ```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionStoreJvmTest' --configuration-cache
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' \
+  --configuration-cache
 ```
 
-Result: expected `BUILD FAILED` at `:shared:compileTestKotlinJvm` because `JvmPlaybackSessionStoreFactory` was unresolved. This was the meaningful missing-production-seam RED. The new corruption, isolation, malformed-current, null-current, and resource-lifecycle tests target behavior already present or test-fixture discipline, so they did not independently demonstrate missing production behavior before the seam was added.
+Result: pass, `BUILD SUCCESSFUL in 4s`.
 
-### Review-fix GREEN evidence
-
-Command:
+Expanded focused GREEN:
 
 ```bash
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.session.PlaybackSessionStoreJvmTest' --configuration-cache
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' \
+  --tests 'com.eterocell.rhythhaus.ui.ArtworkImageTest' \
+  --tests 'com.eterocell.rhythhaus.library.ArtworkLazyLoadingTest' \
+  --configuration-cache
 ```
 
-Result: `BUILD SUCCESSFUL in 3s`; the expanded focused Task 2 JVM suite passed.
+Result: pass after final wiring, `BUILD SUCCESSFUL in 5s`.
 
-### Review-fix platform compile and diff evidence
-
-Command:
+Final shared JVM compiler gate:
 
 ```bash
-./gradlew :shared:compileKotlinJvm :shared:compileAndroidMain :shared:compileKotlinIosSimulatorArm64 --configuration-cache
+./gradlew :shared:compileKotlinJvm --configuration-cache
 ```
 
-Result: `BUILD SUCCESSFUL in 416ms`; JVM, Android main, and iOS Simulator ARM64 main compilation passed.
+Result: pass, `BUILD SUCCESSFUL in 337ms`.
 
-- `lsp_diagnostics` remained unavailable because `kotlin-ls` is not installed and installation was previously declined.
-- `GIT_MASTER=1 git diff --check`: pass with no output.
+Diff hygiene:
 
-### Review-fix commit
+```bash
+GIT_MASTER=1 git diff --check
+```
 
-- Commit: `45602c5c6bcae0eebc70d1e585553d1fe9ae78fb`
-- Message: `test: harden playback session storage coverage`
-- Includes the required Sisyphus footer and co-author trailer; prior commits were not amended.
+Result: pass with no output.
 
-### Review-fix self-review
+## Invariant review
 
-- Production behavior changed only in the JVM Task 2 factory file, extracting an internal seam while preserving the same production path, corruption handler, scope, lazy singleton DataStore, and actual factory behavior.
-- No Android/iOS production files required changes; their earlier factory behavior compiled unchanged.
-- Corruption recovery exercises serialized file bytes rather than preference-key mutation.
-- Isolation uses independent files and actual preference operations, not source-text inspection.
-- Current-ID malformed cases are now behaviorally distinct and directly named.
-- All temporary DataStore actors are cancelled and joined before filesystem cleanup, including two-store isolation and JVM factory tests.
+- Production search for `NestedScrollConnection`, `rememberArtworkCollapseState`, `Modifier.scrollable`, custom `.layout {`, `artworkListVisualOffsetPx`, `artworkListViewportExtensionPx`, `artworkListTopPaddingPx`, `expandFully`, `scrollbarTargetsTop`, `onScrollToTop`, and `rememberUpdatedState`: no matches.
+- `LibraryDetailContent.kt` contains exactly one `LazyColumn(` call and one `nestedScroll(` call. The latter is `miuixScrollBehavior.nestedScrollConnection` inside the no-artwork modifier branch only.
+- Artwork production sequence contains `artwork-upper`, sticky `artwork-lower`, `section`, track ID keys, and `now-playing-spacer`.
+- Upper and lower slices both render the same fixed `expandedHeight x expandedHeight` artwork plane; only the lower plane is translated by the Task 1 image offset. Each slice clips its own bounds, and no global padding or arrangement splits them.
+- Artwork back control has only safe-inset offsets and `.size(44.dp)`; it does not use `fillMaxWidth`, `fillMaxHeight`, or `matchParentSize`.
+- Scrollbar top naturally restores item zero with explicit `scrollOffset = 0`; no imperative collapse reset exists.
+- Raw list indices/offsets remain unchanged. Existing `LibraryNavigationTest` cases cover increasing/decreasing offsets within one item and increasing/decreasing indices across item boundaries.
+- Loading and Unavailable still classify as Miuix; only resolved Available bytes select artwork mode.
+
+## Diagnostics and concerns
+
+- Kotlin LSP diagnostics could not run because `kotlin-ls` is not installed and installation was previously declined. Focused JVM tests and `:shared:compileKotlinJvm` are the executable Kotlin validation evidence.
+- No desktop prototype/build configuration, OpenSpec/docs/progress/roadmap, navigation/playback logic, or unrelated dirty file was modified by this task.
+- No commit was created, as required.
+- This task did not run live desktop/device visual or physical trackpad QA. The approved disposable single-owner prototype already passed the physical macOS interaction gate; production pixel/gesture confirmation remains a manual follow-up rather than an automated GREEN claim.
