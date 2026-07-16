@@ -70,5 +70,14 @@ Task 1: complete (commit 01a1011, focused RED/GREEN 5/5 pass, spec and quality r
 Task 2: complete (commit 4ec83e9, focused UI/navigation/compile checks pass, spec and quality review clean; runtime visual QA deferred to Task 3)
 Task 2 follow-up: complete (commit eeae263, no-artwork lazy classification fixed; focused re-review PASS/APPROVED with two non-blocking Minors)
 Task 3: complete (post-fix OpenSpec/focused/JVM/desktop/Android/diff checks pass; iOS blocked by existing Thread references; final Oracle PASS; runtime gesture/pixel/CJK QA remains manual)
+
+## android-split-apk-releases
+Plan: docs/superpowers/plans/2026-07-16-android-split-apk-releases.md
+Task 1: complete (commit 3a19a64, parser/TestKit/TagLib evidence pass, spec and quality review clean)
+Task 2: complete (commit 00ca186, exact split/ordinary metadata and cache evidence pass, spec and quality review clean)
+Task 3: complete (commits 2cc6140 + 8630c6a, signed ordinary/split artifact verification pass, re-review clean)
+Task 4: complete (commits 8c655cc + 270bcf8, revised real-AAB SDK conversion and independent verifier pass; abbreviated-task fix re-review Spec PASS / Quality APPROVED)
+Task 5: complete (commit 1398191, build-logic/default/non-exact/cache/JVM/desktop/Android acceptance pass; `./init.sh` blocked only by unchanged iOS Thread references; focused review clean)
+Task 6: complete (strict OpenSpec/diff gates pass; five-lane final review technically passes with no blocking finding; roadmap item 22 and durable handoff recorded)
 Task 3: DONE_WITH_CONCERNS (OpenSpec/JVM/desktop/Android/Xcode/diff hygiene pass; iOS common tests blocked at AppScanCancellationTest.kt:64:28 and :340:27 by existing Thread references; compact/wide album/artist/no-artwork runtime captures obtained, but synthetic gestures and pixel/CJK inspection remain unverified; final broad review and evidence commit deferred to controller)
 Task 3 post-Oracle fix: commit eeae263 resolves the Important no-artwork finding with explicit Loading/Available/Unavailable classification; focused four-suite and full JVM/desktop/Android verification pass, Xcode 26.6 available, iOS remains blocked at the same Thread references, diff hygiene passes; focused re-review Spec PASS / Quality APPROVED with non-blocking Minors for missing direct cancellation coverage and an overstrong shared-classifier test name; final broad review/commit remain controller-owned
