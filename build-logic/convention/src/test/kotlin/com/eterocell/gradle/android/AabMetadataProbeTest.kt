@@ -16,11 +16,14 @@ import kotlin.test.assertTrue
 
 class AabMetadataProbeTest {
     @Test
+    fun absentProbePropertyLeavesDefaultSuiteRunnable() {
+        assertEquals(null, optionalAabProbePath(null))
+        assertEquals(null, optionalAabProbePath("   "))
+    }
+
+    @Test
     fun realAgpBundleConvertsToCanonicalSdkMetadata() {
-        val bundlePath = System.getProperty(AAB_PROBE_FILE_PROPERTY)
-            ?.takeIf(String::isNotBlank)
-            ?.let(Path::of)
-            ?: error("Required AAB probe input is missing; pass -P$AAB_PROBE_FILE_PROPERTY=<release.aab>.")
+        val bundlePath = optionalAabProbePath(System.getProperty(AAB_PROBE_FILE_PROPERTY)) ?: return
         require(Files.isRegularFile(bundlePath) && Files.size(bundlePath) > 0L) {
             "Required AAB probe input must be an existing non-empty file."
         }
@@ -171,6 +174,9 @@ class AabMetadataProbeTest {
         const val AAB_PROBE_FILE_PROPERTY = "rhythhaus.aabProbeFile"
     }
 }
+
+private fun optionalAabProbePath(rawValue: String?): Path? =
+    rawValue?.takeIf(String::isNotBlank)?.let(Path::of)
 
 private fun probeAabMetadata(bundlePath: Path): ReleaseArtifactIdentity {
     val sdkDirectory = probeAndroidSdkDirectory()
