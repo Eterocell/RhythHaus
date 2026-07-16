@@ -1,58 +1,76 @@
 ## Context
 
-Album and artist drill-down pages share `DrillDownView`. Artwork-backed pages render a square app-owned overlay in `DrillDownMiuixScrollChrome`, drive its height from Miuix `collapsedFraction`, and independently reserve `maxWidth + 20.dp` above the track list. Miuix 0.9.3 measures collapse from its large-title content and does not include external artwork, so these two geometries can diverge.
+Album and artist drill-down pages share `DrillDownView`. The original change replaced Miuix-owned artwork geometry with an app-owned nested-scroll state, but three live macOS attempts failed. Raw tracing showed that the z-indexed artwork chrome formed a separate hit-test branch, and Compose Desktop can reject wheel deltas at a `LazyListState` boundary before nested-scroll dispatch. Therefore `onPreScroll` and `onPostScroll` cannot guarantee artwork-zone input or reverse restoration.
 
-The approved interaction is a pinned coordinated collapse: upward movement removes the artwork range one pixel per pixel before the list scrolls, and downward movement restores the range after the list reaches its start.
+A disposable desktop prototype removed that boundary: one `LazyColumn` owned all vertical input, artwork was lazy content, and restoration was `scrollToItem(0, 0)`. The user physically verified artwork-zone trackpad scrolling, deep reverse restoration, programmatic top restoration, and back interaction. This evidence validates input topology, not final product visual fidelity.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Give artwork-backed drill-down pages one app-owned, geometry-derived collapse range.
-- Drive artwork height, list placement, and visual progress from the same clamped offset.
-- Preserve deterministic one-to-one nested-scroll consumption and symmetric expansion.
+- Make one `LazyColumn` and its `LazyListState` the sole vertical input owner on artwork-backed drill-down pages.
+- Represent exactly `expandedArtworkHeight - collapsedChromeHeight` pixels of collapse before track rows scroll normally.
+- Derive artwork progress and visual treatment from list position without mutable collapse state or layout feedback.
+- Preserve a seamless square artwork image at rest and a pinned collapsed artwork toolbar after the collapse range is exhausted.
 - Preserve the current Miuix behavior for no-artwork pages.
-- Make arithmetic and branch selection testable in common tests.
 
 **Non-Goals:**
 
 - Redesign artwork, title chips, rows, scrollbar, navigation, or playback.
-- Add parallax, snap, spring, fling, arbitrary multipliers, or timing-based collapse.
-- Upgrade, fork, or modify Miuix.
-- Change dependencies, persistence, platform integrations, or packaging.
+- Add nested-scroll interception, sibling vertical scrollables, dynamic content padding, platform pointer controllers, parallax, snap, spring, or timing-based collapse.
+- Upgrade, fork, or modify Miuix or Compose.
+- Retain the disposable desktop prototype as product functionality.
 
 ## Decisions
 
-### Use a pure geometry value plus a Compose-owned offset
+### Use one lazy item sequence as the scroll model
 
-`ArtworkCollapseGeometry` will hold expanded and collapsed pixel heights and expose a non-negative range, clamped offset, remaining header height, and normalized progress. Pure functions make boundary, resize, and coupling behavior testable without Compose instrumentation.
+For artwork-backed pages, the lazy sequence is:
 
-Compose will retain the mutable consumed offset. Each rendered snapshot is derived immediately from the latest geometry and a clamped current offset; a side effect persists any clamp after resize. This avoids a frame where chrome and content use stale geometry.
+1. a non-sticky upper artwork slice with height `collapseRange = expandedHeight - collapsedHeight`;
+2. a sticky lower artwork slice with height `collapsedHeight` that becomes the collapsed toolbar;
+3. the existing section label;
+4. the existing keyed track rows;
+5. the existing Now Playing bottom spacer.
 
-Alternative rejected: reuse Miuix `collapsedFraction`. Its range is measured from large-title content and cannot represent the external square artwork.
+At rest, the two artwork slices total the available width and form one square. The first `collapseRange` pixels of list travel remove only the upper slice. The lower slice then pins at collapsed height while rows scroll normally. Reverse list movement restores the same sequence naturally.
 
-### Attach exactly one nested-scroll owner per branch
+When `expandedHeight <= collapsedHeight`, omit the upper slice and render one collapsed sticky artwork/chrome item. The normalized progress is one and no invalid range or division occurs.
 
-Artwork-backed pages attach an app-owned `NestedScrollConnection`. Negative `onPreScroll` consumes the remaining upward collapse range before the child. Positive `onPostScroll.available.y` expands the header only after the child cannot consume more movement toward the list start. Returned consumption preserves the input sign and equals the actual clamped offset change.
+### Render one image through two aligned clips
 
-No-artwork pages attach only the existing Miuix connection. They keep the current large title, glass chrome, divider, and top-padding behavior.
+Both slices render aligned portions of the same fixed-size square image. The upper slice displays source y-offset zero. The lower slice clips the same square after translating it by `-collapseRange`, so the seam is continuous at rest and during movement. Each slice uses the same crop geometry and existing scrim treatment; neither independently crops the bytes.
 
-Alternative rejected: attach both connections. Two owners would compete for the same deltas and make ordering dependent on modifier composition.
+The large title treatment belongs to the lower artwork slice near its expanded-state bottom edge. The collapsed title/background treatment also belongs to that sticky slice and derives alpha from progress. A continuously available back button may remain as a button-sized safe-inset overlay above the list, but no full-size chrome overlay may cover the artwork input region or own vertical scrolling.
 
-### Couple list placement and chrome through one snapshot
+The sticky lower slice renders a solid `HausColors.paper` background above its aligned artwork. Its opacity equals clamped collapse progress: transparent at full expansion, progressive during collapse, and fully opaque when pinned. The artwork toolbar does not use `LayerBackdrop`, `drawBackdrop`, or Miuix blur. This keeps the chrome inside the sticky lazy item, avoids backdrop capture recursion and measured sibling-overlay state, and adds no scroll or hit-test owner. The existing bottom/Now Playing bar behavior is outside this artwork-chrome change and remains unchanged.
 
-The artwork snapshot provides remaining header height and progress. `DrillDownView` uses the height for the list's current top placement, while `DrillDownMiuixScrollChrome` uses the same height and progress for artwork size, title chips, solid background, and back-button fill. There is no separate fixed expanded artwork reservation.
+### Derive progress without controlling scroll
 
-Alternative rejected: animate only artwork height while keeping static content padding. That is the current root cause and necessarily permits a gap.
+Collapse progress is read-only derived state:
 
-### Derive all distances from current geometry
+- zero/inverted range: `1f`;
+- first visible item is the upper slice: clamp its scroll offset to the collapse range and divide by that range;
+- any later first visible item: `1f`.
 
-Expanded height remains the available width. Collapsed height remains the system-bar top inset plus 56 dp. A zero or inverted range renders at the collapsed height, consumes no nested scroll, and never divides by zero. Width, density, inset, or orientation changes recompute the range and clamp the current offset.
+The derivation never writes state, changes item sizes, or invokes scrolling. `scrollToItem(0, 0)` fully restores valid artwork ranges because item zero is the upper slice. No separate collapse offset, `expandFully()`, nested-scroll adapter, translated viewport, or dynamic top padding remains.
+
+### Preserve branch and direct-navigation behavior
+
+No-artwork pages retain the existing Miuix connection, glass chrome, large title, divider, and padding behavior. The custom scrollbar remains a direct-navigation control rather than a vertical scroll owner. Its top target calls `scrollToItem(0, 0)` in artwork mode; other index targeting remains unchanged unless separately specified.
+
+## Rejected Alternatives
+
+- **Shared `LazyListState` across sibling scrollables:** synchronizes position but creates independent input owners and fails macOS wheel-boundary delivery.
+- **Parent nested-scroll interception:** cannot receive Desktop wheel deltas rejected before nested-scroll dispatch.
+- **Full-size non-scrollable artwork overlay:** still wins hit testing and recreates the dead artwork zone.
+- **Platform pointer controller:** would reimplement wheel, trackpad, velocity, focus, and accessibility behavior without need after the one-owner prototype passed.
 
 ## Risks / Trade-offs
 
-- **Dynamic `LazyColumn` top placement can cause layout churn during drag** → Keep the derived state minimal, use a single geometry snapshot, and verify smoothness through runtime visual QA on compact and wide widths.
-- **Incorrect nested-scroll sign handling can reverse or over-consume movement** → Lock negative pre-scroll and positive post-scroll behavior with pure and focused adapter tests before UI wiring.
-- **Resize can briefly expose stale geometry** → Derive the rendered snapshot from the latest geometry immediately and persist its clamp after composition.
-- **No-artwork behavior could regress through shared wiring** → Keep explicit artwork/no-artwork branch selection and cover both policies in common tests.
-- **Automated tests cannot prove perceived smoothness** → Require manual visual QA for album and artist routes, forward and reverse movement, compact and wide windows, and post-collapse list scrolling.
+- **Artwork seam mismatch:** lock the shared image placement and manually inspect the seam at compact and wide widths.
+- **Sticky-header visual differences:** verify title chips, scrim, background fade, safe insets, and 44 dp back target in partial and fully collapsed states.
+- **Solid transition contrast:** verify progressive paper opacity and title/back contrast at expanded, partial, and pinned states.
+- **Scrollbar range approximation:** preserve existing index targeting and require exact top restoration; do not claim pixel-perfect total-content mapping.
+- **No-artwork regression:** retain explicit branch tests and unchanged Miuix wiring.
+- **Cross-platform input differences:** run common/JVM/Android/iOS compilation tests and require physical macOS trackpad acceptance on the production screen.
