@@ -245,12 +245,12 @@ internal fun LibraryRouteContent(
             PlaylistHubScreen(
                 state = playlistState,
                 onBack = onBack,
+                onRetry = onRefreshPlaylists,
                 onOpenPlaylist = { onOpenDetailRoute(LibraryRoute.PlaylistDetail(it)) },
                 onSelectTab = { onPlaylistStateAction(PlaylistStateAction.SelectTab(it)) },
                 onCreate = { name, onSuccess ->
                     onPlaylistMutation({ create(name) }, onSuccess)
                 },
-                onRetry = onRefreshPlaylists,
             )
         }
 
@@ -268,13 +268,19 @@ internal fun LibraryRouteContent(
                     libraryTracks = libraryTracks,
                     state = playlistState,
                     onBack = onBack,
+                    onRetry = onRefreshPlaylists,
                     onRename = { name, onSuccess ->
                         onPlaylistMutation({ rename(resolution.playlist.id, name) }, onSuccess)
                     },
                     onDelete = { onSuccess ->
                         onPlaylistMutation(
                             { delete(resolution.playlist.id) },
-                            { onSuccess(); onBack() },
+                            { outcome ->
+                                if (outcome is PlaylistStateAction.SnapshotConfirmed) {
+                                    onSuccess()
+                                    onBack()
+                                }
+                            },
                         )
                     },
                     onOpenBrowser = {

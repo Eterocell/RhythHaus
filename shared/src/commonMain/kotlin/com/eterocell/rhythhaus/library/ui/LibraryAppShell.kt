@@ -452,10 +452,15 @@ fun LibraryHomeScreen(
                         )
                     },
                     onDismiss = { onPlaylistStateAction(PlaylistStateAction.ClosePicker) },
+                    notice = playlistPickerPresentation(playlistState)?.notice,
                     onAppend = { request ->
                         onPlaylistMutation(
                             { append(request.playlistId, request.trackIds) },
-                            { onPlaylistStateAction(PlaylistStateAction.ClosePicker) },
+                            { outcome ->
+                                if (outcome is PlaylistStateAction.SnapshotConfirmed) {
+                                    onPlaylistStateAction(PlaylistStateAction.ClosePicker)
+                                }
+                            },
                         )
                     },
                     onInlineCreate = { request ->
@@ -464,7 +469,11 @@ fun LibraryHomeScreen(
                                 val playlist = create(request.name)
                                 append(playlist.id, listOf(request.trackId))
                             },
-                            { onPlaylistStateAction(PlaylistStateAction.ClosePicker) },
+                            { outcome ->
+                                if (outcome is PlaylistStateAction.SnapshotConfirmed) {
+                                    onPlaylistStateAction(PlaylistStateAction.ClosePicker)
+                                }
+                            },
                         )
                     },
                 )
@@ -496,10 +505,15 @@ fun LibraryHomeScreen(
                         )
                     },
                     onDismiss = { onPlaylistStateAction(PlaylistStateAction.CloseBrowser) },
+                    notice = playlistBrowserPresentation(playlistState)?.notice,
                     onConfirm = { request ->
                         onPlaylistMutation(
                             { append(request.playlistId, request.trackIds) },
-                            { onPlaylistStateAction(PlaylistStateAction.CloseBrowser) },
+                            { outcome ->
+                                if (outcome is PlaylistStateAction.SnapshotConfirmed) {
+                                    onPlaylistStateAction(PlaylistStateAction.CloseBrowser)
+                                }
+                            },
                         )
                     },
                 )

@@ -51,7 +51,7 @@ data class PlaylistState(
 
 typealias PlaylistMutationLauncher = (
     mutation: PlaylistRepository.() -> Unit,
-    onSuccess: () -> Unit,
+    onOutcome: (PlaylistStateAction) -> Unit,
 ) -> Unit
 
 sealed interface PlaylistStateAction {
@@ -113,9 +113,15 @@ fun reducePlaylistState(state: PlaylistState, action: PlaylistStateAction): Play
     }
     is PlaylistStateAction.SelectTab -> state.copy(selectedTab = action.tab)
     is PlaylistStateAction.ShowRecoverableMessage -> state.copy(recoverableMessage = action.message)
-    is PlaylistStateAction.OpenPicker -> state.copy(picker = action.picker)
+    is PlaylistStateAction.OpenPicker -> state.copy(
+        picker = action.picker,
+        mutationErrorMessage = null,
+    )
     PlaylistStateAction.ClosePicker -> state.copy(picker = null)
-    is PlaylistStateAction.OpenBrowser -> state.copy(browser = action.browser)
+    is PlaylistStateAction.OpenBrowser -> state.copy(
+        browser = action.browser,
+        mutationErrorMessage = null,
+    )
     PlaylistStateAction.CloseBrowser -> state.copy(browser = null)
     PlaylistStateAction.ClearMessages -> state.copy(
         readErrorMessage = null,
