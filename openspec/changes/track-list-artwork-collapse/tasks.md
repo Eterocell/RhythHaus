@@ -35,3 +35,4 @@
 - [x] 5.2 Perform physical macOS trackpad QA on production album and artist pages for artwork-zone scrolling, partial/full collapse, deep reverse restoration, scrollbar top restoration, and back interaction.
 - [x] 5.3 Perform visual QA at compact and wide widths for seamless artwork slices, sticky chrome, title/background transitions, no transient gap, and no-artwork Miuix behavior.
 - [x] 5.4 Run final code-quality, specification, and Oracle review gates; update `progress.md`, roadmap/OpenSpec evidence, and change-specific SDD reports without claiming unsupported platform acceptance.
+- [ ] 5.5 Verify on Android and iOS that each clipped artwork slice preserves one full square image plane without top/bottom crop; the constraint fix and automated platform compilation are complete, but target-device visual acceptance remains pending.
