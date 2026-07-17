@@ -40,6 +40,7 @@ import rhythhaus.shared.generated.resources.unknown_artist
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.search.SearchScreen
 import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
@@ -50,6 +51,22 @@ import com.eterocell.rhythhaus.theme.HausColors
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import kotlinx.coroutines.flow.StateFlow
+
+internal class QueueMutationDispatcher(
+    private val state: StateFlow<PlaybackState>,
+    private val reorderCommand: suspend (String, Int) -> QueueMutationResult,
+    private val removeCommand: suspend (String) -> QueueMutationResult,
+    private val clearCommand: suspend () -> QueueMutationResult,
+) {
+    suspend fun reorder(occurrenceId: String, targetIndex: Int): QueueMutationFeedback =
+        executeQueueMutation(state) { reorderCommand(occurrenceId, targetIndex) }
+
+    suspend fun remove(occurrenceId: String): QueueMutationFeedback =
+        executeQueueMutation(state) { removeCommand(occurrenceId) }
+
+    suspend fun clear(): QueueMutationFeedback = executeQueueMutation(state, clearCommand)
+}
 
 @Composable
 internal fun LibraryRouteOverlays(
@@ -242,8 +259,15 @@ internal fun LibraryRouteContent(
         }
 
         LibraryRoute.PlaylistHub -> {
+            val queueMutations = QueueMutationDispatcher(
+                state = playbackController.state,
+                reorderCommand = playbackController::reorderUpcoming,
+                removeCommand = playbackController::removeUpcoming,
+                clearCommand = playbackController::clearUpcoming,
+            )
             PlaylistHubScreen(
                 state = playlistState,
+                playbackState = playbackState,
                 onBack = onBack,
                 onRetry = onRefreshPlaylists,
                 onOpenPlaylist = { onOpenDetailRoute(LibraryRoute.PlaylistDetail(it)) },
@@ -251,6 +275,9 @@ internal fun LibraryRouteContent(
                 onCreate = { name, onSuccess ->
                     onPlaylistMutation({ create(name) }, onSuccess)
                 },
+                onReorderUpcoming = queueMutations::reorder,
+                onRemoveUpcoming = queueMutations::remove,
+                onClearUpcoming = queueMutations::clear,
             )
         }
 

@@ -21,10 +21,13 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +38,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -44,6 +49,8 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.PlayableTrack
+import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.Playlist
@@ -55,6 +62,8 @@ import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
 import org.jetbrains.compose.resources.stringResource
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.playlist_add_to
@@ -68,6 +77,7 @@ import rhythhaus.shared.generated.resources.playlist_delete
 import rhythhaus.shared.generated.resources.playlist_delete_confirmation_format
 import rhythhaus.shared.generated.resources.playlist_drag_format
 import rhythhaus.shared.generated.resources.playlist_empty_detail
+import rhythhaus.shared.generated.resources.playlist_empty_queue
 import rhythhaus.shared.generated.resources.playlist_empty_saved
 import rhythhaus.shared.generated.resources.playlist_entry_state
 import rhythhaus.shared.generated.resources.playlist_move_down_format
@@ -84,6 +94,18 @@ import rhythhaus.shared.generated.resources.playlist_saved_tab
 import rhythhaus.shared.generated.resources.playlist_selected_state
 import rhythhaus.shared.generated.resources.playlist_track_browser_search
 import rhythhaus.shared.generated.resources.playlists
+import rhythhaus.shared.generated.resources.queue_changed
+import rhythhaus.shared.generated.resources.queue_clear_confirmation
+import rhythhaus.shared.generated.resources.queue_clear_confirm
+import rhythhaus.shared.generated.resources.queue_clear_upcoming
+import rhythhaus.shared.generated.resources.queue_current
+import rhythhaus.shared.generated.resources.queue_current_state
+import rhythhaus.shared.generated.resources.queue_drag_format
+import rhythhaus.shared.generated.resources.queue_move_down_format
+import rhythhaus.shared.generated.resources.queue_move_up_format
+import rhythhaus.shared.generated.resources.queue_remove_format
+import rhythhaus.shared.generated.resources.queue_upcoming
+import rhythhaus.shared.generated.resources.queue_upcoming_state
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -340,18 +362,117 @@ fun playlistDetailModel(
     entries.mapNotNull { entry -> tracksById[entry.trackId]?.let { PlaylistDetailRow(entry, it) } },
 )
 
+enum class QueueRowRole { Current, Upcoming }
+enum class QueueRowState { Current, Upcoming }
+enum class QueueRowAction { Drag, MoveUp, MoveDown, Remove }
+
+data class QueueRowPresentation(
+    val occurrence: QueueOccurrence,
+    val role: QueueRowRole,
+    val canDrag: Boolean,
+    val canMoveUp: Boolean,
+    val canMoveDown: Boolean,
+    val canRemove: Boolean,
+    val semanticRole: Role = Role.Image,
+    val semanticState: QueueRowState = if (role == QueueRowRole.Current) QueueRowState.Current else QueueRowState.Upcoming,
+    val actionTrackTitle: String? = occurrence.track.title.takeIf { role == QueueRowRole.Upcoming },
+) {
+    val availableActions: Set<QueueRowAction> = buildSet {
+        if (canDrag) add(QueueRowAction.Drag)
+        if (canMoveUp) add(QueueRowAction.MoveUp)
+        if (canMoveDown) add(QueueRowAction.MoveDown)
+        if (canRemove) add(QueueRowAction.Remove)
+    }
+}
+
+data class QueueTabPresentation(
+    val rows: List<QueueRowPresentation>,
+    val bottomContentPadding: androidx.compose.ui.unit.Dp = NowPlayingBarContentPadding,
+) {
+    val isEmpty: Boolean get() = rows.isEmpty()
+    val upcomingOccurrenceIds: List<String> get() = rows.filter { it.role == QueueRowRole.Upcoming }.map { it.occurrence.id }
+
+    fun movedUpcomingIds(occurrenceId: String, offset: Int): List<String> =
+        movedPlaylistEntryIds(upcomingOccurrenceIds, occurrenceId, offset)
+}
+
+fun queueTabPresentation(state: PlaybackState): QueueTabPresentation {
+    val currentIndex = state.queue.indexOfFirst { it.id == state.currentOccurrenceId }
+    if (currentIndex < 0) return QueueTabPresentation(emptyList())
+    val current = state.queue[currentIndex]
+    val upcoming = state.queue.drop(currentIndex + 1)
+    return QueueTabPresentation(
+        rows = buildList {
+            add(
+                QueueRowPresentation(
+                    occurrence = current,
+                    role = QueueRowRole.Current,
+                    canDrag = false,
+                    canMoveUp = false,
+                    canMoveDown = false,
+                    canRemove = false,
+                ),
+            )
+            upcoming.forEachIndexed { index, occurrence ->
+                add(
+                    QueueRowPresentation(
+                        occurrence = occurrence,
+                        role = QueueRowRole.Upcoming,
+                        canDrag = true,
+                        canMoveUp = index > 0,
+                        canMoveDown = index < upcoming.lastIndex,
+                        canRemove = true,
+                    ),
+                )
+            }
+        },
+    )
+}
+
+data class QueueMutationFeedback(
+    val refreshedState: PlaybackState,
+    val showQueueChanged: Boolean,
+)
+
+suspend fun executeQueueMutation(
+    state: StateFlow<PlaybackState>,
+    command: suspend () -> QueueMutationResult,
+): QueueMutationFeedback {
+    val result = command()
+    return QueueMutationFeedback(
+        refreshedState = state.value,
+        showQueueChanged = result is QueueMutationResult.Rejected,
+    )
+}
+
+data class QueueClearConfirmationPresentation(val shouldDispatchClear: Boolean = false) {
+    fun confirm() = copy(shouldDispatchClear = true)
+    fun dismiss() = copy(shouldDispatchClear = false)
+}
+
+fun queueClearConfirmationPresentation() = QueueClearConfirmationPresentation()
+
 @Composable
 internal fun PlaylistHubScreen(
     state: PlaylistState,
+    playbackState: PlaybackState,
     onBack: () -> Unit,
     onOpenPlaylist: (String) -> Unit,
     onSelectTab: (PlaylistTab) -> Unit,
     onCreate: (String, (PlaylistStateAction) -> Unit) -> Unit,
     onRetry: () -> Unit,
+    onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
+    onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
+    onClearUpcoming: suspend () -> QueueMutationFeedback,
 ) {
     var createDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
     var createOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
     val routePresentation = playlistRoutePresentation(state)
+    val bottomContentPadding = if (state.selectedTab == PlaylistTab.Queue) {
+        queueTabPresentation(playbackState).bottomContentPadding
+    } else {
+        NowPlayingBarContentPadding
+    }
     PlaylistScreenFrame(title = stringResource(Res.string.playlists), onBack = onBack) {
         item(key = "tabs") { PlaylistTabs(state.selectedTab, onSelectTab) }
         if (state.isLoading && !state.hasConfirmedSnapshot) {
@@ -383,6 +504,13 @@ internal fun PlaylistHubScreen(
                     )
                 }
             }
+        } else {
+            queueTabItems(
+                playbackState = playbackState,
+                onReorderUpcoming = onReorderUpcoming,
+                onRemoveUpcoming = onRemoveUpcoming,
+                onClearUpcoming = onClearUpcoming,
+            )
         }
         if (routePresentation.notice == PlaylistRoutePresentationNotice.ReadFailed && state.hasConfirmedSnapshot) {
             item(key = "retained-read-error") {
@@ -390,7 +518,7 @@ internal fun PlaylistHubScreen(
             }
         }
         item(key = "notice") { PlaylistNotice(state) }
-        item(key = "spacer") { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
+        item(key = "spacer") { Spacer(Modifier.height(bottomContentPadding)) }
     }
     createDraft?.let { draft ->
         val modalPresentation = playlistNameModalPresentation(draft, createOutcome)
@@ -412,6 +540,216 @@ internal fun PlaylistHubScreen(
                 }
             },
         )
+    }
+}
+
+private fun LazyListScope.queueTabItems(
+    playbackState: PlaybackState,
+    onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
+    onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
+    onClearUpcoming: suspend () -> QueueMutationFeedback,
+) {
+    item(key = "queue-content") {
+        QueueTabScreen(
+            playbackState = playbackState,
+            onReorderUpcoming = onReorderUpcoming,
+            onRemoveUpcoming = onRemoveUpcoming,
+            onClearUpcoming = onClearUpcoming,
+        )
+    }
+}
+
+@Composable
+internal fun QueueTabScreen(
+    playbackState: PlaybackState,
+    onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
+    onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
+    onClearUpcoming: suspend () -> QueueMutationFeedback,
+) {
+    var confirmedState by remember { mutableStateOf(playbackState) }
+    var showQueueChanged by remember { mutableStateOf(false) }
+    var clearConfirmation by remember { mutableStateOf<QueueClearConfirmationPresentation?>(null) }
+    val scope = rememberCoroutineScope()
+    val rowCenters = remember { mutableStateMapOf<Int, Float>() }
+    LaunchedEffect(playbackState) { confirmedState = playbackState }
+    val presentation = queueTabPresentation(confirmedState)
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (presentation.isEmpty) {
+            EmptyPlaylistMessage(stringResource(Res.string.playlist_empty_queue))
+        } else {
+            QueueSectionLabel(stringResource(Res.string.queue_current))
+            QueueOccurrenceRow(row = presentation.rows.first())
+            val upcomingRows = presentation.rows.drop(1)
+            if (upcomingRows.isNotEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    QueueSectionLabel(stringResource(Res.string.queue_upcoming), Modifier.weight(1f))
+                    CompactAction(stringResource(Res.string.queue_clear_upcoming), Modifier) {
+                        clearConfirmation = queueClearConfirmationPresentation()
+                    }
+                }
+                upcomingRows.forEachIndexed { index, row ->
+                    key(row.occurrence.id) {
+                        QueueOccurrenceRow(
+                            row = row,
+                            upcomingIndex = index,
+                            upcomingIds = presentation.upcomingOccurrenceIds,
+                            rowCenters = rowCenters,
+                            onMove = { offset ->
+                                scope.launch {
+                                    val feedback = onReorderUpcoming(row.occurrence.id, index + offset)
+                                    confirmedState = feedback.refreshedState
+                                    showQueueChanged = feedback.showQueueChanged
+                                }
+                            },
+                            onDragTarget = { targetIndex ->
+                                scope.launch {
+                                    val feedback = onReorderUpcoming(row.occurrence.id, targetIndex)
+                                    confirmedState = feedback.refreshedState
+                                    showQueueChanged = feedback.showQueueChanged
+                                }
+                            },
+                            onRemove = {
+                                scope.launch {
+                                    val feedback = onRemoveUpcoming(row.occurrence.id)
+                                    confirmedState = feedback.refreshedState
+                                    showQueueChanged = feedback.showQueueChanged
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        if (showQueueChanged) Text(stringResource(Res.string.queue_changed), color = HausColors.current.pulse, fontSize = 13.sp)
+    }
+
+    clearConfirmation?.let { confirmation ->
+        ConfirmationDialog(
+            title = stringResource(Res.string.queue_clear_confirm),
+            message = stringResource(Res.string.queue_clear_confirmation),
+            onDismiss = { clearConfirmation = confirmation.dismiss(); clearConfirmation = null },
+            onConfirm = {
+                clearConfirmation = confirmation.confirm()
+                if (clearConfirmation?.shouldDispatchClear == true) {
+                    scope.launch {
+                        val feedback = onClearUpcoming()
+                        confirmedState = feedback.refreshedState
+                        showQueueChanged = feedback.showQueueChanged
+                    }
+                }
+                clearConfirmation = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun QueueSectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        modifier = modifier.padding(vertical = 4.dp),
+        color = HausColors.current.ink,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Black,
+    )
+}
+
+@Composable
+private fun QueueOccurrenceRow(
+    row: QueueRowPresentation,
+    upcomingIndex: Int = -1,
+    upcomingIds: List<String> = emptyList(),
+    rowCenters: MutableMap<Int, Float> = mutableMapOf(),
+    onMove: (Int) -> Unit = {},
+    onDragTarget: (Int) -> Unit = {},
+    onRemove: () -> Unit = {},
+) {
+    val isCurrent = row.role == QueueRowRole.Current
+    val rowState = stringResource(
+        when (row.semanticState) {
+            QueueRowState.Current -> Res.string.queue_current_state
+            QueueRowState.Upcoming -> Res.string.queue_upcoming_state
+        },
+    )
+    val actionTrackTitle = row.actionTrackTitle ?: row.occurrence.track.title
+    val moveUp = stringResource(Res.string.queue_move_up_format, actionTrackTitle)
+    val moveDown = stringResource(Res.string.queue_move_down_format, actionTrackTitle)
+    val drag = stringResource(Res.string.queue_drag_format, actionTrackTitle)
+    val remove = stringResource(Res.string.queue_remove_format, actionTrackTitle)
+    val shape = RoundedCornerShape(20.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (upcomingIndex >= 0) {
+                    Modifier.onGloballyPositioned { coordinates ->
+                        rowCenters[upcomingIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .border(1.dp, if (isCurrent) HausColors.current.pulse else HausColors.current.line, shape)
+            .background(if (isCurrent) HausColors.current.panelStrong else HausColors.current.panel.copy(alpha = .54f), shape)
+            .semantics {
+                role = row.semanticRole
+                contentDescription = row.occurrence.track.title
+                stateDescription = rowState
+            }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (QueueRowAction.Drag in row.availableActions) {
+            Text(
+                "≡",
+                modifier = Modifier
+                    .size(44.dp)
+                    .pointerInput(row.occurrence.id, upcomingIds, rowCenters.toMap()) {
+                        var pointerY = rowCenters[upcomingIndex] ?: 0f
+                        var targetIndex = upcomingIndex
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                pointerY = rowCenters[upcomingIndex] ?: 0f
+                                targetIndex = upcomingIndex
+                            },
+                            onDragEnd = {
+                                if (targetIndex != upcomingIndex) onDragTarget(targetIndex)
+                            },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                pointerY += amount.y
+                                targetIndex = playlistDragTargetIndex(pointerY, rowCenters, upcomingIndex)
+                            },
+                        )
+                    }
+                    .semantics { contentDescription = drag },
+                color = HausColors.current.muted,
+                fontSize = 24.sp,
+            )
+        }
+        LazyTrackArtworkImage(
+            trackId = row.occurrence.track.id,
+            eagerArtworkBytes = row.occurrence.track.artworkBytes,
+            contentDescription = row.occurrence.track.title,
+            role = ArtworkImageRole.Thumbnail,
+            modifier = Modifier.size(48.dp).background(HausColors.current.panelStrong, RoundedCornerShape(14.dp)),
+            contentScale = ContentScale.Crop,
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(row.occurrence.track.title.firstOrNull()?.uppercase() ?: "♪", color = HausColors.current.ink, fontWeight = FontWeight.Black)
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(row.occurrence.track.title, color = HausColors.current.ink, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(row.occurrence.track.artist, color = HausColors.current.muted, fontSize = 12.sp, maxLines = 1)
+        }
+        if (QueueRowAction.Remove in row.availableActions) {
+            IconButton(onClick = { onMove(-1) }, enabled = QueueRowAction.MoveUp in row.availableActions, minWidth = 40.dp, minHeight = 40.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveUp }) { Text("↑", color = HausColors.current.ink) }
+            IconButton(onClick = { onMove(1) }, enabled = QueueRowAction.MoveDown in row.availableActions, minWidth = 40.dp, minHeight = 40.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveDown }) { Text("↓", color = HausColors.current.ink) }
+            IconButton(onClick = onRemove, minWidth = 40.dp, minHeight = 40.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = remove }) { Text("×", color = HausColors.current.pulse) }
+        }
     }
 }
 

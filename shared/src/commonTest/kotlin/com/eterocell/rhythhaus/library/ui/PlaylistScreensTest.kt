@@ -2,13 +2,21 @@ package com.eterocell.rhythhaus.library.ui
 
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.PlayableTrack
+import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.QueueMutationRejection
+import com.eterocell.rhythhaus.QueueMutationResult
+import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.Playlist
+import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
+import androidx.compose.ui.semantics.Role
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 
 class PlaylistScreensTest {
     @Test
@@ -297,6 +305,188 @@ class PlaylistScreensTest {
         assertEquals(PlaylistModalNotice.MutationFailed, playlistPickerPresentation(reduced)?.notice)
     }
 
+    @Test
+    fun queuePresentationPinsCurrentAndNeverPromotesHistoryToUpcoming() {
+        val history = queueOccurrence("history", "History")
+        val current = queueOccurrence("current", "Current")
+        val upcoming = queueOccurrence("upcoming", "Upcoming")
+
+        val presentation = queueTabPresentation(
+            PlaybackState(
+                currentOccurrenceId = current.id,
+                queue = listOf(history, current, upcoming),
+            ),
+        )
+
+        assertFalse(presentation.isEmpty)
+        assertEquals(listOf("current", "upcoming"), presentation.rows.map { it.occurrence.id })
+        assertEquals(QueueRowRole.Current, presentation.rows.first().role)
+        assertFalse(presentation.rows.first().canDrag)
+        assertFalse(presentation.rows.first().canMoveUp)
+        assertFalse(presentation.rows.first().canMoveDown)
+        assertFalse(presentation.rows.first().canRemove)
+        assertEquals(QueueRowRole.Upcoming, presentation.rows.last().role)
+    }
+
+    @Test
+    fun queuePresentationHasDistinctEmptyStateAndExactNowPlayingInset() {
+        val presentation = queueTabPresentation(PlaybackState())
+
+        assertTrue(presentation.isEmpty)
+        assertTrue(presentation.rows.isEmpty())
+        assertEquals(NowPlayingBarContentPadding, presentation.bottomContentPadding)
+    }
+
+    @Test
+    fun duplicateUpcomingRowsStayIndependentAndExposeCorrectMoveBoundaries() {
+        val duplicateTrack = playableTrack("duplicate")
+        val presentation = queueTabPresentation(
+            PlaybackState(
+                currentOccurrenceId = "current",
+                queue = listOf(
+                    queueOccurrence("current", "Current"),
+                    QueueOccurrence("duplicate-a", duplicateTrack),
+                    QueueOccurrence("duplicate-b", duplicateTrack),
+                ),
+            ),
+        )
+
+        val first = presentation.rows[1]
+        val second = presentation.rows[2]
+        assertEquals(listOf("duplicate-a", "duplicate-b"), presentation.upcomingOccurrenceIds)
+        assertFalse(first.canMoveUp)
+        assertTrue(first.canMoveDown)
+        assertTrue(second.canMoveUp)
+        assertFalse(second.canMoveDown)
+        assertTrue(first.canDrag && first.canRemove)
+        assertTrue(second.canDrag && second.canRemove)
+        assertEquals(listOf("duplicate-b", "duplicate-a"), presentation.movedUpcomingIds("duplicate-b", -1))
+    }
+
+    @Test
+    fun queueRowsDriveLocalizedSemanticRoleStateAndNamedActions() {
+        val presentation = queueTabPresentation(
+            PlaybackState(
+                currentOccurrenceId = "current",
+                queue = listOf(
+                    queueOccurrence("current", "当前曲目"),
+                    queueOccurrence("upcoming", "夜に駆ける"),
+                ),
+            ),
+        )
+
+        val current = presentation.rows.first()
+        val upcoming = presentation.rows.last()
+        assertEquals(QueueRowRole.Current, current.role)
+        assertEquals(Role.Image, current.semanticRole)
+        assertEquals(QueueRowState.Current, current.semanticState)
+        assertEquals(emptySet(), current.availableActions)
+        assertTrue(current.actionTrackTitle == null)
+        assertEquals(QueueRowRole.Upcoming, upcoming.role)
+        assertEquals(Role.Image, upcoming.semanticRole)
+        assertEquals(QueueRowState.Upcoming, upcoming.semanticState)
+        assertEquals(
+            setOf(QueueRowAction.Drag, QueueRowAction.Remove),
+            upcoming.availableActions,
+        )
+        assertEquals("夜に駆ける", upcoming.actionTrackTitle)
+    }
+
+    @Test
+    fun queueDragTargetsNearestMeasuredUpcomingRowAtAndBeyondBoundaries() {
+        val centers = mapOf(0 to 100f, 1 to 200f, 2 to 300f)
+
+        assertEquals(0, playlistDragTargetIndex(pointerY = 20f, rowCentersByIndex = centers, fallbackIndex = 1))
+        assertEquals(1, playlistDragTargetIndex(pointerY = 190f, rowCentersByIndex = centers, fallbackIndex = 0))
+        assertEquals(2, playlistDragTargetIndex(pointerY = 450f, rowCentersByIndex = centers, fallbackIndex = 1))
+        assertEquals(1, playlistDragTargetIndex(pointerY = 450f, rowCentersByIndex = emptyMap(), fallbackIndex = 1))
+    }
+
+    @Test
+    fun rejectedQueueCommandRefreshesFromStateFlowAndShowsQueueChangedNotice() = runBlocking {
+        val initial = PlaybackState(
+            currentOccurrenceId = "current",
+            queue = listOf(queueOccurrence("current", "Current"), queueOccurrence("stale", "Stale")),
+        )
+        val refreshed = initial.copy(queue = listOf(initial.queue.first()))
+        val state = MutableStateFlow(initial)
+
+        val feedback = executeQueueMutation(state) {
+            state.value = refreshed
+            QueueMutationResult.Rejected(QueueMutationRejection.StaleOccurrence)
+        }
+
+        assertEquals(refreshed, feedback.refreshedState)
+        assertTrue(feedback.showQueueChanged)
+    }
+
+    @Test
+    fun appliedQueueCommandTargetsExactDuplicateOccurrenceWithoutChangedNotice() = runBlocking {
+        val duplicateTrack = playableTrack("duplicate")
+        val state = MutableStateFlow(
+            PlaybackState(
+                currentOccurrenceId = "current",
+                queue = listOf(
+                    queueOccurrence("current", "Current"),
+                    QueueOccurrence("duplicate-a", duplicateTrack),
+                    QueueOccurrence("duplicate-b", duplicateTrack),
+                ),
+            ),
+        )
+        var targetedOccurrenceId: String? = null
+
+        val feedback = executeQueueMutation(state) {
+            targetedOccurrenceId = "duplicate-b"
+            state.value = state.value.copy(queue = listOf(state.value.queue[0], state.value.queue[2]))
+            QueueMutationResult.Applied
+        }
+
+        assertEquals("duplicate-b", targetedOccurrenceId)
+        assertEquals(listOf("current", "duplicate-b"), feedback.refreshedState.queue.map { it.id })
+        assertFalse(feedback.showQueueChanged)
+    }
+
+    @Test
+    fun clearUpcomingDispatchesOnlyAfterExplicitConfirmation() {
+        val pending = queueClearConfirmationPresentation()
+
+        assertFalse(pending.shouldDispatchClear)
+        assertTrue(pending.confirm().shouldDispatchClear)
+        assertFalse(pending.dismiss().shouldDispatchClear)
+    }
+
+    @Test
+    fun queueMutationDispatcherWiresExactOccurrenceTargetAndClearCommands() = runBlocking {
+        val state = MutableStateFlow(
+            PlaybackState(
+                currentOccurrenceId = "current",
+                queue = listOf(queueOccurrence("current", "Current"), queueOccurrence("duplicate-b", "Duplicate")),
+            ),
+        )
+        val calls = mutableListOf<String>()
+        val dispatcher = QueueMutationDispatcher(
+            state = state,
+            reorderCommand = { occurrenceId, targetIndex ->
+                calls += "reorder:$occurrenceId:$targetIndex"
+                QueueMutationResult.Applied
+            },
+            removeCommand = { occurrenceId ->
+                calls += "remove:$occurrenceId"
+                QueueMutationResult.Applied
+            },
+            clearCommand = {
+                calls += "clear"
+                QueueMutationResult.Applied
+            },
+        )
+
+        dispatcher.reorder("duplicate-b", 0)
+        dispatcher.remove("duplicate-b")
+        dispatcher.clear()
+
+        assertEquals(listOf("reorder:duplicate-b:0", "remove:duplicate-b", "clear"), calls)
+    }
+
     private fun entry(id: String, trackId: String, position: Int) = PlaylistEntry(
         id = id,
         playlistId = "playlist-1",
@@ -312,6 +502,11 @@ class PlaylistScreensTest {
         artist = "Artist",
         album = "Album",
         durationMillis = 180_000L,
+    )
+
+    private fun queueOccurrence(id: String, title: String) = QueueOccurrence(
+        id = id,
+        track = playableTrack(id).copy(title = title),
     )
 
     private fun browserTrack(id: String, title: String, artist: String, album: String) =
