@@ -158,12 +158,17 @@ object PlaybackSessionCodec {
 
 sealed interface PlaybackCheckpoint {
     val snapshot: PlaybackSessionSnapshot
+    val revision: Long?
 
-    data class Immediate(override val snapshot: PlaybackSessionSnapshot) : PlaybackCheckpoint
+    data class Immediate(
+        override val snapshot: PlaybackSessionSnapshot,
+        override val revision: Long? = null,
+    ) : PlaybackCheckpoint
 
     data class PlayingProgress(
         val key: ProgressCheckpointKey,
         override val snapshot: PlaybackSessionSnapshot,
+        override val revision: Long? = null,
     ) : PlaybackCheckpoint
 }
 

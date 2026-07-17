@@ -74,23 +74,32 @@ internal class PlaybackSessionCoordinator(
         var pending: Command? = null
         var active: Command? = null
         var terminal: Throwable? = null
+        var highestPersistedCheckpointRevision: Long? = null
         try {
             while (true) {
                 val command = pending ?: commands.receiveCatching().getOrNull() ?: return
                 active = command
                 pending = null
                 if (command is Command.Checkpoint) {
-                    var newest = command.checkpoint.snapshot
+                    var newest = command.checkpoint
                     while (true) {
                         val next = commands.tryReceive().getOrNull() ?: break
                         if (next is Command.Checkpoint) {
-                            newest = next.checkpoint.snapshot
+                            newest = newerCheckpoint(newest, next.checkpoint)
                         } else {
                             pending = next
                             break
                         }
                     }
-                    persist(newest)
+                    val revision = newest.revision
+                    if (
+                        revision == null ||
+                        highestPersistedCheckpointRevision == null ||
+                        revision >= highestPersistedCheckpointRevision
+                    ) {
+                        persist(newest.snapshot)
+                        if (revision != null) highestPersistedCheckpointRevision = revision
+                    }
                 } else {
                     processBarrier(command)
                 }
@@ -109,6 +118,12 @@ internal class PlaybackSessionCoordinator(
                 pending,
             )
         }
+    }
+
+    private fun newerCheckpoint(first: PlaybackCheckpoint, second: PlaybackCheckpoint): PlaybackCheckpoint {
+        val firstRevision = first.revision
+        val secondRevision = second.revision
+        return if (firstRevision != null && secondRevision != null && firstRevision > secondRevision) first else second
     }
 
     private suspend fun processBarrier(command: Command) {

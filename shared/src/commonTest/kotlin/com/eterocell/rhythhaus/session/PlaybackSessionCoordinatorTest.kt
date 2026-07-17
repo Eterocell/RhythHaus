@@ -8,6 +8,7 @@ import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.RepeatMode
+import com.eterocell.rhythhaus.ShuffleMode
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryTrack
 import kotlin.test.Test
@@ -18,6 +19,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -33,6 +35,57 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class PlaybackSessionCoordinatorTest {
+    @Test
+    fun delayedMutationCheckpointCannotRegressNewerReplacementSnapshot() = runBlocking {
+        val mutationCommitted = CompletableDeferred<Unit>()
+        val allowMutationCheckpoint = CompletableDeferred<Unit>()
+        val controller = PlaybackController(
+            engine = FakePlaybackEngine(),
+            shuffleOrderFactory = { ids, _ ->
+                if (ids == listOf("current-a", "upcoming-a-2")) {
+                    mutationCommitted.complete(Unit)
+                    runBlocking { allowMutationCheckpoint.await() }
+                }
+                ids
+            },
+        )
+        val store = RecordingStore()
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        coordinator.restoreOnce(emptyList())
+        val tracks = playableTracks("current-track", "upcoming-track", "replacement-track")
+        controller.setOccurrenceQueue(
+            listOf(
+                QueueOccurrence("current-a", tracks[0]),
+                QueueOccurrence("upcoming-a-1", tracks[1]),
+                QueueOccurrence("upcoming-a-2", tracks[1]),
+            ),
+            selectedOccurrenceId = "current-a",
+        )
+        controller.setShuffleMode(ShuffleMode.On)
+        coordinator.flush()
+        store.saved.clear()
+
+        val mutation = async(Dispatchers.Default) {
+            controller.removeUpcoming("upcoming-a-1")
+        }
+        mutationCommitted.await()
+        val replacement = QueueOccurrence("replacement-b", tracks[2])
+        controller.setOccurrenceQueue(listOf(replacement), selectedOccurrenceId = replacement.id)
+        allowMutationCheckpoint.complete(Unit)
+        assertEquals(QueueMutationResult.Applied, mutation.await())
+        coordinator.flush()
+
+        val replacementSnapshot = controller.sessionSnapshot()
+        val obsoleteMutationQueue = listOf(
+            SessionQueueEntry("current-a", "current-track"),
+            SessionQueueEntry("upcoming-a-2", "upcoming-track"),
+        )
+        assertEquals(replacementSnapshot, store.saved.last())
+        assertFalse(store.saved.any { it.queue == obsoleteMutationQueue })
+        scope.cancel()
+    }
+
     @Test
     fun acceptedUpcomingMutationPersistsCompleteOccurrenceSnapshotThroughCoordinator() = runBlocking {
         val controller = PlaybackController(FakePlaybackEngine())
