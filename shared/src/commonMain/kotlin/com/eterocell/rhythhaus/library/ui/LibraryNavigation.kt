@@ -8,6 +8,8 @@ sealed interface LibraryRoute {
     data class ArtistDetail(val artist: String) : LibraryRoute
     data object NowPlaying : LibraryRoute
     data object Search : LibraryRoute
+    data object PlaylistHub : LibraryRoute
+    data class PlaylistDetail(val playlistId: String) : LibraryRoute
     data object Settings : LibraryRoute
     data object SettingsAbout : LibraryRoute
     data object OpenSourceLibraries : LibraryRoute
@@ -47,6 +49,8 @@ fun routePermitsNowPlayingBar(route: LibraryRoute): Boolean = when (route) {
     is LibraryRoute.ArtistDetail,
     LibraryRoute.NowPlaying,
     LibraryRoute.Search,
+    LibraryRoute.PlaylistHub,
+    is LibraryRoute.PlaylistDetail,
     LibraryRoute.ClearLibraryDialog,
     -> true
 }
@@ -102,6 +106,8 @@ internal fun libraryRouteRendersAsActiveOverlay(
         LibraryRoute.Home,
         is LibraryRoute.AlbumDetail,
         is LibraryRoute.ArtistDetail,
+        LibraryRoute.PlaylistHub,
+        is LibraryRoute.PlaylistDetail,
         LibraryRoute.NowPlaying,
         LibraryRoute.ClearLibraryDialog,
         -> false
@@ -177,7 +183,8 @@ fun shouldReplaceWideDetailRoute(
     current.isDetailRoute() &&
     next.isDetailRoute()
 
-private fun LibraryRoute.isDetailRoute(): Boolean = this is LibraryRoute.AlbumDetail || this is LibraryRoute.ArtistDetail
+private fun LibraryRoute.isDetailRoute(): Boolean =
+    this is LibraryRoute.AlbumDetail || this is LibraryRoute.ArtistDetail || this is LibraryRoute.PlaylistDetail
 
 fun applyNavigationAction(
     stack: LibraryNavigationStack,

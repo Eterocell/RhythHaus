@@ -25,7 +25,6 @@ class LibraryAppState(
         private set
     var lastNavigationTransition by mutableStateOf(LibraryNavigationTransition.None)
         private set
-
     private var bottomBarVisibilityState by mutableStateOf(LibraryBottomBarVisibilityState())
 
     fun setSelectedTrackId(trackId: String?) {
@@ -38,6 +37,11 @@ class LibraryAppState(
 
     fun setBrowseMode(mode: BrowseMode) {
         browseModeState = mode
+    }
+
+    fun recoverStalePlaylistDetail(message: String, showMessage: (String) -> Unit) {
+        showMessage(message)
+        replaceTopRoute(LibraryRoute.PlaylistHub)
     }
 
     fun showNowPlaying() {
