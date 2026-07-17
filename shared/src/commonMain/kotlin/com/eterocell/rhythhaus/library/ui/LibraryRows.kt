@@ -74,6 +74,7 @@ import com.eterocell.rhythhaus.importCardTitleWithTracks
 import rhythhaus.shared.generated.resources.browse_mode_albums
 import rhythhaus.shared.generated.resources.browse_mode_artists
 import rhythhaus.shared.generated.resources.browse_mode_songs
+import rhythhaus.shared.generated.resources.playlist_add_to
 
 @Composable
 internal fun HeaderSection(snapshot: LibrarySnapshot) {
@@ -218,7 +219,12 @@ internal fun SectionLabel(title: String, subtitle: String?) {
 }
 
 @Composable
-internal fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
+internal fun TrackRow(
+    track: Track,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onAddToPlaylist: (() -> Unit)? = null,
+) {
     val selectTrackContentDescription = stringResource(Res.string.select_track_format, track.title)
     Row(
         modifier = Modifier
@@ -265,6 +271,23 @@ internal fun TrackRow(track: Track, selected: Boolean, onClick: () -> Unit) {
             fontSize = 13.sp,
             fontWeight = FontWeight.Black,
         )
+        if (onAddToPlaylist != null) {
+            val addLabel = stringResource(Res.string.playlist_add_to)
+            Button(
+                onClick = onAddToPlaylist,
+                modifier = Modifier
+                    .height(40.dp)
+                    .semantics { contentDescription = "$addLabel ${track.title}" },
+                cornerRadius = 12.dp,
+                insideMargin = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    color = HausColors.current.panelStrong,
+                    contentColor = HausColors.current.ink,
+                ),
+            ) {
+                Text("⋯", fontSize = 18.sp, fontWeight = FontWeight.Black)
+            }
+        }
     }
 }
 

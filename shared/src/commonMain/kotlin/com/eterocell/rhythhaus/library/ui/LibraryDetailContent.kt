@@ -86,6 +86,7 @@ internal fun DrillDownView(
     onExpandNowPlaying: (Track) -> Unit,
     onShowSettings: () -> Unit = {},
     onShowSearch: () -> Unit = {},
+    onAddToPlaylist: (String) -> Unit = {},
     isNowPlayingBarVisible: Boolean = true,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
 ) {
@@ -197,6 +198,7 @@ internal fun DrillDownView(
                                     onSelected = { selectedTrackId = track.id },
                                     onTrackClick = onTrackClick,
                                     onPlayPause = onPlayPause,
+                                    onAddToPlaylist = onAddToPlaylist,
                                 )
                             }
                         }
@@ -212,6 +214,7 @@ internal fun DrillDownView(
                                 onSelected = { selectedTrackId = track.id },
                                 onTrackClick = onTrackClick,
                                 onPlayPause = onPlayPause,
+                                onAddToPlaylist = onAddToPlaylist,
                             )
                         }
                         item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
@@ -291,6 +294,7 @@ private fun DrillDownTrackRow(
     onSelected: () -> Unit,
     onTrackClick: (Track) -> Unit,
     onPlayPause: () -> Unit,
+    onAddToPlaylist: (String) -> Unit,
 ) {
     TrackRow(
         track = track,
@@ -303,5 +307,6 @@ private fun DrillDownTrackRow(
                 onPlayPause = onPlayPause,
             )
         },
+        onAddToPlaylist = { onAddToPlaylist(track.id) },
     )
 }
