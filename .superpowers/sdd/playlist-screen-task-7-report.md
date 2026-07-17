@@ -1,6 +1,6 @@
 # Playlist Screen Task 7 Report
 
-Status: DONE_WITH_CONCERNS
+Status: COMPLETE_WITH_INCONCLUSIVE_MANUAL_SUBCASES
 
 Route: openspec+superpowers / systematic-debugging / TDD / Task 7 integration and acceptance
 Owner: implementation
@@ -11,7 +11,7 @@ Scope: OpenSpec `playlist-screen` tasks 7.1-7.4
 - Task 7.1 automated integration proof is complete: real SQLDelight source removal and clear-library cascades complete before reconciliation and playlist publication, saved edits do not retroactively mutate an active resolved queue, and authoritative track deletion reconciles only unavailable occurrences.
 - Task 7.2 automated verification is complete, including actual successful `LibraryDatabaseIosTest` execution through the production iOS factory.
 - Task 7.3 is complete with concerns based on actual compact Chinese Saved/Queue runtime interaction. Wide, light/dark, English, complete Saved CRUD/add/duplicate/drag flows, pixel-level Now Playing overlap, and target-device audible playback remain explicitly unverified follow-up evidence and are not claimed as passes.
-- Task 7.4 remains incomplete pending the controller's final whole-branch review. OpenSpec 7.1-7.3 are complete; 7.4 remains unchecked until that review passes.
+- Task 7.4 is complete after the controller's final corrected whole-branch review passed all five lanes. OpenSpec is 29/29 complete.
 
 ## Task 7.1 integration evidence
 
@@ -143,10 +143,10 @@ Automated tests cover these behaviors at model/controller/source level, but they
 ## Completion discipline
 
 - OpenSpec tasks 7.1-7.3 are complete under Oracle adjudication because the explicit iOS FK hard gate executed successfully and actual runtime results are recorded with limitations.
-- OpenSpec task 7.4 remains unchecked until the controller completes final whole-branch review.
+- OpenSpec task 7.4 is complete after the controller's five-lane final whole-branch review passed.
 - Generic Task 1-7 scratch reports are preserved; change-specific copies are the durable evidence paths.
 - Unverified wide/light/dark/English/pixel/device/audio items remain follow-up evidence, not passes and not accepted risk.
-- Next safe action: controller final whole-branch review, then complete 7.4 and its final evidence commit if clean. Separately collect the unverified manual/device evidence when a controllable runtime/device and pixel-capable reviewer are available.
+- Next safe action: archive only when explicitly requested. Separately collect the unverified manual/device evidence when a controllable runtime/device and pixel-capable reviewer are available.
 
 ## Final task-scoped review
 
@@ -172,5 +172,21 @@ Verdict: PASS. No Critical or Important defects, invalid test claims, scope cree
 
 - Restored generic `.superpowers/sdd/task-2-report.md` exactly to its pre-playlist `fd95340` unrelated artwork report. Playlist Task 2 evidence remains preserved only at `.superpowers/sdd/playlist-screen-task-2-report.md`.
 - Corrected OpenSpec Task 6.3, approved plan wording, and durable Task 6 evidence to match the reviewed role-free implementation: queue entry containers use accurate localized content/state descriptions and do not receive a false semantic role when Compose lacks a suitable list-row role; artwork retains separate image semantics.
-- No production or test code changed. OpenSpec 7.4 remains unchecked for controller final whole-branch review.
+- No production or test code changed. OpenSpec 7.4 is complete based on the controller's final review.
 - Wide, light/dark, English, populated Saved workflows, drag gestures, pixel/CJK fidelity, and target-device audible playback remain unverified follow-up evidence and are not claimed as passes.
+
+## Controller final whole-branch review
+
+The controller reviewed the final corrected whole-branch package through `6f2d519`. All five terminal lanes passed after the generic Task 2 restoration and role-wording correction:
+
+| Lane | Verdict | Confidence / maximum severity | Notes |
+| --- | --- | --- | --- |
+| Goal | PASS | High confidence | The implementation and durable evidence satisfy the approved playlist-screen change. |
+| QA | PASS | High confidence | Automated and observed runtime evidence is sufficient for the release gate; the runtime subcases listed below remain INCONCLUSIVE rather than passes. |
+| Code Quality | PASS | High confidence | No blocking maintainability or correctness finding. |
+| Security | PASS | Maximum LOW | Non-blocking follow-ups: align repository name/list/count limits with the persistence codec, and bound or coalesce the checkpoint queue. No hardening was added in this evidence-only closure. |
+| Context | PASS | High confidence | OpenSpec, approved plan, implementation, tests, and durable reports are aligned. |
+
+There are no Critical, Important, or Medium findings. The following runtime/manual subcases remain INCONCLUSIVE and unverified: wide layout; separate light/dark states; English runtime localization; populated Saved create/rename/delete; duplicate saved rows; both add paths; saved and queue drag gestures; verified keyboard focus/submit; clear execution and stale-command rejection; pixel-level Now Playing overlap/spacing/contrast/CJK fidelity; target-device audible playback. They are not claimed as passes.
+
+Task 7.4 is complete: the controller's five-lane final review passed, the generic Task 2 report remains restored to the unrelated pre-playlist evidence, and the queue accessibility contract remains corrected to accurate role-free content/state semantics with separate artwork image semantics.
