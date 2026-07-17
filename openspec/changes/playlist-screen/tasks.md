@@ -21,10 +21,10 @@
 
 ## 4. Playlist Navigation, State, and Localization
 
-- [x] 4.1 Add typed playlist-hub and saved-playlist-detail routes, route-aware state, Library home entry, route content wiring, and stale-detail recovery to the hub with a recoverable message.
-- [x] 4.2 Inject `PlaylistRepository` in `App.kt`, own playlist snapshot refresh after confirmed writes and library-source cascades/reconciliation, thread playlist dependencies through Library routes, and add loading/error/retry state, selected tabs, and exact visible-order playback wiring.
-- [x] 4.3 Add complete English and Chinese Compose resource strings for playlist tabs, CRUD, errors, confirmations, queue outcomes, and all accessibility labels/state descriptions.
-- [x] 4.4 Add navigation and state tests for routes, stale recovery, Now Playing bar policy, localized action state, exact visible-order playback, and duplicate occurrence row keys.
+- [ ] 4.1 Add typed playlist-hub and saved-playlist-detail routes, route-aware state, Library home entry, route content wiring, and stale-detail recovery to the hub with a recoverable message.
+- [ ] 4.2 Inject `PlaylistRepository` in `App.kt`, own playlist snapshot refresh after confirmed writes and library-source cascades/reconciliation, thread playlist dependencies through Library routes, and add loading/error/retry state, selected tabs, and exact visible-order playback wiring.
+- [ ] 4.3 Add complete English and Chinese Compose resource strings for playlist tabs, CRUD, errors, confirmations, queue outcomes, and all accessibility labels/state descriptions.
+- [ ] 4.4 Add navigation and state tests for routes, stale recovery, Now Playing bar policy, localized action state, exact visible-order playback, and duplicate occurrence row keys.
 
 ## 5. Saved Playlist UI and Add Workflows
 
