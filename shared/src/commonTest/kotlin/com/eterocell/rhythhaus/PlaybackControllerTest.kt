@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus
 
 import com.eterocell.rhythhaus.session.PlaybackCheckpoint
+import com.eterocell.rhythhaus.session.PlaybackSessionCodec
 import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
 import com.eterocell.rhythhaus.session.SessionQueueEntry
 import kotlin.test.Test
@@ -278,8 +279,12 @@ class PlaybackControllerTest {
         assertEquals("track-3", controller.state.value.currentTrack?.id)
         assertEquals(
             listOf("track-3", "track-4", "track-2", "track-1"),
-            generatedOrders.last().map { occurrenceId -> occurrenceId.substringAfterLast("-track-").let { "track-$it" } },
+            generatedOrders.last().map { occurrenceId ->
+                controller.state.value.queue.single { it.id == occurrenceId }.track.id
+            },
         )
+        assertEquals(controller.state.value.queue.size, controller.state.value.queue.map { it.id }.distinct().size)
+        assertTrue(controller.state.value.queue.all { it.id.length <= PlaybackSessionCodec.maxIdCharacters })
     }
 
     @Test

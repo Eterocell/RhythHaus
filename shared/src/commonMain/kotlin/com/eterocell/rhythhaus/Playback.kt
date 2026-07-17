@@ -5,6 +5,7 @@ import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
 import com.eterocell.rhythhaus.session.ProgressCheckpointKey
 import com.eterocell.rhythhaus.session.SessionQueueEntry
+import com.eterocell.rhythhaus.library.uuid4
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CompletableDeferred
@@ -168,6 +169,7 @@ class PlaybackController(
     private var shuffledOrder: List<String> = emptyList()
     private var commandsEnabled: Boolean = true
     private var lastProgressCheckpointKey: ProgressCheckpointKey? = null
+    private val occurrenceNamespace: String = uuid4()
     private var nextOccurrenceNumber: Long = 0L
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
@@ -209,7 +211,7 @@ class PlaybackController(
     }
 
     fun setQueue(tracks: List<PlayableTrack>, selectedTrackId: String? = tracks.firstOrNull()?.id) {
-        val occurrences = tracks.map { track -> QueueOccurrence(freshOccurrenceId(track.id), track) }
+        val occurrences = tracks.map { track -> QueueOccurrence(freshOccurrenceId(), track) }
         val selectedOccurrenceId = occurrences.firstOrNull { it.track.id == selectedTrackId }?.id
         setOccurrenceQueue(occurrences, selectedOccurrenceId)
     }
@@ -743,7 +745,7 @@ class PlaybackController(
         skipToPrevious()
     }
 
-    private fun freshOccurrenceId(trackId: String): String = "queue-${nextOccurrenceNumber++}-$trackId"
+    private fun freshOccurrenceId(): String = "queue-$occurrenceNamespace-${nextOccurrenceNumber++}"
 }
 
 private sealed interface CheckpointEnvelope {
