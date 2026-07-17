@@ -52,6 +52,7 @@ fun SearchScreen(
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     playbackState: PlaybackState,
+    onAddToPlaylist: (String) -> Unit,
     onDismiss: () -> Unit,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -184,6 +185,7 @@ fun SearchScreen(
                                         )
                                         onDismiss()
                                     },
+                                    onAddToPlaylist = { onAddToPlaylist(track.id) },
                                 )
                             }
                             item { Spacer(Modifier.height(80.dp)) }
@@ -208,6 +210,7 @@ private fun SearchResultRow(
     isNowPlaying: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit,
+    onAddToPlaylist: () -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth().hausClickable(onClick = onClick),
@@ -235,6 +238,14 @@ private fun SearchResultRow(
             }
             if (isNowPlaying && isPlaying) {
                 EqualizerStrip(active = true)
+            }
+            IconButton(
+                onClick = onAddToPlaylist,
+                backgroundColor = Color.Transparent,
+                minWidth = 40.dp,
+                minHeight = 40.dp,
+            ) {
+                Text("⋯", color = HausColors.current.ink, fontSize = 18.sp, fontWeight = FontWeight.Black)
             }
         }
     }

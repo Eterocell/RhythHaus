@@ -183,12 +183,14 @@ fun App() {
         }
     }
 
-    fun launchPlaylistMutation(mutation: PlaylistRepository.() -> Unit) {
+    fun launchPlaylistMutation(
+        mutation: PlaylistRepository.() -> Unit,
+        onSuccess: () -> Unit,
+    ) {
         scope.launch {
-            playlistState = reducePlaylistState(
-                playlistState,
-                playlistStateOwner.mutate(PlaylistMutationFailedMessage, mutation),
-            )
+            val outcome = playlistStateOwner.mutate(PlaylistMutationFailedMessage, mutation)
+            playlistState = reducePlaylistState(playlistState, outcome)
+            if (outcome is PlaylistStateAction.SnapshotConfirmed) onSuccess()
         }
     }
 

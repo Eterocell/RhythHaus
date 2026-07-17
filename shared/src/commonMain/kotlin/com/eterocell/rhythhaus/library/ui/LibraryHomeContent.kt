@@ -66,6 +66,7 @@ internal fun LibraryHomeContent(
     onCancelScan: () -> Unit,
     onOpenDetailRoute: (LibraryRoute) -> Unit,
     onShowPlaylists: () -> Unit,
+    onAddToPlaylist: (String) -> Unit,
     onTrackSelected: (String) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -197,6 +198,7 @@ internal fun LibraryHomeContent(
                                             selectedTrackId = track.id,
                                         )
                                     },
+                                    onAddToPlaylist = { onAddToPlaylist(track.id) },
                                 )
                             }
                         }

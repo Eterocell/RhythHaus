@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.taglib.TagLibReader
@@ -62,7 +63,7 @@ internal fun LibraryRouteOverlays(
     playlistState: PlaylistState,
     onPlaylistStateAction: (PlaylistStateAction) -> Unit,
     onRefreshPlaylists: () -> Unit,
-    onPlaylistMutation: (PlaylistRepository.() -> Unit) -> Unit,
+    onPlaylistMutation: PlaylistMutationLauncher,
     sources: List<LibrarySource>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
     sourcePickerActionVisible: Boolean,
@@ -106,6 +107,11 @@ internal fun LibraryRouteOverlays(
             tagLibReader = tagLibReader,
             playbackController = playbackController,
             playbackState = playbackState,
+            onAddToPlaylist = { trackId ->
+                onPlaylistStateAction(
+                    PlaylistStateAction.OpenPicker(PlaylistPickerState(trackId = trackId)),
+                )
+            },
             onDismiss = onDismiss,
             onScrollPositionChanged = onScrollPositionChanged,
         )
@@ -142,7 +148,7 @@ internal fun LibraryRouteContent(
     playlistState: PlaylistState,
     onPlaylistStateAction: (PlaylistStateAction) -> Unit,
     onRefreshPlaylists: () -> Unit,
-    onPlaylistMutation: (PlaylistRepository.() -> Unit) -> Unit,
+    onPlaylistMutation: PlaylistMutationLauncher,
     onRecoverStalePlaylistDetail: (String) -> Unit,
     selectedTrackId: String?,
     isNowPlayingBarVisible: Boolean,
@@ -185,6 +191,9 @@ internal fun LibraryRouteContent(
                     onExpandNowPlaying = onExpandNowPlaying,
                     onShowSettings = onShowSettings,
                     onShowSearch = onShowSearch,
+                    onAddToPlaylist = { trackId ->
+                        onPlaylistStateAction(openAddToPlaylistPickerAction(trackId))
+                    },
                     isNowPlayingBarVisible = isNowPlayingBarVisible,
                     onScrollPositionChanged = onScrollPositionChanged,
                 )
@@ -219,6 +228,9 @@ internal fun LibraryRouteContent(
                     onExpandNowPlaying = onExpandNowPlaying,
                     onShowSettings = onShowSettings,
                     onShowSearch = onShowSearch,
+                    onAddToPlaylist = { trackId ->
+                        onPlaylistStateAction(openAddToPlaylistPickerAction(trackId))
+                    },
                     isNowPlayingBarVisible = isNowPlayingBarVisible,
                     onScrollPositionChanged = onScrollPositionChanged,
                 )
@@ -230,10 +242,14 @@ internal fun LibraryRouteContent(
         }
 
         LibraryRoute.PlaylistHub -> {
-            PlaylistRoutePlaceholder(
-                title = stringResource(Res.string.playlists),
+            PlaylistHubScreen(
                 state = playlistState,
                 onBack = onBack,
+                onOpenPlaylist = { onOpenDetailRoute(LibraryRoute.PlaylistDetail(it)) },
+                onSelectTab = { onPlaylistStateAction(PlaylistStateAction.SelectTab(it)) },
+                onCreate = { name, onSuccess ->
+                    onPlaylistMutation({ create(name) }, onSuccess)
+                },
                 onRetry = onRefreshPlaylists,
             )
         }
@@ -246,11 +262,41 @@ internal fun LibraryRouteContent(
                     onBack = onBack,
                     onRetry = onRefreshPlaylists,
                 )
-                is PlaylistDetailResolution.Show -> PlaylistRoutePlaceholder(
-                    title = resolution.playlist.name,
+                is PlaylistDetailResolution.Show -> PlaylistDetailScreen(
+                    playlist = resolution.playlist,
+                    entries = playlistState.confirmedSnapshot.entries(resolution.playlist.id),
+                    libraryTracks = libraryTracks,
                     state = playlistState,
                     onBack = onBack,
-                    onRetry = onRefreshPlaylists,
+                    onRename = { name, onSuccess ->
+                        onPlaylistMutation({ rename(resolution.playlist.id, name) }, onSuccess)
+                    },
+                    onDelete = { onSuccess ->
+                        onPlaylistMutation(
+                            { delete(resolution.playlist.id) },
+                            { onSuccess(); onBack() },
+                        )
+                    },
+                    onOpenBrowser = {
+                        onPlaylistStateAction(
+                            PlaylistStateAction.OpenBrowser(
+                                PlaylistBrowserState(playlistId = resolution.playlist.id),
+                            ),
+                        )
+                    },
+                    onPlayEntry = { request ->
+                        selectOccurrenceForPlayback(
+                            playbackController,
+                            request.occurrences,
+                            request.selectedOccurrenceId,
+                        )
+                    },
+                    onRemoveEntry = { entryId ->
+                        onPlaylistMutation({ removeEntry(entryId) }, {})
+                    },
+                    onReorder = { entryIds ->
+                        onPlaylistMutation({ reorder(resolution.playlist.id, entryIds) }, {})
+                    },
                 )
                 is PlaylistDetailResolution.ReturnToHub -> LaunchedEffect(route) {
                     onRecoverStalePlaylistDetail(resolution.message)
