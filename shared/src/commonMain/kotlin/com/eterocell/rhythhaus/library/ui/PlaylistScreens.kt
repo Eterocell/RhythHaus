@@ -275,6 +275,26 @@ fun playlistDragTargetIndex(
     fallbackIndex: Int,
 ): Int = rowCentersByIndex.minByOrNull { (_, centerY) -> kotlin.math.abs(centerY - pointerY) }?.key ?: fallbackIndex
 
+fun queueDragTargetIndex(
+    pointerY: Float,
+    rowCentersByOccurrenceId: Map<String, Float>,
+    upcomingIds: List<String>,
+    fallbackOccurrenceId: String,
+): Int {
+    if (upcomingIds.isEmpty()) return 0
+    val fallbackIndex = upcomingIds.indexOf(fallbackOccurrenceId).takeIf { it >= 0 } ?: 0
+    val targetOccurrenceId = upcomingIds.minByOrNull { occurrenceId ->
+        rowCentersByOccurrenceId[occurrenceId]?.let { centerY -> kotlin.math.abs(centerY - pointerY) }
+            ?: Float.POSITIVE_INFINITY
+    }
+    val targetIndex = targetOccurrenceId
+        ?.takeIf(rowCentersByOccurrenceId::containsKey)
+        ?.let(upcomingIds::indexOf)
+        ?.takeIf { it >= 0 }
+        ?: fallbackIndex
+    return targetIndex.coerceIn(upcomingIds.indices)
+}
+
 data class PlaylistMoveAvailability(val canMoveUp: Boolean, val canMoveDown: Boolean)
 
 fun playlistMoveAvailability(ids: List<String>, entryId: String): PlaylistMoveAvailability {
@@ -589,9 +609,12 @@ internal fun QueueTabScreen(
     var showQueueChanged by remember { mutableStateOf(false) }
     var clearConfirmation by remember { mutableStateOf<QueueClearConfirmationPresentation?>(null) }
     val scope = rememberCoroutineScope()
-    val rowCenters = remember { mutableStateMapOf<Int, Float>() }
+    val rowCenters = remember { mutableStateMapOf<String, Float>() }
     LaunchedEffect(playbackState) { confirmedState = playbackState }
     val presentation = queueTabPresentation(confirmedState)
+    LaunchedEffect(presentation.upcomingOccurrenceIds) {
+        rowCenters.clear()
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (presentation.isEmpty) {
@@ -679,7 +702,7 @@ private fun QueueOccurrenceRow(
     row: QueueRowPresentation,
     upcomingIndex: Int = -1,
     upcomingIds: List<String> = emptyList(),
-    rowCenters: MutableMap<Int, Float> = mutableMapOf(),
+    rowCenters: MutableMap<String, Float> = mutableMapOf(),
     onMove: (Int) -> Unit = {},
     onDragTarget: (Int) -> Unit = {},
     onRemove: () -> Unit = {},
@@ -703,7 +726,7 @@ private fun QueueOccurrenceRow(
             .then(
                 if (upcomingIndex >= 0) {
                     Modifier.onGloballyPositioned { coordinates ->
-                        rowCenters[upcomingIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f
+                        rowCenters[row.occurrence.id] = coordinates.positionInRoot().y + coordinates.size.height / 2f
                     }
                 } else {
                     Modifier
@@ -774,7 +797,7 @@ private fun QueueDragHandle(
     row: QueueRowPresentation,
     upcomingIndex: Int,
     upcomingIds: List<String>,
-    rowCenters: MutableMap<Int, Float>,
+    rowCenters: MutableMap<String, Float>,
     targetSize: androidx.compose.ui.unit.Dp,
     contentDescription: String,
     onDragTarget: (Int) -> Unit,
@@ -784,11 +807,11 @@ private fun QueueDragHandle(
         modifier = Modifier
             .size(targetSize)
             .pointerInput(row.occurrence.id, upcomingIds, rowCenters.toMap()) {
-                var pointerY = rowCenters[upcomingIndex] ?: 0f
+                var pointerY = rowCenters[row.occurrence.id] ?: 0f
                 var targetIndex = upcomingIndex
                 detectDragGesturesAfterLongPress(
                     onDragStart = {
-                        pointerY = rowCenters[upcomingIndex] ?: 0f
+                        pointerY = rowCenters[row.occurrence.id] ?: 0f
                         targetIndex = upcomingIndex
                     },
                     onDragEnd = {
@@ -797,7 +820,12 @@ private fun QueueDragHandle(
                     onDrag = { change, amount ->
                         change.consume()
                         pointerY += amount.y
-                        targetIndex = playlistDragTargetIndex(pointerY, rowCenters, upcomingIndex)
+                        targetIndex = queueDragTargetIndex(
+                            pointerY = pointerY,
+                            rowCentersByOccurrenceId = rowCenters,
+                            upcomingIds = upcomingIds,
+                            fallbackOccurrenceId = row.occurrence.id,
+                        )
                     },
                 )
             }

@@ -419,6 +419,26 @@ class PlaylistScreensTest {
     }
 
     @Test
+    fun queueDragAfterFinalOccurrenceRemovalCannotTargetStaleMeasuredIndex() {
+        val measuredCenters = mapOf(
+            "upcoming-a" to 100f,
+            "upcoming-b" to 200f,
+            "upcoming-c" to 300f,
+        )
+        val currentUpcomingIds = listOf("upcoming-a", "upcoming-b")
+
+        assertEquals(
+            1,
+            queueDragTargetIndex(
+                pointerY = 450f,
+                rowCentersByOccurrenceId = measuredCenters,
+                upcomingIds = currentUpcomingIds,
+                fallbackOccurrenceId = "upcoming-a",
+            ),
+        )
+    }
+
+    @Test
     fun rejectedQueueCommandRefreshesFromStateFlowAndShowsQueueChangedNotice() = runBlocking {
         val initial = PlaybackState(
             currentOccurrenceId = "current",
