@@ -18,6 +18,8 @@ Verification:
 - `/usr/bin/xcrun xcodebuild -version`: pass (Xcode 26.6, build 17F113).
 - `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 3m 28s`; 35 actionable tasks, 7 executed, 28 up-to-date); native XML records iOS FK test 1/1.
 - `GIT_MASTER=1 git diff --check`: pass.
+Post-commit confirmation:
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache --rerun-tasks`: pass (`BUILD SUCCESSFUL in 33s`; 35/35 tasks executed); fresh native XML timestamp `2026-07-17T10:19:56.156Z` records the iOS FK test 1/1 with zero skipped/failures/errors and expected `SQLITE_CONSTRAINT` output.
 Runtime QA actually observed:
 - Real 800x600 Chinese desktop Saved hub: localized Saved/Queue tabs, create action, empty state, create-dialog opening and dismissal.
 - Real active Queue: current occurrence first and without mutation controls; localized track-named drag/move/remove controls on upcoming rows; first/last movement boundaries disabled; accessible move-down reordered one upcoming row; immediate remove deleted only its target; clear-upcoming opened confirmation stating current playback continues.

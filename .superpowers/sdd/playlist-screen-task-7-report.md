@@ -157,3 +157,13 @@ An independent read-only reviewer inspected the exact Task 7 test and report cha
 ```
 
 Verdict: PASS. No Critical or Important defects, invalid test claims, scope creep, or false completion evidence were found. The review predates Oracle adjudication and confirmed the real shared-database integration coverage, minimal JVM-only test relocation, successful iOS FK result evidence, and honest recording of every unverified manual/device limitation. Oracle subsequently classified those limitations as follow-up evidence rather than blockers.
+
+## Post-commit verification
+
+- `openspec validate playlist-screen --strict`: PASS.
+- `./gradlew :shared:verifyCommonMainRhythHausDatabaseMigration --configuration-cache`: PASS.
+- `./gradlew :shared:jvmTest :shared:testAndroidHostTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: PASS (`BUILD SUCCESSFUL in 1s`; 116 actionable tasks, 4 executed, 1 from cache, 111 up-to-date).
+- `/usr/bin/xcrun xcodebuild -version`: PASS (Xcode 26.6, build 17F113).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache --rerun-tasks`: PASS (`BUILD SUCCESSFUL in 33s`; all 35 tasks executed).
+- Fresh native XML timestamp `2026-07-17T10:19:56.156Z` records `LibraryDatabaseIosTest` tests=1, skipped=0, failures=0, errors=0 and expected `SQLITE_CONSTRAINT` output.
+- `GIT_MASTER=1 git diff --check`: PASS.
