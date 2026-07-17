@@ -1,5 +1,69 @@
 # Session Progress
 
+## Fix - 2026-07-17 desktop completed scans deleted their own persisted rows
+
+Route: systematic-debugging + strict RED/GREEN TDD + live desktop reproduction
+Owner: implementation
+Input: User reported the desktop scan remained broken after the JVM legacy-database compatibility repair.
+Root cause:
+- A controlled desktop run selected and scanned the real `Zemeth` folder. The UI reported `扫描完成：新增 92 首，更新 0 首`, but a simultaneous read-only query of the same process database contained one source and zero tracks, scan sessions, and scan errors.
+- `LibraryScanner.scan()` correctly writes the source/session, every track/error, then at normal completion writes `source.copy(lastScanAtEpochMillis = completedAt)` before its terminal session update.
+- `LibrarySource.sq` implemented `upsertSource` as `INSERT OR REPLACE`. SQLite REPLACE deletes the existing parent source before reinsertion; enabled foreign keys cascade-deleted `library_track` and `scan_session`, then `scan_error`. The final session update therefore matched nothing.
+Fix:
+- Replaced the destructive source REPLACE with one SQLDelight atomic `upsertSource` block: `INSERT OR IGNORE` plus full-field `UPDATE WHERE id = :id`. This preserves in-place source metadata semantics while never deleting the parent and its children.
+- An initial `ON CONFLICT DO UPDATE` form was rejected in final review because Android minSdk 29 uses SQLite 3.22, which predates that UPSERT grammar. The final portable compound form uses only API-29-compatible syntax.
+- Retained the separate JVM legacy `user_version = 0` compatibility bootstrap and its regression coverage because it fixes a distinct startup/open failure exposed by the same bisect investigation.
+TDD and live evidence:
+- RED: `completedScanTerminalSourceUpdatePreservesPersistedChildren` uses a real JDBC `LibraryDatabase`/repository/scanner and emits one candidate plus one skipped file. Before the query repair it observed a completed source timestamp but `[]` tracks, no session, and no scan error—matching the live desktop failure.
+- GREEN: the focused regression passes after the atomic source update.
+- Live pre-fix: direct pointer interaction with the current desktop app scanned Zemeth and visibly reported 92 added while its database retained only the source.
+- Live post-fix: after the non-destructive repair, the same desktop database retained one source, 92 tracks, a completed scan session, and scan errors; the running UI rendered the 92-track album library and reported a rescan of 0 added / 92 updated / 1 skipped.
+- Portable final build launches against the persisted database and renders the library. Final Oracle review PASS: the compound SQLDelight operation is atomic, Android API-29-compatible, preserves cascade children, and overwrites all bound source fields.
+Verification:
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.completedScanTerminalSourceUpdatePreservesPersistedChildren' --rerun-tasks --configuration-cache`: pass (`BUILD SUCCESSFUL in 9s`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: one broad attempt failed only at unrelated `PlaybackSessionCoordinatorTest.newerPlayingProgressSurvivesDelayedMutationCheckpoint`; its isolated normal and `--rerun-tasks` executions both passed. The changed SQLDelight persistence path has no dependency path to that in-memory playback checkpoint test.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 31s`).
+- `GIT_MASTER=1 git diff --check`: pass.
+- Kotlin LSP and SQLDelight LSP are unavailable; forced Gradle generation/compilation/tests are the executable checks.
+Changed files:
+- `shared/src/commonMain/sqldelight/com/eterocell/rhythhaus/library/LibrarySource.sq`: non-destructive portable source upsert.
+- `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepositoryJvmTest.kt`: real scanner cascade regression plus legacy JVM database-opening coverage.
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/LibraryDatabase.jvm.kt`: legacy unversioned JVM database version bootstrap from the earlier bisected startup failure.
+Next owner: user for ordinary target-device/manual regression confirmation as desired.
+Blockers: none for the desktop scan persistence defect. The broad JVM coordinator test is an unrelated intermittent timing failure that passed two isolated executions.
+Commit: `8e975f6 fix: preserve scanned library persistence`.
+
+## Fix - 2026-07-17 JVM legacy library database opening
+
+Route: systematic-debugging + strict RED/GREEN TDD
+Owner: implementation
+Input: User bisected the desktop library scan regression to `f846b3f877e7c87a539377c896fbe7bbf199ceba` (`fix: open JVM library database through schema`).
+Root cause:
+- Pre-bisect JVM databases were initialized by direct `RhythHausDatabase.Schema.create(driver)` without setting SQLite `PRAGMA user_version`; populated historical databases therefore remain at version `0`.
+- `f846b3f` changed the JVM factory to SQLDelight's schema-aware JDBC constructor. SQLDelight treats version `0` as an empty database and runs `Schema.create()`.
+- Current-schema legacy databases already contain the unguarded `playlist` tables, so opening them threw `SQLITE_ERROR: table playlist already exists`; this prevented the desktop repository from opening and made scans appear not to persist/publish.
+Fix:
+- `LibraryDatabase.jvm.kt` now opens a short-lived JDBC driver with the existing foreign-key property, identifies only exact known unversioned RhythHaus table sets, stamps legacy v1 or current v2 `user_version`, closes that bootstrap driver, and then delegates all normal creation/migration to SQLDelight's schema-aware driver.
+- Unknown, incomplete, empty, and already-versioned databases retain the prior schema-aware behavior; Android/iOS schema paths and persisted schema files are unchanged.
+TDD and review:
+- RED: added a reflection-free real SQLite fixture that creates the historic current schema, persists a source/track with `user_version = 0`, and verified the current factory failed with `SQLITE_ERROR: table playlist already exists`.
+- GREEN: the same test verifies the real factory preserves both rows and permanently stamps `RhythHausDatabase.Schema.version`; forced rerun passed.
+- Final Oracle review: PASS with no blocking correctness finding. Its requested persisted-version assertion was added and verified.
+Verification:
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.SqlDelightLibraryRepositoryJvmTest.legacyVersionZeroDatabaseCanBeReopenedWithoutLosingRows' --rerun-tasks --configuration-cache`: pass (`BUILD SUCCESSFUL in 7s` after the reflection-free fixture cleanup).
+- `./gradlew :shared:jvmTest --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`).
+- `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 9s`).
+- `/usr/bin/xcrun xcodebuild -version`: pass (Xcode 26.6, build 17F113).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: iOS main compiled, then failed only at unchanged `AppScanCancellationTest.kt:64:28` and `:340:27` JVM-only `Thread` references; no iOS test pass is claimed.
+- `GIT_MASTER=1 git diff --check`: pass.
+- Kotlin LSP is unavailable because `kotlin-ls` installation was previously declined; Gradle compilation/tests are the executable Kotlin checks.
+Changed files:
+- `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/LibraryDatabase.jvm.kt`: unversioned legacy schema bootstrap before the normal SQLDelight factory.
+- `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepositoryJvmTest.kt`: durable legacy-open regression, row preservation, and persisted-version coverage.
+Next owner: user for optional live desktop rescan confirmation using the affected pre-fix database.
+Blockers: no JVM/desktop/Android blocker. iOS simulator tests remain blocked by the unrelated common-test JVM-only `Thread` references.
+Commit: `8e975f6 fix: preserve scanned library persistence`.
+
 ## Handoff - 2026-07-17 playlist screen Task 7 COMPLETE
 
 Route: openspec+superpowers / Task 7 integration, verification, runtime QA, and Oracle adjudication
@@ -90,6 +154,7 @@ Changed files:
 - `progress.md`
 Next safe action: build/run on Android and iOS, open an artwork-backed album or artist, and confirm the expanded square shows the complete image with a continuous upper/lower seam; also inspect partial and pinned states. Mark OpenSpec Task 5.5 complete only after both platforms pass.
 Blockers: target-device visual acceptance only; unrelated iOS common-test `Thread` references. No focused JVM, JVM/desktop/Android matrix, iOS main compilation, diff-hygiene, or source-review blocker.
+
 ## Prototype gate - 2026-07-16 single-owner macOS artwork scrolling
 
 Route: systematic-debugging / approved disposable architecture prototype / strict RED-GREEN
