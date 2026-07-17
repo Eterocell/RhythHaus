@@ -1,9 +1,9 @@
 ## 1. SQLDelight Playlists, Migration, and Repository
 
-- [ ] 1.1 Add playlist and playlist-entry SQLDelight tables, ordered queries, indexes, and foreign-key cascades; configure `schemaOutputDirectory`, check in the version-1 baseline database, and add `shared/src/commonMain/sqldelight/migrations/1.sqm` without explicit transaction delimiters.
-- [ ] 1.2 Add the shared `PlaylistRepository` contract plus in-memory and SQLDelight implementations with trimmed non-empty names, duplicate entries, contiguous transactional ordering, confirmed-state publication, and DI registration.
-- [ ] 1.3 Change JVM, Android, and iOS database factories to open through schema-aware drivers and prove production foreign-key enforcement on every path; use the schema-aware `JdbcSqliteDriver` constructor with `RhythHausDatabase.Schema`.
-- [ ] 1.4 Add repository, migration, foreign-key, and cascade coverage for playlist deletion, `removeMissingTracks`, `removeSource`, `clearAll`, rollback, duplicate entries, and empty-playlist retention; run `:shared:verifyCommonMainRhythHausDatabaseMigration`.
+- [x] 1.1 Add playlist and playlist-entry SQLDelight tables, ordered queries, indexes, and foreign-key cascades; configure `schemaOutputDirectory`, check in the version-1 baseline database, and add `shared/src/commonMain/sqldelight/migrations/1.sqm` without explicit transaction delimiters.
+- [x] 1.2 Add the shared `PlaylistRepository` contract plus in-memory and SQLDelight implementations with trimmed non-empty names, duplicate entries, contiguous transactional ordering, confirmed-state publication, and DI registration.
+- [x] 1.3 Change JVM, Android, and iOS database factories to open through schema-aware drivers and prove production foreign-key enforcement on every path; use the schema-aware `JdbcSqliteDriver` constructor with `RhythHausDatabase.Schema`.
+- [x] 1.4 Add repository, migration, foreign-key, and cascade coverage for playlist deletion, `removeMissingTracks`, `removeSource`, `clearAll`, rollback, duplicate entries, and empty-playlist retention; run `:shared:verifyCommonMainRhythHausDatabaseMigration`.
 
 ## 2. Occurrence-Aware Playback and Session Compatibility
 
