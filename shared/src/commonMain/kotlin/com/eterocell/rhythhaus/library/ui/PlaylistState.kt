@@ -45,11 +45,16 @@ data class PlaylistState(
     val recoverableMessage: String? = null,
     val picker: PlaylistPickerState? = null,
     val browser: PlaylistBrowserState? = null,
+    val hasConfirmedSnapshot: Boolean = false,
+    val publicationRevision: Long = 0L,
 )
 
 sealed interface PlaylistStateAction {
     data object LoadStarted : PlaylistStateAction
-    data class SnapshotConfirmed(val snapshot: PlaylistSnapshot) : PlaylistStateAction
+    data class SnapshotConfirmed(
+        val snapshot: PlaylistSnapshot,
+        val revision: Long = 0L,
+    ) : PlaylistStateAction
     data class ReadFailed(val message: String) : PlaylistStateAction
     data class MutationFailed(val message: String) : PlaylistStateAction
     data class SelectTab(val tab: PlaylistTab) : PlaylistStateAction
@@ -63,13 +68,21 @@ sealed interface PlaylistStateAction {
 
 fun reducePlaylistState(state: PlaylistState, action: PlaylistStateAction): PlaylistState = when (action) {
     PlaylistStateAction.LoadStarted -> state.copy(isLoading = true, readErrorMessage = null)
-    is PlaylistStateAction.SnapshotConfirmed -> state.copy(
-        confirmedSnapshot = action.snapshot,
-        isLoading = false,
-        readErrorMessage = null,
-        mutationErrorMessage = null,
-        recoverableMessage = null,
-    )
+    is PlaylistStateAction.SnapshotConfirmed -> if (
+        action.revision < state.publicationRevision
+    ) {
+        state
+    } else {
+        state.copy(
+            confirmedSnapshot = action.snapshot,
+            isLoading = false,
+            readErrorMessage = null,
+            mutationErrorMessage = null,
+            recoverableMessage = null,
+            hasConfirmedSnapshot = true,
+            publicationRevision = action.revision,
+        )
+    }
     is PlaylistStateAction.ReadFailed -> state.copy(isLoading = false, readErrorMessage = action.message)
     is PlaylistStateAction.MutationFailed -> state.copy(mutationErrorMessage = action.message)
     is PlaylistStateAction.SelectTab -> state.copy(selectedTab = action.tab)
@@ -97,17 +110,21 @@ fun playlistRouteNotice(state: PlaylistState): PlaylistRouteNotice? = when {
 }
 
 sealed interface PlaylistDetailResolution {
+    data object AwaitConfirmation : PlaylistDetailResolution
     data class Show(val playlist: Playlist) : PlaylistDetailResolution
     data class ReturnToHub(val message: String) : PlaylistDetailResolution
 }
 
 fun playlistDetailResolution(
     playlistId: String,
-    resolvedPlaylist: Playlist?,
-): PlaylistDetailResolution = if (resolvedPlaylist?.id == playlistId) {
-    PlaylistDetailResolution.Show(resolvedPlaylist)
-} else {
-    PlaylistDetailResolution.ReturnToHub(PlaylistChangedMessage)
+    state: PlaylistState,
+): PlaylistDetailResolution {
+    val resolvedPlaylist = state.confirmedSnapshot.playlist(playlistId)
+    return when {
+        resolvedPlaylist != null -> PlaylistDetailResolution.Show(resolvedPlaylist)
+        state.isLoading || !state.hasConfirmedSnapshot -> PlaylistDetailResolution.AwaitConfirmation
+        else -> PlaylistDetailResolution.ReturnToHub(PlaylistChangedMessage)
+    }
 }
 
 fun loadPlaylistSnapshot(repository: PlaylistRepository): PlaylistSnapshot {
@@ -131,13 +148,16 @@ class PlaylistStateOwner(
     private val dispatcher: CoroutineDispatcher,
 ) {
     private val mutex = Mutex()
+    private var publicationRevision = 0L
 
-    suspend fun refresh(): PlaylistSnapshot = mutex.withLock {
-        withContext(dispatcher) { loadPlaylistSnapshot(repository) }
+    suspend fun refresh(): PlaylistStateAction.SnapshotConfirmed = mutex.withLock {
+        val snapshot = withContext(dispatcher) { loadPlaylistSnapshot(repository) }
+        PlaylistStateAction.SnapshotConfirmed(snapshot, ++publicationRevision)
     }
 
-    suspend fun mutate(mutation: PlaylistRepository.() -> Unit): PlaylistSnapshot = mutex.withLock {
-        withContext(dispatcher) { mutatePlaylistAndRefresh(repository, mutation) }
+    suspend fun mutate(mutation: PlaylistRepository.() -> Unit): PlaylistStateAction.SnapshotConfirmed = mutex.withLock {
+        val snapshot = withContext(dispatcher) { mutatePlaylistAndRefresh(repository, mutation) }
+        PlaylistStateAction.SnapshotConfirmed(snapshot, ++publicationRevision)
     }
 }
 

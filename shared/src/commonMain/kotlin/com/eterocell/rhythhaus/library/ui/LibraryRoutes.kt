@@ -239,7 +239,13 @@ internal fun LibraryRouteContent(
         }
 
         is LibraryRoute.PlaylistDetail -> {
-            when (val resolution = playlistDetailResolution(route.playlistId, playlistState.confirmedSnapshot.playlist(route.playlistId))) {
+            when (val resolution = playlistDetailResolution(route.playlistId, playlistState)) {
+                PlaylistDetailResolution.AwaitConfirmation -> PlaylistRoutePlaceholder(
+                    title = stringResource(Res.string.playlists),
+                    state = playlistState,
+                    onBack = onBack,
+                    onRetry = onRefreshPlaylists,
+                )
                 is PlaylistDetailResolution.Show -> PlaylistRoutePlaceholder(
                     title = resolution.playlist.name,
                     state = playlistState,

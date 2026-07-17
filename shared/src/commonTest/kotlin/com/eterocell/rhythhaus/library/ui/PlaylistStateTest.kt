@@ -5,6 +5,10 @@ import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.InMemoryPlaylistRepository
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -14,9 +18,40 @@ import kotlin.test.assertTrue
 class PlaylistStateTest {
     @Test
     fun unresolvedPlaylistDetailReturnsToHubWithRecoverableMessage() {
-        val next = playlistDetailResolution(playlistId = "missing", resolvedPlaylist = null)
+        val next = playlistDetailResolution(
+            playlistId = "missing",
+            state = PlaylistState(hasConfirmedSnapshot = true),
+        )
 
         assertEquals(PlaylistDetailResolution.ReturnToHub("playlist_changed"), next)
+    }
+
+    @Test
+    fun unresolvedPlaylistDetailWaitsForAuthoritativeConfirmation() {
+        assertEquals(
+            PlaylistDetailResolution.AwaitConfirmation,
+            playlistDetailResolution(
+                playlistId = "missing",
+                state = PlaylistState(isLoading = true),
+            ),
+        )
+        assertEquals(
+            PlaylistDetailResolution.AwaitConfirmation,
+            playlistDetailResolution(
+                playlistId = "missing",
+                state = PlaylistState(readErrorMessage = "read_failed"),
+            ),
+        )
+        assertEquals(
+            PlaylistDetailResolution.AwaitConfirmation,
+            playlistDetailResolution(
+                playlistId = "missing",
+                state = PlaylistState(
+                    isLoading = true,
+                    hasConfirmedSnapshot = true,
+                ),
+            ),
+        )
     }
 
     @Test
@@ -25,7 +60,13 @@ class PlaylistStateTest {
 
         assertEquals(
             PlaylistDetailResolution.Show(playlist),
-            playlistDetailResolution(playlistId = playlist.id, resolvedPlaylist = playlist),
+            playlistDetailResolution(
+                playlistId = playlist.id,
+                state = PlaylistState(
+                    confirmedSnapshot = PlaylistSnapshot(playlists = listOf(playlist)),
+                    hasConfirmedSnapshot = true,
+                ),
+            ),
         )
     }
 
@@ -184,6 +225,36 @@ class PlaylistStateTest {
 
         assertEquals(listOf("write", "read"), events)
         assertEquals(listOf("playlist-1"), snapshot.playlists.map { it.id })
+    }
+
+    @Test
+    fun staleRefreshPublicationCannotOverwriteNewerMutationPublication() = runBlocking {
+        val repository = InMemoryPlaylistRepository(
+            now = { 1L },
+            idFactory = { "playlist-1" },
+        )
+        val owner = PlaylistStateOwner(repository, Dispatchers.Default)
+        val oldReadReady = CompletableDeferred<Unit>()
+        val releaseOldRead = CompletableDeferred<Unit>()
+        var state = PlaylistState()
+
+        val refresh = async {
+            val publication = owner.refresh()
+            oldReadReady.complete(Unit)
+            releaseOldRead.await()
+            state = reducePlaylistState(state, publication)
+        }
+        oldReadReady.await()
+
+        state = reducePlaylistState(
+            state,
+            owner.mutate { create("Newer") },
+        )
+        releaseOldRead.complete(Unit)
+        refresh.await()
+
+        assertEquals(listOf("playlist-1"), state.confirmedSnapshot.playlists.map { it.id })
+        assertEquals("Newer", state.confirmedSnapshot.playlists.single().name)
     }
 
     private fun playlist(id: String) = Playlist(
