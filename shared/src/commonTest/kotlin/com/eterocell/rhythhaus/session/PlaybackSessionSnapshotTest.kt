@@ -135,7 +135,7 @@ class PlaybackSessionSnapshotTest {
             repeatMode = RepeatMode.RepeatPlaylist,
             shuffleMode = ShuffleMode.On,
         )
-        val key = ProgressCheckpointKey(generation = 4L, currentOccurrenceId = "legacy-0-one", secondBucket = 1L)
+        val key = ProgressCheckpointKey(generation = 4L, currentOccurrenceId = snapshot.currentOccurrenceId!!, secondBucket = 1L)
 
         assertEquals(snapshot, PlaybackCheckpoint.Immediate(snapshot).snapshot)
         assertEquals(key, PlaybackCheckpoint.PlayingProgress(key, snapshot).key)
