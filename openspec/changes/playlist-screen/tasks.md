@@ -28,11 +28,11 @@
 
 ## 5. Saved Playlist UI and Add Workflows
 
-- [ ] 5.1 Implement Saved-tab and playlist-detail presentation with create, rename, confirmed delete, ordered entries, empty state, mutation failures retaining confirmed state, and row playback/removal.
-- [ ] 5.2 Add drag reorder plus labeled accessible move-up/move-down actions, semantic labels containing playlist or track names, and confirmation-backed destructive actions.
-- [ ] 5.3 Add `Add to playlist` actions on Library home, Search, album detail, and artist detail with existing-playlist picking and inline creation; append an independent entry on every confirmation.
-- [ ] 5.4 Add the playlist-detail searchable multi-select browser over authoritative library tracks, keyed selection, and visible-order append semantics.
-- [ ] 5.5 Add UI-state tests for CRUD, both add workflows, duplicate rows, blank names, failures, confirmation, accessible reorder, and empty-playlist retention. Task 6 follows Task 5 because both modify `PlaylistScreens.kt` and `PlaylistScreensTest.kt`.
+- [x] 5.1 Implement Saved-tab and playlist-detail presentation with create, rename, confirmed delete, ordered entries, empty state, mutation failures retaining confirmed state, and row playback/removal.
+- [x] 5.2 Add drag reorder plus labeled accessible move-up/move-down actions, semantic labels containing playlist or track names, and confirmation-backed destructive actions.
+- [x] 5.3 Add `Add to playlist` actions on Library home, Search, album detail, and artist detail with existing-playlist picking and inline creation; append an independent entry on every confirmation.
+- [x] 5.4 Add the playlist-detail searchable multi-select browser over authoritative library tracks, keyed selection, and visible-order append semantics.
+- [x] 5.5 Add UI-state tests for CRUD, both add workflows, duplicate rows, blank names, failures, confirmation, accessible reorder, and empty-playlist retention. Task 6 follows Task 5 because both modify `PlaylistScreens.kt` and `PlaylistScreensTest.kt`.
 
 ## 6. Queue UI and Accessibility
 
