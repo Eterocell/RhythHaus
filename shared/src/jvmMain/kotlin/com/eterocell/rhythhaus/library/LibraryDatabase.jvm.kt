@@ -3,16 +3,16 @@ package com.eterocell.rhythhaus.library
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import java.io.File
+import java.util.Properties
 
 actual class LibraryDatabase(private val databaseFile: File = defaultDatabaseFile()) {
     private val jdbcDriver: JdbcSqliteDriver by lazy {
         databaseFile.parentFile?.mkdirs()
-        val shouldCreateSchema = !databaseFile.exists() || databaseFile.length() == 0L
-        JdbcSqliteDriver("jdbc:sqlite:${databaseFile.absolutePath}").also { driver ->
-            if (shouldCreateSchema) {
-                RhythHausDatabase.Schema.create(driver)
-            }
-        }
+        JdbcSqliteDriver(
+            url = "jdbc:sqlite:${databaseFile.absolutePath}",
+            properties = Properties().apply { put("foreign_keys", "true") },
+            schema = RhythHausDatabase.Schema,
+        )
     }
 
     actual val driver: SqlDriver get() = jdbcDriver
