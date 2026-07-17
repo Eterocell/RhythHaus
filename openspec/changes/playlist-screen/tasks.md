@@ -16,8 +16,8 @@
 ## 3. Serialized Upcoming Queue Commands
 
 - [x] 3.1 Add controller-owned serialized reorder-upcoming, remove-upcoming, and clear-upcoming commands that validate the latest occurrence queue within the controller boundary and return recoverable outcomes.
-- [x] 3.2 Publish one complete state update and publication-ordered immediate session checkpoint for every accepted command; advance a monotonic revision for every persisted snapshot change, bind runtime shuffle publication to its source state, and preserve current occurrence loading, position, play/pause status, repeat mode, shuffle mode, engine generation, and stale callback protections.
-- [x] 3.3 Add controller coverage for duplicate targeting, pinned-current rejection, stale IDs, invalid positions, concurrent command serialization, clear-upcoming, and transport-state preservation.
+- [x] 3.2 Publish one complete state update and publication-ordered immediate session checkpoint for every accepted command; advance a monotonic revision for every persisted snapshot change, bind runtime shuffle publication to its source state, and route checkpoint, normalized restore, and reconcile persistence through one actor-owned revision watermark while preserving current occurrence loading, position, play/pause status, repeat mode, shuffle mode, engine generation, stale callback protections, and failed-safe behavior.
+- [x] 3.3 Add controller coverage for duplicate targeting, pinned-current rejection, stale IDs, invalid positions, concurrent command serialization, clear-upcoming, transport-state preservation, and restore/reconcile durability ordering.
 
 ## 4. Playlist Navigation, State, and Localization
 
