@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus.library
 
 import android.content.Context
+import androidx.sqlite.db.SupportSQLiteDatabase
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 
@@ -14,6 +15,7 @@ actual class LibraryDatabase(private val context: Context) {
             schema = RhythHausDatabase.Schema,
             context = context,
             name = "rhythhaus.db",
+            callback = libraryDatabaseCallback(),
         )
     }
 
@@ -23,3 +25,9 @@ actual class LibraryDatabase(private val context: Context) {
 }
 
 actual fun createLibraryDatabase(): LibraryDatabase = LibraryDatabase(LibraryDatabaseContext.applicationContext)
+
+internal fun libraryDatabaseCallback() = object : AndroidSqliteDriver.Callback(RhythHausDatabase.Schema) {
+    override fun onOpen(db: SupportSQLiteDatabase) {
+        db.setForeignKeyConstraintsEnabled(true)
+    }
+}
