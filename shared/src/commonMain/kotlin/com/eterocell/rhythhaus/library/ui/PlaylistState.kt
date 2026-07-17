@@ -49,6 +49,11 @@ data class PlaylistState(
     val publicationRevision: Long = 0L,
 )
 
+typealias PlaylistMutationLauncher = (
+    mutation: PlaylistRepository.() -> Unit,
+    onSuccess: () -> Unit,
+) -> Unit
+
 sealed interface PlaylistStateAction {
     data object LoadStarted : PlaylistStateAction
     data class SnapshotConfirmed(
