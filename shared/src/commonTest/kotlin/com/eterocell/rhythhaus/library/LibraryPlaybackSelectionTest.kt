@@ -6,6 +6,7 @@ import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackEngineListener
 import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.PlatformPlaybackEngine
+import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.LoadedPlayback
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
@@ -17,6 +18,44 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class LibraryPlaybackSelectionTest {
+    @Test
+    fun savedPlaylistSelectionStartsTheSelectedDuplicateOccurrence() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val duplicate = tracks("duplicate").single()
+        val visibleQueue = listOf(
+            QueueOccurrence("entry-1", duplicate),
+            QueueOccurrence("entry-2", duplicate),
+        )
+
+        selectOccurrenceForPlayback(controller, visibleQueue, selectedOccurrenceId = "entry-2")
+        engine.awaitEvents(2)
+
+        assertEquals("entry-2", controller.state.value.currentOccurrenceId)
+        assertEquals(listOf("entry-1", "entry-2"), controller.state.value.queue.map { it.id })
+        assertEquals("duplicate", controller.state.value.currentTrack?.id)
+    }
+
+    @Test
+    fun selectingTheCurrentOccurrenceRestartsWithoutReplacingItsQueue() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val duplicate = tracks("duplicate").single()
+        val existingQueue = listOf(
+            QueueOccurrence("entry-1", duplicate),
+            QueueOccurrence("entry-2", duplicate),
+        )
+        controller.setOccurrenceQueue(existingQueue, "entry-2")
+        engine.awaitLoad()
+        engine.clearEvents()
+
+        selectOccurrenceForPlayback(controller, existingQueue.reversed(), "entry-2")
+        engine.awaitEvents(2)
+
+        assertEquals(existingQueue, controller.state.value.queue)
+        assertEquals("entry-2", controller.state.value.currentOccurrenceId)
+    }
+
     @Test
     fun currentSelectionRestartsWithoutReplacingExistingQueue() = runBlocking {
         val engine = RecordingPlaybackEngine()
@@ -31,7 +70,7 @@ class LibraryPlaybackSelectionTest {
         selectLibraryTrackForPlayback(controller, visibleQueue, selectedTrackId = "existing-2")
         engine.awaitEvents(2)
 
-        assertEquals(existingQueue, controller.state.value.queue)
+        assertEquals(existingQueue, controller.state.value.queue.map { it.track })
         assertEquals("existing-2", controller.state.value.currentTrack?.id)
         assertEquals(0L, controller.state.value.positionMillis)
         assertEquals(PlaybackStatus.Playing, controller.state.value.status)
@@ -49,7 +88,7 @@ class LibraryPlaybackSelectionTest {
         selectLibraryTrackForPlayback(controller, visibleQueue, selectedTrackId = "visible-1")
         engine.awaitEvents(2)
 
-        assertEquals(visibleQueue, controller.state.value.queue)
+        assertEquals(visibleQueue, controller.state.value.queue.map { it.track })
         assertEquals("visible-1", controller.state.value.currentTrack?.id)
         assertEquals(PlaybackStatus.Playing, controller.state.value.status)
     }

@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus
 
 import com.eterocell.rhythhaus.session.PlaybackCheckpoint
 import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
+import com.eterocell.rhythhaus.session.SessionQueueEntry
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -22,6 +23,85 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class PlaybackControllerTest {
+    @Test
+    fun duplicateOccurrencesSkipAndShuffleByOccurrenceWhileLoadingTrackIdentity() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val duplicate = testTracks(1).single()
+        val queue = listOf(
+            QueueOccurrence("entry-1", duplicate),
+            QueueOccurrence("entry-2", duplicate),
+            QueueOccurrence("entry-3", testTracks(2)[1]),
+        )
+        val controller = PlaybackController(
+            engine = engine,
+            shuffleOrderFactory = { _, currentId -> listOf(currentId!!, "entry-1", "entry-3") },
+        )
+        controller.setOccurrenceQueue(queue, "entry-2")
+        engine.awaitLoad()
+
+        controller.skipToPrevious()
+        engine.awaitLoadCount(2)
+        assertEquals("entry-1", controller.state.value.currentOccurrenceId)
+        assertEquals("track-1", engine.loadedTracks.last().id)
+
+        controller.selectOccurrence("entry-2")
+        engine.awaitLoadCount(3)
+        controller.setShuffleMode(ShuffleMode.On)
+        controller.skipToNext()
+        engine.awaitLoadCount(4)
+        assertEquals("entry-1", controller.state.value.currentOccurrenceId)
+        assertEquals("track-1", engine.loadedTracks.last().id)
+    }
+
+    @Test
+    fun progressCheckpointUsesCurrentOccurrenceIdentity() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val occurrence = QueueOccurrence("entry-1", testTracks(1).single())
+        val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+        val collection = launch(start = CoroutineStart.UNDISPATCHED) { controller.checkpoints.collect(checkpoints::send) }
+        controller.setOccurrenceQueue(listOf(occurrence), occurrence.id)
+        engine.awaitLoad()
+        checkpoints.receive()
+        engine.listener?.onPlaybackStatus(engine.activeGeneration, PlaybackStatus.Playing)
+
+        engine.listener?.onPlaybackProgress(engine.activeGeneration, 1_100L, 10_000L)
+
+        val checkpoint = checkpoints.receive() as PlaybackCheckpoint.PlayingProgress
+        assertEquals("entry-1", checkpoint.key.currentOccurrenceId)
+        assertEquals("entry-1", checkpoint.snapshot.currentOccurrenceId)
+        assertEquals("track-1", checkpoint.snapshot.queue.single().trackId)
+        collection.cancelAndJoin()
+    }
+
+    @Test
+    fun restoreAndReconcilePreserveDuplicateOccurrencesAndSurvivingCurrentWithoutReload() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val duplicate = testTracks(1).single()
+        controller.restoreSession(
+            PlaybackSessionSnapshot(
+                queue = listOf(
+                    SessionQueueEntry("entry-1", duplicate.id),
+                    SessionQueueEntry("entry-2", duplicate.id),
+                ),
+                currentOccurrenceId = "entry-2",
+                positionMillis = 500L,
+            ),
+            listOf(duplicate),
+        )
+        engine.clearEvents()
+
+        controller.reconcileSession(listOf(duplicate.copy(title = "Updated")))
+
+        assertEquals(listOf("entry-1", "entry-2"), controller.state.value.queue.map { it.id })
+        assertEquals(listOf("track-1", "track-1"), controller.state.value.queue.map { it.track.id })
+        assertEquals("entry-2", controller.state.value.currentOccurrenceId)
+        assertEquals("Updated", controller.state.value.currentTrack?.title)
+        assertEquals(500L, controller.state.value.positionMillis)
+        assertEquals(emptyList(), engine.eventSnapshot())
+    }
+
     @Test
     fun playbackStateDefaultsToStopAfterQueueAndShuffleOff() {
         val controller = PlaybackController(FakePlaybackEngine())
@@ -146,7 +226,7 @@ class PlaybackControllerTest {
         val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(
             engine = engine,
-            shuffleOrderFactory = { _, currentId -> listOf(currentId!!, "track-3", "track-1") },
+            shuffleOrderFactory = { ids, currentId -> listOf(currentId!!) + ids.filterNot { it == currentId }.reversed() },
         )
         val tracks = testTracks(3)
         controller.setQueue(tracks, selectedTrackId = "track-2")
@@ -165,7 +245,7 @@ class PlaybackControllerTest {
         val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(
             engine = engine,
-            shuffleOrderFactory = { _, currentId -> listOf(currentId!!, "track-3", "track-1") },
+            shuffleOrderFactory = { ids, currentId -> listOf(currentId!!) + ids.filterNot { it == currentId }.reversed() },
         )
         val tracks = testTracks(3)
         controller.setQueue(tracks, selectedTrackId = "track-2")
@@ -196,7 +276,10 @@ class PlaybackControllerTest {
         controller.setQueue(testTracks(4), selectedTrackId = "track-3")
 
         assertEquals("track-3", controller.state.value.currentTrack?.id)
-        assertEquals(listOf("track-3", "track-4", "track-2", "track-1"), generatedOrders.last())
+        assertEquals(
+            listOf("track-3", "track-4", "track-2", "track-1"),
+            generatedOrders.last().map { occurrenceId -> occurrenceId.substringAfterLast("-track-").let { "track-$it" } },
+        )
     }
 
     @Test
@@ -339,7 +422,7 @@ class PlaybackControllerTest {
         controller.restartCurrentTrack()
         engine.awaitEvents(2)
 
-        assertEquals(tracks.map { it.id }, controller.state.value.queue.map { it.id })
+        assertEquals(tracks.map { it.id }, controller.state.value.queue.map { it.track.id })
         assertEquals(RepeatMode.RepeatOne, controller.state.value.repeatMode)
         assertEquals(ShuffleMode.On, controller.state.value.shuffleMode)
     }
@@ -497,21 +580,15 @@ class PlaybackControllerTest {
         assertFalse(engine.eventSnapshot().any { it == EngineEvent.Play })
         assertEquals(PlaybackStatus.Paused, controller.state.value.status)
         assertEquals(1_000L, controller.state.value.positionMillis)
-        assertEquals(listOf("track-1"), controller.state.value.queue.map { it.id })
+        assertEquals(listOf("track-1"), controller.state.value.queue.map { it.track.id })
         assertEquals(RepeatMode.RepeatOne, controller.state.value.repeatMode)
         assertEquals(ShuffleMode.On, controller.state.value.shuffleMode)
-        assertEquals(
-            PlaybackCheckpoint.Immediate(
-                PlaybackSessionSnapshot(
-                    queueIds = listOf("track-1"),
-                    currentTrackId = "track-1",
-                    positionMillis = 1_000L,
-                    repeatMode = RepeatMode.RepeatOne,
-                    shuffleMode = ShuffleMode.On,
-                ),
-            ),
-            checkpoints.receive(),
-        )
+        val normalized = checkpoints.receive() as PlaybackCheckpoint.Immediate
+        assertEquals(listOf("track-1"), normalized.snapshot.queue.map { it.trackId })
+        assertEquals("track-1", normalized.snapshot.currentTrackId)
+        assertEquals(1_000L, normalized.snapshot.positionMillis)
+        assertEquals(RepeatMode.RepeatOne, normalized.snapshot.repeatMode)
+        assertEquals(ShuffleMode.On, normalized.snapshot.shuffleMode)
         collection.cancelAndJoin()
     }
 
@@ -778,10 +855,10 @@ class PlaybackControllerTest {
         engine.listener?.onPlaybackProgress(engine.activeGeneration, 500L, 2_000L)
 
         controller.restartCurrentTrack()
-        assertEquals(
-            PlaybackSessionSnapshot(listOf("track-1", "track-2", "track-3"), "track-2", 0L),
-            checkpoints.receive().snapshot,
-        )
+        val restarted = checkpoints.receive().snapshot
+        assertEquals(listOf("track-1", "track-2", "track-3"), restarted.queue.map { it.trackId })
+        assertEquals("track-2", restarted.currentTrackId)
+        assertEquals(0L, restarted.positionMillis)
 
         controller.skipToNext()
         assertEquals("track-3", checkpoints.receive().snapshot.currentTrackId)
@@ -893,17 +970,17 @@ class PlaybackControllerTest {
             listOf(first, duplicate, second),
         )
 
-        assertEquals(listOf("track-1", "track-2"), controller.state.value.queue.map { it.id })
+        assertEquals(listOf("track-1", "track-1", "track-2"), controller.state.value.queue.map { it.track.id })
         assertEquals("First", controller.state.value.currentTrack?.title)
-        assertEquals("First", controller.state.value.queue.first().title)
+        assertEquals("First", controller.state.value.queue.first().track.title)
 
         controller.setCommandsEnabled(true)
         controller.setQueue(listOf(first, duplicate, second), selectedTrackId = "track-2")
         engine.awaitLoadCount(2)
         controller.reconcileSession(listOf(first, duplicate, second))
 
-        assertEquals(listOf("track-1", "track-2"), controller.state.value.queue.map { it.id })
-        assertEquals("First", controller.state.value.queue.first().title)
+        assertEquals(listOf("track-1", "track-1", "track-2"), controller.state.value.queue.map { it.track.id })
+        assertEquals("First", controller.state.value.queue.first().track.title)
     }
 
     private suspend fun loadedController(
