@@ -457,7 +457,7 @@ fun LibraryHomeScreen(
                         onPlaylistMutation(
                             { append(request.playlistId, request.trackIds) },
                             { outcome ->
-                                if (outcome is PlaylistStateAction.SnapshotConfirmed) {
+                                if (playlistMutationDecision(PlaylistMutationWorkflow.PickerAppend, outcome) == PlaylistMutationDecision.CloseModal) {
                                     onPlaylistStateAction(PlaylistStateAction.ClosePicker)
                                 }
                             },
@@ -466,11 +466,10 @@ fun LibraryHomeScreen(
                     onInlineCreate = { request ->
                         onPlaylistMutation(
                             {
-                                val playlist = create(request.name)
-                                append(playlist.id, listOf(request.trackId))
+                                createWithEntries(request.name, listOf(request.trackId))
                             },
                             { outcome ->
-                                if (outcome is PlaylistStateAction.SnapshotConfirmed) {
+                                if (playlistMutationDecision(PlaylistMutationWorkflow.PickerInlineCreate, outcome) == PlaylistMutationDecision.CloseModal) {
                                     onPlaylistStateAction(PlaylistStateAction.ClosePicker)
                                 }
                             },
@@ -510,7 +509,7 @@ fun LibraryHomeScreen(
                         onPlaylistMutation(
                             { append(request.playlistId, request.trackIds) },
                             { outcome ->
-                                if (outcome is PlaylistStateAction.SnapshotConfirmed) {
+                                if (playlistMutationDecision(PlaylistMutationWorkflow.BrowserAppend, outcome) == PlaylistMutationDecision.CloseModal) {
                                     onPlaylistStateAction(PlaylistStateAction.CloseBrowser)
                                 }
                             },

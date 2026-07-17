@@ -272,12 +272,12 @@ internal fun LibraryRouteContent(
                     onRename = { name, onSuccess ->
                         onPlaylistMutation({ rename(resolution.playlist.id, name) }, onSuccess)
                     },
-                    onDelete = { onSuccess ->
+                    onDelete = { onOutcome ->
                         onPlaylistMutation(
                             { delete(resolution.playlist.id) },
                             { outcome ->
-                                if (outcome is PlaylistStateAction.SnapshotConfirmed) {
-                                    onSuccess()
+                                onOutcome(outcome)
+                                if (playlistMutationDecision(PlaylistMutationWorkflow.Delete, outcome) == PlaylistMutationDecision.CloseConfirmationAndRoute) {
                                     onBack()
                                 }
                             },
@@ -298,10 +298,14 @@ internal fun LibraryRouteContent(
                         )
                     },
                     onRemoveEntry = { entryId ->
-                        onPlaylistMutation({ removeEntry(entryId) }, {})
+                        onPlaylistMutation({ removeEntry(entryId) }) { outcome ->
+                            playlistMutationDecision(PlaylistMutationWorkflow.Remove, outcome)
+                        }
                     },
                     onReorder = { entryIds ->
-                        onPlaylistMutation({ reorder(resolution.playlist.id, entryIds) }, {})
+                        onPlaylistMutation({ reorder(resolution.playlist.id, entryIds) }) { outcome ->
+                            playlistMutationDecision(PlaylistMutationWorkflow.Reorder, outcome)
+                        }
                     },
                 )
                 is PlaylistDetailResolution.ReturnToHub -> LaunchedEffect(route) {
