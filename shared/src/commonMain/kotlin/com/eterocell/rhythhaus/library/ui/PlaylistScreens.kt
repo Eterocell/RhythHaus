@@ -104,6 +104,49 @@ data class PlaylistNameDraft(
 
 enum class PlaylistModalNotice { MutationFailed }
 
+enum class PlaylistMutationWorkflow {
+    Create,
+    Rename,
+    Delete,
+    PickerAppend,
+    PickerInlineCreate,
+    BrowserAppend,
+    Remove,
+    Reorder,
+}
+
+enum class PlaylistMutationDecision {
+    CloseModal,
+    RetainModalWithFailure,
+    CloseConfirmationAndRoute,
+    RetainConfirmationWithFailure,
+    KeepRoute,
+    ShowRouteFailure,
+}
+
+fun playlistMutationDecision(
+    workflow: PlaylistMutationWorkflow,
+    outcome: PlaylistStateAction,
+): PlaylistMutationDecision = when (workflow) {
+    PlaylistMutationWorkflow.Delete -> if (outcome is PlaylistStateAction.SnapshotConfirmed) {
+        PlaylistMutationDecision.CloseConfirmationAndRoute
+    } else {
+        PlaylistMutationDecision.RetainConfirmationWithFailure
+    }
+    PlaylistMutationWorkflow.Remove,
+    PlaylistMutationWorkflow.Reorder,
+    -> if (outcome is PlaylistStateAction.SnapshotConfirmed) {
+        PlaylistMutationDecision.KeepRoute
+    } else {
+        PlaylistMutationDecision.ShowRouteFailure
+    }
+    else -> if (outcome is PlaylistStateAction.SnapshotConfirmed) {
+        PlaylistMutationDecision.CloseModal
+    } else {
+        PlaylistMutationDecision.RetainModalWithFailure
+    }
+}
+
 data class PlaylistNameModalPresentation(
     val enteredText: String,
     val notice: PlaylistModalNotice? = null,
@@ -362,7 +405,9 @@ internal fun PlaylistHubScreen(
                 if (name == null) createDraft = draft.mutationFailed() else {
                     onCreate(name) { outcome ->
                         createOutcome = outcome
-                        if (outcome is PlaylistStateAction.SnapshotConfirmed) createDraft = null
+                        if (playlistMutationDecision(PlaylistMutationWorkflow.Create, outcome) == PlaylistMutationDecision.CloseModal) {
+                            createDraft = null
+                        }
                     }
                 }
             },
@@ -379,7 +424,7 @@ internal fun PlaylistDetailScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onRename: (String, (PlaylistStateAction) -> Unit) -> Unit,
-    onDelete: (() -> Unit) -> Unit,
+    onDelete: ((PlaylistStateAction) -> Unit) -> Unit,
     onOpenBrowser: () -> Unit,
     onPlayEntry: (SavedPlaylistPlaybackRequest) -> Unit,
     onRemoveEntry: (String) -> Unit,
@@ -390,6 +435,7 @@ internal fun PlaylistDetailScreen(
     var renameDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
     var renameOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
     var deleteConfirmation by remember { mutableStateOf(false) }
+    var deleteOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
     var removeConfirmation by remember { mutableStateOf<PlaylistDetailRow?>(null) }
     var destructivePresentation by remember { mutableStateOf<PlaylistDestructivePresentation?>(null) }
     val rowCenters = remember { mutableStateMapOf<Int, Float>() }
@@ -399,7 +445,10 @@ internal fun PlaylistDetailScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CompactAction(stringResource(Res.string.playlist_add_tracks), Modifier.weight(1f), onOpenBrowser)
                 CompactAction(stringResource(Res.string.playlist_rename), Modifier.weight(1f)) { renameDraft = PlaylistNameDraft(playlist.name) }
-                CompactAction(stringResource(Res.string.playlist_delete), Modifier.weight(1f)) { deleteConfirmation = true }
+                CompactAction(stringResource(Res.string.playlist_delete), Modifier.weight(1f)) {
+                    deleteConfirmation = true
+                    deleteOutcome = null
+                }
             }
         }
         if (model.rows.isEmpty()) item(key = "empty") { EmptyPlaylistMessage(stringResource(Res.string.playlist_empty_detail)) }
@@ -441,7 +490,9 @@ internal fun PlaylistDetailScreen(
                 if (name == null) renameDraft = draft.mutationFailed() else {
                     onRename(name) { outcome ->
                         renameOutcome = outcome
-                        if (outcome is PlaylistStateAction.SnapshotConfirmed) renameDraft = null
+                        if (playlistMutationDecision(PlaylistMutationWorkflow.Rename, outcome) == PlaylistMutationDecision.CloseModal) {
+                            renameDraft = null
+                        }
                     }
                 }
             },
@@ -450,8 +501,16 @@ internal fun PlaylistDetailScreen(
     if (deleteConfirmation) ConfirmationDialog(
         title = stringResource(Res.string.playlist_delete),
         message = stringResource(Res.string.playlist_delete_confirmation_format, playlist.name),
-        onDismiss = { deleteConfirmation = false },
-        onConfirm = { onDelete { deleteConfirmation = false } },
+        notice = if (deleteOutcome is PlaylistStateAction.MutationFailed) PlaylistModalNotice.MutationFailed else null,
+        onDismiss = { deleteConfirmation = false; deleteOutcome = null },
+        onConfirm = {
+            onDelete { outcome ->
+                deleteOutcome = outcome
+                if (playlistMutationDecision(PlaylistMutationWorkflow.Delete, outcome) == PlaylistMutationDecision.CloseConfirmationAndRoute) {
+                    deleteConfirmation = false
+                }
+            }
+        },
     )
     removeConfirmation?.let { row ->
         ConfirmationDialog(
@@ -688,8 +747,8 @@ private fun ReadFailureNotice(onRetry: () -> Unit) {
 }
 
 @Composable
-private fun ConfirmationDialog(title: String, message: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    ModalCard(onDismiss) { Text(title, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black); Text(message, color = HausColors.current.muted, fontSize = 14.sp); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { CompactAction(stringResource(Res.string.cancel), Modifier.weight(1f), onDismiss); CompactAction(title, Modifier.weight(1f), onConfirm) } }
+private fun ConfirmationDialog(title: String, message: String, notice: PlaylistModalNotice? = null, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    ModalCard(onDismiss) { Text(title, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black); Text(message, color = HausColors.current.muted, fontSize = 14.sp); ModalFailureNotice(notice); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { CompactAction(stringResource(Res.string.cancel), Modifier.weight(1f), onDismiss); CompactAction(title, Modifier.weight(1f), onConfirm) } }
 }
 
 @Composable

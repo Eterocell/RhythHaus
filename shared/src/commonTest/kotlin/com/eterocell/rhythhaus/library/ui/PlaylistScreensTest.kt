@@ -132,7 +132,7 @@ class PlaylistScreensTest {
     }
 
     @Test
-    fun pickerInlineCreationPlansCreateThenAppendWithoutCollapsingDuplicates() {
+    fun pickerInlineCreationPlansAtomicInitialEntriesWithoutCollapsingDuplicates() {
         val request = PlaylistInlineCreateRequest(name = "New", trackId = "track-a")
 
         assertEquals(
@@ -228,6 +228,73 @@ class PlaylistScreensTest {
 
         assertEquals(listOf("a", "d", "b", "c"), session.finalOrder())
         assertEquals(listOf("a", "b", "c", "d"), session.finalOrder())
+    }
+
+    @Test
+    fun failedDeleteOutcomeRetainsConfirmationAndPlaylistSnapshot() {
+        val playlist = playlist("playlist-1")
+        val state = reducePlaylistState(
+            PlaylistState(
+                confirmedSnapshot = PlaylistSnapshot(playlists = listOf(playlist)),
+                hasConfirmedSnapshot = true,
+            ),
+            PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 9L),
+        )
+
+        val decision = playlistMutationDecision(
+            workflow = PlaylistMutationWorkflow.Delete,
+            outcome = PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 9L),
+        )
+
+        assertEquals(PlaylistMutationDecision.RetainConfirmationWithFailure, decision)
+        assertEquals(playlist, state.confirmedSnapshot.playlist(playlist.id))
+    }
+
+    @Test
+    fun actualMutationWorkflowDecisionsCloseOrRetainEveryTaskFiveSurface() {
+        val success = PlaylistStateAction.SnapshotConfirmed(PlaylistSnapshot(), revision = 10L)
+        val failure = PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 10L)
+
+        val modalWorkflows = listOf(
+            PlaylistMutationWorkflow.Create,
+            PlaylistMutationWorkflow.Rename,
+            PlaylistMutationWorkflow.PickerAppend,
+            PlaylistMutationWorkflow.PickerInlineCreate,
+            PlaylistMutationWorkflow.BrowserAppend,
+        )
+        modalWorkflows.forEach { workflow ->
+            assertEquals(PlaylistMutationDecision.CloseModal, playlistMutationDecision(workflow, success))
+            assertEquals(PlaylistMutationDecision.RetainModalWithFailure, playlistMutationDecision(workflow, failure))
+        }
+        assertEquals(PlaylistMutationDecision.CloseConfirmationAndRoute, playlistMutationDecision(PlaylistMutationWorkflow.Delete, success))
+        assertEquals(PlaylistMutationDecision.RetainConfirmationWithFailure, playlistMutationDecision(PlaylistMutationWorkflow.Delete, failure))
+        listOf(PlaylistMutationWorkflow.Remove, PlaylistMutationWorkflow.Reorder).forEach { workflow ->
+            assertEquals(PlaylistMutationDecision.KeepRoute, playlistMutationDecision(workflow, success))
+            assertEquals(PlaylistMutationDecision.ShowRouteFailure, playlistMutationDecision(workflow, failure))
+        }
+    }
+
+    @Test
+    fun failedInlineCreateCallbackRetainsPickerRetryState() {
+        val initial = PlaylistState(
+            picker = PlaylistPickerState(
+                trackId = "track-a",
+                selectedPlaylistId = "playlist-existing",
+                enteredName = "Retry list",
+            ),
+            hasConfirmedSnapshot = true,
+            publicationRevision = 11L,
+        )
+        val outcome = PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 12L)
+
+        val reduced = reducePlaylistState(initial, outcome)
+        val decision = playlistMutationDecision(PlaylistMutationWorkflow.PickerInlineCreate, outcome)
+
+        assertEquals(PlaylistMutationDecision.RetainModalWithFailure, decision)
+        assertEquals("track-a", reduced.picker?.trackId)
+        assertEquals("playlist-existing", reduced.picker?.selectedPlaylistId)
+        assertEquals("Retry list", reduced.picker?.enteredName)
+        assertEquals(PlaylistModalNotice.MutationFailed, playlistPickerPresentation(reduced)?.notice)
     }
 
     private fun entry(id: String, trackId: String, position: Int) = PlaylistEntry(
