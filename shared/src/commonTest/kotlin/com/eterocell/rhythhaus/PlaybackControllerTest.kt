@@ -15,6 +15,8 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collect
@@ -24,6 +26,203 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class PlaybackControllerTest {
+    @Test
+    fun upcomingMutationsRejectCurrentStaleAndInvalidTargetsWithoutChangingState() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val queue = occurrenceQueue()
+        val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+        val collection = launch(start = CoroutineStart.UNDISPATCHED) { controller.checkpoints.collect(checkpoints::send) }
+        controller.setOccurrenceQueue(queue, "current")
+        engine.awaitLoad()
+        checkpoints.receive()
+        engine.listener?.onPlaybackProgress(engine.activeGeneration, 750L, 1_000L)
+        engine.listener?.onPlaybackStatus(engine.activeGeneration, PlaybackStatus.Paused)
+        val before = controller.state.value
+
+        assertEquals(
+            QueueMutationResult.Rejected(QueueMutationRejection.CurrentOccurrence),
+            controller.removeUpcoming("current"),
+        )
+        assertEquals(
+            QueueMutationResult.Rejected(QueueMutationRejection.StaleOccurrence),
+            controller.removeUpcoming("missing"),
+        )
+        assertEquals(
+            QueueMutationResult.Rejected(QueueMutationRejection.InvalidTargetIndex),
+            controller.reorderUpcoming("upcoming-1", 2),
+        )
+
+        assertEquals(before, controller.state.value)
+        assertNull(checkpoints.tryReceive().getOrNull())
+        collection.cancelAndJoin()
+    }
+
+    @Test
+    fun reorderUpcomingTargetsOneDuplicateOccurrenceAndEmitsOneCompleteCheckpoint() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val duplicate = testTracks(1).single()
+        val queue = listOf(
+            QueueOccurrence("current", testTracks(3)[1]),
+            QueueOccurrence("duplicate-1", duplicate),
+            QueueOccurrence("other", testTracks(3)[2]),
+            QueueOccurrence("duplicate-2", duplicate),
+        )
+        val controller = PlaybackController(engine)
+        val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+        val collection = launch(start = CoroutineStart.UNDISPATCHED) { controller.checkpoints.collect(checkpoints::send) }
+        controller.setOccurrenceQueue(queue, "current")
+        engine.awaitLoad()
+        checkpoints.receive()
+
+        assertEquals(QueueMutationResult.Applied, controller.reorderUpcoming("duplicate-2", 0))
+
+        assertEquals(
+            listOf("current", "duplicate-2", "duplicate-1", "other"),
+            controller.state.value.queue.map { it.id },
+        )
+        val checkpoint = checkpoints.receive()
+        assertTrue(checkpoint is PlaybackCheckpoint.Immediate)
+        assertEquals(controller.sessionSnapshot(), checkpoint.snapshot)
+        assertNull(checkpoints.tryReceive().getOrNull())
+        collection.cancelAndJoin()
+    }
+
+    @Test
+    fun concurrentRemovalOfSameOccurrenceSerializesAgainstLatestState() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        controller.setOccurrenceQueue(occurrenceQueue(), "current")
+        engine.awaitLoad()
+
+        val first = async { controller.removeUpcoming("upcoming-1") }
+        val second = async { controller.removeUpcoming("upcoming-1") }
+
+        assertEquals(
+            setOf(
+                QueueMutationResult.Applied,
+                QueueMutationResult.Rejected(QueueMutationRejection.StaleOccurrence),
+            ),
+            setOf(first.await(), second.await()),
+        )
+        assertEquals(listOf("current", "upcoming-2"), controller.state.value.queue.map { it.id })
+    }
+
+    @Test
+    fun inFlightMutationCannotOverwriteACompletedQueueReplacement() = runBlocking {
+        repeat(20) { attempt ->
+            val controller = PlaybackController(RecordingPlaybackEngine())
+            val track = testTracks(1).single()
+            val largeQueue = buildList {
+                add(QueueOccurrence("current-$attempt", track))
+                repeat(100_000) { index -> add(QueueOccurrence("upcoming-$attempt-$index", track)) }
+            }
+            controller.setOccurrenceQueue(largeQueue, "current-$attempt")
+            val started = CompletableDeferred<Unit>()
+            val mutation = async(Dispatchers.Default) {
+                started.complete(Unit)
+                controller.removeUpcoming("upcoming-$attempt-99999")
+            }
+            started.await()
+            kotlinx.coroutines.yield()
+            val replacement = QueueOccurrence("replacement-$attempt", track)
+
+            controller.setOccurrenceQueue(listOf(replacement), replacement.id)
+            val result = mutation.await()
+
+            assertEquals(
+                replacement.id,
+                controller.state.value.currentOccurrenceId,
+                "Attempt $attempt lost a completed replacement after mutation result $result",
+            )
+        }
+    }
+
+    @Test
+    fun upcomingMutationsPreserveHistoryBeforeCurrentAndRejectHistoryTargets() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val tracks = testTracks(4)
+        val controller = PlaybackController(engine)
+        controller.setOccurrenceQueue(
+            listOf(
+                QueueOccurrence("history", tracks[0]),
+                QueueOccurrence("current", tracks[1]),
+                QueueOccurrence("upcoming-1", tracks[2]),
+                QueueOccurrence("upcoming-2", tracks[3]),
+            ),
+            "current",
+        )
+        engine.awaitLoad()
+
+        assertEquals(
+            QueueMutationResult.Rejected(QueueMutationRejection.StaleOccurrence),
+            controller.removeUpcoming("history"),
+        )
+        assertEquals(QueueMutationResult.Applied, controller.clearUpcoming())
+
+        assertEquals(listOf("history", "current"), controller.state.value.queue.map { it.id })
+        assertEquals("current", controller.state.value.currentOccurrenceId)
+    }
+
+    @Test
+    fun acceptedUpcomingEditsPreserveTransportGenerationAndStaleCallbackSafety() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(
+            engine = engine,
+            shuffleOrderFactory = { ids, currentId -> listOf(currentId!!) + ids.filterNot { it == currentId }.reversed() },
+        )
+        controller.setOccurrenceQueue(occurrenceQueue(), "current")
+        engine.awaitLoad()
+        engine.listener?.onPlaybackProgress(engine.activeGeneration, 750L, 1_000L)
+        engine.listener?.onPlaybackStatus(engine.activeGeneration, PlaybackStatus.Paused)
+        controller.setRepeatMode(RepeatMode.RepeatPlaylist)
+        controller.setShuffleMode(ShuffleMode.On)
+        val generation = engine.activeGeneration
+        engine.clearEvents()
+
+        assertEquals(QueueMutationResult.Applied, controller.removeUpcoming("upcoming-1"))
+        assertEquals(QueueMutationResult.Applied, controller.clearUpcoming())
+
+        val state = controller.state.value
+        assertEquals(listOf("current"), state.queue.map { it.id })
+        assertEquals("current", state.currentOccurrenceId)
+        assertEquals(750L, state.positionMillis)
+        assertEquals(PlaybackStatus.Paused, state.status)
+        assertEquals(RepeatMode.RepeatPlaylist, state.repeatMode)
+        assertEquals(ShuffleMode.On, state.shuffleMode)
+        assertEquals(generation, engine.activeGeneration)
+        assertEquals(emptyList(), engine.eventSnapshot())
+
+        engine.listener?.onPlaybackStatus(generation - 1L, PlaybackStatus.Playing)
+        engine.listener?.onPlaybackProgress(generation - 1L, 999L, 1_000L)
+        assertEquals(state, controller.state.value)
+    }
+
+    @Test
+    fun clearUpcomingDuringLoadingDoesNotRestartOrReplaceCurrentOccurrence() = runBlocking {
+        val loadGate = CompletableDeferred<Unit>()
+        val engine = RecordingPlaybackEngine(loadGate = loadGate)
+        val controller = PlaybackController(engine)
+        controller.setOccurrenceQueue(occurrenceQueue(), "current")
+        engine.awaitLoadStarted()
+        val generation = engine.activeGeneration
+        engine.clearEvents()
+
+        assertEquals(QueueMutationResult.Applied, controller.clearUpcoming())
+
+        assertEquals("current", controller.state.value.currentOccurrenceId)
+        assertEquals(PlaybackStatus.Loading, controller.state.value.status)
+        assertEquals(0L, controller.state.value.positionMillis)
+        assertEquals(generation, engine.activeGeneration)
+        assertEquals(1, engine.loadedGenerations.size)
+        assertEquals(emptyList(), engine.eventSnapshot())
+        engine.releaseLoad()
+        withTimeout(5_000) {
+            while (controller.state.value.status != PlaybackStatus.Paused) kotlinx.coroutines.yield()
+        }
+        assertEquals("current", controller.state.value.currentOccurrenceId)
+    }
+
     @Test
     fun duplicateOccurrencesSkipAndShuffleByOccurrenceWhileLoadingTrackIdentity() = runBlocking {
         val engine = RecordingPlaybackEngine()
@@ -553,6 +752,18 @@ class PlaybackControllerTest {
         controller.restartCurrentTrack()
         controller.skipToNext()
         controller.skipToPrevious()
+        assertEquals(
+            QueueMutationResult.Rejected(QueueMutationRejection.CommandsDisabled),
+            controller.reorderUpcoming(before.queue.last().id, 0),
+        )
+        assertEquals(
+            QueueMutationResult.Rejected(QueueMutationRejection.CommandsDisabled),
+            controller.removeUpcoming(before.queue.last().id),
+        )
+        assertEquals(
+            QueueMutationResult.Rejected(QueueMutationRejection.CommandsDisabled),
+            controller.clearUpcoming(),
+        )
 
         assertEquals(before, controller.state.value)
         assertEquals(emptyList(), engine.eventSnapshot())
@@ -1013,6 +1224,15 @@ class PlaybackControllerTest {
             album = "Test Album",
             durationMillis = index * 1_000L,
             source = AudioSource.FilePath("/tmp/track-$index.mp3"),
+        )
+    }
+
+    private fun occurrenceQueue(): List<QueueOccurrence> {
+        val tracks = testTracks(3)
+        return listOf(
+            QueueOccurrence("current", tracks[0]),
+            QueueOccurrence("upcoming-1", tracks[1]),
+            QueueOccurrence("upcoming-2", tracks[2]),
         )
     }
 

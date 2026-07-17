@@ -5,6 +5,8 @@ import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackStatus
+import com.eterocell.rhythhaus.QueueMutationResult
+import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryTrack
@@ -31,6 +33,40 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class PlaybackSessionCoordinatorTest {
+    @Test
+    fun acceptedUpcomingMutationPersistsCompleteOccurrenceSnapshotThroughCoordinator() = runBlocking {
+        val controller = PlaybackController(FakePlaybackEngine())
+        val store = RecordingStore()
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        coordinator.restoreOnce(emptyList())
+        val tracks = playableTracks("current", "duplicate")
+        controller.setOccurrenceQueue(
+            listOf(
+                QueueOccurrence("entry-current", tracks[0]),
+                QueueOccurrence("entry-duplicate-1", tracks[1]),
+                QueueOccurrence("entry-duplicate-2", tracks[1]),
+            ),
+            selectedOccurrenceId = "entry-current",
+        )
+        coordinator.flush()
+        store.saved.clear()
+
+        assertEquals(QueueMutationResult.Applied, controller.removeUpcoming("entry-duplicate-1"))
+        coordinator.flush()
+
+        assertEquals(1, store.saved.size)
+        assertEquals(
+            listOf(
+                SessionQueueEntry("entry-current", "current"),
+                SessionQueueEntry("entry-duplicate-2", "duplicate"),
+            ),
+            store.saved.single().queue,
+        )
+        assertEquals("entry-current", store.saved.single().currentOccurrenceId)
+        scope.cancel()
+    }
+
     @Test
     fun terminalCompletionFlushPersistsExactNonWholeSecondDurationWithoutProgress() = runBlocking {
         val engine = FakePlaybackEngine()
