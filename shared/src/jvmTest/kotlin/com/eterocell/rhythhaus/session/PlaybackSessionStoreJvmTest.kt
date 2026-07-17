@@ -8,6 +8,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.eterocell.rhythhaus.AudioSource
+import com.eterocell.rhythhaus.FakePlaybackEngine
+import com.eterocell.rhythhaus.PlayableTrack
+import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
 import java.io.File
@@ -26,6 +30,65 @@ import kotlinx.coroutines.flow.first
 import okio.Path.Companion.toOkioPath
 
 class PlaybackSessionStoreJvmTest {
+    @Test
+    fun legacyMaximumLengthTrackRestoresAndNormalizesWithoutFailedSafe() = runBlocking {
+        val trackId = "x".repeat(PlaybackSessionCodec.maxIdCharacters)
+        withStore { store, dataStore ->
+            dataStore.edit { preferences ->
+                preferences[QueueIdsKey] = PlaybackSessionCodec.encodeIds(listOf(trackId))
+                preferences[CurrentIdKey] = PlaybackSessionCodec.encodeIds(listOf(trackId))
+            }
+            val processJob = SupervisorJob()
+            val controller = PlaybackController(FakePlaybackEngine())
+            val coordinator = PlaybackSessionCoordinator(
+                controller = controller,
+                store = store,
+                processScope = CoroutineScope(Dispatchers.Default + processJob),
+            )
+            try {
+                coordinator.restoreOnce(listOf(track(trackId)))
+
+                assertEquals(PlaybackSessionPhase.Ready, coordinator.phase.value)
+                val normalized = store.read()
+                assertEquals(trackId, normalized.queue.single().trackId)
+                assertEquals(normalized.queue.single().occurrenceId, normalized.currentOccurrenceId)
+                assertEquals(null, dataStore.data.first()[QueueIdsKey])
+                assertEquals(null, dataStore.data.first()[CurrentIdKey])
+            } finally {
+                processJob.cancelAndJoin()
+                controller.release()
+            }
+        }
+    }
+
+    @Test
+    fun genericMaximumLengthTrackCheckpointPersistsWithoutFailedSafe() = runBlocking {
+        val trackId = "x".repeat(PlaybackSessionCodec.maxIdCharacters)
+        withStore { store, _ ->
+            val processJob = SupervisorJob()
+            val controller = PlaybackController(FakePlaybackEngine())
+            val coordinator = PlaybackSessionCoordinator(
+                controller = controller,
+                store = store,
+                processScope = CoroutineScope(Dispatchers.Default + processJob),
+            )
+            try {
+                coordinator.restoreOnce(emptyList())
+                controller.setQueue(listOf(track(trackId)), selectedTrackId = trackId)
+                coordinator.flush()
+
+                assertEquals(PlaybackSessionPhase.Ready, coordinator.phase.value)
+                val persisted = store.read()
+                assertEquals(trackId, persisted.queue.single().trackId)
+                assertEquals(persisted.queue.single().occurrenceId, persisted.currentOccurrenceId)
+                assertEquals(true, persisted.queue.single().occurrenceId.length <= PlaybackSessionCodec.maxIdCharacters)
+            } finally {
+                processJob.cancelAndJoin()
+                controller.release()
+            }
+        }
+    }
+
     @Test
     fun newStoreRoundTripKeepsOrderedOccurrenceTrackPairsAndUsesOneQueueValue() = runBlocking {
         withStore { store, dataStore ->
@@ -59,12 +122,12 @@ class PlaybackSessionStoreJvmTest {
 
             assertEquals(
                 listOf(
-                    SessionQueueEntry("legacy-0-track-a", "track-a"),
-                    SessionQueueEntry("legacy-1-track-b", "track-b"),
+                    SessionQueueEntry("legacy-0", "track-a"),
+                    SessionQueueEntry("legacy-1", "track-b"),
                 ),
                 normalized.queue,
             )
-            assertEquals("legacy-1-track-b", normalized.currentOccurrenceId)
+            assertEquals("legacy-1", normalized.currentOccurrenceId)
             store.save(normalized)
             val preferences = dataStore.data.first()
             assertEquals(null, preferences[QueueIdsKey])
@@ -358,6 +421,15 @@ class PlaybackSessionStoreJvmTest {
 
     private fun newPreferencesFile(prefix: String): File =
         File.createTempFile(prefix, ".preferences_pb").apply { delete() }
+
+    private fun track(id: String): PlayableTrack = PlayableTrack(
+        id = id,
+        title = "Boundary track",
+        artist = "Artist",
+        album = "Album",
+        durationMillis = 1_000L,
+        source = AudioSource.FilePath("/boundary.mp3"),
+    )
 
     private companion object {
         val QueueEntriesKey = stringPreferencesKey("queue_entries")

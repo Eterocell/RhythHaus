@@ -20,7 +20,7 @@ data class PlaybackSessionSnapshot(
     ) : this(
         queue = normalizeLegacyQueue(queueIds),
         currentOccurrenceId = currentTrackId?.let { current ->
-            queueIds.indexOf(current).takeIf { it >= 0 }?.let { legacyOccurrenceId(it, current) }
+            queueIds.indexOf(current).takeIf { it >= 0 }?.let(::legacyOccurrenceId)
         },
         positionMillis = positionMillis,
         repeatMode = repeatMode,
@@ -174,9 +174,9 @@ data class ProgressCheckpointKey(
 )
 
 internal fun normalizeLegacyQueue(trackIds: List<String>): List<SessionQueueEntry> =
-    trackIds.mapIndexed { index, trackId -> SessionQueueEntry(legacyOccurrenceId(index, trackId), trackId) }
+    trackIds.mapIndexed { index, trackId -> SessionQueueEntry(legacyOccurrenceId(index), trackId) }
 
-private fun legacyOccurrenceId(index: Int, trackId: String): String = "legacy-$index-$trackId"
+private fun legacyOccurrenceId(index: Int): String = "legacy-$index"
 
 private fun hasValidOccurrences(queue: List<SessionQueueEntry>): Boolean {
     if (queue.size > PlaybackSessionCodec.maxIds) return false
