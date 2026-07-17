@@ -58,6 +58,34 @@ class ArtworkCollapseTest {
     }
 
     @Test
+    fun clippedSlicesKeepTheFullSquareArtworkPlane() {
+        assertEquals(
+            ArtworkSlicePlaneGeometry(
+                planeSide = 320f,
+                viewportHeight = 240f,
+                imageOffsetY = 0f,
+            ),
+            artworkSlicePlaneGeometry(
+                expandedSize = 320f,
+                viewportHeight = 240f,
+                imageOffsetY = 0f,
+            ),
+        )
+        assertEquals(
+            ArtworkSlicePlaneGeometry(
+                planeSide = 320f,
+                viewportHeight = 80f,
+                imageOffsetY = -240f,
+            ),
+            artworkSlicePlaneGeometry(
+                expandedSize = 320f,
+                viewportHeight = 80f,
+                imageOffsetY = -240f,
+            ),
+        )
+    }
+
+    @Test
     fun resizedGeometryRecomputesFromCurrentListPosition() {
         val resized = ArtworkCollapseGeometry(200f, 80f)
         assertEquals(1f, resized.snapshot(0, 220).progress)

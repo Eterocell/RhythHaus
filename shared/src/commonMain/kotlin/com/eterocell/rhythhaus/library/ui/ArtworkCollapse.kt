@@ -30,6 +30,22 @@ internal val ArtworkDrillDownListSpacing = DrillDownListSpacing(20f, 18f, 0f)
 
 internal fun artworkChromeSolidAlpha(progress: Float): Float = progress.coerceIn(0f, 1f)
 
+internal data class ArtworkSlicePlaneGeometry(
+    val planeSide: Float,
+    val viewportHeight: Float,
+    val imageOffsetY: Float,
+)
+
+internal fun artworkSlicePlaneGeometry(
+    expandedSize: Float,
+    viewportHeight: Float,
+    imageOffsetY: Float,
+): ArtworkSlicePlaneGeometry = ArtworkSlicePlaneGeometry(
+    planeSide = expandedSize,
+    viewportHeight = viewportHeight,
+    imageOffsetY = imageOffsetY,
+)
+
 internal data class ArtworkTitleAvailableWidth(
     val collapsedDp: Float,
     val expandedDp: Float,

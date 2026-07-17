@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -159,6 +160,11 @@ internal fun DrillDownArtworkUpperSlice(
     upperSliceHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
+    val planeGeometry = artworkSlicePlaneGeometry(
+        expandedSize = expandedHeight.value,
+        viewportHeight = upperSliceHeight.value,
+        imageOffsetY = 0f,
+    )
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -167,7 +173,7 @@ internal fun DrillDownArtworkUpperSlice(
     ) {
         DrillDownArtworkPlane(
             artworkBytes = artworkBytes,
-            expandedHeight = expandedHeight,
+            geometry = planeGeometry,
         )
     }
 }
@@ -184,6 +190,11 @@ internal fun DrillDownArtworkStickySlice(
 ) {
     val collapsedTitleAlpha = (progress * 3f).coerceIn(0f, 1f)
     val largeTitleAlpha = (1f - progress * 2f).coerceIn(0f, 1f)
+    val planeGeometry = artworkSlicePlaneGeometry(
+        expandedSize = expandedHeight.value,
+        viewportHeight = collapsedHeight.value,
+        imageOffsetY = imageOffsetY.value,
+    )
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -196,8 +207,8 @@ internal fun DrillDownArtworkStickySlice(
         )
         DrillDownArtworkPlane(
             artworkBytes = artworkBytes,
-            expandedHeight = expandedHeight,
-            modifier = Modifier.offset(y = imageOffsetY),
+            geometry = planeGeometry,
+            modifier = Modifier.offset(y = planeGeometry.imageOffsetY.dp),
         )
         Box(
             modifier = Modifier
@@ -226,10 +237,14 @@ internal fun DrillDownArtworkStickySlice(
 @Composable
 private fun DrillDownArtworkPlane(
     artworkBytes: ByteArray,
-    expandedHeight: Dp,
+    geometry: ArtworkSlicePlaneGeometry,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.size(expandedHeight)) {
+    Box(
+        modifier = modifier
+            .wrapContentSize(Alignment.TopStart, unbounded = true)
+            .size(geometry.planeSide.dp),
+    ) {
         ArtworkImage(
             artworkBytes = artworkBytes,
             contentDescription = stringResource(Res.string.album_artwork),
