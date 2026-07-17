@@ -55,8 +55,14 @@ sealed interface PlaylistStateAction {
         val snapshot: PlaylistSnapshot,
         val revision: Long = 0L,
     ) : PlaylistStateAction
-    data class ReadFailed(val message: String) : PlaylistStateAction
-    data class MutationFailed(val message: String) : PlaylistStateAction
+    data class ReadFailed(
+        val message: String,
+        val revision: Long = 0L,
+    ) : PlaylistStateAction
+    data class MutationFailed(
+        val message: String,
+        val revision: Long = 0L,
+    ) : PlaylistStateAction
     data class SelectTab(val tab: PlaylistTab) : PlaylistStateAction
     data class ShowRecoverableMessage(val message: String) : PlaylistStateAction
     data class OpenPicker(val picker: PlaylistPickerState) : PlaylistStateAction
@@ -83,8 +89,23 @@ fun reducePlaylistState(state: PlaylistState, action: PlaylistStateAction): Play
             publicationRevision = action.revision,
         )
     }
-    is PlaylistStateAction.ReadFailed -> state.copy(isLoading = false, readErrorMessage = action.message)
-    is PlaylistStateAction.MutationFailed -> state.copy(mutationErrorMessage = action.message)
+    is PlaylistStateAction.ReadFailed -> if (action.revision < state.publicationRevision) {
+        state
+    } else {
+        state.copy(
+            isLoading = false,
+            readErrorMessage = action.message,
+            publicationRevision = action.revision,
+        )
+    }
+    is PlaylistStateAction.MutationFailed -> if (action.revision < state.publicationRevision) {
+        state
+    } else {
+        state.copy(
+            mutationErrorMessage = action.message,
+            publicationRevision = action.revision,
+        )
+    }
     is PlaylistStateAction.SelectTab -> state.copy(selectedTab = action.tab)
     is PlaylistStateAction.ShowRecoverableMessage -> state.copy(recoverableMessage = action.message)
     is PlaylistStateAction.OpenPicker -> state.copy(picker = action.picker)
@@ -150,14 +171,33 @@ class PlaylistStateOwner(
     private val mutex = Mutex()
     private var publicationRevision = 0L
 
-    suspend fun refresh(): PlaylistStateAction.SnapshotConfirmed = mutex.withLock {
-        val snapshot = withContext(dispatcher) { loadPlaylistSnapshot(repository) }
-        PlaylistStateAction.SnapshotConfirmed(snapshot, ++publicationRevision)
+    suspend fun refresh(
+        failureMessage: String = PlaylistReadFailedMessage,
+    ): PlaylistStateAction = mutex.withLock {
+        val revision = ++publicationRevision
+        try {
+            val snapshot = withContext(dispatcher) { loadPlaylistSnapshot(repository) }
+            PlaylistStateAction.SnapshotConfirmed(snapshot, revision)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            PlaylistStateAction.ReadFailed(failureMessage, revision)
+        }
     }
 
-    suspend fun mutate(mutation: PlaylistRepository.() -> Unit): PlaylistStateAction.SnapshotConfirmed = mutex.withLock {
-        val snapshot = withContext(dispatcher) { mutatePlaylistAndRefresh(repository, mutation) }
-        PlaylistStateAction.SnapshotConfirmed(snapshot, ++publicationRevision)
+    suspend fun mutate(
+        failureMessage: String = PlaylistMutationFailedMessage,
+        mutation: PlaylistRepository.() -> Unit,
+    ): PlaylistStateAction = mutex.withLock {
+        val revision = ++publicationRevision
+        try {
+            val snapshot = withContext(dispatcher) { mutatePlaylistAndRefresh(repository, mutation) }
+            PlaylistStateAction.SnapshotConfirmed(snapshot, revision)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            PlaylistStateAction.MutationFailed(failureMessage, revision)
+        }
     }
 }
 
@@ -171,3 +211,5 @@ fun savedPlaylistOccurrences(
 fun savedPlaylistRowKeys(visibleEntries: List<PlaylistEntry>): List<String> = visibleEntries.map(PlaylistEntry::id)
 
 const val PlaylistChangedMessage = "playlist_changed"
+const val PlaylistReadFailedMessage = "playlist_load_failed"
+const val PlaylistMutationFailedMessage = "playlist_mutation_failed"

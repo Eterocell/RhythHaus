@@ -257,6 +257,51 @@ class PlaylistStateTest {
         assertEquals("Newer", state.confirmedSnapshot.playlists.single().name)
     }
 
+    @Test
+    fun staleRefreshFailureCannotOverwriteNewerSuccessOrClearNewerLoading() = runBlocking {
+        var failReads = true
+        val delegate = InMemoryPlaylistRepository(now = { 1L }, idFactory = { "playlist-1" })
+        val repository = object : com.eterocell.rhythhaus.library.PlaylistRepository by delegate {
+            override fun playlists(): List<Playlist> = if (failReads) error("old read failed") else delegate.playlists()
+        }
+        val owner = PlaylistStateOwner(repository, Dispatchers.Default)
+        val oldFailure = owner.refresh(PlaylistReadFailedMessage)
+        failReads = false
+        var state = reducePlaylistState(
+            PlaylistState(),
+            owner.mutate(PlaylistMutationFailedMessage) { create("Newer") },
+        )
+        state = reducePlaylistState(state, PlaylistStateAction.LoadStarted)
+
+        state = reducePlaylistState(state, oldFailure)
+
+        assertTrue(state.isLoading)
+        assertNull(state.readErrorMessage)
+        assertEquals("Newer", state.confirmedSnapshot.playlists.single().name)
+    }
+
+    @Test
+    fun staleMutationFailureCannotAddNoticeAfterNewerSuccess() = runBlocking {
+        var failMutation = true
+        val delegate = InMemoryPlaylistRepository(now = { 1L }, idFactory = { "playlist-1" })
+        val repository = object : com.eterocell.rhythhaus.library.PlaylistRepository by delegate {
+            override fun create(name: String): Playlist = if (failMutation) error("old mutation failed") else delegate.create(name)
+        }
+        val owner = PlaylistStateOwner(repository, Dispatchers.Default)
+        val oldFailure = owner.mutate(PlaylistMutationFailedMessage) { create("Old") }
+        failMutation = false
+        var state = reducePlaylistState(
+            PlaylistState(),
+            owner.mutate(PlaylistMutationFailedMessage) { create("Newer") },
+        )
+
+        state = reducePlaylistState(state, oldFailure)
+
+        assertNull(state.mutationErrorMessage)
+        assertNull(playlistRouteNotice(state))
+        assertEquals("Newer", state.confirmedSnapshot.playlists.single().name)
+    }
+
     private fun playlist(id: String) = Playlist(
         id = id,
         name = "Playlist $id",

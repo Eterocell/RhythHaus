@@ -28,6 +28,8 @@ import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
 import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
+import com.eterocell.rhythhaus.library.ui.PlaylistReadFailedMessage
+import com.eterocell.rhythhaus.library.ui.PlaylistMutationFailedMessage
 import com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.mutatePlaylistAndRefresh
 import com.eterocell.rhythhaus.library.ui.reducePlaylistState
@@ -103,13 +105,10 @@ fun App() {
     fun refreshPlaylists() {
         playlistState = reducePlaylistState(playlistState, PlaylistStateAction.LoadStarted)
         scope.launch {
-            playlistState = try {
-                reducePlaylistState(playlistState, playlistStateOwner.refresh())
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                reducePlaylistState(playlistState, PlaylistStateAction.ReadFailed(PlaylistReadFailedMessage))
-            }
+            playlistState = reducePlaylistState(
+                playlistState,
+                playlistStateOwner.refresh(PlaylistReadFailedMessage),
+            )
         }
     }
 
@@ -186,16 +185,10 @@ fun App() {
 
     fun launchPlaylistMutation(mutation: PlaylistRepository.() -> Unit) {
         scope.launch {
-            playlistState = try {
-                reducePlaylistState(
-                    playlistState,
-                    playlistStateOwner.mutate(mutation),
-                )
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                reducePlaylistState(playlistState, PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage))
-            }
+            playlistState = reducePlaylistState(
+                playlistState,
+                playlistStateOwner.mutate(PlaylistMutationFailedMessage, mutation),
+            )
         }
     }
 
@@ -353,50 +346,47 @@ internal suspend fun publishLibraryContentAfterReconcile(
 internal data class ScanPublicationState(
     val content: LibraryContentState,
     val progress: ScanProgress,
-    val playlists: PlaylistStateAction.SnapshotConfirmed? = null,
+    val playlists: PlaylistStateAction? = null,
     val errorMessage: String? = null,
 )
 
 internal suspend fun publishScanContentAfterReconcile(
     reconciler: PlaybackSessionReconciler,
-    loadPlaylists: (suspend () -> PlaylistStateAction.SnapshotConfirmed)? = null,
+    loadPlaylists: (suspend () -> PlaylistStateAction)? = null,
     content: LibraryContentState,
     session: ScanSession,
     ownerIsActive: suspend () -> Boolean,
     publish: suspend (ScanPublicationState) -> Unit,
 ) {
-    try {
+    val publication = try {
         reconciler.reconcile(content.tracks)
-        publish(
-            ScanPublicationState(
-                content = content,
-                progress = ScanProgress(session),
-                playlists = loadPlaylists?.invoke(),
-            ),
+        ScanPublicationState(
+            content = content,
+            progress = ScanProgress(session),
         )
     } catch (cancelled: CancellationException) {
         if (ownerIsActive()) {
             withContext(NonCancellable) {
+                val playlists = loadPlaylists?.invoke()
                 publish(
                     ScanPublicationState(
                         content = content,
                         progress = ScanProgress(session.terminalAfterCancellation()),
-                        playlists = loadPlaylists?.invoke(),
+                        playlists = playlists,
                     ),
                 )
             }
         }
         throw cancelled
     } catch (failure: Throwable) {
-        publish(
-            ScanPublicationState(
-                content = content,
-                progress = ScanProgress(session.terminalAfterFailure(failure)),
-                playlists = loadPlaylists?.invoke(),
-                errorMessage = failure.appFailureMessage(),
-            ),
+        ScanPublicationState(
+            content = content,
+            progress = ScanProgress(session.terminalAfterFailure(failure)),
+            errorMessage = failure.appFailureMessage(),
         )
     }
+    val playlists = loadPlaylists?.invoke()
+    publish(publication.copy(playlists = playlists))
 }
 
 internal fun loadLibraryContent(
@@ -412,13 +402,13 @@ internal fun loadLibraryContent(
 internal suspend fun removeSourceInBackground(
     sourceId: String,
     repository: LibraryRepository,
-    loadPlaylists: (suspend () -> PlaylistStateAction.SnapshotConfirmed)? = null,
+    loadPlaylists: (suspend () -> PlaylistStateAction)? = null,
     platformAccess: PlatformSourceAccess,
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     ownerIsActive: suspend () -> Boolean = { true },
     updateLibrary: (LibraryContentState) -> Unit,
-    updatePlaylists: (PlaylistStateAction.SnapshotConfirmed) -> Unit = {},
+    updatePlaylists: (PlaylistStateAction) -> Unit = {},
     updateError: (String) -> Unit = {},
 ) {
     val content = withContext(ioDispatcher) {
@@ -440,13 +430,13 @@ internal suspend fun removeSourceInBackground(
 
 internal suspend fun clearLibraryInBackground(
     repository: LibraryRepository,
-    loadPlaylists: (suspend () -> PlaylistStateAction.SnapshotConfirmed)? = null,
+    loadPlaylists: (suspend () -> PlaylistStateAction)? = null,
     platformAccess: PlatformSourceAccess,
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     ownerIsActive: suspend () -> Boolean = { true },
     updateLibrary: (LibraryContentState) -> Unit,
-    updatePlaylists: (PlaylistStateAction.SnapshotConfirmed) -> Unit = {},
+    updatePlaylists: (PlaylistStateAction) -> Unit = {},
     updateError: (String) -> Unit = {},
 ) {
     val content = withContext(ioDispatcher) {
@@ -470,32 +460,31 @@ private suspend fun publishLibraryContentAfterReconcileFailureSafe(
     reconciler: PlaybackSessionReconciler,
     content: LibraryContentState,
     ownerIsActive: suspend () -> Boolean,
-    loadPlaylists: (suspend () -> PlaylistStateAction.SnapshotConfirmed)?,
+    loadPlaylists: (suspend () -> PlaylistStateAction)?,
     updateLibrary: (LibraryContentState) -> Unit,
-    updatePlaylists: (PlaylistStateAction.SnapshotConfirmed) -> Unit,
+    updatePlaylists: (PlaylistStateAction) -> Unit,
     updateError: (String) -> Unit,
 ) {
-    suspend fun publishAuthoritativeContent() {
+    suspend fun publishAuthoritativeContent(errorMessage: String? = null) {
         val playlists = loadPlaylists?.invoke()
         updateLibrary(content)
         playlists?.let(updatePlaylists)
+        errorMessage?.let(updateError)
     }
-    try {
+    val reconciliationError = try {
         reconciler.reconcile(content.tracks)
+        null
     } catch (cancelled: CancellationException) {
         if (ownerIsActive()) {
             withContext(NonCancellable) {
-                publishAuthoritativeContent()
-                updateError(cancelled.appFailureMessage())
+                publishAuthoritativeContent(cancelled.appFailureMessage())
             }
         }
         throw cancelled
     } catch (failure: Throwable) {
-        publishAuthoritativeContent()
-        updateError(failure.appFailureMessage())
-        return
+        failure.appFailureMessage()
     }
-    publishAuthoritativeContent()
+    publishAuthoritativeContent(reconciliationError)
 }
 
 internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
@@ -507,8 +496,6 @@ internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
 private fun Throwable.appFailureMessage(): String =
     message?.takeIf(String::isNotBlank) ?: "Playback session unavailable"
 
-private const val PlaylistReadFailedMessage = "playlist_load_failed"
-private const val PlaylistMutationFailedMessage = "playlist_mutation_failed"
 
 private fun ScanSession.terminalAfterCancellation(): ScanSession =
     if (status == ScanStatus.Scanning || status == ScanStatus.Cancelling) {

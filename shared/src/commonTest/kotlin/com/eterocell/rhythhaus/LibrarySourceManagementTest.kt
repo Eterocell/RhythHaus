@@ -18,6 +18,10 @@ import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
 import com.eterocell.rhythhaus.library.jvmFolderSourceId
 import com.eterocell.rhythhaus.library.normalizePickedSource
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
+import com.eterocell.rhythhaus.library.ui.PlaylistState
+import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
+import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
+import com.eterocell.rhythhaus.library.ui.reducePlaylistState
 import com.eterocell.rhythhaus.settings.SourceAccessLabel
 import com.eterocell.rhythhaus.settings.SourceDialogName
 import com.eterocell.rhythhaus.settings.SourceScanLabel
@@ -325,11 +329,83 @@ class LibrarySourceManagementTest {
             ownerIsActive = { true },
             publish = { publication ->
                 events += "publish"
-                assertEquals(listOf("playlist-entry-1"), publication.playlists?.snapshot?.playlists?.map { it.id })
+                val playlistAction = publication.playlists as PlaylistStateAction.SnapshotConfirmed
+                assertEquals(listOf("playlist-entry-1"), playlistAction.snapshot.playlists.map { it.id })
             },
         )
 
         assertEquals(listOf("reconcile", "read_playlists", "publish"), events)
+    }
+
+    @Test
+    fun rescanPlaylistReadFailurePublishesTerminalScanAndRetainsConfirmedPlaylists() = runBlocking {
+        val harness = failingPlaylistReadHarness()
+        var state = harness.initialState
+        var published: ScanPublicationState? = null
+
+        publishScanContentAfterReconcile(
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
+            loadPlaylists = { harness.owner.refresh("playlist_load_failed") },
+            content = LibraryContentState(emptyList(), emptyList()),
+            session = ScanSession("scan", "source", ScanStatus.Completed, 1L),
+            ownerIsActive = { true },
+            publish = { publication ->
+                published = publication
+                publication.playlists?.let { state = reducePlaylistState(state, it) }
+            },
+        )
+
+        assertEquals(ScanStatus.Completed, published?.progress?.session?.status)
+        assertEquals("playlist-1", state.confirmedSnapshot.playlists.single().id)
+        assertEquals("playlist_load_failed", state.readErrorMessage)
+        assertEquals(1, harness.readCount())
+    }
+
+    @Test
+    fun sourceRemovalPlaylistReadFailurePublishesLibraryAndRetainsConfirmedPlaylists() = runBlocking {
+        val harness = failingPlaylistReadHarness()
+        val repository = InMemoryLibraryRepository().apply { upsertSource(source("remove")) }
+        var state = harness.initialState
+        var libraryPublished = false
+
+        removeSourceInBackground(
+            sourceId = "remove",
+            repository = repository,
+            loadPlaylists = { harness.owner.refresh("playlist_load_failed") },
+            platformAccess = FakePlatformSourceAccess(),
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = { libraryPublished = true },
+            updatePlaylists = { state = reducePlaylistState(state, it) },
+        )
+
+        assertTrue(libraryPublished)
+        assertEquals("playlist-1", state.confirmedSnapshot.playlists.single().id)
+        assertEquals("playlist_load_failed", state.readErrorMessage)
+        assertEquals(1, harness.readCount())
+    }
+
+    @Test
+    fun clearLibraryPlaylistReadFailurePublishesLibraryAndRetainsConfirmedPlaylists() = runBlocking {
+        val harness = failingPlaylistReadHarness()
+        val repository = InMemoryLibraryRepository().apply { upsertSource(source("source")) }
+        var state = harness.initialState
+        var libraryPublished = false
+
+        clearLibraryInBackground(
+            repository = repository,
+            loadPlaylists = { harness.owner.refresh("playlist_load_failed") },
+            platformAccess = FakePlatformSourceAccess(),
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = { libraryPublished = true },
+            updatePlaylists = { state = reducePlaylistState(state, it) },
+        )
+
+        assertTrue(libraryPublished)
+        assertEquals("playlist-1", state.confirmedSnapshot.playlists.single().id)
+        assertEquals("playlist_load_failed", state.readErrorMessage)
+        assertEquals(1, harness.readCount())
     }
 
     @Test
@@ -672,7 +748,9 @@ class LibrarySourceManagementTest {
             reconciler = PlaybackSessionReconciler { throw IllegalStateException("clear reconcile failed") },
             ioDispatcher = Dispatchers.Default,
             updateLibrary = {},
-            updatePlaylists = { refreshed = it.snapshot },
+            updatePlaylists = { action ->
+                refreshed = (action as PlaylistStateAction.SnapshotConfirmed).snapshot
+            },
         )
 
         assertEquals(listOf("playlist-entry-1"), refreshed?.playlists?.map { it.id })
@@ -792,6 +870,30 @@ private fun cancellingReconciler(events: MutableList<String>) = PlaybackSessionR
     currentCoroutineContext().cancel(cancellation)
     throw cancellation
 }
+
+private class FailingPlaylistReadHarness {
+    private var reads = 0
+    private val confirmedPlaylist = com.eterocell.rhythhaus.library.Playlist(
+        id = "playlist-1",
+        name = "Saved",
+        createdAtEpochMillis = 1L,
+        updatedAtEpochMillis = 1L,
+    )
+    private val repository = object : com.eterocell.rhythhaus.library.PlaylistRepository by InMemoryPlaylistRepository() {
+        override fun playlists(): List<com.eterocell.rhythhaus.library.Playlist> {
+            reads += 1
+            error("playlist read failed")
+        }
+    }
+    val owner = PlaylistStateOwner(repository, Dispatchers.Default)
+    val initialState = PlaylistState(
+        confirmedSnapshot = PlaylistSnapshot(playlists = listOf(confirmedPlaylist)),
+        hasConfirmedSnapshot = true,
+    )
+    fun readCount(): Int = reads
+}
+
+private fun failingPlaylistReadHarness() = FailingPlaylistReadHarness()
 
 private class RecordingPlaylistRepository(
     private val events: MutableList<String>,
