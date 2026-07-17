@@ -1,5 +1,62 @@
 # Session Progress
 
+## Planning handoff - 2026-07-17 playlist screen
+
+Route: openspec+superpowers / brainstorming / writing-plans
+Owner: planning complete; next owner is subagent-driven implementation after explicit user instruction
+Input: User requested a spec and implementation plan for a Playlist screen covering both durable saved playlists and the current playback queue.
+Output:
+- Approved Superpowers design: `docs/superpowers/specs/2026-07-17-playlist-screen-design.md`.
+- Apply-ready OpenSpec change: `openspec/changes/playlist-screen/` with proposal, technical design, three capability specs, and a seven-slice task ledger.
+- Detailed TDD/subagent plan: `docs/superpowers/plans/2026-07-17-playlist-screen.md`.
+- Product decisions: Playlist hub with Saved/Queue tabs; full saved-playlist CRUD and ordering; per-track picker plus detail-side searchable multi-select; duplicate entries and playback occurrences preserved across restart; deleted library tracks cascade saved entries; current queue occurrence remains pinned while upcoming entries are editable.
+- Architecture decisions: dedicated `PlaylistRepository` sharing `RhythHausDatabase`; occurrence-aware `PlaybackController` queue; ordered occurrence/track pairs remain DataStore-owned; SQLDelight migration and production foreign-key proof on Android/iOS/JVM.
+Verification:
+- `openspec validate playlist-screen --strict`: pass (`Change 'playlist-screen' is valid`).
+- `GIT_MASTER=1 git diff --check`: pass before this handoff update.
+- Official SQLDelight documentation confirmed top-level `sqldelight/migrations`, configured `schemaOutputDirectory`, schema-aware JDBC opening, and migration verification; project task is `:shared:verifyCommonMainRhythHausDatabaseMigration`.
+- Final Oracle plan audit: PASS with zero Critical or Important findings after eight corrections.
+- Momus review was unavailable because it only accepts `.omo/plans/*.md`, while this repository mandates `docs/superpowers/plans/`; no duplicate plan source was created.
+Next owner: implementation via `subagent-driven-development`, one reviewed OpenSpec task at a time; Tasks 5 and 6 are sequential because they share UI/test files, and Task 7 runs last.
+Blockers: implementation has not started. During execution, actual `LibraryDatabaseIosTest` execution is a completion gate; if the existing common-test JVM-only `Thread` references block it, record `[blocked] iOS FK proof` and stop before completion unless the user explicitly accepts that risk.
+Commit: skipped; no explicit commit request was made.
+
+## Follow-up - 2026-07-16 Android/iOS artwork slice crop
+
+Route: systematic-debugging + strict RED/GREEN TDD
+Owner: implementation; next owner is user/target-device QA
+Input: User reported that the album artwork above the track list was cropped at the top and bottom on Android and iOS after the single-`LazyColumn` replacement, while macOS remained correct.
+Root cause:
+- `DrillDownArtworkPlane` requested `Modifier.size(expandedHeight)` inside upper and lower parents whose exact heights are only their clipped slice heights.
+- Compose `size` honors incoming constraints, so the intended square was measured as a short rectangle in each slice. Coil then correctly applied `ContentScale.Crop` to that non-square destination, removing the source image's top and bottom.
+- The lower `-collapseRange` offset therefore moved an already-cropped short image instead of revealing the bottom band of one shared square image.
+Fix:
+- Added a pure `ArtworkSlicePlaneGeometry` contract preserving the full square side, slice viewport height, and existing image offset.
+- `DrillDownArtworkPlane` now uses outer `wrapContentSize(Alignment.TopStart, unbounded = true)` followed by inner square `size`, allowing the full square to measure independently of each short clipped viewport while anchoring its origin at top-start.
+- Parent `clipToBounds`, the lower negative offset, `ContentScale.Crop`, scroll topology, no-artwork Miuix path, and macOS behavior remain unchanged.
+TDD and verification:
+- RED: focused `ArtworkCollapseTest` compilation failed only because `ArtworkSlicePlaneGeometry` and `artworkSlicePlaneGeometry` did not exist.
+- GREEN: focused `ArtworkCollapseTest` passed (`BUILD SUCCESSFUL in 8s`).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 11s`).
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, build 17F113.
+- `./gradlew :shared:compileKotlinIosSimulatorArm64 --configuration-cache`: pass (`BUILD SUCCESSFUL in 16s`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: iOS main compilation passed; test compilation remains blocked by unchanged JVM-only `Thread` references at `AppScanCancellationTest.kt:64:28` and `:340:27`. No iOS test pass is claimed.
+- Kotlin LSP remains unavailable because installation was previously declined. Gradle compilation/tests are the executable language checks.
+- `GIT_MASTER=1 git diff --check`: pass.
+- Final Oracle source review: PASS with no Critical or Important findings.
+Runtime acceptance:
+- `adb devices -l`: no attached Android device/emulator.
+- `xcrun simctl list devices booted`: no booted iOS simulator.
+- Android/iOS visual acceptance for expanded, partial, and pinned artwork remains pending; no target-device visual pass is claimed.
+Changed files:
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapse.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapseTest.kt`
+- `openspec/changes/track-list-artwork-collapse/tasks.md`
+- `progress.md`
+Next safe action: build/run on Android and iOS, open an artwork-backed album or artist, and confirm the expanded square shows the complete image with a continuous upper/lower seam; also inspect partial and pinned states. Mark OpenSpec Task 5.5 complete only after both platforms pass.
+Blockers: target-device visual acceptance only; unrelated iOS common-test `Thread` references. No focused JVM, JVM/desktop/Android matrix, iOS main compilation, diff-hygiene, or source-review blocker.
+
 ## Prototype gate - 2026-07-16 single-owner macOS artwork scrolling
 
 Route: systematic-debugging / approved disposable architecture prototype / strict RED-GREEN
