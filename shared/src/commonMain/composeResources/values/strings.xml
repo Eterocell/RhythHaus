@@ -111,6 +111,7 @@
     <string name="playlist_changed">This playlist changed. Choose it again.</string>
     <string name="playlist_mutation_failed">Could not save playlist changes</string>
     <string name="playlist_add_to">Add to playlist</string>
+    <string name="playlist_add_track_accessibility_format">Add %1$s to playlist</string>
     <string name="playlist_add_tracks">Add tracks</string>
     <string name="playlist_choose_existing">Choose a playlist</string>
     <string name="playlist_create_inline">Create a new playlist</string>

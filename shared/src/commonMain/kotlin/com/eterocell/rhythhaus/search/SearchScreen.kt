@@ -11,6 +11,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -38,6 +40,7 @@ import rhythhaus.shared.generated.resources.search_placeholder
 import rhythhaus.shared.generated.resources.search_results_count_many
 import rhythhaus.shared.generated.resources.search_results_count_one
 import rhythhaus.shared.generated.resources.search_results_count_zero
+import rhythhaus.shared.generated.resources.playlist_add_track_accessibility_format
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
@@ -45,6 +48,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import com.eterocell.rhythhaus.library.ui.EqualizerStrip
 import com.eterocell.rhythhaus.library.ui.LibraryScrollPosition
+import com.eterocell.rhythhaus.library.ui.searchAddToPlaylistPresentation
 
 @Composable
 fun SearchScreen(
@@ -212,6 +216,11 @@ private fun SearchResultRow(
     onClick: () -> Unit,
     onAddToPlaylist: () -> Unit,
 ) {
+    val addPresentation = searchAddToPlaylistPresentation(track.id, track.title)
+    val addToPlaylistLabel = stringResource(
+        Res.string.playlist_add_track_accessibility_format,
+        addPresentation.trackTitle,
+    )
     Surface(
         modifier = Modifier.fillMaxWidth().hausClickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
@@ -241,6 +250,7 @@ private fun SearchResultRow(
             }
             IconButton(
                 onClick = onAddToPlaylist,
+                modifier = Modifier.semantics { contentDescription = addToPlaylistLabel },
                 backgroundColor = Color.Transparent,
                 minWidth = 40.dp,
                 minHeight = 40.dp,

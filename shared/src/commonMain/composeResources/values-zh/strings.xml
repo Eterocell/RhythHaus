@@ -111,6 +111,7 @@
     <string name="playlist_changed">此播放列表已更改，请重新选择。</string>
     <string name="playlist_mutation_failed">无法保存播放列表更改</string>
     <string name="playlist_add_to">添加到播放列表</string>
+    <string name="playlist_add_track_accessibility_format">将%1$s添加到播放列表</string>
     <string name="playlist_add_tracks">添加曲目</string>
     <string name="playlist_choose_existing">选择播放列表</string>
     <string name="playlist_create_inline">创建新播放列表</string>
