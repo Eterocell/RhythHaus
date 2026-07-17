@@ -38,7 +38,7 @@
 
 - [x] 6.1 Implement the Queue tab with a distinct empty state, current occurrence rendered first and pinned, and upcoming occurrences rendered with occurrence-ID Compose keys.
 - [x] 6.2 Wire upcoming reorder, removal, and confirmed clear commands to controller results; refresh state and show a recoverable queue-changed message after rejection.
-- [x] 6.3 Provide drag and labeled move-up/move-down controls only for upcoming rows, semantic labels containing track names, role/state descriptions for current and queued rows, and no current-occurrence mutation affordance.
+- [x] 6.3 Provide drag and labeled move-up/move-down controls only for upcoming rows, semantic labels containing track names, accurate localized content/state descriptions for current and queued rows without assigning a false role when Compose lacks a suitable list-row role, and no current-occurrence mutation affordance.
 - [x] 6.4 Add UI-state and controller-wiring tests for pinning, empty state, duplicate occurrences, rejected stale commands, accessibility semantics, and no overlap with the Now Playing bar after Task 5 is complete and reviewed.
 
 ## 7. Integration, Verification, and Evidence
