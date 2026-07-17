@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.first
 
 private val QueueIdsPreferenceKey = stringPreferencesKey("queue_ids")
 private val CurrentIdPreferenceKey = stringPreferencesKey("current_id")
+private val QueueEntriesPreferenceKey = stringPreferencesKey("queue_entries")
+private val CurrentOccurrencePreferenceKey = stringPreferencesKey("current_occurrence_id")
 private val PositionPreferenceKey = longPreferencesKey("position_millis")
 private val RepeatModePreferenceKey = stringPreferencesKey("repeat_mode")
 private val ShuffleModePreferenceKey = stringPreferencesKey("shuffle_mode")
@@ -27,9 +29,9 @@ class DataStorePlaybackSessionStore(
     override suspend fun read(): PlaybackSessionSnapshot = decodeSnapshot(dataStore.data.first())
 
     override suspend fun save(snapshot: PlaybackSessionSnapshot) {
-        val encodedQueue = PlaybackSessionCodec.encodeIds(snapshot.queueIds)
-        val encodedCurrent = snapshot.currentTrackId?.let { currentId ->
-            require(currentId in snapshot.queueIds)
+        val encodedQueue = PlaybackSessionCodec.encodeQueue(snapshot.queue)
+        val encodedCurrent = snapshot.currentOccurrenceId?.let { currentId ->
+            require(snapshot.queue.any { it.occurrenceId == currentId })
             PlaybackSessionCodec.encodeIds(listOf(currentId))
         }
         val positionMillis = snapshot.positionMillis.coerceAtLeast(0L)
@@ -37,8 +39,10 @@ class DataStorePlaybackSessionStore(
         val shuffleMode = snapshot.shuffleMode.name
 
         dataStore.edit { preferences ->
-            preferences[QueueIdsPreferenceKey] = encodedQueue
-            preferences[CurrentIdPreferenceKey] = encodedCurrent.orEmpty()
+            preferences[QueueEntriesPreferenceKey] = encodedQueue
+            preferences[CurrentOccurrencePreferenceKey] = encodedCurrent.orEmpty()
+            preferences.remove(QueueIdsPreferenceKey)
+            preferences.remove(CurrentIdPreferenceKey)
             preferences[PositionPreferenceKey] = positionMillis
             preferences[RepeatModePreferenceKey] = repeatMode
             preferences[ShuffleModePreferenceKey] = shuffleMode
@@ -46,24 +50,36 @@ class DataStorePlaybackSessionStore(
     }
 
     private fun decodeSnapshot(preferences: Preferences): PlaybackSessionSnapshot {
-        val encodedQueue = preferences[QueueIdsPreferenceKey] ?: ""
-        val encodedCurrent = preferences[CurrentIdPreferenceKey] ?: ""
+        val encodedQueue = preferences[QueueEntriesPreferenceKey]
+        val encodedCurrent = preferences[CurrentOccurrencePreferenceKey]
         val positionMillis = preferences[PositionPreferenceKey] ?: 0L
         val repeatModeName = preferences[RepeatModePreferenceKey] ?: RepeatMode.StopAfterQueue.name
         val shuffleModeName = preferences[ShuffleModePreferenceKey] ?: ShuffleMode.Off.name
 
-        val queueIds = PlaybackSessionCodec.decodeIds(encodedQueue) ?: return PlaybackSessionSnapshot()
-        val currentIds = PlaybackSessionCodec.decodeIds(encodedCurrent) ?: return PlaybackSessionSnapshot()
+        val queue = if (encodedQueue != null) {
+            PlaybackSessionCodec.decodeQueue(encodedQueue) ?: return PlaybackSessionSnapshot()
+        } else {
+            val legacyIds = PlaybackSessionCodec.decodeIds(preferences[QueueIdsPreferenceKey] ?: "")
+                ?: return PlaybackSessionSnapshot()
+            normalizeLegacyQueue(legacyIds)
+        }
+        val currentIds = PlaybackSessionCodec.decodeIds(encodedCurrent ?: preferences[CurrentIdPreferenceKey] ?: "")
+            ?: return PlaybackSessionSnapshot()
         if (currentIds.size > 1) return PlaybackSessionSnapshot()
-        val currentTrackId = currentIds.singleOrNull()
-        if (currentTrackId != null && currentTrackId !in queueIds) return PlaybackSessionSnapshot()
+        val storedCurrent = currentIds.singleOrNull()
+        val currentOccurrenceId = if (encodedQueue != null) {
+            storedCurrent
+        } else {
+            storedCurrent?.let { current -> queue.firstOrNull { it.trackId == current }?.occurrenceId }
+        }
+        if (currentOccurrenceId != null && queue.none { it.occurrenceId == currentOccurrenceId }) return PlaybackSessionSnapshot()
         if (positionMillis < 0L) return PlaybackSessionSnapshot()
         val repeatMode = enumValueOrNull<RepeatMode>(repeatModeName) ?: return PlaybackSessionSnapshot()
         val shuffleMode = enumValueOrNull<ShuffleMode>(shuffleModeName) ?: return PlaybackSessionSnapshot()
 
         return PlaybackSessionSnapshot(
-            queueIds = queueIds,
-            currentTrackId = currentTrackId,
+            queue = queue,
+            currentOccurrenceId = currentOccurrenceId,
             positionMillis = positionMillis,
             repeatMode = repeatMode,
             shuffleMode = shuffleMode,
