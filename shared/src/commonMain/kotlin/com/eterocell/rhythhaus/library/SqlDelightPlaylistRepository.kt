@@ -25,6 +25,24 @@ class SqlDelightPlaylistRepository(
         return playlist
     }
 
+    override fun createWithEntries(name: String, trackIds: List<String>): Playlist {
+        val timestamp = now()
+        val playlist = Playlist(idFactory(), requireName(name), timestamp, timestamp)
+        database.transaction {
+            database.playlistQueries.insertPlaylist(playlist.id, playlist.name, timestamp, timestamp)
+            trackIds.forEachIndexed { position, trackId ->
+                database.playlistQueries.insertEntry(
+                    id = idFactory(),
+                    playlistId = playlist.id,
+                    trackId = trackId,
+                    position = position.toLong(),
+                    createdAtEpochMillis = now(),
+                )
+            }
+        }
+        return playlist
+    }
+
     override fun rename(id: String, name: String) {
         requireNotNull(playlist(id)) { "Playlist not found: $id" }
         database.playlistQueries.renamePlaylist(requireName(name), now(), id)

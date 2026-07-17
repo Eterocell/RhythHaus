@@ -13,6 +13,7 @@ interface PlaylistRepository {
     fun playlist(id: String): Playlist?
     fun entries(playlistId: String): List<PlaylistEntry>
     fun create(name: String): Playlist
+    fun createWithEntries(name: String, trackIds: List<String>): Playlist
     fun rename(id: String, name: String)
     fun delete(id: String)
     fun append(playlistId: String, trackIds: List<String>)
@@ -41,6 +42,17 @@ class InMemoryPlaylistRepository(
         val timestamp = now()
         val playlist = Playlist(idFactory(), requireName(name), timestamp, timestamp)
         playlists[playlist.id] = playlist
+        return playlist
+    }
+
+    override fun createWithEntries(name: String, trackIds: List<String>): Playlist {
+        val timestamp = now()
+        val playlist = Playlist(idFactory(), requireName(name), timestamp, timestamp)
+        val initialEntries = trackIds.mapIndexed { position, trackId ->
+            PlaylistEntry(idFactory(), playlist.id, trackId, position, now())
+        }
+        playlists[playlist.id] = playlist
+        initialEntries.forEach { entry -> entries[entry.id] = entry }
         return playlist
     }
 

@@ -242,6 +242,34 @@ class PlaylistSqlDelightRepositoryJvmTest {
         }
     }
 
+    @Test
+    fun createWithEntriesRollsBackPlaylistWhenInitialEntryForeignKeyFails() {
+        openRepositories().use { open ->
+            val before = open.playlists.playlists()
+
+            assertFails {
+                open.playlists.createWithEntries("Transient", listOf("missing-track"))
+            }
+
+            assertEquals(before, open.playlists.playlists())
+        }
+    }
+
+    @Test
+    fun createWithEntriesPreservesDuplicateEntriesAndNonuniqueNamesInSql() {
+        openRepositories().use { open ->
+            open.seedTrack("track-a", "scan-1")
+
+            val first = open.playlists.createWithEntries(" Same ", listOf("track-a", "track-a"))
+            val second = open.playlists.createWithEntries("Same", listOf("track-a"))
+
+            assertEquals(listOf("Same", "Same"), open.playlists.playlists().map(Playlist::name))
+            assertEquals(listOf("track-a", "track-a"), open.playlists.entries(first.id).map(PlaylistEntry::trackId))
+            assertEquals(listOf(0, 1), open.playlists.entries(first.id).map(PlaylistEntry::position))
+            assertEquals(listOf("track-a"), open.playlists.entries(second.id).map(PlaylistEntry::trackId))
+        }
+    }
+
     private fun openRepositories(databaseFile: File = tempDatabase()): OpenRepositories {
         val database = LibraryDatabase(databaseFile)
         return OpenRepositories(

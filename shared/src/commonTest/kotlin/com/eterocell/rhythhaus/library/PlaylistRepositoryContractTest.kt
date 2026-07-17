@@ -5,6 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class PlaylistRepositoryContractTest {
     private fun repository(): InMemoryPlaylistRepository {
@@ -76,5 +77,37 @@ class PlaylistRepositoryContractTest {
 
         assertNotNull(repository.playlist(playlist.id))
         assertEquals(emptyList(), repository.entries(playlist.id))
+    }
+
+    @Test
+    fun createWithEntriesPreservesDuplicateEntriesAndNonuniqueNames() {
+        val ids = sequenceOf("playlist-1", "entry-1", "entry-2", "playlist-2", "entry-3").iterator()
+        val repository = InMemoryPlaylistRepository(now = { 100L }, idFactory = ids::next)
+
+        val first = repository.createWithEntries(" Same ", listOf("track-a", "track-a"))
+        val second = repository.createWithEntries("Same", listOf("track-b"))
+
+        assertEquals(listOf("Same", "Same"), repository.playlists().map(Playlist::name))
+        assertEquals(listOf("track-a", "track-a"), repository.entries(first.id).map(PlaylistEntry::trackId))
+        assertEquals(listOf(0, 1), repository.entries(first.id).map(PlaylistEntry::position))
+        assertEquals(listOf("track-b"), repository.entries(second.id).map(PlaylistEntry::trackId))
+    }
+
+    @Test
+    fun createWithEntriesRollsBackPlaylistWhenEntryCreationFails() {
+        var calls = 0
+        val repository = InMemoryPlaylistRepository(
+            now = { 100L },
+            idFactory = {
+                calls += 1
+                if (calls == 2) error("entry id failure") else "playlist-1"
+            },
+        )
+
+        assertFailsWith<IllegalStateException> {
+            repository.createWithEntries("Transient", listOf("track-a"))
+        }
+
+        assertTrue(repository.playlists().isEmpty())
     }
 }
