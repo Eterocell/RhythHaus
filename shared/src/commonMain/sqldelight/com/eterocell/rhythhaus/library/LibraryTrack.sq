@@ -23,11 +23,30 @@ CREATE TABLE IF NOT EXISTS library_track (
 CREATE UNIQUE INDEX IF NOT EXISTS library_track_source_key ON library_track(sourceId, sourceLocalKey);
 
 upsertTrack:
-INSERT OR REPLACE INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
+INSERT INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis,
     trackNumber, discNumber, artworkBytes, artworkMimeType)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    sourceId = excluded.sourceId,
+    sourceLocalKey = excluded.sourceLocalKey,
+    audioSourceKind = excluded.audioSourceKind,
+    audioSourceValue = excluded.audioSourceValue,
+    displayName = excluded.displayName,
+    title = excluded.title,
+    artist = excluded.artist,
+    album = excluded.album,
+    durationMillis = excluded.durationMillis,
+    sizeBytes = excluded.sizeBytes,
+    modifiedAtEpochMillis = excluded.modifiedAtEpochMillis,
+    lastSeenScanId = excluded.lastSeenScanId,
+    createdAtEpochMillis = excluded.createdAtEpochMillis,
+    updatedAtEpochMillis = excluded.updatedAtEpochMillis,
+    trackNumber = excluded.trackNumber,
+    discNumber = excluded.discNumber,
+    artworkBytes = excluded.artworkBytes,
+    artworkMimeType = excluded.artworkMimeType;
 
 selectAllTracks:
 SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,

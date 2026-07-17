@@ -120,6 +120,7 @@ sqldelight {
         create("RhythHausDatabase") {
             packageName.set("com.eterocell.rhythhaus.library")
             dialect("app.cash.sqldelight:sqlite-3-38-dialect:${libs.versions.sqldelight.get()}")
+            schemaOutputDirectory.set(file("src/commonMain/sqldelight/databases"))
         }
     }
 }
@@ -207,6 +208,9 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+        }
+        named("androidHostTest").dependencies {
+            implementation(libs.sqldelight.sqlite.driver)
         }
         iosMain.dependencies {
             implementation(libs.sqldelight.native.driver)

@@ -9,7 +9,9 @@ import com.eterocell.rhythhaus.library.LibraryDatabase
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
+import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
+import com.eterocell.rhythhaus.library.SqlDelightPlaylistRepository
 import com.eterocell.rhythhaus.library.createLibraryDatabase
 import com.eterocell.rhythhaus.library.createPlatformSourceAccess
 import com.eterocell.rhythhaus.library.currentTimeMillis
@@ -37,6 +39,7 @@ fun rhythHausModule(): Module = module {
     single { AudioMetadataReader(tagLibReader = get()) }
     single<LibraryDatabase> { createLibraryDatabase() }
     single<LibraryRepository> { SqlDelightLibraryRepository(get()) }
+    single<PlaylistRepository> { SqlDelightPlaylistRepository(get()) }
     single<PlatformSourceAccess> { createPlatformSourceAccess() }
     single<PlatformPlaybackEngine> { createPlatformPlaybackEngine() }
     single {

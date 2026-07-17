@@ -8,6 +8,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.eterocell.rhythhaus.AudioSource
+import com.eterocell.rhythhaus.FakePlaybackEngine
+import com.eterocell.rhythhaus.PlayableTrack
+import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
 import java.io.File
@@ -26,6 +30,112 @@ import kotlinx.coroutines.flow.first
 import okio.Path.Companion.toOkioPath
 
 class PlaybackSessionStoreJvmTest {
+    @Test
+    fun legacyMaximumLengthTrackRestoresAndNormalizesWithoutFailedSafe() = runBlocking {
+        val trackId = "x".repeat(PlaybackSessionCodec.maxIdCharacters)
+        withStore { store, dataStore ->
+            dataStore.edit { preferences ->
+                preferences[QueueIdsKey] = PlaybackSessionCodec.encodeIds(listOf(trackId))
+                preferences[CurrentIdKey] = PlaybackSessionCodec.encodeIds(listOf(trackId))
+            }
+            val processJob = SupervisorJob()
+            val controller = PlaybackController(FakePlaybackEngine())
+            val coordinator = PlaybackSessionCoordinator(
+                controller = controller,
+                store = store,
+                processScope = CoroutineScope(Dispatchers.Default + processJob),
+            )
+            try {
+                coordinator.restoreOnce(listOf(track(trackId)))
+
+                assertEquals(PlaybackSessionPhase.Ready, coordinator.phase.value)
+                val normalized = store.read()
+                assertEquals(trackId, normalized.queue.single().trackId)
+                assertEquals(normalized.queue.single().occurrenceId, normalized.currentOccurrenceId)
+                assertEquals(null, dataStore.data.first()[QueueIdsKey])
+                assertEquals(null, dataStore.data.first()[CurrentIdKey])
+            } finally {
+                processJob.cancelAndJoin()
+                controller.release()
+            }
+        }
+    }
+
+    @Test
+    fun genericMaximumLengthTrackCheckpointPersistsWithoutFailedSafe() = runBlocking {
+        val trackId = "x".repeat(PlaybackSessionCodec.maxIdCharacters)
+        withStore { store, _ ->
+            val processJob = SupervisorJob()
+            val controller = PlaybackController(FakePlaybackEngine())
+            val coordinator = PlaybackSessionCoordinator(
+                controller = controller,
+                store = store,
+                processScope = CoroutineScope(Dispatchers.Default + processJob),
+            )
+            try {
+                coordinator.restoreOnce(emptyList())
+                controller.setQueue(listOf(track(trackId)), selectedTrackId = trackId)
+                coordinator.flush()
+
+                assertEquals(PlaybackSessionPhase.Ready, coordinator.phase.value)
+                val persisted = store.read()
+                assertEquals(trackId, persisted.queue.single().trackId)
+                assertEquals(persisted.queue.single().occurrenceId, persisted.currentOccurrenceId)
+                assertEquals(true, persisted.queue.single().occurrenceId.length <= PlaybackSessionCodec.maxIdCharacters)
+            } finally {
+                processJob.cancelAndJoin()
+                controller.release()
+            }
+        }
+    }
+
+    @Test
+    fun newStoreRoundTripKeepsOrderedOccurrenceTrackPairsAndUsesOneQueueValue() = runBlocking {
+        withStore { store, dataStore ->
+            val snapshot = PlaybackSessionSnapshot(
+                queue = listOf(
+                    SessionQueueEntry("entry-1", "track-a"),
+                    SessionQueueEntry("entry-2", "track-a"),
+                ),
+                currentOccurrenceId = "entry-2",
+            )
+
+            store.save(snapshot)
+
+            assertEquals(snapshot, store.read())
+            val preferences = dataStore.data.first()
+            assertEquals(PlaybackSessionCodec.encodeQueue(snapshot.queue), preferences[QueueEntriesKey])
+            assertEquals(null, preferences[QueueIdsKey])
+            assertEquals(null, preferences[CurrentIdKey])
+        }
+    }
+
+    @Test
+    fun legacyStoreReadNormalizesDeterministicOccurrencesAndNextSaveRemovesLegacyKeys() = runBlocking {
+        withStore { store, dataStore ->
+            dataStore.edit { preferences ->
+                preferences[QueueIdsKey] = PlaybackSessionCodec.encodeIds(listOf("track-a", "track-b"))
+                preferences[CurrentIdKey] = PlaybackSessionCodec.encodeIds(listOf("track-b"))
+            }
+
+            val normalized = store.read()
+
+            assertEquals(
+                listOf(
+                    SessionQueueEntry("legacy-0", "track-a"),
+                    SessionQueueEntry("legacy-1", "track-b"),
+                ),
+                normalized.queue,
+            )
+            assertEquals("legacy-1", normalized.currentOccurrenceId)
+            store.save(normalized)
+            val preferences = dataStore.data.first()
+            assertEquals(null, preferences[QueueIdsKey])
+            assertEquals(null, preferences[CurrentIdKey])
+            assertEquals(PlaybackSessionCodec.encodeQueue(normalized.queue), preferences[QueueEntriesKey])
+        }
+    }
+
     @Test
     fun defaultsToEmptySnapshotAndPersistsEveryField() = runBlocking {
         withStore { store, _ ->
@@ -83,7 +193,13 @@ class PlaybackSessionStoreJvmTest {
             store.save(valid)
 
             assertFailsWith<IllegalArgumentException> {
-                store.save(valid.copy(queueIds = List(PlaybackSessionCodec.maxIds + 1) { "$it" }))
+                store.save(
+                    valid.copy(
+                        queue = List(PlaybackSessionCodec.maxIds + 1) { index ->
+                            SessionQueueEntry("entry-$index", "track-$index")
+                        },
+                    ),
+                )
             }
 
             assertEquals(valid, store.read())
@@ -97,7 +213,7 @@ class PlaybackSessionStoreJvmTest {
             store.save(valid)
 
             assertFailsWith<IllegalArgumentException> {
-                store.save(valid.copy(currentTrackId = "missing"))
+                store.save(valid.copy(currentOccurrenceId = "missing"))
             }
 
             assertEquals(valid, store.read())
@@ -107,28 +223,28 @@ class PlaybackSessionStoreJvmTest {
     @Test
     fun malformedQueueFallsBackToFullDefaultSnapshot() = runBlocking {
         assertMalformedFieldFallsBack { dataStore ->
-            dataStore.edit { it[QueueIdsKey] = "2:a" }
+            dataStore.edit { it[QueueEntriesKey] = "2:a" }
         }
     }
 
     @Test
     fun truncatedCurrentEncodingFallsBackToFullDefaultSnapshot() = runBlocking {
         assertMalformedFieldFallsBack { dataStore ->
-            dataStore.edit { it[CurrentIdKey] = "2:a" }
+            dataStore.edit { it[CurrentOccurrenceIdKey] = "2:a" }
         }
     }
 
     @Test
     fun twoIdCurrentEncodingFallsBackToFullDefaultSnapshot() = runBlocking {
         assertMalformedFieldFallsBack { dataStore ->
-            dataStore.edit { it[CurrentIdKey] = PlaybackSessionCodec.encodeIds(listOf("one", "two")) }
+            dataStore.edit { it[CurrentOccurrenceIdKey] = PlaybackSessionCodec.encodeIds(listOf("one", "two")) }
         }
     }
 
     @Test
     fun currentIdMissingFromQueueFallsBackToFullDefaultSnapshot() = runBlocking {
         assertMalformedFieldFallsBack { dataStore ->
-            dataStore.edit { it[CurrentIdKey] = PlaybackSessionCodec.encodeIds(listOf("missing")) }
+            dataStore.edit { it[CurrentOccurrenceIdKey] = PlaybackSessionCodec.encodeIds(listOf("missing")) }
         }
     }
 
@@ -306,7 +422,18 @@ class PlaybackSessionStoreJvmTest {
     private fun newPreferencesFile(prefix: String): File =
         File.createTempFile(prefix, ".preferences_pb").apply { delete() }
 
+    private fun track(id: String): PlayableTrack = PlayableTrack(
+        id = id,
+        title = "Boundary track",
+        artist = "Artist",
+        album = "Album",
+        durationMillis = 1_000L,
+        source = AudioSource.FilePath("/boundary.mp3"),
+    )
+
     private companion object {
+        val QueueEntriesKey = stringPreferencesKey("queue_entries")
+        val CurrentOccurrenceIdKey = stringPreferencesKey("current_occurrence_id")
         val QueueIdsKey = stringPreferencesKey("queue_ids")
         val CurrentIdKey = stringPreferencesKey("current_id")
         val PositionKey = longPreferencesKey("position_millis")

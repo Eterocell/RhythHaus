@@ -9,6 +9,64 @@ import kotlin.test.assertNull
 
 class PlaybackSessionSnapshotTest {
     @Test
+    fun sessionRoundTripKeepsDuplicateTrackOccurrencesInOrder() {
+        val snapshot = PlaybackSessionSnapshot(
+            queue = listOf(
+                SessionQueueEntry("entry-1", "track-a"),
+                SessionQueueEntry("entry-2", "track-a"),
+            ),
+            currentOccurrenceId = "entry-2",
+        )
+
+        assertEquals(snapshot, PlaybackSessionCodec.decodeSnapshot(PlaybackSessionCodec.encodeSnapshot(snapshot)))
+    }
+
+    @Test
+    fun sessionCodecRejectsDuplicateOccurrenceIdsButAllowsDuplicateTrackIds() {
+        val duplicateTracks = listOf(
+            SessionQueueEntry("entry-1", "track-a"),
+            SessionQueueEntry("entry-2", "track-a"),
+        )
+        val duplicateOccurrences = listOf(
+            SessionQueueEntry("entry-1", "track-a"),
+            SessionQueueEntry("entry-1", "track-b"),
+        )
+
+        assertEquals(duplicateTracks, PlaybackSessionCodec.decodeQueue(PlaybackSessionCodec.encodeQueue(duplicateTracks)))
+        assertFailsWith<IllegalArgumentException> { PlaybackSessionCodec.encodeQueue(duplicateOccurrences) }
+    }
+
+    @Test
+    fun snapshotCodecRejectsDuplicateOccurrencesAndCurrentOutsideQueue() {
+        val duplicateOccurrences = PlaybackSessionSnapshot(
+            queue = listOf(
+                SessionQueueEntry("entry-1", "track-a"),
+                SessionQueueEntry("entry-1", "track-b"),
+            ),
+            currentOccurrenceId = "entry-1",
+        )
+        val missingCurrent = PlaybackSessionSnapshot(
+            queue = listOf(SessionQueueEntry("entry-1", "track-a")),
+            currentOccurrenceId = "missing",
+        )
+
+        assertFailsWith<IllegalArgumentException> { PlaybackSessionCodec.encodeSnapshot(duplicateOccurrences) }
+        assertFailsWith<IllegalArgumentException> { PlaybackSessionCodec.encodeSnapshot(missingCurrent) }
+    }
+
+    @Test
+    fun sessionQueueCodecRetainsTheExistingMaximumQueueCount() {
+        val exactMaximum = List(PlaybackSessionCodec.maxIds) { index ->
+            SessionQueueEntry("o$index", "t$index")
+        }
+
+        assertEquals(exactMaximum, PlaybackSessionCodec.decodeQueue(PlaybackSessionCodec.encodeQueue(exactMaximum)))
+        assertFailsWith<IllegalArgumentException> {
+            PlaybackSessionCodec.encodeQueue(exactMaximum + SessionQueueEntry("overflow", "overflow"))
+        }
+    }
+
+    @Test
     fun codecRoundTripsDelimitersAndEmoji() {
         val ids = listOf("a:b", "line\n2", "🎧")
 
@@ -77,7 +135,7 @@ class PlaybackSessionSnapshotTest {
             repeatMode = RepeatMode.RepeatPlaylist,
             shuffleMode = ShuffleMode.On,
         )
-        val key = ProgressCheckpointKey(generation = 4L, currentTrackId = "one", secondBucket = 1L)
+        val key = ProgressCheckpointKey(generation = 4L, currentOccurrenceId = snapshot.currentOccurrenceId!!, secondBucket = 1L)
 
         assertEquals(snapshot, PlaybackCheckpoint.Immediate(snapshot).snapshot)
         assertEquals(key, PlaybackCheckpoint.PlayingProgress(key, snapshot).key)

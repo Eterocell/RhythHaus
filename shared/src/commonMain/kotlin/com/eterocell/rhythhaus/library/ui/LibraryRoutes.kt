@@ -1,15 +1,26 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.LibrarySource
+import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.taglib.TagLibReader
@@ -19,16 +30,43 @@ import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.album_detail_subtitle_format
 import rhythhaus.shared.generated.resources.artist_detail_subtitle_format
+import rhythhaus.shared.generated.resources.playlists
+import rhythhaus.shared.generated.resources.playlist_load_failed
+import rhythhaus.shared.generated.resources.playlist_loading
+import rhythhaus.shared.generated.resources.playlist_retry
+import rhythhaus.shared.generated.resources.playlist_changed
+import rhythhaus.shared.generated.resources.playlist_mutation_failed
 import rhythhaus.shared.generated.resources.unknown_artist
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.search.SearchScreen
 import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
 import com.eterocell.rhythhaus.settings.SettingsAboutScreen
 import com.eterocell.rhythhaus.settings.SettingsScreen
 import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.theme.HausColors
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Text
+import kotlinx.coroutines.flow.StateFlow
+
+internal class QueueMutationDispatcher(
+    private val state: StateFlow<PlaybackState>,
+    private val reorderCommand: suspend (String, Int) -> QueueMutationResult,
+    private val removeCommand: suspend (String) -> QueueMutationResult,
+    private val clearCommand: suspend () -> QueueMutationResult,
+) {
+    suspend fun reorder(occurrenceId: String, targetIndex: Int): QueueMutationFeedback =
+        executeQueueMutation(state) { reorderCommand(occurrenceId, targetIndex) }
+
+    suspend fun remove(occurrenceId: String): QueueMutationFeedback =
+        executeQueueMutation(state) { removeCommand(occurrenceId) }
+
+    suspend fun clear(): QueueMutationFeedback = executeQueueMutation(state, clearCommand)
+}
 
 @Composable
 internal fun LibraryRouteOverlays(
@@ -38,6 +76,11 @@ internal fun LibraryRouteOverlays(
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     playbackState: PlaybackState,
+    playlistRepository: PlaylistRepository,
+    playlistState: PlaylistState,
+    onPlaylistStateAction: (PlaylistStateAction) -> Unit,
+    onRefreshPlaylists: () -> Unit,
+    onPlaylistMutation: PlaylistMutationLauncher,
     sources: List<LibrarySource>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
     sourcePickerActionVisible: Boolean,
@@ -81,6 +124,11 @@ internal fun LibraryRouteOverlays(
             tagLibReader = tagLibReader,
             playbackController = playbackController,
             playbackState = playbackState,
+            onAddToPlaylist = { trackId ->
+                onPlaylistStateAction(
+                    PlaylistStateAction.OpenPicker(PlaylistPickerState(trackId = trackId)),
+                )
+            },
             onDismiss = onDismiss,
             onScrollPositionChanged = onScrollPositionChanged,
         )
@@ -97,6 +145,8 @@ internal fun LibraryRouteOverlays(
         is LibraryRoute.ArtistDetail,
         LibraryRoute.NowPlaying,
         LibraryRoute.ClearLibraryDialog,
+        LibraryRoute.PlaylistHub,
+        is LibraryRoute.PlaylistDetail,
         -> Unit
     }
 }
@@ -111,6 +161,12 @@ internal fun LibraryRouteContent(
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     playbackState: PlaybackState,
+    playlistRepository: PlaylistRepository,
+    playlistState: PlaylistState,
+    onPlaylistStateAction: (PlaylistStateAction) -> Unit,
+    onRefreshPlaylists: () -> Unit,
+    onPlaylistMutation: PlaylistMutationLauncher,
+    onRecoverStalePlaylistDetail: (String) -> Unit,
     selectedTrackId: String?,
     isNowPlayingBarVisible: Boolean,
     onBack: () -> Unit,
@@ -152,6 +208,9 @@ internal fun LibraryRouteContent(
                     onExpandNowPlaying = onExpandNowPlaying,
                     onShowSettings = onShowSettings,
                     onShowSearch = onShowSearch,
+                    onAddToPlaylist = { trackId ->
+                        onPlaylistStateAction(openAddToPlaylistPickerAction(trackId))
+                    },
                     isNowPlayingBarVisible = isNowPlayingBarVisible,
                     onScrollPositionChanged = onScrollPositionChanged,
                 )
@@ -186,6 +245,9 @@ internal fun LibraryRouteContent(
                     onExpandNowPlaying = onExpandNowPlaying,
                     onShowSettings = onShowSettings,
                     onShowSearch = onShowSearch,
+                    onAddToPlaylist = { trackId ->
+                        onPlaylistStateAction(openAddToPlaylistPickerAction(trackId))
+                    },
                     isNowPlayingBarVisible = isNowPlayingBarVisible,
                     onScrollPositionChanged = onScrollPositionChanged,
                 )
@@ -194,6 +256,89 @@ internal fun LibraryRouteContent(
 
         LibraryRoute.NowPlaying -> {
             // Now Playing is shown as an overlay, not a navigation route
+        }
+
+        LibraryRoute.PlaylistHub -> {
+            val queueMutations = QueueMutationDispatcher(
+                state = playbackController.state,
+                reorderCommand = playbackController::reorderUpcoming,
+                removeCommand = playbackController::removeUpcoming,
+                clearCommand = playbackController::clearUpcoming,
+            )
+            PlaylistHubScreen(
+                state = playlistState,
+                playbackState = playbackState,
+                onBack = onBack,
+                onRetry = onRefreshPlaylists,
+                onOpenPlaylist = { onOpenDetailRoute(LibraryRoute.PlaylistDetail(it)) },
+                onSelectTab = { onPlaylistStateAction(PlaylistStateAction.SelectTab(it)) },
+                onCreate = { name, onSuccess ->
+                    onPlaylistMutation({ create(name) }, onSuccess)
+                },
+                onReorderUpcoming = queueMutations::reorder,
+                onRemoveUpcoming = queueMutations::remove,
+                onClearUpcoming = queueMutations::clear,
+            )
+        }
+
+        is LibraryRoute.PlaylistDetail -> {
+            when (val resolution = playlistDetailResolution(route.playlistId, playlistState)) {
+                PlaylistDetailResolution.AwaitConfirmation -> PlaylistRoutePlaceholder(
+                    title = stringResource(Res.string.playlists),
+                    state = playlistState,
+                    onBack = onBack,
+                    onRetry = onRefreshPlaylists,
+                )
+                is PlaylistDetailResolution.Show -> PlaylistDetailScreen(
+                    playlist = resolution.playlist,
+                    entries = playlistState.confirmedSnapshot.entries(resolution.playlist.id),
+                    libraryTracks = libraryTracks,
+                    state = playlistState,
+                    onBack = onBack,
+                    onRetry = onRefreshPlaylists,
+                    onRename = { name, onSuccess ->
+                        onPlaylistMutation({ rename(resolution.playlist.id, name) }, onSuccess)
+                    },
+                    onDelete = { onOutcome ->
+                        onPlaylistMutation(
+                            { delete(resolution.playlist.id) },
+                            { outcome ->
+                                onOutcome(outcome)
+                                if (playlistMutationDecision(PlaylistMutationWorkflow.Delete, outcome) == PlaylistMutationDecision.CloseConfirmationAndRoute) {
+                                    onBack()
+                                }
+                            },
+                        )
+                    },
+                    onOpenBrowser = {
+                        onPlaylistStateAction(
+                            PlaylistStateAction.OpenBrowser(
+                                PlaylistBrowserState(playlistId = resolution.playlist.id),
+                            ),
+                        )
+                    },
+                    onPlayEntry = { request ->
+                        selectOccurrenceForPlayback(
+                            playbackController,
+                            request.occurrences,
+                            request.selectedOccurrenceId,
+                        )
+                    },
+                    onRemoveEntry = { entryId ->
+                        onPlaylistMutation({ removeEntry(entryId) }) { outcome ->
+                            playlistMutationDecision(PlaylistMutationWorkflow.Remove, outcome)
+                        }
+                    },
+                    onReorder = { entryIds ->
+                        onPlaylistMutation({ reorder(resolution.playlist.id, entryIds) }) { outcome ->
+                            playlistMutationDecision(PlaylistMutationWorkflow.Reorder, outcome)
+                        }
+                    },
+                )
+                is PlaylistDetailResolution.ReturnToHub -> LaunchedEffect(route) {
+                    onRecoverStalePlaylistDetail(resolution.message)
+                }
+            }
         }
 
         LibraryRoute.Home,
@@ -208,6 +353,73 @@ internal fun LibraryRouteContent(
         LibraryRoute.ClearLibraryDialog -> {
             LaunchedEffect(route) { onBack() }
             Box(modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+@Composable
+private fun PlaylistRoutePlaceholder(
+    title: String,
+    state: PlaylistState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    val scrollBehavior = rememberMiuixTopAppBarScrollBehavior()
+    val retryLabel = stringResource(Res.string.playlist_retry)
+    Box(modifier = Modifier.fillMaxSize()) {
+        DrillDownMiuixScrollChrome(
+            scrollBehavior = scrollBehavior,
+            title = title,
+            onBack = onBack,
+            backdrop = null,
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            when {
+                state.isLoading -> Text(
+                    text = stringResource(Res.string.playlist_loading),
+                    color = HausColors.current.muted,
+                )
+                state.readErrorMessage != null -> {
+                    Text(
+                        text = stringResource(Res.string.playlist_load_failed),
+                        color = HausColors.current.muted,
+                    )
+                    Button(
+                        onClick = onRetry,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .height(48.dp)
+                            .semantics { contentDescription = retryLabel },
+                        cornerRadius = 16.dp,
+                        colors = ButtonDefaults.buttonColors(
+                            color = HausColors.current.ink,
+                            contentColor = HausColors.current.paper,
+                        ),
+                    ) {
+                        Text(retryLabel)
+                    }
+                }
+            }
+            when (playlistRouteNotice(state)) {
+                PlaylistRouteNotice.PlaylistChanged -> Text(
+                    text = stringResource(Res.string.playlist_changed),
+                    color = HausColors.current.muted,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                PlaylistRouteNotice.MutationFailed -> Text(
+                    text = stringResource(Res.string.playlist_mutation_failed),
+                    color = HausColors.current.muted,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                null -> Unit
+            }
         }
     }
 }

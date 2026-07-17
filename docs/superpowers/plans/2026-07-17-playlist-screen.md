@@ -19,7 +19,7 @@
 - Put the migration at `shared/src/commonMain/sqldelight/migrations/1.sqm`; it contains SQL only, with no explicit `BEGIN` or `END`. Configure `schemaOutputDirectory` in `shared/build.gradle.kts` and check in the baseline database at `shared/src/commonMain/sqldelight/databases/1.db`.
 - Open JVM databases with `JdbcSqliteDriver(url = ..., properties = Properties().apply { put("foreign_keys", "true") }, schema = RhythHausDatabase.Schema)`. Android uses an `AndroidSqliteDriver.Callback` whose `onOpen` calls `db.setForeignKeyConstraintsEnabled(true)`; iOS uses `NativeSqliteDriver` with `onConfiguration` returning `config.copy(extendedConfig = DatabaseConfiguration.Extended(foreignKeyConstraints = true))`. Prove foreign-key enforcement on every platform driver path.
 - Queue commands mutate only upcoming occurrences. Current occurrence removal and movement are rejected, current playback is not restarted or replaced, and accepted edits preserve position, status, repeat, shuffle, generation, and stale-callback safety.
-- Use occurrence IDs as Compose keys. Every interactive playlist or queue control has a localized semantic label containing the playlist or track name; provide role/state descriptions and move-up/move-down alternatives to drag.
+- Use occurrence IDs as Compose keys. Every interactive playlist or queue control has a localized semantic label containing the playlist or track name; provide accurate localized content/state descriptions and move-up/move-down alternatives to drag, without assigning a false role when Compose lacks a suitable list-row role.
 - Add English and Chinese resource strings. Preserve shared Library chrome, adaptive layout, safe content, track-row/artwork conventions, and the current route-aware Now Playing bar policy.
 - Every production behavior starts with a failing focused test. Each task receives two-stage review. Use `GIT_MASTER=1` in git command examples; do not commit during plan creation.
 - Completion requires strict OpenSpec validation, the platform matrix, manual/visual QA evidence, SDD reports, and updates to `progress.md` and `roadmap.md`. If iOS still fails only at `AppScanCancellationTest.kt:64:28` and `:340:27` on unresolved JVM-only `Thread`, report that exact blocker and do not claim an iOS test pass.
@@ -339,7 +339,7 @@ GIT_MASTER=1 git commit -m "feat: add saved playlist workflows"
 
 **Interfaces:**
 - Consumes: `PlaybackState.queue`, `currentOccurrenceId`, `QueueMutationResult`, and upcoming-only command APIs from Tasks 2 and 3.
-- Produces: `QueueTabScreen` where the current occurrence is rendered first, has `role` and `stateDescription`, and exposes no drag/remove/move controls.
+- Produces: `QueueTabScreen` where the current occurrence is rendered first, has accurate localized content/state descriptions without a false role when Compose lacks a suitable list-row role, and exposes no drag/remove/move controls.
 
 - [ ] **Step 1: Write failing queue-tab tests**
 
@@ -367,7 +367,7 @@ Render distinct empty, current, and upcoming states. Key rows by occurrence ID. 
 
 Run: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' --tests 'com.eterocell.rhythhaus.PlaybackControllerTest' --configuration-cache`
 
-Expected: duplicate upcoming rows remain independent; only upcoming rows mutate; stale rejection refreshes and explains state; semantic labels, roles, and state descriptions expose current/upcoming status and controls.
+Expected: duplicate upcoming rows remain independent; only upcoming rows mutate; stale rejection refreshes and explains state; semantic labels plus accurate localized content/state descriptions expose current/upcoming status and controls without assigning a false list-row role.
 
 - [ ] **Step 5: Commit the reviewed slice**
 

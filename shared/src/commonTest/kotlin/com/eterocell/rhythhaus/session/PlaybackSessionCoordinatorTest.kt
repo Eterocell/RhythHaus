@@ -5,7 +5,10 @@ import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackStatus
+import com.eterocell.rhythhaus.QueueMutationResult
+import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.RepeatMode
+import com.eterocell.rhythhaus.ShuffleMode
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryTrack
 import kotlin.test.Test
@@ -16,6 +19,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -31,6 +35,265 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class PlaybackSessionCoordinatorTest {
+    @Test
+    fun reconcileAppliedEstablishesRevisionWatermarkBeforeDelayedMutationCheckpoint() = runBlocking {
+        val mutationCommitted = CompletableDeferred<Unit>()
+        val allowMutationCheckpoint = CompletableDeferred<Unit>()
+        val playbackController = PlaybackController(
+            engine = FakePlaybackEngine(),
+            shuffleOrderFactory = { ids, _ ->
+                if (ids == listOf("current-a", "survivor-a")) {
+                    mutationCommitted.complete(Unit)
+                    runBlocking { allowMutationCheckpoint.await() }
+                }
+                ids
+            },
+        )
+        val gatedController = GatedCheckpointSessionController(playbackController)
+        val store = RecordingStore()
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(gatedController, store, scope)
+        coordinator.restoreOnce(emptyList())
+        val tracks = playableTracks("current-track", "removed-track", "survivor-track")
+        playbackController.setOccurrenceQueue(
+            listOf(
+                QueueOccurrence("current-a", tracks[0]),
+                QueueOccurrence("removed-a", tracks[1]),
+                QueueOccurrence("survivor-a", tracks[2]),
+            ),
+            "current-a",
+        )
+        playbackController.setShuffleMode(ShuffleMode.On)
+        coordinator.flush()
+        store.saved.clear()
+        gatedController.gateCheckpoints()
+
+        val mutation = async(Dispatchers.Default) { playbackController.removeUpcoming("removed-a") }
+        mutationCommitted.await()
+        val reconcile = async { coordinator.reconcile(libraryTracks("current-track")) }
+        allowMutationCheckpoint.complete(Unit)
+        assertEquals(QueueMutationResult.Applied, mutation.await())
+        gatedController.firstCheckpointCaptured.await()
+
+        assertEquals(PlaybackSessionReconcileResult.Applied, reconcile.await())
+        assertEquals(listOf(SessionQueueEntry("current-a", "current-track")), store.saved.last().queue)
+
+        gatedController.allowFirstCheckpoint.complete(Unit)
+        gatedController.firstCheckpointForwarded.await()
+        gatedController.newerCheckpointBlocked.await()
+        coordinator.flush()
+
+        assertEquals(listOf(SessionQueueEntry("current-a", "current-track")), store.saved.last().queue)
+        scope.cancel()
+    }
+
+    @Test
+    fun normalizedRestoreEstablishesRevisionWatermarkBeforeOlderCheckpoint() = runBlocking {
+        val normalized = snapshot("normalized")
+        val controller = RecordingSessionController(
+            normalizedRestoreSnapshot = normalized,
+            revisionedPublications = true,
+        )
+        val store = RecordingStore(initial = snapshot("persisted"))
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+
+        coordinator.restoreOnce(playableTracks("persisted", "normalized"))
+        assertEquals(normalized, store.saved.last())
+        coordinator.accept(PlaybackCheckpoint.Immediate(snapshot("older"), revision = 0L))
+        coordinator.flush()
+
+        assertEquals(normalized, store.saved.last())
+        scope.cancel()
+    }
+
+    @Test
+    fun newerRepeatModeSurvivesDelayedMutationCheckpoint() = runBlocking {
+        assertNewerSnapshotSurvivesDelayedMutation(
+            applyNewerState = { controller, _, _ -> controller.setRepeatMode(RepeatMode.RepeatOne) },
+            assertDurable = { snapshot -> assertEquals(RepeatMode.RepeatOne, snapshot.repeatMode) },
+        )
+    }
+
+    @Test
+    fun newerShuffleModeSurvivesDelayedMutationCheckpoint() = runBlocking {
+        assertNewerSnapshotSurvivesDelayedMutation(
+            applyNewerState = { controller, _, _ -> controller.setShuffleMode(ShuffleMode.Off) },
+            assertDurable = { snapshot -> assertEquals(ShuffleMode.Off, snapshot.shuffleMode) },
+        )
+    }
+
+    @Test
+    fun newerSeekPositionSurvivesDelayedMutationCheckpoint() = runBlocking {
+        assertNewerSnapshotSurvivesDelayedMutation(
+            applyNewerState = { controller, _, _ -> controller.seekTo(700L) },
+            assertDurable = { snapshot -> assertEquals(700L, snapshot.positionMillis) },
+        )
+    }
+
+    @Test
+    fun newerPlayingProgressSurvivesDelayedMutationCheckpoint() = runBlocking {
+        assertNewerSnapshotSurvivesDelayedMutation(
+            prepare = { controller, engine ->
+                engine.listener?.onPlaybackStatus(engine.activeGenerationForTest(), PlaybackStatus.Playing)
+            },
+            applyNewerState = { _, engine, _ ->
+                engine.listener?.onPlaybackProgress(engine.activeGenerationForTest(), 1_100L, 2_000L)
+            },
+            assertDurable = { snapshot -> assertEquals(1_100L, snapshot.positionMillis) },
+        )
+    }
+
+    @Test
+    fun delayedMutationShuffleCannotOverwriteNewerQueueShuffleOrder() = runBlocking {
+        val mutationCommitted = CompletableDeferred<Unit>()
+        val allowMutationShuffle = CompletableDeferred<Unit>()
+        val engine = FakePlaybackEngine()
+        val controller = PlaybackController(
+            engine = engine,
+            shuffleOrderFactory = { ids, currentId ->
+                when {
+                    ids == listOf("current-a", "upcoming-a-2") -> {
+                        mutationCommitted.complete(Unit)
+                        runBlocking { allowMutationShuffle.await() }
+                        ids
+                    }
+                    currentId == "current-b" -> listOf("current-b", "upcoming-b-2", "upcoming-b-1")
+                    else -> ids
+                }
+            },
+        )
+        val tracks = playableTracks("current-a-track", "upcoming-a-track", "current-b-track", "upcoming-b-1-track", "upcoming-b-2-track")
+        controller.setOccurrenceQueue(
+            listOf(
+                QueueOccurrence("current-a", tracks[0]),
+                QueueOccurrence("upcoming-a-1", tracks[1]),
+                QueueOccurrence("upcoming-a-2", tracks[1]),
+            ),
+            "current-a",
+        )
+        controller.setShuffleMode(ShuffleMode.On)
+        val mutation = async(Dispatchers.Default) { controller.removeUpcoming("upcoming-a-1") }
+        mutationCommitted.await()
+
+        controller.setOccurrenceQueue(
+            listOf(
+                QueueOccurrence("current-b", tracks[2]),
+                QueueOccurrence("upcoming-b-1", tracks[3]),
+                QueueOccurrence("upcoming-b-2", tracks[4]),
+            ),
+            "current-b",
+        )
+        allowMutationShuffle.complete(Unit)
+        assertEquals(QueueMutationResult.Applied, mutation.await())
+        controller.skipToNext()
+
+        assertEquals("upcoming-b-2", controller.state.value.currentOccurrenceId)
+    }
+
+    @Test
+    fun nullRevisionCannotRegressDurableStateAfterRevisedCheckpoint() = runBlocking {
+        val controller = RecordingSessionController(blockRestore = true)
+        val store = RecordingStore()
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        val restore = async { coordinator.restoreOnce(emptyList()) }
+        controller.restoreStarted.await()
+        coordinator.accept(PlaybackCheckpoint.Immediate(snapshot("revised"), revision = 1L))
+        coordinator.accept(PlaybackCheckpoint.Immediate(snapshot("legacy-null")))
+        controller.allowRestore.complete(Unit)
+        restore.await()
+        coordinator.flush()
+
+        assertEquals("revised", store.saved.last().currentTrackId)
+        scope.cancel()
+    }
+
+    @Test
+    fun delayedMutationCheckpointCannotRegressNewerReplacementSnapshot() = runBlocking {
+        val mutationCommitted = CompletableDeferred<Unit>()
+        val allowMutationCheckpoint = CompletableDeferred<Unit>()
+        val controller = PlaybackController(
+            engine = FakePlaybackEngine(),
+            shuffleOrderFactory = { ids, _ ->
+                if (ids == listOf("current-a", "upcoming-a-2")) {
+                    mutationCommitted.complete(Unit)
+                    runBlocking { allowMutationCheckpoint.await() }
+                }
+                ids
+            },
+        )
+        val store = RecordingStore()
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        coordinator.restoreOnce(emptyList())
+        val tracks = playableTracks("current-track", "upcoming-track", "replacement-track")
+        controller.setOccurrenceQueue(
+            listOf(
+                QueueOccurrence("current-a", tracks[0]),
+                QueueOccurrence("upcoming-a-1", tracks[1]),
+                QueueOccurrence("upcoming-a-2", tracks[1]),
+            ),
+            selectedOccurrenceId = "current-a",
+        )
+        controller.setShuffleMode(ShuffleMode.On)
+        coordinator.flush()
+        store.saved.clear()
+
+        val mutation = async(Dispatchers.Default) {
+            controller.removeUpcoming("upcoming-a-1")
+        }
+        mutationCommitted.await()
+        val replacement = QueueOccurrence("replacement-b", tracks[2])
+        controller.setOccurrenceQueue(listOf(replacement), selectedOccurrenceId = replacement.id)
+        allowMutationCheckpoint.complete(Unit)
+        assertEquals(QueueMutationResult.Applied, mutation.await())
+        coordinator.flush()
+
+        val replacementSnapshot = controller.sessionSnapshot()
+        val obsoleteMutationQueue = listOf(
+            SessionQueueEntry("current-a", "current-track"),
+            SessionQueueEntry("upcoming-a-2", "upcoming-track"),
+        )
+        assertEquals(replacementSnapshot, store.saved.last())
+        assertFalse(store.saved.any { it.queue == obsoleteMutationQueue })
+        scope.cancel()
+    }
+
+    @Test
+    fun acceptedUpcomingMutationPersistsCompleteOccurrenceSnapshotThroughCoordinator() = runBlocking {
+        val controller = PlaybackController(FakePlaybackEngine())
+        val store = RecordingStore()
+        val scope = detachedScope(coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        coordinator.restoreOnce(emptyList())
+        val tracks = playableTracks("current", "duplicate")
+        controller.setOccurrenceQueue(
+            listOf(
+                QueueOccurrence("entry-current", tracks[0]),
+                QueueOccurrence("entry-duplicate-1", tracks[1]),
+                QueueOccurrence("entry-duplicate-2", tracks[1]),
+            ),
+            selectedOccurrenceId = "entry-current",
+        )
+        coordinator.flush()
+        store.saved.clear()
+
+        assertEquals(QueueMutationResult.Applied, controller.removeUpcoming("entry-duplicate-1"))
+        coordinator.flush()
+
+        assertEquals(1, store.saved.size)
+        assertEquals(
+            listOf(
+                SessionQueueEntry("entry-current", "current"),
+                SessionQueueEntry("entry-duplicate-2", "duplicate"),
+            ),
+            store.saved.single().queue,
+        )
+        assertEquals("entry-current", store.saved.single().currentOccurrenceId)
+        scope.cancel()
+    }
+
     @Test
     fun terminalCompletionFlushPersistsExactNonWholeSecondDurationWithoutProgress() = runBlocking {
         val engine = FakePlaybackEngine()
@@ -267,7 +530,6 @@ class PlaybackSessionCoordinatorTest {
                 "commands:false",
                 "read",
                 "restore:persisted",
-                "snapshot:normalized",
                 "save:normalized",
                 "collect",
                 "commands:true",
@@ -496,6 +758,101 @@ class PlaybackSessionCoordinatorTest {
         assertEquals(1, store.saved.count { it.currentTrackId == "one" })
         scope.cancel()
     }
+
+    private suspend fun CoroutineScope.assertNewerSnapshotSurvivesDelayedMutation(
+        prepare: (PlaybackController, FakePlaybackEngine) -> Unit = { _, _ -> },
+        applyNewerState: (PlaybackController, FakePlaybackEngine, PlaybackSessionCoordinator) -> Unit,
+        assertDurable: (PlaybackSessionSnapshot) -> Unit,
+    ) {
+        val mutationCommitted = CompletableDeferred<Unit>()
+        val allowMutationCheckpoint = CompletableDeferred<Unit>()
+        val engine = FakePlaybackEngine()
+        val controller = PlaybackController(
+            engine = engine,
+            shuffleOrderFactory = { ids, _ ->
+                if (ids == listOf("current-a", "upcoming-a-2")) {
+                    mutationCommitted.complete(Unit)
+                    runBlocking { allowMutationCheckpoint.await() }
+                }
+                ids
+            },
+        )
+        val store = RecordingStore()
+        val scope = detachedScope(kotlin.coroutines.coroutineContext)
+        val coordinator = PlaybackSessionCoordinator(controller, store, scope)
+        coordinator.restoreOnce(emptyList())
+        val tracks = playableTracks("current-track", "upcoming-track")
+        controller.setOccurrenceQueue(
+            listOf(
+                QueueOccurrence("current-a", tracks[0]),
+                QueueOccurrence("upcoming-a-1", tracks[1]),
+                QueueOccurrence("upcoming-a-2", tracks[1]),
+            ),
+            "current-a",
+        )
+        controller.setShuffleMode(ShuffleMode.On)
+        prepare(controller, engine)
+        coordinator.flush()
+        store.saved.clear()
+
+        val mutation = async(Dispatchers.Default) { controller.removeUpcoming("upcoming-a-1") }
+        mutationCommitted.await()
+        applyNewerState(controller, engine, coordinator)
+        allowMutationCheckpoint.complete(Unit)
+        assertEquals(QueueMutationResult.Applied, mutation.await())
+        coordinator.flush()
+
+        assertDurable(store.saved.last())
+        scope.cancel()
+    }
+}
+
+private class GatedCheckpointSessionController(
+    private val delegate: PlaybackSessionController,
+) : PlaybackSessionController {
+    private var gated = false
+    val firstCheckpointCaptured = CompletableDeferred<Unit>()
+    val allowFirstCheckpoint = CompletableDeferred<Unit>()
+    val firstCheckpointForwarded = CompletableDeferred<Unit>()
+    val newerCheckpointBlocked = CompletableDeferred<Unit>()
+    private val neverForwardNewerCheckpoint = CompletableDeferred<Unit>()
+
+    override val checkpoints: Flow<PlaybackCheckpoint> = flow {
+        delegate.checkpoints.collect { checkpoint ->
+            if (!gated) {
+                emit(checkpoint)
+            } else if (!firstCheckpointCaptured.isCompleted) {
+                firstCheckpointCaptured.complete(Unit)
+                allowFirstCheckpoint.await()
+                emit(checkpoint)
+                firstCheckpointForwarded.complete(Unit)
+            } else {
+                newerCheckpointBlocked.complete(Unit)
+                neverForwardNewerCheckpoint.await()
+            }
+        }
+    }
+
+    fun gateCheckpoints() {
+        gated = true
+    }
+
+    override fun sessionSnapshot(): PlaybackSessionSnapshot = delegate.sessionSnapshot()
+
+    override suspend fun restoreSession(
+        snapshot: PlaybackSessionSnapshot,
+        tracks: List<PlayableTrack>,
+    ): RevisionedPlaybackSessionSnapshot =
+        delegate.restoreSession(snapshot, tracks)
+
+    override suspend fun reconcileSession(tracks: List<PlayableTrack>): RevisionedPlaybackSessionSnapshot =
+        delegate.reconcileSession(tracks)
+
+    override suspend fun awaitCheckpointFence() {
+        if (!gated) delegate.awaitCheckpointFence()
+    }
+
+    override fun setCommandsEnabled(enabled: Boolean) = delegate.setCommandsEnabled(enabled)
 }
 
 private class RecordingSessionController(
@@ -509,6 +866,7 @@ private class RecordingSessionController(
     private val throwFirstRestore: Boolean = false,
     private val failFenceWhenInactive: Boolean = false,
     private val reconcileFailure: Throwable? = null,
+    private val revisionedPublications: Boolean = false,
 ) : PlaybackSessionController {
     private val checkpointChannel = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
     var collectionCount: Int = 0
@@ -539,13 +897,17 @@ private class RecordingSessionController(
     val checkpointForwarded = CompletableDeferred<Unit>()
     val collectionFailed = CompletableDeferred<Unit>()
     private var restoreAttempts = 0
+    private var publicationRevision = 1L
 
     override fun sessionSnapshot(): PlaybackSessionSnapshot {
         events += "snapshot:${snapshot.currentTrackId ?: "empty"}"
         return snapshot
     }
 
-    override suspend fun restoreSession(snapshot: PlaybackSessionSnapshot, tracks: List<PlayableTrack>) {
+    override suspend fun restoreSession(
+        snapshot: PlaybackSessionSnapshot,
+        tracks: List<PlayableTrack>,
+    ): RevisionedPlaybackSessionSnapshot {
         events += "restore:${snapshot.currentTrackId ?: "empty"}"
         restoreStarted.complete(Unit)
         if (blockRestore) allowRestore.await()
@@ -557,9 +919,13 @@ private class RecordingSessionController(
             normalizedRestoreSnapshot != null -> normalizedRestoreSnapshot
             else -> snapshot
         }
+        return RevisionedPlaybackSessionSnapshot(
+            this.snapshot,
+            if (revisionedPublications) publicationRevision++ else null,
+        )
     }
 
-    override suspend fun reconcileSession(tracks: List<PlayableTrack>) {
+    override suspend fun reconcileSession(tracks: List<PlayableTrack>): RevisionedPlaybackSessionSnapshot {
         val current = tracks.firstOrNull()?.id
         events += "reconcile:${current ?: "empty"}"
         snapshot = PlaybackSessionSnapshot(
@@ -567,6 +933,10 @@ private class RecordingSessionController(
             currentTrackId = current,
         )
         reconcileFailure?.let { throw it }
+        return RevisionedPlaybackSessionSnapshot(
+            snapshot,
+            if (revisionedPublications) publicationRevision++ else null,
+        )
     }
 
     override fun setCommandsEnabled(enabled: Boolean) {

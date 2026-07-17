@@ -115,6 +115,31 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun playlistHubAndKeyedDetailUseTypedStackRoutes() {
+        val stack = LibraryNavigationStack()
+            .push(LibraryRoute.PlaylistHub)
+            .push(LibraryRoute.PlaylistDetail("playlist-1"))
+
+        assertEquals(LibraryRoute.PlaylistDetail("playlist-1"), stack.current)
+        assertEquals(LibraryRoute.PlaylistHub, stack.pop().current)
+        assertEquals(LibraryRoute.Home, stack.pop().pop().current)
+    }
+
+    @Test
+    fun playlistRoutesPreserveNowPlayingBarPolicy() {
+        assertTrue(routePermitsNowPlayingBar(LibraryRoute.PlaylistHub))
+        assertTrue(routePermitsNowPlayingBar(LibraryRoute.PlaylistDetail("playlist-1")))
+    }
+
+    @Test
+    fun playlistRoutesUseContentOwnershipInsteadOfSettingsOverlayOwnership() {
+        LibraryAdaptiveLayoutMode.entries.forEach { mode ->
+            assertFalse(libraryRouteRendersAsActiveOverlay(LibraryRoute.PlaylistHub, mode))
+            assertFalse(libraryRouteRendersAsActiveOverlay(LibraryRoute.PlaylistDetail("playlist-1"), mode))
+        }
+    }
+
+    @Test
     fun settingsAboutRoutesUseActiveOverlayOwnershipInCompactAndWideLayouts() {
         val routes = listOf(
             LibraryRoute.SettingsAbout,
@@ -394,6 +419,13 @@ class LibraryNavigationTest {
                 next = LibraryRoute.Search,
             ),
         )
+        assertTrue(
+            shouldReplaceWideDetailRoute(
+                mode = LibraryAdaptiveLayoutMode.ListDetail,
+                current = LibraryRoute.AlbumDetail("A"),
+                next = LibraryRoute.PlaylistDetail("playlist-1"),
+            ),
+        )
     }
 
     @Test
@@ -482,6 +514,20 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun stalePlaylistDetailRecoveryReplacesDetailWithHub() {
+        val state = LibraryAppState(initialSelectedTrackId = null)
+        state.pushRoute(LibraryRoute.PlaylistHub)
+        state.pushRoute(LibraryRoute.PlaylistDetail("missing"))
+
+        var message: String? = null
+        state.recoverStalePlaylistDetail("playlist_changed") { message = it }
+
+        assertEquals(LibraryRoute.PlaylistHub, state.navigation.current)
+        assertEquals(LibraryNavigationTransition.Replace, state.lastNavigationTransition)
+        assertEquals("playlist_changed", message)
+    }
+
+    @Test
     fun libraryAppStateTracksNowPlayingAndBottomBarVisibility() {
         val state = LibraryAppState(initialSelectedTrackId = "a")
 
@@ -515,6 +561,8 @@ class LibraryNavigationTest {
             LibraryRoute.NowPlaying,
             LibraryRoute.Search,
             LibraryRoute.ClearLibraryDialog,
+            LibraryRoute.PlaylistHub,
+            LibraryRoute.PlaylistDetail("playlist-1"),
         )
 
         permittedRoutes.forEach { route ->

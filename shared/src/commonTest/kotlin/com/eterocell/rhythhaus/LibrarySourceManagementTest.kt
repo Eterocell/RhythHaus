@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus
 
 import com.eterocell.rhythhaus.library.InMemoryLibraryRepository
+import com.eterocell.rhythhaus.library.InMemoryPlaylistRepository
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
@@ -16,6 +17,11 @@ import com.eterocell.rhythhaus.library.androidSafSourceId
 import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
 import com.eterocell.rhythhaus.library.jvmFolderSourceId
 import com.eterocell.rhythhaus.library.normalizePickedSource
+import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
+import com.eterocell.rhythhaus.library.ui.PlaylistState
+import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
+import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
+import com.eterocell.rhythhaus.library.ui.reducePlaylistState
 import com.eterocell.rhythhaus.settings.SourceAccessLabel
 import com.eterocell.rhythhaus.settings.SourceDialogName
 import com.eterocell.rhythhaus.settings.SourceScanLabel
@@ -25,7 +31,11 @@ import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -232,6 +242,243 @@ class LibrarySourceManagementTest {
         )
 
         assertEquals(listOf("reconcile", "publish"), events)
+    }
+
+    @Test
+    fun sourceRemovalRefreshesAppOwnedPlaylistSnapshotAfterCascadeAndReconciliation() = runBlocking {
+        val events = mutableListOf<String>()
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("remove"))
+            upsertTrack(track("remove-track", "remove"))
+        }
+        val playlists = RecordingPlaylistRepository(events).apply {
+            val playlist = create("Saved")
+            append(playlist.id, listOf("remove-track"))
+            events.clear()
+        }
+
+        removeSourceInBackground(
+            sourceId = "remove",
+            repository = repository,
+            loadPlaylists = { PlaylistStateAction.SnapshotConfirmed(com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot(playlists)) },
+            platformAccess = FakePlatformSourceAccess(),
+            reconciler = PlaybackSessionReconciler {
+                events += "reconcile"
+                PlaybackSessionReconcileResult.Applied
+            },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = { events += "library" },
+            updatePlaylists = { events += "playlists" },
+        )
+
+        assertEquals(listOf("reconcile", "read_playlists", "library", "playlists"), events)
+    }
+
+    @Test
+    fun clearLibraryRefreshesAppOwnedPlaylistSnapshotAfterCascadeAndReconciliation() = runBlocking {
+        val events = mutableListOf<String>()
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("source"))
+            upsertTrack(track("track", "source"))
+        }
+        val playlists = RecordingPlaylistRepository(events).apply {
+            val playlist = create("Saved")
+            append(playlist.id, listOf("track"))
+            events.clear()
+        }
+
+        clearLibraryInBackground(
+            repository = repository,
+            loadPlaylists = { PlaylistStateAction.SnapshotConfirmed(com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot(playlists)) },
+            platformAccess = FakePlatformSourceAccess(),
+            reconciler = PlaybackSessionReconciler {
+                events += "reconcile"
+                PlaybackSessionReconcileResult.Applied
+            },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = { events += "library" },
+            updatePlaylists = { events += "playlists" },
+        )
+
+        assertEquals(listOf("reconcile", "read_playlists", "library", "playlists"), events)
+    }
+
+    @Test
+    fun rescanRefreshesAppOwnedPlaylistSnapshotAfterReconciliation() = runBlocking {
+        val events = mutableListOf<String>()
+        val playlists = RecordingPlaylistRepository(events).apply {
+            create("Saved")
+            events.clear()
+        }
+        val content = LibraryContentState(sources = emptyList(), tracks = emptyList())
+        val session = ScanSession(
+            id = "scan",
+            sourceId = "source",
+            status = ScanStatus.Completed,
+            startedAtEpochMillis = 1L,
+        )
+
+        publishScanContentAfterReconcile(
+            reconciler = PlaybackSessionReconciler {
+                events += "reconcile"
+                PlaybackSessionReconcileResult.Applied
+            },
+            loadPlaylists = { PlaylistStateAction.SnapshotConfirmed(com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot(playlists)) },
+            content = content,
+            session = session,
+            ownerIsActive = { true },
+            publish = { publication ->
+                events += "publish"
+                val playlistAction = publication.playlists as PlaylistStateAction.SnapshotConfirmed
+                assertEquals(listOf("playlist-entry-1"), playlistAction.snapshot.playlists.map { it.id })
+            },
+        )
+
+        assertEquals(listOf("reconcile", "read_playlists", "publish"), events)
+    }
+
+    @Test
+    fun rescanPlaylistReadFailurePublishesTerminalScanAndRetainsConfirmedPlaylists() = runBlocking {
+        val harness = failingPlaylistReadHarness()
+        var state = harness.initialState
+        var published: ScanPublicationState? = null
+
+        publishScanContentAfterReconcile(
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
+            loadPlaylists = { harness.owner.refresh("playlist_load_failed") },
+            content = LibraryContentState(emptyList(), emptyList()),
+            session = ScanSession("scan", "source", ScanStatus.Completed, 1L),
+            ownerIsActive = { true },
+            publish = { publication ->
+                published = publication
+                publication.playlists?.let { state = reducePlaylistState(state, it) }
+            },
+        )
+
+        assertEquals(ScanStatus.Completed, published?.progress?.session?.status)
+        assertEquals("playlist-1", state.confirmedSnapshot.playlists.single().id)
+        assertEquals("playlist_load_failed", state.readErrorMessage)
+        assertEquals(1, harness.readCount())
+    }
+
+    @Test
+    fun sourceRemovalPlaylistReadFailurePublishesLibraryAndRetainsConfirmedPlaylists() = runBlocking {
+        val harness = failingPlaylistReadHarness()
+        val repository = InMemoryLibraryRepository().apply { upsertSource(source("remove")) }
+        var state = harness.initialState
+        var libraryPublished = false
+
+        removeSourceInBackground(
+            sourceId = "remove",
+            repository = repository,
+            loadPlaylists = { harness.owner.refresh("playlist_load_failed") },
+            platformAccess = FakePlatformSourceAccess(),
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = { libraryPublished = true },
+            updatePlaylists = { state = reducePlaylistState(state, it) },
+        )
+
+        assertTrue(libraryPublished)
+        assertEquals("playlist-1", state.confirmedSnapshot.playlists.single().id)
+        assertEquals("playlist_load_failed", state.readErrorMessage)
+        assertEquals(1, harness.readCount())
+    }
+
+    @Test
+    fun clearLibraryPlaylistReadFailurePublishesLibraryAndRetainsConfirmedPlaylists() = runBlocking {
+        val harness = failingPlaylistReadHarness()
+        val repository = InMemoryLibraryRepository().apply { upsertSource(source("source")) }
+        var state = harness.initialState
+        var libraryPublished = false
+
+        clearLibraryInBackground(
+            repository = repository,
+            loadPlaylists = { harness.owner.refresh("playlist_load_failed") },
+            platformAccess = FakePlatformSourceAccess(),
+            reconciler = PlaybackSessionReconciler { PlaybackSessionReconcileResult.Applied },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = { libraryPublished = true },
+            updatePlaylists = { state = reducePlaylistState(state, it) },
+        )
+
+        assertTrue(libraryPublished)
+        assertEquals("playlist-1", state.confirmedSnapshot.playlists.single().id)
+        assertEquals("playlist_load_failed", state.readErrorMessage)
+        assertEquals(1, harness.readCount())
+    }
+
+    @Test
+    fun cancelledRescanCompletesAuthoritativePlaylistReadAndPublicationBeforeRethrow() = runBlocking {
+        val events = mutableListOf<String>()
+        val operation = async {
+            publishScanContentAfterReconcile(
+                reconciler = cancellingReconciler(events),
+                loadPlaylists = {
+                    yield()
+                    events += "read_playlists"
+                    PlaylistStateAction.SnapshotConfirmed(com.eterocell.rhythhaus.library.ui.PlaylistSnapshot())
+                },
+                content = LibraryContentState(emptyList(), emptyList()),
+                session = ScanSession("scan", "source", ScanStatus.Scanning, 1L),
+                ownerIsActive = { true },
+                publish = { events += "publish" },
+            )
+        }
+
+        assertFailsWith<CancellationException> { operation.await() }
+        assertEquals(listOf("reconcile", "read_playlists", "publish"), events)
+    }
+
+    @Test
+    fun cancelledSourceRemovalCompletesAuthoritativePlaylistPublicationBeforeRethrow() = runBlocking {
+        val events = mutableListOf<String>()
+        val repository = InMemoryLibraryRepository().apply { upsertSource(source("remove")) }
+        val operation = async {
+            removeSourceInBackground(
+                sourceId = "remove",
+                repository = repository,
+                loadPlaylists = {
+                    yield()
+                    events += "read_playlists"
+                    PlaylistStateAction.SnapshotConfirmed(com.eterocell.rhythhaus.library.ui.PlaylistSnapshot())
+                },
+                platformAccess = FakePlatformSourceAccess(),
+                reconciler = cancellingReconciler(events),
+                ioDispatcher = Dispatchers.Default,
+                ownerIsActive = { true },
+                updateLibrary = { events += "library" },
+                updatePlaylists = { events += "playlists" },
+            )
+        }
+
+        assertFailsWith<CancellationException> { operation.await() }
+        assertEquals(listOf("reconcile", "read_playlists", "library", "playlists"), events)
+    }
+
+    @Test
+    fun cancelledClearLibraryCompletesAuthoritativePlaylistPublicationBeforeRethrow() = runBlocking {
+        val events = mutableListOf<String>()
+        val repository = InMemoryLibraryRepository().apply { upsertSource(source("source")) }
+        val operation = async {
+            clearLibraryInBackground(
+                repository = repository,
+                loadPlaylists = {
+                    yield()
+                    events += "read_playlists"
+                    PlaylistStateAction.SnapshotConfirmed(com.eterocell.rhythhaus.library.ui.PlaylistSnapshot())
+                },
+                platformAccess = FakePlatformSourceAccess(),
+                reconciler = cancellingReconciler(events),
+                ioDispatcher = Dispatchers.Default,
+                ownerIsActive = { true },
+                updateLibrary = { events += "library" },
+                updatePlaylists = { events += "playlists" },
+            )
+        }
+
+        assertFailsWith<CancellationException> { operation.await() }
+        assertEquals(listOf("reconcile", "read_playlists", "library", "playlists"), events)
     }
 
     @Test
@@ -484,6 +731,32 @@ class LibrarySourceManagementTest {
     }
 
     @Test
+    fun clearLibraryReconcileFailureStillRefreshesAppOwnedPlaylistSnapshot() = runBlocking {
+        val repository = InMemoryLibraryRepository().apply {
+            upsertSource(source("source"))
+            upsertTrack(track("track", "source"))
+        }
+        val playlists = RecordingPlaylistRepository(mutableListOf()).apply {
+            create("Saved")
+        }
+        var refreshed: com.eterocell.rhythhaus.library.ui.PlaylistSnapshot? = null
+
+        clearLibraryInBackground(
+            repository = repository,
+            loadPlaylists = { PlaylistStateAction.SnapshotConfirmed(com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot(playlists)) },
+            platformAccess = FakePlatformSourceAccess(repository = repository),
+            reconciler = PlaybackSessionReconciler { throw IllegalStateException("clear reconcile failed") },
+            ioDispatcher = Dispatchers.Default,
+            updateLibrary = {},
+            updatePlaylists = { action ->
+                refreshed = (action as PlaylistStateAction.SnapshotConfirmed).snapshot
+            },
+        )
+
+        assertEquals(listOf("playlist-entry-1"), refreshed?.playlists?.map { it.id })
+    }
+
+    @Test
     fun clearLibraryAccessReleaseFailurePropagatesWithoutPublishing() = runBlocking {
         val repository = InMemoryLibraryRepository().apply {
             upsertSource(source("source"))
@@ -589,6 +862,61 @@ class LibrarySourceManagementTest {
             startedAtEpochMillis = 1L,
         ),
     )
+}
+
+private fun cancellingReconciler(events: MutableList<String>) = PlaybackSessionReconciler {
+    events += "reconcile"
+    val cancellation = CancellationException("cancelled")
+    currentCoroutineContext().cancel(cancellation)
+    throw cancellation
+}
+
+private class FailingPlaylistReadHarness {
+    private var reads = 0
+    private val confirmedPlaylist = com.eterocell.rhythhaus.library.Playlist(
+        id = "playlist-1",
+        name = "Saved",
+        createdAtEpochMillis = 1L,
+        updatedAtEpochMillis = 1L,
+    )
+    private val repository = object : com.eterocell.rhythhaus.library.PlaylistRepository by InMemoryPlaylistRepository() {
+        override fun playlists(): List<com.eterocell.rhythhaus.library.Playlist> {
+            reads += 1
+            error("playlist read failed")
+        }
+    }
+    val owner = PlaylistStateOwner(repository, Dispatchers.Default)
+    val initialState = PlaylistState(
+        confirmedSnapshot = PlaylistSnapshot(playlists = listOf(confirmedPlaylist)),
+        hasConfirmedSnapshot = true,
+    )
+    fun readCount(): Int = reads
+}
+
+private fun failingPlaylistReadHarness() = FailingPlaylistReadHarness()
+
+private class RecordingPlaylistRepository(
+    private val events: MutableList<String>,
+) : com.eterocell.rhythhaus.library.PlaylistRepository {
+    private val delegate = InMemoryPlaylistRepository(
+        now = { 1L },
+        idFactory = generateSequence(1) { it + 1 }.map { "playlist-entry-$it" }.iterator()::next,
+    )
+
+    override fun playlists(): List<com.eterocell.rhythhaus.library.Playlist> {
+        events += "read_playlists"
+        return delegate.playlists()
+    }
+
+    override fun playlist(id: String) = delegate.playlist(id)
+    override fun entries(playlistId: String) = delegate.entries(playlistId)
+    override fun create(name: String) = delegate.create(name)
+    override fun createWithEntries(name: String, trackIds: List<String>) = delegate.createWithEntries(name, trackIds)
+    override fun rename(id: String, name: String) = delegate.rename(id, name)
+    override fun delete(id: String) = delegate.delete(id)
+    override fun append(playlistId: String, trackIds: List<String>) = delegate.append(playlistId, trackIds)
+    override fun removeEntry(entryId: String) = delegate.removeEntry(entryId)
+    override fun reorder(playlistId: String, entryIds: List<String>) = delegate.reorder(playlistId, entryIds)
 }
 
 private class FakePlatformSourceAccess(

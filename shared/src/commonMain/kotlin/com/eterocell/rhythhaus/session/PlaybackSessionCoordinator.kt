@@ -35,6 +35,7 @@ internal class PlaybackSessionCoordinator(
     private var checkpointCollectorJob: Job? = null
     private val checkpointCollectorReady = CompletableDeferred<Unit>()
     private var terminalFailure: Throwable? = null
+    private var highestPersistedCheckpointRevision: Long? = null
     private val actorJob: Job
 
     init {
@@ -80,17 +81,27 @@ internal class PlaybackSessionCoordinator(
                 active = command
                 pending = null
                 if (command is Command.Checkpoint) {
-                    var newest = command.checkpoint.snapshot
+                    var newest = command.checkpoint
                     while (true) {
                         val next = commands.tryReceive().getOrNull() ?: break
                         if (next is Command.Checkpoint) {
-                            newest = next.checkpoint.snapshot
+                            newest = newerCheckpoint(newest, next.checkpoint)
                         } else {
                             pending = next
                             break
                         }
                     }
-                    persist(newest)
+                    val revision = newest.revision
+                    val persistedRevision = highestPersistedCheckpointRevision
+                    if (
+                        (revision == null && persistedRevision == null) ||
+                        (revision != null &&
+                            (persistedRevision == null || revision >= persistedRevision))
+                    ) {
+                        if (persist(newest.snapshot) && revision != null) {
+                            highestPersistedCheckpointRevision = revision
+                        }
+                    }
                 } else {
                     processBarrier(command)
                 }
@@ -108,6 +119,18 @@ internal class PlaybackSessionCoordinator(
                 active,
                 pending,
             )
+        }
+    }
+
+    private fun newerCheckpoint(first: PlaybackCheckpoint, second: PlaybackCheckpoint): PlaybackCheckpoint {
+        val firstRevision = first.revision
+        val secondRevision = second.revision
+        return when {
+            firstRevision == null && secondRevision == null -> second
+            firstRevision == null -> second
+            secondRevision == null -> first
+            firstRevision > secondRevision -> first
+            else -> second
         }
     }
 
@@ -135,9 +158,8 @@ internal class PlaybackSessionCoordinator(
                 applyEmptyPaused(command.tracks)
                 return
             }
-            controller.restoreSession(persisted, command.tracks)
-            val normalized = controller.sessionSnapshot()
-            persist(normalized)
+            val normalized = controller.restoreSession(persisted, command.tracks)
+            persistRevisioned(normalized)
         } catch (cancellation: CancellationException) {
             cancelled = true
             command.reply.completeExceptionally(cancellation)
@@ -155,10 +177,10 @@ internal class PlaybackSessionCoordinator(
 
     private suspend fun reconcile(command: Command.Reconcile) {
         try {
-            controller.reconcileSession(command.tracks.map(LibraryTrack::toPlayableTrack))
+            val reconciled = controller.reconcileSession(command.tracks.map(LibraryTrack::toPlayableTrack))
             val result = if (_phase.value == PlaybackSessionPhase.FailedSafe) {
                 PlaybackSessionReconcileResult.FailedSafeApplied
-            } else if (persist(controller.sessionSnapshot())) {
+            } else if (persistRevisioned(reconciled)) {
                 PlaybackSessionReconcileResult.Applied
             } else {
                 PlaybackSessionReconcileResult.FailedSafeApplied
@@ -209,6 +231,17 @@ internal class PlaybackSessionCoordinator(
             enterFailedSafe()
             false
         }
+    }
+
+    private suspend fun persistRevisioned(publication: RevisionedPlaybackSessionSnapshot): Boolean {
+        if (!persist(publication.snapshot)) return false
+        publication.revision?.let { revision ->
+            highestPersistedCheckpointRevision = maxOf(
+                highestPersistedCheckpointRevision ?: revision,
+                revision,
+            )
+        }
+        return true
     }
 
     private suspend fun applyEmptyPaused(tracks: List<PlayableTrack>) {

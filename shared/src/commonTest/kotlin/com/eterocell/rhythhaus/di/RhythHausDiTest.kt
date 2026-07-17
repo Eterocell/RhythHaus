@@ -19,6 +19,7 @@ import com.eterocell.rhythhaus.session.PlaybackCheckpoint
 import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionCoordinator
 import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
+import com.eterocell.rhythhaus.session.RevisionedPlaybackSessionSnapshot
 import com.eterocell.rhythhaus.session.PlaybackSessionStore
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlinx.coroutines.CompletableDeferred
@@ -205,14 +206,19 @@ private class CountingRestoreController(
 
     override fun sessionSnapshot(): PlaybackSessionSnapshot = PlaybackSessionSnapshot()
 
-    override suspend fun restoreSession(snapshot: PlaybackSessionSnapshot, tracks: List<PlayableTrack>) {
+    override suspend fun restoreSession(
+        snapshot: PlaybackSessionSnapshot,
+        tracks: List<PlayableTrack>,
+    ): RevisionedPlaybackSessionSnapshot {
         restoreCount++
         restoreStarted.complete(Unit)
         if (blockRestore) allowRestore.await()
         restoreFailure?.let { throw it }
+        return RevisionedPlaybackSessionSnapshot(PlaybackSessionSnapshot(), null)
     }
 
-    override suspend fun reconcileSession(tracks: List<PlayableTrack>) = Unit
+    override suspend fun reconcileSession(tracks: List<PlayableTrack>): RevisionedPlaybackSessionSnapshot =
+        RevisionedPlaybackSessionSnapshot(PlaybackSessionSnapshot(), null)
 
     override suspend fun awaitCheckpointFence() = Unit
 

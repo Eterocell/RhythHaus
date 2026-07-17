@@ -25,6 +25,14 @@ import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.library_queue
+import rhythhaus.shared.generated.resources.playlists
+import rhythhaus.shared.generated.resources.playlists_accessibility
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import com.eterocell.rhythhaus.theme.HausColors
@@ -57,6 +65,8 @@ internal fun LibraryHomeContent(
     onClearLibrary: () -> Unit,
     onCancelScan: () -> Unit,
     onOpenDetailRoute: (LibraryRoute) -> Unit,
+    onShowPlaylists: () -> Unit,
+    onAddToPlaylist: (String) -> Unit,
     onTrackSelected: (String) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -102,6 +112,27 @@ internal fun LibraryHomeContent(
                                 tracksAdded = ss.tracksAdded,
                                 latestItem = sp.latestItem,
                                 onCancel = onCancelScan,
+                            )
+                        }
+                    }
+                    item {
+                        val playlistsDescription = stringResource(Res.string.playlists_accessibility)
+                        Button(
+                            onClick = onShowPlaylists,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .semantics { contentDescription = playlistsDescription },
+                            cornerRadius = 16.dp,
+                            colors = ButtonDefaults.buttonColors(
+                                color = HausColors.current.panel,
+                                contentColor = HausColors.current.ink,
+                            ),
+                        ) {
+                            top.yukonga.miuix.kmp.basic.Text(
+                                text = stringResource(Res.string.playlists),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Black,
                             )
                         }
                     }
@@ -167,6 +198,7 @@ internal fun LibraryHomeContent(
                                             selectedTrackId = track.id,
                                         )
                                     },
+                                    onAddToPlaylist = { onAddToPlaylist(track.id) },
                                 )
                             }
                         }
