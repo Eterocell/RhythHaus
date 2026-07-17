@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -30,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
@@ -98,6 +101,113 @@ data class PlaylistNameDraft(
     fun confirmedName(): String? = enteredText.trim().takeIf(String::isNotEmpty)
     fun mutationFailed(): PlaylistNameDraft = copy(showFailure = true)
 }
+
+enum class PlaylistModalNotice { MutationFailed }
+
+data class PlaylistNameModalPresentation(
+    val enteredText: String,
+    val notice: PlaylistModalNotice? = null,
+) {
+    val isVisible: Boolean = true
+}
+
+fun playlistNameModalPresentation(
+    draft: PlaylistNameDraft,
+    outcome: PlaylistStateAction? = null,
+): PlaylistNameModalPresentation = PlaylistNameModalPresentation(
+    enteredText = draft.enteredText,
+    notice = if (outcome is PlaylistStateAction.MutationFailed) PlaylistModalNotice.MutationFailed else null,
+)
+
+data class PlaylistPickerPresentation(
+    val selectedPlaylistId: String?,
+    val enteredName: String,
+    val notice: PlaylistModalNotice?,
+)
+
+fun playlistPickerPresentation(state: PlaylistState): PlaylistPickerPresentation? = state.picker?.let {
+    PlaylistPickerPresentation(
+        selectedPlaylistId = it.selectedPlaylistId,
+        enteredName = it.enteredName,
+        notice = if (state.mutationErrorMessage != null) PlaylistModalNotice.MutationFailed else null,
+    )
+}
+
+data class PlaylistBrowserPresentation(
+    val query: String,
+    val selectedTrackIds: Set<String>,
+    val notice: PlaylistModalNotice?,
+)
+
+fun playlistBrowserPresentation(state: PlaylistState): PlaylistBrowserPresentation? = state.browser?.let {
+    PlaylistBrowserPresentation(
+        query = it.query,
+        selectedTrackIds = it.selectedTrackIds,
+        notice = if (state.mutationErrorMessage != null) PlaylistModalNotice.MutationFailed else null,
+    )
+}
+
+enum class PlaylistRoutePresentationNotice { ReadFailed }
+
+data class PlaylistRoutePresentation(
+    val showConfirmedContent: Boolean,
+    val notice: PlaylistRoutePresentationNotice?,
+    val showRetry: Boolean,
+)
+
+fun playlistRoutePresentation(state: PlaylistState): PlaylistRoutePresentation = PlaylistRoutePresentation(
+    showConfirmedContent = state.hasConfirmedSnapshot,
+    notice = if (state.readErrorMessage != null) PlaylistRoutePresentationNotice.ReadFailed else null,
+    showRetry = state.readErrorMessage != null,
+)
+
+data class SearchAddToPlaylistPresentation(
+    val trackId: String,
+    val trackTitle: String,
+    val action: PlaylistStateAction,
+)
+
+fun searchAddToPlaylistPresentation(trackId: String, trackTitle: String) = SearchAddToPlaylistPresentation(
+    trackId = trackId,
+    trackTitle = trackTitle,
+    action = openAddToPlaylistPickerAction(trackId),
+)
+
+data class PlaylistDestructivePresentation(
+    val entryId: String,
+    val confirmedEntryId: String? = null,
+) {
+    fun confirm() = copy(confirmedEntryId = entryId)
+    fun dismiss() = copy(confirmedEntryId = null)
+}
+
+fun playlistDestructivePresentation(entryId: String) = PlaylistDestructivePresentation(entryId)
+
+class PlaylistDragPresentation(
+    private val entryIds: List<String>,
+    private val draggedEntryId: String,
+) {
+    private var targetIndex = entryIds.indexOf(draggedEntryId)
+    private var consumed = false
+
+    fun target(index: Int): PlaylistDragPresentation = apply {
+        targetIndex = index.coerceIn(entryIds.indices)
+    }
+
+    fun finalOrder(): List<String> {
+        if (consumed) return entryIds
+        consumed = true
+        val sourceIndex = entryIds.indexOf(draggedEntryId)
+        if (sourceIndex < 0 || sourceIndex == targetIndex) return entryIds
+        return entryIds.toMutableList().apply { add(targetIndex, removeAt(sourceIndex)) }
+    }
+}
+
+fun playlistDragTargetIndex(
+    pointerY: Float,
+    rowCentersByIndex: Map<Int, Float>,
+    fallbackIndex: Int,
+): Int = rowCentersByIndex.minByOrNull { (_, centerY) -> kotlin.math.abs(centerY - pointerY) }?.key ?: fallbackIndex
 
 data class PlaylistMoveAvailability(val canMoveUp: Boolean, val canMoveDown: Boolean)
 
@@ -193,10 +303,12 @@ internal fun PlaylistHubScreen(
     onBack: () -> Unit,
     onOpenPlaylist: (String) -> Unit,
     onSelectTab: (PlaylistTab) -> Unit,
-    onCreate: (String, () -> Unit) -> Unit,
+    onCreate: (String, (PlaylistStateAction) -> Unit) -> Unit,
     onRetry: () -> Unit,
 ) {
     var createDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
+    var createOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
+    val routePresentation = playlistRoutePresentation(state)
     PlaylistScreenFrame(title = stringResource(Res.string.playlists), onBack = onBack) {
         item(key = "tabs") { PlaylistTabs(state.selectedTab, onSelectTab) }
         if (state.isLoading && !state.hasConfirmedSnapshot) {
@@ -229,19 +341,29 @@ internal fun PlaylistHubScreen(
                 }
             }
         }
+        if (routePresentation.notice == PlaylistRoutePresentationNotice.ReadFailed && state.hasConfirmedSnapshot) {
+            item(key = "retained-read-error") {
+                ReadFailureNotice(onRetry)
+            }
+        }
         item(key = "notice") { PlaylistNotice(state) }
         item(key = "spacer") { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
     }
     createDraft?.let { draft ->
+        val modalPresentation = playlistNameModalPresentation(draft, createOutcome)
         PlaylistNameDialog(
             title = stringResource(Res.string.playlist_create),
             draft = draft,
-            onDraftChange = { createDraft = PlaylistNameDraft(it) },
-            onDismiss = { createDraft = null },
+            notice = modalPresentation.notice,
+            onDraftChange = { createDraft = PlaylistNameDraft(it); createOutcome = null },
+            onDismiss = { createDraft = null; createOutcome = null },
             onConfirm = {
                 val name = draft.confirmedName()
                 if (name == null) createDraft = draft.mutationFailed() else {
-                    onCreate(name) { createDraft = null }
+                    onCreate(name) { outcome ->
+                        createOutcome = outcome
+                        if (outcome is PlaylistStateAction.SnapshotConfirmed) createDraft = null
+                    }
                 }
             },
         )
@@ -255,7 +377,8 @@ internal fun PlaylistDetailScreen(
     libraryTracks: List<LibraryTrack>,
     state: PlaylistState,
     onBack: () -> Unit,
-    onRename: (String, () -> Unit) -> Unit,
+    onRetry: () -> Unit,
+    onRename: (String, (PlaylistStateAction) -> Unit) -> Unit,
     onDelete: (() -> Unit) -> Unit,
     onOpenBrowser: () -> Unit,
     onPlayEntry: (SavedPlaylistPlaybackRequest) -> Unit,
@@ -265,8 +388,12 @@ internal fun PlaylistDetailScreen(
     val tracksById = remember(libraryTracks) { libraryTracks.associate { it.id to it.toPlayableTrack() } }
     val model = playlistDetailModel(playlist.id, playlist.name, entries, tracksById)
     var renameDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
+    var renameOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
     var deleteConfirmation by remember { mutableStateOf(false) }
     var removeConfirmation by remember { mutableStateOf<PlaylistDetailRow?>(null) }
+    var destructivePresentation by remember { mutableStateOf<PlaylistDestructivePresentation?>(null) }
+    val rowCenters = remember { mutableStateMapOf<Int, Float>() }
+    val routePresentation = playlistRoutePresentation(state)
     PlaylistScreenFrame(title = playlist.name, onBack = onBack) {
         item(key = "actions") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -277,29 +404,45 @@ internal fun PlaylistDetailScreen(
         }
         if (model.rows.isEmpty()) item(key = "empty") { EmptyPlaylistMessage(stringResource(Res.string.playlist_empty_detail)) }
         items(model.rows, key = { it.entry.id }) { row ->
+            val rowIndex = entries.indexOfFirst { it.id == row.entry.id }
             PlaylistEntryRow(
                 row = row,
+                rowIndex = rowIndex,
+                entryIds = entries.map(PlaylistEntry::id),
+                rowCenters = rowCenters,
                 availability = playlistMoveAvailability(entries.map(PlaylistEntry::id), row.entry.id),
                 onClick = {
                     savedPlaylistPlaybackRequest(entries, tracksById, row.entry.id)?.let(onPlayEntry)
                 },
                 onMove = { offset -> onReorder(movedPlaylistEntryIds(entries.map(PlaylistEntry::id), row.entry.id, offset)) },
-                onRemove = { removeConfirmation = row },
+                onDragOrder = onReorder,
+                onRemove = {
+                    removeConfirmation = row
+                    destructivePresentation = playlistDestructivePresentation(row.entry.id)
+                },
             )
+        }
+        if (routePresentation.notice == PlaylistRoutePresentationNotice.ReadFailed) {
+            item(key = "retained-read-error") { ReadFailureNotice(onRetry) }
         }
         item(key = "notice") { PlaylistNotice(state) }
         item(key = "spacer") { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
     }
     renameDraft?.let { draft ->
+        val modalPresentation = playlistNameModalPresentation(draft, renameOutcome)
         PlaylistNameDialog(
             title = stringResource(Res.string.playlist_rename),
             draft = draft,
-            onDraftChange = { renameDraft = PlaylistNameDraft(it) },
-            onDismiss = { renameDraft = null },
+            notice = modalPresentation.notice,
+            onDraftChange = { renameDraft = PlaylistNameDraft(it); renameOutcome = null },
+            onDismiss = { renameDraft = null; renameOutcome = null },
             onConfirm = {
                 val name = draft.confirmedName()
                 if (name == null) renameDraft = draft.mutationFailed() else {
-                    onRename(name) { renameDraft = null }
+                    onRename(name) { outcome ->
+                        renameOutcome = outcome
+                        if (outcome is PlaylistStateAction.SnapshotConfirmed) renameDraft = null
+                    }
                 }
             },
         )
@@ -314,8 +457,15 @@ internal fun PlaylistDetailScreen(
         ConfirmationDialog(
             title = stringResource(Res.string.playlist_remove_track_format, row.track.title),
             message = stringResource(Res.string.playlist_remove_track_format, row.track.title),
-            onDismiss = { removeConfirmation = null },
-            onConfirm = { removeConfirmation = null; onRemoveEntry(row.entry.id) },
+            onDismiss = {
+                destructivePresentation = destructivePresentation?.dismiss()
+                removeConfirmation = null
+            },
+            onConfirm = {
+                destructivePresentation = destructivePresentation?.confirm()
+                destructivePresentation?.confirmedEntryId?.let(onRemoveEntry)
+                removeConfirmation = null
+            },
         )
     }
 }
@@ -329,10 +479,12 @@ internal fun AddToPlaylistPicker(
     onDismiss: () -> Unit,
     onAppend: (PlaylistAppendRequest) -> Unit,
     onInlineCreate: (PlaylistInlineCreateRequest) -> Unit,
+    notice: PlaylistModalNotice? = null,
 ) {
     ModalCard(onDismiss) {
         Text(stringResource(Res.string.playlist_add_to), color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
         Text(track.title, color = HausColors.current.muted, fontSize = 13.sp)
+        ModalFailureNotice(notice)
         Text(stringResource(Res.string.playlist_choose_existing), color = HausColors.current.ink, fontWeight = FontWeight.Bold)
         playlists.forEach { playlist ->
             val selected = state.selectedPlaylistId == playlist.id
@@ -362,6 +514,7 @@ internal fun PlaylistTrackBrowser(
     onStateChange: (PlaylistTrackBrowserState) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: (PlaylistAppendRequest) -> Unit,
+    notice: PlaylistModalNotice? = null,
 ) {
     val visibleIds = remember(state.query, libraryTracks) { filteredPlaylistTrackIds(libraryTracks, state.query) }
     val visible = remember(visibleIds, libraryTracks) {
@@ -372,6 +525,7 @@ internal fun PlaylistTrackBrowser(
     val selectedStateDescription = stringResource(Res.string.playlist_selected_state)
     ModalCard(onDismiss) {
         Text(playlistName, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
+        ModalFailureNotice(notice)
         PlaylistTextField(state.query, stringResource(Res.string.playlist_track_browser_search)) {
             onStateChange(state.copy(query = it))
         }
@@ -440,30 +594,49 @@ private fun PlaylistHubRow(playlist: Playlist, entryCount: Int, onClick: () -> U
 }
 
 @Composable
-private fun PlaylistEntryRow(row: PlaylistDetailRow, availability: PlaylistMoveAvailability, onClick: () -> Unit, onMove: (Int) -> Unit, onRemove: () -> Unit) {
+private fun PlaylistEntryRow(
+    row: PlaylistDetailRow,
+    rowIndex: Int,
+    entryIds: List<String>,
+    rowCenters: MutableMap<Int, Float>,
+    availability: PlaylistMoveAvailability,
+    onClick: () -> Unit,
+    onMove: (Int) -> Unit,
+    onDragOrder: (List<String>) -> Unit,
+    onRemove: () -> Unit,
+) {
     val moveUp = stringResource(Res.string.playlist_move_up_format, row.track.title)
     val moveDown = stringResource(Res.string.playlist_move_down_format, row.track.title)
     val drag = stringResource(Res.string.playlist_drag_format, row.track.title)
     val remove = stringResource(Res.string.playlist_remove_track_format, row.track.title)
     val entryState = stringResource(Res.string.playlist_entry_state)
-    Row(modifier = Modifier.fillMaxWidth().border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp)).background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(20.dp)).hausClickable(onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier = Modifier.fillMaxWidth().onGloballyPositioned { coordinates -> rowCenters[rowIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f }.border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp)).background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(20.dp)).hausClickable(onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             "≡",
             modifier = Modifier
                 .size(44.dp)
-                .pointerInput(row.entry.id, availability) {
-                    var dragDistance = 0f
+                .pointerInput(row.entry.id, entryIds, rowCenters.toMap()) {
+                    var pointerY = rowCenters[rowIndex] ?: 0f
+                    var dragPresentation = PlaylistDragPresentation(entryIds, row.entry.id)
                     detectDragGesturesAfterLongPress(
-                        onDragStart = { dragDistance = 0f },
+                        onDragStart = {
+                            pointerY = rowCenters[rowIndex] ?: 0f
+                            dragPresentation = PlaylistDragPresentation(entryIds, row.entry.id)
+                        },
                         onDragEnd = {
-                            when {
-                                dragDistance < -20f && availability.canMoveUp -> onMove(-1)
-                                dragDistance > 20f && availability.canMoveDown -> onMove(1)
-                            }
+                            val finalOrder = dragPresentation.finalOrder()
+                            if (finalOrder != entryIds) onDragOrder(finalOrder)
                         },
                         onDrag = { change, amount ->
                             change.consume()
-                            dragDistance += amount.y
+                            pointerY += amount.y
+                            dragPresentation.target(
+                                playlistDragTargetIndex(
+                                    pointerY = pointerY,
+                                    rowCentersByIndex = rowCenters,
+                                    fallbackIndex = rowIndex,
+                                ),
+                            )
                         },
                     )
                 }
@@ -495,8 +668,23 @@ private fun PlaylistEntryRow(row: PlaylistDetailRow, availability: PlaylistMoveA
 @Composable private fun PlaylistNotice(state: PlaylistState) { if (state.mutationErrorMessage != null) Text(stringResource(Res.string.playlist_mutation_failed), color = HausColors.current.pulse, fontSize = 13.sp) }
 
 @Composable
-private fun PlaylistNameDialog(title: String, draft: PlaylistNameDraft, onDraftChange: (String) -> Unit, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    ModalCard(onDismiss) { Text(title, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black); PlaylistTextField(draft.enteredText) { onDraftChange(it) }; if (draft.showFailure) Text(stringResource(Res.string.playlist_create_name), color = HausColors.current.pulse, fontSize = 12.sp); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { CompactAction(stringResource(Res.string.cancel), Modifier.weight(1f), onDismiss); CompactAction(title, Modifier.weight(1f), onConfirm) } }
+private fun PlaylistNameDialog(title: String, draft: PlaylistNameDraft, notice: PlaylistModalNotice?, onDraftChange: (String) -> Unit, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    ModalCard(onDismiss) { Text(title, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black); PlaylistTextField(draft.enteredText) { onDraftChange(it) }; if (draft.showFailure) Text(stringResource(Res.string.playlist_create_name), color = HausColors.current.pulse, fontSize = 12.sp); ModalFailureNotice(notice); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { CompactAction(stringResource(Res.string.cancel), Modifier.weight(1f), onDismiss); CompactAction(title, Modifier.weight(1f), onConfirm) } }
+}
+
+@Composable
+private fun ModalFailureNotice(notice: PlaylistModalNotice?) {
+    if (notice == PlaylistModalNotice.MutationFailed) {
+        Text(stringResource(Res.string.playlist_mutation_failed), color = HausColors.current.pulse, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun ReadFailureNotice(onRetry: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(Res.string.playlist_load_failed), color = HausColors.current.muted, fontSize = 13.sp)
+        CompactAction(stringResource(Res.string.playlist_retry), Modifier.fillMaxWidth(), onRetry)
+    }
 }
 
 @Composable

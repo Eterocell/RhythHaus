@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.library.ui
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
+import com.eterocell.rhythhaus.library.Playlist
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -153,6 +154,82 @@ class PlaylistScreensTest {
         assertEquals(listOf("b", "a", "c"), filteredPlaylistTrackIds(tracks, ""))
     }
 
+    @Test
+    fun createModalPresentationRetainsDraftAndShowsFailureAfterRevisionedOutcome() {
+        val draft = PlaylistNameDraft("  同名歌单  ")
+        val presentation = playlistNameModalPresentation(
+            draft = draft,
+            outcome = PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 8L),
+        )
+
+        assertTrue(presentation.isVisible)
+        assertEquals("  同名歌单  ", presentation.enteredText)
+        assertEquals(PlaylistModalNotice.MutationFailed, presentation.notice)
+    }
+
+    @Test
+    fun pickerAndBrowserPresentMutationFailureWithoutLosingSelection() {
+        val state = PlaylistState(
+            mutationErrorMessage = PlaylistMutationFailedMessage,
+            picker = PlaylistPickerState("track-a", selectedPlaylistId = "playlist-1", enteredName = "New"),
+            browser = PlaylistBrowserState("playlist-1", query = "blue", selectedTrackIds = setOf("track-a")),
+        )
+
+        val picker = playlistPickerPresentation(state)
+        val browser = playlistBrowserPresentation(state)
+
+        assertEquals("playlist-1", picker?.selectedPlaylistId)
+        assertEquals("New", picker?.enteredName)
+        assertEquals(PlaylistModalNotice.MutationFailed, picker?.notice)
+        assertEquals(setOf("track-a"), browser?.selectedTrackIds)
+        assertEquals("blue", browser?.query)
+        assertEquals(PlaylistModalNotice.MutationFailed, browser?.notice)
+    }
+
+    @Test
+    fun retainedReadFailurePresentationKeepsHubContentAndExposesRetry() {
+        val state = PlaylistState(
+            confirmedSnapshot = PlaylistSnapshot(playlists = listOf(playlist("playlist-1"))),
+            hasConfirmedSnapshot = true,
+            readErrorMessage = PlaylistReadFailedMessage,
+        )
+
+        val presentation = playlistRoutePresentation(state)
+
+        assertTrue(presentation.showConfirmedContent)
+        assertEquals(PlaylistRoutePresentationNotice.ReadFailed, presentation.notice)
+        assertTrue(presentation.showRetry)
+    }
+
+    @Test
+    fun searchAddActionPresentationContainsTrackTitleAndDispatchesExactTrack() {
+        val action = searchAddToPlaylistPresentation("track-a", "夜に駆ける")
+
+        assertEquals("track-a", action.trackId)
+        assertEquals("夜に駆ける", action.trackTitle)
+        assertEquals(openAddToPlaylistPickerAction("track-a"), action.action)
+    }
+
+    @Test
+    fun destructivePresentationDoesNotDispatchUntilConfirmation() {
+        val pending = playlistDestructivePresentation(entryId = "entry-a")
+
+        assertNull(pending.confirmedEntryId)
+        assertEquals("entry-a", pending.confirm().confirmedEntryId)
+        assertNull(pending.dismiss().confirmedEntryId)
+    }
+
+    @Test
+    fun dragPresentationDispatchesOneCompleteOrderForDraggedOccurrenceAndTargetRow() {
+        val session = PlaylistDragPresentation(
+            entryIds = listOf("a", "b", "c", "d"),
+            draggedEntryId = "d",
+        ).target(index = 1)
+
+        assertEquals(listOf("a", "d", "b", "c"), session.finalOrder())
+        assertEquals(listOf("a", "b", "c", "d"), session.finalOrder())
+    }
+
     private fun entry(id: String, trackId: String, position: Int) = PlaylistEntry(
         id = id,
         playlistId = "playlist-1",
@@ -187,4 +264,11 @@ class PlaylistScreensTest {
             createdAtEpochMillis = 1L,
             updatedAtEpochMillis = 1L,
         )
+
+    private fun playlist(id: String) = Playlist(
+        id = id,
+        name = "Playlist $id",
+        createdAtEpochMillis = 1L,
+        updatedAtEpochMillis = 1L,
+    )
 }
