@@ -9,7 +9,7 @@ import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -364,7 +364,7 @@ class PlaylistScreensTest {
     }
 
     @Test
-    fun queueRowsDriveLocalizedSemanticRoleStateAndNamedActions() {
+    fun queueRowsDriveLocalizedRoleFreeStateAndNamedActions() {
         val presentation = queueTabPresentation(
             PlaybackState(
                 currentOccurrenceId = "current",
@@ -378,18 +378,34 @@ class PlaylistScreensTest {
         val current = presentation.rows.first()
         val upcoming = presentation.rows.last()
         assertEquals(QueueRowRole.Current, current.role)
-        assertEquals(Role.Image, current.semanticRole)
+        assertNull(current.semanticRole)
         assertEquals(QueueRowState.Current, current.semanticState)
         assertEquals(emptySet(), current.availableActions)
         assertTrue(current.actionTrackTitle == null)
         assertEquals(QueueRowRole.Upcoming, upcoming.role)
-        assertEquals(Role.Image, upcoming.semanticRole)
+        assertNull(upcoming.semanticRole)
         assertEquals(QueueRowState.Upcoming, upcoming.semanticState)
         assertEquals(
             setOf(QueueRowAction.Drag, QueueRowAction.Remove),
             upcoming.availableActions,
         )
         assertEquals("夜に駆ける", upcoming.actionTrackTitle)
+    }
+
+    @Test
+    fun queueRowLayoutPreservesMetadataAndMinimumTargetsAtCompactAndWideWidths() {
+        val compact = queueRowLayoutPolicy(availableWidth = 320.dp, isEditable = true)
+        val wide = queueRowLayoutPolicy(availableWidth = 720.dp, isEditable = true)
+        val current = queueRowLayoutPolicy(availableWidth = 320.dp, isEditable = false)
+
+        assertEquals(QueueActionPlacement.SecondaryRow, compact.actionPlacement)
+        assertTrue(compact.reservesMetadataWidth)
+        assertEquals(44.dp, compact.minimumInteractiveTarget)
+        assertEquals(QueueActionPlacement.Inline, wide.actionPlacement)
+        assertTrue(wide.reservesMetadataWidth)
+        assertEquals(44.dp, wide.minimumInteractiveTarget)
+        assertEquals(QueueActionPlacement.None, current.actionPlacement)
+        assertTrue(current.reservesMetadataWidth)
     }
 
     @Test

@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -365,6 +366,24 @@ fun playlistDetailModel(
 enum class QueueRowRole { Current, Upcoming }
 enum class QueueRowState { Current, Upcoming }
 enum class QueueRowAction { Drag, MoveUp, MoveDown, Remove }
+enum class QueueActionPlacement { None, Inline, SecondaryRow }
+
+data class QueueRowLayoutPolicy(
+    val actionPlacement: QueueActionPlacement,
+    val reservesMetadataWidth: Boolean = true,
+    val minimumInteractiveTarget: androidx.compose.ui.unit.Dp = 44.dp,
+)
+
+fun queueRowLayoutPolicy(
+    availableWidth: androidx.compose.ui.unit.Dp,
+    isEditable: Boolean,
+): QueueRowLayoutPolicy = QueueRowLayoutPolicy(
+    actionPlacement = when {
+        !isEditable -> QueueActionPlacement.None
+        availableWidth < 520.dp -> QueueActionPlacement.SecondaryRow
+        else -> QueueActionPlacement.Inline
+    },
+)
 
 data class QueueRowPresentation(
     val occurrence: QueueOccurrence,
@@ -373,7 +392,7 @@ data class QueueRowPresentation(
     val canMoveUp: Boolean,
     val canMoveDown: Boolean,
     val canRemove: Boolean,
-    val semanticRole: Role = Role.Image,
+    val semanticRole: Role? = null,
     val semanticState: QueueRowState = if (role == QueueRowRole.Current) QueueRowState.Current else QueueRowState.Upcoming,
     val actionTrackTitle: String? = occurrence.track.title.takeIf { role == QueueRowRole.Upcoming },
 ) {
@@ -678,7 +697,7 @@ private fun QueueOccurrenceRow(
     val drag = stringResource(Res.string.queue_drag_format, actionTrackTitle)
     val remove = stringResource(Res.string.queue_remove_format, actionTrackTitle)
     val shape = RoundedCornerShape(20.dp)
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .then(
@@ -693,64 +712,135 @@ private fun QueueOccurrenceRow(
             .border(1.dp, if (isCurrent) HausColors.current.pulse else HausColors.current.line, shape)
             .background(if (isCurrent) HausColors.current.panelStrong else HausColors.current.panel.copy(alpha = .54f), shape)
             .semantics {
-                role = row.semanticRole
+                row.semanticRole?.let { role = it }
                 contentDescription = row.occurrence.track.title
                 stateDescription = rowState
             }
             .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (QueueRowAction.Drag in row.availableActions) {
-            Text(
-                "≡",
-                modifier = Modifier
-                    .size(44.dp)
-                    .pointerInput(row.occurrence.id, upcomingIds, rowCenters.toMap()) {
-                        var pointerY = rowCenters[upcomingIndex] ?: 0f
-                        var targetIndex = upcomingIndex
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                pointerY = rowCenters[upcomingIndex] ?: 0f
-                                targetIndex = upcomingIndex
-                            },
-                            onDragEnd = {
-                                if (targetIndex != upcomingIndex) onDragTarget(targetIndex)
-                            },
-                            onDrag = { change, amount ->
-                                change.consume()
-                                pointerY += amount.y
-                                targetIndex = playlistDragTargetIndex(pointerY, rowCenters, upcomingIndex)
-                            },
-                        )
-                    }
-                    .semantics { contentDescription = drag },
-                color = HausColors.current.muted,
-                fontSize = 24.sp,
-            )
-        }
-        LazyTrackArtworkImage(
-            trackId = row.occurrence.track.id,
-            eagerArtworkBytes = row.occurrence.track.artworkBytes,
-            contentDescription = row.occurrence.track.title,
-            role = ArtworkImageRole.Thumbnail,
-            modifier = Modifier.size(48.dp).background(HausColors.current.panelStrong, RoundedCornerShape(14.dp)),
-            contentScale = ContentScale.Crop,
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(row.occurrence.track.title.firstOrNull()?.uppercase() ?: "♪", color = HausColors.current.ink, fontWeight = FontWeight.Black)
+        val layoutPolicy = queueRowLayoutPolicy(maxWidth, row.availableActions.isNotEmpty())
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (QueueRowAction.Drag in row.availableActions) {
+                    QueueDragHandle(
+                        row = row,
+                        upcomingIndex = upcomingIndex,
+                        upcomingIds = upcomingIds,
+                        rowCenters = rowCenters,
+                        targetSize = layoutPolicy.minimumInteractiveTarget,
+                        contentDescription = drag,
+                        onDragTarget = onDragTarget,
+                    )
+                }
+                QueueTrackMetadata(row.occurrence)
+                if (layoutPolicy.actionPlacement == QueueActionPlacement.Inline) {
+                    QueueMutationActions(
+                        row = row,
+                        targetSize = layoutPolicy.minimumInteractiveTarget,
+                        moveUpDescription = moveUp,
+                        moveDownDescription = moveDown,
+                        removeDescription = remove,
+                        onMove = onMove,
+                        onRemove = onRemove,
+                    )
+                }
+            }
+            if (layoutPolicy.actionPlacement == QueueActionPlacement.SecondaryRow) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    QueueMutationActions(
+                        row = row,
+                        targetSize = layoutPolicy.minimumInteractiveTarget,
+                        moveUpDescription = moveUp,
+                        moveDownDescription = moveDown,
+                        removeDescription = remove,
+                        onMove = onMove,
+                        onRemove = onRemove,
+                    )
+                }
             }
         }
-        Column(Modifier.weight(1f)) {
-            Text(row.occurrence.track.title, color = HausColors.current.ink, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(row.occurrence.track.artist, color = HausColors.current.muted, fontSize = 12.sp, maxLines = 1)
-        }
-        if (QueueRowAction.Remove in row.availableActions) {
-            IconButton(onClick = { onMove(-1) }, enabled = QueueRowAction.MoveUp in row.availableActions, minWidth = 40.dp, minHeight = 40.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveUp }) { Text("↑", color = HausColors.current.ink) }
-            IconButton(onClick = { onMove(1) }, enabled = QueueRowAction.MoveDown in row.availableActions, minWidth = 40.dp, minHeight = 40.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveDown }) { Text("↓", color = HausColors.current.ink) }
-            IconButton(onClick = onRemove, minWidth = 40.dp, minHeight = 40.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = remove }) { Text("×", color = HausColors.current.pulse) }
+    }
+}
+
+@Composable
+private fun QueueDragHandle(
+    row: QueueRowPresentation,
+    upcomingIndex: Int,
+    upcomingIds: List<String>,
+    rowCenters: MutableMap<Int, Float>,
+    targetSize: androidx.compose.ui.unit.Dp,
+    contentDescription: String,
+    onDragTarget: (Int) -> Unit,
+) {
+    Text(
+        "≡",
+        modifier = Modifier
+            .size(targetSize)
+            .pointerInput(row.occurrence.id, upcomingIds, rowCenters.toMap()) {
+                var pointerY = rowCenters[upcomingIndex] ?: 0f
+                var targetIndex = upcomingIndex
+                detectDragGesturesAfterLongPress(
+                    onDragStart = {
+                        pointerY = rowCenters[upcomingIndex] ?: 0f
+                        targetIndex = upcomingIndex
+                    },
+                    onDragEnd = {
+                        if (targetIndex != upcomingIndex) onDragTarget(targetIndex)
+                    },
+                    onDrag = { change, amount ->
+                        change.consume()
+                        pointerY += amount.y
+                        targetIndex = playlistDragTargetIndex(pointerY, rowCenters, upcomingIndex)
+                    },
+                )
+            }
+            .semantics { this.contentDescription = contentDescription },
+        color = HausColors.current.muted,
+        fontSize = 24.sp,
+    )
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.QueueTrackMetadata(occurrence: QueueOccurrence) {
+    LazyTrackArtworkImage(
+        trackId = occurrence.track.id,
+        eagerArtworkBytes = occurrence.track.artworkBytes,
+        contentDescription = occurrence.track.title,
+        role = ArtworkImageRole.Thumbnail,
+        modifier = Modifier.size(48.dp).background(HausColors.current.panelStrong, RoundedCornerShape(14.dp)),
+        contentScale = ContentScale.Crop,
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(occurrence.track.title.firstOrNull()?.uppercase() ?: "♪", color = HausColors.current.ink, fontWeight = FontWeight.Black)
         }
     }
+    Column(Modifier.weight(1f)) {
+        Text(occurrence.track.title, color = HausColors.current.ink, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(occurrence.track.artist, color = HausColors.current.muted, fontSize = 12.sp, maxLines = 1)
+    }
+}
+
+@Composable
+private fun QueueMutationActions(
+    row: QueueRowPresentation,
+    targetSize: androidx.compose.ui.unit.Dp,
+    moveUpDescription: String,
+    moveDownDescription: String,
+    removeDescription: String,
+    onMove: (Int) -> Unit,
+    onRemove: () -> Unit,
+) {
+    if (QueueRowAction.Remove !in row.availableActions) return
+    IconButton(onClick = { onMove(-1) }, enabled = QueueRowAction.MoveUp in row.availableActions, minWidth = targetSize, minHeight = targetSize, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveUpDescription }) { Text("↑", color = HausColors.current.ink) }
+    IconButton(onClick = { onMove(1) }, enabled = QueueRowAction.MoveDown in row.availableActions, minWidth = targetSize, minHeight = targetSize, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveDownDescription }) { Text("↓", color = HausColors.current.ink) }
+    IconButton(onClick = onRemove, minWidth = targetSize, minHeight = targetSize, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = removeDescription }) { Text("×", color = HausColors.current.pulse) }
 }
 
 @Composable
