@@ -13,6 +13,28 @@ import kotlin.test.assertNotNull
 
 class PlaylistSqlDelightRepositoryJvmTest {
     @Test
+    fun concurrentAppendsCannotOverwriteFromAStaleSnapshot() {
+        openRepositories().use { open ->
+            open.seedTrack("track-a", "scan-1")
+            open.seedTrack("track-b", "scan-1")
+            val playlist = open.playlists.create("Road trip")
+            val secondRepository = SqlDelightPlaylistRepository(
+                open.libraryDatabase,
+                now = { 200L },
+                idFactory = { "entry-b" },
+            )
+            open.playlists.mutationReadObserver = {
+                open.playlists.mutationReadObserver = {}
+                secondRepository.append(playlist.id, listOf("track-b"))
+            }
+
+            open.playlists.append(playlist.id, listOf("track-a"))
+
+            assertEquals(listOf("track-b", "track-a"), open.playlists.entries(playlist.id).map(PlaylistEntry::trackId))
+        }
+    }
+
+    @Test
     fun updatingExistingTrackMetadataPreservesReferencedPlaylistEntry() {
         openRepositories().use { open ->
             open.seedTrack("track-a", "scan-1")
@@ -223,6 +245,7 @@ class PlaylistSqlDelightRepositoryJvmTest {
     private fun openRepositories(databaseFile: File = tempDatabase()): OpenRepositories {
         val database = LibraryDatabase(databaseFile)
         return OpenRepositories(
+            libraryDatabase = database,
             database = database.database,
             library = SqlDelightLibraryRepository(database),
             playlists = SqlDelightPlaylistRepository(database, now = { 100L }, idFactory = ::uuid4),
@@ -232,6 +255,7 @@ class PlaylistSqlDelightRepositoryJvmTest {
     }
 
     private class OpenRepositories(
+        val libraryDatabase: LibraryDatabase,
         val database: RhythHausDatabase,
         val library: SqlDelightLibraryRepository,
         val playlists: SqlDelightPlaylistRepository,

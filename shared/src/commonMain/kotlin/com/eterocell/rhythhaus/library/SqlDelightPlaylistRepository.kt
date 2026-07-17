@@ -6,6 +6,7 @@ class SqlDelightPlaylistRepository(
     private val idFactory: () -> String = ::uuid4,
 ) : PlaylistRepository {
     private val database = libraryDatabase.database
+    internal var mutationReadObserver: () -> Unit = {}
 
     override fun playlists(): List<Playlist> = database.playlistQueries.selectAllPlaylists(::playlistFrom).executeAsList()
 
@@ -34,44 +35,52 @@ class SqlDelightPlaylistRepository(
     }
 
     override fun append(playlistId: String, trackIds: List<String>) {
-        requireNotNull(playlist(playlistId)) { "Playlist not found: $playlistId" }
-        val replacement = entries(playlistId).toMutableList()
-        trackIds.forEach { trackId ->
-            replacement += PlaylistEntry(idFactory(), playlistId, trackId, replacement.size, now())
+        database.transaction {
+            mutationReadObserver()
+            requireNotNull(playlist(playlistId)) { "Playlist not found: $playlistId" }
+            val replacement = entries(playlistId).toMutableList()
+            trackIds.forEach { trackId ->
+                replacement += PlaylistEntry(idFactory(), playlistId, trackId, replacement.size, now())
+            }
+            replaceEntries(playlistId, replacement)
         }
-        replaceEntries(playlistId, replacement)
     }
 
     override fun removeEntry(entryId: String) {
-        val entry = database.playlistQueries.selectEntry(entryId).executeAsOneOrNull()
-            ?: throw IllegalArgumentException("Playlist entry not found: $entryId")
-        replaceEntries(entry.playlistId, entries(entry.playlistId).filterNot { it.id == entryId })
+        database.transaction {
+            mutationReadObserver()
+            val entry = database.playlistQueries.selectEntry(entryId).executeAsOneOrNull()
+                ?: throw IllegalArgumentException("Playlist entry not found: $entryId")
+            val replacement = entries(entry.playlistId).filterNot { it.id == entryId }
+            replaceEntries(entry.playlistId, replacement)
+        }
     }
 
     override fun reorder(playlistId: String, entryIds: List<String>) {
-        val current = entries(playlistId)
-        require(entryIds.size == current.size && entryIds.toSet().size == current.size) {
-            "Reorder must contain every playlist entry exactly once"
+        database.transaction {
+            mutationReadObserver()
+            val current = entries(playlistId)
+            require(entryIds.size == current.size && entryIds.toSet().size == current.size) {
+                "Reorder must contain every playlist entry exactly once"
+            }
+            val byId = current.associateBy(PlaylistEntry::id)
+            replaceEntries(
+                playlistId,
+                entryIds.map { id -> requireNotNull(byId[id]) { "Playlist entry not found: $id" } },
+            )
         }
-        val byId = current.associateBy(PlaylistEntry::id)
-        replaceEntries(
-            playlistId,
-            entryIds.map { id -> requireNotNull(byId[id]) { "Playlist entry not found: $id" } },
-        )
     }
 
     private fun replaceEntries(playlistId: String, replacement: List<PlaylistEntry>) {
-        database.transaction {
-            database.playlistQueries.clearEntriesForPlaylist(playlistId)
-            replacement.forEachIndexed { position, entry ->
-                database.playlistQueries.insertEntry(
-                    entry.id,
-                    playlistId,
-                    entry.trackId,
-                    position.toLong(),
-                    entry.createdAtEpochMillis,
-                )
-            }
+        database.playlistQueries.clearEntriesForPlaylist(playlistId)
+        replacement.forEachIndexed { position, entry ->
+            database.playlistQueries.insertEntry(
+                entry.id,
+                playlistId,
+                entry.trackId,
+                position.toLong(),
+                entry.createdAtEpochMillis,
+            )
         }
     }
 }
