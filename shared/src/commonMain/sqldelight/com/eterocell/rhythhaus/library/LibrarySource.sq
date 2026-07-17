@@ -8,9 +8,19 @@ CREATE TABLE IF NOT EXISTS library_source (
     accessStatus TEXT NOT NULL DEFAULT 'Available'
 );
 
-upsertSource:
-INSERT OR REPLACE INTO library_source(id, platformKind, displayName, handle, createdAtEpochMillis, lastScanAtEpochMillis, accessStatus)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+upsertSource {
+    INSERT OR IGNORE INTO library_source(id, platformKind, displayName, handle, createdAtEpochMillis, lastScanAtEpochMillis, accessStatus)
+    VALUES (:id, :platformKind, :displayName, :handle, :createdAtEpochMillis, :lastScanAtEpochMillis, :accessStatus);
+
+    UPDATE library_source
+    SET platformKind = :platformKind,
+        displayName = :displayName,
+        handle = :handle,
+        createdAtEpochMillis = :createdAtEpochMillis,
+        lastScanAtEpochMillis = :lastScanAtEpochMillis,
+        accessStatus = :accessStatus
+    WHERE id = :id;
+}
 
 selectAllSources:
 SELECT * FROM library_source;

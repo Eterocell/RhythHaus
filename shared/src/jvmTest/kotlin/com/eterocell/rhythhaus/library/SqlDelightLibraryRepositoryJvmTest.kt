@@ -1,7 +1,12 @@
 package com.eterocell.rhythhaus.library
 
+import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlDriver
+import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import com.eterocell.rhythhaus.AudioMetadataReader
 import com.eterocell.rhythhaus.AudioSource
+import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.taglib.TagReadResult
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -11,6 +16,58 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class SqlDelightLibraryRepositoryJvmTest {
+    @Test
+    fun completedScanTerminalSourceUpdatePreservesPersistedChildren() {
+        val databaseFile = Files.createTempFile("rhythhaus-library-scan-cascade", ".db").toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            val source = testSource()
+            val scanner = LibraryScanner(
+                repository = open.repository,
+                platformScanner = PlatformAudioScanner {
+                    sequenceOf(
+                        PlatformScanEvent.FolderVisited("/Music"),
+                        PlatformScanEvent.AudioCandidate(
+                            AudioScanCandidate(
+                                sourceId = source.id,
+                                sourceLocalKey = "song.mp3",
+                                displayPath = "/Music/song.mp3",
+                                displayName = "song.mp3",
+                                audioSource = AudioSource.FilePath("/Music/song.mp3"),
+                            ),
+                        ),
+                        PlatformScanEvent.Skipped(
+                            sourceLocalKey = "unsupported.txt",
+                            displayPath = "/Music/unsupported.txt",
+                            reason = "Unsupported file",
+                            recoverable = true,
+                        ),
+                    )
+                },
+                metadataReader = AudioMetadataReader(
+                    tagLibReader = UnsupportedTagLibReader,
+                    platformMetadataReader = { null },
+                ),
+                now = { 100L },
+                idFactory = { prefix -> "$prefix-id" },
+            )
+
+            val result = scanner.scan(source)
+
+            assertEquals(100L, open.repository.sources().single().lastScanAtEpochMillis)
+            assertEquals(ScanStatus.Completed, result.status)
+            assertEquals(
+                listOf(listOf("track-id"), ScanStatus.Completed.name, listOf("scan-error-id")),
+                listOf(
+                    open.repository.tracksForSource(source.id).map { it.id },
+                    open.database.scanSessionQueries.selectScanSessionById("scan-id").executeAsOneOrNull()?.status,
+                    open.repository.scanErrors("scan-id").map { it.id },
+                ),
+            )
+        }
+    }
+
     @Test
     fun persistedDatabaseCanBeOpenedTwice() {
         val databaseFile = Files.createTempFile("rhythhaus-library", ".db").toFile()
@@ -26,6 +83,90 @@ class SqlDelightLibraryRepositoryJvmTest {
         openRepository(databaseFile).use { secondOpen ->
             assertEquals(listOf("source-1"), secondOpen.repository.sources().map { it.id })
             assertEquals(listOf("track-a", "track-b"), secondOpen.repository.tracksForSource("source-1").map { it.id })
+        }
+    }
+
+    @Test
+    fun legacyVersionZeroDatabaseCanBeReopenedWithoutLosingRows() {
+        val databaseFile = Files.createTempFile("rhythhaus-library-legacy-v2", ".db").toFile()
+        databaseFile.deleteOnExit()
+        val rawDriver = JdbcSqliteDriver("jdbc:sqlite:${databaseFile.absolutePath}")
+
+        try {
+            try {
+                RhythHausDatabase.Schema.create(rawDriver).value
+                val legacyDatabase = RhythHausDatabase(rawDriver)
+                val source = testSource()
+                val track = testTrack(
+                    id = "legacy-track",
+                    sourceLocalKey = "legacy.mp3",
+                    title = "Legacy",
+                    artist = "Artist",
+                )
+                legacyDatabase.librarySourceQueries.upsertSource(
+                    id = source.id,
+                    platformKind = source.platformKind.name,
+                    displayName = source.displayName,
+                    handle = source.handle,
+                    createdAtEpochMillis = source.createdAtEpochMillis,
+                    lastScanAtEpochMillis = source.lastScanAtEpochMillis,
+                    accessStatus = source.accessStatus.name,
+                )
+                legacyDatabase.libraryTrackQueries.upsertTrack(
+                    id = track.id,
+                    sourceId = track.sourceId,
+                    sourceLocalKey = track.sourceLocalKey,
+                    audioSourceKind = "FilePath",
+                    audioSourceValue = "/Music/legacy.mp3",
+                    displayName = track.displayName,
+                    title = track.title,
+                    artist = track.artist,
+                    album = track.album,
+                    durationMillis = track.durationMillis,
+                    sizeBytes = track.sizeBytes,
+                    modifiedAtEpochMillis = track.modifiedAtEpochMillis,
+                    lastSeenScanId = track.lastSeenScanId,
+                    createdAtEpochMillis = track.createdAtEpochMillis,
+                    updatedAtEpochMillis = track.updatedAtEpochMillis,
+                    trackNumber = null,
+                    discNumber = null,
+                    artworkBytes = null,
+                    artworkMimeType = null,
+                )
+                val userVersion = rawDriver.executeQuery(
+                    identifier = null,
+                    sql = "PRAGMA user_version",
+                    mapper = { cursor ->
+                        QueryResult.Value(if (cursor.next().value) cursor.getLong(0) else null)
+                    },
+                    parameters = 0,
+                ).value
+                assertEquals(0L, userVersion)
+            } finally {
+                rawDriver.close()
+            }
+
+            openRepository(databaseFile).use { reopened ->
+                assertEquals(listOf("source-1"), reopened.repository.sources().map { it.id })
+                assertEquals(listOf("legacy-track"), reopened.repository.tracks().map { it.id })
+            }
+
+            val verificationDriver = JdbcSqliteDriver("jdbc:sqlite:${databaseFile.absolutePath}")
+            try {
+                val persistedVersion = verificationDriver.executeQuery(
+                    identifier = null,
+                    sql = "PRAGMA user_version",
+                    mapper = { cursor ->
+                        QueryResult.Value(if (cursor.next().value) cursor.getLong(0) else null)
+                    },
+                    parameters = 0,
+                ).value
+                assertEquals(RhythHausDatabase.Schema.version, persistedVersion)
+            } finally {
+                verificationDriver.close()
+            }
+        } finally {
+            databaseFile.delete()
         }
     }
 
@@ -259,6 +400,12 @@ class SqlDelightLibraryRepositoryJvmTest {
             driver.close()
         }
     }
+}
+
+private object UnsupportedTagLibReader : TagLibReader {
+    override fun readPath(path: String): TagReadResult = TagReadResult.Unsupported("not used")
+
+    override fun readProperties(path: String): Map<String, String> = emptyMap()
 }
 
 private fun testSource(
