@@ -4,6 +4,7 @@ import com.eterocell.rhythhaus.session.PlaybackCheckpoint
 import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
 import com.eterocell.rhythhaus.session.ProgressCheckpointKey
+import com.eterocell.rhythhaus.session.RevisionedPlaybackSessionSnapshot
 import com.eterocell.rhythhaus.session.SessionQueueEntry
 import com.eterocell.rhythhaus.library.uuid4
 import kotlinx.coroutines.CoroutineDispatcher
@@ -493,8 +494,10 @@ class PlaybackController(
         reply.await()
     }
 
-    override suspend fun restoreSession(snapshot: PlaybackSessionSnapshot, tracks: List<PlayableTrack>) {
-        sessionOperationMutex.withLock {
+    override suspend fun restoreSession(
+        snapshot: PlaybackSessionSnapshot,
+        tracks: List<PlayableTrack>,
+    ): RevisionedPlaybackSessionSnapshot = sessionOperationMutex.withLock {
             loadJob?.cancel()
             playWhenLoaded = false
             resetProgressCheckpointKey()
@@ -511,7 +514,7 @@ class PlaybackController(
             if (restoredCurrent == null) {
                 clearPausedState(snapshot.repeatMode, snapshot.shuffleMode)
                 emitImmediateCheckpoint()
-                return@withLock
+                return@withLock revisionedSessionSnapshot()
             }
             try {
                 engineMutex.withLock {
@@ -538,11 +541,12 @@ class PlaybackController(
                 clearPausedState(snapshot.repeatMode, snapshot.shuffleMode)
             }
             emitImmediateCheckpoint()
+            revisionedSessionSnapshot()
         }
-    }
 
-    override suspend fun reconcileSession(tracks: List<PlayableTrack>) {
-        sessionOperationMutex.withLock {
+    override suspend fun reconcileSession(
+        tracks: List<PlayableTrack>,
+    ): RevisionedPlaybackSessionSnapshot = sessionOperationMutex.withLock {
             loadJob?.cancel()
             playWhenLoaded = false
             resetProgressCheckpointKey()
@@ -560,13 +564,13 @@ class PlaybackController(
                 }
                 publishRuntimeShuffleOrder(published)
                 emitImmediateCheckpoint(published.toSessionSnapshot(), published.checkpointRevision)
-                return@withLock
+                return@withLock published.toRevisionedSessionSnapshot()
             }
             val replacement = reconciledQueue.firstOrNull()
             if (replacement == null) {
                 clearPausedState(previous.repeatMode, previous.shuffleMode)
                 emitImmediateCheckpoint()
-                return@withLock
+                return@withLock revisionedSessionSnapshot()
             }
             applyModesAndQueue(reconciledQueue, replacement, previous.repeatMode, previous.shuffleMode)
             try {
@@ -594,8 +598,8 @@ class PlaybackController(
                 throw throwable
             }
             emitImmediateCheckpoint()
+            revisionedSessionSnapshot()
         }
-    }
 
     private fun loadSelected(occurrence: QueueOccurrence, autoPlay: Boolean) {
         loadJob?.cancel()
@@ -738,6 +742,12 @@ class PlaybackController(
         repeatMode = repeatMode,
         shuffleMode = shuffleMode,
     )
+
+    private fun revisionedSessionSnapshot(): RevisionedPlaybackSessionSnapshot =
+        _state.value.toRevisionedSessionSnapshot()
+
+    private fun PlaybackState.toRevisionedSessionSnapshot(): RevisionedPlaybackSessionSnapshot =
+        RevisionedPlaybackSessionSnapshot(toSessionSnapshot(), checkpointRevision)
 
     private fun emitImmediateCheckpoint(revision: Long? = null) {
         val current = _state.value
