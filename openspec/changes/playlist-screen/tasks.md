@@ -7,11 +7,11 @@
 
 ## 2. Occurrence-Aware Playback and Session Compatibility
 
-- [ ] 2.1 Lock `PlaylistEntry.id` as the `QueueOccurrence.id` used when a saved playlist becomes a playback queue; only after this decision is committed may Tasks 1 and 2 run in parallel.
-- [ ] 2.2 Replace queue-position identity with `QueueOccurrence(id, track)` across playback state, visible-list selection, current occurrence, shuffle/skip order, checkpoint keys, and row highlighting while retaining the underlying engine media identity as the library-track ID.
-- [ ] 2.3 Persist ordered occurrence-ID and library-track-ID pairs in one ordered serialized DataStore preference value with an explicit current occurrence; never serialize queue membership as a set.
-- [ ] 2.4 Preserve legacy track-ID-only DataStore reads by deterministically normalizing valid legacy snapshots into unique occurrences; retain paused restore, duplicate-preserving reconciliation, and existing playback/session fail-safe semantics.
-- [ ] 2.5 Add duplicate-occurrence selection, skip, shuffle, checkpoint, session round-trip, legacy normalization, paused restore, and surviving-current reconciliation tests.
+- [x] 2.1 Lock `PlaylistEntry.id` as the `QueueOccurrence.id` used when a saved playlist becomes a playback queue; only after this decision is committed may Tasks 1 and 2 run in parallel.
+- [x] 2.2 Replace queue-position identity with `QueueOccurrence(id, track)` across playback state, visible-list selection, current occurrence, shuffle/skip order, checkpoint keys, and row highlighting while retaining the underlying engine media identity as the library-track ID.
+- [x] 2.3 Persist ordered occurrence-ID and library-track-ID pairs in one ordered serialized DataStore preference value with an explicit current occurrence; never serialize queue membership as a set.
+- [x] 2.4 Preserve legacy track-ID-only DataStore reads by deterministically normalizing valid legacy snapshots into unique occurrences; retain paused restore, duplicate-preserving reconciliation, and existing playback/session fail-safe semantics.
+- [x] 2.5 Add duplicate-occurrence selection, skip, shuffle, checkpoint, session round-trip, legacy normalization, paused restore, and surviving-current reconciliation tests.
 
 ## 3. Serialized Upcoming Queue Commands
 
