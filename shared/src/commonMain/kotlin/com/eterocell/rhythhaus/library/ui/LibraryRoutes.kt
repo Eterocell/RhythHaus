@@ -1,15 +1,25 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.LibrarySource
+import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.taglib.TagLibReader
@@ -19,6 +29,12 @@ import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.album_detail_subtitle_format
 import rhythhaus.shared.generated.resources.artist_detail_subtitle_format
+import rhythhaus.shared.generated.resources.playlists
+import rhythhaus.shared.generated.resources.playlist_load_failed
+import rhythhaus.shared.generated.resources.playlist_loading
+import rhythhaus.shared.generated.resources.playlist_retry
+import rhythhaus.shared.generated.resources.playlist_changed
+import rhythhaus.shared.generated.resources.playlist_mutation_failed
 import rhythhaus.shared.generated.resources.unknown_artist
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
@@ -29,6 +45,10 @@ import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
 import com.eterocell.rhythhaus.settings.SettingsAboutScreen
 import com.eterocell.rhythhaus.settings.SettingsScreen
 import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.theme.HausColors
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
 internal fun LibraryRouteOverlays(
@@ -38,6 +58,11 @@ internal fun LibraryRouteOverlays(
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     playbackState: PlaybackState,
+    playlistRepository: PlaylistRepository,
+    playlistState: PlaylistState,
+    onPlaylistStateAction: (PlaylistStateAction) -> Unit,
+    onRefreshPlaylists: () -> Unit,
+    onPlaylistMutation: (PlaylistRepository.() -> Unit) -> Unit,
     sources: List<LibrarySource>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
     sourcePickerActionVisible: Boolean,
@@ -97,6 +122,8 @@ internal fun LibraryRouteOverlays(
         is LibraryRoute.ArtistDetail,
         LibraryRoute.NowPlaying,
         LibraryRoute.ClearLibraryDialog,
+        LibraryRoute.PlaylistHub,
+        is LibraryRoute.PlaylistDetail,
         -> Unit
     }
 }
@@ -111,6 +138,12 @@ internal fun LibraryRouteContent(
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     playbackState: PlaybackState,
+    playlistRepository: PlaylistRepository,
+    playlistState: PlaylistState,
+    onPlaylistStateAction: (PlaylistStateAction) -> Unit,
+    onRefreshPlaylists: () -> Unit,
+    onPlaylistMutation: (PlaylistRepository.() -> Unit) -> Unit,
+    onRecoverStalePlaylistDetail: (String) -> Unit,
     selectedTrackId: String?,
     isNowPlayingBarVisible: Boolean,
     onBack: () -> Unit,
@@ -196,6 +229,29 @@ internal fun LibraryRouteContent(
             // Now Playing is shown as an overlay, not a navigation route
         }
 
+        LibraryRoute.PlaylistHub -> {
+            PlaylistRoutePlaceholder(
+                title = stringResource(Res.string.playlists),
+                state = playlistState,
+                onBack = onBack,
+                onRetry = onRefreshPlaylists,
+            )
+        }
+
+        is LibraryRoute.PlaylistDetail -> {
+            when (val resolution = playlistDetailResolution(route.playlistId, playlistState.confirmedSnapshot.playlist(route.playlistId))) {
+                is PlaylistDetailResolution.Show -> PlaylistRoutePlaceholder(
+                    title = resolution.playlist.name,
+                    state = playlistState,
+                    onBack = onBack,
+                    onRetry = onRefreshPlaylists,
+                )
+                is PlaylistDetailResolution.ReturnToHub -> LaunchedEffect(route) {
+                    onRecoverStalePlaylistDetail(resolution.message)
+                }
+            }
+        }
+
         LibraryRoute.Home,
         LibraryRoute.Settings,
         LibraryRoute.SettingsAbout,
@@ -208,6 +264,73 @@ internal fun LibraryRouteContent(
         LibraryRoute.ClearLibraryDialog -> {
             LaunchedEffect(route) { onBack() }
             Box(modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+@Composable
+private fun PlaylistRoutePlaceholder(
+    title: String,
+    state: PlaylistState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    val scrollBehavior = rememberMiuixTopAppBarScrollBehavior()
+    val retryLabel = stringResource(Res.string.playlist_retry)
+    Box(modifier = Modifier.fillMaxSize()) {
+        DrillDownMiuixScrollChrome(
+            scrollBehavior = scrollBehavior,
+            title = title,
+            onBack = onBack,
+            backdrop = null,
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            when {
+                state.isLoading -> Text(
+                    text = stringResource(Res.string.playlist_loading),
+                    color = HausColors.current.muted,
+                )
+                state.readErrorMessage != null -> {
+                    Text(
+                        text = stringResource(Res.string.playlist_load_failed),
+                        color = HausColors.current.muted,
+                    )
+                    Button(
+                        onClick = onRetry,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .height(48.dp)
+                            .semantics { contentDescription = retryLabel },
+                        cornerRadius = 16.dp,
+                        colors = ButtonDefaults.buttonColors(
+                            color = HausColors.current.ink,
+                            contentColor = HausColors.current.paper,
+                        ),
+                    ) {
+                        Text(retryLabel)
+                    }
+                }
+            }
+            when (playlistRouteNotice(state)) {
+                PlaylistRouteNotice.PlaylistChanged -> Text(
+                    text = stringResource(Res.string.playlist_changed),
+                    color = HausColors.current.muted,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                PlaylistRouteNotice.MutationFailed -> Text(
+                    text = stringResource(Res.string.playlist_mutation_failed),
+                    color = HausColors.current.muted,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                null -> Unit
+            }
         }
     }
 }

@@ -16,6 +16,7 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.PlatformFolderPickResult
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
+import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
@@ -24,6 +25,12 @@ import com.eterocell.rhythhaus.library.normalizePickedSource
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
+import com.eterocell.rhythhaus.library.ui.PlaylistState
+import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
+import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
+import com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot
+import com.eterocell.rhythhaus.library.ui.mutatePlaylistAndRefresh
+import com.eterocell.rhythhaus.library.ui.reducePlaylistState
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.LocalHausColors
@@ -56,15 +63,18 @@ fun App() {
     val controller = koinInject<PlaybackController>()
     val tagLibReader = koinInject<TagLibReader>()
     val repository = koinInject<LibraryRepository>()
+    val playlistRepository = koinInject<PlaylistRepository>()
     val platformAccess = koinInject<PlatformSourceAccess>()
     val scanner = koinInject<LibraryScanner>()
     val themePreferenceStore = koinInject<ThemePreferenceStore>()
     val playbackLifecycle = koinInject<PlaybackProcessLifecycle>()
     val playbackReconciler = koinInject<PlaybackSessionReconciler>()
     val initialLibraryContent = remember { loadLibraryContent(repository, platformAccess) }
+    val playlistStateOwner = remember { PlaylistStateOwner(playlistRepository, Dispatchers.Default) }
     var initialPublication by remember { mutableStateOf(InitialLibraryPublicationState()) }
     var librarySources by remember { mutableStateOf(emptyList<LibrarySource>()) }
     var libraryTracks by remember { mutableStateOf(emptyList<LibraryTrack>()) }
+    var playlistState by remember { mutableStateOf(PlaylistState(isLoading = true)) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
@@ -87,6 +97,23 @@ fun App() {
                 state.errorMessage?.let { importMessage = it }
             },
         )
+    }
+
+    fun refreshPlaylists() {
+        playlistState = reducePlaylistState(playlistState, PlaylistStateAction.LoadStarted)
+        scope.launch {
+            playlistState = try {
+                reducePlaylistState(playlistState, PlaylistStateAction.SnapshotConfirmed(playlistStateOwner.refresh()))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                reducePlaylistState(playlistState, PlaylistStateAction.ReadFailed(PlaylistReadFailedMessage))
+            }
+        }
+    }
+
+    LaunchedEffect(playlistRepository) {
+        refreshPlaylists()
     }
 
     fun updateLibraryContent(content: LibraryContentState) {
@@ -120,6 +147,7 @@ fun App() {
             val content = loadLibraryContent(repository, platformAccess)
             publishScanContentAfterReconcile(
                 reconciler = playbackReconciler,
+                loadPlaylists = playlistStateOwner::refresh,
                 content = content,
                 session = session,
                 ownerIsActive = { currentCoroutineContext().isActive },
@@ -130,6 +158,10 @@ fun App() {
                             .replaceFirst("%1\$d", session.tracksAdded.toString())
                             .replaceFirst("%2\$d", session.tracksUpdated.toString())
                         updateLibraryContent(publication.content)
+                        playlistState = reducePlaylistState(
+                            playlistState,
+                            PlaylistStateAction.SnapshotConfirmed(publication.playlists),
+                        )
                     }
                 },
             )
@@ -148,6 +180,21 @@ fun App() {
                 throw cancelled
             } catch (failure: Throwable) {
                 mutationError(failure.appFailureMessage())
+            }
+        }
+    }
+
+    fun launchPlaylistMutation(mutation: PlaylistRepository.() -> Unit) {
+        scope.launch {
+            playlistState = try {
+                reducePlaylistState(
+                    playlistState,
+                    PlaylistStateAction.SnapshotConfirmed(playlistStateOwner.mutate(mutation)),
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                reducePlaylistState(playlistState, PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage))
             }
         }
     }
@@ -174,6 +221,11 @@ fun App() {
                 libraryTracks = libraryTracks,
                 tagLibReader = tagLibReader,
                 playbackController = controller,
+                playlistRepository = playlistRepository,
+                playlistState = playlistState,
+                onPlaylistStateAction = { action -> playlistState = reducePlaylistState(playlistState, action) },
+                onRefreshPlaylists = ::refreshPlaylists,
+                onPlaylistMutation = ::launchPlaylistMutation,
                 sources = librarySources,
                 folderPickerLauncher = folderPickerLauncher,
                 sourcePickerActionVisible = sourcePickerActionVisible(
@@ -203,6 +255,10 @@ fun App() {
                                 ioDispatcher = Dispatchers.Default,
                                 ownerIsActive = { currentCoroutineContext().isActive },
                                 updateLibrary = ::updateLibraryContent,
+                                loadPlaylists = playlistStateOwner::refresh,
+                                updatePlaylists = { state ->
+                                    playlistState = reducePlaylistState(playlistState, PlaylistStateAction.SnapshotConfirmed(state))
+                                },
                                 updateError = ::mutationError,
                             )
                         }
@@ -224,6 +280,10 @@ fun App() {
                                 ioDispatcher = Dispatchers.Default,
                                 ownerIsActive = { currentCoroutineContext().isActive },
                                 updateLibrary = ::updateLibraryContent,
+                                loadPlaylists = playlistStateOwner::refresh,
+                                updatePlaylists = { state ->
+                                    playlistState = reducePlaylistState(playlistState, PlaylistStateAction.SnapshotConfirmed(state))
+                                },
                                 updateError = ::mutationError,
                             )
                         }
@@ -293,11 +353,13 @@ internal suspend fun publishLibraryContentAfterReconcile(
 internal data class ScanPublicationState(
     val content: LibraryContentState,
     val progress: ScanProgress,
+    val playlists: com.eterocell.rhythhaus.library.ui.PlaylistSnapshot = com.eterocell.rhythhaus.library.ui.PlaylistSnapshot(),
     val errorMessage: String? = null,
 )
 
 internal suspend fun publishScanContentAfterReconcile(
     reconciler: PlaybackSessionReconciler,
+    loadPlaylists: (suspend () -> com.eterocell.rhythhaus.library.ui.PlaylistSnapshot)? = null,
     content: LibraryContentState,
     session: ScanSession,
     ownerIsActive: suspend () -> Boolean,
@@ -305,13 +367,20 @@ internal suspend fun publishScanContentAfterReconcile(
 ) {
     try {
         reconciler.reconcile(content.tracks)
-        publish(ScanPublicationState(content, ScanProgress(session)))
+        publish(
+            ScanPublicationState(
+                content = content,
+                progress = ScanProgress(session),
+                playlists = loadPlaylists?.invoke() ?: com.eterocell.rhythhaus.library.ui.PlaylistSnapshot(),
+            ),
+        )
     } catch (cancelled: CancellationException) {
         if (ownerIsActive()) {
             publish(
                 ScanPublicationState(
                     content = content,
                     progress = ScanProgress(session.terminalAfterCancellation()),
+                    playlists = loadPlaylists?.invoke() ?: com.eterocell.rhythhaus.library.ui.PlaylistSnapshot(),
                 ),
             )
         }
@@ -321,6 +390,7 @@ internal suspend fun publishScanContentAfterReconcile(
             ScanPublicationState(
                 content = content,
                 progress = ScanProgress(session.terminalAfterFailure(failure)),
+                playlists = loadPlaylists?.invoke() ?: com.eterocell.rhythhaus.library.ui.PlaylistSnapshot(),
                 errorMessage = failure.appFailureMessage(),
             ),
         )
@@ -340,11 +410,13 @@ internal fun loadLibraryContent(
 internal suspend fun removeSourceInBackground(
     sourceId: String,
     repository: LibraryRepository,
+    loadPlaylists: (suspend () -> com.eterocell.rhythhaus.library.ui.PlaylistSnapshot)? = null,
     platformAccess: PlatformSourceAccess,
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     ownerIsActive: suspend () -> Boolean = { true },
     updateLibrary: (LibraryContentState) -> Unit,
+    updatePlaylists: (com.eterocell.rhythhaus.library.ui.PlaylistSnapshot) -> Unit = {},
     updateError: (String) -> Unit = {},
 ) {
     val content = withContext(ioDispatcher) {
@@ -353,16 +425,26 @@ internal suspend fun removeSourceInBackground(
         source?.let(platformAccess::releaseAccess)
         loadLibraryContent(repository, platformAccess)
     }
-    publishLibraryContentAfterReconcileFailureSafe(reconciler, content, ownerIsActive, updateLibrary, updateError)
+    publishLibraryContentAfterReconcileFailureSafe(
+        reconciler = reconciler,
+        content = content,
+        ownerIsActive = ownerIsActive,
+        loadPlaylists = loadPlaylists,
+        updateLibrary = updateLibrary,
+        updatePlaylists = updatePlaylists,
+        updateError = updateError,
+    )
 }
 
 internal suspend fun clearLibraryInBackground(
     repository: LibraryRepository,
+    loadPlaylists: (suspend () -> com.eterocell.rhythhaus.library.ui.PlaylistSnapshot)? = null,
     platformAccess: PlatformSourceAccess,
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     ownerIsActive: suspend () -> Boolean = { true },
     updateLibrary: (LibraryContentState) -> Unit,
+    updatePlaylists: (com.eterocell.rhythhaus.library.ui.PlaylistSnapshot) -> Unit = {},
     updateError: (String) -> Unit = {},
 ) {
     val content = withContext(ioDispatcher) {
@@ -371,30 +453,45 @@ internal suspend fun clearLibraryInBackground(
         sources.forEach(platformAccess::releaseAccess)
         loadLibraryContent(repository, platformAccess)
     }
-    publishLibraryContentAfterReconcileFailureSafe(reconciler, content, ownerIsActive, updateLibrary, updateError)
+    publishLibraryContentAfterReconcileFailureSafe(
+        reconciler = reconciler,
+        content = content,
+        ownerIsActive = ownerIsActive,
+        loadPlaylists = loadPlaylists,
+        updateLibrary = updateLibrary,
+        updatePlaylists = updatePlaylists,
+        updateError = updateError,
+    )
 }
 
 private suspend fun publishLibraryContentAfterReconcileFailureSafe(
     reconciler: PlaybackSessionReconciler,
     content: LibraryContentState,
     ownerIsActive: suspend () -> Boolean,
+    loadPlaylists: (suspend () -> com.eterocell.rhythhaus.library.ui.PlaylistSnapshot)?,
     updateLibrary: (LibraryContentState) -> Unit,
+    updatePlaylists: (com.eterocell.rhythhaus.library.ui.PlaylistSnapshot) -> Unit,
     updateError: (String) -> Unit,
 ) {
+    suspend fun publishAuthoritativeContent() {
+        val playlists = loadPlaylists?.invoke()
+        updateLibrary(content)
+        playlists?.let(updatePlaylists)
+    }
     try {
         reconciler.reconcile(content.tracks)
     } catch (cancelled: CancellationException) {
         if (ownerIsActive()) {
-            updateLibrary(content)
+            publishAuthoritativeContent()
             updateError(cancelled.appFailureMessage())
         }
         throw cancelled
     } catch (failure: Throwable) {
-        updateLibrary(content)
+        publishAuthoritativeContent()
         updateError(failure.appFailureMessage())
         return
     }
-    updateLibrary(content)
+    publishAuthoritativeContent()
 }
 
 internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
@@ -405,6 +502,9 @@ internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
 
 private fun Throwable.appFailureMessage(): String =
     message?.takeIf(String::isNotBlank) ?: "Playback session unavailable"
+
+private const val PlaylistReadFailedMessage = "playlist_load_failed"
+private const val PlaylistMutationFailedMessage = "playlist_mutation_failed"
 
 private fun ScanSession.terminalAfterCancellation(): ScanSession =
     if (status == ScanStatus.Scanning || status == ScanStatus.Cancelling) {

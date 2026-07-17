@@ -51,6 +51,7 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.LibrarySource
+import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
@@ -82,6 +83,11 @@ fun LibraryHomeScreen(
     libraryTracks: List<LibraryTrack>,
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
+    playlistRepository: PlaylistRepository,
+    playlistState: PlaylistState,
+    onPlaylistStateAction: (PlaylistStateAction) -> Unit,
+    onRefreshPlaylists: () -> Unit,
+    onPlaylistMutation: (PlaylistRepository.() -> Unit) -> Unit,
     sources: List<LibrarySource>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
     sourcePickerActionVisible: Boolean,
@@ -176,6 +182,11 @@ fun LibraryHomeScreen(
             tagLibReader = tagLibReader,
             playbackController = playbackController,
             playbackState = playbackState,
+            playlistRepository = playlistRepository,
+            playlistState = playlistState,
+            onPlaylistStateAction = onPlaylistStateAction,
+            onRefreshPlaylists = onRefreshPlaylists,
+            onPlaylistMutation = onPlaylistMutation,
             sources = sources,
             folderPickerLauncher = folderPickerLauncher,
             sourcePickerActionVisible = sourcePickerActionVisible,
@@ -207,6 +218,16 @@ fun LibraryHomeScreen(
             tagLibReader = tagLibReader,
             playbackController = playbackController,
             playbackState = playbackState,
+            playlistRepository = playlistRepository,
+            playlistState = playlistState,
+            onPlaylistStateAction = onPlaylistStateAction,
+            onRefreshPlaylists = onRefreshPlaylists,
+            onPlaylistMutation = onPlaylistMutation,
+            onRecoverStalePlaylistDetail = { message ->
+                appState.recoverStalePlaylistDetail(message) { recoverableMessage ->
+                    onPlaylistStateAction(PlaylistStateAction.ShowRecoverableMessage(recoverableMessage))
+                }
+            },
             selectedTrackId = appState.selectedTrackId,
             isNowPlayingBarVisible = appState.isNowPlayingBarVisible,
             onBack = appState::popRoute,
@@ -236,6 +257,7 @@ fun LibraryHomeScreen(
                     onClearLibrary = onClearLibrary,
                     onCancelScan = onCancelScan,
                     onOpenDetailRoute = onOpenDetailRoute,
+                    onShowPlaylists = { appState.pushRoute(LibraryRoute.PlaylistHub) },
                     onTrackSelected = appState::setSelectedTrackId,
                 )
                 if (
@@ -295,6 +317,7 @@ fun LibraryHomeScreen(
                             onClearLibrary = onClearLibrary,
                             onCancelScan = onCancelScan,
                             onOpenDetailRoute = ::openDetailRoute,
+                            onShowPlaylists = { appState.pushRoute(LibraryRoute.PlaylistHub) },
                             onTrackSelected = appState::setSelectedTrackId,
                         )
                     }
@@ -304,7 +327,11 @@ fun LibraryHomeScreen(
                             .weight(0.58f),
                     ) {
                         when (val route = appState.navigation.current) {
-                            is LibraryRoute.AlbumDetail, is LibraryRoute.ArtistDetail -> {
+                            is LibraryRoute.AlbumDetail,
+                            is LibraryRoute.ArtistDetail,
+                            is LibraryRoute.PlaylistDetail,
+                            LibraryRoute.PlaylistHub,
+                            -> {
                                 RouteContent(route = route)
                             }
 
