@@ -46,12 +46,12 @@ Status: DONE_WITH_CONCERNS
 ## Review
 
 - Initial independent review found three Important issues: helper-only semantics coverage, missing queue drag-boundary coverage, and disconnected tested padding.
-- Fixes made the tested semantic state/action/role contract production-consumed, added above/between/below/fallback drag target tests, and bound the actual hub spacer to Queue presentation padding.
+- Fixes made the tested semantic state/action contract production-consumed, added above/between/below/fallback drag target tests, and bound the actual hub spacer to Queue presentation padding. Queue entry containers expose localized content/state descriptions without a false role; artwork retains its separate image semantics.
 - Re-review verdict: PASS with no remaining Critical or Important findings.
 
 ## Concerns / deferrals
 
-- `Role.Image` is the supported non-click role available in the current Compose version; runtime semantics were verified, but a future Compose role better matching a list row may be preferable.
+- Compose exposes no suitable list-row role for these non-click queue containers, so they intentionally carry no role; localized content/state descriptions identify current and queued rows, while artwork retains its separate image semantics.
 - Pixel-level compact/wide/light/dark/CJK visual acceptance, target-device audible behavior, and iOS FK proof remain Task 7 work and were not claimed or modified here.
 - Pre-existing unrelated edits to `.superpowers/sdd/progress.md` and Task 1-5 reports were preserved and must not be staged with Task 6.
 
@@ -122,3 +122,10 @@ Status: DONE_WITH_CONCERNS
 ### Preserved behavior
 
 - Immediate per-row remove adjudication, adaptive compact layout, role-free queue-container semantics, controller/session behavior, Saved workflows, dependencies, and all Task 7 status remain unchanged.
+
+## Final evidence correction
+
+- Final whole-branch context review found durable wording that still required or described a row role even though the reviewed implementation correctly removed inaccurate `Role.Image` semantics.
+- OpenSpec Task 6.3 and the approved plan now require accurate localized content/state descriptions without assigning a false role when Compose lacks a suitable list-row role.
+- This report's earlier role wording is corrected above. Production and tests remain unchanged; the role-free entry-container behavior and separate artwork image semantics are the reviewed implementation.
+- Compact/wide/light/dark/CJK pixel acceptance and target-device audible behavior remain unverified follow-up evidence and are not claimed as passes.

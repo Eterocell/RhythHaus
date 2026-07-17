@@ -35,6 +35,10 @@ Changed files:
 Next owner: controller final whole-branch review; if clean, mark 7.4 complete and create the final evidence commit. Do not archive or push.
 Blockers: none for 7.1-7.3 or iOS FK proof. 7.4 intentionally awaits controller review. The listed manual/device states remain unverified follow-up evidence.
 Commits: `a0219c2 test: isolate JVM dispatcher verification`; `0c525e9 test: verify playlist lifecycle integration`; evidence commits follow this handoff.
+Final evidence/context correction:
+- Restored generic `.superpowers/sdd/task-2-report.md` byte-for-byte from pre-playlist `fd95340`; durable playlist Task 2 evidence remains only under `.superpowers/sdd/playlist-screen-task-2-report.md`.
+- Corrected OpenSpec Task 6.3, approved plan wording, and durable Task 6/7 reports to match reviewed role-free queue containers: accurate localized content/state descriptions, no false list-row role when Compose lacks one, and separate artwork image semantics.
+- No production/tests changed. OpenSpec 7.4 remains unchecked. All previously listed wide/theme/English/pixel/device/audio limitations remain unverified follow-up evidence, not passes.
 
 ## Prototype gate - 2026-07-16 single-owner macOS artwork scrolling
 

@@ -167,3 +167,10 @@ Verdict: PASS. No Critical or Important defects, invalid test claims, scope cree
 - `./gradlew :shared:iosSimulatorArm64Test --configuration-cache --rerun-tasks`: PASS (`BUILD SUCCESSFUL in 33s`; all 35 tasks executed).
 - Fresh native XML timestamp `2026-07-17T10:19:56.156Z` records `LibraryDatabaseIosTest` tests=1, skipped=0, failures=0, errors=0 and expected `SQLITE_CONSTRAINT` output.
 - `GIT_MASTER=1 git diff --check`: PASS.
+
+## Final evidence/context correction
+
+- Restored generic `.superpowers/sdd/task-2-report.md` exactly to its pre-playlist `fd95340` unrelated artwork report. Playlist Task 2 evidence remains preserved only at `.superpowers/sdd/playlist-screen-task-2-report.md`.
+- Corrected OpenSpec Task 6.3, approved plan wording, and durable Task 6 evidence to match the reviewed role-free implementation: queue entry containers use accurate localized content/state descriptions and do not receive a false semantic role when Compose lacks a suitable list-row role; artwork retains separate image semantics.
+- No production or test code changed. OpenSpec 7.4 remains unchecked for controller final whole-branch review.
+- Wide, light/dark, English, populated Saved workflows, drag gestures, pixel/CJK fidelity, and target-device audible playback remain unverified follow-up evidence and are not claimed as passes.
