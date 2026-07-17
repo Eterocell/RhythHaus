@@ -1,0 +1,18 @@
+CREATE TABLE playlist (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    createdAtEpochMillis INTEGER NOT NULL,
+    updatedAtEpochMillis INTEGER NOT NULL
+);
+
+CREATE TABLE playlist_entry (
+    id TEXT NOT NULL PRIMARY KEY,
+    playlistId TEXT NOT NULL REFERENCES playlist(id) ON DELETE CASCADE,
+    trackId TEXT NOT NULL REFERENCES library_track(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    createdAtEpochMillis INTEGER NOT NULL,
+    UNIQUE (playlistId, position)
+);
+
+CREATE INDEX playlist_entry_playlist_position ON playlist_entry(playlistId, position);
+CREATE INDEX playlist_entry_track ON playlist_entry(trackId);
