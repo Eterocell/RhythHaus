@@ -93,9 +93,9 @@ internal class PlaybackSessionCoordinator(
                     }
                     val revision = newest.revision
                     if (
-                        revision == null ||
-                        highestPersistedCheckpointRevision == null ||
-                        revision >= highestPersistedCheckpointRevision
+                        (revision == null && highestPersistedCheckpointRevision == null) ||
+                        (revision != null &&
+                            (highestPersistedCheckpointRevision == null || revision >= highestPersistedCheckpointRevision))
                     ) {
                         persist(newest.snapshot)
                         if (revision != null) highestPersistedCheckpointRevision = revision
@@ -123,7 +123,13 @@ internal class PlaybackSessionCoordinator(
     private fun newerCheckpoint(first: PlaybackCheckpoint, second: PlaybackCheckpoint): PlaybackCheckpoint {
         val firstRevision = first.revision
         val secondRevision = second.revision
-        return if (firstRevision != null && secondRevision != null && firstRevision > secondRevision) first else second
+        return when {
+            firstRevision == null && secondRevision == null -> second
+            firstRevision == null -> second
+            secondRevision == null -> first
+            firstRevision > secondRevision -> first
+            else -> second
+        }
     }
 
     private suspend fun processBarrier(command: Command) {
