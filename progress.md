@@ -1,5 +1,39 @@
 # Session Progress
 
+## Handoff - 2026-07-17 playlist screen Task 7 DONE_WITH_CONCERNS
+
+Route: openspec+superpowers / Task 7 integration, verification, runtime QA, and Oracle adjudication
+Owner: implementation evidence complete through OpenSpec 7.3; next owner is controller final whole-branch review for 7.4
+Input: approved `playlist-screen` change, Tasks 1-6 through `1311151`, and Oracle adjudication that successful actual `LibraryDatabaseIosTest` execution is the sole explicit hard risk-acceptance gate.
+Output:
+- Real SQLDelight integration tests share one `LibraryDatabase` across library and playlist repositories and prove source removal/clear-library cascades are visible before playback reconciliation and playlist publication.
+- Saved remove/reorder after queue resolution does not retroactively mutate the active queue; authoritative source removal preserves only surviving occurrences, while clear-library reconciliation empties the queue.
+- Moved the JVM `Thread` dispatcher assertion and fixture from `commonTest` to `jvmTest` without production behavior changes, allowing the complete iOS simulator suite to compile and run.
+- Actual `LibraryDatabaseIosTest.productionIosFactoryRejectsInvalidPlaylistEntryForeignKeys` executed 1/1 with zero skipped/failures/errors and observed the expected `SQLITE_CONSTRAINT` inside the passing assertion.
+- Created byte-identical change-specific reports at `.superpowers/sdd/playlist-screen-task-1-report.md` through `playlist-screen-task-7-report.md`; generic scratch reports remain preserved and unstaged.
+Verification:
+- `openspec validate playlist-screen --strict`: pass (`Change 'playlist-screen' is valid`).
+- `./gradlew :shared:verifyCommonMainRhythHausDatabaseMigration --configuration-cache`: pass.
+- `./gradlew :shared:jvmTest :shared:testAndroidHostTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 5s`; 116 actionable tasks, 11 executed, 105 up-to-date).
+- `/usr/bin/xcrun xcodebuild -version`: pass (Xcode 26.6, build 17F113).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 3m 28s`; 35 actionable tasks, 7 executed, 28 up-to-date); native XML records iOS FK test 1/1.
+- `GIT_MASTER=1 git diff --check`: pass.
+Runtime QA actually observed:
+- Real 800x600 Chinese desktop Saved hub: localized Saved/Queue tabs, create action, empty state, create-dialog opening and dismissal.
+- Real active Queue: current occurrence first and without mutation controls; localized track-named drag/move/remove controls on upcoming rows; first/last movement boundaries disabled; accessible move-down reordered one upcoming row; immediate remove deleted only its target; clear-upcoming opened confirmation stating current playback continues.
+Unverified follow-up evidence, not passes:
+- wide layout; separate light/dark states; English runtime localization; populated Saved create/rename/delete; duplicate saved rows; both add paths; saved and queue drag gestures; verified keyboard focus/submit; clear execution and stale-command rejection; pixel-level Now Playing overlap/spacing/contrast/CJK fidelity; target-device audible playback.
+Review:
+- Task-scoped read-only review PASS with no Critical or Important findings; independently reran lifecycle, dispatcher, and cancellation tests.
+- Oracle adjudicated OpenSpec 7.1-7.3 complete with concerns. OpenSpec 7.4 remains unchecked for the controller final whole-branch review and final evidence commit.
+Changed files:
+- `shared/src/commonTest/.../AppScanCancellationTest.kt` and `shared/src/jvmTest/.../AppDispatcherJvmTest.kt`: portable/JVM test-source separation.
+- `shared/src/jvmTest/.../PlaylistLifecycleIntegrationJvmTest.kt`: real lifecycle integration proof.
+- `openspec/changes/playlist-screen/tasks.md`, `roadmap.md`, `progress.md`, and seven change-specific SDD reports: durable Task 7 evidence.
+Next owner: controller final whole-branch review; if clean, mark 7.4 complete and create the final evidence commit. Do not archive or push.
+Blockers: none for 7.1-7.3 or iOS FK proof. 7.4 intentionally awaits controller review. The listed manual/device states remain unverified follow-up evidence.
+Commits: `a0219c2 test: isolate JVM dispatcher verification`; `0c525e9 test: verify playlist lifecycle integration`; evidence commits follow this handoff.
+
 ## Prototype gate - 2026-07-16 single-owner macOS artwork scrolling
 
 Route: systematic-debugging / approved disposable architecture prototype / strict RED-GREEN
