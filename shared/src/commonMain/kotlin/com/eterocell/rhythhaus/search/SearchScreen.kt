@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
@@ -82,6 +83,7 @@ fun SearchScreen(
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
     trackSelectionState: TrackSelectionState = TrackSelectionState(),
     onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
+    bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     var query by remember { mutableStateOf("") }
@@ -229,7 +231,7 @@ fun SearchScreen(
                                     },
                                 )
                             }
-                            item { Spacer(Modifier.height(80.dp)) }
+                            item { Spacer(Modifier.height(bottomContentPadding)) }
                         }
                     }
                 }

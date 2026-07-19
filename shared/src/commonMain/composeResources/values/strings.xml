@@ -21,6 +21,10 @@
     <string name="play">Play</string>
     <string name="pause">Pause</string>
     <string name="select_track_format">Select track %1$s</string>
+    <string name="selection_count_one">%1$d track selected</string>
+    <string name="selection_count_many">%1$d tracks selected</string>
+    <string name="selection_cancel">Cancel selection</string>
+    <string name="selection_add_to_playlist">Add selected tracks to playlist</string>
     <string name="album_accessibility_format">Album %1$s</string>
     <string name="artist_accessibility_format">Artist %1$s</string>
     <string name="track_artist_album_format">%1$s · %2$s</string>

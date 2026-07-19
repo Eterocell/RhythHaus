@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlaylistRepository
@@ -98,6 +99,7 @@ internal fun LibraryRouteOverlays(
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit,
     trackSelectionState: TrackSelectionState = TrackSelectionState(),
     onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
+    bottomContentPadding: Dp = 0.dp,
 ) {
     when (route) {
         LibraryRoute.Settings -> SettingsScreen(
@@ -127,6 +129,7 @@ internal fun LibraryRouteOverlays(
             onScrollPositionChanged = onScrollPositionChanged,
             trackSelectionState = trackSelectionState,
             onTrackSelectionAction = onTrackSelectionAction,
+            bottomContentPadding = bottomContentPadding,
         )
 
         LibraryRoute.SettingsAbout -> SettingsAboutScreen(
@@ -176,6 +179,7 @@ internal fun LibraryRouteContent(
     homeContent: @Composable ((LibraryRoute) -> Unit) -> Unit,
     trackSelectionState: TrackSelectionState = TrackSelectionState(),
     onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
+    bottomContentPadding: Dp = 0.dp,
 ) {
     when (route) {
         is LibraryRoute.AlbumDetail -> {
@@ -203,13 +207,10 @@ internal fun LibraryRouteContent(
                         onTrackClickFromTracks(albumTracks, track)
                     },
                     onPlayPause = playbackController::togglePlayPause,
-                    onExpandNowPlaying = onExpandNowPlaying,
-                    onShowSettings = onShowSettings,
-                    onShowSearch = onShowSearch,
                     selectionPageKey = TrackSelectionPageKey.Album(album.album),
                     trackSelectionState = trackSelectionState,
                     onTrackSelectionAction = onTrackSelectionAction,
-                    isNowPlayingBarVisible = isNowPlayingBarVisible,
+                    bottomContentPadding = bottomContentPadding,
                     onScrollPositionChanged = onScrollPositionChanged,
                 )
             }
@@ -240,13 +241,10 @@ internal fun LibraryRouteContent(
                         onTrackClickFromTracks(artistTracks, track)
                     },
                     onPlayPause = playbackController::togglePlayPause,
-                    onExpandNowPlaying = onExpandNowPlaying,
-                    onShowSettings = onShowSettings,
-                    onShowSearch = onShowSearch,
                     selectionPageKey = TrackSelectionPageKey.Artist(artist.artist),
                     trackSelectionState = trackSelectionState,
                     onTrackSelectionAction = onTrackSelectionAction,
-                    isNowPlayingBarVisible = isNowPlayingBarVisible,
+                    bottomContentPadding = bottomContentPadding,
                     onScrollPositionChanged = onScrollPositionChanged,
                 )
             }
@@ -276,6 +274,7 @@ internal fun LibraryRouteContent(
                 onReorderUpcoming = queueMutations::reorder,
                 onRemoveUpcoming = queueMutations::remove,
                 onClearUpcoming = queueMutations::clear,
+                bottomContentPadding = bottomContentPadding,
             )
         }
 
@@ -332,6 +331,7 @@ internal fun LibraryRouteContent(
                             playlistMutationDecision(PlaylistMutationWorkflow.Reorder, outcome)
                         }
                     },
+                    bottomContentPadding = bottomContentPadding,
                 )
                 is PlaylistDetailResolution.ReturnToHub -> LaunchedEffect(route) {
                     onRecoverStalePlaylistDetail(resolution.message)

@@ -1,13 +1,5 @@
 package com.eterocell.rhythhaus.library.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,8 +35,6 @@ import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
-import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.ui.TrackArtworkLoadState
 import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
@@ -83,13 +73,10 @@ internal fun DrillDownView(
     onBack: () -> Unit,
     onTrackClick: (Track) -> Unit,
     onPlayPause: () -> Unit,
-    onExpandNowPlaying: (Track) -> Unit,
-    onShowSettings: () -> Unit = {},
-    onShowSearch: () -> Unit = {},
     selectionPageKey: TrackSelectionPageKey,
     trackSelectionState: TrackSelectionState = TrackSelectionState(),
     onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
-    isNowPlayingBarVisible: Boolean = true,
+    bottomContentPadding: Dp = 0.dp,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
 ) {
     val selectionModeActive = trackSelectionState.pageKey == selectionPageKey && trackSelectionState.selectedTrackIds.isNotEmpty()
@@ -209,7 +196,7 @@ internal fun DrillDownView(
                             }
                         }
                         item(key = "now-playing-spacer") {
-                            Spacer(Modifier.height(NowPlayingBarContentPadding))
+                            Spacer(Modifier.height(bottomContentPadding))
                         }
                     } else {
                         item { SectionLabel(title = title, subtitle = subtitle) }
@@ -226,7 +213,7 @@ internal fun DrillDownView(
                                 onTrackSelectionAction = onTrackSelectionAction,
                             )
                         }
-                        item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
+                        item { Spacer(Modifier.height(bottomContentPadding)) }
                     }
                 }
             }
@@ -251,33 +238,6 @@ internal fun DrillDownView(
             )
         }
 
-        if (currentTrack != null) {
-            val barExpandProgress = remember { Animatable(0f) }
-            AnimatedVisibility(
-                visible = isNowPlayingBarVisible,
-                enter = slideInVertically(initialOffsetY = { it }) + expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
-                modifier = Modifier.align(Alignment.BottomCenter),
-            ) {
-                NowPlayingBar(
-                    track = currentTrack,
-                    playbackState = playbackState,
-                    onPlayPause = {
-                        dispatchDrillDownAction(
-                            action = DrillDownAction.ToggleTransport,
-                            onTrackClick = onTrackClick,
-                            onPlayPause = onPlayPause,
-                        )
-                    },
-                    onExpand = { onExpandNowPlaying(currentTrack) },
-                    onSettings = onShowSettings,
-                    onSearch = onShowSearch,
-                    expandProgress = barExpandProgress,
-                    isExpanded = false,
-                    backdrop = drillDownBackdrop,
-                )
-            }
-        }
     }
 }
 

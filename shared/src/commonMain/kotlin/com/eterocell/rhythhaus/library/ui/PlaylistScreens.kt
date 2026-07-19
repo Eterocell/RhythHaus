@@ -54,7 +54,6 @@ import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
-import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.toPlayableTrack
 import com.eterocell.rhythhaus.ui.HausDialog
@@ -168,6 +167,9 @@ fun playlistMutationDecision(
         PlaylistMutationDecision.RetainModalWithFailure
     }
 }
+
+fun trackSelectionActionAfterPickerOutcome(outcome: PlaylistStateAction?): TrackSelectionAction? =
+    if (outcome is PlaylistStateAction.SnapshotConfirmed) TrackSelectionAction.Completed else null
 
 data class PlaylistNameModalPresentation(
     val enteredText: String,
@@ -324,14 +326,17 @@ fun savedPlaylistPlaybackRequest(
 }
 
 data class PlaylistAppendRequest(val playlistId: String, val trackIds: List<String>)
-data class PlaylistInlineCreateRequest(val name: String, val trackId: String)
+data class PlaylistInlineCreateRequest(val name: String, val trackIds: List<String>)
 data class PlaylistInlineMutationPlan(val name: String, val trackIds: List<String>)
 
 fun PlaylistInlineCreateRequest.mutationPlan(): PlaylistInlineMutationPlan =
-    PlaylistInlineMutationPlan(name, listOf(trackId))
+    PlaylistInlineMutationPlan(name, trackIds)
 
 fun openAddToPlaylistPickerAction(trackId: String): PlaylistStateAction =
-    PlaylistStateAction.OpenPicker(PlaylistPickerState(trackId = trackId))
+    PlaylistStateAction.OpenPicker(PlaylistPickerState(trackIds = listOf(trackId)))
+
+fun openAddToPlaylistPickerAction(trackIds: List<String>): PlaylistStateAction =
+    PlaylistStateAction.OpenPicker(PlaylistPickerState(trackIds = trackIds))
 
 fun filteredPlaylistTrackIds(tracks: List<LibraryTrack>, query: String): List<String> = tracks
     .filter { track ->
@@ -342,13 +347,17 @@ fun filteredPlaylistTrackIds(tracks: List<LibraryTrack>, query: String): List<St
     .map(LibraryTrack::id)
 
 data class AddToPlaylistPickerState(
-    val trackId: String,
+    val trackIds: List<String>,
     val selectedPlaylistId: String? = null,
     val enteredName: String = "",
 ) {
-    fun confirmedAppend(): PlaylistAppendRequest? = selectedPlaylistId?.let { PlaylistAppendRequest(it, listOf(trackId)) }
+    init {
+        require(trackIds.isNotEmpty() && trackIds.all(String::isNotBlank))
+    }
+
+    fun confirmedAppend(): PlaylistAppendRequest? = selectedPlaylistId?.let { PlaylistAppendRequest(it, trackIds) }
     fun confirmedInlineCreate(): PlaylistInlineCreateRequest? = enteredName.trim().takeIf(String::isNotEmpty)?.let {
-        PlaylistInlineCreateRequest(it, trackId)
+        PlaylistInlineCreateRequest(it, trackIds)
     }
 }
 
@@ -425,7 +434,6 @@ data class QueueRowPresentation(
 
 data class QueueTabPresentation(
     val rows: List<QueueRowPresentation>,
-    val bottomContentPadding: androidx.compose.ui.unit.Dp = NowPlayingBarContentPadding,
 ) {
     val isEmpty: Boolean get() = rows.isEmpty()
     val upcomingOccurrenceIds: List<String> get() = rows.filter { it.role == QueueRowRole.Upcoming }.map { it.occurrence.id }
@@ -502,15 +510,11 @@ internal fun PlaylistHubScreen(
     onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
     onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
     onClearUpcoming: suspend () -> QueueMutationFeedback,
+    bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     var createDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
     var createOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
     val routePresentation = playlistRoutePresentation(state)
-    val bottomContentPadding = if (state.selectedTab == PlaylistTab.Queue) {
-        queueTabPresentation(playbackState).bottomContentPadding
-    } else {
-        NowPlayingBarContentPadding
-    }
     PlaylistScreenFrame(title = stringResource(Res.string.playlists), onBack = onBack) {
         item(key = "tabs") { PlaylistTabs(state.selectedTab, onSelectTab) }
         if (state.isLoading && !state.hasConfirmedSnapshot) {
@@ -884,6 +888,7 @@ internal fun PlaylistDetailScreen(
     onPlayEntry: (SavedPlaylistPlaybackRequest) -> Unit,
     onRemoveEntry: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
+    bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val tracksById = remember(libraryTracks) { libraryTracks.associate { it.id to it.toPlayableTrack() } }
     val model = playlistDetailModel(playlist.id, playlist.name, entries, tracksById)
@@ -930,7 +935,7 @@ internal fun PlaylistDetailScreen(
             item(key = "retained-read-error") { ReadFailureNotice(onRetry) }
         }
         item(key = "notice") { PlaylistNotice(state) }
-        item(key = "spacer") { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
+        item(key = "spacer") { Spacer(Modifier.height(bottomContentPadding)) }
     }
     renameDraft?.let { draft ->
         val modalPresentation = playlistNameModalPresentation(draft, renameOutcome)

@@ -1,180 +1,120 @@
-# Task 3 Report: Migrate Settings dialogs to HausDialog
+# Task 3 Report: Contextual Bottom Bar and Multi-Track Picker
 
-## Status
+## Scope and route
 
-DONE
+- Route: `openspec+superpowers` / approved Task 3 execution.
+- Worktree: `/var/folders/l_/j8p3d1ln6q1drdptb1hhczrh0000gn/T/opencode/rhythhaus-track-multi-select-playlist-backup`.
+- Input: `.superpowers/sdd/task-3-brief.md`, accepted Task 1 commit `e0ab6e7`, and accepted Task 2 commit `64112b6`.
+- No backup codec, repository import, platform document, Settings backup, OpenSpec, plan, progress, roadmap, dependency, or toolchain work was performed.
 
-Clear Library and Remove Folder now use the shared solid `HausDialog` shell with separate body and actions slots. Existing resources, typography, action labels, action colors, action order, mutation behavior, callback order, routes, and source-name accessibility semantics are preserved.
+## Implementation
 
-## Changed files
+- `LibraryAppShell` now owns one remembered `TrackSelectionState` and dispatches all eligible Home Songs, album, artist, and Search callbacks through the Task 1 reducer.
+- Back consumes active selection before Now Playing dismissal or route pop. Shell route push/pop/detail/recovery paths clear selection before transition, and the existing Home browse-mode dispatcher clears selection before leaving Songs.
+- The shell derives picker input only with `orderedSelectedTrackIds` against the active page's visible order. Search visible IDs are captured from its existing reconciliation callback.
+- `PlaylistPickerState`, `AddToPlaylistPickerState`, and `PlaylistInlineCreateRequest` now require ordered non-empty lists of non-blank IDs. Existing single-row entry points adapt to a singleton list; playlist-detail browser state and visible-order confirmation remain unchanged.
+- Picker dismissal closes only the picker. Mutation failure retains picker and selection. Successful append or inline create closes the picker and dispatches `TrackSelectionAction.Completed`.
+- Added reusable `TrackSelectionBar` with selected count, Cancel selection, and Add selected tracks to playlist. It reuses Haus palette and Miuix controls, system navigation-bar padding, and 44dp minimum button targets.
+- The app shell renders exactly one active bottom-slot child. Selection precedes Now Playing; Hidden composes no input surface.
+- The active slot is keyed and measured by `(LibraryBottomBarContent, heightPx)`. Lists accept only a matching active measurement as bottom clearance; offset and alpha reject null/stale measurements too, preventing stale fixed-height assumptions and pre-measure overlap.
+- Home, Search, album/artist drill-down, playlist hub, and playlist detail receive the measured active clearance. Search's fixed `80.dp` spacer and drill-down's independent Now Playing renderer were removed.
+- Added exact English/Chinese resources for singular/plural selected count, cancellation, and Add to Playlist semantics.
 
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDialogs.kt`
-  - Replaced Clear Library's custom scrim, transparent card, `rhythHausLiquidGlass`, and `LayerBackdrop` parameter with `HausDialog`.
-  - Kept the existing title, message, Cancel/Clear order, button dimensions, colors, labels, and callbacks.
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/settings/SettingsScreen.kt`
-  - Replaced Remove Folder's custom liquid-glass shell with `HausDialog` body/actions slots.
-  - Preserved the two-line ellipsized `name.visual` label and `clearAndSetSemantics { contentDescription = name.accessibility }`.
-  - Preserved the `mutationsEnabled` gate on Remove and both callback-before-visible-state-close sequences.
-  - Removed `clearLibraryDialogBackdrop` only after both migrated dialogs stopped consuming it.
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt`
-  - Removed the dialog-only backdrop parameter and Settings forwarding.
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`
-  - Removed the dialog-only backdrop argument from the overlay route helper and its two callers.
-  - Left `rootBackdrop`, `rememberRhythHausBackdrop()`, and both `recordRhythHausBackdrop(rootBackdrop)` uses unchanged.
-- `.superpowers/sdd/task-3-report.md`
-  - Replaced the stale unrelated report with this Task 3 evidence.
+## Strict RED evidence
 
-`shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibrarySourceManagementTest.kt` was not changed because it already contains the required regression proving a long source name has a 63-character-plus-ellipsis visual form and the complete accessibility form. Its existing mutation-gate coverage was retained unchanged.
-
-## Verification
-
-Pre-migration characterization command:
+Initial focused RED command:
 
 ```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.library.ui.PlaylistStateTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' \
+  --tests 'com.eterocell.rhythhaus.BottomBarModeTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' \
+  --configuration-cache --rerun-tasks
 ```
 
-Exact result summary:
+Expected failure: `:shared:compileTestKotlinJvm` failed only on missing list-valued picker parameters and missing Task 3 bottom-content, measured-clearance, Back-decision, page-key, and semantics contracts.
+
+Additional RED micro-cycles:
+
+- Null/stale active measurement and picker success/failure retention tests failed only on missing `LibraryBottomBarMeasurement` and `trackSelectionActionAfterPickerOutcome`.
+- Wide Home Songs selection precedence failed because the initial route-equality policy did not account for the visible list-detail master pane.
+- Stale album selection on Playlist Hub failed until unsupported-route matching was explicit.
+- Reviewer regression failed only on missing `activeBottomBarAlpha` before the stale/unmeasured rendering repair.
+
+## GREEN evidence
+
+Focused Task 1-3 command after implementation and reviewer fix:
 
 ```text
-BUILD SUCCESSFUL in 1s
-35 actionable tasks: 5 executed, 30 up-to-date
-Configuration cache entry stored.
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.library.ui.TrackSelectionStateTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.PlaylistStateTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' \
+  --tests 'com.eterocell.rhythhaus.BottomBarModeTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.TrackSelectionSemanticsJvmTest' \
+  --tests 'com.eterocell.rhythhaus.search.SearchSelectionPoliciesJvmTest' \
+  --configuration-cache --rerun-tasks
 ```
 
-Post-migration required command:
+Result: `BUILD SUCCESSFUL in 12s`; 26/26 tasks executed.
+
+Broad supported gate initially passed in 9s. A later attempt was accidentally run concurrently with the forced focused `jvmTest` process and produced widespread unrelated `NoClassDefFoundError` plus one playback assertion. Systematic debugging identified concurrent writes to the same shared test outputs as the differentiator: the simultaneous focused process passed. No source change was made. After stopping Gradle daemons and cleaning through Gradle, the same broad gate ran sequentially:
 
 ```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
+./gradlew --stop
+./gradlew :shared:clean --no-configuration-cache
+./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache
 ```
 
-Exact result summary:
+Result: clean passed, then broad `BUILD SUCCESSFUL in 6s`; 101 actionable tasks, 31 executed, 11 from cache, 59 up-to-date. This includes 325 JVM tests, desktop compilation, and Android debug assembly. The unchanged Android `MediaMetadata.Builder.setArtworkData` deprecation warning remains.
 
-```text
-BUILD SUCCESSFUL in 4s
-26 actionable tasks: 8 executed, 18 up-to-date
-Configuration cache entry reused.
-```
+## Diagnostics, formatting, and diff hygiene
 
-Final completion-gate rerun of the same required command:
-
-```text
-BUILD SUCCESSFUL in 383ms
-26 actionable tasks: 4 executed, 22 up-to-date
-Configuration cache entry reused.
-```
-
-Independent QA forced fresh compilation and test execution:
-
-```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache --rerun-tasks
-BUILD SUCCESSFUL in 9s
-26 actionable tasks: 26 executed
-```
-
-Additional checks:
-
+- Kotlin LSP diagnostics were unavailable because `kotlin-ls` is not installed and installation was previously declined. Gradle compilation/tests are the executable Kotlin diagnostics.
 - `GIT_MASTER=1 git diff --check`: pass with no output.
-- Scoped search across `LibraryDialogs.kt`, `SettingsScreen.kt`, `LibraryRoutes.kt`, and `LibraryAppShell.kt` found no remaining `clearLibraryDialogBackdrop`, `LayerBackdrop`, or `rhythHausLiquidGlass` references.
-- Kotlin LSP diagnostics were unavailable because `kotlin-ls` is not installed and installation was previously declined. The focused Gradle run compiled the changed common source and test code successfully.
-- Scoped diff review confirmed Clear Library still invokes `onClearLibrary()` before `showClearLibraryDialog = false`, and Remove Folder still invokes `onRemoveSource(source)` before `sourcePendingRemoval = null`.
-- No playlist screen, dependency, palette, route, string, persistence, playback, scan behavior, test, or type suppression was changed.
-- No commit was created.
+- Root `spotlessCheck` is blocked by a pre-existing untouched import-order violation in `androidApp/build.gradle.kts`.
+- `:shared:spotlessAndroidXmlCheck`: pass.
+- `:shared:spotlessKotlinCheck` is blocked by 55 pre-existing untouched shared violations, including `AndroidPlaybackMediaSessionTest.kt`, `RhythHausTransportBridgeTest.kt`, and `PlaybackEngine.android.kt`. No out-of-scope formatting rewrite was performed.
 
-## Review
+## Review and visual evidence
 
-Five independent post-implementation lanes reviewed goal compliance, focused QA, code quality, security/privacy, and repository context.
+- Behavior/lifetime reviewer: PASS with no Critical or Important findings. It confirmed shell ownership, Back/navigation/browse cleanup, Search reconciliation, `orderedSelectedTrackIds`, picker dismissal/failure/success retention, and unchanged playlist-detail browser behavior.
+- Bottom-slot/UI reviewer initially found one Important stale/unknown measurement path in physical offset/initial visibility. A strict RED/GREEN repair made matching active measurement control clearance, offset, and alpha. Focused re-review: PASS with no remaining Critical or Important finding.
+- Source-level design-system checks confirm Haus tokens, Miuix controls, 44dp targets, localized count/cancel/add semantics, one bottom child, and no hidden interception layer.
+- Runtime visual/touch evidence remains unverified: no emulator/device/desktop screenshot run was performed. Compact/wide transition smoothness, pixel-level clearance, CJK rendering, focus traversal, and touch behavior are not claimed as visual passes.
 
-- Goal and constraints: PASS, 98% confidence.
-- Focused QA: PASS, high confidence; forced fresh compilation and test execution passed.
-- Code quality: PASS, 96% confidence; no findings.
-- Security/privacy: PASS; maximum severity none.
-- Context: all implementation requirements aligned. One initial concern about the old localized semantics dismiss label was adjudicated as not blocking because the approved design centralizes semantics in the fixed review-clean `HausDialog` API, rejects per-feature semantics wrappers, and requires a dismiss action but not a caller-provided label. The visible localized Cancel action and full source-name accessibility remain preserved.
+## Changed Task 3 files
 
-Final review: PASS with no blocking issues.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/TrackSelectionBar.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigation.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContent.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/search/SearchScreen.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistState.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistScreens.kt`
+- `shared/src/commonMain/composeResources/values/strings.xml`
+- `shared/src/commonMain/composeResources/values-zh/strings.xml`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/BottomBarModeTest.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigationTest.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistStateTest.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistScreensTest.kt`
 
-## Workspace note
+Controller-owned dirty evidence explicitly excluded from staging and commit:
 
-The workspace already contained unrelated Task 1/2 and playlist-dialog-polish changes. They were preserved and not modified by Task 3. `HausDialog.kt` remains an untracked Task 2 dependency in the shared workspace.
+- `.superpowers/sdd/progress.md`
+- `.superpowers/sdd/task-1-report.md`
+- `.superpowers/sdd/task-2-report.md`
+- `openspec/changes/track-multi-select-playlist-backup/tasks.md`
 
-Route: openspec+superpowers / Task 3 settings-dialog migration
-Owner: implementation
-Input: `.superpowers/sdd/task-3-brief.md` and Task 2 `HausDialog`
-Output: settings dialogs migrated to the shared solid shell; focused source-management tests passed; this report
-Next owner: controller/reviewer for Task 3 acceptance
-Blockers: none
+## Acceptance
 
-## Final review regression fix: localized dismiss action label
-
-The whole-change review established that Remove Folder's pre-migration semantics used `dismiss(label = dismissLabel)` with `dismissLabel = stringResource(Res.string.cancel)`. The initial Task 3 migration preserved the dismiss callback but lost that localized action label because `HausDialog` exposed only an unlabeled dismiss action.
-
-This follow-up restores the former semantics without reintroducing a per-feature shell:
-
-- `HausDialog` now accepts optional `dismissLabel: String? = null` and forwards it to `dismiss(label = dismissLabel)`. Existing callers preserve their prior behavior through the null default.
-- `RemoveSourceDialog` resolves the existing localized Cancel resource and is the only production caller that supplies `dismissLabel`.
-- `HausDialogSemanticsJvmTest` uses the real `runComposeUiTest` semantics tree to assert the actual `SemanticsActions.Dismiss` label is `Cancel`, invoke that action, verify exactly one callback, and verify the dismiss node disappears.
-
-This evidence supersedes the earlier Task 3 report statement that the missing localized dismiss label was not blocking.
-
-### TDD evidence
-
-Clean RED command:
-
-```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --configuration-cache
-```
-
-Exact RED result:
-
-```text
-e: file:///Users/eterocell/Sources/AndroidStudioWorkspace/RhythHaus/shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/ui/HausDialogSemanticsJvmTest.kt:27:21 No parameter with name 'dismissLabel' found.
-BUILD FAILED in 560ms
-25 actionable tasks: 5 executed, 20 up-to-date
-Configuration cache entry reused.
-```
-
-Focused GREEN result for the same command after the minimal production change:
-
-```text
-BUILD SUCCESSFUL in 7s
-26 actionable tasks: 8 executed, 18 up-to-date
-Configuration cache entry reused.
-```
-
-Combined focused command:
-
-```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
-```
-
-Exact combined result:
-
-```text
-BUILD SUCCESSFUL in 2s
-35 actionable tasks: 5 executed, 30 up-to-date
-Configuration cache entry stored.
-```
-
-Forced fresh final command:
-
-```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache --rerun-tasks
-```
-
-Exact forced result:
-
-```text
-BUILD SUCCESSFUL in 8s
-26 actionable tasks: 26 executed
-Configuration cache entry reused.
-```
-
-Final completion-gate rerun after appending this report:
-
-```text
-BUILD SUCCESSFUL in 375ms
-26 actionable tasks: 4 executed, 22 up-to-date
-Configuration cache entry reused.
-```
-
-Kotlin LSP diagnostics remained unavailable because `kotlin-ls` is not installed and installation was previously declined. Gradle compiled and executed the changed common/JVM sources successfully. No callback, palette, layout, dependency, string, route, playlist caller, persistence, playback, or scan behavior changed, and no commit was created.
+- Requirement matched: yes for Task 3 automated/source scope.
+- Scope controlled: yes.
+- Focused and broad automated verification: pass.
+- Review: pass after one reviewer-fix RED/GREEN cycle.
+- Runtime visual/device acceptance: unverified and not claimed.
+- Blockers: none for Task 3 implementation or commit.

@@ -8,7 +8,6 @@ import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.Playlist
-import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.LightHausPalette
 import androidx.compose.ui.unit.dp
@@ -110,19 +109,25 @@ class PlaylistScreensTest {
     }
 
     @Test
-    fun pickerConfirmationAppendsOneIndependentOccurrenceEveryTime() {
-        val picker = AddToPlaylistPickerState(trackId = "track-a", selectedPlaylistId = "playlist-1")
+    fun pickerConfirmationPreservesOrderedTrackIdsEveryTime() {
+        val picker = AddToPlaylistPickerState(
+            trackIds = listOf("track-b", "track-a"),
+            selectedPlaylistId = "playlist-1",
+        )
 
-        assertEquals(PlaylistAppendRequest("playlist-1", listOf("track-a")), picker.confirmedAppend())
-        assertEquals(PlaylistAppendRequest("playlist-1", listOf("track-a")), picker.confirmedAppend())
+        assertEquals(PlaylistAppendRequest("playlist-1", listOf("track-b", "track-a")), picker.confirmedAppend())
+        assertEquals(PlaylistAppendRequest("playlist-1", listOf("track-b", "track-a")), picker.confirmedAppend())
     }
 
     @Test
     fun pickerInlineCreationTrimsNameAndRetainsInvalidText() {
-        val valid = AddToPlaylistPickerState(trackId = "track-a", enteredName = "  New list ")
-        val blank = AddToPlaylistPickerState(trackId = "track-a", enteredName = "   ")
+        val valid = AddToPlaylistPickerState(trackIds = listOf("track-b", "track-a"), enteredName = "  New list ")
+        val blank = AddToPlaylistPickerState(trackIds = listOf("track-b", "track-a"), enteredName = "   ")
 
-        assertEquals(PlaylistInlineCreateRequest("New list", "track-a"), valid.confirmedInlineCreate())
+        assertEquals(
+            PlaylistInlineCreateRequest("New list", listOf("track-b", "track-a")),
+            valid.confirmedInlineCreate(),
+        )
         assertNull(blank.confirmedInlineCreate())
         assertEquals("   ", blank.enteredName)
     }
@@ -169,17 +174,17 @@ class PlaylistScreensTest {
     @Test
     fun rowOverflowOpensPickerForExactTrackId() {
         assertEquals(
-            PlaylistStateAction.OpenPicker(PlaylistPickerState(trackId = "track-b")),
+            PlaylistStateAction.OpenPicker(PlaylistPickerState(trackIds = listOf("track-b"))),
             openAddToPlaylistPickerAction("track-b"),
         )
     }
 
     @Test
     fun pickerInlineCreationPlansAtomicInitialEntriesWithoutCollapsingDuplicates() {
-        val request = PlaylistInlineCreateRequest(name = "New", trackId = "track-a")
+        val request = PlaylistInlineCreateRequest(name = "New", trackIds = listOf("track-b", "track-a"))
 
         assertEquals(
-            PlaylistInlineMutationPlan(name = "New", trackIds = listOf("track-a")),
+            PlaylistInlineMutationPlan(name = "New", trackIds = listOf("track-b", "track-a")),
             request.mutationPlan(),
         )
     }
@@ -214,7 +219,7 @@ class PlaylistScreensTest {
     fun pickerAndBrowserPresentMutationFailureWithoutLosingSelection() {
         val state = PlaylistState(
             mutationErrorMessage = PlaylistMutationFailedMessage,
-            picker = PlaylistPickerState("track-a", selectedPlaylistId = "playlist-1", enteredName = "New"),
+            picker = PlaylistPickerState(listOf("track-b", "track-a"), selectedPlaylistId = "playlist-1", enteredName = "New"),
             browser = PlaylistBrowserState("playlist-1", query = "blue", selectedTrackIds = setOf("track-a")),
         )
 
@@ -318,10 +323,20 @@ class PlaylistScreensTest {
     }
 
     @Test
+    fun pickerDismissalAndFailureRetainSelectionWhileSuccessCompletesIt() {
+        val success = PlaylistStateAction.SnapshotConfirmed(PlaylistSnapshot(), revision = 10L)
+        val failure = PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 11L)
+
+        assertNull(trackSelectionActionAfterPickerOutcome(null))
+        assertNull(trackSelectionActionAfterPickerOutcome(failure))
+        assertEquals(TrackSelectionAction.Completed, trackSelectionActionAfterPickerOutcome(success))
+    }
+
+    @Test
     fun failedInlineCreateCallbackRetainsPickerRetryState() {
         val initial = PlaylistState(
             picker = PlaylistPickerState(
-                trackId = "track-a",
+                trackIds = listOf("track-b", "track-a"),
                 selectedPlaylistId = "playlist-existing",
                 enteredName = "Retry list",
             ),
@@ -334,7 +349,7 @@ class PlaylistScreensTest {
         val decision = playlistMutationDecision(PlaylistMutationWorkflow.PickerInlineCreate, outcome)
 
         assertEquals(PlaylistMutationDecision.RetainModalWithFailure, decision)
-        assertEquals("track-a", reduced.picker?.trackId)
+        assertEquals(listOf("track-b", "track-a"), reduced.picker?.trackIds)
         assertEquals("playlist-existing", reduced.picker?.selectedPlaylistId)
         assertEquals("Retry list", reduced.picker?.enteredName)
         assertEquals(PlaylistModalNotice.MutationFailed, playlistPickerPresentation(reduced)?.notice)
@@ -364,12 +379,11 @@ class PlaylistScreensTest {
     }
 
     @Test
-    fun queuePresentationHasDistinctEmptyStateAndExactNowPlayingInset() {
+    fun queuePresentationHasDistinctEmptyState() {
         val presentation = queueTabPresentation(PlaybackState())
 
         assertTrue(presentation.isEmpty)
         assertTrue(presentation.rows.isEmpty())
-        assertEquals(NowPlayingBarContentPadding, presentation.bottomContentPadding)
     }
 
     @Test

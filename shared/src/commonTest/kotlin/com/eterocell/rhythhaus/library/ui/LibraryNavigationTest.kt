@@ -579,6 +579,44 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun backConsumesActiveSelectionBeforePoppingTheRoute() {
+        assertEquals(
+            LibraryBackDecision.CancelSelection,
+            libraryBackDecision(
+                selectionState = TrackSelectionState(
+                    TrackSelectionPageKey.Album("Night"),
+                    setOf("track-a"),
+                ),
+                isNowPlayingExpanded = false,
+                canPopRoute = true,
+            ),
+        )
+        assertEquals(
+            LibraryBackDecision.PopRoute,
+            libraryBackDecision(
+                selectionState = TrackSelectionState(),
+                isNowPlayingExpanded = false,
+                canPopRoute = true,
+            ),
+        )
+    }
+
+    @Test
+    fun eligiblePageKeyMatchesOnlyTheCurrentSupportedSurface() {
+        assertEquals(
+            TrackSelectionPageKey.HomeSongs,
+            trackSelectionPageKeyFor(LibraryRoute.Home, BrowseMode.Songs),
+        )
+        assertEquals(null, trackSelectionPageKeyFor(LibraryRoute.Home, BrowseMode.Albums))
+        assertEquals(
+            TrackSelectionPageKey.Album("Night"),
+            trackSelectionPageKeyFor(LibraryRoute.AlbumDetail("Night"), BrowseMode.Songs),
+        )
+        assertEquals(TrackSelectionPageKey.Search, trackSelectionPageKeyFor(LibraryRoute.Search, BrowseMode.Songs))
+        assertEquals(null, trackSelectionPageKeyFor(LibraryRoute.PlaylistHub, BrowseMode.Songs))
+    }
+
+    @Test
     fun nowPlayingBarOffsetPxIsZeroWhenFullyShown() {
         assertEquals(0, nowPlayingBarOffsetPx(hiddenFraction = 0f, measuredHeightPx = 312))
     }

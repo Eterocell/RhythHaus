@@ -37,7 +37,6 @@ import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
-import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
@@ -82,6 +81,7 @@ internal fun LibraryHomeContent(
     onTrackSelected: (String) -> Unit,
     trackSelectionState: TrackSelectionState = TrackSelectionState(),
     onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
+    bottomContentPadding: Dp = 0.dp,
 ) {
     val selectionPageKey = TrackSelectionPageKey.HomeSongs
     val selectionModeActive = trackSelectionState.pageKey == selectionPageKey && trackSelectionState.selectedTrackIds.isNotEmpty()
@@ -233,7 +233,7 @@ internal fun LibraryHomeContent(
                             }
                         }
                     }
-                    item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
+                    item { Spacer(Modifier.height(bottomContentPadding)) }
                 }
             }
         }

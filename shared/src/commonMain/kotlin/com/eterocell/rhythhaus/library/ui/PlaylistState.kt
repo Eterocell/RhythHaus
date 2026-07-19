@@ -24,10 +24,14 @@ data class PlaylistSnapshot(
 }
 
 data class PlaylistPickerState(
-    val trackId: String,
+    val trackIds: List<String>,
     val selectedPlaylistId: String? = null,
     val enteredName: String = "",
-)
+) {
+    init {
+        require(trackIds.isNotEmpty() && trackIds.all(String::isNotBlank))
+    }
+}
 
 data class PlaylistBrowserState(
     val playlistId: String,

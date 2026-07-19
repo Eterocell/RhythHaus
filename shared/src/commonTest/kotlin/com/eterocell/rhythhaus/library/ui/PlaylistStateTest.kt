@@ -12,6 +12,7 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -147,7 +148,7 @@ class PlaylistStateTest {
     @Test
     fun recoverableMutationFailureRetainsConfirmedSnapshotAndPickerState() {
         val snapshot = PlaylistSnapshot(playlists = listOf(playlist("playlist-1")))
-        val picker = PlaylistPickerState(trackId = "track-1", enteredName = "Road trip")
+        val picker = PlaylistPickerState(trackIds = listOf("track-2", "track-1"), enteredName = "Road trip")
 
         val state = reducePlaylistState(
             PlaylistState(confirmedSnapshot = snapshot, picker = picker),

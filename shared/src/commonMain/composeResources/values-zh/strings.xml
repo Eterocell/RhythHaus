@@ -21,6 +21,10 @@
     <string name="play">播放</string>
     <string name="pause">暂停</string>
     <string name="select_track_format">选择曲目 %1$s</string>
+    <string name="selection_count_one">已选择 %1$d 首曲目</string>
+    <string name="selection_count_many">已选择 %1$d 首曲目</string>
+    <string name="selection_cancel">取消选择</string>
+    <string name="selection_add_to_playlist">将所选曲目添加到播放列表</string>
     <string name="album_accessibility_format">专辑 %1$s</string>
     <string name="artist_accessibility_format">艺术家 %1$s</string>
     <string name="track_artist_album_format">%1$s · %2$s</string>

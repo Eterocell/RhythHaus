@@ -60,6 +60,85 @@ fun shouldShowNowPlayingBar(
     existingVisibility: Boolean,
 ): Boolean = existingVisibility && routePermitsNowPlayingBar(route)
 
+sealed interface LibraryBottomBarContent {
+    data object Hidden : LibraryBottomBarContent
+    data object NowPlaying : LibraryBottomBarContent
+    data class Selection(val selectedCount: Int) : LibraryBottomBarContent
+}
+
+fun libraryBottomBarContent(
+    route: LibraryRoute,
+    selectionState: TrackSelectionState,
+    isNowPlayingVisible: Boolean,
+): LibraryBottomBarContent {
+    val selectionMatchesVisibleSurface = when (val pageKey = selectionState.pageKey) {
+        TrackSelectionPageKey.HomeSongs -> route == LibraryRoute.Home || route is LibraryRoute.AlbumDetail ||
+            route is LibraryRoute.ArtistDetail || route is LibraryRoute.PlaylistDetail
+        is TrackSelectionPageKey.Album -> route == LibraryRoute.AlbumDetail(pageKey.album)
+        is TrackSelectionPageKey.Artist -> route == LibraryRoute.ArtistDetail(pageKey.artist)
+        TrackSelectionPageKey.Search -> route == LibraryRoute.Search
+        null -> false
+    }
+    return when {
+        selectionMatchesVisibleSurface &&
+            selectionState.selectedTrackIds.isNotEmpty() &&
+            routePermitsNowPlayingBar(route) ->
+            LibraryBottomBarContent.Selection(selectionState.selectedTrackIds.size)
+        shouldShowNowPlayingBar(route, isNowPlayingVisible) -> LibraryBottomBarContent.NowPlaying
+        else -> LibraryBottomBarContent.Hidden
+    }
+}
+
+data class LibraryBottomBarMeasurement(
+    val content: LibraryBottomBarContent,
+    val heightPx: Int,
+)
+
+fun activeBottomBarClearancePx(
+    content: LibraryBottomBarContent,
+    measurement: LibraryBottomBarMeasurement?,
+): Int = if (content == LibraryBottomBarContent.Hidden || measurement?.content != content) {
+    0
+} else {
+    measurement.heightPx.coerceAtLeast(0)
+}
+
+fun activeBottomBarAlpha(
+    content: LibraryBottomBarContent,
+    measurement: LibraryBottomBarMeasurement?,
+    hiddenFraction: Float,
+): Float = if (activeBottomBarClearancePx(content, measurement) == 0) {
+    0f
+} else {
+    1f - hiddenFraction.coerceIn(0f, 1f)
+}
+
+enum class LibraryBackDecision {
+    CancelSelection,
+    HideNowPlaying,
+    PopRoute,
+    None,
+}
+
+fun libraryBackDecision(
+    selectionState: TrackSelectionState,
+    isNowPlayingExpanded: Boolean,
+    canPopRoute: Boolean,
+): LibraryBackDecision = when {
+    selectionState.selectedTrackIds.isNotEmpty() -> LibraryBackDecision.CancelSelection
+    isNowPlayingExpanded -> LibraryBackDecision.HideNowPlaying
+    canPopRoute -> LibraryBackDecision.PopRoute
+    else -> LibraryBackDecision.None
+}
+
+fun trackSelectionPageKeyFor(route: LibraryRoute, browseMode: BrowseMode): TrackSelectionPageKey? = when (route) {
+    LibraryRoute.Home -> TrackSelectionPageKey.HomeSongs.takeIf { browseMode == BrowseMode.Songs }
+    is LibraryRoute.AlbumDetail -> TrackSelectionPageKey.Album(route.album)
+    is LibraryRoute.ArtistDetail -> TrackSelectionPageKey.Artist(route.artist)
+    LibraryRoute.Search -> TrackSelectionPageKey.Search
+    else -> null
+}
+
 fun nowPlayingBarOffsetPx(hiddenFraction: Float, measuredHeightPx: Int): Int =
     (hiddenFraction.coerceIn(0f, 1f) * measuredHeightPx).roundToInt()
 
