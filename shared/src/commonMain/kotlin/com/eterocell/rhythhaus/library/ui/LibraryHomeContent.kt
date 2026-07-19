@@ -68,7 +68,11 @@ internal fun LibraryHomeContent(
     onShowPlaylists: () -> Unit,
     onAddToPlaylist: (String) -> Unit,
     onTrackSelected: (String) -> Unit,
+    trackSelectionState: TrackSelectionState = TrackSelectionState(),
+    onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
 ) {
+    val selectionPageKey = TrackSelectionPageKey.HomeSongs
+    val selectionModeActive = trackSelectionState.pageKey == selectionPageKey && trackSelectionState.selectedTrackIds.isNotEmpty()
     Box(modifier = Modifier.fillMaxSize()) {
         val homeTopContentPadding = libraryHomeTopContentPadding(rememberSystemBarTopPadding())
         Box(
@@ -145,7 +149,12 @@ internal fun LibraryHomeContent(
                     item {
                         BrowseModePicker(
                             browseMode = browseMode,
-                            onModeChange = onBrowseModeChange,
+                            onModeChange = { nextMode ->
+                                if (browseMode == BrowseMode.Songs && nextMode != BrowseMode.Songs) {
+                                    onTrackSelectionAction(TrackSelectionAction.RouteChanged(null))
+                                }
+                                onBrowseModeChange(nextMode)
+                            },
                         )
                     }
                     when (browseMode) {
@@ -189,8 +198,10 @@ internal fun LibraryHomeContent(
                             items(snapshot.tracks, key = { it.id }) { track ->
                                 TrackRow(
                                     track = track,
-                                    selected = track.id == selectedTrackId,
-                                    onClick = {
+                                    isNowPlaying = track.id == selectedTrackId,
+                                    selectionModeActive = selectionModeActive,
+                                    isSelected = track.id in trackSelectionState.selectedTrackIds,
+                                    onPlay = {
                                         onTrackSelected(track.id)
                                         selectLibraryTrackForPlayback(
                                             playbackController = playbackController,
@@ -198,7 +209,12 @@ internal fun LibraryHomeContent(
                                             selectedTrackId = track.id,
                                         )
                                     },
-                                    onAddToPlaylist = { onAddToPlaylist(track.id) },
+                                    onToggleSelection = {
+                                        onTrackSelectionAction(TrackSelectionAction.Toggle(selectionPageKey, track.id))
+                                    },
+                                    onStartSelection = {
+                                        onTrackSelectionAction(TrackSelectionAction.Start(selectionPageKey, track.id))
+                                    },
                                 )
                             }
                         }

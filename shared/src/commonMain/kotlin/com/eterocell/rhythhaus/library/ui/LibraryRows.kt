@@ -29,7 +29,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,13 +71,27 @@ import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
 import com.eterocell.rhythhaus.formatDuration
 import com.eterocell.rhythhaus.ui.hausClickable
+import com.eterocell.rhythhaus.ui.hausCombinedClickable
 import com.eterocell.rhythhaus.importCardDescription
 import com.eterocell.rhythhaus.importCardTitle
 import com.eterocell.rhythhaus.importCardTitleWithTracks
 import rhythhaus.shared.generated.resources.browse_mode_albums
 import rhythhaus.shared.generated.resources.browse_mode_artists
 import rhythhaus.shared.generated.resources.browse_mode_songs
-import rhythhaus.shared.generated.resources.playlist_add_to
+import top.yukonga.miuix.kmp.basic.Checkbox
+
+enum class TrackRowGesture { Click, LongClick }
+
+enum class TrackRowActivation { Play, ToggleSelection, StartSelection }
+
+fun trackRowActivation(
+    selectionModeActive: Boolean,
+    gesture: TrackRowGesture,
+): TrackRowActivation = when {
+    selectionModeActive -> TrackRowActivation.ToggleSelection
+    gesture == TrackRowGesture.LongClick -> TrackRowActivation.StartSelection
+    else -> TrackRowActivation.Play
+}
 
 @Composable
 internal fun HeaderSection(snapshot: LibrarySnapshot) {
@@ -221,24 +238,50 @@ internal fun SectionLabel(title: String, subtitle: String?) {
 @Composable
 internal fun TrackRow(
     track: Track,
-    selected: Boolean,
-    onClick: () -> Unit,
-    onAddToPlaylist: (() -> Unit)? = null,
+    isNowPlaying: Boolean,
+    selectionModeActive: Boolean,
+    isSelected: Boolean,
+    onPlay: () -> Unit,
+    onToggleSelection: () -> Unit,
+    onStartSelection: () -> Unit,
 ) {
     val selectTrackContentDescription = stringResource(Res.string.select_track_format, track.title)
+    val nowPlayingDescription = stringResource(Res.string.now_playing_badge)
+    fun activate(gesture: TrackRowGesture) {
+        when (trackRowActivation(selectionModeActive, gesture)) {
+            TrackRowActivation.Play -> onPlay()
+            TrackRowActivation.ToggleSelection -> onToggleSelection()
+            TrackRowActivation.StartSelection -> onStartSelection()
+        }
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(if (selected) HausColors.current.panelStrong else HausColors.current.panel.copy(alpha = 0.54f))
-            .border(1.dp, if (selected) HausColors.current.ink else HausColors.current.line, RoundedCornerShape(24.dp))
-            .hausClickable(onClick = onClick)
-            .semantics { contentDescription = selectTrackContentDescription }
+            .background(if (isNowPlaying || isSelected) HausColors.current.panelStrong else HausColors.current.panel.copy(alpha = 0.54f))
+            .border(1.dp, if (isSelected) HausColors.current.ink else HausColors.current.line, RoundedCornerShape(24.dp))
+            .hausCombinedClickable(
+                onClick = { activate(TrackRowGesture.Click) },
+                onLongClick = { activate(TrackRowGesture.LongClick) },
+                onLongClickLabel = selectTrackContentDescription,
+            )
+            .semantics {
+                contentDescription = selectTrackContentDescription
+                if (selectionModeActive) toggleableState = if (isSelected) ToggleableState.On else ToggleableState.Off
+                if (isNowPlaying) stateDescription = nowPlayingDescription
+            }
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        AlbumMark(track = track, selected = selected)
+        if (selectionModeActive) {
+            Checkbox(
+                state = if (isSelected) ToggleableState.On else ToggleableState.Off,
+                onClick = onToggleSelection,
+                modifier = Modifier.size(44.dp),
+            )
+        }
+        AlbumMark(track = track, selected = isNowPlaying)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
                 text = track.title,
@@ -256,7 +299,7 @@ internal fun TrackRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            AnimatedVisibility(visible = selected) {
+            AnimatedVisibility(visible = isNowPlaying) {
                 Text(
                     text = stringResource(Res.string.now_playing_badge),
                     color = HausColors.current.pulse,
@@ -267,27 +310,10 @@ internal fun TrackRow(
         }
         Text(
             text = formatDuration(track.durationSeconds),
-            color = if (selected) HausColors.current.ink else HausColors.current.muted,
+            color = if (isNowPlaying || isSelected) HausColors.current.ink else HausColors.current.muted,
             fontSize = 13.sp,
             fontWeight = FontWeight.Black,
         )
-        if (onAddToPlaylist != null) {
-            val addLabel = stringResource(Res.string.playlist_add_to)
-            Button(
-                onClick = onAddToPlaylist,
-                modifier = Modifier
-                    .height(40.dp)
-                    .semantics { contentDescription = "$addLabel ${track.title}" },
-                cornerRadius = 12.dp,
-                insideMargin = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    color = HausColors.current.panelStrong,
-                    contentColor = HausColors.current.ink,
-                ),
-            ) {
-                Text("⋯", fontSize = 18.sp, fontWeight = FontWeight.Black)
-            }
-        }
     }
 }
 

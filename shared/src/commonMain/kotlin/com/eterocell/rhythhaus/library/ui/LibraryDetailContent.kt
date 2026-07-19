@@ -86,10 +86,13 @@ internal fun DrillDownView(
     onExpandNowPlaying: (Track) -> Unit,
     onShowSettings: () -> Unit = {},
     onShowSearch: () -> Unit = {},
-    onAddToPlaylist: (String) -> Unit = {},
+    selectionPageKey: TrackSelectionPageKey,
+    trackSelectionState: TrackSelectionState = TrackSelectionState(),
+    onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
     isNowPlayingBarVisible: Boolean = true,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
 ) {
+    val selectionModeActive = trackSelectionState.pageKey == selectionPageKey && trackSelectionState.selectedTrackIds.isNotEmpty()
     var selectedTrackId by remember { mutableStateOf(selectedTrack?.id) }
     LaunchedEffect(playbackState.currentTrack?.id) {
         playbackState.currentTrack?.id?.let { selectedTrackId = it }
@@ -194,11 +197,14 @@ internal fun DrillDownView(
                             DrillDownListItem {
                                 DrillDownTrackRow(
                                     track = track,
-                                    selected = track.id == selectedTrackId,
+                                    isNowPlaying = track.id == selectedTrackId,
+                                    selectionModeActive = selectionModeActive,
+                                    isSelected = track.id in trackSelectionState.selectedTrackIds,
                                     onSelected = { selectedTrackId = track.id },
                                     onTrackClick = onTrackClick,
                                     onPlayPause = onPlayPause,
-                                    onAddToPlaylist = onAddToPlaylist,
+                                    selectionPageKey = selectionPageKey,
+                                    onTrackSelectionAction = onTrackSelectionAction,
                                 )
                             }
                         }
@@ -210,11 +216,14 @@ internal fun DrillDownView(
                         items(tracks, key = { it.id }) { track ->
                             DrillDownTrackRow(
                                 track = track,
-                                selected = track.id == selectedTrackId,
+                                isNowPlaying = track.id == selectedTrackId,
+                                selectionModeActive = selectionModeActive,
+                                isSelected = track.id in trackSelectionState.selectedTrackIds,
                                 onSelected = { selectedTrackId = track.id },
                                 onTrackClick = onTrackClick,
                                 onPlayPause = onPlayPause,
-                                onAddToPlaylist = onAddToPlaylist,
+                                selectionPageKey = selectionPageKey,
+                                onTrackSelectionAction = onTrackSelectionAction,
                             )
                         }
                         item { Spacer(Modifier.height(NowPlayingBarContentPadding)) }
@@ -290,16 +299,21 @@ private fun DrillDownListItem(
 @Composable
 private fun DrillDownTrackRow(
     track: Track,
-    selected: Boolean,
+    isNowPlaying: Boolean,
+    selectionModeActive: Boolean,
+    isSelected: Boolean,
     onSelected: () -> Unit,
     onTrackClick: (Track) -> Unit,
     onPlayPause: () -> Unit,
-    onAddToPlaylist: (String) -> Unit,
+    selectionPageKey: TrackSelectionPageKey,
+    onTrackSelectionAction: (TrackSelectionAction) -> Unit,
 ) {
     TrackRow(
         track = track,
-        selected = selected,
-        onClick = {
+        isNowPlaying = isNowPlaying,
+        selectionModeActive = selectionModeActive,
+        isSelected = isSelected,
+        onPlay = {
             onSelected()
             dispatchDrillDownAction(
                 action = DrillDownAction.SelectTrack(track),
@@ -307,6 +321,11 @@ private fun DrillDownTrackRow(
                 onPlayPause = onPlayPause,
             )
         },
-        onAddToPlaylist = { onAddToPlaylist(track.id) },
+        onToggleSelection = {
+            onTrackSelectionAction(TrackSelectionAction.Toggle(selectionPageKey, track.id))
+        },
+        onStartSelection = {
+            onTrackSelectionAction(TrackSelectionAction.Start(selectionPageKey, track.id))
+        },
     )
 }

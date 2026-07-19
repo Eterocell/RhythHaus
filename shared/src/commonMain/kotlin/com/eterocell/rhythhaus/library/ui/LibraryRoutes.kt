@@ -96,6 +96,8 @@ internal fun LibraryRouteOverlays(
     onShowOpenSourceLibraries: () -> Unit,
     onDismiss: () -> Unit,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit,
+    trackSelectionState: TrackSelectionState = TrackSelectionState(),
+    onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
 ) {
     when (route) {
         LibraryRoute.Settings -> SettingsScreen(
@@ -121,13 +123,10 @@ internal fun LibraryRouteOverlays(
             tagLibReader = tagLibReader,
             playbackController = playbackController,
             playbackState = playbackState,
-            onAddToPlaylist = { trackId ->
-                onPlaylistStateAction(
-                    PlaylistStateAction.OpenPicker(PlaylistPickerState(trackId = trackId)),
-                )
-            },
             onDismiss = onDismiss,
             onScrollPositionChanged = onScrollPositionChanged,
+            trackSelectionState = trackSelectionState,
+            onTrackSelectionAction = onTrackSelectionAction,
         )
 
         LibraryRoute.SettingsAbout -> SettingsAboutScreen(
@@ -175,6 +174,8 @@ internal fun LibraryRouteContent(
     onShowSearch: () -> Unit,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit,
     homeContent: @Composable ((LibraryRoute) -> Unit) -> Unit,
+    trackSelectionState: TrackSelectionState = TrackSelectionState(),
+    onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
 ) {
     when (route) {
         is LibraryRoute.AlbumDetail -> {
@@ -205,9 +206,9 @@ internal fun LibraryRouteContent(
                     onExpandNowPlaying = onExpandNowPlaying,
                     onShowSettings = onShowSettings,
                     onShowSearch = onShowSearch,
-                    onAddToPlaylist = { trackId ->
-                        onPlaylistStateAction(openAddToPlaylistPickerAction(trackId))
-                    },
+                    selectionPageKey = TrackSelectionPageKey.Album(album.album),
+                    trackSelectionState = trackSelectionState,
+                    onTrackSelectionAction = onTrackSelectionAction,
                     isNowPlayingBarVisible = isNowPlayingBarVisible,
                     onScrollPositionChanged = onScrollPositionChanged,
                 )
@@ -242,9 +243,9 @@ internal fun LibraryRouteContent(
                     onExpandNowPlaying = onExpandNowPlaying,
                     onShowSettings = onShowSettings,
                     onShowSearch = onShowSearch,
-                    onAddToPlaylist = { trackId ->
-                        onPlaylistStateAction(openAddToPlaylistPickerAction(trackId))
-                    },
+                    selectionPageKey = TrackSelectionPageKey.Artist(artist.artist),
+                    trackSelectionState = trackSelectionState,
+                    onTrackSelectionAction = onTrackSelectionAction,
                     isNowPlayingBarVisible = isNowPlayingBarVisible,
                     onScrollPositionChanged = onScrollPositionChanged,
                 )

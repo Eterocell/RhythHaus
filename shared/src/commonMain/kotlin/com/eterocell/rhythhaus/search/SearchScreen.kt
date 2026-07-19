@@ -12,7 +12,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -26,7 +29,7 @@ import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
-import com.eterocell.rhythhaus.ui.hausClickable
+import com.eterocell.rhythhaus.ui.hausCombinedClickable
 import com.eterocell.rhythhaus.toPlayableTrack
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
@@ -40,7 +43,6 @@ import rhythhaus.shared.generated.resources.search_placeholder
 import rhythhaus.shared.generated.resources.search_results_count_many
 import rhythhaus.shared.generated.resources.search_results_count_one
 import rhythhaus.shared.generated.resources.search_results_count_zero
-import rhythhaus.shared.generated.resources.playlist_add_track_accessibility_format
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
@@ -48,7 +50,15 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import com.eterocell.rhythhaus.library.ui.EqualizerStrip
 import com.eterocell.rhythhaus.library.ui.LibraryScrollPosition
-import com.eterocell.rhythhaus.library.ui.searchAddToPlaylistPresentation
+import com.eterocell.rhythhaus.library.ui.TrackRowActivation
+import com.eterocell.rhythhaus.library.ui.TrackRowGesture
+import com.eterocell.rhythhaus.library.ui.TrackSelectionAction
+import com.eterocell.rhythhaus.library.ui.TrackSelectionPageKey
+import com.eterocell.rhythhaus.library.ui.TrackSelectionState
+import com.eterocell.rhythhaus.library.ui.trackRowActivation
+import rhythhaus.shared.generated.resources.now_playing_badge
+import rhythhaus.shared.generated.resources.select_track_format
+import top.yukonga.miuix.kmp.basic.Checkbox
 
 @Composable
 fun SearchScreen(
@@ -56,9 +66,10 @@ fun SearchScreen(
     tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     playbackState: PlaybackState,
-    onAddToPlaylist: (String) -> Unit,
     onDismiss: () -> Unit,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
+    trackSelectionState: TrackSelectionState = TrackSelectionState(),
+    onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var query by remember { mutableStateOf("") }
@@ -75,6 +86,13 @@ fun SearchScreen(
                     track.album.contains(query, ignoreCase = true)
             }
         }
+    }
+    val selectionPageKey = TrackSelectionPageKey.Search
+    val selectionModeActive = trackSelectionState.pageKey == selectionPageKey && trackSelectionState.selectedTrackIds.isNotEmpty()
+    val visibleTrackIds = filtered.map(LibraryTrack::id)
+
+    LaunchedEffect(visibleTrackIds) {
+        onTrackSelectionAction(TrackSelectionAction.ReconcileVisible(selectionPageKey, visibleTrackIds))
     }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -181,7 +199,9 @@ fun SearchScreen(
                                     track = track,
                                     isNowPlaying = playbackState.currentTrack?.id == track.id,
                                     isPlaying = playbackState.isPlaying,
-                                    onClick = {
+                                    selectionModeActive = selectionModeActive,
+                                    isSelected = track.id in trackSelectionState.selectedTrackIds,
+                                    onPlay = {
                                         selectLibraryTrackForPlayback(
                                             playbackController = playbackController,
                                             visibleQueue = filtered.map { it.toPlayableTrack() },
@@ -189,7 +209,12 @@ fun SearchScreen(
                                         )
                                         onDismiss()
                                     },
-                                    onAddToPlaylist = { onAddToPlaylist(track.id) },
+                                    onToggleSelection = {
+                                        onTrackSelectionAction(TrackSelectionAction.Toggle(selectionPageKey, track.id))
+                                    },
+                                    onStartSelection = {
+                                        onTrackSelectionAction(TrackSelectionAction.Start(selectionPageKey, track.id))
+                                    },
                                 )
                             }
                             item { Spacer(Modifier.height(80.dp)) }
@@ -213,16 +238,34 @@ private fun SearchResultRow(
     track: LibraryTrack,
     isNowPlaying: Boolean,
     isPlaying: Boolean,
-    onClick: () -> Unit,
-    onAddToPlaylist: () -> Unit,
+    selectionModeActive: Boolean,
+    isSelected: Boolean,
+    onPlay: () -> Unit,
+    onToggleSelection: () -> Unit,
+    onStartSelection: () -> Unit,
 ) {
-    val addPresentation = searchAddToPlaylistPresentation(track.id, track.title)
-    val addToPlaylistLabel = stringResource(
-        Res.string.playlist_add_track_accessibility_format,
-        addPresentation.trackTitle,
-    )
+    val selectTrackLabel = stringResource(Res.string.select_track_format, track.title)
+    val nowPlayingDescription = stringResource(Res.string.now_playing_badge)
+    fun activate(gesture: TrackRowGesture) {
+        when (trackRowActivation(selectionModeActive, gesture)) {
+            TrackRowActivation.Play -> onPlay()
+            TrackRowActivation.ToggleSelection -> onToggleSelection()
+            TrackRowActivation.StartSelection -> onStartSelection()
+        }
+    }
     Surface(
-        modifier = Modifier.fillMaxWidth().hausClickable(onClick = onClick),
+        modifier = Modifier
+            .fillMaxWidth()
+            .hausCombinedClickable(
+                onClick = { activate(TrackRowGesture.Click) },
+                onLongClick = { activate(TrackRowGesture.LongClick) },
+                onLongClickLabel = selectTrackLabel,
+            )
+            .semantics {
+                contentDescription = selectTrackLabel
+                if (selectionModeActive) toggleableState = if (isSelected) ToggleableState.On else ToggleableState.Off
+                if (isNowPlaying) stateDescription = nowPlayingDescription
+            },
         shape = RoundedCornerShape(12.dp),
         color = if (isNowPlaying) HausColors.current.panel else HausColors.current.paper,
     ) {
@@ -230,6 +273,14 @@ private fun SearchResultRow(
             modifier = Modifier.padding(12.dp, 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (selectionModeActive) {
+                Checkbox(
+                    state = if (isSelected) ToggleableState.On else ToggleableState.Off,
+                    onClick = onToggleSelection,
+                    modifier = Modifier.size(44.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = track.title,
@@ -247,15 +298,6 @@ private fun SearchResultRow(
             }
             if (isNowPlaying && isPlaying) {
                 EqualizerStrip(active = true)
-            }
-            IconButton(
-                onClick = onAddToPlaylist,
-                modifier = Modifier.semantics { contentDescription = addToPlaylistLabel },
-                backgroundColor = Color.Transparent,
-                minWidth = 40.dp,
-                minHeight = 40.dp,
-            ) {
-                Text("⋯", color = HausColors.current.ink, fontSize = 18.sp, fontWeight = FontWeight.Black)
             }
         }
     }
