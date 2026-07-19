@@ -166,3 +166,72 @@ All commits include the required Sisyphus footer and co-author trailer:
 - Controller-owned evidence and OpenSpec task status: preserved and intentionally unstaged per user instruction.
 - Next owner: controller/Task 9 for real JVM end-to-end integration, platform panel exercise, target runtime visual QA, OpenSpec lifecycle updates, and final change-wide evidence.
 - Blockers: none for Task 8 focused implementation. Pixel/runtime and Task 9 integration evidence remain explicitly deferred to their owning task.
+
+## Independent-review follow-up - 2026-07-19
+
+This appendix supersedes the earlier line that accepted eager preview composition. The preview now uses a bounded lazy body and no pixel/runtime QA claim is added.
+
+### Findings resolved
+
+- Decoder recovery now maps every `PlaylistBackupValidationError` exhaustively. Playlist-count, per-playlist-entry-count, total-entry-count, string-length, blank-name, and invalid-duration errors map to the dedicated `PlaylistBackupUiError.InvalidData`; malformed UTF-8/JSON/shape/numeric/canonical errors remain `Malformed`, while oversized/checksum/unsupported outcomes remain distinct. English and Chinese now use separate syntax/structure and invalid-field-value messages.
+- `PlaylistBackupPreviewDialog` now uses `HausLazyDialog`: the body is one bounded `LazyColumn`, while actions remain fixed outside it. Reports and issues are keyed lazy items. Reports are indexed once with `associateBy(sourcePlaylistIndex)`, and every issue resolves its playlist name through O(1) map access.
+- The maximum valid preview test constructs 1,000 reports and 100,000 issues, proves the final issue semantics node is absent before scrolling, jumps directly to lazy index 101,001, proves the final issue becomes accessible, and proves the fixed confirm action remains present.
+- Stale/no-call, ordered duplicate mutation conversion, repository failure retention/no publication, success single snapshot publication/result totals, and cancellation propagation now all exercise `confirmPlaylistBackupImportSerialized`, the production path. The unused parallel `confirmPlaylistBackupImport` helper was removed.
+- App export preparation, import planning, and confirmation now share `runPlaylistBackupOperation`. The orchestration-level regression proves cancellation publishes idle state with the same preview before rethrowing `CancellationException`.
+
+### Strict RED evidence
+
+Command:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiStateTest' \
+  --tests 'com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDialogsSemanticsJvmTest' \
+  --tests 'com.eterocell.rhythhaus.AppScanCancellationTest.backupOrchestrationPublishesIdleRetainedPreviewBeforeRethrowingCancellation' \
+  --configuration-cache --rerun-tasks
+```
+
+Result: expected `:shared:compileTestKotlinJvm FAILED` on missing `PlaylistBackupUiError.InvalidData`, `PlaylistBackupPreviewListTag`, lazy preview API, and `runPlaylistBackupOperation`. No production test executed before those required APIs existed.
+
+The first lazy maximum-plan GREEN attempt compiled production and passed 18/19 focused tests, but `performScrollToNode` linearly searched 100,000 virtual targets and ended after 8m47s with `UncompletedCoroutinesError`. Root-cause correction changed the test to indexed `performScrollToIndex(101_001)` without weakening the pre-scroll absence/final-row accessibility assertions.
+
+### GREEN and gates
+
+Focused production-path command:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiStateTest' \
+  --tests 'com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDialogsSemanticsJvmTest' \
+  --tests 'com.eterocell.rhythhaus.AppScanCancellationTest.backupOrchestrationPublishesIdleRetainedPreviewBeforeRethrowingCancellation' \
+  --configuration-cache --rerun-tasks
+```
+
+Result: pass, `BUILD SUCCESSFUL in 11s`.
+
+Complete focused group:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.playlistbackup.*' \
+  --tests 'com.eterocell.rhythhaus.settings.SettingsScreenTest' \
+  --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.PlaylistStateTest' \
+  --tests 'com.eterocell.rhythhaus.library.PlaylistRepositoryContractTest' \
+  --tests 'com.eterocell.rhythhaus.library.PlaylistSqlDelightRepositoryJvmTest' \
+  --configuration-cache --rerun-tasks
+```
+
+Result: pass, `BUILD SUCCESSFUL in 11s`.
+
+Sequential full gates:
+
+```bash
+./gradlew :shared:jvmTest --configuration-cache
+./gradlew :desktopApp:compileKotlin --configuration-cache
+./gradlew :androidApp:assembleDebug --configuration-cache
+```
+
+Results: JVM pass in 12s; desktop pass in 517ms; Android pass in 8s with only the unchanged artwork metadata deprecation warning. `GIT_MASTER=1 git diff --check` passed. Kotlin LSP remains unavailable because installation was previously declined.
+
+Pixel/runtime QA remains unexecuted and unclaimed. The four controller-owned progress/generic-report/OpenSpec files remain preserved and unstaged.
