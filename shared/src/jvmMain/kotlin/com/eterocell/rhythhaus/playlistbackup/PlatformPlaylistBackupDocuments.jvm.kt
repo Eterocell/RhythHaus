@@ -65,14 +65,33 @@ internal fun openJvmPlaylistBackupDocument(
     PlaylistBackupDocumentOpenResult.Failure(exception.message ?: "Could not open playlist backup")
 }
 
-internal inline fun <T> withJvmDocumentDialogMode(block: () -> T): T {
+internal interface JvmSystemPropertyAccess {
+    fun get(key: String): String?
+    fun set(key: String, value: String)
+    fun clear(key: String)
+}
+
+private object RealJvmSystemPropertyAccess : JvmSystemPropertyAccess {
+    override fun get(key: String): String? = System.getProperty(key)
+    override fun set(key: String, value: String) {
+        System.setProperty(key, value)
+    }
+    override fun clear(key: String) {
+        System.clearProperty(key)
+    }
+}
+
+internal fun <T> withJvmDocumentDialogMode(
+    properties: JvmSystemPropertyAccess = RealJvmSystemPropertyAccess,
+    block: () -> T,
+): T {
     val key = "apple.awt.fileDialogForDirectories"
-    val previous = System.getProperty(key)
-    System.clearProperty(key)
+    val previous = properties.get(key)
+    properties.clear(key)
     return try {
         block()
     } finally {
-        if (previous == null) System.clearProperty(key) else System.setProperty(key, previous)
+        if (previous == null) properties.clear(key) else properties.set(key, previous)
     }
 }
 

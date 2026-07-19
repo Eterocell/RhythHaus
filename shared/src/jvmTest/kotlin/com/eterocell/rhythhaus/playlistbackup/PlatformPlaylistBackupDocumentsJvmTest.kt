@@ -8,6 +8,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertFailsWith
 
 class PlatformPlaylistBackupDocumentsJvmTest {
     @Test
@@ -91,6 +92,74 @@ class PlatformPlaylistBackupDocumentsJvmTest {
         val input = ZeroThenBytesInputStream(byteArrayOf(1, 2, 3))
 
         assertContentEquals(byteArrayOf(1, 2, 3), readJvmPlaylistBackupBounded(input))
+    }
+
+    @Test
+    fun boundedReaderReadsExactLimitAndOnlyLimitPlusOneFromLargerStreams() {
+        val exact = CountingInputStream(PlaylistBackupMaxBytes)
+        assertEquals(PlaylistBackupMaxBytes, readJvmPlaylistBackupBounded(exact).size)
+        assertEquals(PlaylistBackupMaxBytes, exact.bytesRead)
+
+        val plusOne = CountingInputStream(PlaylistBackupMaxBytes + 1)
+        assertEquals(PlaylistBackupMaxBytes + 1, readJvmPlaylistBackupBounded(plusOne).size)
+        assertEquals(PlaylistBackupMaxBytes + 1, plusOne.bytesRead)
+
+        val muchLarger = CountingInputStream(PlaylistBackupMaxBytes * 2)
+        assertEquals(PlaylistBackupMaxBytes + 1, readJvmPlaylistBackupBounded(muchLarger).size)
+        assertEquals(PlaylistBackupMaxBytes + 1, muchLarger.bytesRead)
+    }
+
+    @Test
+    fun dialogModeRestoresOriginallyAbsentPropertyAfterThrowingBlock() {
+        val properties = FakeJvmSystemPropertyAccess()
+
+        assertFailsWith<IllegalStateException> {
+            withJvmDocumentDialogMode(properties) {
+                assertNull(properties.get("apple.awt.fileDialogForDirectories"))
+                error("dialog failed")
+            }
+        }
+
+        assertNull(properties.get("apple.awt.fileDialogForDirectories"))
+    }
+
+    @Test
+    fun dialogModeRestoresExactExistingPropertyAfterThrowingBlock() {
+        val properties = FakeJvmSystemPropertyAccess("custom")
+
+        assertFailsWith<IllegalStateException> {
+            withJvmDocumentDialogMode(properties) { error("dialog failed") }
+        }
+
+        assertEquals("custom", properties.get("apple.awt.fileDialogForDirectories"))
+    }
+}
+
+private class CountingInputStream(private val size: Int) : InputStream() {
+    var bytesRead = 0
+
+    override fun read(target: ByteArray, offset: Int, length: Int): Int {
+        if (bytesRead >= size) return -1
+        val count = minOf(length, size - bytesRead)
+        target.fill(1, offset, offset + count)
+        bytesRead += count
+        return count
+    }
+
+    override fun read(): Int = if (bytesRead >= size) -1 else 1.also { bytesRead += 1 }
+}
+
+private class FakeJvmSystemPropertyAccess(initialValue: String? = null) : JvmSystemPropertyAccess {
+    private var value = initialValue
+
+    override fun get(key: String): String? = value
+
+    override fun set(key: String, value: String) {
+        this.value = value
+    }
+
+    override fun clear(key: String) {
+        value = null
     }
 }
 
