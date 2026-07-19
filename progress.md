@@ -3,15 +3,16 @@
 ## Handoff - 2026-07-19 track-multi-select-playlist-backup Task 9
 
 Route: openspec+superpowers / integration, supported-platform verification, runtime/visual QA attempt, and final review
-Owner: automated implementation/evidence complete; next owner is user/manual runtime and visual QA
+Owner: privacy and exact-count findings addressed; final-head evidence pending before user/manual runtime and visual QA
 Input: `.superpowers/sdd/task-9-brief.md`, accepted Tasks 1-8 through `4462380`, and approved OpenSpec change
 Output:
 - Added and committed real temporary-database integration acceptance as `0f48f45 test: verify playlist backup integration`.
 - Final review exposed iOS short-read oversized-detection risk; strict native RED/GREEN fixed bounded accumulation and committed `912e6e4 fix: bound iOS playlist backup reads`.
-- Final goal/spec and bounded-read adjudication PASS with no Critical or Important finding.
+- The bounded-read defect remains fixed. Commit `5741a4d5233ac1f5b0ec3a70aa7a259153bb5cbc` adds 80 exhaustive local-only canary assertions across every exported entry; exact focused XML counts have been regenerated. Final acceptance still awaits post-evidence-commit HEAD hygiene under 9.4.
 Verification:
-- Complete focused Task 1-8 JVM matrix + integration, forced: pass (`BUILD SUCCESSFUL in 14s`; 35/35 tasks).
-- Focused Android-host adapter, forced: pass (`BUILD SUCCESSFUL in 7s`; 52/52 tasks).
+- Exact forced Task 1-8 JVM matrix command is recorded in `.superpowers/sdd/track-multi-select-playlist-backup-task-9-report.md`; fresh XML: 20 selected suites, 272 tests, 0 failures, 0 errors, 0 skipped.
+- Exact focused Android-host adapter command: `./gradlew :shared:testAndroidHostTest --tests 'com.eterocell.rhythhaus.playlistbackup.PlatformPlaylistBackupDocumentsAndroidTest' --configuration-cache --rerun-tasks`; fresh XML: 10 tests, 0 failures, 0 errors, 0 skipped.
+- Controlled privacy-helper RED: exact focused command ran 1 test, failed 1 on injected `private-source-id-alpha`, skipped 0; the temporary leak test was removed. Unchanged-production integration GREEN: 1 test, 0 failures/errors/skips. No production source changed.
 - `openspec validate track-multi-select-playlist-backup --strict`: pass.
 - `./gradlew :shared:jvmTest :shared:testAndroidHostTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 7s`; 125 tasks) before final fix; post-fix pass (`BUILD SUCCESSFUL in 517ms`; 116 tasks).
 - Xcode 26.6 build 17F113; full `:shared:iosSimulatorArm64Test` pass (`BUILD SUCCESSFUL in 36s`) and post-fix pass.
@@ -23,7 +24,7 @@ Runtime/visual QA:
 - `adb devices -l`: no Android device/emulator.
 - Unverified, not passes: desktop/mobile long press, tap/touch, checkbox/accessibility actions, navigation/Search cleanup, picker and Settings system panels, actual import/export paths, compact/wide, light/dark, English/Chinese/CJK, focus, row fit, contextual-bar clearance/mutual exclusion, and preview late-row pixels.
 Acceptance:
-- OpenSpec 8.1-8.3 and 9.4 complete. OpenSpec 9.1-9.3 remain open for unavailable runtime/system-panel/visual acceptance.
+- OpenSpec 8.1-8.3 are complete. OpenSpec 9.4 remains open until post-evidence-commit final-head hygiene. OpenSpec 9.1-9.3 remain open for unavailable runtime/system-panel/visual acceptance.
 - No archive or push. Generic `.superpowers/sdd/task-1-report.md` and `task-2-report.md` remain preserved and must not be staged.
 Changed lifecycle files:
 - `.superpowers/sdd/track-multi-select-playlist-backup-task-9-report.md`
@@ -31,8 +32,8 @@ Changed lifecycle files:
 - `openspec/changes/track-multi-select-playlist-backup/tasks.md`
 - `progress.md`
 - `roadmap.md`
-Next safe action: perform Task 9.1-9.3 manually with attachable accessibility/device tooling and renderable screenshots; archive only after explicit request.
-Blockers: runtime/system-panel and visual acceptance only; no automated, build, review, or diff-hygiene blocker.
+Next safe action: commit corrected lifecycle evidence, run final-head diff hygiene, record it in a final evidence commit, then perform Task 9.1-9.3 manually later; archive only after explicit request.
+Blockers: final-head hygiene/9.4 only for automated closure; runtime/system-panel and visual acceptance remain separately unavailable.
 
 ## Handoff - 2026-07-19 playlist-dialog-polish Task 5 verification
 

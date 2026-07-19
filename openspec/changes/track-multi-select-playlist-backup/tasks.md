@@ -55,4 +55,4 @@
 - [ ] 9.1 Exercise supported-page long press/tap, checkbox and accessibility toggles, Back/navigation/Search reconciliation, contextual-bar clearance, picker dismissal/failure/success, and now-playing coexistence on available runtimes.
 - [ ] 9.2 Exercise Android, iOS, and JVM system panels plus valid, cancelled, oversized, malformed, stale, conflicting, unmatched, ambiguous, repeated, and failed import paths where targets are available.
 - [ ] 9.3 Run visual QA for compact/wide, light/dark, English/Chinese, checkbox and row fit, focus order, bottom-bar mutual exclusion, and long preview reports; record unavailable target states as unverified.
-- [x] 9.4 Complete task-scoped and final code review with no open Critical or Important finding, update `progress.md`, `roadmap.md`, and task reports with exact evidence, and leave archival for an explicit later request.
+- [ ] 9.4 Complete task-scoped and final code review with no open Critical or Important finding, update `progress.md`, `roadmap.md`, and task reports with exact evidence, and leave archival for an explicit later request.

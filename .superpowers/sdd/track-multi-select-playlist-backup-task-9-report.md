@@ -8,6 +8,34 @@
 - Review-fix commit: `912e6e4 fix: bound iOS playlist backup reads`.
 - No archive or push was performed. No schema, migration, dependency, toolchain, cloud-sync, raw-database-backup, unsupported-platform, or unrelated playback change was introduced.
 
+## Review correction in progress
+
+The final controller review reopened OpenSpec 8.1, 8.2, and 9.4 because the privacy proof used representative forbidden values instead of a distinctive canary for every seeded local-only field and the focused-test evidence recorded Gradle task counts rather than exact executed-test and skip counts. Commit `5741a4d5233ac1f5b0ec3a70aa7a259153bb5cbc` addresses the test finding, and the exact focused evidence below addresses the count finding. OpenSpec 8.1 and 8.2 are complete again; 9.4 remains pending until the evidence-correction commit is checked at its own HEAD. OpenSpec 8.3 remains complete; 9.1-9.3 remain open and unverified.
+
+### Exhaustive encoded-byte privacy proof
+
+- Each of the five exported tracks now has a distinct source and distinct canaries for track ID, source ID, source display name, source handle/path, source created timestamp, source-local key, audio-source path/identifier, track display name/path, size, modified/created/updated timestamps, scan ID, artwork MIME, raw searchable artwork text, and Base64 artwork payload: 16 canaries per entry, 80 assertions total.
+- The alpha scan canary is exactly `private-scan`; the other four scan values are separately distinctive. Every exported entry is covered rather than a representative subset.
+- Positive portable-wire assertions remain for canonical format/key order, playlist names/order, title, artist, album, duration, duplicate Alpha entries, and lowercase eight-character CRC32.
+- Controlled proof-gap RED: a temporary test passed `controlled-prefix-private-source-id-alpha-controlled-suffix` to the same helper. Exact command: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.playlistbackup.PlaylistBackupIntegrationJvmTest.localOnlyCanaryAssertionRejectsAControlledLeak' --configuration-cache --rerun-tasks`. XML/Gradle recorded 1 test, 1 failure, 0 skipped; the assertion failed on the injected source-ID canary. The temporary leaking test was then removed.
+- Unchanged-production GREEN: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.playlistbackup.PlaylistBackupIntegrationJvmTest' --configuration-cache --rerun-tasks` passed; fresh XML records 1 test, 0 failures, 0 errors, 0 skipped. No production source changed and no production leak was exposed; this is evidence-strengthening, not a production RED/fix.
+
+### Exact focused Task 1-8 JVM evidence
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.TrackSelectionStateTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistStateTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' --tests 'com.eterocell.rhythhaus.BottomBarModeTest' --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --tests 'com.eterocell.rhythhaus.library.ui.TrackSelectionSemanticsJvmTest' --tests 'com.eterocell.rhythhaus.library.ui.Task3ReviewSemanticsJvmTest' --tests 'com.eterocell.rhythhaus.search.SearchSelectionPoliciesJvmTest' --tests 'com.eterocell.rhythhaus.playlistbackup.*' --tests 'com.eterocell.rhythhaus.settings.SettingsScreenTest' --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --tests 'com.eterocell.rhythhaus.library.PlaylistRepositoryContractTest' --tests 'com.eterocell.rhythhaus.library.PlaylistSqlDelightRepositoryJvmTest' --configuration-cache --rerun-tasks
+```
+
+Result: `BUILD SUCCESSFUL in 15s`; 35/35 Gradle tasks executed. Fresh `shared/build/test-results/jvmTest/TEST-*.xml` contains 20 selected suites and exactly 272 tests, 0 failures, 0 errors, 0 skipped. This includes the 1-test strengthened integration suite.
+
+### Exact focused Android-host adapter evidence
+
+```bash
+./gradlew :shared:testAndroidHostTest --tests 'com.eterocell.rhythhaus.playlistbackup.PlatformPlaylistBackupDocumentsAndroidTest' --configuration-cache --rerun-tasks
+```
+
+Result: `BUILD SUCCESSFUL in 7s`; 52/52 Gradle tasks executed. Fresh `shared/build/test-results/testAndroidHostTest/TEST-com.eterocell.rhythhaus.playlistbackup.PlatformPlaylistBackupDocumentsAndroidTest.xml` records exactly 10 tests, 0 failures, 0 errors, 0 skipped.
+
 ## Real JVM/SQLDelight integration acceptance
 
 `PlaylistBackupIntegrationJvmTest` uses one temporary file-backed `LibraryDatabase` with deterministic timestamp and ID factories. It verifies:
@@ -26,8 +54,7 @@ The first focused execution passed. A task-scoped review requested stronger real
 
 ## Automated verification
 
-- Complete focused Task 1-8 JVM matrix plus integration, forced: pass, `BUILD SUCCESSFUL in 14s`; 35/35 tasks executed. This included selection/navigation/semantics, generalized picker, codec, matcher, service, repository contract and real SQLDelight repository, JVM document adapter, Settings/workflow/dialog semantics, cancellation/revision ownership, and the new integration test.
-- Focused Android-host document adapter, forced: pass, `BUILD SUCCESSFUL in 7s`; 52/52 tasks executed.
+- Superseded focused summaries: the earlier Gradle-task-only counts are replaced by the exact commands and XML case counts above.
 - `openspec validate track-multi-select-playlist-backup --strict`: pass; exact output `Change 'track-multi-select-playlist-backup' is valid`.
 - `./gradlew :shared:jvmTest :shared:testAndroidHostTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass, `BUILD SUCCESSFUL in 7s`; 125 actionable tasks, 6 executed and 119 up-to-date. No playback flake occurred in this Task 9 full matrix.
 - `/usr/bin/xcrun xcodebuild -version`: pass; Xcode 26.6, build 17F113.
@@ -44,7 +71,7 @@ The change-wide quality/security review found one Important issue: iOS `readBoun
 - RED native XCTest supplied chunks of 3 then 3 bytes for a 4-byte limit. The old policy failed exactly as expected: `XCTAssertThrowsError failed: did not throw an error`, and the handle recorded only `[5]`.
 - GREEN changed only the iOS resource policy to accumulate actual returned bytes until EOF or `maxBytes + 1`, requesting only remaining capacity. The regression passed, then all 8 native policy tests passed.
 - Post-fix full iOS simulator, combined JVM/Android-host/desktop/Android, unsigned Xcode build, and diff-hygiene gates passed.
-- Final adjudication: PASS. Unreturned `read(upToCount:)` capacity is not consumed data; actual accumulated bytes stop at 4 MiB + 1. No Critical or Important finding remains.
+- The bounded-read adjudication passed for that specific defect. Whole-Task-9 final acceptance is pending the reopened privacy-proof and exact-evidence findings.
 
 Non-blocking review notes retained: adapter result objects can carry platform exception text although shared UI maps it to generic errors; direct SQL trigger/count assertions are intentionally SQLite-specific test code; ambiguous candidate diagnostic ordering follows destination order. None changes accepted product behavior or is a Task 9 blocker.
 
@@ -73,14 +100,11 @@ Non-blocking review notes retained: adapter result objects can carry platform ex
 
 The visual-qa workflow was attempted but could not reach its screenshot-review prerequisite. No image diff or dual visual pass was validly runnable because no reference baseline was provided and captured pixels could not be rendered by the available review path. Compact/wide, light/dark, English/Chinese and CJK metrics, row/checkbox fit, contextual-bar clearance and mutual exclusion, focus order, long preview late rows, issue presentation, dialog/panel/scrim appearance, and platform touch behavior remain unverified—not passed.
 
-## Reviews and OpenSpec status
+## Prior reviews and current OpenSpec status
 
-- Task-scoped integration review: initial REVISE for assertion strength; addressed; final automated acceptance PASS.
-- Final goal/spec review: PASS; Task 8.1 fully met, no Critical or Important finding.
-- Final quality/security review: initial REVISE for iOS short reads; strict RED/GREEN fix committed; final contract adjudication PASS with no Critical or Important finding.
-- QA evidence audit: automated Task 8.1-8.3 may close; runtime/visual Task 9.1-9.3 must remain open.
-- OpenSpec 8.1, 8.2, 8.3, and 9.4 are complete. OpenSpec 9.1, 9.2, and 9.3 remain unchecked because runtime interaction, real system-panel presentation, and visual acceptance were unavailable.
+- The controller-visible privacy-proof and exact-count findings are addressed. Final acceptance remains pending only the post-evidence-commit independent review/final-head hygiene step owned by 9.4.
+- OpenSpec 8.1, 8.2, and 8.3 are complete. OpenSpec 9.1, 9.2, 9.3, and 9.4 remain unchecked at this evidence-correction stage.
 
 Next owner: user/manual QA or a future session with attachable desktop/mobile accessibility plus renderable screenshots. Archive only on an explicit later request.
 
-Blockers: runtime interaction/system-panel and visual acceptance only. No integration, focused test, strict OpenSpec, supported build/test matrix, native XCTest, Xcode build, diff-hygiene, or final source-review blocker.
+Blockers: final-head hygiene and 9.4 closure are pending; runtime interaction/system-panel and visual acceptance remain separately unavailable.
