@@ -89,3 +89,12 @@ Task 3: complete (disposable prototype task/dependencies/source/tests removed; d
 Task 4: complete with documented blockers (strict OpenSpec, JVM/desktop/Android matrix, Xcode, and diff hygiene pass; iOS blocked only by unchanged AppScanCancellationTest Thread references; Kotlin LSP unavailable by prior user choice)
 Task 2A: reopened after production runtime failure (alpha policy, focused tests, and source review pass, but the sticky `drawBackdrop` consumer is inside its own `layerBackdrop` recorder subtree; macOS crash report `java-2026-07-16-140403.ips` confirms AWT stack exhaustion from excessive recursion and exit 132/SIGILL)
 Task 2A visual-review fix: complete (long Latin/CJK title chips bounded from current container width, single-line ellipsis, safe back-target reservation; strict RED/GREEN and re-review Spec PASS / Quality APPROVED)
+
+## playlist-dialog-polish
+Plan: docs/superpowers/plans/2026-07-18-playlist-dialog-polish.md
+Task 1: complete (uncommitted RED policy tests; controller-confirmed expected missing-API failure; review clean)
+Task 2: complete (uncommitted shared HausDialog/presentation policies; focused JVM GREEN; footer action reachability fixed and re-review clean)
+Task 3: complete (uncommitted Clear Library/Remove Folder migration; source-management focused JVM GREEN; review clean)
+Task 4: complete (uncommitted playlist HausDialog migration and explicit layout/tab/action policies; focused playlist JVM GREEN; re-review clean; runtime visual QA deferred to Task 5)
+Task 5: complete with blocker (strict OpenSpec, JVM/desktop/Android, Xcode, and iOS simulator tests pass; desktop runtime cannot be captured through Orca, so visual QA remains manual)
+Task 6: complete (JVM Compose UI-test proves SemanticsActions.Dismiss invokes exactly one real callback and removes the dialog; review clean)
