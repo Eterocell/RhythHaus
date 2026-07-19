@@ -991,7 +991,6 @@ internal fun PlaylistDetailScreen(
 
 @Composable
 internal fun AddToPlaylistPicker(
-    track: LibraryTrack,
     playlists: List<Playlist>,
     state: AddToPlaylistPickerState,
     onStateChange: (AddToPlaylistPickerState) -> Unit,
@@ -1010,7 +1009,6 @@ internal fun AddToPlaylistPicker(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(title, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                Text(track.title, color = HausColors.current.muted, fontSize = 13.sp)
                 ModalFailureNotice(notice)
                 Text(stringResource(Res.string.playlist_choose_existing), color = HausColors.current.ink, fontWeight = FontWeight.Bold)
                 playlists.forEach { playlist ->

@@ -436,6 +436,11 @@ fun LibraryHomeScreen(
             animationSpec = tween(250),
             label = "BottomBarOffset",
         )
+        val bottomBarPresentation = libraryBottomBarPresentation(
+            content = bottomBarContent,
+            measurement = bottomBarMeasurement,
+            hiddenFraction = bottomBarOffset,
+        )
         if (bottomBarContent != LibraryBottomBarContent.Hidden) {
             key(bottomBarContent) {
                 Box(
@@ -447,17 +452,18 @@ fun LibraryHomeScreen(
                                 x = 0,
                             y = nowPlayingBarOffsetPx(
                                 hiddenFraction = bottomBarOffset,
-                                measuredHeightPx = activeBottomBarClearancePx(bottomBarContent, bottomBarMeasurement),
+                                measuredHeightPx = bottomBarPresentation.clearancePx,
                             ),
                         )
                     }
-                        .alpha(activeBottomBarAlpha(bottomBarContent, bottomBarMeasurement, bottomBarOffset)),
+                        .alpha(bottomBarPresentation.alpha),
                 ) {
                     when (val content = bottomBarContent) {
                         is LibraryBottomBarContent.Selection -> TrackSelectionBar(
                             selectedCount = content.selectedCount,
                             onCancel = { dispatchTrackSelection(TrackSelectionAction.Cancel) },
                             onAddToPlaylist = ::openSelectedTracksPicker,
+                            interactive = bottomBarPresentation.isInteractive,
                         )
                         LibraryBottomBarContent.NowPlaying -> NowPlayingBar(
                             track = selectedTrack,
@@ -491,9 +497,7 @@ fun LibraryHomeScreen(
         )
 
         playlistState.picker?.let { picker ->
-            libraryTracks.firstOrNull { it.id == picker.trackIds.first() }?.let { track ->
-                AddToPlaylistPicker(
-                    track = track,
+            AddToPlaylistPicker(
                     playlists = playlistState.confirmedSnapshot.playlists,
                     state = AddToPlaylistPickerState(
                         trackIds = picker.trackIds,
@@ -538,7 +542,6 @@ fun LibraryHomeScreen(
                         )
                     },
                 )
-            }
         }
 
         playlistState.browser?.let { browser ->

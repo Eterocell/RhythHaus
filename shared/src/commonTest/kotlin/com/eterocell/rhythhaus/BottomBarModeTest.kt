@@ -14,6 +14,8 @@ import com.eterocell.rhythhaus.library.ui.libraryBottomBarContent
 import com.eterocell.rhythhaus.library.ui.trackSelectionBarSemantics
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class BottomBarModeTest {
     @Test

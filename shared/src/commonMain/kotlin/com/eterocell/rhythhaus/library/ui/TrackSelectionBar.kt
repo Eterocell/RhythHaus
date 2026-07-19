@@ -51,6 +51,7 @@ fun TrackSelectionBar(
     selectedCount: Int,
     onCancel: () -> Unit,
     onAddToPlaylist: () -> Unit,
+    interactive: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     require(selectedCount > 0)
@@ -80,25 +81,27 @@ fun TrackSelectionBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SelectionBarButton(
-                text = cancelDescription,
-                contentDescription = semantics.cancelDescription,
-                onClick = onCancel,
-                modifier = Modifier.weight(1f),
-                emphasized = false,
-            )
-            SelectionBarButton(
-                text = addDescription,
-                contentDescription = semantics.addToPlaylistDescription,
-                onClick = onAddToPlaylist,
-                modifier = Modifier.weight(1f),
-                emphasized = true,
-            )
+        if (interactive) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SelectionBarButton(
+                    text = cancelDescription,
+                    contentDescription = semantics.cancelDescription,
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f),
+                    emphasized = false,
+                )
+                SelectionBarButton(
+                    text = addDescription,
+                    contentDescription = semantics.addToPlaylistDescription,
+                    onClick = onAddToPlaylist,
+                    modifier = Modifier.weight(1f),
+                    emphasized = true,
+                )
+            }
         }
     }
 }

@@ -73,7 +73,7 @@ fun libraryBottomBarContent(
 ): LibraryBottomBarContent {
     val selectionMatchesVisibleSurface = when (val pageKey = selectionState.pageKey) {
         TrackSelectionPageKey.HomeSongs -> route == LibraryRoute.Home || route is LibraryRoute.AlbumDetail ||
-            route is LibraryRoute.ArtistDetail || route is LibraryRoute.PlaylistDetail
+            route is LibraryRoute.ArtistDetail || route == LibraryRoute.PlaylistHub || route is LibraryRoute.PlaylistDetail
         is TrackSelectionPageKey.Album -> route == LibraryRoute.AlbumDetail(pageKey.album)
         is TrackSelectionPageKey.Artist -> route == LibraryRoute.ArtistDetail(pageKey.artist)
         TrackSelectionPageKey.Search -> route == LibraryRoute.Search
@@ -111,6 +111,26 @@ fun activeBottomBarAlpha(
     0f
 } else {
     1f - hiddenFraction.coerceIn(0f, 1f)
+}
+
+data class LibraryBottomBarPresentation(
+    val clearancePx: Int,
+    val alpha: Float,
+    val isInteractive: Boolean,
+)
+
+fun libraryBottomBarPresentation(
+    content: LibraryBottomBarContent,
+    measurement: LibraryBottomBarMeasurement?,
+    hiddenFraction: Float,
+): LibraryBottomBarPresentation {
+    val clearancePx = activeBottomBarClearancePx(content, measurement)
+    val alpha = activeBottomBarAlpha(content, measurement, hiddenFraction)
+    return LibraryBottomBarPresentation(
+        clearancePx = clearancePx,
+        alpha = alpha,
+        isInteractive = clearancePx > 0 && hiddenFraction < 1f,
+    )
 }
 
 enum class LibraryBackDecision {
