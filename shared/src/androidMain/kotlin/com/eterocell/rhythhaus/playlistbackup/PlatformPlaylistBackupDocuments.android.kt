@@ -19,27 +19,17 @@ actual fun rememberPlatformPlaylistBackupDocumentLauncher(
     val context = LocalContext.current
     val currentSaveResult = rememberUpdatedState(onSaveResult)
     val currentOpenResult = rememberUpdatedState(onOpenResult)
-    val pendingSaveBytes = remember { arrayOfNulls<ByteArray>(1) }
-    val operationGate = remember { PlaylistBackupDocumentOperationGate() }
-    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(PlaylistBackupMimeType)) { uri ->
-        val bytes = pendingSaveBytes[0]
-        pendingSaveBytes[0] = null
-        operationGate.finish()
-        currentSaveResult.value(
-            if (bytes == null) {
-                PlaylistBackupDocumentSaveResult.Failure("No playlist backup payload was pending")
-            } else {
-                saveAndroidPlaylistBackupDocument(uri, bytes) { selected ->
-                    context.contentResolver.openOutputStream(selected, "wt")
-                }
-            },
+    val coordinator = remember {
+        AndroidPlaylistBackupDocumentCoordinator(
+            onSaveResult = { currentSaveResult.value(it) },
+            onOpenResult = { currentOpenResult.value(it) },
         )
     }
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(PlaylistBackupMimeType)) { uri ->
+        coordinator.completeSave(uri) { selected, _ -> context.contentResolver.openOutputStream(selected, "wt") }
+    }
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        operationGate.finish()
-        currentOpenResult.value(
-            openAndroidPlaylistBackupDocument(uri) { selected -> context.contentResolver.openInputStream(selected) },
-        )
+        coordinator.completeOpen(uri) { selected -> context.contentResolver.openInputStream(selected) }
     }
 
     return remember(saveLauncher, openLauncher) {
@@ -47,37 +37,76 @@ actual fun rememberPlatformPlaylistBackupDocumentLauncher(
             override val isAvailable: Boolean = true
 
             override fun save(suggestedFileName: String, bytes: ByteArray) {
-                if (!operationGate.tryStart()) {
-                    currentSaveResult.value(PlaylistBackupDocumentSaveResult.Unavailable("Another document operation is active"))
-                    return
-                }
-                pendingSaveBytes[0] = bytes
-                try {
+                coordinator.launchSave(bytes) {
                     saveLauncher.launch(playlistBackupFileName(suggestedFileName))
-                } catch (exception: Exception) {
-                    pendingSaveBytes[0] = null
-                    operationGate.finish()
-                    currentSaveResult.value(
-                        PlaylistBackupDocumentSaveResult.Failure(exception.message ?: "Could not present save document panel"),
-                    )
                 }
             }
 
             override fun open() {
-                if (!operationGate.tryStart()) {
-                    currentOpenResult.value(PlaylistBackupDocumentOpenResult.Unavailable("Another document operation is active"))
-                    return
-                }
-                try {
+                coordinator.launchOpen {
                     openLauncher.launch(arrayOf(PlaylistBackupMimeType, PlaylistBackupJsonMimeType))
-                } catch (exception: Exception) {
-                    operationGate.finish()
-                    currentOpenResult.value(
-                        PlaylistBackupDocumentOpenResult.Failure(exception.message ?: "Could not present open document panel"),
-                    )
                 }
             }
         }
+    }
+}
+
+internal class AndroidPlaylistBackupDocumentCoordinator(
+    private val onSaveResult: (PlaylistBackupDocumentSaveResult) -> Unit,
+    private val onOpenResult: (PlaylistBackupDocumentOpenResult) -> Unit,
+) {
+    private val operationGate = PlaylistBackupDocumentOperationGate()
+    private var pendingSaveBytes: ByteArray? = null
+
+    val isActive: Boolean
+        get() = operationGate.isActive
+    val hasPendingSavePayload: Boolean
+        get() = pendingSaveBytes != null
+
+    fun launchSave(bytes: ByteArray, launch: () -> Unit) {
+        if (!operationGate.tryStart()) {
+            onSaveResult(PlaylistBackupDocumentSaveResult.Unavailable("Another document operation is active"))
+            return
+        }
+        pendingSaveBytes = bytes
+        try {
+            launch()
+        } catch (exception: Exception) {
+            pendingSaveBytes = null
+            operationGate.finish()
+            onSaveResult(PlaylistBackupDocumentSaveResult.Failure(exception.message ?: "Could not present save document panel"))
+        }
+    }
+
+    fun launchOpen(launch: () -> Unit) {
+        if (!operationGate.tryStart()) {
+            onOpenResult(PlaylistBackupDocumentOpenResult.Unavailable("Another document operation is active"))
+            return
+        }
+        try {
+            launch()
+        } catch (exception: Exception) {
+            operationGate.finish()
+            onOpenResult(PlaylistBackupDocumentOpenResult.Failure(exception.message ?: "Could not present open document panel"))
+        }
+    }
+
+    fun <T> completeSave(uri: T?, openOutput: (T, ByteArray) -> OutputStream?) {
+        val bytes = pendingSaveBytes
+        pendingSaveBytes = null
+        operationGate.finish()
+        onSaveResult(
+            if (bytes == null) {
+                PlaylistBackupDocumentSaveResult.Failure("No playlist backup payload was pending")
+            } else {
+                saveAndroidPlaylistBackupDocument(uri, bytes) { selected -> openOutput(selected, bytes) }
+            },
+        )
+    }
+
+    fun <T> completeOpen(uri: T?, openInput: (T) -> InputStream?) {
+        operationGate.finish()
+        onOpenResult(openAndroidPlaylistBackupDocument(uri, openInput))
     }
 }
 

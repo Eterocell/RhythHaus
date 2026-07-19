@@ -45,6 +45,9 @@ fun playlistBackupFileName(suggestedFileName: String): String {
 internal class PlaylistBackupDocumentOperationGate {
     private var active = false
 
+    val isActive: Boolean
+        get() = active
+
     fun tryStart(): Boolean {
         if (active) return false
         active = true

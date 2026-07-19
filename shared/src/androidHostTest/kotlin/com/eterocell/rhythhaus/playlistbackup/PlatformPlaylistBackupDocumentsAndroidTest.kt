@@ -65,6 +65,70 @@ class PlatformPlaylistBackupDocumentsAndroidTest {
 
         assertContentEquals(byteArrayOf(1, 2, 3), readAndroidPlaylistBackupBounded(input))
     }
+
+    @Test
+    fun saveThenOverlappingOpenUsesSaveChannelAndReleasesPayloadOnCancellation() {
+        val saveResults = mutableListOf<PlaylistBackupDocumentSaveResult>()
+        val openResults = mutableListOf<PlaylistBackupDocumentOpenResult>()
+        val coordinator = AndroidPlaylistBackupDocumentCoordinator(saveResults::add, openResults::add)
+        val payload = byteArrayOf(1, 2)
+
+        coordinator.launchSave(payload) { }
+        coordinator.launchOpen { error("overlapping open must not launch") }
+        coordinator.completeSave<String>(null) { _, _ -> error("cancel must not write") }
+
+        assertIs<PlaylistBackupDocumentOpenResult.Unavailable>(openResults.single())
+        assertIs<PlaylistBackupDocumentSaveResult.Cancelled>(saveResults.single())
+        assertEquals(false, coordinator.hasPendingSavePayload)
+        assertEquals(false, coordinator.isActive)
+    }
+
+    @Test
+    fun openThenOverlappingSaveUsesSaveChannelAndReleasesOnSuccess() {
+        val saveResults = mutableListOf<PlaylistBackupDocumentSaveResult>()
+        val openResults = mutableListOf<PlaylistBackupDocumentOpenResult>()
+        val coordinator = AndroidPlaylistBackupDocumentCoordinator(saveResults::add, openResults::add)
+
+        coordinator.launchOpen { }
+        coordinator.launchSave(byteArrayOf(1)) { error("overlapping save must not launch") }
+        coordinator.completeOpen("uri") { ByteArrayInputStream(byteArrayOf(4)) }
+
+        assertIs<PlaylistBackupDocumentSaveResult.Unavailable>(saveResults.single())
+        assertContentEquals(byteArrayOf(4), assertIs<PlaylistBackupDocumentOpenResult.Success>(openResults.single()).bytes)
+        assertEquals(false, coordinator.hasPendingSavePayload)
+        assertEquals(false, coordinator.isActive)
+    }
+
+    @Test
+    fun successfulSaveCallbackConsumesPayloadOnceAndReleasesGate() {
+        val results = mutableListOf<PlaylistBackupDocumentSaveResult>()
+        val coordinator = AndroidPlaylistBackupDocumentCoordinator(results::add) { }
+        val output = ByteArrayOutputStream()
+
+        coordinator.launchSave(byteArrayOf(7, 8)) { }
+        coordinator.completeSave("uri") { _, _ -> output }
+
+        assertContentEquals(byteArrayOf(7, 8), output.toByteArray())
+        assertIs<PlaylistBackupDocumentSaveResult.Success>(results.single())
+        assertEquals(false, coordinator.hasPendingSavePayload)
+        assertEquals(false, coordinator.isActive)
+    }
+
+    @Test
+    fun synchronousLaunchExceptionsClearPayloadReleaseGateAndUseCorrectChannel() {
+        val saveResults = mutableListOf<PlaylistBackupDocumentSaveResult>()
+        val openResults = mutableListOf<PlaylistBackupDocumentOpenResult>()
+        val coordinator = AndroidPlaylistBackupDocumentCoordinator(saveResults::add, openResults::add)
+
+        coordinator.launchSave(byteArrayOf(1)) { error("save launch") }
+        assertIs<PlaylistBackupDocumentSaveResult.Failure>(saveResults.single())
+        assertEquals(false, coordinator.hasPendingSavePayload)
+        assertEquals(false, coordinator.isActive)
+
+        coordinator.launchOpen { error("open launch") }
+        assertIs<PlaylistBackupDocumentOpenResult.Failure>(openResults.single())
+        assertEquals(false, coordinator.isActive)
+    }
 }
 
 private class ZeroThenBytesInputStream(private val bytes: ByteArray) : InputStream() {
