@@ -325,8 +325,17 @@ fun savedPlaylistPlaybackRequest(
     return SavedPlaylistPlaybackRequest(occurrences, selectedEntryId)
 }
 
-data class PlaylistAppendRequest(val playlistId: String, val trackIds: List<String>)
-data class PlaylistInlineCreateRequest(val name: String, val trackIds: List<String>)
+data class PlaylistAppendRequest(val playlistId: String, val trackIds: List<String>) {
+    init {
+        require(trackIds.isNotEmpty() && trackIds.all(String::isNotBlank))
+    }
+}
+
+data class PlaylistInlineCreateRequest(val name: String, val trackIds: List<String>) {
+    init {
+        require(trackIds.isNotEmpty() && trackIds.all(String::isNotBlank))
+    }
+}
 data class PlaylistInlineMutationPlan(val name: String, val trackIds: List<String>)
 
 fun PlaylistInlineCreateRequest.mutationPlan(): PlaylistInlineMutationPlan =

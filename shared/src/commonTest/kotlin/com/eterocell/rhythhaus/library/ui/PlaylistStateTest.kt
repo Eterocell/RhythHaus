@@ -18,6 +18,12 @@ import kotlin.test.assertTrue
 
 class PlaylistStateTest {
     @Test
+    fun pickerStateRejectsEmptyAndBlankTrackIds() {
+        assertFailsWith<IllegalArgumentException> { PlaylistPickerState(emptyList()) }
+        assertFailsWith<IllegalArgumentException> { PlaylistPickerState(listOf("track-a", " ")) }
+    }
+
+    @Test
     fun unresolvedPlaylistDetailReturnsToHubWithRecoverableMessage() {
         val next = playlistDetailResolution(
             playlistId = "missing",

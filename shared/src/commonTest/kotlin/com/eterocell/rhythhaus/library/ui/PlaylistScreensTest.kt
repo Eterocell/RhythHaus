@@ -15,12 +15,23 @@ import androidx.compose.ui.unit.sp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 
 class PlaylistScreensTest {
+    @Test
+    fun pickerAndMutationRequestsRejectEmptyAndBlankTrackIds() {
+        assertFailsWith<IllegalArgumentException> { AddToPlaylistPickerState(emptyList()) }
+        assertFailsWith<IllegalArgumentException> { AddToPlaylistPickerState(listOf("track-a", " ")) }
+        assertFailsWith<IllegalArgumentException> { PlaylistAppendRequest("playlist-1", emptyList()) }
+        assertFailsWith<IllegalArgumentException> { PlaylistAppendRequest("playlist-1", listOf("track-a", " ")) }
+        assertFailsWith<IllegalArgumentException> { PlaylistInlineCreateRequest("New", emptyList()) }
+        assertFailsWith<IllegalArgumentException> { PlaylistInlineCreateRequest("New", listOf("track-a", " ")) }
+    }
+
     @Test
     fun playlistLayoutMatchesLibraryHomeHorizontalInsetAndHasNoExtraTopInset() {
         assertEquals(20.dp, PlaylistScreenLayoutPolicy.horizontalPadding)
