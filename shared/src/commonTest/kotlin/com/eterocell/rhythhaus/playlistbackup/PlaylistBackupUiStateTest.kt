@@ -62,6 +62,7 @@ class PlaylistBackupUiStateTest {
             PlaylistBackupUiError.WriteFailed,
             PlaylistBackupUiError.Oversized,
             PlaylistBackupUiError.Malformed,
+            PlaylistBackupUiError.InvalidData,
             PlaylistBackupUiError.Checksum,
             PlaylistBackupUiError.UnsupportedVersion,
             PlaylistBackupUiError.StalePreview,
@@ -153,11 +154,33 @@ class PlaylistBackupUiStateTest {
     }
 
     @Test
-    fun validationErrorsMapToOversizedMalformedChecksumAndUnsupportedVersion() {
-        assertEquals(PlaylistBackupUiError.Oversized, playlistBackupUiError(PlaylistBackupValidationError.INPUT_TOO_LARGE))
-        assertEquals(PlaylistBackupUiError.Malformed, playlistBackupUiError(PlaylistBackupValidationError.MALFORMED_JSON))
-        assertEquals(PlaylistBackupUiError.Checksum, playlistBackupUiError(PlaylistBackupValidationError.INVALID_CHECKSUM))
-        assertEquals(PlaylistBackupUiError.UnsupportedVersion, playlistBackupUiError(PlaylistBackupValidationError.UNSUPPORTED_VERSION))
+    fun everyValidationErrorMapsToItsExactRecoveryClass() {
+        val expected = mapOf(
+            PlaylistBackupValidationError.INPUT_TOO_LARGE to PlaylistBackupUiError.Oversized,
+            PlaylistBackupValidationError.MALFORMED_UTF8 to PlaylistBackupUiError.Malformed,
+            PlaylistBackupValidationError.MALFORMED_JSON to PlaylistBackupUiError.Malformed,
+            PlaylistBackupValidationError.DUPLICATE_FIELD to PlaylistBackupUiError.Malformed,
+            PlaylistBackupValidationError.UNKNOWN_FIELD to PlaylistBackupUiError.Malformed,
+            PlaylistBackupValidationError.MISSING_FIELD to PlaylistBackupUiError.Malformed,
+            PlaylistBackupValidationError.UNSUPPORTED_FORMAT to PlaylistBackupUiError.UnsupportedVersion,
+            PlaylistBackupValidationError.UNSUPPORTED_VERSION to PlaylistBackupUiError.UnsupportedVersion,
+            PlaylistBackupValidationError.INVALID_CHECKSUM to PlaylistBackupUiError.Checksum,
+            PlaylistBackupValidationError.INVALID_INTEGER to PlaylistBackupUiError.Malformed,
+            PlaylistBackupValidationError.NUMERIC_OVERFLOW to PlaylistBackupUiError.Malformed,
+            PlaylistBackupValidationError.TRAILING_CONTENT to PlaylistBackupUiError.Malformed,
+            PlaylistBackupValidationError.NON_CANONICAL_JSON to PlaylistBackupUiError.Malformed,
+            PlaylistBackupValidationError.PLAYLIST_LIMIT_EXCEEDED to PlaylistBackupUiError.InvalidData,
+            PlaylistBackupValidationError.PLAYLIST_ENTRY_LIMIT_EXCEEDED to PlaylistBackupUiError.InvalidData,
+            PlaylistBackupValidationError.TOTAL_ENTRY_LIMIT_EXCEEDED to PlaylistBackupUiError.InvalidData,
+            PlaylistBackupValidationError.STRING_LIMIT_EXCEEDED to PlaylistBackupUiError.InvalidData,
+            PlaylistBackupValidationError.BLANK_PLAYLIST_NAME to PlaylistBackupUiError.InvalidData,
+            PlaylistBackupValidationError.INVALID_DURATION to PlaylistBackupUiError.InvalidData,
+        )
+
+        assertEquals(PlaylistBackupValidationError.entries.toSet(), expected.keys)
+        PlaylistBackupValidationError.entries.forEach { error ->
+            assertEquals(expected.getValue(error), playlistBackupUiError(error), error.name)
+        }
     }
 
     @Test
@@ -167,14 +190,13 @@ class PlaylistBackupUiStateTest {
             preview = PlaylistBackupPreview(plan(restorable = 1, revision = 4)),
         )
 
-        val outcome = confirmPlaylistBackupImport(
+        val outcome = confirmPlaylistBackupImportSerialized(
             state = state,
             currentLibraryRevision = 5,
-            mutate = {
+            mutateAndRefresh = {
                 repositoryCalls++
                 error("must not mutate")
             },
-            refresh = { error("must not refresh") },
         )
 
         assertEquals(0, repositoryCalls)
@@ -192,26 +214,20 @@ class PlaylistBackupUiStateTest {
             ),
         )
         val confirmedSnapshot = snapshot()
-        var mutationCalls = 0
-        var refreshCalls = 0
+        var ownerCalls = 0
         var received = emptyList<PlaylistImportMutation>()
 
-        val outcome = confirmPlaylistBackupImport(
+        val outcome = confirmPlaylistBackupImportSerialized(
             state = PlaylistBackupUiState(preview = PlaylistBackupPreview(plan)),
             currentLibraryRevision = plan.libraryRevision,
-            mutate = { mutations ->
-                mutationCalls++
+            mutateAndRefresh = { mutations ->
+                ownerCalls++
                 received = mutations
-                Result.success(Unit)
-            },
-            refresh = {
-                refreshCalls++
-                confirmedSnapshot
+                PlaylistImportOwnerResult.Success(confirmedSnapshot, revision = 12)
             },
         )
 
-        assertEquals(1, mutationCalls)
-        assertEquals(1, refreshCalls)
+        assertEquals(1, ownerCalls)
         assertEquals(
             listOf(
                 PlaylistImportMutation("First", listOf("a", "b", "a")),
@@ -221,6 +237,7 @@ class PlaylistBackupUiStateTest {
         )
         assertNull(outcome.state.preview)
         assertSame(confirmedSnapshot, outcome.confirmedSnapshot)
+        assertEquals(12, outcome.playlistPublicationRevision)
         assertEquals(2, outcome.state.result?.totals?.playlistsToCreate)
         assertEquals(3, outcome.state.result?.totals?.entries?.restorable)
     }
@@ -278,34 +295,33 @@ class PlaylistBackupUiStateTest {
     fun repositoryFailureRetainsPreviewAndLastConfirmedSnapshotWithoutRefresh() = runBlocking {
         val preview = PlaylistBackupPreview(plan(restorable = 1))
         val confirmedSnapshot = snapshot()
-        var refreshCalls = 0
+        var ownerCalls = 0
 
-        val outcome = confirmPlaylistBackupImport(
+        val outcome = confirmPlaylistBackupImportSerialized(
             state = PlaylistBackupUiState(preview = preview),
             currentLibraryRevision = preview.plan.libraryRevision,
             lastConfirmedSnapshot = confirmedSnapshot,
-            mutate = { Result.failure(IllegalStateException("write failed")) },
-            refresh = {
-                refreshCalls++
-                error("must not refresh")
+            mutateAndRefresh = {
+                ownerCalls++
+                PlaylistImportOwnerResult.Failure(IllegalStateException("write failed"))
             },
         )
 
         assertSame(preview, outcome.state.preview)
         assertSame(confirmedSnapshot, outcome.confirmedSnapshot)
         assertEquals(PlaylistBackupUiError.RepositoryFailed, outcome.state.error)
-        assertEquals(0, refreshCalls)
+        assertEquals(1, ownerCalls)
+        assertNull(outcome.playlistPublicationRevision)
     }
 
     @Test
     fun confirmationRethrowsCancellation() {
         assertFailsWith<CancellationException> {
             runBlocking {
-                confirmPlaylistBackupImport(
+                confirmPlaylistBackupImportSerialized(
                     state = PlaylistBackupUiState(preview = PlaylistBackupPreview(plan(restorable = 1))),
                     currentLibraryRevision = 7,
-                    mutate = { throw CancellationException("gone") },
-                    refresh = { snapshot() },
+                    mutateAndRefresh = { throw CancellationException("gone") },
                 )
             }
         }

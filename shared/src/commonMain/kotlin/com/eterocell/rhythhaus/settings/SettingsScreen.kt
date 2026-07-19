@@ -108,6 +108,7 @@ import rhythhaus.shared.generated.resources.playlist_backup_missing_track_error
 import rhythhaus.shared.generated.resources.playlist_backup_missing_duration_error
 import rhythhaus.shared.generated.resources.playlist_backup_invalid_duration_error
 import rhythhaus.shared.generated.resources.playlist_backup_invalid_data_error
+import rhythhaus.shared.generated.resources.playlist_backup_import_invalid_data_error
 import rhythhaus.shared.generated.resources.playlist_backup_repository_error
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -490,6 +491,7 @@ private fun playlistBackupErrorMessage(error: PlaylistBackupUiError): String = w
     PlaylistBackupUiError.WriteFailed -> stringResource(Res.string.playlist_backup_write_error)
     PlaylistBackupUiError.Oversized -> stringResource(Res.string.playlist_backup_oversized_error)
     PlaylistBackupUiError.Malformed -> stringResource(Res.string.playlist_backup_malformed_error)
+    PlaylistBackupUiError.InvalidData -> stringResource(Res.string.playlist_backup_import_invalid_data_error)
     PlaylistBackupUiError.Checksum -> stringResource(Res.string.playlist_backup_checksum_error)
     PlaylistBackupUiError.UnsupportedVersion -> stringResource(Res.string.playlist_backup_version_error)
     PlaylistBackupUiError.StalePreview -> stringResource(Res.string.playlist_backup_stale_error)

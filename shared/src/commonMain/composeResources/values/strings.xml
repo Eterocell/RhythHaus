@@ -167,7 +167,8 @@
     <string name="playlist_backup_read_error">Could not read the selected playlist backup.</string>
     <string name="playlist_backup_write_error">Could not write the playlist backup.</string>
     <string name="playlist_backup_oversized_error">This playlist backup is larger than 4 MiB.</string>
-    <string name="playlist_backup_malformed_error">This playlist backup is malformed or contains invalid data.</string>
+    <string name="playlist_backup_malformed_error">This playlist backup has malformed syntax or structure.</string>
+    <string name="playlist_backup_import_invalid_data_error">This playlist backup contains field values outside the supported limits.</string>
     <string name="playlist_backup_checksum_error">This playlist backup failed its checksum validation.</string>
     <string name="playlist_backup_version_error">This playlist backup version is not supported.</string>
     <string name="playlist_backup_stale_error">The music library changed after this preview. Open the backup again.</string>

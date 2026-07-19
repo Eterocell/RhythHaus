@@ -167,7 +167,8 @@
     <string name="playlist_backup_read_error">无法读取所选播放列表备份。</string>
     <string name="playlist_backup_write_error">无法写入播放列表备份。</string>
     <string name="playlist_backup_oversized_error">此播放列表备份大于 4 MiB。</string>
-    <string name="playlist_backup_malformed_error">此播放列表备份格式错误或包含无效数据。</string>
+    <string name="playlist_backup_malformed_error">此播放列表备份的语法或结构格式错误。</string>
+    <string name="playlist_backup_import_invalid_data_error">此播放列表备份包含超出支持限制的字段值。</string>
     <string name="playlist_backup_checksum_error">此播放列表备份未通过校验和验证。</string>
     <string name="playlist_backup_version_error">不支持此播放列表备份版本。</string>
     <string name="playlist_backup_stale_error">预览后音乐资料库已更改，请重新打开备份。</string>

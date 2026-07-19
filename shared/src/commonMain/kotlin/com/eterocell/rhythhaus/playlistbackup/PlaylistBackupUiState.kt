@@ -23,6 +23,7 @@ enum class PlaylistBackupUiError {
     WriteFailed,
     Oversized,
     Malformed,
+    InvalidData,
     Checksum,
     UnsupportedVersion,
     StalePreview,
@@ -146,6 +147,13 @@ fun playlistBackupUiError(error: PlaylistBackupValidationError): PlaylistBackupU
     PlaylistBackupValidationError.UNSUPPORTED_FORMAT,
     PlaylistBackupValidationError.UNSUPPORTED_VERSION,
     -> PlaylistBackupUiError.UnsupportedVersion
+    PlaylistBackupValidationError.PLAYLIST_LIMIT_EXCEEDED,
+    PlaylistBackupValidationError.PLAYLIST_ENTRY_LIMIT_EXCEEDED,
+    PlaylistBackupValidationError.TOTAL_ENTRY_LIMIT_EXCEEDED,
+    PlaylistBackupValidationError.STRING_LIMIT_EXCEEDED,
+    PlaylistBackupValidationError.BLANK_PLAYLIST_NAME,
+    PlaylistBackupValidationError.INVALID_DURATION,
+    -> PlaylistBackupUiError.InvalidData
     else -> PlaylistBackupUiError.Malformed
 }
 
@@ -186,43 +194,6 @@ suspend fun confirmPlaylistBackupImportSerialized(
             is PlaylistImportOwnerResult.Failure -> PlaylistBackupImportConfirmation(
                 state.copy(operation = PlaylistBackupOperation.Idle, error = PlaylistBackupUiError.RepositoryFailed),
                 lastConfirmedSnapshot,
-            )
-        }
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    }
-}
-
-suspend fun confirmPlaylistBackupImport(
-    state: PlaylistBackupUiState,
-    currentLibraryRevision: Long,
-    lastConfirmedSnapshot: PlaylistSnapshot? = null,
-    mutate: suspend (List<PlaylistImportMutation>) -> Result<Unit>,
-    refresh: suspend () -> PlaylistSnapshot,
-): PlaylistBackupImportConfirmation {
-    val preview = state.preview ?: return PlaylistBackupImportConfirmation(state, lastConfirmedSnapshot)
-    if (preview.plan.libraryRevision != currentLibraryRevision) {
-        return PlaylistBackupImportConfirmation(
-            state.copy(operation = PlaylistBackupOperation.Idle, error = PlaylistBackupUiError.StalePreview),
-            lastConfirmedSnapshot,
-        )
-    }
-    if (!preview.canConfirm) return PlaylistBackupImportConfirmation(state, lastConfirmedSnapshot)
-    val mutations = preview.plan.playlists.map { playlist ->
-        PlaylistImportMutation(playlist.name, playlist.trackIds)
-    }
-    return try {
-        val mutation = mutate(mutations)
-        if (mutation.isFailure) {
-            PlaylistBackupImportConfirmation(
-                state.copy(operation = PlaylistBackupOperation.Idle, error = PlaylistBackupUiError.RepositoryFailed),
-                lastConfirmedSnapshot,
-            )
-        } else {
-            val snapshot = refresh()
-            PlaylistBackupImportConfirmation(
-                reducePlaylistBackupUiState(state, PlaylistBackupUiAction.ImportSucceeded(preview.plan.totals)),
-                snapshot,
             )
         }
     } catch (cancelled: CancellationException) {
