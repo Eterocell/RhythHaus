@@ -119,3 +119,36 @@ Focused GREEN for the four follow-up classes: `BUILD SUCCESSFUL in 7s`; 26 actio
 - Sequential `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: `BUILD SUCCESSFUL in 4s`; 101 actionable tasks (12 executed, 89 up-to-date).
 - The unchanged Android `MediaMetadata.Builder.setArtworkData` deprecation warning remains.
 - Kotlin LSP remains unavailable because `kotlin-ls` is not installed and installation was previously declined; both JVM and Android Kotlin compilation passed.
+
+## Playlist-detail empty confirmation follow-up
+
+### Root cause and RED
+
+`PlaylistTrackBrowserState.confirmedAppend()` unconditionally constructed `PlaylistAppendRequest` before `PlaylistTrackBrowser` checked `request.trackIds.isNotEmpty()`. After the request constructor gained a non-empty invariant, confirming with no selected browser rows threw before the later guard could run.
+
+Clean RED command:
+
+```text
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.Task3ReviewSemanticsJvmTest' \
+  --configuration-cache --rerun-tasks
+```
+
+Result: `BUILD FAILED in 12s`; 50 tests ran and exactly two failed with `IllegalArgumentException`: the pure empty-confirmation policy test and the real production Confirm-button test. The real selected-row composable regression already passed and preserved visible order `["b", "a"]`.
+
+### Minimal fix and GREEN
+
+- `PlaylistTrackBrowserState.confirmedAppend()` now computes selected IDs in visible order, returns `null` when empty, and constructs `PlaylistAppendRequest` only when non-empty.
+- `PlaylistTrackBrowser` dispatches only through `visibleState.confirmedAppend()?.let(onConfirm)`.
+- The non-empty/non-blank `PlaylistAppendRequest` constructor invariant remains unchanged.
+
+The same focused classes passed: `BUILD SUCCESSFUL in 7s`; 26 actionable tasks (8 executed, 18 up-to-date). Tests prove empty confirmation does not throw or invoke `onConfirm`, while selected rows append in visible order.
+
+### Final verification
+
+- Complete Task 1-3 focused matrix with `--rerun-tasks`: `BUILD SUCCESSFUL in 9s`; 26/26 tasks executed.
+- The first standalone broad rerun completed with one unrelated asynchronous `PlaybackControllerTest.reconcilePreservesSurvivingCurrentWithoutReloadPositionOrStatusChange` status mismatch (`Playing` versus `Paused`) after 455 other tests passed. No playback source or test was changed.
+- That exact playback test passed alone with forced execution: `BUILD SUCCESSFUL in 10s`; 35/35 tasks executed.
+- Fresh sequential `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: `BUILD SUCCESSFUL in 5s`; 101 actionable tasks (5 executed, 96 up-to-date).
+- The unchanged Android deprecation warning and unavailable Kotlin LSP status remain as previously recorded.
