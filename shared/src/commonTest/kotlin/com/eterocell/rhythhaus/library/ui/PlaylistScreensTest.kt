@@ -156,6 +156,16 @@ class PlaylistScreensTest {
     }
 
     @Test
+    fun detailBrowserEmptyConfirmationIsNoOpBeforeRequestConstruction() {
+        val state = PlaylistTrackBrowserState(
+            playlistId = "playlist-1",
+            visibleTrackIds = listOf("b", "a"),
+        )
+
+        assertNull(state.confirmedAppend())
+    }
+
+    @Test
     fun detailBrowserSelectionIsKeyedByTrackIdAndSurvivesFiltering() {
         val selected = PlaylistTrackBrowserState(
             playlistId = "playlist-1",

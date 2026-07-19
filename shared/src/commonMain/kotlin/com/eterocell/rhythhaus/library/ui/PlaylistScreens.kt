@@ -381,7 +381,10 @@ data class PlaylistTrackBrowserState(
     )
 
     fun confirmedTrackIds(): List<String> = visibleTrackIds.filter(selectedTrackIds::contains)
-    fun confirmedAppend(): PlaylistAppendRequest = PlaylistAppendRequest(playlistId, confirmedTrackIds())
+    fun confirmedAppend(): PlaylistAppendRequest? {
+        val trackIds = confirmedTrackIds()
+        return trackIds.takeIf(List<String>::isNotEmpty)?.let { PlaylistAppendRequest(playlistId, it) }
+    }
 }
 
 data class PlaylistDetailRow(val entry: PlaylistEntry, val track: PlayableTrack)
@@ -1102,8 +1105,7 @@ internal fun PlaylistTrackBrowser(
         },
         actions = {
             CompactAction(stringResource(Res.string.playlist_confirm_add), Modifier.fillMaxWidth()) {
-                val request = visibleState.confirmedAppend()
-                if (request.trackIds.isNotEmpty()) onConfirm(request)
+                visibleState.confirmedAppend()?.let(onConfirm)
             }
         },
     )

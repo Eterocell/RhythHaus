@@ -24,6 +24,7 @@ import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.Playlist
+import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarPlayPauseTestTag
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarRootTestTag
@@ -33,6 +34,51 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class Task3ReviewSemanticsJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun playlistBrowserEmptyConfirmationDoesNotThrowOrInvokeOnConfirm() = runComposeUiTest {
+        var confirmCount = 0
+        setContent {
+            PlaylistTrackBrowser(
+                playlistName = "Saved",
+                libraryTracks = listOf(libraryTrack("b"), libraryTrack("a")),
+                state = PlaylistTrackBrowserState(playlistId = "playlist-1"),
+                onStateChange = {},
+                onDismiss = {},
+                onConfirm = { confirmCount += 1 },
+            )
+        }
+
+        val buttons = onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+        buttons.assertCountEquals(1)
+        buttons[0].performClick()
+        waitForIdle()
+        assertEquals(0, confirmCount)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun playlistBrowserSelectedConfirmationUsesVisibleOrder() = runComposeUiTest {
+        var request: PlaylistAppendRequest? = null
+        setContent {
+            var state by remember { mutableStateOf(PlaylistTrackBrowserState(playlistId = "playlist-1")) }
+            PlaylistTrackBrowser(
+                playlistName = "Saved",
+                libraryTracks = listOf(libraryTrack("b"), libraryTrack("a")),
+                state = state,
+                onStateChange = { state = it },
+                onDismiss = {},
+                onConfirm = { request = it },
+            )
+        }
+
+        onNode(hasContentDescription("Song b")).performClick()
+        onNode(hasContentDescription("Song a")).performClick()
+        onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))[0].performClick()
+        waitForIdle()
+        assertEquals(PlaylistAppendRequest("playlist-1", listOf("b", "a")), request)
+    }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun unmeasuredNowPlayingBarExposesNoActions() = runComposeUiTest {
@@ -279,6 +325,23 @@ class Task3ReviewSemanticsJvmTest {
         durationSeconds = 180,
         accent = TrackAccent(0xFF000000, 0xFFFFFFFF),
         source = AudioSource.FilePath("song.mp3"),
+    )
+
+    private fun libraryTrack(id: String) = LibraryTrack(
+        id = id,
+        sourceId = "source-1",
+        sourceLocalKey = id,
+        audioSource = AudioSource.FilePath("$id.mp3"),
+        displayName = "Song $id",
+        title = "Song $id",
+        artist = "Artist",
+        album = "Album",
+        durationMillis = 180_000L,
+        sizeBytes = 1L,
+        modifiedAtEpochMillis = 1L,
+        lastSeenScanId = "scan-1",
+        createdAtEpochMillis = 1L,
+        updatedAtEpochMillis = 1L,
     )
 
 }
