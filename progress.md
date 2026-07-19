@@ -1,4 +1,97 @@
-# Session Progress
+    # Session Progress
+
+## Handoff - 2026-07-19 playlist-dialog-polish Task 5 verification
+
+Route: openspec+superpowers / Task 5 verification, runtime-QA attempt, and final read-only review
+Owner: verification complete with blockers; next owner is implementation for the missing accessibility-contract test, then user/manual QA
+Input: `.superpowers/sdd/task-5-brief.md` and the review-clean Task 1-4 working tree.
+Output:
+- Verified the strict OpenSpec and supported JVM, desktop, Android, Xcode, and iOS simulator gates without modifying product source, tests, dependencies, routes, strings, palette, persistence, or playback.
+- Launched the real desktop app through `:desktopApp:run`; Orca listed a visible `RhythHaus` window at 784x588, but could not attach an accessibility window or deliver keyboard input. No usable screenshot was available.
+- Marked only source/policy/migration and platform-verification OpenSpec items complete. Items 1.2 and 4.2 remain open.
+Verification:
+- `openspec validate playlist-dialog-polish --strict`: pass; exact output `Change 'playlist-dialog-polish' is valid`.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass; `BUILD SUCCESSFUL in 4m 21s`; `110 actionable tasks: 18 executed, 2 from cache, 90 up-to-date`; configuration cache stored. The existing Android `MediaMetadata.Builder.setArtworkData` deprecation warning remained.
+- `/usr/bin/xcrun xcodebuild -version`: pass; `Xcode 26.6`; `Build version 17F113`.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass; `BUILD SUCCESSFUL in 31s`; `44 actionable tasks: 9 executed, 35 up-to-date`; configuration cache stored. This is an automated iOS simulator test pass, not iOS runtime UI or visual QA.
+- Initial `GIT_MASTER=1 git diff --check`: pass with no output. A final post-evidence diff check is recorded in `.superpowers/sdd/task-5-report.md`.
+Runtime QA:
+- `./gradlew :desktopApp:run --configuration-cache` reached `:desktopApp:run`; process PID 40200 and the 784x588 `RhythHaus` window were observed, then terminated after the QA attempt.
+- `orca computer capabilities --json` reported screenshot, element-frame, keyboard, click, scroll, and drag support. `orca computer permissions --json` reported Accessibility and Screenshots as `granted`.
+- `get-app-state`, the explicit window-ID retry, and a `Tab` action each failed with `permission_denied`: the visible app had no accessibility window. Native window capture failed; the full-screen capture was black/unusable.
+- Unverified, not passes: compact and wide rendered layouts; light and dark themes; Saved/Queue text fit and contrast; every migrated dialog family; solid panel opacity; dark-theme light scrim brightness; long localized/CJK text and descenders; keyboard focus/submit; panel/scrim pointer behavior; Now Playing clearance; Android/iOS runtime UI, touch, or visual behavior.
+Review:
+- Evidence-discipline review: `REVISE`; it approved completion of source/policy/migration and platform gates but required all runtime states to remain explicit gaps.
+- Whole-change source review: `REVISE`; its substantiated Important finding is that `HausDialogTest.kt` has no assertion for the specified accessibility dismiss action. OpenSpec 1.2 remains open.
+- The same review proposed an infinite-height nested-scroll failure for `PlaylistTrackBrowser`; final adjudication did not accept that claim because the nested `LazyColumn` has an explicit `height(320.dp)` bound. No runtime pass is inferred from this source adjudication.
+Changed evidence files:
+- `openspec/changes/playlist-dialog-polish/tasks.md`
+- `progress.md`
+- `roadmap.md`
+- `.superpowers/sdd/task-5-report.md`
+Next safe action: add a focused accessibility-dismiss contract test without changing dialog behavior, rerun the focused and full gates, then manually exercise the listed compact/wide, theme, dialog, text, keyboard, scrim/panel, and Now Playing states in an attachable runtime.
+Blockers: missing accessible-dismiss test evidence and unavailable runtime visual/interaction access. No strict OpenSpec, JVM, desktop compile, Android assemble, Xcode, iOS simulator test, or initial diff-hygiene blocker.
+Commit: skipped; the user explicitly prohibited commits.
+
+## Follow-up - 2026-07-19 playlist-dialog-polish accessibility contract
+
+Route: openspec+superpowers / Task 6 JVM accessibility semantics regression
+Owner: implementation complete; runtime visual QA remains user/manual
+Input: Task 5 source review finding that `HausDialogTest` did not exercise the accessible dismiss action.
+Output:
+- Added a JVM-only Compose UI test using the current `androidx.compose.ui.test.v2.runComposeUiTest` API. It finds `SemanticsActions.Dismiss`, invokes it, proves the real callback runs exactly once, and proves state removes the dialog semantics node.
+- Added only `org.jetbrains.compose.ui:ui-test:1.11.1` and `compose.desktop.currentOs` under `jvmTest.dependencies`; production and Android/iOS source sets are unchanged.
+Verification:
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --configuration-cache --rerun-tasks`: pass (`BUILD SUCCESSFUL in 8s`; 26/26 tasks executed).
+- `openspec validate playlist-dialog-polish --strict`: pass.
+- `./gradlew :shared:jvmTest --configuration-cache`: pass (`BUILD SUCCESSFUL in 1m 21s`).
+- `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 9s`).
+- `/usr/bin/xcrun xcodebuild -version`: pass (Xcode 26.6, build 17F113).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`).
+- `GIT_MASTER=1 git diff --check`: pass.
+Acceptance:
+- OpenSpec 1.2 and 5.1 are complete. OpenSpec 4.2 remains [blocked] because the launched desktop app exposed no accessible window and no usable capture; compact/wide, light/dark, dialog, CJK/text-fit, keyboard, panel/scrim, and Now Playing runtime QA remain manual only.
+Next owner: user/manual QA in an attachable desktop, Android, or iOS runtime; then OpenSpec archival on explicit request.
+Blockers: runtime visual/interaction capture only.
+Commit: skipped; user did not request one.
+
+## Final verification - 2026-07-19 playlist-dialog-polish
+
+Route: openspec+superpowers / final source review and supported matrix
+Owner: implementation complete; runtime visual QA remains user/manual
+Output:
+- Final source review initially found that Remove Folder lost its pre-existing localized Cancel dismiss-action label. The shared `HausDialog` now accepts an optional label, Remove Folder passes its existing localized resource, and the JVM semantics test proves that label, exactly one real callback, and semantics-node removal.
+- Final reviewer re-review: PASS with no Critical or Important findings. Oracle review: PASS with no Critical or Important source-level finding; both retain runtime visual QA as an evidence gap rather than a pass.
+Verification:
+- `openspec validate playlist-dialog-polish --strict`: pass.
+- `./gradlew :shared:jvmTest --configuration-cache --rerun-tasks`: pass (`BUILD SUCCESSFUL in 1m 26s`; 26/26 tasks executed).
+- `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 12s`).
+- `/usr/bin/xcrun xcodebuild -version`: pass (Xcode 26.6, build 17F113).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 28s`).
+- `GIT_MASTER=1 git diff --check`: pass.
+- One earlier full JVM run failed only at unchanged `PlaybackControllerTest.repeatPlaylistWrapsCompletionAndManualTransport`; three forced isolated reproductions and the final forced full JVM run passed. CodeGraph found no call path from the dialog/UI change, so no unrelated playback change was made.
+Acceptance:
+- OpenSpec implementation and automated evidence are complete. OpenSpec 4.2 remains [blocked]: the desktop app window launched but Orca could not attach to its accessibility window or produce usable capture, so rendered compact/wide, light/dark, dialogs, text/CJK, keyboard, panel/scrim, and Now Playing QA remain manual only.
+Next owner: user/manual QA in an attachable desktop, Android, or iOS runtime; archive only on explicit request.
+Blockers: runtime visual/interaction capture only.
+Commit: skipped; user did not request one.
+
+## Follow-up - 2026-07-19 playlist-dialog-polish partial desktop runtime QA
+
+Route: openspec+superpowers / runtime accessibility and capture retry
+Owner: verification complete; visual acceptance remains manual/tooling-blocked
+Input: previously blocked OpenSpec 4.2 runtime QA for shared dialogs and playlist controls
+Output:
+- Orca now reports Accessibility and Screenshot permissions as granted. `:desktopApp:run` produced a real interactive `RhythHaus` window and captured PNGs through ScreenCaptureKit.
+- At compact 800×600 and wide 1728×1084 desktop windows, real accessibility navigation opened Playlists and Create Playlist. The live dialog exposed title `创建播放列表`, field `播放列表名称`, and actions `取消` / `创建播放列表`; activating Cancel returned to the playlist hub. This proves the UI is live interactive Compose, not a static image, for that desktop route.
+- The wide-state dialog was independently re-opened from a fresh accessibility snapshot. Escape later exited the enclosing playlist route, so it is not treated as proof of dialog-specific keyboard dismissal.
+- Captures exist, but neither available image-review path could render pixels. No claim is made about panel opacity, scrim, color/contrast, spacing/alignment, typography, CJK glyph/descender fit, or pointer containment from those images.
+Acceptance:
+- OpenSpec 4.2 remains open. The current evidence supersedes the obsolete “no accessible desktop window/capture” claim with partial desktop semantic/interaction coverage only.
+- Still required for 4.2: renderable compact/wide screenshots in light and dark themes; visual review of all migrated dialogs and playlist controls; dialog-specific keyboard behavior if required; Android/iOS runtime UI inspection.
+Next owner: user/manual QA or a session with a renderable screenshot-review path; archive only on explicit request after remaining 4.2 evidence is accepted.
+Blockers: pixel rendering/review unavailable to the agent; dark-theme, other-dialog-family, Android, and iOS runtime coverage not run.
+Commit: skipped; user did not request one.
 
 ## Fix - 2026-07-17 desktop completed scans deleted their own persisted rows
 
