@@ -5,11 +5,13 @@ import SwiftUI
 struct iOSApp: App {
     private let audioPlayerProvider = RhythHausAudioPlayerProvider()
     private let artworkProvider = RhythHausArtworkProvider()
+    private let playlistBackupDocumentProvider = RhythHausPlaylistBackupDocumentProvider()
 
     init() {
         RhythHausAppBootstrapper.configure(
             audioPlayerProvider: audioPlayerProvider,
-            artworkProvider: artworkProvider
+            artworkProvider: artworkProvider,
+            playlistBackupDocumentProvider: playlistBackupDocumentProvider
         )
     }
 

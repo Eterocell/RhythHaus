@@ -4,7 +4,9 @@ import UIKit
 
 struct ComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context _: Self.Context) -> UIViewController {
-        MainViewControllerKt.MainViewController()
+        let controller = MainViewControllerKt.MainViewController()
+        RhythHausViewControllerRegistry.presenter = controller
+        return controller
     }
 
     func updateUIViewController(_: UIViewController, context _: Self.Context) {}
