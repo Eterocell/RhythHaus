@@ -3,9 +3,6 @@ package com.eterocell.rhythhaus.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,12 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.dialog
-import androidx.compose.ui.semantics.dismiss
-import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -61,8 +54,8 @@ import com.eterocell.rhythhaus.library.ui.AnimatedClearLibraryDialogRoute
 import com.eterocell.rhythhaus.library.ui.ScanningCard
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.ui.HausDialog
 import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
-import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
@@ -100,7 +93,6 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 
 internal data class SettingsLayoutPolicy(
@@ -135,7 +127,6 @@ fun SettingsScreen(
     scanJob: Job?,
     hasImportedTracks: Boolean,
     currentThemeMode: RhythHausThemeMode,
-    clearLibraryDialogBackdrop: LayerBackdrop?,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
@@ -337,14 +328,12 @@ fun SettingsScreen(
                     onClearLibrary()
                     showClearLibraryDialog = false
                 },
-                backdrop = clearLibraryDialogBackdrop,
             )
         }
         sourcePendingRemoval?.let { source ->
             RemoveSourceDialog(
                 source = source,
                 mutationsEnabled = mutationsEnabled,
-                backdrop = clearLibraryDialogBackdrop,
                 onDismiss = { sourcePendingRemoval = null },
                 onConfirm = {
                     onRemoveSource(source)
@@ -462,113 +451,76 @@ private fun ConfiguredSourceRow(
 private fun RemoveSourceDialog(
     source: LibrarySource,
     mutationsEnabled: Boolean,
-    backdrop: LayerBackdrop?,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
     val name = sourceDialogName(source, stringResource(Res.string.unnamed_folder))
     val dialogTitle = stringResource(Res.string.remove_folder)
     val dismissLabel = stringResource(Res.string.cancel)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(HausColors.current.ink.copy(alpha = 0.36f))
-            .pointerInput(onDismiss) { detectTapGestures(onTap = { onDismiss() }) }
-            .semantics {
-                dialog()
-                paneTitle = dialogTitle
-                dismiss(label = dismissLabel) {
-                    onDismiss()
-                    true
-                }
+    HausDialog(
+        title = dialogTitle,
+        onDismiss = onDismiss,
+        dismissLabel = dismissLabel,
+        body = {
+            Text(
+                text = dialogTitle,
+                color = HausColors.current.ink,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = name.visual,
+                modifier = Modifier.clearAndSetSemantics {
+                    contentDescription = name.accessibility
+                },
+                color = HausColors.current.ink,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(Res.string.remove_folder_message),
+                color = HausColors.current.muted,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            )
+        },
+        actions = {
+            Spacer(Modifier.weight(1f))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.height(44.dp),
+                cornerRadius = 12.dp,
+                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
+                colors = ButtonDefaults.buttonColors(
+                    color = HausColors.current.muted.copy(alpha = 0.15f),
+                    contentColor = HausColors.current.muted,
+                ),
+            ) {
+                Text(stringResource(Res.string.cancel), fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
-            .padding(24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        val dialogShape = RoundedCornerShape(24.dp)
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 480.dp)
-                .rhythHausLiquidGlass(
-                    backdrop = backdrop,
-                    shape = dialogShape,
-                    fallbackColor = HausColors.current.panel.copy(alpha = 0.92f),
-                )
-                .pointerInput(Unit) { detectTapGestures(onTap = { }) },
-            cornerRadius = 24.dp,
-            colors = CardDefaults.defaultColors(color = HausColors.current.panel.copy(alpha = 0f)),
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = dialogTitle,
-                    color = HausColors.current.ink,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black,
-                )
-                Spacer(Modifier.height(12.dp))
-                Column(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = name.visual,
-                        modifier = Modifier.clearAndSetSemantics {
-                            contentDescription = name.accessibility
-                        },
-                        color = HausColors.current.ink,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = stringResource(Res.string.remove_folder_message),
-                        color = HausColors.current.muted,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                    )
-                }
-                Spacer(Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    Button(
-                        onClick = onDismiss,
-                        modifier = Modifier.height(44.dp),
-                        cornerRadius = 12.dp,
-                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            color = HausColors.current.muted.copy(alpha = 0.15f),
-                            contentColor = HausColors.current.muted,
-                        ),
-                    ) {
-                        Text(stringResource(Res.string.cancel), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Button(
-                        onClick = onConfirm,
-                        enabled = mutationsEnabled,
-                        modifier = Modifier.height(44.dp),
-                        cornerRadius = 12.dp,
-                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            color = HausColors.current.pulse,
-                            contentColor = HausColors.current.paper,
-                            disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                            disabledContentColor = HausColors.current.muted,
-                        ),
-                    ) {
-                        Text(stringResource(Res.string.remove), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
+            Spacer(Modifier.width(12.dp))
+            Button(
+                onClick = onConfirm,
+                enabled = mutationsEnabled,
+                modifier = Modifier.height(44.dp),
+                cornerRadius = 12.dp,
+                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
+                colors = ButtonDefaults.buttonColors(
+                    color = HausColors.current.pulse,
+                    contentColor = HausColors.current.paper,
+                    disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
+                    disabledContentColor = HausColors.current.muted,
+                ),
+            ) {
+                Text(stringResource(Res.string.remove), fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
-        }
-    }
+        },
+    )
 }
 
 @Composable
