@@ -183,3 +183,64 @@ Each commit includes the required Sisyphus footer and co-author. Only explicit T
 - Complete forced iOS suite: one unrelated intermittent playback test failure; isolated rerun passed, so the report records the full-gate failure honestly rather than claiming a pass.
 - Runtime system-panel interaction on Android/iOS/JVM: not exercised and not claimed; pure adapters and compilation do not prove actual UI presentation.
 - Task 8 Settings orchestration and Task 9 integration/runtime QA remain deliberately unimplemented.
+
+## Review Findings Follow-up
+
+### RED evidence
+
+The follow-up tests were added before the production seams:
+
+- JVM direct bounded-reader/counting-stream cases and injected Apple-property restoration cases failed compilation on missing `JvmSystemPropertyAccess` and the missing injected `withJvmDocumentDialogMode(properties, block)` overload.
+- Android coordinator cases failed compilation on missing `AndroidPlaylistBackupDocumentCoordinator`.
+- Native XCTest was first blocked because the existing shared scheme had no configured Test action. After adding the minimal `iosAppTests` target/Test action, XCTest compilation reached the intended RED and failed on missing `PlaylistBackupDocumentSecurityScope`, `PlaylistBackupDocumentReadHandle`, and `PlaylistBackupDocumentTemporaryStorage` policy symbols.
+
+Exact RED commands:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.playlistbackup.PlatformPlaylistBackupDocumentsJvmTest' --configuration-cache
+./gradlew :shared:testAndroidHostTest --tests 'com.eterocell.rhythhaus.playlistbackup.PlatformPlaylistBackupDocumentsAndroidTest' --configuration-cache
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'platform=iOS Simulator,id=A06C220B-0E2D-4A87-8B9F-1CE88A290059' CODE_SIGNING_ALLOWED=NO test -only-testing:iosAppTests/PlaylistBackupDocumentPoliciesTests
+```
+
+### GREEN behavior evidence
+
+- Swift type policy now constructs the vendor type with `UTType(mimeType: PlatformPlaylistBackupDocumentsKt.PlaylistBackupMimeType)` and retains `.json`; XCTest verifies the first type's preferred MIME equals the exported vendor MIME and the list contains `.json`.
+- Native operation/resource/temp policies are used by the real provider. Seven XCTest cases execute exact 4 MiB acceptance, 4 MiB+1 rejection, limit+1 read request, handle closure on success/oversize/read failure, balanced security-scope start/stop, overlap rejection, stale callback suppression, exactly-once completion, unavailable terminal cleanup, UUID-directory cleanup on success/cancel/failure/unavailable/deinit, and cleanup when temp export writing fails.
+- Android Compose wiring uses the pure coordinator. Host tests execute save-to-overlapping-open and open-to-overlapping-save rejection, cancellation and successful callbacks, synchronous save/open launch exceptions, correct result channels, payload clearing, and gate release.
+- JVM tests call `readJvmPlaylistBackupBounded` directly with exact-limit, limit+1, and 2x-limit counting streams; returned and consumed bytes never exceed limit+1. Injected property tests prove originally absent and existing values are restored exactly after a throwing block.
+
+Focused GREEN commands and results:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.playlistbackup.PlatformPlaylistBackupDocumentsTest' --tests 'com.eterocell.rhythhaus.playlistbackup.PlatformPlaylistBackupDocumentsJvmTest' --configuration-cache --rerun-tasks
+# BUILD SUCCESSFUL in 9s
+
+./gradlew :shared:testAndroidHostTest --tests 'com.eterocell.rhythhaus.playlistbackup.PlatformPlaylistBackupDocumentsAndroidTest' --configuration-cache --rerun-tasks
+# BUILD SUCCESSFUL in 7s
+
+./gradlew :shared:iosSimulatorArm64Test --tests 'com.eterocell.rhythhaus.playlistbackup.PlatformPlaylistBackupDocumentsIosTest' --configuration-cache --rerun-tasks
+# BUILD SUCCESSFUL in 19s
+
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'platform=iOS Simulator,id=A06C220B-0E2D-4A87-8B9F-1CE88A290059' CODE_SIGNING_ALLOWED=NO test -only-testing:iosAppTests/PlaylistBackupDocumentPoliciesTests
+# TEST SUCCEEDED; 7 tests, 0 failures
+
+./gradlew :shared:linkDebugFrameworkIosSimulatorArm64 --configuration-cache --rerun-tasks
+# BUILD SUCCESSFUL in 15s
+
+xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO clean build
+# BUILD SUCCEEDED
+
+./gradlew :shared:compileKotlinJvm --configuration-cache
+# BUILD SUCCESSFUL
+./gradlew :desktopApp:compileKotlin --configuration-cache
+# BUILD SUCCESSFUL
+./gradlew :androidApp:assembleDebug --configuration-cache
+# BUILD SUCCESSFUL
+```
+
+### Evidence boundaries
+
+- The native tests execute extracted state/resource policies headlessly and Xcode compiles the actual `UIDocumentPickerViewController` provider against those policies. They do not drive or claim runtime document-picker presentation; that remains Task 9.
+- No complete Android or iOS playback suite pass is inferred from focused Task 7 tests. The earlier complete iOS run's unrelated intermittent playback failure remains recorded above; no new full-suite pass is claimed.
+- Kotlin LSP remains unavailable because installation was previously declined. Standalone SourceKit cannot resolve generated `Shared`; Gradle/Kotlin compilation and Xcode/Swift compilation are the authoritative diagnostics.
+- No Task 8, database/schema, dependency, permission, controller progress, OpenSpec task, or Task 1/2 report change is included in the follow-up staging.
