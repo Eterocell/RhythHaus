@@ -69,6 +69,41 @@ class AppScanCancellationTest {
     }
 
     @Test
+    fun backupOrchestrationPublishesIdleRetainedPreviewBeforeRethrowingCancellation() = runBlocking {
+        val preview = com.eterocell.rhythhaus.playlistbackup.PlaylistBackupPreview(
+            com.eterocell.rhythhaus.playlistbackup.PlaylistImportPlan(
+                libraryRevision = 1,
+                playlists = listOf(com.eterocell.rhythhaus.playlistbackup.PlaylistImportPlaylist(0, "Mix", listOf("track"))),
+                reports = emptyList(),
+                totals = com.eterocell.rhythhaus.playlistbackup.PlaylistImportTotals(
+                    1,
+                    0,
+                    com.eterocell.rhythhaus.playlistbackup.PlaylistImportCounts(1, 0, 0),
+                ),
+                issues = emptyList(),
+            ),
+        )
+        val states = mutableListOf(
+            com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState(
+                operation = com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation.Importing,
+                preview = preview,
+            ),
+        )
+
+        assertFailsWith<CancellationException> {
+            runPlaylistBackupOperation(
+                currentState = { states.last() },
+                publishState = { state -> states.add(state) },
+            ) {
+                throw CancellationException("gone")
+            }
+        }
+
+        assertEquals(com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation.Idle, states.last().operation)
+        assertSame(preview, states.last().preview)
+    }
+
+    @Test
     fun requestScanCancellationMarksActiveScanAsCancellingImmediately() {
         val progress = ScanProgress(
             session = ScanSession(

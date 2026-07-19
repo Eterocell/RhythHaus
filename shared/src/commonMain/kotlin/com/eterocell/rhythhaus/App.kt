@@ -259,7 +259,10 @@ fun App() {
                     )
                 }
                 is PlaylistBackupDocumentOpenResult.Success -> scope.launch {
-                    try {
+                    runPlaylistBackupOperation(
+                        currentState = { playlistBackupState },
+                        publishState = { state -> playlistBackupState = state },
+                    ) {
                         playlistBackupState = reducePlaylistBackupUiState(
                             playlistBackupState,
                             PlaylistBackupUiAction.OperationStarted(PlaylistBackupOperation.Planning),
@@ -281,12 +284,6 @@ fun App() {
                                 PlaylistBackupUiAction.Failed(prepared.error),
                             )
                         }
-                    } catch (cancelled: CancellationException) {
-                        playlistBackupState = reducePlaylistBackupUiState(
-                            playlistBackupState,
-                            PlaylistBackupUiAction.OperationCancelled,
-                        )
-                        throw cancelled
                     }
                 }
             }
@@ -300,7 +297,10 @@ fun App() {
             PlaylistBackupUiAction.OperationStarted(PlaylistBackupOperation.Exporting),
         )
         scope.launch {
-            try {
+            runPlaylistBackupOperation(
+                currentState = { playlistBackupState },
+                publishState = { state -> playlistBackupState = state },
+            ) {
                 when (val prepared = preparePlaylistBackupExport(
                     snapshot = playlistState.confirmedSnapshot,
                     authoritativeTracks = libraryTracks,
@@ -319,12 +319,6 @@ fun App() {
                         PlaylistBackupUiAction.Failed(prepared.error),
                     )
                 }
-            } catch (cancelled: CancellationException) {
-                playlistBackupState = reducePlaylistBackupUiState(
-                    playlistBackupState,
-                    PlaylistBackupUiAction.OperationCancelled,
-                )
-                throw cancelled
             }
         }
     }
@@ -347,7 +341,10 @@ fun App() {
             PlaylistBackupUiAction.OperationStarted(PlaylistBackupOperation.Importing),
         )
         scope.launch {
-            try {
+            runPlaylistBackupOperation(
+                currentState = { playlistBackupState },
+                publishState = { state -> playlistBackupState = state },
+            ) {
                 val confirmation = confirmPlaylistBackupImportSerialized(
                     state = playlistBackupState,
                     currentLibraryRevision = libraryRevision,
@@ -371,12 +368,6 @@ fun App() {
                         ),
                     )
                 }
-            } catch (cancelled: CancellationException) {
-                playlistBackupState = reducePlaylistBackupUiState(
-                    playlistBackupState,
-                    PlaylistBackupUiAction.OperationCancelled,
-                )
-                throw cancelled
             }
         }
     }
@@ -486,6 +477,22 @@ fun App() {
             )
         }
     }
+}
+
+internal suspend fun <T> runPlaylistBackupOperation(
+    currentState: () -> PlaylistBackupUiState,
+    publishState: (PlaylistBackupUiState) -> Unit,
+    block: suspend () -> T,
+): T = try {
+    block()
+} catch (cancelled: CancellationException) {
+    publishState(
+        reducePlaylistBackupUiState(
+            currentState(),
+            PlaylistBackupUiAction.OperationCancelled,
+        ),
+    )
+    throw cancelled
 }
 
 internal data class LibraryContentState(
