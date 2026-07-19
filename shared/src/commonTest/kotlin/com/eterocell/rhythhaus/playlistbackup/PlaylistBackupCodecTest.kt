@@ -170,6 +170,17 @@ class PlaylistBackupCodecTest {
     }
 
     @Test
+    fun nonAsciiUnicodeEscapeDigitsAreMalformedJsonThroughPublicDecode() {
+        listOf(
+            "\\u٠٠٤١",
+            "\\u00４1",
+            "\\u0٠4١",
+        ).forEach { encodedTitle ->
+            assertInvalid(document(entryTitle = encodedTitle), PlaylistBackupValidationError.MALFORMED_JSON)
+        }
+    }
+
+    @Test
     fun blankPlaylistNamesAreRejected() {
         listOf("", " ", "\\t\\n").forEach {
             assertInvalid(document(playlistName = it), PlaylistBackupValidationError.BLANK_PLAYLIST_NAME)

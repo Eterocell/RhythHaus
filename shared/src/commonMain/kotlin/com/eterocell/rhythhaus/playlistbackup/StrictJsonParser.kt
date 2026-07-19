@@ -227,7 +227,12 @@ internal class StrictJsonParser(private val text: String) {
         if (index + 4 > text.length) fail(PlaylistBackupValidationError.MALFORMED_JSON)
         var value = 0
         repeat(4) {
-            val digit = text[index++].digitToIntOrNull(16) ?: fail(PlaylistBackupValidationError.MALFORMED_JSON)
+            val digit = when (val char = text[index++]) {
+                in '0'..'9' -> char - '0'
+                in 'a'..'f' -> char - 'a' + 10
+                in 'A'..'F' -> char - 'A' + 10
+                else -> fail(PlaylistBackupValidationError.MALFORMED_JSON)
+            }
             value = value * 16 + digit
         }
         return value
