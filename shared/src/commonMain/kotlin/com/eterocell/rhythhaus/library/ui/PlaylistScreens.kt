@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -59,6 +57,7 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.toPlayableTrack
+import com.eterocell.rhythhaus.ui.HausDialog
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
@@ -996,29 +995,45 @@ internal fun AddToPlaylistPicker(
     onInlineCreate: (PlaylistInlineCreateRequest) -> Unit,
     notice: PlaylistModalNotice? = null,
 ) {
-    ModalCard(onDismiss) {
-        Text(stringResource(Res.string.playlist_add_to), color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-        Text(track.title, color = HausColors.current.muted, fontSize = 13.sp)
-        ModalFailureNotice(notice)
-        Text(stringResource(Res.string.playlist_choose_existing), color = HausColors.current.ink, fontWeight = FontWeight.Bold)
-        playlists.forEach { playlist ->
-            val selected = state.selectedPlaylistId == playlist.id
-            CompactAction(
-                text = playlist.name,
-                modifier = Modifier.fillMaxWidth().semantics { contentDescription = playlist.name },
-            ) { onStateChange(state.copy(selectedPlaylistId = playlist.id)) }
-            if (selected) {
-                CompactAction(stringResource(Res.string.playlist_add_to), Modifier.fillMaxWidth()) {
-                    state.confirmedAppend()?.let(onAppend)
+    val title = stringResource(Res.string.playlist_add_to)
+    HausDialog(
+        title = title,
+        onDismiss = onDismiss,
+        body = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(title, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                Text(track.title, color = HausColors.current.muted, fontSize = 13.sp)
+                ModalFailureNotice(notice)
+                Text(stringResource(Res.string.playlist_choose_existing), color = HausColors.current.ink, fontWeight = FontWeight.Bold)
+                playlists.forEach { playlist ->
+                    CompactAction(
+                        text = playlist.name,
+                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = playlist.name },
+                    ) { onStateChange(state.copy(selectedPlaylistId = playlist.id)) }
+                }
+                Text(stringResource(Res.string.playlist_create_inline), color = HausColors.current.ink, fontWeight = FontWeight.Bold)
+                PlaylistTextField(state.enteredName) { onStateChange(state.copy(enteredName = it)) }
+            }
+        },
+        actions = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (state.selectedPlaylistId != null) {
+                    CompactAction(title, Modifier.fillMaxWidth()) {
+                        state.confirmedAppend()?.let(onAppend)
+                    }
+                }
+                CompactAction(stringResource(Res.string.playlist_create), Modifier.fillMaxWidth()) {
+                    state.confirmedInlineCreate()?.let(onInlineCreate)
                 }
             }
-        }
-        Text(stringResource(Res.string.playlist_create_inline), color = HausColors.current.ink, fontWeight = FontWeight.Bold)
-        PlaylistTextField(state.enteredName) { onStateChange(state.copy(enteredName = it)) }
-        CompactAction(stringResource(Res.string.playlist_create), Modifier.fillMaxWidth()) {
-            state.confirmedInlineCreate()?.let(onInlineCreate)
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -1038,49 +1053,67 @@ internal fun PlaylistTrackBrowser(
     }
     val visibleState = state.copy(visibleTrackIds = visible.map(LibraryTrack::id))
     val selectedStateDescription = stringResource(Res.string.playlist_selected_state)
-    ModalCard(onDismiss) {
-        Text(playlistName, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-        ModalFailureNotice(notice)
-        PlaylistTextField(state.query, stringResource(Res.string.playlist_track_browser_search)) {
-            onStateChange(state.copy(query = it))
-        }
-        LazyColumn(modifier = Modifier.fillMaxWidth().height(320.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(visible, key = { it.id }) { track ->
-                val selected = track.id in state.selectedTrackIds
-                Row(
-                    modifier = Modifier.fillMaxWidth().background(if (selected) HausColors.current.panelStrong else HausColors.current.panel, RoundedCornerShape(16.dp))
-                        .hausClickable { onStateChange(visibleState.toggle(track.id)) }
-                        .semantics {
-                            contentDescription = track.title
-                            if (selected) stateDescription = selectedStateDescription
-                        }.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(track.title, color = HausColors.current.ink, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(track.artist, color = HausColors.current.muted, fontSize = 12.sp, maxLines = 1)
+    HausDialog(
+        title = playlistName,
+        onDismiss = onDismiss,
+        body = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(playlistName, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                ModalFailureNotice(notice)
+                PlaylistTextField(state.query, stringResource(Res.string.playlist_track_browser_search)) {
+                    onStateChange(state.copy(query = it))
+                }
+                LazyColumn(modifier = Modifier.fillMaxWidth().height(320.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(visible, key = { it.id }) { track ->
+                        val selected = track.id in state.selectedTrackIds
+                        Row(
+                            modifier = Modifier.fillMaxWidth().background(if (selected) HausColors.current.panelStrong else HausColors.current.panel, RoundedCornerShape(16.dp))
+                                .hausClickable { onStateChange(visibleState.toggle(track.id)) }
+                                .semantics {
+                                    contentDescription = track.title
+                                    if (selected) stateDescription = selectedStateDescription
+                                }.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(track.title, color = HausColors.current.ink, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(track.artist, color = HausColors.current.muted, fontSize = 12.sp, maxLines = 1)
+                            }
+                            Text(if (selected) "✓" else "+", color = HausColors.current.pulse, fontSize = 18.sp)
+                        }
                     }
-                    Text(if (selected) "✓" else "+", color = HausColors.current.pulse, fontSize = 18.sp)
                 }
             }
-        }
-        CompactAction(stringResource(Res.string.playlist_confirm_add), Modifier.fillMaxWidth()) {
-            val request = visibleState.confirmedAppend()
-            if (request.trackIds.isNotEmpty()) onConfirm(request)
-        }
-    }
+        },
+        actions = {
+            CompactAction(stringResource(Res.string.playlist_confirm_add), Modifier.fillMaxWidth()) {
+                val request = visibleState.confirmedAppend()
+                if (request.trackIds.isNotEmpty()) onConfirm(request)
+            }
+        },
+    )
 }
 
 @Composable
 private fun PlaylistScreenFrame(title: String, onBack: () -> Unit, content: LazyListScope.() -> Unit) {
+    val topPadding = rememberSystemBarTopPadding() + PlaylistScreenLayoutPolicy.additionalTopPadding
     Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
-        Column(modifier = Modifier.fillMaxSize().safeContentPadding().padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = PlaylistScreenLayoutPolicy.horizontalPadding)
+                .padding(top = topPadding),
+            verticalArrangement = Arrangement.spacedBy(PlaylistScreenLayoutPolicy.itemSpacing),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(onClick = onBack, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent) { Text("‹", fontSize = 30.sp, color = HausColors.current.ink) }
                 Text(title, color = HausColors.current.ink, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(PlaylistScreenLayoutPolicy.itemSpacing),
                 modifier = Modifier.fillMaxSize(),
                 content = content,
             )
@@ -1090,9 +1123,23 @@ private fun PlaylistScreenFrame(title: String, onBack: () -> Unit, content: Lazy
 
 @Composable
 private fun PlaylistTabs(selected: PlaylistTab, onSelect: (PlaylistTab) -> Unit) {
+    val palette = HausColors.current
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(PlaylistTab.Saved to stringResource(Res.string.playlist_saved_tab), PlaylistTab.Queue to stringResource(Res.string.playlist_queue_tab)).forEach { (tab, label) ->
-            Button(onClick = { onSelect(tab) }, modifier = Modifier.weight(1f).height(40.dp), cornerRadius = 20.dp, colors = ButtonDefaults.buttonColors(if (selected == tab) HausColors.current.ink else HausColors.current.panel, if (selected == tab) HausColors.current.paper else HausColors.current.ink)) { Text(label, fontWeight = FontWeight.Bold) }
+            val presentation = playlistTabPresentation(tab, palette)
+            val isSelected = selected == tab
+            Button(
+                onClick = { onSelect(tab) },
+                modifier = Modifier.weight(1f).height(presentation.compactControlHeight),
+                cornerRadius = 20.dp,
+                insideMargin = PaddingValues(horizontal = 10.dp, vertical = presentation.insideVerticalMargin),
+                colors = ButtonDefaults.buttonColors(
+                    color = if (isSelected) presentation.selectedContainerColor else presentation.unselectedContainerColor,
+                    contentColor = if (isSelected) presentation.selectedContentColor else presentation.unselectedContentColor,
+                ),
+            ) {
+                Text(label, fontWeight = FontWeight.Bold, lineHeight = presentation.lineHeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
@@ -1178,13 +1225,58 @@ private fun PlaylistEntryRow(
     }
 }
 
-@Composable private fun CompactAction(text: String, modifier: Modifier, onClick: () -> Unit) { Button(onClick = onClick, modifier = modifier.height(44.dp), cornerRadius = 14.dp, insideMargin = PaddingValues(horizontal = 10.dp, vertical = 8.dp), colors = ButtonDefaults.buttonColors(HausColors.current.panel, HausColors.current.ink)) { Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1) } }
+@Composable
+private fun CompactAction(text: String, modifier: Modifier, onClick: () -> Unit) {
+    val presentation = playlistTabPresentation(PlaylistTab.Saved, HausColors.current)
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(presentation.compactControlHeight),
+        cornerRadius = 14.dp,
+        insideMargin = PaddingValues(horizontal = 10.dp, vertical = presentation.insideVerticalMargin),
+        colors = ButtonDefaults.buttonColors(
+            color = presentation.unselectedContainerColor,
+            contentColor = presentation.unselectedContentColor,
+        ),
+    ) {
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            lineHeight = presentation.lineHeight,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
 @Composable private fun EmptyPlaylistMessage(text: String) { Text(text, modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), color = HausColors.current.muted, fontSize = 15.sp) }
 @Composable private fun PlaylistNotice(state: PlaylistState) { if (state.mutationErrorMessage != null) Text(stringResource(Res.string.playlist_mutation_failed), color = HausColors.current.pulse, fontSize = 13.sp) }
 
 @Composable
 private fun PlaylistNameDialog(title: String, draft: PlaylistNameDraft, notice: PlaylistModalNotice?, onDraftChange: (String) -> Unit, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    ModalCard(onDismiss) { Text(title, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black); PlaylistTextField(draft.enteredText) { onDraftChange(it) }; if (draft.showFailure) Text(stringResource(Res.string.playlist_create_name), color = HausColors.current.pulse, fontSize = 12.sp); ModalFailureNotice(notice); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { CompactAction(stringResource(Res.string.cancel), Modifier.weight(1f), onDismiss); CompactAction(title, Modifier.weight(1f), onConfirm) } }
+    HausDialog(
+        title = title,
+        onDismiss = onDismiss,
+        body = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(title, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                PlaylistTextField(draft.enteredText) { onDraftChange(it) }
+                if (draft.showFailure) Text(stringResource(Res.string.playlist_create_name), color = HausColors.current.pulse, fontSize = 12.sp)
+                ModalFailureNotice(notice)
+            }
+        },
+        actions = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CompactAction(stringResource(Res.string.cancel), Modifier.weight(1f), onDismiss)
+                CompactAction(title, Modifier.weight(1f), onConfirm)
+            }
+        },
+    )
 }
 
 @Composable
@@ -1204,12 +1296,29 @@ private fun ReadFailureNotice(onRetry: () -> Unit) {
 
 @Composable
 private fun ConfirmationDialog(title: String, message: String, notice: PlaylistModalNotice? = null, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    ModalCard(onDismiss) { Text(title, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black); Text(message, color = HausColors.current.muted, fontSize = 14.sp); ModalFailureNotice(notice); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { CompactAction(stringResource(Res.string.cancel), Modifier.weight(1f), onDismiss); CompactAction(title, Modifier.weight(1f), onConfirm) } }
-}
-
-@Composable
-private fun ModalCard(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Box(Modifier.fillMaxSize().background(HausColors.current.ink.copy(alpha = .36f)).hausClickable(onDismiss).padding(24.dp), contentAlignment = Alignment.Center) { Card(modifier = Modifier.fillMaxWidth().hausClickable {}, cornerRadius = 24.dp, colors = CardDefaults.defaultColors(HausColors.current.panel)) { Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content) } }
+    HausDialog(
+        title = title,
+        onDismiss = onDismiss,
+        body = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(title, color = HausColors.current.ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                Text(message, color = HausColors.current.muted, fontSize = 14.sp)
+                ModalFailureNotice(notice)
+            }
+        },
+        actions = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CompactAction(stringResource(Res.string.cancel), Modifier.weight(1f), onDismiss)
+                CompactAction(title, Modifier.weight(1f), onConfirm)
+            }
+        },
+    )
 }
 
 @Composable
