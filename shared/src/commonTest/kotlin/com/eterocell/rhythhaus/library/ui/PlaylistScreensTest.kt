@@ -9,7 +9,10 @@ import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarContentPadding
+import com.eterocell.rhythhaus.theme.DarkHausPalette
+import com.eterocell.rhythhaus.theme.LightHausPalette
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -19,6 +22,38 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 
 class PlaylistScreensTest {
+    @Test
+    fun playlistLayoutMatchesLibraryHomeHorizontalInsetAndHasNoExtraTopInset() {
+        assertEquals(20.dp, PlaylistScreenLayoutPolicy.horizontalPadding)
+        assertEquals(0.dp, PlaylistScreenLayoutPolicy.additionalTopPadding)
+        assertEquals(18.dp, PlaylistScreenLayoutPolicy.itemSpacing)
+    }
+
+    @Test
+    fun lightPlaylistTabsUseContrastingExplicitColors() {
+        val presentation = playlistTabPresentation(PlaylistTab.Saved, LightHausPalette)
+
+        assertTrue(presentation.selectedContentColor != presentation.selectedContainerColor)
+        assertTrue(presentation.unselectedContentColor != presentation.unselectedContainerColor)
+    }
+
+    @Test
+    fun darkPlaylistTabsUseContrastingExplicitColors() {
+        val presentation = playlistTabPresentation(PlaylistTab.Queue, DarkHausPalette)
+
+        assertTrue(presentation.selectedContentColor != presentation.selectedContainerColor)
+        assertTrue(presentation.unselectedContentColor != presentation.unselectedContainerColor)
+    }
+
+    @Test
+    fun playlistTabsUseCompactTextSafeMetrics() {
+        val presentation = playlistTabPresentation(PlaylistTab.Saved, LightHausPalette)
+
+        assertEquals(40.dp, presentation.compactControlHeight)
+        assertEquals(6.dp, presentation.insideVerticalMargin)
+        assertEquals(20.sp, presentation.lineHeight)
+    }
+
     @Test
     fun playlistNameDraftTrimsValidNamesAndRejectsBlankWithoutDiscardingText() {
         val valid = PlaylistNameDraft("  Road trip  ")
