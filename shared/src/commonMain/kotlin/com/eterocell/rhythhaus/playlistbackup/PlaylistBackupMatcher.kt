@@ -5,12 +5,12 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 fun normalizePortableText(value: String): String {
     val normalized = StringBuilder(value.length)
     var pendingSpace = false
-    value.forEach { character ->
+    value.lowercase().forEach { character ->
         if (character.isWhitespace()) {
             if (normalized.isNotEmpty()) pendingSpace = true
         } else {
             if (pendingSpace) normalized.append(' ')
-            normalized.append(character.lowercase())
+            normalized.append(character)
             pendingSpace = false
         }
     }

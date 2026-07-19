@@ -71,3 +71,47 @@ Planned commit: `feat: add playlist backup matching and planning`, with the requ
 - Task 8 must compare `PlaylistImportPlan.libraryRevision` with the current authoritative library revision immediately before invoking the Task 6 transaction.
 - Localized suffix text is deliberately supplied by the caller; common planning remains localization-framework independent.
 - No unresolved Task 5 implementation or JVM-test blocker. Kotlin LSP remains unavailable as noted above.
+
+## Review Corrections — Supplementary Unicode and Coverage
+
+### Root cause
+
+`normalizePortableText` iterated Kotlin `Char` values and called `Char.lowercase()` independently. A supplementary Unicode code point is represented by a UTF-16 surrogate pair, so uppercase Deseret U+10400 was processed as two unrelated surrogate code units and did not lowercase to U+10428. The whitespace state machine itself was correct.
+
+### Review RED
+
+Before changing production code, added regressions for:
+
+- direct U+10400 to U+10428 normalization and end-to-end matching across those forms;
+- independent artist-only and album-only mismatch negatives;
+- exact duplicate occurrence export order `[track-a, track-b, track-a]` decoding to `[A, B, A]`;
+- exact `MAX_DURATION_SECONDS` acceptance and rejection of the first invalid whole second above it, while retaining missing and negative duration coverage.
+
+Ran:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.playlistbackup.PlaylistBackupMatcherTest' \
+  --tests 'com.eterocell.rhythhaus.playlistbackup.PlaylistBackupServiceTest' \
+  --configuration-cache
+```
+
+Result: expected `BUILD FAILED in 10s`; 12 tests completed, exactly 2 failed: `normalizationLowercasesSupplementaryUnicodeCodePoints` and `matcherMatchesSupplementaryUppercaseAndLowercaseForms`. The export-order, duration-boundary, and artist/album-negative regressions passed before production changed.
+
+### Review GREEN
+
+Changed only `normalizePortableText`: apply Kotlin common `String.lowercase()` to the whole string, then run the existing Unicode-whitespace trim/collapse state machine over that invariant-lowercase string. This handles complete supplementary code points without using device locale and does not alter whitespace classification, punctuation, diacritics, or compatibility distinctions.
+
+Reran the focused command above.
+
+Result: `BUILD SUCCESSFUL in 7s`; 26 actionable tasks, 7 executed and 19 up-to-date; configuration cache reused.
+
+Then ran sequentially:
+
+```bash
+./gradlew :shared:jvmTest --configuration-cache
+```
+
+Result: `BUILD SUCCESSFUL in 6s`; 26 actionable tasks, 5 executed and 21 up-to-date; configuration cache reused.
+
+Review correction scope is limited to `PlaylistBackupMatcher.kt`, the two Task 5 common tests, and this report. `PlaylistBackupService.kt` behavior required no production correction; Task 4 codec/models and Tasks 6+ remain unchanged.

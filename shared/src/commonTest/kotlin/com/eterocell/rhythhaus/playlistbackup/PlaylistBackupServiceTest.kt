@@ -37,6 +37,46 @@ class PlaylistBackupServiceTest {
     }
 
     @Test
+    fun exportPreservesDuplicateOccurrenceOrderWithinOnePlaylist() {
+        val snapshot = snapshot(
+            playlist("mix", "Mix") to listOf(
+                entry("mix", "track-a", 0),
+                entry("mix", "track-b", 1),
+                entry("mix", "track-a", 2),
+            ),
+        )
+        val tracks = listOf(
+            track("track-a", title = "A", durationMillis = 100_000),
+            track("track-b", title = "B", durationMillis = 100_000),
+        )
+
+        val exported = assertIs<PlaylistBackupExportResult.Success>(exportPlaylistBackup(snapshot, tracks, 1))
+        val document = assertIs<PlaylistBackupDecodeResult.Success>(PlaylistBackupCodec.decode(exported.bytes)).document
+
+        assertEquals(listOf("A", "B", "A"), document.playlists.single().entries.map { it.title })
+    }
+
+    @Test
+    fun exportAcceptsExactMaximumWholeSecondDurationAndRejectsFirstInvalidSecond() {
+        val snapshot = snapshot(playlist("p", "P") to listOf(entry("p", "track", 0)))
+        val maximumDurationMillis = PlaylistBackupLimits.MAX_DURATION_SECONDS * 1_000L
+
+        val exported = assertIs<PlaylistBackupExportResult.Success>(
+            exportPlaylistBackup(snapshot, listOf(track("track", durationMillis = maximumDurationMillis)), 1),
+        )
+        val document = assertIs<PlaylistBackupDecodeResult.Success>(PlaylistBackupCodec.decode(exported.bytes)).document
+        assertEquals(PlaylistBackupLimits.MAX_DURATION_SECONDS, document.playlists.single().entries.single().durationSeconds)
+        assertEquals(
+            PlaylistBackupExportResult.Failure(PlaylistBackupExportError.INVALID_DURATION, "track"),
+            exportPlaylistBackup(
+                snapshot,
+                listOf(track("track", durationMillis = maximumDurationMillis + 1_000L)),
+                1,
+            ),
+        )
+    }
+
+    @Test
     fun exportFailsBeforeBytesForMissingUnknownInvalidOrCodecBoundMetadata() {
         val snapshot = snapshot(playlist("p", "P") to listOf(entry("p", "track", 0)))
 

@@ -18,6 +18,23 @@ class PlaylistBackupMatcherTest {
     }
 
     @Test
+    fun normalizationLowercasesSupplementaryUnicodeCodePoints() {
+        assertEquals("\uD801\uDC28", normalizePortableText("\uD801\uDC00"))
+    }
+
+    @Test
+    fun matcherMatchesSupplementaryUppercaseAndLowercaseForms() {
+        val matcher = PlaylistBackupMatcher(
+            listOf(track("deseret", title = "\uD801\uDC00", durationMillis = 100_000)),
+        )
+
+        assertEquals(
+            PlaylistBackupMatch.Unique("deseret"),
+            matcher.match(entry(title = "\uD801\uDC28")),
+        )
+    }
+
+    @Test
     fun durationToleranceIsInclusiveAndUnknownDestinationDurationNeverMatches() {
         val matcher = PlaylistBackupMatcher(
             listOf(
@@ -52,10 +69,20 @@ class PlaylistBackupMatcherTest {
         )
     }
 
+    @Test
+    fun matcherRequiresExactNormalizedArtistAndAlbum() {
+        val matcher = PlaylistBackupMatcher(listOf(track("exact", durationMillis = 100_000)))
+
+        assertEquals(PlaylistBackupMatch.Unmatched, matcher.match(entry(artist = "Other Artist")))
+        assertEquals(PlaylistBackupMatch.Unmatched, matcher.match(entry(album = "Other Album")))
+    }
+
     private fun entry(
         title: String = "Title",
+        artist: String = "Artist",
+        album: String = "Album",
         durationSeconds: Int = 100,
-    ) = PlaylistBackupEntry(title, "Artist", "Album", durationSeconds)
+    ) = PlaylistBackupEntry(title, artist, album, durationSeconds)
 
     private fun track(
         id: String,
