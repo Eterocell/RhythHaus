@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,6 +103,54 @@ internal fun HausDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 20.dp),
+                    content = actions,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun HausLazyDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    dismissLabel: String? = null,
+    bodyModifier: Modifier = Modifier,
+    body: LazyListScope.() -> Unit,
+    actions: @Composable RowScope.() -> Unit,
+) {
+    val presentation = hausDialogPresentation(HausColors.current)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(presentation.scrimColor)
+            .pointerInput(onDismiss) { detectTapGestures(onTap = { onDismiss() }) }
+            .semantics {
+                dialog()
+                paneTitle = title
+                dismiss(label = dismissLabel) {
+                    onDismiss()
+                    true
+                }
+            }
+            .padding(presentation.outerPadding),
+        contentAlignment = Alignment.Center,
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = presentation.maxPanelHeight)
+                .pointerInput(Unit) { detectTapGestures(onTap = {}) },
+            cornerRadius = presentation.cornerRadius,
+            colors = CardDefaults.defaultColors(color = presentation.panelColor),
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+                LazyColumn(
+                    modifier = bodyModifier.fillMaxWidth().weight(1f, fill = false),
+                    content = body,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
                     content = actions,
                 )
             }

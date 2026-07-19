@@ -10,14 +10,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.HausDialog
+import com.eterocell.rhythhaus.ui.HausLazyDialog
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.cancel
@@ -42,6 +45,8 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 
+internal const val PlaylistBackupPreviewListTag = "playlist-backup-preview-list"
+
 @Composable
 fun PlaylistBackupPreviewDialog(
     preview: PlaylistBackupPreview,
@@ -50,25 +55,37 @@ fun PlaylistBackupPreviewDialog(
     onConfirm: () -> Unit,
 ) {
     val title = stringResource(Res.string.playlist_backup_preview_title)
-    HausDialog(
+    val reportsByIndex = remember(preview.plan.reports) {
+        preview.plan.reports.associateBy(PlaylistImportPlaylistReport::sourcePlaylistIndex)
+    }
+    HausLazyDialog(
         title = title,
         onDismiss = onDismiss,
         dismissLabel = stringResource(Res.string.cancel),
+        bodyModifier = Modifier.testTag(PlaylistBackupPreviewListTag),
         body = {
-            DialogTitle(title)
-            Spacer(Modifier.height(12.dp))
+            item("title") {
+                DialogTitle(title)
+                Spacer(Modifier.height(12.dp))
+            }
             val totals = preview.plan.totals.entries
-            CountLine(
-                stringResource(
-                    Res.string.playlist_backup_totals,
-                    totals.restorable,
-                    totals.unmatched,
-                    totals.ambiguous,
-                ),
-                emphasized = true,
-            )
-            Spacer(Modifier.height(12.dp))
-            preview.plan.reports.forEach { report ->
+            item("totals") {
+                CountLine(
+                    stringResource(
+                        Res.string.playlist_backup_totals,
+                        totals.restorable,
+                        totals.unmatched,
+                        totals.ambiguous,
+                    ),
+                    emphasized = true,
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+            items(
+                count = preview.plan.reports.size,
+                key = { index -> "report-${preview.plan.reports[index].sourcePlaylistIndex}" },
+            ) { index ->
+                val report = preview.plan.reports[index]
                 CountLine(
                     stringResource(
                         Res.string.playlist_backup_preview_playlist_counts,
@@ -80,11 +97,12 @@ fun PlaylistBackupPreviewDialog(
                 )
                 Spacer(Modifier.height(8.dp))
             }
-            preview.plan.issues.forEach { issue ->
-                val playlistName = preview.plan.reports
-                    .firstOrNull { it.sourcePlaylistIndex == issue.playlistIndex }
-                    ?.sourceName
-                    .orEmpty()
+            items(
+                count = preview.plan.issues.size,
+                key = { index -> "issue-${preview.plan.issues[index].playlistIndex}-${preview.plan.issues[index].entryIndex}" },
+            ) { index ->
+                val issue = preview.plan.issues[index]
+                val playlistName = reportsByIndex[issue.playlistIndex]?.sourceName.orEmpty()
                 val kind = when (issue.kind) {
                     PlaylistImportIssueKind.UNMATCHED -> stringResource(Res.string.playlist_backup_unmatched)
                     PlaylistImportIssueKind.AMBIGUOUS -> stringResource(Res.string.playlist_backup_ambiguous)

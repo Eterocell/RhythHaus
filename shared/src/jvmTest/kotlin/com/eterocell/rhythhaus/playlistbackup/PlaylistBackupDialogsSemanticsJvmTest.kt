@@ -4,6 +4,8 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.v2.runComposeUiTest
 import kotlin.test.Test
 import java.util.Locale
@@ -76,6 +78,52 @@ class PlaylistBackupDialogsSemanticsJvmTest {
             onNode(hasText("5 tracks restored")).assertExists()
             onNode(hasText("3 unmatched")).assertExists()
             onNode(hasText("4 ambiguous")).assertExists()
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun maximumValidPreviewComposesOnlyViewportRowsAndCanNavigateToFinalIssue() = withEnglishLocale {
+        runComposeUiTest {
+            val reports = List(1_000) { index ->
+                PlaylistImportPlaylistReport(
+                    sourcePlaylistIndex = index,
+                    sourceName = "Playlist $index",
+                    plannedName = null,
+                    counts = PlaylistImportCounts(0, 100, 0),
+                )
+            }
+            val issues = List(100_000) { index ->
+                PlaylistImportIssue(
+                    playlistIndex = index / 100,
+                    entryIndex = index % 100,
+                    entry = PlaylistBackupEntry("Issue $index", "Artist", "Album", 100),
+                    kind = PlaylistImportIssueKind.UNMATCHED,
+                    candidateTrackIds = emptyList(),
+                )
+            }
+            setContent {
+                PlaylistBackupPreviewDialog(
+                    preview = PlaylistBackupPreview(
+                        PlaylistImportPlan(
+                            libraryRevision = 1,
+                            playlists = emptyList(),
+                            reports = reports,
+                            totals = PlaylistImportTotals(0, 1_000, PlaylistImportCounts(0, 100_000, 0)),
+                            issues = issues,
+                        ),
+                    ),
+                    isBusy = false,
+                    onDismiss = {},
+                    onConfirm = {},
+                )
+            }
+
+            waitForIdle()
+            onNode(hasContentDescription("Playlist 999, Issue 99999, unmatched")).assertDoesNotExist()
+            onNodeWithTag(PlaylistBackupPreviewListTag).performScrollToIndex(101_001)
+            onNode(hasContentDescription("Playlist 999, Issue 99999, unmatched")).assertExists()
+            onNode(hasText("Import playlists")).assertIsNotEnabled()
         }
     }
 
