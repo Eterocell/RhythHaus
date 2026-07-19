@@ -4,8 +4,23 @@ import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.test.assertFalse
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 
 class SettingsScreenTest {
+    @Test
+    fun backupActionsRequireAvailableLauncherAndIdleWorkflow() {
+        assertTrue(playlistBackupActionsEnabled(true, PlaylistBackupUiState()))
+        assertFalse(playlistBackupActionsEnabled(false, PlaylistBackupUiState()))
+        assertFalse(
+            playlistBackupActionsEnabled(
+                true,
+                PlaylistBackupUiState(operation = PlaylistBackupOperation.Opening),
+            ),
+        )
+    }
+
     @Test
     fun generatedBuildVersionIsNonblank() {
         assertTrue(RhythHausBuildInfo.versionName.isNotBlank())
