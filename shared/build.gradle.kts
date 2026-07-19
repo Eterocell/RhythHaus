@@ -209,6 +209,10 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        jvmTest.dependencies {
+            implementation("org.jetbrains.compose.ui:ui-test:1.11.1")
+            implementation(compose.desktop.currentOs)
+        }
         named("androidHostTest").dependencies {
             implementation(libs.sqldelight.sqlite.driver)
         }
