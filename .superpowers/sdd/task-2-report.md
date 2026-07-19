@@ -1,116 +1,100 @@
-# Task 2 Report: Single-owner artwork lazy sequence and chrome
+# Task 2 Report: Shared HausDialog Foundation
 
-## Status
+## Changed files
 
-Task 2 is GREEN. The Task 1 pure list-position geometry now has compiling production callers, so Tasks 1 and 2 form one GREEN integration unit.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/HausDialog.kt`
+  - Added the pure `HausDialogPresentation` and `hausDialogPresentation` policy.
+  - Added the internal slot-based `HausDialog` shell with dialog/pane/dismiss semantics, scrim dismissal, panel tap containment, an opaque Miuix `Card`, and bounded scrolling.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistPresentationPolicy.kt`
+  - Added only the layout, explicit palette-pair, and compact text-metric APIs required to compile the Task 1 playlist presentation tests.
+  - Did not apply the policy to `PlaylistScreens.kt`; that remains Task 4.
+- `.superpowers/sdd/task-2-report.md`
+  - Replaced the previous unrelated generic Task 2 report with this task's required evidence.
 
-## Files changed
-
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapse.kt`
-  - Preserved the Task 1 `ArtworkCollapseGeometry.snapshot(firstVisibleItemIndex, firstVisibleItemScrollOffset)` API unchanged.
-  - Added the exact pure `ArtworkHeaderItemPolicy`, `artworkHeaderItemPolicy`, `DrillDownListSpacing`, and `ArtworkDrillDownListSpacing` seams from the brief.
-- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapseTest.kt`
-  - Added valid-range and zero-range item-policy tests.
-  - Added exact 20 dp row inset, 18 dp item gap, and zero artwork-slice gap coverage.
-  - Retained explicit Loading/Unavailable Miuix and Available Artwork owner coverage.
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt`
-  - Made `DrillDownMiuixScrollChrome` no-artwork-only.
-  - Added clipped upper and sticky-lower artwork slices that place aligned portions of the same fixed square `ArtworkImage` with `ContentScale.Crop`, `ArtworkImageRole.Hero`, the existing artwork accessibility string, and the existing scrim/alpha curves.
-  - Added a safe-inset, button-sized 44 dp artwork back control with no full-screen input overlay.
-  - Simplified `DrillDownScrollbar` to direct `scrollToItem(index = targetIndex, scrollOffset = 0)` with no reset callback or updated-state capture.
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt`
-  - Replaced the failed nested-scroll/sibling-scrollable/layout-compensation architecture with one literal `LazyColumn` and one `LazyListState`.
-  - Artwork order is keyed upper slice, sticky lower slice, section, keyed track rows, and Now Playing spacer.
-  - Artwork rows use local tested 20 dp horizontal inset and 18 dp bottom gaps; artwork slices remain full-bleed with no global spacing.
-  - Loading and Unavailable retain the unchanged Miuix list padding, arrangement, chrome, and sole Miuix nested-scroll connection.
-  - Preserved raw `onScrollPositionChanged(listState.toLibraryScrollPosition())` reporting and the existing scrollbar/Now Playing sibling positions.
-
-## RED
-
-After adding only the policy/spacing tests, ran:
-
-```bash
-./gradlew :shared:jvmTest \
-  --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' \
-  --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' \
-  --configuration-cache
-```
-
-Result: expected combined Task 1+2 failure at `:shared:compileKotlinJvm` (`BUILD FAILED in 2s`). The compiler stopped before test compilation because the intentionally dirty Task 1 callers still referenced six removed APIs:
-
-- `artworkChromeHeightPx`
-- `scrollbarTargetsTop`
-- `rememberArtworkCollapseState`
-- `artworkListTopPaddingPx`
-- `artworkListVisualOffsetPx`
-- `artworkListViewportExtensionPx`
-
-This is the exact integration boundary recorded in `task-1-report.md`; no unrelated source or test failure occurred. Because production compilation failed first, Gradle could not yet surface the new missing policy symbols independently. The policy seams were then added exactly as specified, and obsolete callers were replaced rather than restoring compatibility declarations from the rejected architecture.
+The Task 1 test files were consumed unchanged. No existing dialog caller was migrated.
 
 ## GREEN
 
-Initial caller-integration compile:
+Exact command:
 
 ```bash
-./gradlew :shared:compileKotlinJvm --configuration-cache
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' --configuration-cache
 ```
 
-Result: pass, `BUILD SUCCESSFUL in 5s`. This is the first Task 1 GREEN production integration.
+Exact successful output ending:
 
-Initial policy/navigation GREEN:
+```text
+> Task :shared:compileKotlinJvm
+> Task :shared:compileJvmMainJava NO-SOURCE
+> Task :shared:jvmMainClasses
+> Task :shared:jvmJar
+> Task :shared:compileTestKotlinJvm
+> Task :shared:compileJvmTestJava NO-SOURCE
+> Task :shared:jvmTestClasses
+> Task :shared:jvmTest
+
+BUILD SUCCESSFUL in 7s
+26 actionable tasks: 8 executed, 18 up-to-date
+Configuration cache entry reused.
+```
+
+All 39 focused tests passed.
+
+## Concerns
+
+- The brief's sample dark scrim branch copied `palette.paper`, but the Task 1 contract requires a scrim whose RGB luminance is greater than dark `paper`. The implementation therefore uses dark-palette `ink` at 20% alpha; light mode uses the required `ink` at 36% alpha.
+- Kotlin LSP diagnostics could not run because `kotlin-ls` is not installed and installation was previously declined. The focused command compiled both common-main production files and the JVM tests successfully.
+- No runtime visual QA is claimed because this task intentionally adds the foundation without migrating or rendering any existing dialog caller.
+- `GIT_MASTER=1 git diff --check` passed with no output. No commit was created.
+
+## Reviewer follow-up: fixed action footer
+
+The reviewer found that the original single `content` slot was attached to the same `Column` as `verticalScroll`, so caller-owned confirmation controls would scroll with a long body. The regression now compiles a `HausDialog` call with separate named `body` and `actions` slots.
+
+### RED
+
+After adding only the separate-slot contract to `HausDialogTest.kt`, ran:
 
 ```bash
-./gradlew :shared:jvmTest \
-  --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' \
-  --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' \
-  --configuration-cache
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' --configuration-cache
 ```
 
-Result: pass, `BUILD SUCCESSFUL in 4s`.
+Exact failure:
 
-Expanded focused GREEN:
+```text
+> Task :shared:compileTestKotlinJvm FAILED
+e: file:///Users/eterocell/Sources/AndroidStudioWorkspace/RhythHaus/shared/src/commonTest/kotlin/com/eterocell/rhythhaus/ui/HausDialogTest.kt:44:9 No parameter with name 'body' found.
+e: file:///Users/eterocell/Sources/AndroidStudioWorkspace/RhythHaus/shared/src/commonTest/kotlin/com/eterocell/rhythhaus/ui/HausDialogTest.kt:45:9 No parameter with name 'actions' found.
+e: file:///Users/eterocell/Sources/AndroidStudioWorkspace/RhythHaus/shared/src/commonTest/kotlin/com/eterocell/rhythhaus/ui/HausDialogTest.kt:45:9 No value passed for parameter 'content'.
+
+BUILD FAILED in 1s
+```
+
+### GREEN
+
+`HausDialog` now accepts a caller-owned `ColumnScope` body and a caller-owned `RowScope` action slot. Only the body column has `verticalScroll`; the action row is its fixed sibling below it inside the same bounded card.
+
+Final exact command:
 
 ```bash
-./gradlew :shared:jvmTest \
-  --tests 'com.eterocell.rhythhaus.library.ui.ArtworkCollapseTest' \
-  --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' \
-  --tests 'com.eterocell.rhythhaus.ui.ArtworkImageTest' \
-  --tests 'com.eterocell.rhythhaus.library.ArtworkLazyLoadingTest' \
-  --configuration-cache
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' --configuration-cache
 ```
 
-Result: pass after final wiring, `BUILD SUCCESSFUL in 5s`.
+Exact successful output ending:
 
-Final shared JVM compiler gate:
+```text
+> Task :shared:compileKotlinJvm
+> Task :shared:compileJvmMainJava NO-SOURCE
+> Task :shared:jvmMainClasses
+> Task :shared:jvmJar UP-TO-DATE
+> Task :shared:compileTestKotlinJvm UP-TO-DATE
+> Task :shared:compileJvmTestJava NO-SOURCE
+> Task :shared:jvmTestClasses UP-TO-DATE
+> Task :shared:jvmTest UP-TO-DATE
 
-```bash
-./gradlew :shared:compileKotlinJvm --configuration-cache
+BUILD SUCCESSFUL in 3s
+26 actionable tasks: 5 executed, 21 up-to-date
+Configuration cache entry reused.
 ```
 
-Result: pass, `BUILD SUCCESSFUL in 337ms`.
-
-Diff hygiene:
-
-```bash
-GIT_MASTER=1 git diff --check
-```
-
-Result: pass with no output.
-
-## Invariant review
-
-- Production search for `NestedScrollConnection`, `rememberArtworkCollapseState`, `Modifier.scrollable`, custom `.layout {`, `artworkListVisualOffsetPx`, `artworkListViewportExtensionPx`, `artworkListTopPaddingPx`, `expandFully`, `scrollbarTargetsTop`, `onScrollToTop`, and `rememberUpdatedState`: no matches.
-- `LibraryDetailContent.kt` contains exactly one `LazyColumn(` call and one `nestedScroll(` call. The latter is `miuixScrollBehavior.nestedScrollConnection` inside the no-artwork modifier branch only.
-- Artwork production sequence contains `artwork-upper`, sticky `artwork-lower`, `section`, track ID keys, and `now-playing-spacer`.
-- Upper and lower slices both render the same fixed `expandedHeight x expandedHeight` artwork plane; only the lower plane is translated by the Task 1 image offset. Each slice clips its own bounds, and no global padding or arrangement splits them.
-- Artwork back control has only safe-inset offsets and `.size(44.dp)`; it does not use `fillMaxWidth`, `fillMaxHeight`, or `matchParentSize`.
-- Scrollbar top naturally restores item zero with explicit `scrollOffset = 0`; no imperative collapse reset exists.
-- Raw list indices/offsets remain unchanged. Existing `LibraryNavigationTest` cases cover increasing/decreasing offsets within one item and increasing/decreasing indices across item boundaries.
-- Loading and Unavailable still classify as Miuix; only resolved Available bytes select artwork mode.
-
-## Diagnostics and concerns
-
-- Kotlin LSP diagnostics could not run because `kotlin-ls` is not installed and installation was previously declined. Focused JVM tests and `:shared:compileKotlinJvm` are the executable Kotlin validation evidence.
-- No desktop prototype/build configuration, OpenSpec/docs/progress/roadmap, navigation/playback logic, or unrelated dirty file was modified by this task.
-- No commit was created, as required.
-- This task did not run live desktop/device visual or physical trackpad QA. The approved disposable single-owner prototype already passed the physical macOS interaction gate; production pixel/gesture confirmation remains a manual follow-up rather than an automated GREEN claim.
+`GIT_MASTER=1 git diff --check` passed with no output. Kotlin LSP remains unavailable because `kotlin-ls` installation was previously declined. No settings or playlist caller was migrated, and no commit was created.
