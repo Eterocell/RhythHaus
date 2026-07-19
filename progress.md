@@ -1,5 +1,39 @@
     # Session Progress
 
+## Handoff - 2026-07-19 track-multi-select-playlist-backup Task 9
+
+Route: openspec+superpowers / integration, supported-platform verification, runtime/visual QA attempt, and final review
+Owner: automated implementation/evidence complete; next owner is user/manual runtime and visual QA
+Input: `.superpowers/sdd/task-9-brief.md`, accepted Tasks 1-8 through `4462380`, and approved OpenSpec change
+Output:
+- Added and committed real temporary-database integration acceptance as `0f48f45 test: verify playlist backup integration`.
+- Final review exposed iOS short-read oversized-detection risk; strict native RED/GREEN fixed bounded accumulation and committed `912e6e4 fix: bound iOS playlist backup reads`.
+- Final goal/spec and bounded-read adjudication PASS with no Critical or Important finding.
+Verification:
+- Complete focused Task 1-8 JVM matrix + integration, forced: pass (`BUILD SUCCESSFUL in 14s`; 35/35 tasks).
+- Focused Android-host adapter, forced: pass (`BUILD SUCCESSFUL in 7s`; 52/52 tasks).
+- `openspec validate track-multi-select-playlist-backup --strict`: pass.
+- `./gradlew :shared:jvmTest :shared:testAndroidHostTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 7s`; 125 tasks) before final fix; post-fix pass (`BUILD SUCCESSFUL in 517ms`; 116 tasks).
+- Xcode 26.6 build 17F113; full `:shared:iosSimulatorArm64Test` pass (`BUILD SUCCESSFUL in 36s`) and post-fix pass.
+- Native XCTest: 7/7 initially; review-fix RED failed exactly because short reads did not throw; GREEN and complete native suite passed 8/8.
+- Unsigned clean generic-simulator Xcode build: pass before and after fix. `GIT_MASTER=1 git diff --check`: pass before evidence editing.
+Runtime/visual QA:
+- Desktop launched PID 74386 with visible 784x588 window; Orca permissions were granted but no AX window was exposed, native window capture failed, and the full-screen PNG could not be rendered.
+- iPhone 17 Pro simulator app launched PID 75202 and framebuffer PNG was captured; Simulator exposed no AX window and the PNG could not be rendered.
+- `adb devices -l`: no Android device/emulator.
+- Unverified, not passes: desktop/mobile long press, tap/touch, checkbox/accessibility actions, navigation/Search cleanup, picker and Settings system panels, actual import/export paths, compact/wide, light/dark, English/Chinese/CJK, focus, row fit, contextual-bar clearance/mutual exclusion, and preview late-row pixels.
+Acceptance:
+- OpenSpec 8.1-8.3 and 9.4 complete. OpenSpec 9.1-9.3 remain open for unavailable runtime/system-panel/visual acceptance.
+- No archive or push. Generic `.superpowers/sdd/task-1-report.md` and `task-2-report.md` remain preserved and must not be staged.
+Changed lifecycle files:
+- `.superpowers/sdd/track-multi-select-playlist-backup-task-9-report.md`
+- `.superpowers/sdd/progress.md`
+- `openspec/changes/track-multi-select-playlist-backup/tasks.md`
+- `progress.md`
+- `roadmap.md`
+Next safe action: perform Task 9.1-9.3 manually with attachable accessibility/device tooling and renderable screenshots; archive only after explicit request.
+Blockers: runtime/system-panel and visual acceptance only; no automated, build, review, or diff-hygiene blocker.
+
 ## Handoff - 2026-07-19 playlist-dialog-polish Task 5 verification
 
 Route: openspec+superpowers / Task 5 verification, runtime-QA attempt, and final read-only review

@@ -98,3 +98,15 @@ Task 3: complete (uncommitted Clear Library/Remove Folder migration; source-mana
 Task 4: complete (uncommitted playlist HausDialog migration and explicit layout/tab/action policies; focused playlist JVM GREEN; re-review clean; runtime visual QA deferred to Task 5)
 Task 5: complete with blocker (strict OpenSpec, JVM/desktop/Android, Xcode, and iOS simulator tests pass; desktop runtime cannot be captured through Orca, so visual QA remains manual)
 Task 6: complete (JVM Compose UI-test proves SemanticsActions.Dismiss invokes exactly one real callback and removes the dialog; review clean)
+
+## track-multi-select-playlist-backup
+Plan: docs/superpowers/plans/2026-07-19-track-multi-select-playlist-backup.md
+Task 1: complete (commits 0fb7323..e0ab6e7, focused 13-test RED/GREEN evidence, spec compliance PASS, task quality PASS)
+Task 2: complete (commits d8396d5..64112b6, focused row/Search/Home RED/GREEN evidence, spec compliance PASS, task quality PASS)
+Task 3: complete (commits 71888de..57d0634, focused and broad RED/GREEN evidence, spec compliance PASS, task quality PASS; runtime visual/device QA deferred to Task 9)
+Task 4: complete (commits 5b652e9..b45785e, 27 codec RED/GREEN tests and full JVM pass, spec compliance PASS, task quality PASS)
+Task 5: complete (commits 9b03609..7e2ea87, matching/export/planning RED/GREEN and full JVM pass, spec compliance PASS, task quality PASS)
+Task 6: complete (commit 7d17ac4, common/JVM/iOS RED/GREEN evidence, spec compliance PASS, task quality PASS; Minor: Task 9 should directly count all playlist_entry rows after forced rollback; Android host full gate retained as blocked by unrelated intermittent playback tests)
+Task 7: complete (commits e2dad36..53df4d3, focused JVM/Android/iOS/XCTest and Xcode build evidence, spec compliance PASS, task quality PASS; runtime system-panel presentation deferred to Task 9)
+Task 8: complete (commits 8e8f647..4462380, workflow/semantics/lazy-preview RED/GREEN and JVM/desktop/Android gates, spec compliance PASS, task quality PASS; pixel/runtime QA deferred to Task 9)
+Task 9: automated integration/verification and final review complete (commits 0f48f45 and 912e6e4; focused/full JVM, Android host, desktop, Android, iOS, native XCTest, unsigned Xcode, strict OpenSpec, and diff gates pass; final adjudication PASS with no Critical/Important). Runtime interaction, real system panels, and pixel visual QA remain tooling/device-blocked and unverified; OpenSpec 9.1-9.3 remain open.
