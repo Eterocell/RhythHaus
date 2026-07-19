@@ -1,87 +1,180 @@
-# Task 3 Report: Remove the disposable desktop prototype
+# Task 3 Report: Migrate Settings dialogs to HausDialog
 
 ## Status
 
-DONE_WITH_CONCERNS
+DONE
 
-The disposable desktop artwork-scroll prototype was removed after its evidence was confirmed as preserved. Normal desktop startup, compilation, tests, and macOS packaging configuration were retained.
+Clear Library and Remove Folder now use the shared solid `HausDialog` shell with separate body and actions slots. Existing resources, typography, action labels, action colors, action order, mutation behavior, callback order, routes, and source-name accessibility semantics are preserved.
 
-## Evidence check
+## Changed files
 
-Before deletion, `progress.md` and the amended OpenSpec design were inspected.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDialogs.kt`
+  - Replaced Clear Library's custom scrim, transparent card, `rhythHausLiquidGlass`, and `LayerBackdrop` parameter with `HausDialog`.
+  - Kept the existing title, message, Cancel/Clear order, button dimensions, colors, labels, and callbacks.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/settings/SettingsScreen.kt`
+  - Replaced Remove Folder's custom liquid-glass shell with `HausDialog` body/actions slots.
+  - Preserved the two-line ellipsized `name.visual` label and `clearAndSetSemantics { contentDescription = name.accessibility }`.
+  - Preserved the `mutationsEnabled` gate on Remove and both callback-before-visible-state-close sequences.
+  - Removed `clearLibraryDialogBackdrop` only after both migrated dialogs stopped consuming it.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt`
+  - Removed the dialog-only backdrop parameter and Settings forwarding.
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`
+  - Removed the dialog-only backdrop argument from the overlay route helper and its two callers.
+  - Left `rootBackdrop`, `rememberRhythHausBackdrop()`, and both `recordRhythHausBackdrop(rootBackdrop)` uses unchanged.
+- `.superpowers/sdd/task-3-report.md`
+  - Replaced the stale unrelated report with this Task 3 evidence.
 
-`progress.md` preserves:
-
-- Focused prototype test RED/GREEN evidence.
-- Full desktop verification: `./gradlew :desktopApp:compileKotlin :desktopApp:test --configuration-cache` with `BUILD SUCCESSFUL`.
-- Prototype launch reaching `:desktopApp:runArtworkScrollPrototype` with `ArtworkScrollPrototypeKt`.
-- User-confirmed physical macOS acceptance for artwork-zone scrolling, deep reverse restoration, `Restore top`, and back-button interaction.
-- The prototype's role as disposable diagnostic evidence rather than production functionality.
-
-The amended design preserves the rationale that the one-`LazyColumn` topology passed physical macOS routing/restoration checks and that the prototype validated routing/restoration rather than final visual fidelity.
-
-## Changes
-
-Modified only the prototype additions in `desktopApp/build.gradle.kts`:
-
-- Removed `implementation(libs.compose.material3)`.
-- Removed `implementation(libs.compose.material.icons.extended)`.
-- Removed `testImplementation(libs.kotlin.testJunit)`.
-- Removed the `runArtworkScrollPrototype` `JavaExec` task and its `ArtworkScrollPrototypeKt` main-class reference.
-
-Deleted only these prototype files:
-
-- `desktopApp/src/main/kotlin/com/eterocell/rhythhaus/ArtworkScrollPrototype.kt`
-- `desktopApp/src/test/kotlin/com/eterocell/rhythhaus/ArtworkScrollPrototypeTest.kt`
-
-Preserved unchanged:
-
-- `desktopApp/src/main/kotlin/com/eterocell/rhythhaus/main.kt`.
-- `compose.desktop.application.mainClass = "com.eterocell.rhythhaus.MainKt"`.
-- Koin startup through `main.kt`.
-- Existing shared/Desktop dependencies and `compose.uiToolingPreview`.
-- macOS DMG packaging, package name, and version configuration.
-- All shared production/test files, OpenSpec/docs/progress files, and unrelated dirty work.
+`shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibrarySourceManagementTest.kt` was not changed because it already contains the required regression proving a long source name has a 63-character-plus-ellipsis visual form and the complete accessibility form. Its existing mutation-gate coverage was retained unchanged.
 
 ## Verification
 
-Exact required command:
+Pre-migration characterization command:
 
 ```text
-./gradlew :desktopApp:compileKotlin :desktopApp:test --configuration-cache
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
 ```
 
-Result:
+Exact result summary:
 
-- `BUILD SUCCESSFUL in 1s`
-- `38 actionable tasks: 7 executed, 31 up-to-date`
-- Configuration cache entry stored.
-- `:desktopApp:compileKotlin` passed.
-- `:desktopApp:test` passed.
+```text
+BUILD SUCCESSFUL in 1s
+35 actionable tasks: 5 executed, 30 up-to-date
+Configuration cache entry stored.
+```
+
+Post-migration required command:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
+```
+
+Exact result summary:
+
+```text
+BUILD SUCCESSFUL in 4s
+26 actionable tasks: 8 executed, 18 up-to-date
+Configuration cache entry reused.
+```
+
+Final completion-gate rerun of the same required command:
+
+```text
+BUILD SUCCESSFUL in 383ms
+26 actionable tasks: 4 executed, 22 up-to-date
+Configuration cache entry reused.
+```
+
+Independent QA forced fresh compilation and test execution:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache --rerun-tasks
+BUILD SUCCESSFUL in 9s
+26 actionable tasks: 26 executed
+```
 
 Additional checks:
 
-- `git diff --check` passed with no output.
-- Both prototype files were confirmed absent after deletion.
-- No remaining live source/build references to `ArtworkScrollPrototype`, `ArtworkPrototypeVisualState`, `artworkPrototypeVisualState`, or `runArtworkScrollPrototype` were found.
-- Remaining textual matches are intentional historical references in `progress.md` and the approved Task 3 plan, which were not modified.
+- `GIT_MASTER=1 git diff --check`: pass with no output.
+- Scoped search across `LibraryDialogs.kt`, `SettingsScreen.kt`, `LibraryRoutes.kt`, and `LibraryAppShell.kt` found no remaining `clearLibraryDialogBackdrop`, `LayerBackdrop`, or `rhythHausLiquidGlass` references.
+- Kotlin LSP diagnostics were unavailable because `kotlin-ls` is not installed and installation was previously declined. The focused Gradle run compiled the changed common source and test code successfully.
+- Scoped diff review confirmed Clear Library still invokes `onClearLibrary()` before `showClearLibraryDialog = false`, and Remove Folder still invokes `onRemoveSource(source)` before `sourcePendingRemoval = null`.
+- No playlist screen, dependency, palette, route, string, persistence, playback, scan behavior, test, or type suppression was changed.
+- No commit was created.
 
-## Self-review
+## Review
 
-- The build diff removes exactly the 11 prototype-added lines and retains all pre-existing desktop build/package lines.
-- The normal `MainKt` entry point remains configured and `main.kt` was not modified.
-- No dependency used by remaining desktop sources was removed; the exact prototype-only Material 3, extended-icons, and Kotlin JUnit dependencies were removed with their only consumers.
-- No commit, reset, revert, suppression, or unrelated cleanup was performed.
+Five independent post-implementation lanes reviewed goal compliance, focused QA, code quality, security/privacy, and repository context.
 
-## Concerns
+- Goal and constraints: PASS, 98% confidence.
+- Focused QA: PASS, high confidence; forced fresh compilation and test execution passed.
+- Code quality: PASS, 96% confidence; no findings.
+- Security/privacy: PASS; maximum severity none.
+- Context: all implementation requirements aligned. One initial concern about the old localized semantics dismiss label was adjudicated as not blocking because the approved design centralizes semantics in the fixed review-clean `HausDialog` API, rejects per-feature semantics wrappers, and requires a dismiss action but not a caller-provided label. The visible localized Cancel action and full source-name accessibility remain preserved.
 
-- The Gradle run emitted existing repository warnings about an incubating parallel configuration-cache feature, a `taglib` Android host-test configuration, and deprecated Gradle features. None failed the requested desktop compile/test command.
-- Kotlin LSP diagnostics were not available because `kotlin-ls` is not installed and installation was previously declined; Gradle compilation/tests provide the executable Kotlin verification for this cleanup.
-- Historical evidence intentionally continues to mention the removed prototype so the accepted physical macOS result remains auditable.
+Final review: PASS with no blocking issues.
 
-Route: openspec+superpowers / disposable prototype cleanup
+## Workspace note
+
+The workspace already contained unrelated Task 1/2 and playlist-dialog-polish changes. They were preserved and not modified by Task 3. `HausDialog.kt` remains an untracked Task 2 dependency in the shared workspace.
+
+Route: openspec+superpowers / Task 3 settings-dialog migration
 Owner: implementation
-Input: `.superpowers/sdd/task-3-brief.md` and preserved prototype evidence
-Output: prototype build/source/test removed; desktop compile/test passed; this report
-Next owner: OpenSpec/Superpowers for Task 3 ledger completion or archival when explicitly requested
-Blockers: none for the requested desktop cleanup
+Input: `.superpowers/sdd/task-3-brief.md` and Task 2 `HausDialog`
+Output: settings dialogs migrated to the shared solid shell; focused source-management tests passed; this report
+Next owner: controller/reviewer for Task 3 acceptance
+Blockers: none
+
+## Final review regression fix: localized dismiss action label
+
+The whole-change review established that Remove Folder's pre-migration semantics used `dismiss(label = dismissLabel)` with `dismissLabel = stringResource(Res.string.cancel)`. The initial Task 3 migration preserved the dismiss callback but lost that localized action label because `HausDialog` exposed only an unlabeled dismiss action.
+
+This follow-up restores the former semantics without reintroducing a per-feature shell:
+
+- `HausDialog` now accepts optional `dismissLabel: String? = null` and forwards it to `dismiss(label = dismissLabel)`. Existing callers preserve their prior behavior through the null default.
+- `RemoveSourceDialog` resolves the existing localized Cancel resource and is the only production caller that supplies `dismissLabel`.
+- `HausDialogSemanticsJvmTest` uses the real `runComposeUiTest` semantics tree to assert the actual `SemanticsActions.Dismiss` label is `Cancel`, invoke that action, verify exactly one callback, and verify the dismiss node disappears.
+
+This evidence supersedes the earlier Task 3 report statement that the missing localized dismiss label was not blocking.
+
+### TDD evidence
+
+Clean RED command:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --configuration-cache
+```
+
+Exact RED result:
+
+```text
+e: file:///Users/eterocell/Sources/AndroidStudioWorkspace/RhythHaus/shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/ui/HausDialogSemanticsJvmTest.kt:27:21 No parameter with name 'dismissLabel' found.
+BUILD FAILED in 560ms
+25 actionable tasks: 5 executed, 20 up-to-date
+Configuration cache entry reused.
+```
+
+Focused GREEN result for the same command after the minimal production change:
+
+```text
+BUILD SUCCESSFUL in 7s
+26 actionable tasks: 8 executed, 18 up-to-date
+Configuration cache entry reused.
+```
+
+Combined focused command:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache
+```
+
+Exact combined result:
+
+```text
+BUILD SUCCESSFUL in 2s
+35 actionable tasks: 5 executed, 30 up-to-date
+Configuration cache entry stored.
+```
+
+Forced fresh final command:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --tests 'com.eterocell.rhythhaus.LibrarySourceManagementTest' --configuration-cache --rerun-tasks
+```
+
+Exact forced result:
+
+```text
+BUILD SUCCESSFUL in 8s
+26 actionable tasks: 26 executed
+Configuration cache entry reused.
+```
+
+Final completion-gate rerun after appending this report:
+
+```text
+BUILD SUCCESSFUL in 375ms
+26 actionable tasks: 4 executed, 22 up-to-date
+Configuration cache entry reused.
+```
+
+Kotlin LSP diagnostics remained unavailable because `kotlin-ls` is not installed and installation was previously declined. Gradle compiled and executed the changed common/JVM sources successfully. No callback, palette, layout, dependency, string, route, playlist caller, persistence, playback, or scan behavior changed, and no commit was created.
