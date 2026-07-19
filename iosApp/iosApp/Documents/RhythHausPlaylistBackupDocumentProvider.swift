@@ -1,14 +1,12 @@
 import Foundation
 import Shared
 import UIKit
-import UniformTypeIdentifiers
 
 final class RhythHausPlaylistBackupDocumentProvider: NSObject, IOSPlaylistBackupDocumentProvider {
-    private var activePicker: UIDocumentPickerViewController?
-    private var activeCompletion: IOSPlaylistBackupDocumentCompletion?
-    private var temporaryExportURL: URL?
-    private var temporaryExportDirectoryURL: URL?
+    private let operationState = PlaylistBackupDocumentOperationState()
     private var importMaxBytes: Int = 0
+    private var importedBytes: KotlinByteArray?
+    private var isExportOperation = false
 
     func saveDocument(
         fileName: String,
@@ -17,111 +15,104 @@ final class RhythHausPlaylistBackupDocumentProvider: NSObject, IOSPlaylistBackup
     ) {
         guard beginOperation(completion: completion) else { return }
         do {
-            let exportDirectoryURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            temporaryExportDirectoryURL = exportDirectoryURL
-            let safeFileName = URL(fileURLWithPath: fileName).lastPathComponent
-            let exportURL = exportDirectoryURL
-                .appendingPathComponent(safeFileName)
-            try FileManager.default.createDirectory(
-                at: exportDirectoryURL,
-                withIntermediateDirectories: true
+            let prepared = try PlaylistBackupDocumentTemporaryExport.prepare(
+                fileName: fileName,
+                data: bytes.toData(),
+                storage: FileManagerPlaylistBackupDocumentTemporaryStorage(fileManager: .default)
             )
-            try bytes.toData().write(to: exportURL, options: .atomic)
-            temporaryExportURL = exportURL
-            present(UIDocumentPickerViewController(forExporting: [exportURL], asCopy: true))
+            isExportOperation = true
+            present(
+                UIDocumentPickerViewController(forExporting: [prepared.fileURL], asCopy: true),
+                cleanup: prepared.cleanup
+            )
         } catch {
-            finish(status: IOSPlaylistBackupDocumentStatus.shared.FAILURE, message: error.localizedDescription)
+            operationState.finishCurrent(outcome: .failure(error.localizedDescription))
         }
     }
 
     func openDocument(maxBytes: Int32, completion: IOSPlaylistBackupDocumentCompletion) {
         guard beginOperation(completion: completion) else { return }
         importMaxBytes = Int(maxBytes)
-        let vendorType = UTType("application/vnd.rhythhaus.playlists+json")
-        let contentTypes = [vendorType, .json].compactMap { $0 }
-        present(UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: false))
-    }
-
-    deinit {
-        cleanupTemporaryExport()
+        isExportOperation = false
+        present(UIDocumentPickerViewController(forOpeningContentTypes: PlaylistBackupDocumentTypePolicy.contentTypes(), asCopy: false))
     }
 
     private func beginOperation(completion: IOSPlaylistBackupDocumentCompletion) -> Bool {
-        guard activePicker == nil, activeCompletion == nil else {
-            completion.complete(
-                status: IOSPlaylistBackupDocumentStatus.shared.FAILURE,
-                bytes: nil,
-                message: "Another document operation is already active"
-            )
-            return false
+        let started = operationState.begin { [weak self] outcome in
+            let result = self?.bridgeResult(for: outcome)
+                ?? (IOSPlaylistBackupDocumentStatus.shared.FAILURE, nil, "Document provider was released")
+            completion.complete(status: result.0, bytes: result.1, message: result.2)
         }
-        activeCompletion = completion
-        return true
+        if started { importedBytes = nil }
+        return started
     }
 
-    private func present(_ picker: UIDocumentPickerViewController) {
+    private func present(_ picker: UIDocumentPickerViewController, cleanup: (() -> Void)? = nil) {
+        operationState.attach(picker: picker, cleanup: cleanup)
         guard let presenter = RhythHausViewControllerRegistry.presenter else {
-            finish(status: IOSPlaylistBackupDocumentStatus.shared.UNAVAILABLE, message: "Document presenter is unavailable")
+            operationState.finish(picker: picker, outcome: .unavailable("Document presenter is unavailable"))
             return
         }
-        activePicker = picker
         picker.delegate = self
         presenter.present(picker, animated: true)
     }
 
-    private func finish(status: Int32, bytes: KotlinByteArray? = nil, message: String? = nil) {
-        let completion = activeCompletion
-        activeCompletion = nil
-        activePicker = nil
+    private func bridgeResult(
+        for outcome: PlaylistBackupDocumentPolicyOutcome
+    ) -> (Int32, KotlinByteArray?, String?) {
+        if case .overlap = outcome {
+            return (IOSPlaylistBackupDocumentStatus.shared.FAILURE, nil, "Another document operation is already active")
+        }
         importMaxBytes = 0
-        cleanupTemporaryExport()
-        completion?.complete(status: status, bytes: bytes, message: message)
-    }
-
-    private func cleanupTemporaryExport() {
-        guard let exportDirectoryURL = temporaryExportDirectoryURL else { return }
-        temporaryExportDirectoryURL = nil
-        temporaryExportURL = nil
-        try? FileManager.default.removeItem(at: exportDirectoryURL)
+        defer { importedBytes = nil }
+        switch outcome {
+        case .success:
+            return (IOSPlaylistBackupDocumentStatus.shared.SUCCESS, importedBytes, nil)
+        case .cancelled:
+            return (IOSPlaylistBackupDocumentStatus.shared.CANCELLED, nil, nil)
+        case .tooLarge:
+            return (IOSPlaylistBackupDocumentStatus.shared.TOO_LARGE, nil, nil)
+        case let .unavailable(message):
+            return (IOSPlaylistBackupDocumentStatus.shared.UNAVAILABLE, nil, message)
+        case let .failure(message):
+            return (IOSPlaylistBackupDocumentStatus.shared.FAILURE, nil, message)
+        case .overlap:
+            fatalError("Handled before terminal operation cleanup")
+        }
     }
 
     private func readBounded(url: URL) throws -> Data {
-        let accessed = url.startAccessingSecurityScopedResource()
-        defer {
-            if accessed { url.stopAccessingSecurityScopedResource() }
-        }
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        return try handle.read(upToCount: importMaxBytes + 1) ?? Data()
+        try PlaylistBackupDocumentResourcePolicy.readBounded(
+            maxBytes: importMaxBytes,
+            securityScope: URLPlaylistBackupDocumentSecurityScope(url: url),
+            openHandle: { try FilePlaylistBackupDocumentReadHandle(url: url) }
+        )
     }
 }
 
 extension RhythHausPlaylistBackupDocumentProvider: UIDocumentPickerDelegate {
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-        guard controller === activePicker else { return }
-        finish(status: IOSPlaylistBackupDocumentStatus.shared.CANCELLED)
+        operationState.finish(picker: controller, outcome: .cancelled)
     }
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        guard controller === activePicker else { return }
-        guard temporaryExportURL == nil else {
-            finish(status: IOSPlaylistBackupDocumentStatus.shared.SUCCESS)
+        guard operationState.isCurrent(picker: controller) else { return }
+        guard !isExportOperation else {
+            operationState.finish(picker: controller, outcome: .success)
             return
         }
         guard let url = urls.first else {
-            finish(status: IOSPlaylistBackupDocumentStatus.shared.CANCELLED)
+            operationState.finish(picker: controller, outcome: .cancelled)
             return
         }
         do {
             let data = try readBounded(url: url)
-            guard data.count <= importMaxBytes else {
-                finish(status: IOSPlaylistBackupDocumentStatus.shared.TOO_LARGE)
-                return
-            }
-            finish(status: IOSPlaylistBackupDocumentStatus.shared.SUCCESS, bytes: data.toKotlinByteArray())
+            importedBytes = data.toKotlinByteArray()
+            operationState.finish(picker: controller, outcome: .success)
+        } catch PlaylistBackupDocumentPolicyError.tooLarge {
+            operationState.finish(picker: controller, outcome: .tooLarge)
         } catch {
-            finish(status: IOSPlaylistBackupDocumentStatus.shared.FAILURE, message: error.localizedDescription)
+            operationState.finish(picker: controller, outcome: .failure(error.localizedDescription))
         }
     }
 }
