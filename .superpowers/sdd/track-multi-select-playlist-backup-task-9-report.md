@@ -10,7 +10,7 @@
 
 ## Review correction in progress
 
-The final controller review reopened OpenSpec 8.1, 8.2, and 9.4 because the privacy proof used representative forbidden values instead of a distinctive canary for every seeded local-only field and the focused-test evidence recorded Gradle task counts rather than exact executed-test and skip counts. Commit `5741a4d5233ac1f5b0ec3a70aa7a259153bb5cbc` addresses the test finding, and the exact focused evidence below addresses the count finding. OpenSpec 8.1 and 8.2 are complete again; 9.4 remains pending until the evidence-correction commit is checked at its own HEAD. OpenSpec 8.3 remains complete; 9.1-9.3 remain open and unverified.
+The final controller review reopened OpenSpec 8.1, 8.2, and 9.4 because the privacy proof used representative forbidden values instead of a distinctive canary for every seeded local-only field and the focused-test evidence recorded Gradle task counts rather than exact executed-test and skip counts. Commit `5741a4d5233ac1f5b0ec3a70aa7a259153bb5cbc` addresses the test finding, and evidence-correction commit `6af0ba85e629819937fcee60dad6d9909234ee45` addresses the count/lifecycle finding. OpenSpec 8.1-8.3 and 9.4 are complete; 9.1-9.3 remain open and unverified.
 
 ### Exhaustive encoded-byte privacy proof
 
@@ -102,9 +102,11 @@ The visual-qa workflow was attempted but could not reach its screenshot-review p
 
 ## Prior reviews and current OpenSpec status
 
-- The controller-visible privacy-proof and exact-count findings are addressed. Final acceptance remains pending only the post-evidence-commit independent review/final-head hygiene step owned by 9.4.
-- OpenSpec 8.1, 8.2, and 8.3 are complete. OpenSpec 9.1, 9.2, 9.3, and 9.4 remain unchecked at this evidence-correction stage.
+- Independent post-correction review returned PASS with no Critical or Important finding. It confirmed all 80 canaries, retained positive portable metadata, exact JVM 272/0/0/0 and Android 10/0/0/0 XML counts, OpenSpec alignment, runtime gaps, and test/documentation-only scope.
+- At committed evidence HEAD `6af0ba85e629819937fcee60dad6d9909234ee45`, `GIT_MASTER=1 git diff --check` exited 0 with no output; `git status --short` listed only the two excluded pre-existing generic Task 1/2 reports.
+- OpenSpec 8.1, 8.2, 8.3, and 9.4 are complete. OpenSpec 9.1, 9.2, and 9.3 remain unchecked because runtime interaction, real system-panel presentation, and visual acceptance were unavailable.
+- The final evidence commit containing this closure is verified after creation with `GIT_MASTER=1 git diff --check`; its exact SHA and no-output result are reported in the delivery response because a commit cannot truthfully contain its own content-derived SHA.
 
 Next owner: user/manual QA or a future session with attachable desktop/mobile accessibility plus renderable screenshots. Archive only on an explicit later request.
 
-Blockers: final-head hygiene and 9.4 closure are pending; runtime interaction/system-panel and visual acceptance remain separately unavailable.
+Blockers: runtime interaction/system-panel and visual acceptance only. No privacy-proof, focused-count, independent-review, OpenSpec, or evidence-HEAD hygiene blocker remains.
