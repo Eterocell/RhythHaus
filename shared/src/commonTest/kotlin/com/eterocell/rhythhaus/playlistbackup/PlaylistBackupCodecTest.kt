@@ -62,6 +62,14 @@ class PlaylistBackupCodecTest {
     fun malformedUtf8IsRejected() {
         assertInvalid(byteArrayOf(0xC3.toByte(), 0x28), PlaylistBackupValidationError.MALFORMED_UTF8)
         assertInvalid(byteArrayOf(0xED.toByte(), 0xA0.toByte(), 0x80.toByte()), PlaylistBackupValidationError.MALFORMED_UTF8)
+        assertInvalid(byteArrayOf(0xC0.toByte(), 0xAF.toByte()), PlaylistBackupValidationError.MALFORMED_UTF8)
+        assertInvalid(byteArrayOf(0xE2.toByte(), 0x82.toByte()), PlaylistBackupValidationError.MALFORMED_UTF8)
+        assertInvalid(byteArrayOf(0x80.toByte()), PlaylistBackupValidationError.MALFORMED_UTF8)
+        assertInvalid(byteArrayOf(0xE2.toByte(), 0x28, 0xA1.toByte()), PlaylistBackupValidationError.MALFORMED_UTF8)
+        assertInvalid(
+            byteArrayOf(0xF4.toByte(), 0x90.toByte(), 0x80.toByte(), 0x80.toByte()),
+            PlaylistBackupValidationError.MALFORMED_UTF8,
+        )
     }
 
     @Test
@@ -107,6 +115,9 @@ class PlaylistBackupCodecTest {
         assertInvalid(document(version = "2"), PlaylistBackupValidationError.UNSUPPORTED_VERSION)
         assertInvalid(document().decodeToString().replace(Regex("[0-9a-f]{8}(?=\"})"), "00000000").encodeToByteArray(), PlaylistBackupValidationError.INVALID_CHECKSUM)
         assertInvalid(document().decodeToString().replace(Regex("[0-9a-f]{8}(?=\"})"), "ABCDEF12").encodeToByteArray(), PlaylistBackupValidationError.INVALID_CHECKSUM)
+        assertInvalid(withChecksum("1234567"), PlaylistBackupValidationError.INVALID_CHECKSUM)
+        assertInvalid(withChecksum("gggggggg"), PlaylistBackupValidationError.INVALID_CHECKSUM)
+        assertInvalid(withChecksum("1234567-"), PlaylistBackupValidationError.INVALID_CHECKSUM)
     }
 
     @Test
@@ -114,6 +125,8 @@ class PlaylistBackupCodecTest {
         listOf("1.0", "1e0", "+1", "01").forEach {
             assertInvalid(document(version = it), PlaylistBackupValidationError.INVALID_INTEGER)
         }
+        assertInvalid(document(version = "١"), PlaylistBackupValidationError.INVALID_INTEGER)
+        assertInvalid(document(version = "1١"), PlaylistBackupValidationError.INVALID_INTEGER)
         assertInvalid(document(exportedAt = "9223372036854775808"), PlaylistBackupValidationError.NUMERIC_OVERFLOW)
         assertInvalid(document(duration = "999999999999999999999"), PlaylistBackupValidationError.NUMERIC_OVERFLOW)
     }
@@ -141,6 +154,19 @@ class PlaylistBackupCodecTest {
             checksummed("{ \"format\":\"rhythhaus-playlist-backup\",\"version\":1,\"exportedAtEpochMillis\":0,\"playlists\":[]}"),
             PlaylistBackupValidationError.NON_CANONICAL_JSON,
         )
+    }
+
+    @Test
+    fun alternateJsonEscapesAreRejectedThroughPublicDecode() {
+        listOf(
+            "T\\/X",
+            "\\u0054",
+            "\\u005A",
+            "\\u0041",
+            "\\u0061",
+        ).forEach { encodedTitle ->
+            assertInvalid(document(entryTitle = encodedTitle), PlaylistBackupValidationError.NON_CANONICAL_JSON)
+        }
     }
 
     @Test
@@ -214,6 +240,57 @@ class PlaylistBackupCodecTest {
         assertFailsWith<IllegalArgumentException> { PlaylistBackupCodec.encode(oversized) }
     }
 
+    @Test
+    fun encodeRejectsBlankNamesAndUnpairedKotlinSurrogates() {
+        listOf("", " ", "\t\n").forEach { name ->
+            assertEncodeInvalid(playlist(name = name))
+        }
+        listOf("\uD800", "\uDC00").forEach { malformed ->
+            assertEncodeInvalid(playlist(name = malformed))
+            assertEncodeInvalid(playlist(entry = entry(title = malformed)))
+        }
+    }
+
+    @Test
+    fun encodeEnforcesStringCodePointBounds() {
+        val exact = "\uD83C\uDFB5".repeat(1_024)
+
+        PlaylistBackupCodec.encode(PlaylistBackupPayload(0, listOf(playlist(name = exact))))
+        PlaylistBackupCodec.encode(PlaylistBackupPayload(0, listOf(playlist(entry = entry(title = exact)))))
+        assertEncodeInvalid(playlist(name = exact + "x"))
+        assertEncodeInvalid(playlist(entry = entry(title = exact + "x")))
+    }
+
+    @Test
+    fun encodeEnforcesPlaylistAndPerPlaylistEntryBounds() {
+        PlaylistBackupCodec.encode(
+            PlaylistBackupPayload(0, List(1_000) { PlaylistBackupPlaylist("P", emptyList()) }),
+        )
+        assertEncodeInvalid(List(1_001) { PlaylistBackupPlaylist("P", emptyList()) })
+
+        val exactEntries = List(10_000) { entry(title = "") }
+        PlaylistBackupCodec.encode(PlaylistBackupPayload(0, listOf(PlaylistBackupPlaylist("P", exactEntries))))
+        assertEncodeInvalid(PlaylistBackupPlaylist("P", exactEntries + entry(title = "")))
+    }
+
+    @Test
+    fun encodeEnforcesReachableTotalEntryBranches() {
+        val tenThousand = List(10_000) { entry(title = "") }
+        val exactTotal = List(10) { PlaylistBackupPlaylist("P", tenThousand) }
+        assertFailsWith<IllegalArgumentException> {
+            PlaylistBackupCodec.encode(PlaylistBackupPayload(0, exactTotal))
+        }
+        assertEncodeInvalid(exactTotal + PlaylistBackupPlaylist("P", listOf(entry(title = ""))))
+    }
+
+    @Test
+    fun encodeEnforcesDurationBounds() {
+        PlaylistBackupCodec.encode(PlaylistBackupPayload(0, listOf(playlist(entry = entry(duration = 0)))))
+        PlaylistBackupCodec.encode(PlaylistBackupPayload(0, listOf(playlist(entry = entry(duration = 604_800)))))
+        assertEncodeInvalid(playlist(entry = entry(duration = -1)))
+        assertEncodeInvalid(playlist(entry = entry(duration = 604_801)))
+    }
+
     private fun document(
         format: String = "rhythhaus-playlist-backup",
         version: String = "1",
@@ -275,6 +352,29 @@ class PlaylistBackupCodecTest {
     private fun checksummed(payloadJson: String): ByteArray {
         val checksum = Crc32.hex(payloadJson.encodeToByteArray())
         return (payloadJson.dropLast(1) + ",\"checksumCrc32\":\"$checksum\"}").encodeToByteArray()
+    }
+
+    private fun withChecksum(checksum: String): ByteArray {
+        val payload = documentText()
+        return (payload.dropLast(1) + ",\"checksumCrc32\":\"$checksum\"}").encodeToByteArray()
+    }
+
+    private fun entry(title: String = "T", duration: Int = 1): PlaylistBackupEntry =
+        PlaylistBackupEntry(title, "A", "B", duration)
+
+    private fun playlist(
+        name: String = "P",
+        entry: PlaylistBackupEntry = entry(),
+    ): PlaylistBackupPlaylist = PlaylistBackupPlaylist(name, listOf(entry))
+
+    private fun assertEncodeInvalid(playlist: PlaylistBackupPlaylist) {
+        assertEncodeInvalid(listOf(playlist))
+    }
+
+    private fun assertEncodeInvalid(playlists: List<PlaylistBackupPlaylist>) {
+        assertFailsWith<IllegalArgumentException> {
+            PlaylistBackupCodec.encode(PlaylistBackupPayload(0, playlists))
+        }
     }
 
     private fun assertInvalid(bytes: ByteArray, expected: PlaylistBackupValidationError) {

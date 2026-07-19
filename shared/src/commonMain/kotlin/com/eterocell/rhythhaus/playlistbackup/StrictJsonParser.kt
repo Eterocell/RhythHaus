@@ -238,12 +238,12 @@ internal class StrictJsonParser(private val text: String) {
         if (consume('-')) {
             if (index >= text.length) fail(PlaylistBackupValidationError.INVALID_INTEGER)
         }
-        if (index >= text.length || !text[index].isDigit()) fail(PlaylistBackupValidationError.INVALID_INTEGER)
-        if (text[index] == '0' && index + 1 < text.length && text[index + 1].isDigit()) {
+        if (index >= text.length || text[index] !in '0'..'9') fail(PlaylistBackupValidationError.INVALID_INTEGER)
+        if (text[index] == '0' && index + 1 < text.length && text[index + 1] in '0'..'9') {
             fail(PlaylistBackupValidationError.INVALID_INTEGER)
         }
-        while (index < text.length && text[index].isDigit()) index++
-        if (index < text.length && text[index] in ".eE+") fail(PlaylistBackupValidationError.INVALID_INTEGER)
+        while (index < text.length && text[index] in '0'..'9') index++
+        if (index < text.length && text[index] !in " \t\r\n,]}") fail(PlaylistBackupValidationError.INVALID_INTEGER)
         return text.substring(start, index).toLongOrNull() ?: fail(PlaylistBackupValidationError.NUMERIC_OVERFLOW)
     }
 
