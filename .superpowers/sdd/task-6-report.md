@@ -191,3 +191,91 @@ Task 6 wires playback persistence ownership to the process, restores the session
 - GREEN JVM:
   - Command: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.di.RhythHausDiTest' --configuration-cache`
   - Result: `BUILD SUCCESSFUL in 6s`.
+
+---
+
+# Playlist Dialog Polish Task 6 Report
+
+## Scope
+
+- Added one JVM-only Compose UI test for the existing `HausDialog` dismiss semantics.
+- Added only the two approved `jvmTest` dependencies.
+- Did not modify production source, common tests, Android/iOS source sets, production dependencies, OpenSpec artifacts, progress, or roadmap files.
+
+## RED
+
+Command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --configuration-cache
+```
+
+Result: `BUILD FAILED` at `:shared:compileTestKotlinJvm`. The expected Compose UI-test harness APIs were unresolved, including `androidx.compose.ui.test.*`, `ExperimentalTestApi`, `runComposeUiTest`, `setContent`, `onNode`, and `waitForIdle`.
+
+This was a meaningful harness/configuration RED before adding any test dependency.
+
+## GREEN
+
+The test uses `androidx.compose.ui.test.v2.runComposeUiTest` and matches the dialog with `SemanticsMatcher.keyIsDefined(SemanticsActions.Dismiss)`. It performs `SemanticsActions.Dismiss`, waits for recomposition, verifies the callback changed `visible` to `false`, and verifies the dismiss semantics node no longer exists.
+
+The first post-dependency compile showed that Compose UI test 1.11.1 exposes `keyIsDefined` through `SemanticsMatcher` and exposes `assertExists`/`assertDoesNotExist` as interaction members. The test was adjusted to those supported APIs without suppressions or deprecated test APIs.
+
+Command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --configuration-cache
+```
+
+Result: `BUILD SUCCESSFUL in 2s`; 26 actionable tasks, 6 executed and 20 up-to-date; configuration cache reused.
+
+## Final Verification
+
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --configuration-cache --rerun-tasks`: pass (`BUILD SUCCESSFUL in 9s`; all 26 actionable tasks executed; configuration cache reused).
+- `GIT_MASTER=1 git diff --check`: pass with no output.
+- Kotlin LSP diagnostics were unavailable because `kotlin-ls` is not installed and installation was previously declined; the forced Gradle compile/test run is the executable Kotlin check.
+
+## Exact Dependencies
+
+Added only under `jvmTest.dependencies` in `shared/build.gradle.kts`:
+
+```kotlin
+implementation("org.jetbrains.compose.ui:ui-test:1.11.1")
+implementation(compose.desktop.currentOs)
+```
+
+## Files
+
+- `shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/ui/HausDialogSemanticsJvmTest.kt`
+- `shared/build.gradle.kts`
+- `.superpowers/sdd/task-6-report.md`
+
+## Remaining Blocker
+
+- Runtime visual QA remains a separate unavailable-environment blocker and is not claimed by this executable semantics test.
+
+## Exact-once Review Follow-up
+
+- Strengthened the real `onDismiss` callback to increment `dismissCount` before retaining `visible = false`.
+- After performing the real `SemanticsActions.Dismiss` action, the test now asserts `dismissCount == 1` while preserving the visibility and semantics-node disappearance assertions.
+- Command: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.ui.HausDialogSemanticsJvmTest' --configuration-cache --rerun-tasks`
+- Result: `BUILD SUCCESSFUL in 7s`; all 26 actionable tasks executed; configuration cache reused.
+
+## Final Matrix After Test Harness Addition
+
+- `openspec validate playlist-dialog-polish --strict`: pass (`Change 'playlist-dialog-polish' is valid`).
+- `./gradlew :shared:jvmTest --configuration-cache`: pass (`BUILD SUCCESSFUL in 1m 21s`).
+- `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 9s`).
+- `/usr/bin/xcrun xcodebuild -version`: pass (Xcode 26.6, build 17F113).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 1s`).
+- `GIT_MASTER=1 git diff --check`: pass with no output.
+
+The desktop runtime capture/accessibility blocker remains unchanged and is not represented as visual acceptance.
+
+## Final Reverification After Localized Dismiss Label Fix
+
+- The final whole-change review found that Remove Folder had lost its former localized `dismiss(label = Cancel)` semantics action. `HausDialog` now accepts an optional `dismissLabel`, Remove Folder supplies the existing localized Cancel resource, and the JVM semantics test asserts the action label plus exactly-one callback and node removal.
+- `./gradlew :shared:jvmTest --configuration-cache --rerun-tasks`: pass (`BUILD SUCCESSFUL in 1m 26s`; 26/26 tasks executed).
+- `./gradlew :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 12s`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 28s`).
+- `openspec validate playlist-dialog-polish --strict`: pass; `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, build 17F113; `GIT_MASTER=1 git diff --check`: pass.
+- One earlier full JVM attempt failed only at unchanged `PlaybackControllerTest.repeatPlaylistWrapsCompletionAndManualTransport`. The exact test passed three forced isolated executions, CodeGraph found no call path from this dialog/UI change, and the final forced full JVM suite passed. No unrelated playback change was made.
