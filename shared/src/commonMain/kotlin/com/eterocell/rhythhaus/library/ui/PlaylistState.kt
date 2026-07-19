@@ -5,6 +5,7 @@ import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -214,6 +215,34 @@ class PlaylistStateOwner(
             PlaylistStateAction.MutationFailed(failureMessage, revision)
         }
     }
+
+    suspend fun importPlaylists(
+        playlists: List<PlaylistImportMutation>,
+    ): PlaylistImportOwnerResult = mutex.withLock {
+        val revision = ++publicationRevision
+        try {
+            PlaylistImportOwnerResult.Success(
+                snapshot = withContext(dispatcher) {
+                    repository.importPlaylists(playlists)
+                    loadPlaylistSnapshot(repository)
+                },
+                revision = revision,
+            )
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            PlaylistImportOwnerResult.Failure(failure)
+        }
+    }
+}
+
+sealed interface PlaylistImportOwnerResult {
+    data class Success(
+        val snapshot: PlaylistSnapshot,
+        val revision: Long,
+    ) : PlaylistImportOwnerResult
+    data object Stale : PlaylistImportOwnerResult
+    data class Failure(val cause: Throwable) : PlaylistImportOwnerResult
 }
 
 fun savedPlaylistOccurrences(
