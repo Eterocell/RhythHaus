@@ -9,7 +9,7 @@ Output:
 - Added and committed real temporary-database integration acceptance as `0f48f45 test: verify playlist backup integration`.
 - Final review exposed iOS short-read oversized-detection risk; strict native RED/GREEN fixed bounded accumulation and committed `912e6e4 fix: bound iOS playlist backup reads`.
 - The bounded-read defect remains fixed. Commit `5741a4d5233ac1f5b0ec3a70aa7a259153bb5cbc` adds 80 exhaustive local-only canary assertions across every exported entry; `6af0ba85e629819937fcee60dad6d9909234ee45` records exact focused XML counts and passed post-commit diff hygiene.
-- Independent post-correction review returned PASS with no Critical or Important finding and confirmed privacy coverage, positive portable metadata, exact counts, lifecycle alignment, runtime limitations, and test/documentation-only scope.
+- Controller-visible independent re-review at evidence HEAD `6af0ba85e629819937fcee60dad6d9909234ee45` returned Spec Compliance PASS and Task Quality PASS with no Critical, Important, or Minor findings. It confirmed privacy coverage, positive portable metadata, exact counts, lifecycle alignment, runtime limitations, and test/documentation-only scope.
 Verification:
 - Exact forced Task 1-8 JVM matrix command is recorded in `.superpowers/sdd/track-multi-select-playlist-backup-task-9-report.md`; fresh XML: 20 selected suites, 272 tests, 0 failures, 0 errors, 0 skipped.
 - Exact focused Android-host adapter command: `./gradlew :shared:testAndroidHostTest --tests 'com.eterocell.rhythhaus.playlistbackup.PlatformPlaylistBackupDocumentsAndroidTest' --configuration-cache --rerun-tasks`; fresh XML: 10 tests, 0 failures, 0 errors, 0 skipped.
@@ -27,6 +27,7 @@ Runtime/visual QA:
 Acceptance:
 - OpenSpec 8.1-8.3 and 9.4 are complete. OpenSpec 9.1-9.3 remain open for unavailable runtime/system-panel/visual acceptance.
 - No archive or push. Generic `.superpowers/sdd/task-1-report.md` and `task-2-report.md` remain preserved and must not be staged.
+- Immediate controller post-commit gate for the dedicated Task 9.4 closure: run `GIT_MASTER=1 git diff --check`, `GIT_MASTER=1 git status --short`, and `openspec validate track-multi-select-playlist-backup --strict` at the new HEAD; no result for that not-yet-created HEAD is claimed in this tracked handoff.
 Changed lifecycle files:
 - `.superpowers/sdd/track-multi-select-playlist-backup-task-9-report.md`
 - `.superpowers/sdd/progress.md`

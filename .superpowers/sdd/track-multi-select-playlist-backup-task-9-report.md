@@ -102,10 +102,10 @@ The visual-qa workflow was attempted but could not reach its screenshot-review p
 
 ## Prior reviews and current OpenSpec status
 
-- Independent post-correction review returned PASS with no Critical or Important finding. It confirmed all 80 canaries, retained positive portable metadata, exact JVM 272/0/0/0 and Android 10/0/0/0 XML counts, OpenSpec alignment, runtime gaps, and test/documentation-only scope.
+- Controller-visible independent re-review at evidence HEAD `6af0ba85e629819937fcee60dad6d9909234ee45` returned Spec Compliance PASS and Task Quality PASS with no Critical, Important, or Minor findings. It confirmed all 80 canaries, retained positive portable metadata, exact JVM 272/0/0/0 and Android 10/0/0/0 XML counts, OpenSpec alignment, runtime gaps, and test/documentation-only scope.
 - At committed evidence HEAD `6af0ba85e629819937fcee60dad6d9909234ee45`, `GIT_MASTER=1 git diff --check` exited 0 with no output; `git status --short` listed only the two excluded pre-existing generic Task 1/2 reports.
 - OpenSpec 8.1, 8.2, 8.3, and 9.4 are complete. OpenSpec 9.1, 9.2, and 9.3 remain unchecked because runtime interaction, real system-panel presentation, and visual acceptance were unavailable.
-- The final evidence commit containing this closure is verified after creation with `GIT_MASTER=1 git diff --check`; its exact SHA and no-output result are reported in the delivery response because a commit cannot truthfully contain its own content-derived SHA.
+- Immediate controller gate after the dedicated lifecycle-closure commit: run `GIT_MASTER=1 git diff --check`, `GIT_MASTER=1 git status --short`, and strict OpenSpec validation at the new HEAD. The resulting SHA and outputs are reported in the delivery response; no pre-commit final-HEAD pass is claimed here.
 
 Next owner: user/manual QA or a future session with attachable desktop/mobile accessibility plus renderable screenshots. Archive only on an explicit later request.
 
