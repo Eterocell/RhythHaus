@@ -62,7 +62,6 @@ import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.adaptive_detail_placeholder
 import rhythhaus.shared.generated.resources.library
 import top.yukonga.miuix.kmp.basic.Surface
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
@@ -174,7 +173,7 @@ fun LibraryHomeScreen(
     }
 
     @Composable
-    fun RouteOverlays(route: LibraryRoute, backdrop: LayerBackdrop?) {
+    fun RouteOverlays(route: LibraryRoute) {
         LibraryRouteOverlays(
             route = route,
             snapshot = snapshot,
@@ -194,7 +193,6 @@ fun LibraryHomeScreen(
             scanProgress = scanProgress,
             scanJob = scanJob,
             currentThemeMode = currentThemeMode,
-            backdrop = backdrop,
             onThemeModeSelected = onThemeModeSelected,
             onClearLibrary = onClearLibrary,
             onRescanSource = onRescanSource,
@@ -269,7 +267,7 @@ fun LibraryHomeScreen(
                         mode = LibraryAdaptiveLayoutMode.Compact,
                     )
                 ) {
-                    RouteOverlays(route = route, backdrop = null)
+                    RouteOverlays(route = route)
                 }
             },
         )
@@ -351,7 +349,7 @@ fun LibraryHomeScreen(
                         mode = adaptiveLayoutMode,
                     )
                 ) {
-                    RouteOverlays(route = appState.navigation.current, backdrop = rootBackdrop)
+                    RouteOverlays(route = appState.navigation.current)
                 }
             }
         } else {

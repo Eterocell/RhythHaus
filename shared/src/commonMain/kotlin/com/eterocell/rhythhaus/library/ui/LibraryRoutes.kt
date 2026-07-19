@@ -24,7 +24,6 @@ import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.taglib.TagLibReader
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
@@ -88,7 +87,6 @@ internal fun LibraryRouteOverlays(
     scanProgress: ScanProgress?,
     scanJob: Job?,
     currentThemeMode: RhythHausThemeMode,
-    backdrop: LayerBackdrop?,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
@@ -109,7 +107,6 @@ internal fun LibraryRouteOverlays(
             scanJob = scanJob,
             hasImportedTracks = snapshot.tracks.isNotEmpty(),
             currentThemeMode = currentThemeMode,
-            clearLibraryDialogBackdrop = backdrop,
             onThemeModeSelected = onThemeModeSelected,
             onClearLibrary = onClearLibrary,
             onRescanSource = onRescanSource,
