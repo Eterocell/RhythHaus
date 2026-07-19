@@ -66,9 +66,9 @@ class TrackSelectionStateTest {
     }
 
     @Test
-    fun routeChangeReplacesPageAndClearsSelection() {
+    fun routeChangeClearsSelectionForAnyDestination() {
         assertEquals(
-            TrackSelectionState(album),
+            TrackSelectionState(),
             reduceTrackSelection(
                 TrackSelectionState(home, setOf("track-a")),
                 TrackSelectionAction.RouteChanged(album),
@@ -85,6 +85,37 @@ class TrackSelectionStateTest {
                 TrackSelectionState(TrackSelectionPageKey.Search, setOf("track-a", "track-b")),
                 TrackSelectionAction.ReconcileVisible(TrackSelectionPageKey.Search, listOf("track-b", "track-c")),
             ),
+        )
+    }
+
+    @Test
+    fun reconciliationRemovesMalformedBlankIdsAndNormalizesBlankOnlyState() {
+        val malformed = TrackSelectionState(home, setOf("track-a", ""))
+
+        assertEquals(
+            TrackSelectionState(home, setOf("track-a")),
+            reduceTrackSelection(
+                malformed,
+                TrackSelectionAction.ReconcileVisible(home, listOf("track-a", "")),
+            ),
+        )
+        assertEquals(
+            TrackSelectionState(),
+            reduceTrackSelection(
+                TrackSelectionState(home, setOf("")),
+                TrackSelectionAction.ReconcileVisible(home, listOf("")),
+            ),
+        )
+    }
+
+    @Test
+    fun stalePageToggleAndReconciliationAreNoOps() {
+        val state = TrackSelectionState(home, setOf("track-a"))
+
+        assertEquals(state, reduceTrackSelection(state, TrackSelectionAction.Toggle(album, "track-b")))
+        assertEquals(
+            state,
+            reduceTrackSelection(state, TrackSelectionAction.ReconcileVisible(album, listOf("track-b"))),
         )
     }
 
@@ -119,6 +150,18 @@ class TrackSelectionStateTest {
         assertEquals(
             listOf("track-b", "track-a"),
             orderedSelectedTrackIds(state, home, listOf("track-b", "track-b", "track-a", "track-a")),
+        )
+    }
+
+    @Test
+    fun orderedSelectionWithMismatchedPageIsEmpty() {
+        assertEquals(
+            emptyList(),
+            orderedSelectedTrackIds(
+                TrackSelectionState(home, setOf("track-a")),
+                album,
+                listOf("track-a"),
+            ),
         )
     }
 }

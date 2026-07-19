@@ -65,12 +65,16 @@ fun reduceTrackSelection(state: TrackSelectionState, action: TrackSelectionActio
                 normalized
             } else {
                 normalized.copy(
-                    selectedTrackIds = normalized.selectedTrackIds.intersect(action.visibleTrackIds.toSet()),
+                    selectedTrackIds = normalized.selectedTrackIds
+                        .asSequence()
+                        .filter(String::isNotBlank)
+                        .filter { it in action.visibleTrackIds }
+                        .toSet(),
                 ).normalized()
             }
         }
 
-        is TrackSelectionAction.RouteChanged -> TrackSelectionState(pageKey = action.pageKey)
+        is TrackSelectionAction.RouteChanged -> TrackSelectionState()
         TrackSelectionAction.Cancel,
         TrackSelectionAction.Completed,
         -> TrackSelectionState()
