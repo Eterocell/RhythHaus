@@ -22,6 +22,7 @@ import com.eterocell.rhythhaus.library.ui.orderedSelectedTrackIds
 import com.eterocell.rhythhaus.library.ui.reduceTrackSelection
 import java.io.File
 import java.nio.file.Files
+import java.util.Base64
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -107,24 +108,14 @@ class PlaylistBackupIntegrationJvmTest {
                 ),
             )
             assertTrue(Regex(",\"checksumCrc32\":\"[0-9a-f]{8}\"}$").containsMatchIn(encoded))
-            listOf(
-                "export-alpha",
-                "source-export",
-                "/private/export-alpha.mp3",
-                "FilePath",
-                "artworkBytes",
-                "artworkMimeType",
-                "createdAtEpochMillis",
-                "updatedAtEpochMillis",
-                "987654321",
-                "987654322",
-            ).forEach { forbidden ->
-                assertTrue(forbidden !in encoded, "Backup leaked local field or value: $forbidden")
-            }
+            assertEncodedBackupExcludesLocalCanaries(encoded, harness.exportedLocalOnlyCanaries)
             listOf("\"id\"", "\"path\"", "\"source\"", "\"artwork", "\"createdAt", "\"updatedAt").forEach { field ->
                 assertTrue(!encoded.contains(field, ignoreCase = true), "Backup leaked local field: $field")
             }
             assertEquals(2, "\"title\":\"Alpha\"".toRegex().findAll(encoded).count())
+            assertTrue("\"artist\":\"Artist\"" in encoded)
+            assertTrue("\"album\":\"Album\"" in encoded)
+            assertTrue("\"durationSeconds\":500" in encoded)
 
             val decoded = assertIs<PlaylistBackupDecodeResult.Success>(PlaylistBackupCodec.decode(export.bytes))
             assertEquals(listOf("Road Mix", "Second", "Unavailable"), decoded.document.playlists.map { it.name })
@@ -269,28 +260,21 @@ private class PlaylistBackupIntegrationHarness(
         now = { nextTimestamp++ },
         idFactory = { "generated-${nextId++}" },
     )
+    val exportedLocalOnlyCanaries: List<String>
+        get() = exportedTrackFixtures.flatMap(ExportTrackFixture::localOnlyCanaries)
 
     fun seedExportAndDestinationTracks() {
-        library.upsertSource(
-            LibrarySource(
-                id = "source-export",
-                platformKind = LibraryPlatformKind.JvmFolder,
-                displayName = "Private source",
-                handle = "/private",
-                createdAtEpochMillis = 987654321,
-            ),
-        )
+        exportedTrackFixtures.forEach { fixture ->
+            library.upsertSource(fixture.source)
+            library.upsertTrack(fixture.track)
+        }
+        library.upsertSource(destinationSource)
         listOf(
-            track("export-alpha", "Alpha", 100_000, "/private/export-alpha.mp3", 987654321),
-            track("export-beta", "Beta", 200_000, "/private/export-beta.mp3", 987654322),
-            track("export-unmatched", "Missing", 300_000, "/private/export-unmatched.mp3", 987654323),
-            track("export-ambiguous", "Ambiguous", 400_000, "/private/export-ambiguous.mp3", 987654324),
-            track("export-second", "Second", 500_000, "/private/export-second.mp3", 987654325),
-            track("destination-alpha", "  ALPHA ", 102_000, "/private/destination-alpha.mp3", 987654326),
-            track("destination-beta", "beta", 198_000, "/private/destination-beta.mp3", 987654327),
-            track("destination-ambiguous-a", "ambiguous", 399_000, "/private/ambiguous-a.mp3", 987654328),
-            track("destination-ambiguous-b", "AMBIGUOUS", 401_000, "/private/ambiguous-b.mp3", 987654329),
-            track("destination-second", "second", 500_000, "/private/destination-second.mp3", 987654330),
+            destinationTrack("destination-alpha", "  ALPHA ", 102_000),
+            destinationTrack("destination-beta", "beta", 198_000),
+            destinationTrack("destination-ambiguous-a", "ambiguous", 399_000),
+            destinationTrack("destination-ambiguous-b", "AMBIGUOUS", 401_000),
+            destinationTrack("destination-second", "second", 500_000),
         ).forEach(library::upsertTrack)
     }
 
@@ -308,30 +292,114 @@ private class PlaylistBackupIntegrationHarness(
 
     override fun close() = driver.close()
 
-    private fun track(
+    private fun destinationTrack(
         id: String,
         title: String,
         durationMillis: Long,
-        path: String,
-        timestamp: Long,
     ) = LibraryTrack(
         id = id,
-        sourceId = "source-export",
-        sourceLocalKey = "$id.mp3",
-        audioSource = AudioSource.FilePath(path),
+        sourceId = destinationSource.id,
+        sourceLocalKey = "destination-local-key-$id",
+        audioSource = AudioSource.FilePath("/destination/audio/$id.mp3"),
         displayName = "$id.mp3",
         title = title,
         artist = "Artist",
         album = "Album",
         durationMillis = durationMillis,
-        sizeBytes = timestamp,
-        modifiedAtEpochMillis = timestamp,
-        lastSeenScanId = "private-scan",
-        createdAtEpochMillis = timestamp,
-        updatedAtEpochMillis = timestamp,
-        artworkBytes = byteArrayOf(1, 2, 3),
-        artworkMimeType = "image/png",
+        sizeBytes = 900_000_000_001,
+        modifiedAtEpochMillis = 9_100_000_000_001,
+        lastSeenScanId = "destination-scan",
+        createdAtEpochMillis = 9_200_000_000_001,
+        updatedAtEpochMillis = 9_300_000_000_001,
     )
+
+    private companion object {
+        val destinationSource = LibrarySource(
+            id = "destination-source",
+            platformKind = LibraryPlatformKind.JvmFolder,
+            displayName = "Destination source",
+            handle = "/destination",
+            createdAtEpochMillis = 9_400_000_000_001,
+        )
+
+        val exportedTrackFixtures = listOf(
+            exportTrackFixture("alpha", "export-alpha", "Alpha", 100_000, 1, "private-scan"),
+            exportTrackFixture("beta", "export-beta", "Beta", 200_000, 2, "private-scan-beta"),
+            exportTrackFixture("unmatched", "export-unmatched", "Missing", 300_000, 3, "private-scan-unmatched"),
+            exportTrackFixture("ambiguous", "export-ambiguous", "Ambiguous", 400_000, 4, "private-scan-ambiguous"),
+            exportTrackFixture("second", "export-second", "Second", 500_000, 5, "private-scan-second"),
+        )
+
+        fun exportTrackFixture(
+            label: String,
+            id: String,
+            title: String,
+            durationMillis: Long,
+            ordinal: Long,
+            scanId: String,
+        ): ExportTrackFixture {
+            val source = LibrarySource(
+                id = "private-source-id-$label",
+                platformKind = LibraryPlatformKind.JvmFolder,
+                displayName = "private-source-display-$label",
+                handle = "/private/source-handle-$label",
+                createdAtEpochMillis = 8_100_000_000_000 + ordinal,
+            )
+            val artworkText = "private-artwork-payload-$label"
+            val artworkBytes = artworkText.encodeToByteArray()
+            val track = LibraryTrack(
+                id = id,
+                sourceId = source.id,
+                sourceLocalKey = "private-source-local-key-$label",
+                audioSource = AudioSource.FilePath("/private/audio-source-path-$label.mp3"),
+                displayName = "private-track-display-$label.mp3",
+                title = title,
+                artist = "Artist",
+                album = "Album",
+                durationMillis = durationMillis,
+                sizeBytes = 8_200_000_000_000 + ordinal,
+                modifiedAtEpochMillis = 8_300_000_000_000 + ordinal,
+                lastSeenScanId = scanId,
+                createdAtEpochMillis = 8_400_000_000_000 + ordinal,
+                updatedAtEpochMillis = 8_500_000_000_000 + ordinal,
+                artworkBytes = artworkBytes,
+                artworkMimeType = "image/x-private-artwork-$label",
+            )
+            return ExportTrackFixture(source, track, artworkText)
+        }
+    }
+}
+
+private data class ExportTrackFixture(
+    val source: LibrarySource,
+    val track: LibraryTrack,
+    val artworkText: String,
+) {
+    val localOnlyCanaries: List<String>
+        get() = listOf(
+            track.id,
+            source.id,
+            source.displayName,
+            source.handle,
+            source.createdAtEpochMillis.toString(),
+            track.sourceLocalKey,
+            track.audioSource.stableKey,
+            track.displayName,
+            requireNotNull(track.sizeBytes).toString(),
+            requireNotNull(track.modifiedAtEpochMillis).toString(),
+            requireNotNull(track.lastSeenScanId),
+            track.createdAtEpochMillis.toString(),
+            track.updatedAtEpochMillis.toString(),
+            requireNotNull(track.artworkMimeType),
+            artworkText,
+            Base64.getEncoder().encodeToString(requireNotNull(track.artworkBytes)),
+        )
+}
+
+private fun assertEncodedBackupExcludesLocalCanaries(encoded: String, canaries: List<String>) {
+    canaries.forEach { canary ->
+        assertTrue(canary !in encoded, "Backup leaked local-only canary: $canary")
+    }
 }
 
 private fun openHarness(): PlaylistBackupIntegrationHarness {
