@@ -22,7 +22,7 @@ final class PlaylistBackupDocumentPoliciesTests: XCTestCase {
             openHandle: { exactHandle }
         )
         XCTAssertEqual(exact.count, limit)
-        XCTAssertEqual(exactHandle.requestedCount, limit + 1)
+        XCTAssertEqual(exactHandle.requestedCounts, [limit + 1, 1])
         XCTAssertEqual(exactHandle.closeCount, 1)
         XCTAssertEqual(exactScope.startCount, 1)
         XCTAssertEqual(exactScope.stopCount, 1)
@@ -57,6 +57,25 @@ final class PlaylistBackupDocumentPoliciesTests: XCTestCase {
         XCTAssertEqual(scope.startCount, 1)
         XCTAssertEqual(scope.stopCount, 0)
         XCTAssertEqual(handle.closeCount, 1)
+    }
+
+    func testBoundedReadRejectsLimitExceededAcrossShortReads() {
+        let scope = FakeSecurityScope()
+        let handle = ChunkedBoundedReadHandle(chunks: [Data(count: 3), Data(count: 2), Data()])
+
+        XCTAssertThrowsError(
+            try PlaylistBackupDocumentResourcePolicy.readBounded(
+                maxBytes: 4,
+                securityScope: scope,
+                openHandle: { handle }
+            )
+        ) { error in
+            XCTAssertEqual(error as? PlaylistBackupDocumentPolicyError, .tooLarge)
+        }
+        XCTAssertEqual(handle.requestedCounts, [5, 2])
+        XCTAssertEqual(handle.closeCount, 1)
+        XCTAssertEqual(scope.startCount, 1)
+        XCTAssertEqual(scope.stopCount, 1)
     }
 
     func testOverlapStaleCallbacksAndExactlyOnceCompletion() {
@@ -149,16 +168,29 @@ private final class FakeSecurityScope: PlaylistBackupDocumentSecurityScope {
 }
 
 private final class FakeBoundedReadHandle: PlaylistBackupDocumentReadHandle {
-    let data: Data?
+    var data: Data?
     let error: Error?
-    var requestedCount: Int?
+    var requestedCounts: [Int] = []
     var closeCount = 0
     init(data: Data) { self.data = data; error = nil }
     init(error: Error) { data = nil; self.error = error }
     func read(upToCount count: Int) throws -> Data {
-        requestedCount = count
+        requestedCounts.append(count)
         if let error { throw error }
+        defer { data = nil }
         return data ?? Data()
+    }
+    func close() throws { closeCount += 1 }
+}
+
+private final class ChunkedBoundedReadHandle: PlaylistBackupDocumentReadHandle {
+    var chunks: [Data]
+    var requestedCounts: [Int] = []
+    var closeCount = 0
+    init(chunks: [Data]) { self.chunks = chunks }
+    func read(upToCount count: Int) throws -> Data {
+        requestedCounts.append(count)
+        return chunks.isEmpty ? Data() : chunks.removeFirst()
     }
     func close() throws { closeCount += 1 }
 }

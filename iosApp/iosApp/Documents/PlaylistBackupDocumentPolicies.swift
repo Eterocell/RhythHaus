@@ -41,9 +41,13 @@ enum PlaylistBackupDocumentResourcePolicy {
         defer { if accessed { securityScope.stop() } }
         let handle = try openHandle()
         defer { try? handle.close() }
-        let data = try handle.read(upToCount: maxBytes + 1)
-        guard data.count <= maxBytes else { throw PlaylistBackupDocumentPolicyError.tooLarge }
-        return data
+        var data = Data()
+        while data.count <= maxBytes {
+            let chunk = try handle.read(upToCount: maxBytes + 1 - data.count)
+            if chunk.isEmpty { return data }
+            data.append(chunk)
+        }
+        throw PlaylistBackupDocumentPolicyError.tooLarge
     }
 }
 
