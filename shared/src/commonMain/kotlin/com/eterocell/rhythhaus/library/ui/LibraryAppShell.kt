@@ -474,6 +474,7 @@ fun LibraryHomeScreen(
                             onSearch = { pushRoute(LibraryRoute.Search) },
                             expandProgress = expandProgress,
                             isExpanded = appState.showNowPlaying,
+                            interactive = bottomBarPresentation.isInteractive,
                             screenHeightPx = screenHeightPx,
                             backdrop = rootBackdrop,
                         )

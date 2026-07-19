@@ -54,6 +54,21 @@ class BottomBarModeTest {
     }
 
     @Test
+    fun homeSelectionOwnsWidePlaylistHubSlotWhenNowPlayingIsVisible() {
+        assertEquals(
+            LibraryBottomBarContent.Selection(selectedCount = 1),
+            libraryBottomBarContent(
+                route = LibraryRoute.PlaylistHub,
+                selectionState = TrackSelectionState(
+                    pageKey = TrackSelectionPageKey.HomeSongs,
+                    selectedTrackIds = setOf("track-a"),
+                ),
+                isNowPlayingVisible = true,
+            ),
+        )
+    }
+
+    @Test
     fun unsupportedRouteClearsTheBottomSlotSelectionContent() {
         assertEquals(
             LibraryBottomBarContent.Hidden,

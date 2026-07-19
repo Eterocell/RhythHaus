@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,6 +49,10 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 
 internal val NowPlayingBarContentPadding = 144.dp
+internal const val NowPlayingBarRootTestTag = "NowPlayingBarRoot"
+internal const val NowPlayingBarPlayPauseTestTag = "NowPlayingBarPlayPause"
+internal const val NowPlayingBarSearchTestTag = "NowPlayingBarSearch"
+internal const val NowPlayingBarSettingsTestTag = "NowPlayingBarSettings"
 
 enum class BottomBarMode {
     TrackLoaded,
@@ -66,6 +71,7 @@ fun NowPlayingBar(
     onSearch: () -> Unit,
     expandProgress: Animatable<Float, AnimationVector1D>,
     isExpanded: Boolean,
+    interactive: Boolean = true,
     screenHeightPx: Float = 0f,
     backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier,
@@ -81,6 +87,7 @@ fun NowPlayingBar(
     val barShape: Shape = RoundedCornerShape(20.dp)
     val barModifier = modifier
         .fillMaxWidth()
+        .testTag(NowPlayingBarRootTestTag)
         .navigationBarsPadding()
         .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
         .clip(barShape)
@@ -95,15 +102,27 @@ fun NowPlayingBar(
                 Modifier.background(HausColors.current.panel)
             },
         )
-        .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onExpand() })
-        .verticalSheetGesture(
-            expandProgress = expandProgress,
-            isActive = !isExpanded && mode == BottomBarMode.TrackLoaded,
-            scope = rememberCoroutineScope(),
-            onSwipeExpand = onExpand,
-            onSwipeCollapse = {},
-            threshold = 0.3f,
-            referenceHeight = screenHeightPx,
+        .then(
+            if (interactive) {
+                Modifier.hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onExpand() })
+            } else {
+                Modifier
+            },
+        )
+        .then(
+            if (interactive) {
+                Modifier.verticalSheetGesture(
+                    expandProgress = expandProgress,
+                    isActive = !isExpanded && mode == BottomBarMode.TrackLoaded,
+                    scope = rememberCoroutineScope(),
+                    onSwipeExpand = onExpand,
+                    onSwipeCollapse = {},
+                    threshold = 0.3f,
+                    referenceHeight = screenHeightPx,
+                )
+            } else {
+                Modifier
+            },
         )
 
     Box(modifier = barModifier) {
@@ -184,9 +203,16 @@ fun NowPlayingBar(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
+                        .testTag(NowPlayingBarPlayPauseTestTag)
                         .clip(RoundedCornerShape(10.dp))
                         .background(HausColors.current.ink)
-                        .hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onPlayPause() }),
+                        .then(
+                            if (interactive) {
+                                Modifier.hausClickable(onClick = { if (mode == BottomBarMode.TrackLoaded) onPlayPause() })
+                            } else {
+                                Modifier
+                            },
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -210,8 +236,9 @@ fun NowPlayingBar(
                     Box(
                         modifier = Modifier
                             .size(44.dp)
+                            .testTag(NowPlayingBarSearchTestTag)
                             .clip(RoundedCornerShape(8.dp))
-                            .hausClickable(onClick = onSearch),
+                            .then(if (interactive) Modifier.hausClickable(onClick = onSearch) else Modifier),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -224,8 +251,9 @@ fun NowPlayingBar(
                     Box(
                         modifier = Modifier
                             .size(44.dp)
+                            .testTag(NowPlayingBarSettingsTestTag)
                             .clip(RoundedCornerShape(8.dp))
-                            .hausClickable(onClick = onSettings),
+                            .then(if (interactive) Modifier.hausClickable(onClick = onSettings) else Modifier),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
