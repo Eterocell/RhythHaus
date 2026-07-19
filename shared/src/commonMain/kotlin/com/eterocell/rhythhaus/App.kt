@@ -33,6 +33,20 @@ import com.eterocell.rhythhaus.library.ui.PlaylistMutationFailedMessage
 import com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.mutatePlaylistAndRefresh
 import com.eterocell.rhythhaus.library.ui.reducePlaylistState
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDocumentOpenResult
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDocumentSaveResult
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupExportPreparation
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupImportPreparation
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiError
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
+import com.eterocell.rhythhaus.playlistbackup.confirmPlaylistBackupImportSerialized
+import com.eterocell.rhythhaus.playlistbackup.playlistBackupFileName
+import com.eterocell.rhythhaus.playlistbackup.preparePlaylistBackupExport
+import com.eterocell.rhythhaus.playlistbackup.preparePlaylistBackupImport
+import com.eterocell.rhythhaus.playlistbackup.reducePlaylistBackupUiState
+import com.eterocell.rhythhaus.playlistbackup.rememberPlatformPlaylistBackupDocumentLauncher
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.LocalHausColors
@@ -52,10 +66,13 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.scan_complete_format
+import rhythhaus.shared.generated.resources.playlist_backup_imported_suffix
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
@@ -74,17 +91,30 @@ fun App() {
     val playbackReconciler = koinInject<PlaybackSessionReconciler>()
     val initialLibraryContent = remember { loadLibraryContent(repository, platformAccess) }
     val playlistStateOwner = remember { PlaylistStateOwner(playlistRepository, Dispatchers.Default) }
+    val libraryPublicationOwner = remember { AuthoritativeLibraryPublicationOwner() }
     var initialPublication by remember { mutableStateOf(InitialLibraryPublicationState()) }
     var librarySources by remember { mutableStateOf(emptyList<LibrarySource>()) }
     var libraryTracks by remember { mutableStateOf(emptyList<LibraryTrack>()) }
+    var libraryRevision by remember { mutableStateOf(0L) }
     var playlistState by remember { mutableStateOf(PlaylistState(isLoading = true)) }
+    var playlistBackupState by remember { mutableStateOf(PlaylistBackupUiState()) }
     var importMessage by remember { mutableStateOf<String?>(null) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
     val scanCancellationRequested = remember { MutableStateFlow(false) }
     val scope = rememberCoroutineScope()
     val scanCompleteFormat = stringResource(Res.string.scan_complete_format)
+    val importedSuffix = stringResource(Res.string.playlist_backup_imported_suffix)
     val selectedThemeMode by themePreferenceStore.selectedThemeMode.collectAsState(RhythHausThemeMode.System)
+
+    suspend fun updateLibraryContent(content: LibraryContentState) {
+        val publication = libraryPublicationOwner.publish(content)
+        withContext(Dispatchers.Main) {
+            librarySources = publication.content.sources
+            libraryTracks = publication.content.tracks
+            libraryRevision = publication.revision
+        }
+    }
 
     LaunchedEffect(initialLibraryContent) {
         publishInitialLibraryContent(
@@ -93,10 +123,7 @@ fun App() {
             content = initialLibraryContent,
             updateState = { state ->
                 initialPublication = state
-                state.content?.let {
-                    librarySources = it.sources
-                    libraryTracks = it.tracks
-                }
+                state.content?.let { updateLibraryContent(it) }
                 state.errorMessage?.let { importMessage = it }
             },
         )
@@ -114,11 +141,6 @@ fun App() {
 
     LaunchedEffect(playlistRepository) {
         refreshPlaylists()
-    }
-
-    fun updateLibraryContent(content: LibraryContentState) {
-        librarySources = content.sources
-        libraryTracks = content.tracks
     }
 
     fun launchSourceScan(source: LibrarySource) {
@@ -194,6 +216,171 @@ fun App() {
         }
     }
 
+    val backupDocumentLauncher = rememberPlatformPlaylistBackupDocumentLauncher(
+        onSaveResult = { result ->
+            playlistBackupState = when (result) {
+                PlaylistBackupDocumentSaveResult.Success,
+                PlaylistBackupDocumentSaveResult.Cancelled,
+                -> reducePlaylistBackupUiState(playlistBackupState, PlaylistBackupUiAction.PanelCancelled)
+                is PlaylistBackupDocumentSaveResult.Unavailable -> reducePlaylistBackupUiState(
+                    playlistBackupState,
+                    PlaylistBackupUiAction.Failed(PlaylistBackupUiError.Unavailable),
+                )
+                is PlaylistBackupDocumentSaveResult.Failure -> reducePlaylistBackupUiState(
+                    playlistBackupState,
+                    PlaylistBackupUiAction.Failed(PlaylistBackupUiError.WriteFailed),
+                )
+            }
+        },
+        onOpenResult = { result ->
+            when (result) {
+                PlaylistBackupDocumentOpenResult.Cancelled -> {
+                    playlistBackupState = reducePlaylistBackupUiState(
+                        playlistBackupState,
+                        PlaylistBackupUiAction.PanelCancelled,
+                    )
+                }
+                is PlaylistBackupDocumentOpenResult.Unavailable -> {
+                    playlistBackupState = reducePlaylistBackupUiState(
+                        playlistBackupState,
+                        PlaylistBackupUiAction.Failed(PlaylistBackupUiError.Unavailable),
+                    )
+                }
+                is PlaylistBackupDocumentOpenResult.TooLarge -> {
+                    playlistBackupState = reducePlaylistBackupUiState(
+                        playlistBackupState,
+                        PlaylistBackupUiAction.Failed(PlaylistBackupUiError.Oversized),
+                    )
+                }
+                is PlaylistBackupDocumentOpenResult.Failure -> {
+                    playlistBackupState = reducePlaylistBackupUiState(
+                        playlistBackupState,
+                        PlaylistBackupUiAction.Failed(PlaylistBackupUiError.ReadFailed),
+                    )
+                }
+                is PlaylistBackupDocumentOpenResult.Success -> scope.launch {
+                    try {
+                        playlistBackupState = reducePlaylistBackupUiState(
+                            playlistBackupState,
+                            PlaylistBackupUiAction.OperationStarted(PlaylistBackupOperation.Planning),
+                        )
+                        when (val prepared = preparePlaylistBackupImport(
+                            bytes = result.bytes,
+                            destinationTracks = libraryTracks,
+                            existingPlaylistNames = playlistState.confirmedSnapshot.playlists.map { it.name },
+                            importedSuffix = importedSuffix,
+                            libraryRevision = libraryRevision,
+                            dispatcher = Dispatchers.Default,
+                        )) {
+                            is PlaylistBackupImportPreparation.Ready -> playlistBackupState = reducePlaylistBackupUiState(
+                                playlistBackupState,
+                                PlaylistBackupUiAction.PreviewReady(prepared.plan),
+                            )
+                            is PlaylistBackupImportPreparation.Failed -> playlistBackupState = reducePlaylistBackupUiState(
+                                playlistBackupState,
+                                PlaylistBackupUiAction.Failed(prepared.error),
+                            )
+                        }
+                    } catch (cancelled: CancellationException) {
+                        playlistBackupState = reducePlaylistBackupUiState(
+                            playlistBackupState,
+                            PlaylistBackupUiAction.OperationCancelled,
+                        )
+                        throw cancelled
+                    }
+                }
+            }
+        },
+    )
+
+    fun exportPlaylists() {
+        if (playlistBackupState.isBusy) return
+        playlistBackupState = reducePlaylistBackupUiState(
+            playlistBackupState,
+            PlaylistBackupUiAction.OperationStarted(PlaylistBackupOperation.Exporting),
+        )
+        scope.launch {
+            try {
+                when (val prepared = preparePlaylistBackupExport(
+                    snapshot = playlistState.confirmedSnapshot,
+                    authoritativeTracks = libraryTracks,
+                    exportedAtEpochMillis = com.eterocell.rhythhaus.library.currentTimeMillis(),
+                    dispatcher = Dispatchers.Default,
+                )) {
+                    is PlaylistBackupExportPreparation.Ready -> {
+                        playlistBackupState = reducePlaylistBackupUiState(
+                            playlistBackupState,
+                            PlaylistBackupUiAction.OperationStarted(PlaylistBackupOperation.Saving),
+                        )
+                        backupDocumentLauncher.save(playlistBackupFileName("rhythhaus-playlists"), prepared.bytes)
+                    }
+                    is PlaylistBackupExportPreparation.Failed -> playlistBackupState = reducePlaylistBackupUiState(
+                        playlistBackupState,
+                        PlaylistBackupUiAction.Failed(prepared.error),
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                playlistBackupState = reducePlaylistBackupUiState(
+                    playlistBackupState,
+                    PlaylistBackupUiAction.OperationCancelled,
+                )
+                throw cancelled
+            }
+        }
+    }
+
+    fun openPlaylistBackup() {
+        if (playlistBackupState.isBusy) return
+        playlistBackupState = reducePlaylistBackupUiState(
+            playlistBackupState,
+            PlaylistBackupUiAction.OperationStarted(PlaylistBackupOperation.Opening),
+        )
+        backupDocumentLauncher.open()
+    }
+
+    fun confirmPlaylistBackup() {
+        if (playlistBackupState.isBusy) return
+        val preview = playlistBackupState.preview ?: return
+        val expectedLibraryRevision = preview.plan.libraryRevision
+        playlistBackupState = reducePlaylistBackupUiState(
+            playlistBackupState,
+            PlaylistBackupUiAction.OperationStarted(PlaylistBackupOperation.Importing),
+        )
+        scope.launch {
+            try {
+                val confirmation = confirmPlaylistBackupImportSerialized(
+                    state = playlistBackupState,
+                    currentLibraryRevision = libraryRevision,
+                    lastConfirmedSnapshot = playlistState.confirmedSnapshot,
+                    mutateAndRefresh = { mutations ->
+                        when (val guarded = libraryPublicationOwner.withCurrentRevision(expectedLibraryRevision) {
+                            playlistStateOwner.importPlaylists(mutations)
+                        }) {
+                            is AuthoritativeRevisionResult.Current -> guarded.value
+                            AuthoritativeRevisionResult.Stale -> com.eterocell.rhythhaus.library.ui.PlaylistImportOwnerResult.Stale
+                        }
+                    },
+                )
+                playlistBackupState = confirmation.state
+                confirmation.confirmedSnapshot?.takeIf { confirmation.state.result != null }?.let { snapshot ->
+                    playlistState = reducePlaylistState(
+                        playlistState,
+                        PlaylistStateAction.SnapshotConfirmed(
+                            snapshot,
+                            requireNotNull(confirmation.playlistPublicationRevision),
+                        ),
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                playlistBackupState = reducePlaylistBackupUiState(
+                    playlistBackupState,
+                    PlaylistBackupUiAction.OperationCancelled,
+                )
+                throw cancelled
+            }
+        }
+    }
+
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
         when (result) {
             is PlatformFolderPickResult.Success -> launchSourceScan(
@@ -218,9 +405,17 @@ fun App() {
                 playbackController = controller,
                 playlistRepository = playlistRepository,
                 playlistState = playlistState,
+                playlistBackupState = playlistBackupState,
+                backupDocumentAvailable = backupDocumentLauncher.isAvailable,
                 onPlaylistStateAction = { action -> playlistState = reducePlaylistState(playlistState, action) },
                 onRefreshPlaylists = ::refreshPlaylists,
                 onPlaylistMutation = ::launchPlaylistMutation,
+                onExportPlaylists = ::exportPlaylists,
+                onOpenPlaylistBackup = ::openPlaylistBackup,
+                onConfirmPlaylistBackup = ::confirmPlaylistBackup,
+                onPlaylistBackupAction = { action ->
+                    playlistBackupState = reducePlaylistBackupUiState(playlistBackupState, action)
+                },
                 sources = librarySources,
                 folderPickerLauncher = folderPickerLauncher,
                 sourcePickerActionVisible = sourcePickerActionVisible(
@@ -298,6 +493,35 @@ internal data class LibraryContentState(
     val tracks: List<LibraryTrack>,
 )
 
+internal data class AuthoritativeLibraryPublication(
+    val content: LibraryContentState,
+    val revision: Long,
+)
+
+internal class AuthoritativeLibraryPublicationOwner {
+    private val mutex = Mutex()
+
+    var revision: Long = 0L
+        private set
+
+    suspend fun publish(content: LibraryContentState): AuthoritativeLibraryPublication = mutex.withLock {
+        AuthoritativeLibraryPublication(content, ++revision)
+    }
+
+    suspend fun <T> withCurrentRevision(
+        expectedRevision: Long,
+        block: suspend () -> T,
+    ): AuthoritativeRevisionResult<T> = mutex.withLock {
+        if (revision != expectedRevision) AuthoritativeRevisionResult.Stale
+        else AuthoritativeRevisionResult.Current(block())
+    }
+}
+
+internal sealed interface AuthoritativeRevisionResult<out T> {
+    data class Current<T>(val value: T) : AuthoritativeRevisionResult<T>
+    data object Stale : AuthoritativeRevisionResult<Nothing>
+}
+
 internal data class InitialLibraryPublicationState(
     val content: LibraryContentState? = null,
     val errorMessage: String? = null,
@@ -322,7 +546,7 @@ internal suspend fun publishInitialLibraryContent(
     lifecycle: PlaybackSessionRestorer,
     reconciler: PlaybackSessionReconciler,
     content: LibraryContentState,
-    updateState: (InitialLibraryPublicationState) -> Unit,
+    updateState: suspend (InitialLibraryPublicationState) -> Unit,
 ) {
     val pending = InitialLibraryPublicationState()
     try {
@@ -339,7 +563,7 @@ internal suspend fun publishInitialLibraryContent(
 internal suspend fun publishLibraryContentAfterReconcile(
     reconciler: PlaybackSessionReconciler,
     content: LibraryContentState,
-    updateLibrary: (LibraryContentState) -> Unit,
+    updateLibrary: suspend (LibraryContentState) -> Unit,
 ) {
     reconciler.reconcile(content.tracks)
     updateLibrary(content)
@@ -409,7 +633,7 @@ internal suspend fun removeSourceInBackground(
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     ownerIsActive: suspend () -> Boolean = { true },
-    updateLibrary: (LibraryContentState) -> Unit,
+    updateLibrary: suspend (LibraryContentState) -> Unit,
     updatePlaylists: (PlaylistStateAction) -> Unit = {},
     updateError: (String) -> Unit = {},
 ) {
@@ -437,7 +661,7 @@ internal suspend fun clearLibraryInBackground(
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     ownerIsActive: suspend () -> Boolean = { true },
-    updateLibrary: (LibraryContentState) -> Unit,
+    updateLibrary: suspend (LibraryContentState) -> Unit,
     updatePlaylists: (PlaylistStateAction) -> Unit = {},
     updateError: (String) -> Unit = {},
 ) {
@@ -463,7 +687,7 @@ private suspend fun publishLibraryContentAfterReconcileFailureSafe(
     content: LibraryContentState,
     ownerIsActive: suspend () -> Boolean,
     loadPlaylists: (suspend () -> PlaylistStateAction)?,
-    updateLibrary: (LibraryContentState) -> Unit,
+    updateLibrary: suspend (LibraryContentState) -> Unit,
     updatePlaylists: (PlaylistStateAction) -> Unit,
     updateError: (String) -> Unit,
 ) {

@@ -14,12 +14,60 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 
 class AppScanCancellationTest {
+    @Test
+    fun authoritativeLibraryRevisionAdvancesExactlyOncePerAcceptedPublication() {
+        val owner = AuthoritativeLibraryPublicationOwner()
+        val first = LibraryContentState(emptyList(), listOf(testTrack("one")))
+        val second = LibraryContentState(emptyList(), listOf(testTrack("two")))
+
+        runBlocking {
+            assertEquals(0, owner.revision)
+            assertEquals(1, owner.publish(first).revision)
+            assertEquals(1, owner.revision)
+            assertEquals(2, owner.publish(second).revision)
+            assertEquals(2, owner.revision)
+        }
+    }
+
+    @Test
+    fun authoritativePublicationCannotInterleaveBetweenRevisionCheckAndMutation() = runBlocking {
+        val owner = AuthoritativeLibraryPublicationOwner()
+        owner.publish(LibraryContentState(emptyList(), listOf(testTrack("one"))))
+        val mutationStarted = CompletableDeferred<Unit>()
+        val releaseMutation = CompletableDeferred<Unit>()
+        var mutationCalls = 0
+
+        coroutineScope {
+            val mutation = async {
+                owner.withCurrentRevision(expectedRevision = 1) {
+                    mutationCalls++
+                    mutationStarted.complete(Unit)
+                    releaseMutation.await()
+                    "mutated"
+                }
+            }
+            mutationStarted.await()
+            val publication = launch {
+                owner.publish(LibraryContentState(emptyList(), listOf(testTrack("two"))))
+            }
+            assertEquals(false, publication.isCompleted)
+            releaseMutation.complete(Unit)
+            assertEquals(AuthoritativeRevisionResult.Current("mutated"), mutation.await())
+            publication.join()
+        }
+
+        assertEquals(1, mutationCalls)
+        assertEquals(2, owner.revision)
+        assertEquals(AuthoritativeRevisionResult.Stale, owner.withCurrentRevision(1) { error("must not mutate") })
+    }
+
     @Test
     fun requestScanCancellationMarksActiveScanAsCancellingImmediately() {
         val progress = ScanProgress(

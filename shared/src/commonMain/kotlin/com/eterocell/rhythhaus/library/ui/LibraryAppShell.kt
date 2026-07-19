@@ -75,6 +75,8 @@ import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
 import com.eterocell.rhythhaus.toPlayableTrack
 import com.eterocell.rhythhaus.ui.verticalSheetGesture
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalAnimationApi::class)
@@ -85,9 +87,15 @@ fun LibraryHomeScreen(
     playbackController: PlaybackController,
     playlistRepository: PlaylistRepository,
     playlistState: PlaylistState,
+    playlistBackupState: PlaylistBackupUiState,
+    backupDocumentAvailable: Boolean,
     onPlaylistStateAction: (PlaylistStateAction) -> Unit,
     onRefreshPlaylists: () -> Unit,
     onPlaylistMutation: PlaylistMutationLauncher,
+    onExportPlaylists: () -> Unit,
+    onOpenPlaylistBackup: () -> Unit,
+    onConfirmPlaylistBackup: () -> Unit,
+    onPlaylistBackupAction: (PlaylistBackupUiAction) -> Unit,
     sources: List<LibrarySource>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
     sourcePickerActionVisible: Boolean,
@@ -226,9 +234,15 @@ fun LibraryHomeScreen(
             playbackState = playbackState,
             playlistRepository = playlistRepository,
             playlistState = playlistState,
+            playlistBackupState = playlistBackupState,
+            backupDocumentAvailable = backupDocumentAvailable,
             onPlaylistStateAction = onPlaylistStateAction,
             onRefreshPlaylists = onRefreshPlaylists,
             onPlaylistMutation = onPlaylistMutation,
+            onExportPlaylists = onExportPlaylists,
+            onOpenPlaylistBackup = onOpenPlaylistBackup,
+            onConfirmPlaylistBackup = onConfirmPlaylistBackup,
+            onPlaylistBackupAction = onPlaylistBackupAction,
             sources = sources,
             folderPickerLauncher = folderPickerLauncher,
             sourcePickerActionVisible = sourcePickerActionVisible,

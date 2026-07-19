@@ -52,6 +52,8 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import kotlinx.coroutines.flow.StateFlow
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 
 internal class QueueMutationDispatcher(
     private val state: StateFlow<PlaybackState>,
@@ -78,9 +80,15 @@ internal fun LibraryRouteOverlays(
     playbackState: PlaybackState,
     playlistRepository: PlaylistRepository,
     playlistState: PlaylistState,
+    playlistBackupState: PlaylistBackupUiState,
+    backupDocumentAvailable: Boolean,
     onPlaylistStateAction: (PlaylistStateAction) -> Unit,
     onRefreshPlaylists: () -> Unit,
     onPlaylistMutation: PlaylistMutationLauncher,
+    onExportPlaylists: () -> Unit,
+    onOpenPlaylistBackup: () -> Unit,
+    onConfirmPlaylistBackup: () -> Unit,
+    onPlaylistBackupAction: (PlaylistBackupUiAction) -> Unit,
     sources: List<LibrarySource>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
     sourcePickerActionVisible: Boolean,
@@ -111,6 +119,12 @@ internal fun LibraryRouteOverlays(
             scanJob = scanJob,
             hasImportedTracks = snapshot.tracks.isNotEmpty(),
             currentThemeMode = currentThemeMode,
+            playlistBackupState = playlistBackupState,
+            backupDocumentAvailable = backupDocumentAvailable,
+            onExportPlaylists = onExportPlaylists,
+            onOpenPlaylistBackup = onOpenPlaylistBackup,
+            onConfirmPlaylistBackup = onConfirmPlaylistBackup,
+            onPlaylistBackupAction = onPlaylistBackupAction,
             onThemeModeSelected = onThemeModeSelected,
             onClearLibrary = onClearLibrary,
             onRescanSource = onRescanSource,
