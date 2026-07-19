@@ -46,6 +46,18 @@ import com.eterocell.rhythhaus.toPlayableTrack
 internal fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
     systemBarTopPadding
 
+internal fun dispatchHomeBrowseModeChange(
+    currentMode: BrowseMode,
+    nextMode: BrowseMode,
+    onTrackSelectionAction: (TrackSelectionAction) -> Unit,
+    onBrowseModeChange: (BrowseMode) -> Unit,
+) {
+    if (currentMode == BrowseMode.Songs && nextMode != BrowseMode.Songs) {
+        onTrackSelectionAction(TrackSelectionAction.RouteChanged(null))
+    }
+    onBrowseModeChange(nextMode)
+}
+
 @Composable
 internal fun LibraryHomeContent(
     snapshot: LibrarySnapshot,
@@ -150,10 +162,12 @@ internal fun LibraryHomeContent(
                         BrowseModePicker(
                             browseMode = browseMode,
                             onModeChange = { nextMode ->
-                                if (browseMode == BrowseMode.Songs && nextMode != BrowseMode.Songs) {
-                                    onTrackSelectionAction(TrackSelectionAction.RouteChanged(null))
-                                }
-                                onBrowseModeChange(nextMode)
+                                dispatchHomeBrowseModeChange(
+                                    currentMode = browseMode,
+                                    nextMode = nextMode,
+                                    onTrackSelectionAction = onTrackSelectionAction,
+                                    onBrowseModeChange = onBrowseModeChange,
+                                )
                             },
                         )
                     }

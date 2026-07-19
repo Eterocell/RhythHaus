@@ -60,6 +60,18 @@ import rhythhaus.shared.generated.resources.now_playing_badge
 import rhythhaus.shared.generated.resources.select_track_format
 import top.yukonga.miuix.kmp.basic.Checkbox
 
+internal fun dispatchSearchVisibleTrackIds(
+    visibleTrackIds: List<String>,
+    onTrackSelectionAction: (TrackSelectionAction) -> Unit,
+) {
+    onTrackSelectionAction(
+        TrackSelectionAction.ReconcileVisible(
+            TrackSelectionPageKey.Search,
+            visibleTrackIds,
+        ),
+    )
+}
+
 @Composable
 fun SearchScreen(
     libraryTracks: List<LibraryTrack>,
@@ -92,7 +104,7 @@ fun SearchScreen(
     val visibleTrackIds = filtered.map(LibraryTrack::id)
 
     LaunchedEffect(visibleTrackIds) {
-        onTrackSelectionAction(TrackSelectionAction.ReconcileVisible(selectionPageKey, visibleTrackIds))
+        dispatchSearchVisibleTrackIds(visibleTrackIds, onTrackSelectionAction)
     }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -234,7 +246,7 @@ private fun searchResultCountLabel(count: Int): String = when (count) {
 }
 
 @Composable
-private fun SearchResultRow(
+internal fun SearchResultRow(
     track: LibraryTrack,
     isNowPlaying: Boolean,
     isPlaying: Boolean,
