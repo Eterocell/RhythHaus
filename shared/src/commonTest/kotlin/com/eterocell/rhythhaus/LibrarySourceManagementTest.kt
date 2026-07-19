@@ -912,6 +912,8 @@ private class RecordingPlaylistRepository(
     override fun entries(playlistId: String) = delegate.entries(playlistId)
     override fun create(name: String) = delegate.create(name)
     override fun createWithEntries(name: String, trackIds: List<String>) = delegate.createWithEntries(name, trackIds)
+    override fun importPlaylists(playlists: List<com.eterocell.rhythhaus.library.PlaylistImportMutation>) =
+        delegate.importPlaylists(playlists)
     override fun rename(id: String, name: String) = delegate.rename(id, name)
     override fun delete(id: String) = delegate.delete(id)
     override fun append(playlistId: String, trackIds: List<String>) = delegate.append(playlistId, trackIds)

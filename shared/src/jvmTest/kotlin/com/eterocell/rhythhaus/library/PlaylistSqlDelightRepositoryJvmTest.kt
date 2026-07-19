@@ -270,6 +270,45 @@ class PlaylistSqlDelightRepositoryJvmTest {
         }
     }
 
+    @Test
+    fun importPlaylistsRollsBackEverySqlRowOnSecondPlaylistEntryFailureAndRetryCreatesAllOnce() {
+        openRepositories().use { open ->
+            listOf("track-existing", "track-a", "track-b", "track-c").forEach { open.seedTrack(it, "scan-1") }
+            val existing = open.playlists.createWithEntries("Existing", listOf("track-existing"))
+            val existingPlaylists = open.playlists.playlists()
+            val existingEntries = open.playlists.entries(existing.id)
+            val request = listOf(
+                PlaylistImportMutation(" First ", listOf("track-a", "track-a")),
+                PlaylistImportMutation("Second", listOf("track-b", "track-c")),
+            )
+            open.driver.execute(
+                identifier = null,
+                sql = "CREATE TRIGGER fail_second_import_entry BEFORE INSERT ON playlist_entry WHEN NEW.trackId = 'track-b' BEGIN SELECT RAISE(ABORT, 'forced second playlist entry failure'); END",
+                parameters = 0,
+            )
+
+            assertFails { open.playlists.importPlaylists(request) }
+
+            assertEquals(existingPlaylists, open.playlists.playlists())
+            assertEquals(existingEntries, open.playlists.entries(existing.id))
+            open.driver.execute(
+                identifier = null,
+                sql = "DROP TRIGGER fail_second_import_entry",
+                parameters = 0,
+            )
+
+            val imported = open.playlists.importPlaylists(request)
+
+            assertEquals(listOf("First", "Second"), imported.map(Playlist::name))
+            assertEquals(setOf("Existing", "First", "Second"), open.playlists.playlists().map(Playlist::name).toSet())
+            assertEquals(3, open.playlists.playlists().size)
+            assertEquals(listOf("track-a", "track-a"), open.playlists.entries(imported[0].id).map(PlaylistEntry::trackId))
+            assertEquals(listOf(0, 1), open.playlists.entries(imported[0].id).map(PlaylistEntry::position))
+            assertEquals(2, open.playlists.entries(imported[0].id).map(PlaylistEntry::id).toSet().size)
+            assertEquals(listOf("track-b", "track-c"), open.playlists.entries(imported[1].id).map(PlaylistEntry::trackId))
+        }
+    }
+
     private fun openRepositories(databaseFile: File = tempDatabase()): OpenRepositories {
         val database = LibraryDatabase(databaseFile)
         return OpenRepositories(

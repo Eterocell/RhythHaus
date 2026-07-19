@@ -43,6 +43,31 @@ class SqlDelightPlaylistRepository(
         return playlist
     }
 
+    override fun importPlaylists(playlists: List<PlaylistImportMutation>): List<Playlist> {
+        val validated = validatePlaylistImports(playlists)
+        if (validated.isEmpty()) return emptyList()
+
+        val imported = mutableListOf<Playlist>()
+        database.transaction {
+            validated.forEach { mutation ->
+                val timestamp = now()
+                val playlist = Playlist(idFactory(), mutation.name, timestamp, timestamp)
+                database.playlistQueries.insertPlaylist(playlist.id, playlist.name, timestamp, timestamp)
+                mutation.trackIds.forEachIndexed { position, trackId ->
+                    database.playlistQueries.insertEntry(
+                        id = idFactory(),
+                        playlistId = playlist.id,
+                        trackId = trackId,
+                        position = position.toLong(),
+                        createdAtEpochMillis = now(),
+                    )
+                }
+                imported += playlist
+            }
+        }
+        return imported
+    }
+
     override fun rename(id: String, name: String) {
         requireNotNull(playlist(id)) { "Playlist not found: $id" }
         database.playlistQueries.renamePlaylist(requireName(name), now(), id)
