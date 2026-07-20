@@ -105,6 +105,7 @@
     <string name="playlist_create_name">播放列表名称</string>
     <string name="playlist_rename">重命名播放列表</string>
     <string name="playlist_delete">删除播放列表</string>
+    <string name="playlist_exit_editing">退出播放列表编辑</string>
     <string name="playlist_delete_confirmation_format">要删除“%1$s”吗？此操作无法撤销。</string>
     <string name="playlist_empty_saved">还没有已保存的播放列表</string>
     <string name="playlist_empty_detail">此播放列表为空</string>

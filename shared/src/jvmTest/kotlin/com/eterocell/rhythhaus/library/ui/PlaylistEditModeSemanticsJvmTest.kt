@@ -17,6 +17,9 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.Playlist
@@ -352,7 +355,7 @@ class PlaylistEditModeSemanticsJvmTest {
         waitForIdle()
         onNode(hasText("×"), useUnmergedTree = true).assertExists()
 
-        onAllNodes(hasContentDescription("添加曲目"), useUnmergedTree = true).onFirst().performTouchInput { click() }
+        onNode(hasTestTag("playlist-action-header"), useUnmergedTree = true).performTouchInput { click() }
         waitForIdle()
         assertEquals(0, browserOpens)
         onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
@@ -366,6 +369,65 @@ class PlaylistEditModeSemanticsJvmTest {
         waitForIdle()
         onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performClick()
         assertEquals(1, routeBacks)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun compactEditRowKeepsMetadataWideWhileMovingMutationControlsToASeparateRail() = runComposeUiTest {
+        setContent {
+            Box(Modifier.size(360.dp, 700.dp)) {
+                PlaylistDetailScreen(
+                    playlist = playlist("playlist-1", "Saved"),
+                    entries = listOf(entry("entry-a", "track-a", 0)),
+                    libraryTracks = listOf(
+                        libraryTrack(
+                            "track-a",
+                            "A deliberately long song title",
+                            "A fully visible artist",
+                            "A readable album",
+                        ),
+                    ),
+                    state = PlaylistState(),
+                    onBack = {}, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
+                    onPlayEntry = {}, onRemoveEntry = {}, onReorder = {}, rowMode = PlaylistDetailRowMode.Edit,
+                )
+            }
+        }
+
+        onNode(hasTestTag("playlist-entry-metadata-entry-a"), useUnmergedTree = true)
+            .assertWidthIsAtLeast(100.dp)
+        onNode(hasTestTag("playlist-entry-action-rail-entry-a"), useUnmergedTree = true)
+            .assertWidthIsAtLeast(132.dp)
+        onNode(hasContentDescription("从播放列表中移除 A deliberately long song title"), useUnmergedTree = true)
+            .assertWidthIsAtLeast(44.dp)
+            .assertHeightIsAtLeast(44.dp)
+
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun editHeaderExposesOnlyExitEditingSemanticsUntilItsFirstActivationIsConsumed() = runComposeUiTest {
+        var browserOpens = 0
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0)),
+                libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
+                state = PlaylistState(),
+                onBack = {}, onRetry = {}, onRename = { _, _ -> }, onDelete = {},
+                onOpenBrowser = { browserOpens++ }, onPlayEntry = {}, onRemoveEntry = {}, onReorder = {},
+                rowMode = PlaylistDetailRowMode.Edit,
+            )
+        }
+
+        onNode(hasContentDescription("添加曲目")).assertDoesNotExist()
+        onNode(hasContentDescription("退出播放列表编辑")).performSemanticsAction(SemanticsActions.OnClick)
+        waitForIdle()
+        assertEquals(0, browserOpens)
+
+        onAllNodes(hasContentDescription("添加曲目")).onFirst().performClick()
+        waitForIdle()
+        assertEquals(1, browserOpens)
     }
 
     @OptIn(ExperimentalTestApi::class)

@@ -47,3 +47,35 @@ git diff --check
 ```
 
 Exact result: exit status 0 with no output.
+
+## UI/UX review repairs (post-commit `dae162a`)
+
+### RED evidence
+
+Two assertion-level Compose regressions were added first:
+
+- `compactEditRowKeepsMetadataWideWhileMovingMutationControlsToASeparateRail` renders a 360dp-wide detail screen and requires at least 100dp metadata width, a 132dp control rail, and a 44dp remove target.
+- `editHeaderExposesOnlyExitEditingSemanticsUntilItsFirstActivationIsConsumed` requires edit mode to expose no Add tracks action, exposes one Exit playlist editing action, consumes its first semantic activation without opening the browser, then restores Add tracks so its next activation opens the browser.
+
+Before the repair, the focused new-test command compiled after minor test setup correction but failed both behavioral assertions: compact edit rows had no metadata/rail test nodes, and the action header exposed underlying actions rather than a dedicated accessible exit action.
+
+### GREEN implementation and verification
+
+- `PlaylistEntryRow` now measures its own available width with `BoxWithConstraints`. At less than 520dp it keeps the drag handle, artwork, title/artist/album, and duration on the information row, then places the three 44dp mutation controls in a right-aligned second control rail. At 520dp and above, the previous desktop-quality inline controls remain.
+- The edit-mode header now replaces Add tracks/Rename/Delete with a single full-width, 44dp **Exit playlist editing** action. This removes underlying action semantics entirely in edit mode, gives assistive technology a truthful action, and consumes its first semantic or pointer activation by exiting edit mode. The actual header actions return on recomposition.
+- Physical-pointer coverage was retained by tapping the stable action-header container for the edit exit, then tapping Add tracks after it returns.
+
+Verification command:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.PlaylistEditModeSemanticsJvmTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' --tests 'com.eterocell.rhythhaus.library.ui.Task3ReviewSemanticsJvmTest' --configuration-cache --rerun-tasks
+```
+
+Exact result: `BUILD SUCCESSFUL in 10s`; `64 tests completed` with zero failures.
+
+```text
+./gradlew :shared:compileKotlinJvm --configuration-cache
+git diff --check
+```
+
+Exact result: compilation `BUILD SUCCESSFUL in 355ms`; whitespace validation exited 0 with no output.

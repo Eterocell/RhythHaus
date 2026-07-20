@@ -82,6 +82,7 @@ import rhythhaus.shared.generated.resources.playlist_create_name
 import rhythhaus.shared.generated.resources.playlist_delete
 import rhythhaus.shared.generated.resources.playlist_delete_confirmation_format
 import rhythhaus.shared.generated.resources.playlist_drag_format
+import rhythhaus.shared.generated.resources.playlist_exit_editing
 import rhythhaus.shared.generated.resources.playlist_empty_detail
 import rhythhaus.shared.generated.resources.playlist_empty_queue
 import rhythhaus.shared.generated.resources.playlist_empty_saved
@@ -422,6 +423,24 @@ fun playlistDetailModel(
     playlistId,
     playlistName,
     entries.mapNotNull { entry -> tracksById[entry.trackId]?.let { PlaylistDetailRow(entry, it) } },
+)
+
+enum class PlaylistDetailActionPlacement { Inline, SecondaryRow }
+
+data class PlaylistDetailRowLayoutPolicy(
+    val actionPlacement: PlaylistDetailActionPlacement,
+    val minimumInteractiveTarget: androidx.compose.ui.unit.Dp = 44.dp,
+)
+
+fun playlistDetailRowLayoutPolicy(
+    availableWidth: androidx.compose.ui.unit.Dp,
+    isEditable: Boolean,
+): PlaylistDetailRowLayoutPolicy = PlaylistDetailRowLayoutPolicy(
+    actionPlacement = if (isEditable && availableWidth < 520.dp) {
+        PlaylistDetailActionPlacement.SecondaryRow
+    } else {
+        PlaylistDetailActionPlacement.Inline
+    },
 )
 
 enum class QueueRowRole { Current, Upcoming }
@@ -964,17 +983,20 @@ internal fun PlaylistDetailScreen(
         title = playlist.name,
         onBack = onBack,
         beforeList = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CompactAction(stringResource(Res.string.playlist_add_tracks), Modifier.weight(1f), onOpenBrowser)
-                CompactAction(stringResource(Res.string.playlist_rename), Modifier.weight(1f)) { renameDraft = PlaylistNameDraft(playlist.name) }
-                CompactAction(stringResource(Res.string.playlist_delete), Modifier.weight(1f)) {
-                    deleteConfirmation = true
-                    deleteOutcome = null
+            if (editMode) {
+                val exitEditing = stringResource(Res.string.playlist_exit_editing)
+                CompactAction(exitEditing, Modifier.fillMaxWidth().height(44.dp)) { editMode = false }
+            } else {
+                Row(Modifier.fillMaxWidth().height(44.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CompactAction(stringResource(Res.string.playlist_add_tracks), Modifier.weight(1f), onOpenBrowser)
+                    CompactAction(stringResource(Res.string.playlist_rename), Modifier.weight(1f)) { renameDraft = PlaylistNameDraft(playlist.name) }
+                    CompactAction(stringResource(Res.string.playlist_delete), Modifier.weight(1f)) {
+                        deleteConfirmation = true
+                        deleteOutcome = null
+                    }
                 }
             }
         },
-        editMode = editMode,
-        onOutsideEditTap = { editMode = false },
     ) {
         if (model.rows.isEmpty()) item(key = "empty") { EmptyPlaylistMessage(stringResource(Res.string.playlist_empty_detail)) }
         items(model.rows, key = { it.entry.id }) { row ->
@@ -1199,13 +1221,6 @@ private fun PlaylistScreenFrame(
             if (beforeList != null) {
                 Box(Modifier.fillMaxWidth().testTag("playlist-action-header")) {
                     beforeList()
-                    if (editMode) {
-                        Box(
-                            Modifier
-                                .matchParentSize()
-                                .pointerInput(Unit) { detectTapGestures(onTap = { onOutsideEditTap() }) },
-                        )
-                    }
                 }
             }
             LazyColumn(
@@ -1272,63 +1287,46 @@ private fun PlaylistEntryRow(
     val entryState = stringResource(Res.string.playlist_entry_state)
     val duration = formatDuration(((row.track.durationMillis ?: 0L) / 1_000L).toInt())
     val rowDescription = "${row.track.title}, ${row.track.artist}, ${row.track.album}, $duration"
-    Row(modifier = Modifier.fillMaxWidth().onGloballyPositioned { coordinates -> rowCenters[rowIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f }.border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp)).background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(20.dp)).hausCombinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = rowDescription).semantics { contentDescription = rowDescription }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (mode == PlaylistDetailRowMode.Edit) Text(
-            "≡",
-            modifier = Modifier
-                .size(44.dp)
-                .pointerInput(row.entry.id, entryIds, rowCenters.toMap()) {
-                    var pointerY = rowCenters[rowIndex] ?: 0f
-                    var dragPresentation = PlaylistDragPresentation(entryIds, row.entry.id)
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = {
-                            pointerY = rowCenters[rowIndex] ?: 0f
-                            dragPresentation = PlaylistDragPresentation(entryIds, row.entry.id)
-                        },
-                        onDragEnd = {
-                            val finalOrder = dragPresentation.finalOrder()
-                            if (finalOrder != entryIds) onDragOrder(finalOrder)
-                        },
-                        onDrag = { change, amount ->
-                            change.consume()
-                            pointerY += amount.y
-                            dragPresentation.target(
-                                playlistDragTargetIndex(
-                                    pointerY = pointerY,
-                                    rowCentersByIndex = rowCenters,
-                                    fallbackIndex = rowIndex,
-                                ),
-                            )
-                        },
-                    )
+    BoxWithConstraints(
+        Modifier.fillMaxWidth().onGloballyPositioned { coordinates -> rowCenters[rowIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f }.border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp)).background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(20.dp)).hausCombinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = rowDescription).semantics { contentDescription = rowDescription }.padding(12.dp),
+    ) {
+        val layoutPolicy = playlistDetailRowLayoutPolicy(maxWidth, mode == PlaylistDetailRowMode.Edit)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (mode == PlaylistDetailRowMode.Edit) PlaylistEntryDragHandle(row, rowIndex, entryIds, rowCenters, drag, onDragOrder)
+                LazyTrackArtworkImage(trackId = row.track.id, eagerArtworkBytes = row.track.artworkBytes, contentDescription = row.track.title, role = ArtworkImageRole.Thumbnail, modifier = Modifier.size(48.dp).background(HausColors.current.panelStrong, RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(row.track.title.firstOrNull()?.uppercase() ?: "♪", color = HausColors.current.ink, fontWeight = FontWeight.Black) }
                 }
-                .semantics { contentDescription = drag },
-            color = HausColors.current.muted,
-            fontSize = 24.sp,
-        )
-        LazyTrackArtworkImage(
-            trackId = row.track.id,
-            eagerArtworkBytes = row.track.artworkBytes,
-            contentDescription = row.track.title,
-            role = ArtworkImageRole.Thumbnail,
-            modifier = Modifier.size(48.dp).background(HausColors.current.panelStrong, RoundedCornerShape(14.dp)),
-            contentScale = ContentScale.Crop,
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(row.track.title.firstOrNull()?.uppercase() ?: "♪", color = HausColors.current.ink, fontWeight = FontWeight.Black)
+                Column(Modifier.weight(1f).testTag("playlist-entry-metadata-${row.entry.id}").semantics { stateDescription = entryState }) {
+                    Text(row.track.title, color = HausColors.current.ink, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${row.track.artist} · ${row.track.album}", color = HausColors.current.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text(duration, color = HausColors.current.muted, fontSize = 12.sp)
+                if (layoutPolicy.actionPlacement == PlaylistDetailActionPlacement.Inline && mode == PlaylistDetailRowMode.Edit) PlaylistEntryMutationActions(availability, moveUp, moveDown, remove, onMove, onRemove)
+            }
+            if (layoutPolicy.actionPlacement == PlaylistDetailActionPlacement.SecondaryRow && mode == PlaylistDetailRowMode.Edit) {
+                Row(Modifier.fillMaxWidth().testTag("playlist-entry-action-rail-${row.entry.id}"), horizontalArrangement = Arrangement.End) {
+                    PlaylistEntryMutationActions(availability, moveUp, moveDown, remove, onMove, onRemove)
+                }
             }
         }
-        Column(Modifier.weight(1f).semantics { stateDescription = entryState }) {
-            Text(row.track.title, color = HausColors.current.ink, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${row.track.artist} · ${row.track.album}", color = HausColors.current.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Text(duration, color = HausColors.current.muted, fontSize = 12.sp)
-        if (mode == PlaylistDetailRowMode.Edit) {
-            IconButton(onClick = { onMove(-1) }, enabled = availability.canMoveUp, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveUp; if (!availability.canMoveUp) disabled() }) { Text("↑", color = HausColors.current.ink) }
-            IconButton(onClick = { onMove(1) }, enabled = availability.canMoveDown, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveDown; if (!availability.canMoveDown) disabled() }) { Text("↓", color = HausColors.current.ink) }
-            IconButton(onClick = onRemove, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = remove }) { Text("×", color = HausColors.current.pulse) }
-        }
     }
+}
+
+@Composable
+private fun PlaylistEntryDragHandle(row: PlaylistDetailRow, rowIndex: Int, entryIds: List<String>, rowCenters: MutableMap<Int, Float>, drag: String, onDragOrder: (List<String>) -> Unit) {
+    Text("≡", modifier = Modifier.size(44.dp).pointerInput(row.entry.id, entryIds, rowCenters.toMap()) {
+        var pointerY = rowCenters[rowIndex] ?: 0f
+        var dragPresentation = PlaylistDragPresentation(entryIds, row.entry.id)
+        detectDragGesturesAfterLongPress(onDragStart = { pointerY = rowCenters[rowIndex] ?: 0f; dragPresentation = PlaylistDragPresentation(entryIds, row.entry.id) }, onDragEnd = { dragPresentation.finalOrder().takeIf { it != entryIds }?.let(onDragOrder) }, onDrag = { change, amount -> change.consume(); pointerY += amount.y; dragPresentation.target(playlistDragTargetIndex(pointerY, rowCenters, rowIndex)) })
+    }.semantics { contentDescription = drag }, color = HausColors.current.muted, fontSize = 24.sp)
+}
+
+@Composable
+private fun PlaylistEntryMutationActions(availability: PlaylistMoveAvailability, moveUp: String, moveDown: String, remove: String, onMove: (Int) -> Unit, onRemove: () -> Unit) {
+    IconButton(onClick = { onMove(-1) }, enabled = availability.canMoveUp, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveUp; if (!availability.canMoveUp) disabled() }) { Text("↑", color = HausColors.current.ink) }
+    IconButton(onClick = { onMove(1) }, enabled = availability.canMoveDown, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveDown; if (!availability.canMoveDown) disabled() }) { Text("↓", color = HausColors.current.ink) }
+    IconButton(onClick = onRemove, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = remove }) { Text("×", color = HausColors.current.pulse) }
 }
 
 @Composable

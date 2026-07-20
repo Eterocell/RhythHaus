@@ -105,6 +105,7 @@
     <string name="playlist_create_name">Playlist name</string>
     <string name="playlist_rename">Rename playlist</string>
     <string name="playlist_delete">Delete playlist</string>
+    <string name="playlist_exit_editing">Exit playlist editing</string>
     <string name="playlist_delete_confirmation_format">Delete %1$s? This cannot be undone.</string>
     <string name="playlist_empty_saved">No saved playlists yet</string>
     <string name="playlist_empty_detail">This playlist is empty</string>
