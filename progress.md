@@ -1,5 +1,27 @@
     # Session Progress
 
+## Handoff - 2026-07-20 playlist-edit-mode-bottom-bar-dialog-theme completion
+
+Route: openspec+superpowers / final lifecycle and evidence handoff
+Owner: harness verification complete; next owner is user/manual runtime QA or OpenSpec archival on explicit request
+Input: approved `playlist-edit-mode-bottom-bar-dialog-theme` change, implementation commits `3ced48b`, Task 2 sequence through `ee61662`, Task 3 `dae162a` plus `59ad4c9`, `deb2164`, and `58b567d`, Task 4 `65a5b52`, Task 5 `4b42e7d`, and final independent Oracle APPROVE after `58b567d`.
+Output:
+- Completed the OpenSpec checklist without archiving the change.
+- Playlist detail is playback-first by default and supports page-wide long-press edit mode with exact occurrence-ID controls; shell Back precedence is modal -> edit -> selection -> Now Playing -> direct route pop.
+- Playlist detail reports its real lazy-list position into the shared Bottom Bar scroll policy and uses measured shell clearance; both dialog variants use the shared theme-aware HausDialog exterior policy.
+Verification:
+- `openspec validate playlist-edit-mode-bottom-bar-dialog-theme --strict`: valid.
+- Exact six-class focused matrix from OpenSpec 6.2 with `--rerun-tasks`: pass (`BUILD SUCCESSFUL in 10s`; 26 actionable tasks executed).
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 11s`; 101 actionable tasks, 12 executed and 89 up-to-date).
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, build 17F113.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 39s`; 44 actionable tasks, 21 executed and 23 up-to-date).
+- `git diff --check`: pass; final independent Oracle review: APPROVE.
+Manual gaps: compact/wide pixel appearance, physical long-press/drag, Bottom Bar animation feel, dark/light rendered dialog exterior, screen-reader behavior, and target-device behavior were not performed and remain unverified follow-up evidence, not automated-completion blockers.
+Changed lifecycle files: `openspec/changes/playlist-edit-mode-bottom-bar-dialog-theme/tasks.md`, `progress.md`, `roadmap.md`, and dedicated Task 6 evidence under `.superpowers/sdd/`; existing Task 1 evidence remains `.superpowers/sdd/task-1-report.md` from `3ced48b`.
+Next owner: user/manual runtime QA; OpenSpec archival only when explicitly requested.
+Blockers: none for automated completion; manual runtime/visual/accessibility evidence remains outstanding.
+Commits: `3ced48b`, Task 2 sequence ending `ee61662`, `dae162a`, `59ad4c9`, `deb2164`, `58b567d`, `65a5b52`, and `4b42e7d`; lifecycle commit follows this handoff.
+
 ## Handoff - 2026-07-19 track-multi-select-playlist-backup Task 9
 
 Route: openspec+superpowers / integration, supported-platform verification, runtime/visual QA attempt, and final review
