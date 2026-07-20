@@ -104,10 +104,9 @@ class PlaylistEditModeSemanticsJvmTest {
             selectionState = { TrackSelectionState() },
             isNowPlayingExpanded = { false },
             canPopRoute = { true },
-            clearSelection = {},
             cancelSelection = {},
             hideNowPlaying = {},
-            popRoute = { routeBackCount++ },
+            directPopRoute = { routeBackCount++ },
         )
         setContent {
             PlaylistDetailScreen(
@@ -131,6 +130,43 @@ class PlaylistEditModeSemanticsJvmTest {
         onNode(hasText("Saved"), useUnmergedTree = true).assertExists()
         assertEquals(0, playCount)
         assertEquals(0, routeBackCount)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun productionSystemBackCallbackDismissesRealModalBeforeRoutePop() = runComposeUiTest {
+        var routePops = 0
+        var dismissals = 0
+        val registration = PlaylistBackRegistrationState()
+        val controller = PlaylistBackDispatchController(
+            registration = registration,
+            selectionState = { TrackSelectionState() },
+            isNowPlayingExpanded = { false },
+            canPopRoute = { true },
+            cancelSelection = {},
+            hideNowPlaying = {},
+            directPopRoute = { routePops++ },
+        )
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0)),
+                libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
+                state = PlaylistState(),
+                onBack = controller::onSystemBackCompleted,
+                onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
+                onPlayEntry = {}, onRemoveEntry = {}, onReorder = {},
+                registerPlaylistModalDismiss = { owner, callback ->
+                    registration.registerModal(owner) { dismissals++; callback?.invoke() }
+                },
+            )
+        }
+        onAllNodes(hasContentDescription("重命名播放列表"), useUnmergedTree = true).onFirst().performClick()
+        waitForIdle()
+        controller.onSystemBackCompleted()
+        waitForIdle()
+        assertEquals(1, dismissals)
+        assertEquals(0, routePops)
     }
 
     @OptIn(ExperimentalTestApi::class)

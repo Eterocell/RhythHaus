@@ -110,10 +110,9 @@ class PlaylistBackPolicyJvmTest {
             selectionState = { selection },
             isNowPlayingExpanded = { nowPlaying },
             canPopRoute = { true },
-            clearSelection = { events += "clear" },
             cancelSelection = { events += "selection"; selection = TrackSelectionState() },
             hideNowPlaying = { events += "now-playing"; nowPlaying = false },
-            popRoute = { events += "pop" },
+            directPopRoute = { events += "clear"; events += "pop" },
         )
         val editDispose = policy.registerEdit(Any()) { events += "edit"; editDisposeHolder?.invoke() }
         editDisposeHolder = editDispose
@@ -124,6 +123,23 @@ class PlaylistBackPolicyJvmTest {
         dispatcher.dispatch()
         dispatcher.dispatch()
         assertEquals(listOf("edit", "selection", "now-playing", "clear", "pop"), events)
+    }
+
+    @Test
+    fun systemBackCallbackUsesTheSameProductionDispatchAndDirectPopPrimitive() {
+        val events = mutableListOf<String>()
+        val policy = PlaylistBackRegistrationState()
+        val controller = PlaylistBackDispatchController(
+            registration = policy,
+            selectionState = { TrackSelectionState() },
+            isNowPlayingExpanded = { false },
+            canPopRoute = { true },
+            cancelSelection = {},
+            hideNowPlaying = {},
+            directPopRoute = { events += "clear"; events += "pop" },
+        )
+        controller.onSystemBackCompleted()
+        assertEquals(listOf("clear", "pop"), events)
     }
 
     private var editDisposeHolder: (() -> Unit)? = null

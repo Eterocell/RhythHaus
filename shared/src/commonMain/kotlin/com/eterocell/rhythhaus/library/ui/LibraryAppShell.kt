@@ -156,6 +156,10 @@ fun LibraryHomeScreen(
         clearSelection()
         appState.popRoute()
     }
+    fun directPopRoute() {
+        clearSelection()
+        appState.popRoute()
+    }
     fun openSelectedTracksPicker() {
         val pageKey = trackSelectionState.pageKey ?: return
         val visibleTrackIds = when (pageKey) {
@@ -177,37 +181,35 @@ fun LibraryHomeScreen(
         isNowPlayingExpanded = appState.showNowPlaying,
         canPopRoute = appState.navigation.canPop,
     )
+    val navState = rememberNavigationEventState(NavigationEventInfo.None)
     val requestLibraryBack: () -> Unit = {
         PlaylistBackDispatchController(
             registration = playlistBackRegistration,
             selectionState = { trackSelectionState },
             isNowPlayingExpanded = { appState.showNowPlaying },
             canPopRoute = { appState.navigation.canPop },
-            clearSelection = ::clearSelection,
             cancelSelection = { dispatchTrackSelection(TrackSelectionAction.Cancel) },
             hideNowPlaying = appState::hideNowPlaying,
-            popRoute = ::popRoute,
+            directPopRoute = ::directPopRoute,
         ).dispatch()
     }
-    val navState = rememberNavigationEventState(NavigationEventInfo.None)
+    val onSystemBackCompleted: () -> Unit = {
+        if (libraryBackDecision == LibraryBackDecision.PopRoute) {
+            backGestureProgressAtCompletion = when (val ts = navState.transitionState) {
+                is NavigationEventTransitionState.InProgress -> ts.latestEvent.progress
+                else -> null
+            }
+            directPopRoute()
+            backGestureProgressAtCompletion = null
+        } else {
+            requestLibraryBack()
+        }
+    }
     NavigationBackHandler(
         state = navState,
         isBackEnabled = libraryBackDecision != LibraryBackDecision.None,
         onBackCancelled = { },
-        onBackCompleted = {
-            if (libraryBackDecision == LibraryBackDecision.PopRoute) {
-                    backGestureProgressAtCompletion = when (val ts = navState.transitionState) {
-                        is NavigationEventTransitionState.InProgress -> ts.latestEvent.progress
-                        else -> null
-                    }
-                    clearSelection()
-                    val next = appState.navigation.pop()
-                    backGestureProgressAtCompletion = null
-                    appState.completePredictivePop(next)
-            } else {
-                requestLibraryBack()
-            }
-        },
+        onBackCompleted = onSystemBackCompleted,
     )
     val predictiveBackProgress = when (val ts = navState.transitionState) {
         is NavigationEventTransitionState.InProgress -> {
@@ -310,10 +312,7 @@ fun LibraryHomeScreen(
             selectedTrackId = appState.selectedTrackId,
             isNowPlayingBarVisible = appState.isNowPlayingBarVisible,
             onBack = requestLibraryBack,
-            onDeleteCompleted = {
-                clearSelection()
-                appState.popRoute()
-            },
+            onDeleteCompleted = ::directPopRoute,
             registerPlaylistEditMode = ::registerPlaylistEditMode,
             registerPlaylistModalDismiss = ::registerPlaylistModalDismiss,
             onOpenDetailRoute = ::pushRoute,

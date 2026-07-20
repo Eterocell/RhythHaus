@@ -46,16 +46,10 @@ internal class PlaylistBackDispatchController(
     private val selectionState: () -> TrackSelectionState,
     private val isNowPlayingExpanded: () -> Boolean,
     private val canPopRoute: () -> Boolean,
-    private val clearSelection: () -> Unit,
     private val cancelSelection: () -> Unit,
     private val hideNowPlaying: () -> Unit,
-    private val popRoute: () -> Unit,
+    private val directPopRoute: () -> Unit,
 ) {
-    private val clearSelectionBeforePop = {
-        clearSelection()
-        popRoute()
-    }
-
     fun decision(): LibraryBackDecision = registration.decision(selectionState(), isNowPlayingExpanded(), canPopRoute())
 
     fun dispatch(popRouteOverride: (() -> Unit)? = null) {
@@ -65,10 +59,12 @@ internal class PlaylistBackDispatchController(
             -> registration.requestBack(selectionState(), isNowPlayingExpanded(), canPopRoute())
             LibraryBackDecision.CancelSelection -> cancelSelection()
             LibraryBackDecision.HideNowPlaying -> hideNowPlaying()
-            LibraryBackDecision.PopRoute -> (popRouteOverride ?: clearSelectionBeforePop).invoke()
+            LibraryBackDecision.PopRoute -> (popRouteOverride ?: directPopRoute).invoke()
             LibraryBackDecision.None -> Unit
         }
     }
+
+    fun onSystemBackCompleted() = dispatch()
 }
 
 internal fun directPlaylistDeleteCompletion(

@@ -14,6 +14,10 @@ Result: expected `BUILD FAILED`. The first run failed at test compilation becaus
 
 Added the production dispatch-controller seam, real toolbar-back interaction, snapshot observer, and successful-delete production-path assertions before the final repair. The focused command reached behavioral RED with two failing assertions in `PlaylistEditModeSemanticsJvmTest`: the toolbar test initially did not reach the live registration path, and the delete test initially targeted the wrong localized action node. This was an actual assertion failure, not a type-check-only failure.
 
+## Final dispatch repair RED/GREEN evidence
+
+Added assertions for the production `onSystemBackCompleted` callback and the single direct-pop primitive before final implementation. The first targeted run failed at test compilation because the callback and `directPopRoute` seam were not yet present. After the seam was introduced, the real Compose system-back test reached an assertion-level failure while invoking the toolbar path; the test was corrected to invoke the production callback passed to `NavigationBackHandler`, then the final implementation unified direct route pop and deletion completion.
+
 ## Corrective GREEN evidence
 
 The final focused command returned `BUILD SUCCESSFUL`:
@@ -25,6 +29,8 @@ The final focused command returned `BUILD SUCCESSFUL`:
 Fresh result: 8 tests completed, 0 failures, 0 errors, 0 skipped; `BUILD SUCCESSFUL in 8s`.
 
 Integration repair result: 12 tests completed, 0 failures, 0 errors, 0 skipped; `BUILD SUCCESSFUL in 9s`.
+
+Final dispatch result: 13 tests completed, 0 failures, 0 errors, 0 skipped; `BUILD SUCCESSFUL in 8s`.
 
 ## Finding resolutions
 
@@ -42,6 +48,8 @@ Integration repair result: 12 tests completed, 0 failures, 0 errors, 0 skipped; 
 - Added `PlaylistBackDispatchController`, used by shell system Back and predictive completion routing; toolbar Back receives the same production dispatch callback through `PlaylistDetailScreen`.
 - Removed the unused modal-aware delete helper test and replaced it with the real `PlaylistDetailScreen` successful-delete callback path.
 - Added a Compose recomposition observer proving registration changes update the derived production decision.
+- Unified route popping behind `directPopRoute()`, which performs exactly one selection clear and one `appState.popRoute()`. Both PopRoute dispatch and the dedicated delete completion use this primitive; predictive completion remains PopRoute-only.
+- Added and wired the production `onSystemBackCompleted` callback directly into `NavigationBackHandler`; JVM coverage invokes that same callback through the real screen registration path.
 
 ## Commit
 
