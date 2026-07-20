@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -11,6 +12,8 @@ import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class PlaylistEditModeSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -36,6 +39,51 @@ class PlaylistEditModeSemanticsJvmTest {
         onNode(hasContentDescription("Move up Song A")).assertDoesNotExist()
         onNode(hasContentDescription("Move down Song A")).assertDoesNotExist()
         onNode(hasContentDescription("Remove Song A")).assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun registeredEditClearChangesProductionRowsAndUnregisters() = runComposeUiTest {
+        var clear: (() -> Unit)? = null
+        var unregisterCount = 0
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0)),
+                libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
+                state = PlaylistState(),
+                onBack = {}, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
+                onPlayEntry = {}, onRemoveEntry = {}, onReorder = {}, rowMode = PlaylistDetailRowMode.Edit,
+                registerPlaylistEditMode = { _, callback -> clear = callback; { unregisterCount++ } },
+            )
+        }
+        onNode(hasContentDescription("Song A, Artist A, Album A, 3:12"), useUnmergedTree = true).assertExists()
+        assertNotNull(clear).invoke()
+        waitForIdle()
+        assertEquals(1, unregisterCount)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun registeredModalDismissDoesNotTriggerPlaybackOrRouteCallbackWhenNoModalIsOwned() = runComposeUiTest {
+        var registeredDismiss: (() -> Unit)? = null
+        var playCount = 0
+        var backCount = 0
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0)),
+                libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
+                state = PlaylistState(),
+                onBack = { backCount++ }, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
+                onPlayEntry = { playCount++ }, onRemoveEntry = {}, onReorder = {},
+                registerPlaylistModalDismiss = { _, callback -> registeredDismiss = callback; {} },
+            )
+        }
+        waitForIdle()
+        assertEquals(null, registeredDismiss)
+        assertEquals(0, playCount)
+        assertEquals(0, backCount)
     }
 
     private fun playlist(id: String, name: String) = Playlist(id, name, 1L, 1L)

@@ -184,7 +184,7 @@ internal fun LibraryRouteContent(
     isNowPlayingBarVisible: Boolean,
     onBack: () -> Unit,
     registerPlaylistEditMode: (Any, () -> Unit) -> () -> Unit = { _, _ -> {} },
-    registerPlaylistModalDismiss: ((() -> Unit)?) -> () -> Unit = { {} },
+    registerPlaylistModalDismiss: (Any, (() -> Unit)?) -> () -> Unit = { _, _ -> {} },
     onOpenDetailRoute: (LibraryRoute) -> Unit,
     onTrackSelected: (String) -> Unit,
     onTrackClickFromTracks: (List<Track>, Track) -> Unit,
@@ -317,12 +317,10 @@ internal fun LibraryRouteContent(
                             { delete(resolution.playlist.id) },
                             { outcome ->
                                 onOutcome(outcome)
-                                if (playlistMutationDecision(PlaylistMutationWorkflow.Delete, outcome) == PlaylistMutationDecision.CloseConfirmationAndRoute) {
-                                    onBack()
-                                }
                             },
                         )
                     },
+                    onDeleteCompleted = onBack,
                     onOpenBrowser = {
                         onPlaylistStateAction(
                             PlaylistStateAction.OpenBrowser(

@@ -130,6 +130,7 @@ fun LibraryHomeScreen(
     var playlistEditModeClear: (() -> Unit)? by remember { mutableStateOf(null) }
     var playlistEditModeOwner: Any? by remember { mutableStateOf(null) }
     var playlistModalDismiss by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var playlistModalOwner: Any? by remember { mutableStateOf(null) }
     var searchVisibleTrackIds by remember { mutableStateOf(emptyList<String>()) }
     var bottomBarMeasurement by remember { mutableStateOf<LibraryBottomBarMeasurement?>(null) }
     val bottomBarContent = libraryBottomBarContent(
@@ -179,9 +180,15 @@ fun LibraryHomeScreen(
             }
         }
     }
-    fun registerPlaylistModalDismiss(dismiss: (() -> Unit)?): () -> Unit {
+    fun registerPlaylistModalDismiss(owner: Any, dismiss: (() -> Unit)?): () -> Unit {
+        playlistModalOwner = owner
         playlistModalDismiss = dismiss
-        return { if (playlistModalDismiss === dismiss) playlistModalDismiss = null }
+        return {
+            if (playlistModalOwner === owner && playlistModalDismiss === dismiss) {
+                playlistModalOwner = null
+                playlistModalDismiss = null
+            }
+        }
     }
     val libraryBackDecision = libraryBackDecision(
         hasPlaylistModal = playlistModalDismiss != null,

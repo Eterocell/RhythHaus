@@ -913,6 +913,7 @@ internal fun PlaylistDetailScreen(
     onRetry: () -> Unit,
     onRename: (String, (PlaylistStateAction) -> Unit) -> Unit,
     onDelete: ((PlaylistStateAction) -> Unit) -> Unit,
+    onDeleteCompleted: () -> Unit = {},
     onOpenBrowser: () -> Unit,
     onPlayEntry: (SavedPlaylistPlaybackRequest) -> Unit,
     onRemoveEntry: (String) -> Unit,
@@ -920,7 +921,7 @@ internal fun PlaylistDetailScreen(
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     rowMode: PlaylistDetailRowMode = PlaylistDetailRowMode.Default,
     registerPlaylistEditMode: (Any, () -> Unit) -> () -> Unit = { _, _ -> {} },
-    registerPlaylistModalDismiss: ((() -> Unit)?) -> () -> Unit = { {} },
+    registerPlaylistModalDismiss: (Any, (() -> Unit)?) -> () -> Unit = { _, _ -> {} },
 ) {
     val tracksById = remember(libraryTracks) { libraryTracks.associate { it.id to it.toPlayableTrack() } }
     val model = playlistDetailModel(playlist.id, playlist.name, entries, tracksById)
@@ -931,6 +932,7 @@ internal fun PlaylistDetailScreen(
     var removeConfirmation by remember { mutableStateOf<PlaylistDetailRow?>(null) }
     var destructivePresentation by remember { mutableStateOf<PlaylistDestructivePresentation?>(null) }
     var editMode by remember { mutableStateOf(rowMode == PlaylistDetailRowMode.Edit) }
+    var deleteRoutePending by remember { mutableStateOf(false) }
     val rowCenters = remember { mutableStateMapOf<Int, Float>() }
     val routePresentation = playlistRoutePresentation(state)
     val editOwner = remember(playlist.id) { Any() }
@@ -941,15 +943,25 @@ internal fun PlaylistDetailScreen(
         else -> null
     }
     val currentEditClear = rememberUpdatedState<() -> Unit> { editMode = false }
-    DisposableEffect(rowMode, editOwner) {
+    DisposableEffect(editMode, editOwner) {
         val unregister = if (editMode) {
             registerPlaylistEditMode(editOwner) { currentEditClear.value() }
         } else null
         onDispose { unregister?.invoke() }
     }
-    DisposableEffect(modalDismiss) {
-        val unregister = registerPlaylistModalDismiss(modalDismiss)
-        onDispose { unregister.invoke() }
+    val modalOwner = remember(playlist.id) { Any() }
+    val currentModalDismiss = rememberUpdatedState(modalDismiss)
+    DisposableEffect(modalDismiss != null, modalOwner) {
+        val unregister = if (modalDismiss != null) {
+            registerPlaylistModalDismiss(modalOwner) { currentModalDismiss.value?.invoke() }
+        } else null
+        onDispose { unregister?.invoke() }
+    }
+    LaunchedEffect(deleteRoutePending, deleteConfirmation) {
+        if (deleteRoutePending && !deleteConfirmation) {
+            deleteRoutePending = false
+            onDeleteCompleted()
+        }
     }
     PlaylistScreenFrame(title = playlist.name, onBack = onBack) {
         item(key = "actions") {
@@ -971,7 +983,7 @@ internal fun PlaylistDetailScreen(
                 entryIds = entries.map(PlaylistEntry::id),
                 rowCenters = rowCenters,
                 availability = playlistMoveAvailability(entries.map(PlaylistEntry::id), row.entry.id),
-                mode = rowMode,
+                mode = if (editMode) PlaylistDetailRowMode.Edit else PlaylistDetailRowMode.Default,
                 onClick = {
                     savedPlaylistPlaybackRequest(entries, tracksById, row.entry.id)?.let(onPlayEntry)
                 },
@@ -1020,6 +1032,7 @@ internal fun PlaylistDetailScreen(
                 deleteOutcome = outcome
                 if (playlistMutationDecision(PlaylistMutationWorkflow.Delete, outcome) == PlaylistMutationDecision.CloseConfirmationAndRoute) {
                     deleteConfirmation = false
+                    deleteRoutePending = true
                 }
             }
         },
@@ -1293,7 +1306,7 @@ private fun CompactAction(text: String, modifier: Modifier, onClick: () -> Unit)
     val presentation = playlistTabPresentation(PlaylistTab.Saved, HausColors.current)
     Button(
         onClick = onClick,
-        modifier = modifier.height(presentation.compactControlHeight),
+        modifier = modifier.height(presentation.compactControlHeight).semantics { contentDescription = text },
         cornerRadius = 14.dp,
         insideMargin = PaddingValues(horizontal = 10.dp, vertical = presentation.insideVerticalMargin),
         colors = ButtonDefaults.buttonColors(
@@ -1303,6 +1316,7 @@ private fun CompactAction(text: String, modifier: Modifier, onClick: () -> Unit)
     ) {
         Text(
             text = text,
+            modifier = Modifier.semantics { contentDescription = text },
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             lineHeight = presentation.lineHeight,
