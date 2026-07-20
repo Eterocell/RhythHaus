@@ -102,6 +102,23 @@ class PlaylistScreensTest {
     }
 
     @Test
+    fun defaultPlaylistRowsHaveNoMutationActionsAndEditRowsExposeActions() {
+        assertEquals(emptySet<PlaylistDetailRowAction>(), playlistDetailRowActions(PlaylistDetailRowMode.Default, PlaylistMoveAvailability(false, true)))
+        assertEquals(
+            setOf(PlaylistDetailRowAction.MoveDown, PlaylistDetailRowAction.Remove),
+            playlistDetailRowActions(PlaylistDetailRowMode.Edit, PlaylistMoveAvailability(false, true)),
+        )
+    }
+
+    @Test
+    fun playlistDragTargetClampsToFirstMiddleAndLastRows() {
+        val centers = mapOf(0 to 20f, 1 to 100f, 2 to 180f)
+        assertEquals(0, playlistDragTargetIndex(0f, centers, 1, rowCount = 3))
+        assertEquals(1, playlistDragTargetIndex(101f, centers, 0, rowCount = 3))
+        assertEquals(2, playlistDragTargetIndex(500f, centers, 1, rowCount = 3))
+    }
+
+    @Test
     fun savedPlaybackUsesExactVisibleEntryOrderAndSelectedOccurrence() {
         val track = playableTrack("track-a")
         val entries = listOf(

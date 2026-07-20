@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.PlayableTrack
+import com.eterocell.rhythhaus.formatDuration
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.QueueOccurrence
@@ -274,7 +275,9 @@ fun playlistDragTargetIndex(
     pointerY: Float,
     rowCentersByIndex: Map<Int, Float>,
     fallbackIndex: Int,
-): Int = rowCentersByIndex.minByOrNull { (_, centerY) -> kotlin.math.abs(centerY - pointerY) }?.key ?: fallbackIndex
+    rowCount: Int? = null,
+): Int = (rowCentersByIndex.minByOrNull { (_, centerY) -> kotlin.math.abs(centerY - pointerY) }?.key ?: fallbackIndex)
+    .let { target -> rowCount?.let { target.coerceIn(0, (it - 1).coerceAtLeast(0)) } ?: target }
 
 fun queueDragTargetIndex(
     pointerY: Float,
@@ -297,6 +300,18 @@ fun queueDragTargetIndex(
 }
 
 data class PlaylistMoveAvailability(val canMoveUp: Boolean, val canMoveDown: Boolean)
+
+enum class PlaylistDetailRowMode { Default, Edit }
+enum class PlaylistDetailRowAction { MoveUp, MoveDown, Remove }
+
+fun playlistDetailRowActions(
+    mode: PlaylistDetailRowMode,
+    availability: PlaylistMoveAvailability,
+): Set<PlaylistDetailRowAction> = if (mode == PlaylistDetailRowMode.Default) emptySet() else buildSet {
+    if (availability.canMoveUp) add(PlaylistDetailRowAction.MoveUp)
+    if (availability.canMoveDown) add(PlaylistDetailRowAction.MoveDown)
+    add(PlaylistDetailRowAction.Remove)
+}
 
 fun playlistMoveAvailability(ids: List<String>, entryId: String): PlaylistMoveAvailability {
     val index = ids.indexOf(entryId)
@@ -901,6 +916,7 @@ internal fun PlaylistDetailScreen(
     onRemoveEntry: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    rowMode: PlaylistDetailRowMode = PlaylistDetailRowMode.Default,
 ) {
     val tracksById = remember(libraryTracks) { libraryTracks.associate { it.id to it.toPlayableTrack() } }
     val model = playlistDetailModel(playlist.id, playlist.name, entries, tracksById)
@@ -932,6 +948,7 @@ internal fun PlaylistDetailScreen(
                 entryIds = entries.map(PlaylistEntry::id),
                 rowCenters = rowCenters,
                 availability = playlistMoveAvailability(entries.map(PlaylistEntry::id), row.entry.id),
+                mode = rowMode,
                 onClick = {
                     savedPlaylistPlaybackRequest(entries, tracksById, row.entry.id)?.let(onPlayEntry)
                 },
@@ -1176,6 +1193,7 @@ private fun PlaylistEntryRow(
     entryIds: List<String>,
     rowCenters: MutableMap<Int, Float>,
     availability: PlaylistMoveAvailability,
+    mode: PlaylistDetailRowMode,
     onClick: () -> Unit,
     onMove: (Int) -> Unit,
     onDragOrder: (List<String>) -> Unit,
@@ -1186,8 +1204,10 @@ private fun PlaylistEntryRow(
     val drag = stringResource(Res.string.playlist_drag_format, row.track.title)
     val remove = stringResource(Res.string.playlist_remove_track_format, row.track.title)
     val entryState = stringResource(Res.string.playlist_entry_state)
-    Row(modifier = Modifier.fillMaxWidth().onGloballyPositioned { coordinates -> rowCenters[rowIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f }.border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp)).background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(20.dp)).hausClickable(onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
+    val duration = formatDuration(((row.track.durationMillis ?: 0L) / 1_000L).toInt())
+    val rowDescription = "${row.track.title}, ${row.track.artist}, ${row.track.album}, $duration"
+    Row(modifier = Modifier.fillMaxWidth().onGloballyPositioned { coordinates -> rowCenters[rowIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f }.border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp)).background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(20.dp)).hausClickable(onClick).semantics { contentDescription = rowDescription }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (mode == PlaylistDetailRowMode.Edit) Text(
             "≡",
             modifier = Modifier
                 .size(44.dp)
@@ -1232,10 +1252,16 @@ private fun PlaylistEntryRow(
                 Text(row.track.title.firstOrNull()?.uppercase() ?: "♪", color = HausColors.current.ink, fontWeight = FontWeight.Black)
             }
         }
-        Column(Modifier.weight(1f).semantics { stateDescription = entryState }) { Text(row.track.title, color = HausColors.current.ink, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(row.track.artist, color = HausColors.current.muted, fontSize = 12.sp, maxLines = 1) }
-        IconButton(onClick = { onMove(-1) }, enabled = availability.canMoveUp, minWidth = 40.dp, minHeight = 40.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveUp }) { Text("↑", color = HausColors.current.ink) }
-        IconButton(onClick = { onMove(1) }, enabled = availability.canMoveDown, minWidth = 40.dp, minHeight = 40.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveDown }) { Text("↓", color = HausColors.current.ink) }
-        IconButton(onClick = onRemove, minWidth = 40.dp, minHeight = 40.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = remove }) { Text("×", color = HausColors.current.pulse) }
+        Column(Modifier.weight(1f).semantics { stateDescription = entryState }) {
+            Text(row.track.title, color = HausColors.current.ink, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${row.track.artist} · ${row.track.album}", color = HausColors.current.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text(duration, color = HausColors.current.muted, fontSize = 12.sp)
+        if (mode == PlaylistDetailRowMode.Edit) {
+            IconButton(onClick = { onMove(-1) }, enabled = availability.canMoveUp, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveUp }) { Text("↑", color = HausColors.current.ink) }
+            IconButton(onClick = { onMove(1) }, enabled = availability.canMoveDown, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveDown }) { Text("↓", color = HausColors.current.ink) }
+            IconButton(onClick = onRemove, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = remove }) { Text("×", color = HausColors.current.pulse) }
+        }
     }
 }
 
