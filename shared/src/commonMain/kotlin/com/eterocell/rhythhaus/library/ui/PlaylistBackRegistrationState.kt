@@ -1,10 +1,17 @@
 package com.eterocell.rhythhaus.library.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+
 internal class PlaylistBackRegistrationState {
-    private var editOwner: Any? = null
-    private var editClear: (() -> Unit)? = null
-    private var modalOwner: Any? = null
-    private var modalDismiss: (() -> Unit)? = null
+    private var editOwner by mutableStateOf<Any?>(null)
+    private var editClear by mutableStateOf<(() -> Unit)?>(null)
+    private var modalOwner by mutableStateOf<Any?>(null)
+    private var modalDismiss by mutableStateOf<(() -> Unit)?>(null)
+
+    val hasEditRegistration: Boolean get() = editClear != null
+    val hasModalRegistration: Boolean get() = modalDismiss != null
 
     fun registerEdit(owner: Any, clear: () -> Unit): () -> Unit {
         editOwner = owner

@@ -183,6 +183,7 @@ internal fun LibraryRouteContent(
     selectedTrackId: String?,
     isNowPlayingBarVisible: Boolean,
     onBack: () -> Unit,
+    onDeleteCompleted: () -> Unit = {},
     registerPlaylistEditMode: (Any, () -> Unit) -> () -> Unit = { _, _ -> {} },
     registerPlaylistModalDismiss: (Any, (() -> Unit)?) -> () -> Unit = { _, _ -> {} },
     onOpenDetailRoute: (LibraryRoute) -> Unit,
@@ -320,7 +321,7 @@ internal fun LibraryRouteContent(
                             },
                         )
                     },
-                    onDeleteCompleted = onBack,
+                    onDeleteCompleted = onDeleteCompleted,
                     onOpenBrowser = {
                         onPlaylistStateAction(
                             PlaylistStateAction.OpenBrowser(

@@ -1025,12 +1025,8 @@ internal fun PlaylistDetailScreen(
                 deleteOutcome = outcome
                 if (playlistMutationDecision(PlaylistMutationWorkflow.Delete, outcome) == PlaylistMutationDecision.CloseConfirmationAndRoute) {
                     deleteConfirmation = false
-                    playlistDeleteCompletion(
-                        isModalOpen = { deleteConfirmation },
-                        dismissModal = { deleteConfirmation = false; deleteOutcome = null },
-                        clearSelection = {},
-                        popRoute = onDeleteCompleted,
-                    )
+                    deleteOutcome = null
+                    onDeleteCompleted()
                 }
             }
         },

@@ -3,6 +3,8 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -58,8 +60,10 @@ class PlaylistEditModeSemanticsJvmTest {
             )
         }
         onNode(hasContentDescription("Song A, Artist A, Album A, 3:12"), useUnmergedTree = true).assertExists()
+        onNode(hasText("×"), useUnmergedTree = true).assertExists()
         assertNotNull(clear).invoke()
         waitForIdle()
+        onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
         assertEquals(1, unregisterCount)
     }
 
@@ -84,6 +88,32 @@ class PlaylistEditModeSemanticsJvmTest {
         assertEquals(null, registeredDismiss)
         assertEquals(0, playCount)
         assertEquals(0, backCount)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun realRenameModalDismissesThroughRegisteredToolbarBackWithoutSideEffects() = runComposeUiTest {
+        var dismiss: (() -> Unit)? = null
+        var playCount = 0
+        var routeBackCount = 0
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0)),
+                libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
+                state = PlaylistState(),
+                onBack = { routeBackCount++ }, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
+                onPlayEntry = { playCount++ }, onRemoveEntry = {}, onReorder = {},
+                registerPlaylistModalDismiss = { _, callback -> dismiss = callback; {} },
+            )
+        }
+        onAllNodes(hasContentDescription("重命名播放列表"), useUnmergedTree = true).onFirst().performScrollTo().performClick()
+        waitForIdle()
+        assertNotNull(dismiss).invoke()
+        waitForIdle()
+        onNode(hasText("Saved"), useUnmergedTree = true).assertExists()
+        assertEquals(0, playCount)
+        assertEquals(0, routeBackCount)
     }
 
     private fun playlist(id: String, name: String) = Playlist(id, name, 1L, 1L)

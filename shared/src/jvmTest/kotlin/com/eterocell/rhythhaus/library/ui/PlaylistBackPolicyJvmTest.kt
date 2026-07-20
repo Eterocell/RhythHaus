@@ -2,6 +2,8 @@ package com.eterocell.rhythhaus.library.ui
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class PlaylistBackPolicyJvmTest {
     @Test
@@ -50,5 +52,28 @@ class PlaylistBackPolicyJvmTest {
         completeDelete()
         assertEquals(listOf("dismiss", "selection", "pop"), events)
         assertEquals(false, modalOpen)
+    }
+
+    @Test
+    fun registrationStateChangesAreObservableAtTheProductionBoundary() {
+        val policy = PlaylistBackRegistrationState()
+        val editOwner = Any()
+        val modalOwner = Any()
+        assertFalse(policy.hasEditRegistration)
+        assertFalse(policy.hasModalRegistration)
+
+        val clearEdit = policy.registerEdit(editOwner) {}
+        assertTrue(policy.hasEditRegistration)
+        assertEquals(LibraryBackDecision.ExitPlaylistEditMode, policy.decision())
+
+        val dismissModal = policy.registerModal(modalOwner) {}
+        assertTrue(policy.hasModalRegistration)
+        assertEquals(LibraryBackDecision.DismissPlaylistModal, policy.decision())
+
+        dismissModal()
+        assertFalse(policy.hasModalRegistration)
+        assertEquals(LibraryBackDecision.ExitPlaylistEditMode, policy.decision())
+        clearEdit()
+        assertFalse(policy.hasEditRegistration)
     }
 }

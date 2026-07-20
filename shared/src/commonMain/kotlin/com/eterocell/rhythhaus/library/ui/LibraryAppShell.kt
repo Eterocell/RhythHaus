@@ -314,6 +314,10 @@ fun LibraryHomeScreen(
             selectedTrackId = appState.selectedTrackId,
             isNowPlayingBarVisible = appState.isNowPlayingBarVisible,
             onBack = requestLibraryBack,
+            onDeleteCompleted = {
+                clearSelection()
+                appState.popRoute()
+            },
             registerPlaylistEditMode = ::registerPlaylistEditMode,
             registerPlaylistModalDismiss = ::registerPlaylistModalDismiss,
             onOpenDetailRoute = ::pushRoute,
