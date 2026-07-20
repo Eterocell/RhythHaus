@@ -58,6 +58,10 @@ Final integration coverage command:
 
 The first GREEN attempt reached an assertion-level failure in the new toolbar flow (`expected <3> but was <4>` from counting setup callback invocations). The assertion was corrected to count only the later selection/Now Playing/PopRoute progression. The rerun passed all 16 focused tests.
 
+## Final entry-coverage repair evidence
+
+The final repair replaces the former direct `PlaylistBackDispatchController.onSystemBackCompleted` test with a real `LibraryBackCallbacks.systemBackCompleted` callback produced by the shipping `libraryBackCallbacks(...)` factory, while a real `PlaylistDetailScreen` owns edit and modal registration. The toolbar flow now drives selection cancel, Now Playing hide, and PopRoute through actual `playlist-back` clicks rather than direct callback invocation. The focused rerun passed both Task 2 classes: 16 tests, 0 failures, 0 errors, 0 skipped.
+
 ## Finding resolutions
 
 - `PlaylistBackRegistrationState` now stores edit/modal registrations in Compose snapshot state, so child `DisposableEffect` mutations invalidate the shell and recompute the production back decision / `NavigationBackHandler.isBackEnabled`. Existing owner-and-callback identity guards remain intact.

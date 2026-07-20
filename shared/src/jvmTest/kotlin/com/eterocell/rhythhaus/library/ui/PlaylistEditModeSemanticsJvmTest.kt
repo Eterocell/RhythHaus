@@ -186,13 +186,16 @@ class PlaylistEditModeSemanticsJvmTest {
 
         selection = TrackSelectionState(TrackSelectionPageKey.HomeSongs, setOf("track-a"))
         val ordinaryBackBeforeBranches = ordinaryBackCalls
-        callbacks.ordinaryBack()
+        onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performClick()
+        waitForIdle()
         assertEquals(0, playCount)
         assertEquals(0, routePops)
         nowPlaying = true
-        callbacks.ordinaryBack()
+        onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performClick()
+        waitForIdle()
         assertEquals(0, routePops)
-        callbacks.ordinaryBack()
+        onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performClick()
+        waitForIdle()
         assertEquals(1, routePops)
         assertEquals(3, ordinaryBackCalls - ordinaryBackBeforeBranches)
     }
@@ -203,14 +206,27 @@ class PlaylistEditModeSemanticsJvmTest {
         var routePops = 0
         var dismissals = 0
         val registration = PlaylistBackRegistrationState()
-        val controller = PlaylistBackDispatchController(
-            registration = registration,
-            selectionState = { TrackSelectionState() },
-            isNowPlayingExpanded = { false },
-            canPopRoute = { true },
-            cancelSelection = {},
-            hideNowPlaying = {},
-            directPopRoute = { routePops++ },
+        var ordinaryBackCalls = 0
+        val callbacks = libraryBackCallbacks(
+            ordinaryBack = {
+                ordinaryBackCalls++
+                PlaylistBackDispatchController(
+                    registration = registration,
+                    selectionState = { TrackSelectionState() },
+                    isNowPlayingExpanded = { false },
+                    canPopRoute = { true },
+                    cancelSelection = {},
+                    hideNowPlaying = {},
+                    directPopRoute = { routePops++ },
+                ).dispatch()
+            },
+            decision = { registration.decision(TrackSelectionState(), false, true) },
+            transitionProgress = { error("modal/edit back must not be predictive") },
+            setCompletionProgress = { error("modal/edit back must not be predictive") },
+            navigationPop = { error("modal/edit back must not pop predictively") },
+            completePredictivePop = { error("modal/edit back must not complete predictively") },
+            clearSelection = {},
+            popRoute = { routePops++ },
         )
         setContent {
             PlaylistDetailScreen(
@@ -218,20 +234,27 @@ class PlaylistEditModeSemanticsJvmTest {
                 entries = listOf(entry("entry-a", "track-a", 0)),
                 libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
                 state = PlaylistState(),
-                onBack = controller::onSystemBackCompleted,
+                onBack = callbacks.ordinaryBack,
                 onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
                 onPlayEntry = {}, onRemoveEntry = {}, onReorder = {},
+                rowMode = PlaylistDetailRowMode.Edit,
+                registerPlaylistEditMode = { owner, clear -> registration.registerEdit(owner, clear) },
                 registerPlaylistModalDismiss = { owner, callback ->
-                    registration.registerModal(owner) { dismissals++; callback?.invoke() }
+                    callback?.let { registration.registerModal(owner) { dismissals++; it() } } ?: {}
                 },
             )
         }
         onAllNodes(hasContentDescription("重命名播放列表"), useUnmergedTree = true).onFirst().performClick()
         waitForIdle()
-        controller.onSystemBackCompleted()
+        callbacks.systemBackCompleted()
         waitForIdle()
         assertEquals(1, dismissals)
         assertEquals(0, routePops)
+        onNode(hasText("×"), useUnmergedTree = true).assertExists()
+        callbacks.systemBackCompleted()
+        waitForIdle()
+        onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
+        assertEquals(2, ordinaryBackCalls)
     }
 
     @OptIn(ExperimentalTestApi::class)
