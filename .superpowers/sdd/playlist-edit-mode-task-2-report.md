@@ -50,6 +50,14 @@ GREEN command:
 
 Result: `BUILD SUCCESSFUL`; all targeted Task 2 tests passed.
 
+Final integration coverage command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.PlaylistEditModeSemanticsJvmTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistBackPolicyJvmTest' --configuration-cache --rerun-tasks
+```
+
+The first GREEN attempt reached an assertion-level failure in the new toolbar flow (`expected <3> but was <4>` from counting setup callback invocations). The assertion was corrected to count only the later selection/Now Playing/PopRoute progression. The rerun passed all 16 focused tests.
+
 ## Finding resolutions
 
 - `PlaylistBackRegistrationState` now stores edit/modal registrations in Compose snapshot state, so child `DisposableEffect` mutations invalidate the shell and recompute the production back decision / `NavigationBackHandler.isBackEnabled`. Existing owner-and-callback identity guards remain intact.
@@ -70,6 +78,7 @@ Result: `BUILD SUCCESSFUL`; all targeted Task 2 tests passed.
 - Added and wired the production `onSystemBackCompleted` callback directly into `NavigationBackHandler`; JVM coverage invokes that same callback through the real screen registration path.
 - Restored predictive PopRoute completion through the exact callback installed in `NavigationBackHandler`: capture progress, clear selection once, call `navigation.pop()`, call `completePredictivePop(next)`, then clear completion progress. Modal/edit branches use ordinary dispatch and never predictively pop.
 - Shipped delete completion now comes from the shell's direct completion factory and is passed unchanged through `LibraryRouteContent`.
+- `LibraryBackCallbacks` is now the shipping shell fixture: `LibraryAppShell` instantiates it, passes its ordinary callback to playlist toolbar/UI content, passes its delete callback through `LibraryRouteContent`, and passes its exact `systemBackCompleted` callback to `NavigationBackHandler`. New UI tests use this same production factory for modal/edit and delete integration coverage.
 
 ## Commit
 

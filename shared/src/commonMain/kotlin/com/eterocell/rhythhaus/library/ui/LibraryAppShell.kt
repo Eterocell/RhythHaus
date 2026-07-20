@@ -156,10 +156,6 @@ fun LibraryHomeScreen(
         clearSelection()
         appState.popRoute()
     }
-    val onDeleteCompleted = directPlaylistDeleteCompletion(
-        clearSelection = ::clearSelection,
-        popRoute = appState::popRoute,
-    )
     fun openSelectedTracksPicker() {
         val pageKey = trackSelectionState.pageKey ?: return
         val visibleTrackIds = when (pageKey) {
@@ -193,7 +189,8 @@ fun LibraryHomeScreen(
             directPopRoute = ::directPopRoute,
         ).dispatch()
     }
-    val onSystemBackCompleted = libraryBackCompletionCallback(
+    val backCallbacks = libraryBackCallbacks(
+        ordinaryBack = requestLibraryBack,
         decision = { libraryBackDecision },
         transitionProgress = {
             when (val ts = navState.transitionState) {
@@ -202,16 +199,16 @@ fun LibraryHomeScreen(
             }
         },
         setCompletionProgress = { backGestureProgressAtCompletion = it },
-        clearSelection = ::clearSelection,
-        dispatchOrdinaryBack = requestLibraryBack,
         navigationPop = appState.navigation::pop,
         completePredictivePop = appState::completePredictivePop,
+        clearSelection = ::clearSelection,
+        popRoute = appState::popRoute,
     )
     NavigationBackHandler(
         state = navState,
         isBackEnabled = libraryBackDecision != LibraryBackDecision.None,
         onBackCancelled = { },
-        onBackCompleted = onSystemBackCompleted,
+        onBackCompleted = backCallbacks.systemBackCompleted,
     )
     val predictiveBackProgress = when (val ts = navState.transitionState) {
         is NavigationEventTransitionState.InProgress -> {
@@ -313,8 +310,8 @@ fun LibraryHomeScreen(
             },
             selectedTrackId = appState.selectedTrackId,
             isNowPlayingBarVisible = appState.isNowPlayingBarVisible,
-            onBack = requestLibraryBack,
-            onDeleteCompleted = onDeleteCompleted,
+            onBack = backCallbacks.ordinaryBack,
+            onDeleteCompleted = backCallbacks.deleteCompleted,
             registerPlaylistEditMode = ::registerPlaylistEditMode,
             registerPlaylistModalDismiss = ::registerPlaylistModalDismiss,
             onOpenDetailRoute = ::pushRoute,

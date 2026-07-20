@@ -87,6 +87,35 @@ internal fun libraryBackCompletionCallback(
     }
 }
 
+internal data class LibraryBackCallbacks(
+    val ordinaryBack: () -> Unit,
+    val systemBackCompleted: () -> Unit,
+    val deleteCompleted: () -> Unit,
+)
+
+internal fun libraryBackCallbacks(
+    ordinaryBack: () -> Unit,
+    decision: () -> LibraryBackDecision,
+    transitionProgress: () -> Float?,
+    setCompletionProgress: (Float?) -> Unit,
+    navigationPop: () -> LibraryNavigationStack,
+    completePredictivePop: (LibraryNavigationStack) -> Unit,
+    clearSelection: () -> Unit,
+    popRoute: () -> Unit,
+): LibraryBackCallbacks = LibraryBackCallbacks(
+    ordinaryBack = ordinaryBack,
+    systemBackCompleted = libraryBackCompletionCallback(
+        decision = decision,
+        transitionProgress = transitionProgress,
+        setCompletionProgress = setCompletionProgress,
+        clearSelection = clearSelection,
+        dispatchOrdinaryBack = ordinaryBack,
+        navigationPop = navigationPop,
+        completePredictivePop = completePredictivePop,
+    ),
+    deleteCompleted = directPlaylistDeleteCompletion(clearSelection, popRoute),
+)
+
 internal fun directPlaylistDeleteCompletion(
     clearSelection: () -> Unit,
     popRoute: () -> Unit,

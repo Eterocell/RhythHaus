@@ -134,6 +134,71 @@ class PlaylistEditModeSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun realToolbarBackDismissesModalThenLeavesEditModeAndLaterBranchesUseShippingCallbacks() = runComposeUiTest {
+        val registration = PlaylistBackRegistrationState()
+        var selection = TrackSelectionState()
+        var nowPlaying = false
+        var playCount = 0
+        var routePops = 0
+        var ordinaryBackCalls = 0
+        val callbacks = libraryBackCallbacks(
+            ordinaryBack = {
+                ordinaryBackCalls++
+                PlaylistBackDispatchController(
+                    registration = registration,
+                    selectionState = { selection },
+                    isNowPlayingExpanded = { nowPlaying },
+                    canPopRoute = { true },
+                    cancelSelection = { selection = TrackSelectionState() },
+                    hideNowPlaying = { nowPlaying = false },
+                    directPopRoute = { routePops++ },
+                ).dispatch()
+            },
+            decision = { registration.decision(selection, nowPlaying, true) },
+            transitionProgress = { null },
+            setCompletionProgress = {},
+            navigationPop = { LibraryNavigationStack() },
+            completePredictivePop = {},
+            clearSelection = { selection = TrackSelectionState() },
+            popRoute = { routePops++ },
+        )
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0)),
+                libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
+                state = PlaylistState(), onBack = callbacks.ordinaryBack, onRetry = {},
+                onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {}, onPlayEntry = { playCount++ },
+                onRemoveEntry = {}, onReorder = {}, rowMode = PlaylistDetailRowMode.Edit,
+                registerPlaylistEditMode = { owner, clear -> registration.registerEdit(owner, clear) },
+                registerPlaylistModalDismiss = { owner, dismiss -> dismiss?.let { registration.registerModal(owner, it) } ?: {} },
+            )
+        }
+        onNode(hasText("×"), useUnmergedTree = true).assertExists()
+        onAllNodes(hasContentDescription("重命名播放列表"), useUnmergedTree = true).onFirst().performScrollTo().performClick()
+        waitForIdle()
+        onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performClick()
+        waitForIdle()
+        onNode(hasText("×"), useUnmergedTree = true).assertExists()
+        onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performClick()
+        waitForIdle()
+        onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
+
+        selection = TrackSelectionState(TrackSelectionPageKey.HomeSongs, setOf("track-a"))
+        val ordinaryBackBeforeBranches = ordinaryBackCalls
+        callbacks.ordinaryBack()
+        assertEquals(0, playCount)
+        assertEquals(0, routePops)
+        nowPlaying = true
+        callbacks.ordinaryBack()
+        assertEquals(0, routePops)
+        callbacks.ordinaryBack()
+        assertEquals(1, routePops)
+        assertEquals(3, ordinaryBackCalls - ordinaryBackBeforeBranches)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun productionSystemBackCallbackDismissesRealModalBeforeRoutePop() = runComposeUiTest {
         var routePops = 0
         var dismissals = 0
@@ -171,19 +236,34 @@ class PlaylistEditModeSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun successfulDeleteInvokesProductionCompletionOnceAfterDialogDismissal() = runComposeUiTest {
+    fun successfulDeleteUsesShippingCompletionWithModalPrecedenceAndDirectPop() = runComposeUiTest {
         var completionCount = 0
         var deleteCount = 0
+        var clearCount = 0
+        var popCount = 0
+        var ordinaryBackCount = 0
+        val registration = PlaylistBackRegistrationState()
+        val callbacks = libraryBackCallbacks(
+            ordinaryBack = { ordinaryBackCount++ },
+            decision = { registration.decision() },
+            transitionProgress = { null },
+            setCompletionProgress = {},
+            navigationPop = { LibraryNavigationStack() },
+            completePredictivePop = {},
+            clearSelection = { clearCount++ },
+            popRoute = { popCount++ },
+        )
         setContent {
             PlaylistDetailScreen(
                 playlist = playlist("playlist-1", "Saved"),
                 entries = listOf(entry("entry-a", "track-a", 0)),
                 libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
                 state = PlaylistState(),
-                onBack = {}, onRetry = {}, onRename = { _, _ -> },
+                onBack = callbacks.ordinaryBack, onRetry = {}, onRename = { _, _ -> },
                 onDelete = { callback -> deleteCount++; callback(PlaylistStateAction.SnapshotConfirmed(PlaylistSnapshot())) },
-                onDeleteCompleted = { completionCount++ },
+                onDeleteCompleted = { completionCount++; callbacks.deleteCompleted() },
                 onOpenBrowser = {}, onPlayEntry = {}, onRemoveEntry = {}, onReorder = {},
+                registerPlaylistModalDismiss = { owner, dismiss -> dismiss?.let { registration.registerModal(owner, it) } ?: {} },
             )
         }
         onNode(hasText("删除播放列表"), useUnmergedTree = true).performClick()
@@ -192,6 +272,9 @@ class PlaylistEditModeSemanticsJvmTest {
         waitForIdle()
         assertEquals(1, deleteCount)
         assertEquals(1, completionCount)
+        assertEquals(1, clearCount)
+        assertEquals(1, popCount)
+        assertEquals(0, ordinaryBackCount)
         onNode(hasText("Delete Saved? This cannot be undone."), useUnmergedTree = true).assertDoesNotExist()
     }
 
