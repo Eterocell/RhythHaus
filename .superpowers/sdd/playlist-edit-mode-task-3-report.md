@@ -27,18 +27,18 @@ Minimum root-cause correction:
 Focused GREEN command:
 
 ```text
-./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.PlaylistEditModeSemanticsJvmTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' --tests 'com.eterocell.rhythhaus.library.ui.Task3ReviewSemanticsJvmTest' --configuration-cache --rerun-tasks
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.PlaylistEditModeSemanticsJvmTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistScreensTest' --configuration-cache --rerun-tasks
 ```
 
-Exact result: `BUILD SUCCESSFUL in 25s`; all `35 actionable tasks` executed. This reran the complete Task 3 focused production/semantics suites, including the pre-existing review regression coverage.
+Exact result: `BUILD SUCCESSFUL in 9s`; `52 tests` passed with zero failures, errors, or skips (`10` Compose interaction tests and `42` common playlist screen tests); `26 actionable tasks` executed.
 
 Production compilation command:
 
 ```text
-./gradlew :shared:compileKotlinJvm --configuration-cache --rerun-tasks
+./gradlew :shared:compileKotlinJvm --configuration-cache
 ```
 
-Exact result: `BUILD SUCCESSFUL in 5s`; all `17 actionable tasks` executed.
+Exact result: `BUILD SUCCESSFUL in 11s`; `26 actionable tasks`: 4 executed, 1 from cache, 21 up-to-date.
 
 Whitespace validation:
 
