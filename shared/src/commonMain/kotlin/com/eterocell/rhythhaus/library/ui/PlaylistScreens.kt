@@ -21,6 +21,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -917,6 +919,8 @@ internal fun PlaylistDetailScreen(
     onReorder: (List<String>) -> Unit,
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     rowMode: PlaylistDetailRowMode = PlaylistDetailRowMode.Default,
+    registerPlaylistEditMode: (Any, () -> Unit) -> () -> Unit = { _, _ -> {} },
+    registerPlaylistModalDismiss: ((() -> Unit)?) -> () -> Unit = { {} },
 ) {
     val tracksById = remember(libraryTracks) { libraryTracks.associate { it.id to it.toPlayableTrack() } }
     val model = playlistDetailModel(playlist.id, playlist.name, entries, tracksById)
@@ -926,8 +930,27 @@ internal fun PlaylistDetailScreen(
     var deleteOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
     var removeConfirmation by remember { mutableStateOf<PlaylistDetailRow?>(null) }
     var destructivePresentation by remember { mutableStateOf<PlaylistDestructivePresentation?>(null) }
+    var editMode by remember { mutableStateOf(rowMode == PlaylistDetailRowMode.Edit) }
     val rowCenters = remember { mutableStateMapOf<Int, Float>() }
     val routePresentation = playlistRoutePresentation(state)
+    val editOwner = remember(playlist.id) { Any() }
+    val modalDismiss: (() -> Unit)? = when {
+        renameDraft != null -> ({ renameDraft = null; renameOutcome = null })
+        deleteConfirmation -> ({ deleteConfirmation = false; deleteOutcome = null })
+        removeConfirmation != null -> ({ destructivePresentation = destructivePresentation?.dismiss(); removeConfirmation = null })
+        else -> null
+    }
+    val currentEditClear = rememberUpdatedState<() -> Unit> { editMode = false }
+    DisposableEffect(rowMode, editOwner) {
+        val unregister = if (editMode) {
+            registerPlaylistEditMode(editOwner) { currentEditClear.value() }
+        } else null
+        onDispose { unregister?.invoke() }
+    }
+    DisposableEffect(modalDismiss) {
+        val unregister = registerPlaylistModalDismiss(modalDismiss)
+        onDispose { unregister.invoke() }
+    }
     PlaylistScreenFrame(title = playlist.name, onBack = onBack) {
         item(key = "actions") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

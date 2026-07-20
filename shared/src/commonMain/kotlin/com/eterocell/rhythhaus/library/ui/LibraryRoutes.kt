@@ -183,6 +183,8 @@ internal fun LibraryRouteContent(
     selectedTrackId: String?,
     isNowPlayingBarVisible: Boolean,
     onBack: () -> Unit,
+    registerPlaylistEditMode: (Any, () -> Unit) -> () -> Unit = { _, _ -> {} },
+    registerPlaylistModalDismiss: ((() -> Unit)?) -> () -> Unit = { {} },
     onOpenDetailRoute: (LibraryRoute) -> Unit,
     onTrackSelected: (String) -> Unit,
     onTrackClickFromTracks: (List<Track>, Track) -> Unit,
@@ -346,6 +348,8 @@ internal fun LibraryRouteContent(
                         }
                     },
                     bottomContentPadding = bottomContentPadding,
+                    registerPlaylistEditMode = registerPlaylistEditMode,
+                    registerPlaylistModalDismiss = registerPlaylistModalDismiss,
                 )
                 is PlaylistDetailResolution.ReturnToHub -> LaunchedEffect(route) {
                     onRecoverStalePlaylistDetail(resolution.message)

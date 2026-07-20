@@ -134,6 +134,8 @@ fun libraryBottomBarPresentation(
 }
 
 enum class LibraryBackDecision {
+    DismissPlaylistModal,
+    ExitPlaylistEditMode,
     CancelSelection,
     HideNowPlaying,
     PopRoute,
@@ -141,10 +143,14 @@ enum class LibraryBackDecision {
 }
 
 fun libraryBackDecision(
+    hasPlaylistModal: Boolean = false,
+    isPlaylistEditModeActive: Boolean = false,
     selectionState: TrackSelectionState,
     isNowPlayingExpanded: Boolean,
     canPopRoute: Boolean,
 ): LibraryBackDecision = when {
+    hasPlaylistModal -> LibraryBackDecision.DismissPlaylistModal
+    isPlaylistEditModeActive -> LibraryBackDecision.ExitPlaylistEditMode
     selectionState.selectedTrackIds.isNotEmpty() -> LibraryBackDecision.CancelSelection
     isNowPlayingExpanded -> LibraryBackDecision.HideNowPlaying
     canPopRoute -> LibraryBackDecision.PopRoute

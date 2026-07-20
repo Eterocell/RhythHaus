@@ -602,6 +602,21 @@ class LibraryNavigationTest {
     }
 
     @Test
+    fun backDecisionUsesPlaylistModalEditSelectionNowPlayingAndRoutePrecedence() {
+        val selected = TrackSelectionState(
+            TrackSelectionPageKey.Album("Night"),
+            setOf("track-a"),
+        )
+        val emptySelection = TrackSelectionState()
+        assertEquals(LibraryBackDecision.DismissPlaylistModal, libraryBackDecision(true, true, selected, true, true))
+        assertEquals(LibraryBackDecision.ExitPlaylistEditMode, libraryBackDecision(false, true, selected, true, true))
+        assertEquals(LibraryBackDecision.CancelSelection, libraryBackDecision(false, false, selected, true, true))
+        assertEquals(LibraryBackDecision.HideNowPlaying, libraryBackDecision(false, false, emptySelection, true, true))
+        assertEquals(LibraryBackDecision.PopRoute, libraryBackDecision(false, false, emptySelection, false, true))
+        assertEquals(LibraryBackDecision.None, libraryBackDecision(false, false, emptySelection, false, false))
+    }
+
+    @Test
     fun eligiblePageKeyMatchesOnlyTheCurrentSupportedSurface() {
         assertEquals(
             TrackSelectionPageKey.HomeSongs,
