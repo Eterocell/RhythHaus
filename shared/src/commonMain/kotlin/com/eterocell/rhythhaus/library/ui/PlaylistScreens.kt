@@ -989,6 +989,8 @@ internal fun PlaylistDetailScreen(
     PlaylistScreenFrame(
         title = playlist.name,
         onBack = onBack,
+        editMode = editMode,
+        onOutsideEditTap = { editMode = false },
         listState = listState,
         beforeList = {
             if (editMode) {
@@ -1227,7 +1229,20 @@ private fun PlaylistScreenFrame(
                     backgroundColor = Color.Transparent,
                     modifier = Modifier.testTag("playlist-back"),
                 ) { Text("‹", fontSize = 30.sp, color = HausColors.current.ink) }
-                Text(title, color = HausColors.current.ink, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .testTag("playlist-toolbar-title")
+                        .then(
+                            if (editMode) {
+                                Modifier.hausClickable(onOutsideEditTap)
+                            } else Modifier,
+                        ),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Text(title, color = HausColors.current.ink, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
             if (beforeList != null) {
                 Box(Modifier.fillMaxWidth().testTag("playlist-action-header")) {

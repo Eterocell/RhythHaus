@@ -425,6 +425,37 @@ class PlaylistEditModeSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun toolbarTitleTapExitsEditWithoutNavigatingWhileBackStillUsesShellDispatcher() = runComposeUiTest {
+        var routeBacks = 0
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0)),
+                libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
+                state = PlaylistState(),
+                onBack = { routeBacks++ }, onRetry = {}, onRename = { _, _ -> }, onDelete = {},
+                onOpenBrowser = {}, onPlayEntry = {}, onRemoveEntry = {}, onReorder = {},
+            )
+        }
+
+        val row = onNode(hasContentDescription("Song A, Artist A, Album A, 3:12"), useUnmergedTree = true)
+        row.performSemanticsAction(SemanticsActions.OnLongClick)
+        waitForIdle()
+        onNode(hasText("×"), useUnmergedTree = true).assertExists()
+
+        onNode(hasTestTag("playlist-toolbar-title"), useUnmergedTree = true).performTouchInput { click() }
+        waitForIdle()
+        onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
+        assertEquals(0, routeBacks)
+
+        row.performSemanticsAction(SemanticsActions.OnLongClick)
+        waitForIdle()
+        onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performTouchInput { click() }
+        assertEquals(1, routeBacks)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun compactEditRowKeepsMetadataWideWhileMovingMutationControlsToASeparateRail() = runComposeUiTest {
         setContent {
             Box(Modifier.size(360.dp, 700.dp)) {

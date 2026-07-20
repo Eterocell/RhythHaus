@@ -79,3 +79,32 @@ git diff --check
 ```
 
 Exact result: compilation `BUILD SUCCESSFUL in 355ms`; whitespace validation exited 0 with no output.
+
+## Final toolbar-tap review repair (post-Task 4 `65a5b52`)
+
+### RED evidence
+
+Added `toolbarTitleTapExitsEditWithoutNavigatingWhileBackStillUsesShellDispatcher` to the JVM Compose suite. It enters real detail edit mode with the row long-click action, physically taps the toolbar title/non-Back region, requires edit controls to disappear, and requires the shell `onBack` count to remain zero. It then re-enters edit mode, physically taps the real Back target, and requires exactly one shell `onBack` call.
+
+The focused RED command was:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.PlaylistEditModeSemanticsJvmTest.toolbarTitleTapExitsEditWithoutNavigatingWhileBackStillUsesShellDispatcher' --configuration-cache --rerun-tasks
+```
+
+Exact result: `1 test completed, 1 failed`; failure was at the missing `playlist-toolbar-title` node because `PlaylistScreenFrame(editMode, onOutsideEditTap)` was declared but unused.
+
+### GREEN implementation and verification
+
+- Detail now passes its existing edit clear callback to `PlaylistScreenFrame`.
+- The toolbar is intentionally split into siblings: the untouched 44dp Back `IconButton` retains its direct shell-owned `onBack` callback, while the title/non-Back sibling is a 44dp edit-only click target.
+- In edit mode that sibling clears and consumes the tap; it retains the title's ordinary passive semantics, while the action header remains the single explicit **Exit playlist editing** action for assistive technology. Outside edit mode it remains passive title content.
+- No parent toolbar pointer detector was added, so Back cannot double-handle or be intercepted. The action header, list viewport, scroll state/reporting, measured bottom clearance, modal/Back precedence, responsive rows, and hub caller remain unchanged.
+
+The focused RED test passed after the implementation:
+
+```text
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.PlaylistEditModeSemanticsJvmTest.toolbarTitleTapExitsEditWithoutNavigatingWhileBackStillUsesShellDispatcher' --configuration-cache --rerun-tasks
+```
+
+Exact result: `BUILD SUCCESSFUL in 10s`; 1 test passed.
