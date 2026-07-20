@@ -152,14 +152,14 @@ fun LibraryHomeScreen(
         clearSelection()
         appState.pushRoute(route)
     }
-    fun popRoute() {
-        clearSelection()
-        appState.popRoute()
-    }
     fun directPopRoute() {
         clearSelection()
         appState.popRoute()
     }
+    val onDeleteCompleted = directPlaylistDeleteCompletion(
+        clearSelection = ::clearSelection,
+        popRoute = appState::popRoute,
+    )
     fun openSelectedTracksPicker() {
         val pageKey = trackSelectionState.pageKey ?: return
         val visibleTrackIds = when (pageKey) {
@@ -193,18 +193,20 @@ fun LibraryHomeScreen(
             directPopRoute = ::directPopRoute,
         ).dispatch()
     }
-    val onSystemBackCompleted: () -> Unit = {
-        if (libraryBackDecision == LibraryBackDecision.PopRoute) {
-            backGestureProgressAtCompletion = when (val ts = navState.transitionState) {
+    val onSystemBackCompleted = libraryBackCompletionCallback(
+        decision = { libraryBackDecision },
+        transitionProgress = {
+            when (val ts = navState.transitionState) {
                 is NavigationEventTransitionState.InProgress -> ts.latestEvent.progress
                 else -> null
             }
-            directPopRoute()
-            backGestureProgressAtCompletion = null
-        } else {
-            requestLibraryBack()
-        }
-    }
+        },
+        setCompletionProgress = { backGestureProgressAtCompletion = it },
+        clearSelection = ::clearSelection,
+        dispatchOrdinaryBack = requestLibraryBack,
+        navigationPop = appState.navigation::pop,
+        completePredictivePop = appState::completePredictivePop,
+    )
     NavigationBackHandler(
         state = navState,
         isBackEnabled = libraryBackDecision != LibraryBackDecision.None,
@@ -312,7 +314,7 @@ fun LibraryHomeScreen(
             selectedTrackId = appState.selectedTrackId,
             isNowPlayingBarVisible = appState.isNowPlayingBarVisible,
             onBack = requestLibraryBack,
-            onDeleteCompleted = ::directPopRoute,
+            onDeleteCompleted = onDeleteCompleted,
             registerPlaylistEditMode = ::registerPlaylistEditMode,
             registerPlaylistModalDismiss = ::registerPlaylistModalDismiss,
             onOpenDetailRoute = ::pushRoute,

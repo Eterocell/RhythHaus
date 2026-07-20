@@ -32,6 +32,24 @@ Integration repair result: 12 tests completed, 0 failures, 0 errors, 0 skipped; 
 
 Final dispatch result: 13 tests completed, 0 failures, 0 errors, 0 skipped; `BUILD SUCCESSFUL in 8s`.
 
+## Predictive completion repair evidence
+
+RED command (new predictive callback assertions, before the production callback factory existed):
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.PlaylistBackPolicyJvmTest.productionNavigationBackCallbackUsesPredictivePopOnlyForPopRoute' --configuration-cache --rerun-tasks
+```
+
+Result: `BUILD FAILED` during test compilation because `libraryBackCompletionCallback` was unresolved. The test assertions were then completed against the production factory, including an assertion-level check that modal/edit decisions never call predictive navigation.
+
+GREEN command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.PlaylistBackPolicyJvmTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistEditModeSemanticsJvmTest' --configuration-cache --rerun-tasks
+```
+
+Result: `BUILD SUCCESSFUL`; all targeted Task 2 tests passed.
+
 ## Finding resolutions
 
 - `PlaylistBackRegistrationState` now stores edit/modal registrations in Compose snapshot state, so child `DisposableEffect` mutations invalidate the shell and recompute the production back decision / `NavigationBackHandler.isBackEnabled`. Existing owner-and-callback identity guards remain intact.
@@ -50,6 +68,8 @@ Final dispatch result: 13 tests completed, 0 failures, 0 errors, 0 skipped; `BUI
 - Added a Compose recomposition observer proving registration changes update the derived production decision.
 - Unified route popping behind `directPopRoute()`, which performs exactly one selection clear and one `appState.popRoute()`. Both PopRoute dispatch and the dedicated delete completion use this primitive; predictive completion remains PopRoute-only.
 - Added and wired the production `onSystemBackCompleted` callback directly into `NavigationBackHandler`; JVM coverage invokes that same callback through the real screen registration path.
+- Restored predictive PopRoute completion through the exact callback installed in `NavigationBackHandler`: capture progress, clear selection once, call `navigation.pop()`, call `completePredictivePop(next)`, then clear completion progress. Modal/edit branches use ordinary dispatch and never predictively pop.
+- Shipped delete completion now comes from the shell's direct completion factory and is passed unchanged through `LibraryRouteContent`.
 
 ## Commit
 

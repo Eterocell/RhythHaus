@@ -67,6 +67,26 @@ internal class PlaylistBackDispatchController(
     fun onSystemBackCompleted() = dispatch()
 }
 
+internal fun libraryBackCompletionCallback(
+    decision: () -> LibraryBackDecision,
+    transitionProgress: () -> Float?,
+    setCompletionProgress: (Float?) -> Unit,
+    clearSelection: () -> Unit,
+    dispatchOrdinaryBack: () -> Unit,
+    navigationPop: () -> LibraryNavigationStack,
+    completePredictivePop: (LibraryNavigationStack) -> Unit,
+): () -> Unit = {
+    if (decision() == LibraryBackDecision.PopRoute) {
+        setCompletionProgress(transitionProgress())
+        clearSelection()
+        val next = navigationPop()
+        completePredictivePop(next)
+        setCompletionProgress(null)
+    } else {
+        dispatchOrdinaryBack()
+    }
+}
+
 internal fun directPlaylistDeleteCompletion(
     clearSelection: () -> Unit,
     popRoute: () -> Unit,

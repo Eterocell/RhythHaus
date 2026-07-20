@@ -45,7 +45,7 @@ class PlaylistBackPolicyJvmTest {
     }
 
     @Test
-    fun directDeleteRouteCompletionClearsSelectionBeforePopping() {
+    fun shippedDeleteCompletionFactoryClearsSelectionBeforePopping() {
         val events = mutableListOf<String>()
         directPlaylistDeleteCompletion(
             clearSelection = { events += "selection" },
@@ -140,6 +140,47 @@ class PlaylistBackPolicyJvmTest {
         )
         controller.onSystemBackCompleted()
         assertEquals(listOf("clear", "pop"), events)
+    }
+
+    @Test
+    fun productionNavigationBackCallbackUsesPredictivePopOnlyForPopRoute() {
+        val events = mutableListOf<String>()
+        var progress: Float? = null
+        val callback = libraryBackCompletionCallback(
+            decision = { LibraryBackDecision.PopRoute },
+            transitionProgress = { 0.75f },
+            setCompletionProgress = { progress = it },
+            clearSelection = { events += "clear" },
+            dispatchOrdinaryBack = { events += "ordinary" },
+            navigationPop = { events += "navigation-pop"; LibraryNavigationStack() },
+            completePredictivePop = { events += "complete" },
+        )
+
+        callback()
+
+        assertEquals(listOf("clear", "navigation-pop", "complete"), events)
+        assertEquals(null, progress)
+    }
+
+    @Test
+    fun productionNavigationBackCallbackDoesNotPredictivelyPopModalOrEdit() {
+        val events = mutableListOf<String>()
+        var decision = LibraryBackDecision.DismissPlaylistModal
+        val callback = libraryBackCompletionCallback(
+            decision = { decision },
+            transitionProgress = { error("not predictive") },
+            setCompletionProgress = { error("not predictive") },
+            clearSelection = { events += "clear" },
+            dispatchOrdinaryBack = { events += "ordinary" },
+            navigationPop = { error("not predictive") },
+            completePredictivePop = { error("not predictive") },
+        )
+
+        callback()
+        decision = LibraryBackDecision.ExitPlaylistEditMode
+        callback()
+
+        assertEquals(listOf("ordinary", "ordinary"), events)
     }
 
     private var editDisposeHolder: (() -> Unit)? = null
