@@ -1,5 +1,15 @@
     # Session Progress
 
+## Archive follow-up - 2026-07-20 playlist-edit-mode-bottom-bar-dialog-theme
+
+Route: openspec+superpowers / spec sync and archive
+Owner: OpenSpec lifecycle complete; next owner is user/manual runtime QA
+Input: completed and validated `playlist-edit-mode-bottom-bar-dialog-theme` change at lifecycle commit `3aafd7f`.
+Output: synced the complete delta requirements into main capabilities `playlist-detail-editing`, `playlist-scroll-chrome`, and `theme-aware-dialog-exterior`; archived the intact change at `openspec/changes/archive/2026-07-20-playlist-edit-mode-bottom-bar-dialog-theme`.
+Verification: strict active-change validation passed before the move; all three synced main specs pass strict validation; post-move `openspec list --json` no longer lists the change; `git diff --check` passed. The CLI cannot validate a dated archive as a change because archived directories are outside its active-change discovery, so no post-move archived-change validation is claimed.
+Next owner: user/manual runtime QA for the already-recorded visual, physical gesture, screen-reader, and target-device gaps.
+Blockers: none; archive was explicitly requested and no push was performed.
+
 ## Handoff - 2026-07-20 playlist-edit-mode-bottom-bar-dialog-theme completion
 
 Route: openspec+superpowers / final lifecycle and evidence handoff
