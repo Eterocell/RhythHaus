@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -942,6 +944,8 @@ internal fun PlaylistDetailScreen(
     onRemoveEntry: (String) -> Unit,
     onReorder: (List<String>) -> Unit,
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    listState: LazyListState = rememberLazyListState(),
+    onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
     rowMode: PlaylistDetailRowMode = PlaylistDetailRowMode.Default,
     registerPlaylistEditMode: (Any, () -> Unit) -> () -> Unit = { _, _ -> {} },
     registerPlaylistModalDismiss: (Any, (() -> Unit)?) -> () -> Unit = { _, _ -> {} },
@@ -979,9 +983,13 @@ internal fun PlaylistDetailScreen(
         } else null
         onDispose { unregister?.invoke() }
     }
+    LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
+        onScrollPositionChanged(listState.toLibraryScrollPosition())
+    }
     PlaylistScreenFrame(
         title = playlist.name,
         onBack = onBack,
+        listState = listState,
         beforeList = {
             if (editMode) {
                 val exitEditing = stringResource(Res.string.playlist_exit_editing)
@@ -1024,7 +1032,9 @@ internal fun PlaylistDetailScreen(
             item(key = "retained-read-error") { ReadFailureNotice(onRetry) }
         }
         item(key = "notice") { PlaylistNotice(state) }
-        item(key = "spacer") { Spacer(Modifier.height(bottomContentPadding)) }
+        item(key = "spacer") {
+            Spacer(Modifier.height(bottomContentPadding).testTag("playlist-bottom-clearance"))
+        }
     }
     renameDraft?.let { draft ->
         val modalPresentation = playlistNameModalPresentation(draft, renameOutcome)
@@ -1197,6 +1207,7 @@ private fun PlaylistScreenFrame(
     beforeList: (@Composable () -> Unit)? = null,
     editMode: Boolean = false,
     onOutsideEditTap: () -> Unit = {},
+    listState: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
     val topPadding = rememberSystemBarTopPadding() + PlaylistScreenLayoutPolicy.additionalTopPadding
@@ -1224,6 +1235,7 @@ private fun PlaylistScreenFrame(
                 }
             }
             LazyColumn(
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(PlaylistScreenLayoutPolicy.itemSpacing),
                 modifier = Modifier.weight(1f).fillMaxWidth().testTag("playlist-list-viewport"),
                 content = content,

@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
@@ -19,17 +20,68 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
+import com.eterocell.rhythhaus.nowplaying.NowPlayingBarRootTestTag
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class PlaylistEditModeSemanticsJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun detailReportsActualLazyListScrollPositionAndUsesMeasuredFinalClearanceWithoutLocalBar() = runComposeUiTest {
+        lateinit var listState: LazyListState
+        lateinit var scope: CoroutineScope
+        var expectedClearance = 0.dp
+        val reportedPositions = mutableListOf<LibraryScrollPosition>()
+        setContent {
+            listState = rememberLazyListState()
+            scope = rememberCoroutineScope()
+            expectedClearance = with(LocalDensity.current) {
+                activeBottomBarClearancePx(
+                    LibraryBottomBarContent.NowPlaying,
+                    LibraryBottomBarMeasurement(LibraryBottomBarContent.NowPlaying, 73),
+                ).toDp()
+            }
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = List(12) { index -> entry("entry-$index", "track-$index", index) },
+                libraryTracks = List(12) { index ->
+                    libraryTrack("track-$index", "Song $index", "Artist $index", "Album $index")
+                },
+                state = PlaylistState(),
+                onBack = {}, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
+                onPlayEntry = {}, onRemoveEntry = {}, onReorder = {},
+                bottomContentPadding = expectedClearance,
+                listState = listState,
+                onScrollPositionChanged = { reportedPositions += it },
+            )
+        }
+        scope.launch { listState.scrollToItem(6, 17) }
+        waitUntil {
+            reportedPositions.lastOrNull() == listState.toLibraryScrollPosition() &&
+                listState.firstVisibleItemIndex > 0
+        }
+
+        assertEquals(listState.toLibraryScrollPosition(), reportedPositions.last())
+        scope.launch { listState.scrollToItem(13) }
+        waitForIdle()
+        onNode(hasTestTag("playlist-bottom-clearance"), useUnmergedTree = true)
+            .assertHeightIsEqualTo(expectedClearance)
+        onNode(hasTestTag(NowPlayingBarRootTestTag), useUnmergedTree = true).assertDoesNotExist()
+    }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun defaultPlaylistRowMatchesTrackContentAndHidesMutationActions() = runComposeUiTest {

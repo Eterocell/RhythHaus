@@ -347,6 +347,7 @@ internal fun LibraryRouteContent(
                         }
                     },
                     bottomContentPadding = bottomContentPadding,
+                    onScrollPositionChanged = onScrollPositionChanged,
                     registerPlaylistEditMode = registerPlaylistEditMode,
                     registerPlaylistModalDismiss = registerPlaylistModalDismiss,
                 )
