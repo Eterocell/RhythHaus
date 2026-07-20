@@ -19,6 +19,7 @@ captures
 node_modules/
 .codegraph
 .superpowers/
+.cortexkit/
 
 .worktrees/
 
