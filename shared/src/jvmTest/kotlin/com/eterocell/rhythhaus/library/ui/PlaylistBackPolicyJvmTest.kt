@@ -6,12 +6,12 @@ import kotlin.test.assertEquals
 class PlaylistBackPolicyJvmTest {
     @Test
     fun staleEditDisposerCannotClearNewOwner() {
-        val policy = PlaylistBackRegistrationPolicy()
+        val policy = PlaylistBackRegistrationState()
         var firstClears = 0
         var secondClears = 0
-        val first = policy.register(Any()) { firstClears++ }
+        val first = policy.registerEdit(Any()) { firstClears++ }
         val owner = Any()
-        val second = policy.register(owner) { secondClears++ }
+        val second = policy.registerEdit(owner) { secondClears++ }
         first()
         assertEquals(LibraryBackDecision.ExitPlaylistEditMode, policy.decision())
         policy.requestBack()
@@ -20,26 +20,35 @@ class PlaylistBackPolicyJvmTest {
         second()
         assertEquals(LibraryBackDecision.None, policy.decision())
     }
-}
 
-private class PlaylistBackRegistrationPolicy {
-    private var owner: Any? = null
-    private var clear: (() -> Unit)? = null
-
-    fun register(nextOwner: Any, nextClear: () -> Unit): () -> Unit {
-        owner = nextOwner
-        clear = nextClear
-        return { if (owner === nextOwner && clear === nextClear) { owner = null; clear = null } }
+    @Test
+    fun staleModalDisposerCannotClearNewOwner() {
+        val policy = PlaylistBackRegistrationState()
+        var firstDismisses = 0
+        var secondDismisses = 0
+        val first = policy.registerModal(Any()) { firstDismisses++ }
+        val second = policy.registerModal(Any()) { secondDismisses++ }
+        first()
+        assertEquals(LibraryBackDecision.DismissPlaylistModal, policy.decision())
+        policy.requestBack()
+        assertEquals(0, firstDismisses)
+        assertEquals(1, secondDismisses)
+        second()
+        assertEquals(LibraryBackDecision.None, policy.decision())
     }
 
-    fun decision(): LibraryBackDecision = libraryBackDecision(
-        isPlaylistEditModeActive = clear != null,
-        selectionState = TrackSelectionState(),
-        isNowPlayingExpanded = false,
-        canPopRoute = false,
-    )
-
-    fun requestBack() {
-        if (decision() == LibraryBackDecision.ExitPlaylistEditMode) clear?.invoke()
+    @Test
+    fun deleteCompletionPopsOnlyAfterModalIsDismissed() {
+        val events = mutableListOf<String>()
+        var modalOpen = true
+        val completeDelete = playlistDeleteCompletion(
+            isModalOpen = { modalOpen },
+            dismissModal = { modalOpen = false; events += "dismiss" },
+            clearSelection = { events += "selection" },
+            popRoute = { events += "pop" },
+        )
+        completeDelete()
+        assertEquals(listOf("dismiss", "selection", "pop"), events)
+        assertEquals(false, modalOpen)
     }
 }

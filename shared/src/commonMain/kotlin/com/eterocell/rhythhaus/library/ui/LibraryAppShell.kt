@@ -127,10 +127,7 @@ fun LibraryHomeScreen(
     val artists = remember(snapshot.tracks) { groupTracksByArtist(snapshot.tracks) }
     var backGestureProgressAtCompletion by remember { mutableStateOf<Float?>(null) }
     var trackSelectionState by remember { mutableStateOf(TrackSelectionState()) }
-    var playlistEditModeClear: (() -> Unit)? by remember { mutableStateOf(null) }
-    var playlistEditModeOwner: Any? by remember { mutableStateOf(null) }
-    var playlistModalDismiss by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var playlistModalOwner: Any? by remember { mutableStateOf(null) }
+    val playlistBackRegistration = remember { PlaylistBackRegistrationState() }
     var searchVisibleTrackIds by remember { mutableStateOf(emptyList<String>()) }
     var bottomBarMeasurement by remember { mutableStateOf<LibraryBottomBarMeasurement?>(null) }
     val bottomBarContent = libraryBottomBarContent(
@@ -170,37 +167,20 @@ fun LibraryHomeScreen(
         val orderedIds = orderedSelectedTrackIds(trackSelectionState, pageKey, visibleTrackIds)
         if (orderedIds.isNotEmpty()) onPlaylistStateAction(openAddToPlaylistPickerAction(orderedIds))
     }
-    fun registerPlaylistEditMode(owner: Any, clear: () -> Unit): () -> Unit {
-        playlistEditModeOwner = owner
-        playlistEditModeClear = clear
-        return {
-            if (playlistEditModeOwner === owner && playlistEditModeClear === clear) {
-                playlistEditModeOwner = null
-                playlistEditModeClear = null
-            }
-        }
-    }
-    fun registerPlaylistModalDismiss(owner: Any, dismiss: (() -> Unit)?): () -> Unit {
-        playlistModalOwner = owner
-        playlistModalDismiss = dismiss
-        return {
-            if (playlistModalOwner === owner && playlistModalDismiss === dismiss) {
-                playlistModalOwner = null
-                playlistModalDismiss = null
-            }
-        }
-    }
+    fun registerPlaylistEditMode(owner: Any, clear: () -> Unit): () -> Unit = playlistBackRegistration.registerEdit(owner, clear)
+    fun registerPlaylistModalDismiss(owner: Any, dismiss: (() -> Unit)?): () -> Unit =
+        if (dismiss == null) { {} } else playlistBackRegistration.registerModal(owner, dismiss)
     val libraryBackDecision = libraryBackDecision(
-        hasPlaylistModal = playlistModalDismiss != null,
-        isPlaylistEditModeActive = playlistEditModeClear != null,
+        hasPlaylistModal = playlistBackRegistration.decision() == LibraryBackDecision.DismissPlaylistModal,
+        isPlaylistEditModeActive = playlistBackRegistration.decision() == LibraryBackDecision.ExitPlaylistEditMode,
         selectionState = trackSelectionState,
         isNowPlayingExpanded = appState.showNowPlaying,
         canPopRoute = appState.navigation.canPop,
     )
     val requestLibraryBack: () -> Unit = {
         when (libraryBackDecision) {
-            LibraryBackDecision.DismissPlaylistModal -> playlistModalDismiss?.invoke()
-            LibraryBackDecision.ExitPlaylistEditMode -> playlistEditModeClear?.invoke()
+            LibraryBackDecision.DismissPlaylistModal,
+            LibraryBackDecision.ExitPlaylistEditMode -> playlistBackRegistration.requestBack()
             LibraryBackDecision.CancelSelection -> dispatchTrackSelection(TrackSelectionAction.Cancel)
             LibraryBackDecision.HideNowPlaying -> appState.hideNowPlaying()
             LibraryBackDecision.PopRoute -> popRoute()

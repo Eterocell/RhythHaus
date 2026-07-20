@@ -932,7 +932,6 @@ internal fun PlaylistDetailScreen(
     var removeConfirmation by remember { mutableStateOf<PlaylistDetailRow?>(null) }
     var destructivePresentation by remember { mutableStateOf<PlaylistDestructivePresentation?>(null) }
     var editMode by remember { mutableStateOf(rowMode == PlaylistDetailRowMode.Edit) }
-    var deleteRoutePending by remember { mutableStateOf(false) }
     val rowCenters = remember { mutableStateMapOf<Int, Float>() }
     val routePresentation = playlistRoutePresentation(state)
     val editOwner = remember(playlist.id) { Any() }
@@ -956,12 +955,6 @@ internal fun PlaylistDetailScreen(
             registerPlaylistModalDismiss(modalOwner) { currentModalDismiss.value?.invoke() }
         } else null
         onDispose { unregister?.invoke() }
-    }
-    LaunchedEffect(deleteRoutePending, deleteConfirmation) {
-        if (deleteRoutePending && !deleteConfirmation) {
-            deleteRoutePending = false
-            onDeleteCompleted()
-        }
     }
     PlaylistScreenFrame(title = playlist.name, onBack = onBack) {
         item(key = "actions") {
@@ -1032,7 +1025,12 @@ internal fun PlaylistDetailScreen(
                 deleteOutcome = outcome
                 if (playlistMutationDecision(PlaylistMutationWorkflow.Delete, outcome) == PlaylistMutationDecision.CloseConfirmationAndRoute) {
                     deleteConfirmation = false
-                    deleteRoutePending = true
+                    playlistDeleteCompletion(
+                        isModalOpen = { deleteConfirmation },
+                        dismissModal = { deleteConfirmation = false; deleteOutcome = null },
+                        clearSelection = {},
+                        popRoute = onDeleteCompleted,
+                    )
                 }
             }
         },
