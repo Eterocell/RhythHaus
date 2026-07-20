@@ -4,6 +4,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.v2.runComposeUiTest
 
 class PlaylistBackPolicyJvmTest {
     @Test
@@ -40,18 +45,13 @@ class PlaylistBackPolicyJvmTest {
     }
 
     @Test
-    fun deleteCompletionPopsOnlyAfterModalIsDismissed() {
+    fun directDeleteRouteCompletionClearsSelectionBeforePopping() {
         val events = mutableListOf<String>()
-        var modalOpen = true
-        val completeDelete = playlistDeleteCompletion(
-            isModalOpen = { modalOpen },
-            dismissModal = { modalOpen = false; events += "dismiss" },
+        directPlaylistDeleteCompletion(
             clearSelection = { events += "selection" },
             popRoute = { events += "pop" },
-        )
-        completeDelete()
-        assertEquals(listOf("dismiss", "selection", "pop"), events)
-        assertEquals(false, modalOpen)
+        ).invoke()
+        assertEquals(listOf("selection", "pop"), events)
     }
 
     @Test
@@ -76,4 +76,55 @@ class PlaylistBackPolicyJvmTest {
         clearEdit()
         assertFalse(policy.hasEditRegistration)
     }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun composeObserverRecomposesWhenProductionBackRegistrationChanges() = runComposeUiTest {
+        val policy = PlaylistBackRegistrationState()
+        var observedDecision by mutableStateOf<LibraryBackDecision?>(null)
+        var recompositions = 0
+        setContent {
+            recompositions++
+            observedDecision = policy.decision()
+        }
+        waitForIdle()
+        assertEquals(LibraryBackDecision.None, observedDecision)
+        val dispose = policy.registerEdit(Any()) {}
+        waitForIdle()
+        assertEquals(LibraryBackDecision.ExitPlaylistEditMode, observedDecision)
+        val afterRegister = recompositions
+        dispose()
+        waitForIdle()
+        assertEquals(LibraryBackDecision.None, observedDecision)
+        assertTrue(recompositions > afterRegister)
+    }
+
+    @Test
+    fun productionBackDispatcherAdvancesPolicyAndUsesDirectPopOnlyAtRoute() {
+        val policy = PlaylistBackRegistrationState()
+        val events = mutableListOf<String>()
+        var selection by mutableStateOf(TrackSelectionState())
+        var nowPlaying by mutableStateOf(false)
+        val dispatcher = PlaylistBackDispatchController(
+            registration = policy,
+            selectionState = { selection },
+            isNowPlayingExpanded = { nowPlaying },
+            canPopRoute = { true },
+            clearSelection = { events += "clear" },
+            cancelSelection = { events += "selection"; selection = TrackSelectionState() },
+            hideNowPlaying = { events += "now-playing"; nowPlaying = false },
+            popRoute = { events += "pop" },
+        )
+        val editDispose = policy.registerEdit(Any()) { events += "edit"; editDisposeHolder?.invoke() }
+        editDisposeHolder = editDispose
+        dispatcher.dispatch()
+        selection = TrackSelectionState(TrackSelectionPageKey.HomeSongs, setOf("track"))
+        dispatcher.dispatch()
+        nowPlaying = true
+        dispatcher.dispatch()
+        dispatcher.dispatch()
+        assertEquals(listOf("edit", "selection", "now-playing", "clear", "pop"), events)
+    }
+
+    private var editDisposeHolder: (() -> Unit)? = null
 }

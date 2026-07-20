@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -1170,7 +1171,13 @@ private fun PlaylistScreenFrame(title: String, onBack: () -> Unit, content: Lazy
             verticalArrangement = Arrangement.spacedBy(PlaylistScreenLayoutPolicy.itemSpacing),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(onClick = onBack, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent) { Text("‹", fontSize = 30.sp, color = HausColors.current.ink) }
+                IconButton(
+                    onClick = onBack,
+                    minWidth = 44.dp,
+                    minHeight = 44.dp,
+                    backgroundColor = Color.Transparent,
+                    modifier = Modifier.testTag("playlist-back"),
+                ) { Text("‹", fontSize = 30.sp, color = HausColors.current.ink) }
                 Text(title, color = HausColors.current.ink, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             LazyColumn(

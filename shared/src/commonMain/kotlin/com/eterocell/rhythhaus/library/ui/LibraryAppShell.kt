@@ -178,14 +178,16 @@ fun LibraryHomeScreen(
         canPopRoute = appState.navigation.canPop,
     )
     val requestLibraryBack: () -> Unit = {
-        when (libraryBackDecision) {
-            LibraryBackDecision.DismissPlaylistModal,
-            LibraryBackDecision.ExitPlaylistEditMode -> playlistBackRegistration.requestBack()
-            LibraryBackDecision.CancelSelection -> dispatchTrackSelection(TrackSelectionAction.Cancel)
-            LibraryBackDecision.HideNowPlaying -> appState.hideNowPlaying()
-            LibraryBackDecision.PopRoute -> popRoute()
-            LibraryBackDecision.None -> Unit
-        }
+        PlaylistBackDispatchController(
+            registration = playlistBackRegistration,
+            selectionState = { trackSelectionState },
+            isNowPlayingExpanded = { appState.showNowPlaying },
+            canPopRoute = { appState.navigation.canPop },
+            clearSelection = ::clearSelection,
+            cancelSelection = { dispatchTrackSelection(TrackSelectionAction.Cancel) },
+            hideNowPlaying = appState::hideNowPlaying,
+            popRoute = ::popRoute,
+        ).dispatch()
     }
     val navState = rememberNavigationEventState(NavigationEventInfo.None)
     NavigationBackHandler(
@@ -193,13 +195,7 @@ fun LibraryHomeScreen(
         isBackEnabled = libraryBackDecision != LibraryBackDecision.None,
         onBackCancelled = { },
         onBackCompleted = {
-            when (libraryBackDecision) {
-                LibraryBackDecision.DismissPlaylistModal,
-                LibraryBackDecision.ExitPlaylistEditMode,
-                LibraryBackDecision.CancelSelection,
-                LibraryBackDecision.HideNowPlaying,
-                -> requestLibraryBack()
-                LibraryBackDecision.PopRoute -> {
+            if (libraryBackDecision == LibraryBackDecision.PopRoute) {
                     backGestureProgressAtCompletion = when (val ts = navState.transitionState) {
                         is NavigationEventTransitionState.InProgress -> ts.latestEvent.progress
                         else -> null
@@ -208,8 +204,8 @@ fun LibraryHomeScreen(
                     val next = appState.navigation.pop()
                     backGestureProgressAtCompletion = null
                     appState.completePredictivePop(next)
-                }
-                LibraryBackDecision.None -> Unit
+            } else {
+                requestLibraryBack()
             }
         },
     )

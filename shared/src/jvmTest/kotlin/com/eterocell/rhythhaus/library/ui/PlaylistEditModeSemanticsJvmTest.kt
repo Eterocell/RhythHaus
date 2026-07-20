@@ -3,8 +3,10 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -96,24 +98,65 @@ class PlaylistEditModeSemanticsJvmTest {
         var dismiss: (() -> Unit)? = null
         var playCount = 0
         var routeBackCount = 0
+        val registration = PlaylistBackRegistrationState()
+        val dispatcher = PlaylistBackDispatchController(
+            registration = registration,
+            selectionState = { TrackSelectionState() },
+            isNowPlayingExpanded = { false },
+            canPopRoute = { true },
+            clearSelection = {},
+            cancelSelection = {},
+            hideNowPlaying = {},
+            popRoute = { routeBackCount++ },
+        )
         setContent {
             PlaylistDetailScreen(
                 playlist = playlist("playlist-1", "Saved"),
                 entries = listOf(entry("entry-a", "track-a", 0)),
                 libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
                 state = PlaylistState(),
-                onBack = { routeBackCount++ }, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
+                onBack = dispatcher::dispatch, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
                 onPlayEntry = { playCount++ }, onRemoveEntry = {}, onReorder = {},
-                registerPlaylistModalDismiss = { _, callback -> dismiss = callback; {} },
+                registerPlaylistModalDismiss = { owner, callback ->
+                    dismiss = callback
+                    registration.registerModal(owner) { callback?.invoke(); dismiss = null }
+                },
             )
         }
         onAllNodes(hasContentDescription("重命名播放列表"), useUnmergedTree = true).onFirst().performScrollTo().performClick()
         waitForIdle()
-        assertNotNull(dismiss).invoke()
+        assertNotNull(dismiss)
+        onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performClick()
         waitForIdle()
         onNode(hasText("Saved"), useUnmergedTree = true).assertExists()
         assertEquals(0, playCount)
         assertEquals(0, routeBackCount)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun successfulDeleteInvokesProductionCompletionOnceAfterDialogDismissal() = runComposeUiTest {
+        var completionCount = 0
+        var deleteCount = 0
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0)),
+                libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
+                state = PlaylistState(),
+                onBack = {}, onRetry = {}, onRename = { _, _ -> },
+                onDelete = { callback -> deleteCount++; callback(PlaylistStateAction.SnapshotConfirmed(PlaylistSnapshot())) },
+                onDeleteCompleted = { completionCount++ },
+                onOpenBrowser = {}, onPlayEntry = {}, onRemoveEntry = {}, onReorder = {},
+            )
+        }
+        onNode(hasText("删除播放列表"), useUnmergedTree = true).performClick()
+        waitForIdle()
+        onAllNodes(hasText("删除播放列表"), useUnmergedTree = true).onLast().performClick()
+        waitForIdle()
+        assertEquals(1, deleteCount)
+        assertEquals(1, completionCount)
+        onNode(hasText("Delete Saved? This cannot be undone."), useUnmergedTree = true).assertDoesNotExist()
     }
 
     private fun playlist(id: String, name: String) = Playlist(id, name, 1L, 1L)

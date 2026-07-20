@@ -28,8 +28,12 @@ internal class PlaylistBackRegistrationState {
     fun decision(selectionState: TrackSelectionState = TrackSelectionState(), isNowPlayingExpanded: Boolean = false, canPopRoute: Boolean = false): LibraryBackDecision =
         libraryBackDecision(modalDismiss != null, editClear != null, selectionState, isNowPlayingExpanded, canPopRoute)
 
-    fun requestBack() {
-        when (decision()) {
+    fun requestBack(
+        selectionState: TrackSelectionState = TrackSelectionState(),
+        isNowPlayingExpanded: Boolean = false,
+        canPopRoute: Boolean = false,
+    ) {
+        when (decision(selectionState, isNowPlayingExpanded, canPopRoute)) {
             LibraryBackDecision.DismissPlaylistModal -> modalDismiss?.invoke()
             LibraryBackDecision.ExitPlaylistEditMode -> editClear?.invoke()
             else -> Unit
@@ -37,13 +41,40 @@ internal class PlaylistBackRegistrationState {
     }
 }
 
-internal fun playlistDeleteCompletion(
-    isModalOpen: () -> Boolean,
-    dismissModal: () -> Unit,
+internal class PlaylistBackDispatchController(
+    private val registration: PlaylistBackRegistrationState,
+    private val selectionState: () -> TrackSelectionState,
+    private val isNowPlayingExpanded: () -> Boolean,
+    private val canPopRoute: () -> Boolean,
+    private val clearSelection: () -> Unit,
+    private val cancelSelection: () -> Unit,
+    private val hideNowPlaying: () -> Unit,
+    private val popRoute: () -> Unit,
+) {
+    private val clearSelectionBeforePop = {
+        clearSelection()
+        popRoute()
+    }
+
+    fun decision(): LibraryBackDecision = registration.decision(selectionState(), isNowPlayingExpanded(), canPopRoute())
+
+    fun dispatch(popRouteOverride: (() -> Unit)? = null) {
+        when (val decision = decision()) {
+            LibraryBackDecision.DismissPlaylistModal,
+            LibraryBackDecision.ExitPlaylistEditMode,
+            -> registration.requestBack(selectionState(), isNowPlayingExpanded(), canPopRoute())
+            LibraryBackDecision.CancelSelection -> cancelSelection()
+            LibraryBackDecision.HideNowPlaying -> hideNowPlaying()
+            LibraryBackDecision.PopRoute -> (popRouteOverride ?: clearSelectionBeforePop).invoke()
+            LibraryBackDecision.None -> Unit
+        }
+    }
+}
+
+internal fun directPlaylistDeleteCompletion(
     clearSelection: () -> Unit,
     popRoute: () -> Unit,
 ): () -> Unit = {
-    if (isModalOpen()) dismissModal()
     clearSelection()
     popRoute()
 }
