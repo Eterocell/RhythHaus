@@ -1,14 +1,21 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
@@ -62,7 +69,7 @@ class PlaylistEditModeSemanticsJvmTest {
             )
         }
         onNode(hasContentDescription("Song A, Artist A, Album A, 3:12"), useUnmergedTree = true).assertExists()
-        onNode(hasText("×"), useUnmergedTree = true).assertExists()
+        onAllNodes(hasText("×"), useUnmergedTree = true).onFirst().assertExists()
         assertNotNull(clear).invoke()
         waitForIdle()
         onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
@@ -122,7 +129,7 @@ class PlaylistEditModeSemanticsJvmTest {
                 },
             )
         }
-        onAllNodes(hasContentDescription("重命名播放列表"), useUnmergedTree = true).onFirst().performScrollTo().performClick()
+        onAllNodes(hasContentDescription("重命名播放列表"), useUnmergedTree = true).onFirst().performClick()
         waitForIdle()
         assertNotNull(dismiss)
         onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performClick()
@@ -175,7 +182,7 @@ class PlaylistEditModeSemanticsJvmTest {
             )
         }
         onNode(hasText("×"), useUnmergedTree = true).assertExists()
-        onAllNodes(hasContentDescription("重命名播放列表"), useUnmergedTree = true).onFirst().performScrollTo().performClick()
+        onNode(hasContentDescription("从播放列表中移除 Song A"), useUnmergedTree = true).performClick()
         waitForIdle()
         onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performClick()
         waitForIdle()
@@ -244,7 +251,7 @@ class PlaylistEditModeSemanticsJvmTest {
                 },
             )
         }
-        onAllNodes(hasContentDescription("重命名播放列表"), useUnmergedTree = true).onFirst().performClick()
+        onNode(hasContentDescription("从播放列表中移除 Song A"), useUnmergedTree = true).performClick()
         waitForIdle()
         callbacks.systemBackCompleted()
         waitForIdle()
@@ -255,6 +262,110 @@ class PlaylistEditModeSemanticsJvmTest {
         waitForIdle()
         onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
         assertEquals(2, ordinaryBackCalls)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun longClickEntersPageWideEditAndRowsConsumeClicksWithAccessibleBoundaryControls() = runComposeUiTest {
+        var playCount = 0
+        val reorderCalls = mutableListOf<List<String>>()
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0), entry("entry-b", "track-b", 1)),
+                libraryTracks = listOf(
+                    libraryTrack("track-a", "Song A", "Artist A", "Album A"),
+                    libraryTrack("track-b", "Song B", "Artist B", "Album B"),
+                ),
+                state = PlaylistState(),
+                onBack = {}, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
+                onPlayEntry = { playCount++ }, onRemoveEntry = {}, onReorder = { reorderCalls += it },
+            )
+        }
+
+        val firstRow = onNode(hasContentDescription("Song A, Artist A, Album A, 3:12"), useUnmergedTree = true)
+        firstRow.performSemanticsAction(SemanticsActions.OnLongClick)
+        waitForIdle()
+
+        onNode(hasContentDescription("从播放列表中移除 Song A"), useUnmergedTree = true)
+            .assertWidthIsAtLeast(44.dp)
+            .assertHeightIsAtLeast(44.dp)
+        onNode(hasContentDescription("将 Song A 上移") and hasClickAction(), useUnmergedTree = true).assertDoesNotExist()
+        onNode(hasContentDescription("将 Song B 下移") and hasClickAction(), useUnmergedTree = true).assertDoesNotExist()
+        onNode(hasContentDescription("将 Song A 下移"), useUnmergedTree = true)
+            .assertWidthIsAtLeast(44.dp)
+            .assertHeightIsAtLeast(44.dp)
+            .performClick()
+        waitForIdle()
+        assertEquals(listOf(listOf("entry-b", "entry-a")), reorderCalls)
+
+        firstRow.performClick()
+        assertEquals(0, playCount)
+        onNode(hasContentDescription("从播放列表中移除 Song B"), useUnmergedTree = true).assertExists()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun removeControlTargetsExactDuplicateOnceAndConfirmationKeepsEditActive() = runComposeUiTest {
+        val removed = mutableListOf<String>()
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0), entry("entry-b", "track-a", 1)),
+                libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
+                state = PlaylistState(),
+                onBack = {}, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
+                onPlayEntry = {}, onRemoveEntry = { removed += it }, onReorder = {},
+                rowMode = PlaylistDetailRowMode.Edit,
+            )
+        }
+
+        onAllNodes(hasContentDescription("从播放列表中移除 Song A"), useUnmergedTree = true).onLast().performClick()
+        waitForIdle()
+        onAllNodes(hasText("从播放列表中移除 Song A"), useUnmergedTree = true).onLast().performClick()
+        waitForIdle()
+
+        assertEquals(listOf("entry-b"), removed)
+        onAllNodes(hasText("×"), useUnmergedTree = true).onFirst().assertExists()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun actionHeaderFirstPhysicalTapClearsAndConsumesThenNextTapActsWhileBlankViewportDoesNotClear() = runComposeUiTest {
+        var browserOpens = 0
+        var routeBacks = 0
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = listOf(entry("entry-a", "track-a", 0)),
+                libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
+                state = PlaylistState(),
+                onBack = { routeBacks++ }, onRetry = {}, onRename = { _, _ -> }, onDelete = {},
+                onOpenBrowser = { browserOpens++ }, onPlayEntry = {}, onRemoveEntry = {}, onReorder = {},
+                rowMode = PlaylistDetailRowMode.Edit,
+            )
+        }
+
+        onNode(hasTestTag("playlist-list-viewport"), useUnmergedTree = true).performTouchInput {
+            click(Offset(8f, height - 8f))
+        }
+        waitForIdle()
+        onNode(hasText("×"), useUnmergedTree = true).assertExists()
+
+        onAllNodes(hasContentDescription("添加曲目"), useUnmergedTree = true).onFirst().performTouchInput { click() }
+        waitForIdle()
+        assertEquals(0, browserOpens)
+        onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
+
+        onAllNodes(hasContentDescription("添加曲目"), useUnmergedTree = true).onFirst().performTouchInput { click() }
+        waitForIdle()
+        assertEquals(1, browserOpens)
+
+        onNode(hasContentDescription("Song A, Artist A, Album A, 3:12"), useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.OnLongClick)
+        waitForIdle()
+        onNode(hasTestTag("playlist-back"), useUnmergedTree = true).performClick()
+        assertEquals(1, routeBacks)
     }
 
     @OptIn(ExperimentalTestApi::class)

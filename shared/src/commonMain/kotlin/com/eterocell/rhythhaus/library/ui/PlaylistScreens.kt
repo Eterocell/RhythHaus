@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -39,6 +40,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
@@ -62,6 +64,7 @@ import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.toPlayableTrack
 import com.eterocell.rhythhaus.ui.HausDialog
 import com.eterocell.rhythhaus.ui.hausClickable
+import com.eterocell.rhythhaus.ui.hausCombinedClickable
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
 import org.jetbrains.compose.resources.stringResource
@@ -932,7 +935,7 @@ internal fun PlaylistDetailScreen(
     var deleteOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
     var removeConfirmation by remember { mutableStateOf<PlaylistDetailRow?>(null) }
     var destructivePresentation by remember { mutableStateOf<PlaylistDestructivePresentation?>(null) }
-    var editMode by remember { mutableStateOf(rowMode == PlaylistDetailRowMode.Edit) }
+    var editMode by remember(playlist.id) { mutableStateOf(rowMode == PlaylistDetailRowMode.Edit) }
     val rowCenters = remember { mutableStateMapOf<Int, Float>() }
     val routePresentation = playlistRoutePresentation(state)
     val editOwner = remember(playlist.id) { Any() }
@@ -957,8 +960,10 @@ internal fun PlaylistDetailScreen(
         } else null
         onDispose { unregister?.invoke() }
     }
-    PlaylistScreenFrame(title = playlist.name, onBack = onBack) {
-        item(key = "actions") {
+    PlaylistScreenFrame(
+        title = playlist.name,
+        onBack = onBack,
+        beforeList = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CompactAction(stringResource(Res.string.playlist_add_tracks), Modifier.weight(1f), onOpenBrowser)
                 CompactAction(stringResource(Res.string.playlist_rename), Modifier.weight(1f)) { renameDraft = PlaylistNameDraft(playlist.name) }
@@ -967,7 +972,10 @@ internal fun PlaylistDetailScreen(
                     deleteOutcome = null
                 }
             }
-        }
+        },
+        editMode = editMode,
+        onOutsideEditTap = { editMode = false },
+    ) {
         if (model.rows.isEmpty()) item(key = "empty") { EmptyPlaylistMessage(stringResource(Res.string.playlist_empty_detail)) }
         items(model.rows, key = { it.entry.id }) { row ->
             val rowIndex = entries.indexOfFirst { it.id == row.entry.id }
@@ -979,8 +987,9 @@ internal fun PlaylistDetailScreen(
                 availability = playlistMoveAvailability(entries.map(PlaylistEntry::id), row.entry.id),
                 mode = if (editMode) PlaylistDetailRowMode.Edit else PlaylistDetailRowMode.Default,
                 onClick = {
-                    savedPlaylistPlaybackRequest(entries, tracksById, row.entry.id)?.let(onPlayEntry)
+                    if (!editMode) savedPlaylistPlaybackRequest(entries, tracksById, row.entry.id)?.let(onPlayEntry)
                 },
+                onLongClick = { editMode = true },
                 onMove = { offset -> onReorder(movedPlaylistEntryIds(entries.map(PlaylistEntry::id), row.entry.id, offset)) },
                 onDragOrder = onReorder,
                 onRemove = {
@@ -1160,7 +1169,14 @@ internal fun PlaylistTrackBrowser(
 }
 
 @Composable
-private fun PlaylistScreenFrame(title: String, onBack: () -> Unit, content: LazyListScope.() -> Unit) {
+private fun PlaylistScreenFrame(
+    title: String,
+    onBack: () -> Unit,
+    beforeList: (@Composable () -> Unit)? = null,
+    editMode: Boolean = false,
+    onOutsideEditTap: () -> Unit = {},
+    content: LazyListScope.() -> Unit,
+) {
     val topPadding = rememberSystemBarTopPadding() + PlaylistScreenLayoutPolicy.additionalTopPadding
     Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
         Column(
@@ -1180,9 +1196,21 @@ private fun PlaylistScreenFrame(title: String, onBack: () -> Unit, content: Lazy
                 ) { Text("‹", fontSize = 30.sp, color = HausColors.current.ink) }
                 Text(title, color = HausColors.current.ink, fontSize = 26.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            if (beforeList != null) {
+                Box(Modifier.fillMaxWidth().testTag("playlist-action-header")) {
+                    beforeList()
+                    if (editMode) {
+                        Box(
+                            Modifier
+                                .matchParentSize()
+                                .pointerInput(Unit) { detectTapGestures(onTap = { onOutsideEditTap() }) },
+                        )
+                    }
+                }
+            }
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(PlaylistScreenLayoutPolicy.itemSpacing),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f).fillMaxWidth().testTag("playlist-list-viewport"),
                 content = content,
             )
         }
@@ -1232,6 +1260,7 @@ private fun PlaylistEntryRow(
     availability: PlaylistMoveAvailability,
     mode: PlaylistDetailRowMode,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onMove: (Int) -> Unit,
     onDragOrder: (List<String>) -> Unit,
     onRemove: () -> Unit,
@@ -1243,7 +1272,7 @@ private fun PlaylistEntryRow(
     val entryState = stringResource(Res.string.playlist_entry_state)
     val duration = formatDuration(((row.track.durationMillis ?: 0L) / 1_000L).toInt())
     val rowDescription = "${row.track.title}, ${row.track.artist}, ${row.track.album}, $duration"
-    Row(modifier = Modifier.fillMaxWidth().onGloballyPositioned { coordinates -> rowCenters[rowIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f }.border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp)).background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(20.dp)).hausClickable(onClick).semantics { contentDescription = rowDescription }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier = Modifier.fillMaxWidth().onGloballyPositioned { coordinates -> rowCenters[rowIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f }.border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp)).background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(20.dp)).hausCombinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = rowDescription).semantics { contentDescription = rowDescription }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (mode == PlaylistDetailRowMode.Edit) Text(
             "≡",
             modifier = Modifier
@@ -1295,8 +1324,8 @@ private fun PlaylistEntryRow(
         }
         Text(duration, color = HausColors.current.muted, fontSize = 12.sp)
         if (mode == PlaylistDetailRowMode.Edit) {
-            IconButton(onClick = { onMove(-1) }, enabled = availability.canMoveUp, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveUp }) { Text("↑", color = HausColors.current.ink) }
-            IconButton(onClick = { onMove(1) }, enabled = availability.canMoveDown, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveDown }) { Text("↓", color = HausColors.current.ink) }
+            IconButton(onClick = { onMove(-1) }, enabled = availability.canMoveUp, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveUp; if (!availability.canMoveUp) disabled() }) { Text("↑", color = HausColors.current.ink) }
+            IconButton(onClick = { onMove(1) }, enabled = availability.canMoveDown, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = moveDown; if (!availability.canMoveDown) disabled() }) { Text("↓", color = HausColors.current.ink) }
             IconButton(onClick = onRemove, minWidth = 44.dp, minHeight = 44.dp, backgroundColor = Color.Transparent, modifier = Modifier.semantics { contentDescription = remove }) { Text("×", color = HausColors.current.pulse) }
         }
     }
