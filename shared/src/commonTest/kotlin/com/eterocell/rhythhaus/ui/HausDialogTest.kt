@@ -1,23 +1,24 @@
 package com.eterocell.rhythhaus.ui
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.LightHausPalette
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class HausDialogTest {
     @Test
-    fun darkDialogPresentationUsesSolidPanelAndLightScrim() {
-        val presentation = hausDialogPresentation(DarkHausPalette)
+    fun dialogPresentationUsesExactThemeAwareExteriorPolicy() {
+        val dark = hausDialogPresentation(DarkHausPalette)
+        val light = hausDialogPresentation(LightHausPalette)
 
-        assertEquals(DarkHausPalette.panel, presentation.panelColor)
-        assertTrue(presentation.scrimColor.luminance() > DarkHausPalette.paper.luminance())
-        assertEquals(24.dp, presentation.outerPadding)
-        assertEquals(24.dp, presentation.cornerRadius)
+        assertEquals(DarkHausPalette.panel, dark.panelColor)
+        assertEquals(DarkHausPalette.paper.copy(alpha = 0.72f), dark.scrimColor)
+        assertEquals(LightHausPalette.panel, light.panelColor)
+        assertEquals(LightHausPalette.ink.copy(alpha = 0.36f), light.scrimColor)
+        assertEquals(24.dp, dark.outerPadding)
+        assertEquals(24.dp, dark.cornerRadius)
     }
 
     @Test

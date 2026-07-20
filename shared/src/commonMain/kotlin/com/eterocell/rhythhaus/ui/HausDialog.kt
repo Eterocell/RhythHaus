@@ -19,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.dialog
 import androidx.compose.ui.semantics.dismiss
@@ -27,6 +26,7 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.HausColorPalette
 import com.eterocell.rhythhaus.theme.HausColors
 import top.yukonga.miuix.kmp.basic.Card
@@ -40,11 +40,13 @@ internal data class HausDialogPresentation(
     val maxPanelHeight: Dp = 480.dp,
 )
 
+private const val DarkHausDialogScrimAlpha = 0.72f
+
 internal fun hausDialogPresentation(palette: HausColorPalette): HausDialogPresentation =
     HausDialogPresentation(
         panelColor = palette.panel,
-        scrimColor = if (palette.paper.luminance() < palette.ink.luminance()) {
-            palette.ink.copy(alpha = 0.20f)
+        scrimColor = if (palette == DarkHausPalette) {
+            palette.paper.copy(alpha = DarkHausDialogScrimAlpha)
         } else {
             palette.ink.copy(alpha = 0.36f)
         },
