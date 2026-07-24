@@ -3,7 +3,8 @@ plugins {
 }
 
 tasks.withType<Test>().configureEach {
-    providers.gradleProperty("rhythhaus.aabProbeFile").orNull?.let { probeFile ->
+    providers.gradleProperty("rhythhaus.aabProbeFile").orNull?.let { probeFile
+        ->
         systemProperty("rhythhaus.aabProbeFile", probeFile)
     }
 }
@@ -12,7 +13,8 @@ gradlePlugin {
     plugins {
         create("androidAbiContract") {
             id = "build-logic.android.abi-contract"
-            implementationClass = "com.eterocell.gradle.android.AndroidAbiContractPlugin"
+            implementationClass =
+                "com.eterocell.gradle.android.AndroidAbiContractPlugin"
         }
     }
 }

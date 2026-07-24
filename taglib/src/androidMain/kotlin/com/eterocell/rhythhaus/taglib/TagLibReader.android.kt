@@ -3,29 +3,36 @@ package com.eterocell.rhythhaus.taglib
 actual fun createTagLibReader(): TagLibReader = AndroidNativeTagLibReader()
 
 private class AndroidNativeTagLibReader : TagLibReader {
-    override fun readPath(path: String): TagReadResult = try {
-        NativeTagLibBridge().readPathNative(path).toTagReadResult()
-    } catch (error: NativeTagLibUnavailableException) {
-        TagReadResult.Unsupported(error.message ?: ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE)
-    } catch (error: UnsatisfiedLinkError) {
-        TagReadResult.Unsupported("$ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE (${error.message ?: "unknown linker error"})")
-    }
+    override fun readPath(path: String): TagReadResult =
+        try {
+            NativeTagLibBridge().readPathNative(path).toTagReadResult()
+        } catch (error: NativeTagLibUnavailableException) {
+            TagReadResult.Unsupported(
+                error.message ?: ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE)
+        } catch (error: UnsatisfiedLinkError) {
+            TagReadResult.Unsupported(
+                "$ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE (${error.message ?: "unknown linker error"})")
+        }
 
-    override fun readFd(fd: Int, displayName: String): TagReadResult = try {
-        NativeTagLibBridge().readFdNative(fd, displayName).toTagReadResult()
-    } catch (error: NativeTagLibUnavailableException) {
-        TagReadResult.Unsupported(error.message ?: ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE)
-    } catch (error: UnsatisfiedLinkError) {
-        TagReadResult.Unsupported("$ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE (${error.message ?: "unknown linker error"})")
-    }
+    override fun readFd(fd: Int, displayName: String): TagReadResult =
+        try {
+            NativeTagLibBridge().readFdNative(fd, displayName).toTagReadResult()
+        } catch (error: NativeTagLibUnavailableException) {
+            TagReadResult.Unsupported(
+                error.message ?: ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE)
+        } catch (error: UnsatisfiedLinkError) {
+            TagReadResult.Unsupported(
+                "$ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE (${error.message ?: "unknown linker error"})")
+        }
 
-    override fun readProperties(path: String): Map<String, String> = try {
-        NativeTagLibBridge().readPropertiesNative(path).orEmpty()
-    } catch (error: NativeTagLibUnavailableException) {
-        emptyMap()
-    } catch (error: UnsatisfiedLinkError) {
-        emptyMap()
-    }
+    override fun readProperties(path: String): Map<String, String> =
+        try {
+            NativeTagLibBridge().readPropertiesNative(path).orEmpty()
+        } catch (error: NativeTagLibUnavailableException) {
+            emptyMap()
+        } catch (error: UnsatisfiedLinkError) {
+            emptyMap()
+        }
 }
 
 private class NativeTagLibBridge {
@@ -34,7 +41,12 @@ private class NativeTagLibBridge {
     }
 
     external fun readPathNative(path: String): NativeTagLibReadResult
-    external fun readFdNative(fd: Int, displayName: String): NativeTagLibReadResult
+
+    external fun readFdNative(
+        fd: Int,
+        displayName: String
+    ): NativeTagLibReadResult
+
     external fun readPropertiesNative(path: String): Map<String, String>?
 }
 
@@ -59,38 +71,50 @@ internal data class NativeTagLibReadResult(
     val artworkMimeType: String?,
     val artworkBytes: ByteArray?,
 ) {
-    fun toTagReadResult(): TagReadResult = when (status) {
-        STATUS_FOUND -> TagReadResult.Found(
-            TagMetadata(
-                title = title,
-                artist = artist,
-                album = album,
-                albumArtist = albumArtist,
-                genre = genre,
-                comment = comment,
-                year = year.positiveOrNull(),
-                trackNumber = track.positiveOrNull(),
-                trackTotal = trackTotal.positiveOrNull(),
-                discNumber = discNumber.positiveOrNull(),
-                discTotal = discTotal.positiveOrNull(),
-                durationMillis = durationSeconds.positiveOrNull()?.times(1_000L),
-                bitrate = bitrate.positiveOrNull(),
-                sampleRate = sampleRate.positiveOrNull(),
-                channels = channels.positiveOrNull(),
-                artwork = if (artworkBytes != null && artworkBytes.isNotEmpty()) {
-                    EmbeddedArtwork(artworkMimeType, artworkBytes)
-                } else {
-                    null
-                },
-            ),
-        )
+    fun toTagReadResult(): TagReadResult =
+        when (status) {
+            STATUS_FOUND ->
+                TagReadResult.Found(
+                    TagMetadata(
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        albumArtist = albumArtist,
+                        genre = genre,
+                        comment = comment,
+                        year = year.positiveOrNull(),
+                        trackNumber = track.positiveOrNull(),
+                        trackTotal = trackTotal.positiveOrNull(),
+                        discNumber = discNumber.positiveOrNull(),
+                        discTotal = discTotal.positiveOrNull(),
+                        durationMillis =
+                            durationSeconds.positiveOrNull()?.times(1_000L),
+                        bitrate = bitrate.positiveOrNull(),
+                        sampleRate = sampleRate.positiveOrNull(),
+                        channels = channels.positiveOrNull(),
+                        artwork =
+                            if (artworkBytes != null &&
+                                artworkBytes.isNotEmpty()) {
+                                EmbeddedArtwork(artworkMimeType, artworkBytes)
+                            } else {
+                                null
+                            },
+                    ),
+                )
 
-        STATUS_UNSUPPORTED -> TagReadResult.Unsupported(errorMessage ?: "Native TagLib reader does not support this Android path")
+            STATUS_UNSUPPORTED ->
+                TagReadResult.Unsupported(
+                    errorMessage
+                        ?: "Native TagLib reader does not support this Android path")
 
-        STATUS_FAILED -> TagReadResult.Failed(errorMessage ?: "Native TagLib reader failed on Android")
+            STATUS_FAILED ->
+                TagReadResult.Failed(
+                    errorMessage ?: "Native TagLib reader failed on Android")
 
-        else -> TagReadResult.Failed("Native TagLib reader returned unknown Android status: $status")
-    }
+            else ->
+                TagReadResult.Failed(
+                    "Native TagLib reader returned unknown Android status: $status")
+        }
 
     private fun Int.positiveOrNull(): Int? = takeIf { it > 0 }
 
@@ -112,7 +136,8 @@ private object NativeTagLibLibrary {
             System.loadLibrary("rhythhaus_taglib")
             loaded = true
         } catch (error: UnsatisfiedLinkError) {
-            throw NativeTagLibUnavailableException("$ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE (${error.message ?: "unknown linker error"})")
+            throw NativeTagLibUnavailableException(
+                "$ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE (${error.message ?: "unknown linker error"})")
         }
     }
 }
@@ -121,4 +146,5 @@ private const val ANDROID_TAGLIB_NOT_PACKAGED_MESSAGE =
     "Native TagLib Android binding is scaffolded, but no Android TagLib source/prebuilt library is packaged yet; " +
         "add the Android TagLib build or ABI prebuilts before enabling metadata reads"
 
-internal class NativeTagLibUnavailableException(message: String) : RuntimeException(message)
+internal class NativeTagLibUnavailableException(message: String) :
+    RuntimeException(message)

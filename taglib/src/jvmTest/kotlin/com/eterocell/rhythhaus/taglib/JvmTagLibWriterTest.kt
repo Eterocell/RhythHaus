@@ -13,26 +13,30 @@ class JvmTagLibWriterTest {
         val path = fixture.absolutePath
 
         val writer = createTagLibWriter()
-        val result = writer.writePath(
-            path,
-            WriteMeta(
-                title = "Written Title",
-                artist = "Written Artist",
-                album = "Written Album",
-                genre = "Electronic",
-                comment = "Test comment",
-                year = 2025,
-                trackNumber = 5,
-            ),
-        )
+        val result =
+            writer.writePath(
+                path,
+                WriteMeta(
+                    title = "Written Title",
+                    artist = "Written Artist",
+                    album = "Written Album",
+                    genre = "Electronic",
+                    comment = "Test comment",
+                    year = 2025,
+                    trackNumber = 5,
+                ),
+            )
 
-        assertTrue(result is WriteResult.Success, "Expected Success, got $result")
+        assertTrue(
+            result is WriteResult.Success, "Expected Success, got $result")
 
         // Verify by reading back
         val reader = createTagLibReader()
         val readResult = reader.readPath(path)
-        val found = readResult as? TagReadResult.Found
-            ?: throw AssertionError("Expected TagReadResult.Found, got $readResult")
+        val found =
+            readResult as? TagReadResult.Found
+                ?: throw AssertionError(
+                    "Expected TagReadResult.Found, got $readResult")
 
         assertEquals("Written Title", found.metadata.title)
         assertEquals("Written Artist", found.metadata.artist)
@@ -45,11 +49,14 @@ class JvmTagLibWriterTest {
 
     @Test
     fun writerReportsFailureForNonexistentPath() {
-        val result = createTagLibWriter().writePath(
-            "/nonexistent/path/audio.mp3",
-            WriteMeta(title = "nope"),
-        )
-        assertTrue(result is WriteResult.Unsupported || result is WriteResult.Failed)
+        val result =
+            createTagLibWriter()
+                .writePath(
+                    "/nonexistent/path/audio.mp3",
+                    WriteMeta(title = "nope"),
+                )
+        assertTrue(
+            result is WriteResult.Unsupported || result is WriteResult.Failed)
     }
 
     @Test
@@ -58,19 +65,22 @@ class JvmTagLibWriterTest {
         val path = fixture.absolutePath
 
         val writer = createTagLibWriter()
-        val result = writer.writePath(
-            path,
-            WriteMeta(
-                title = "Props Test",
-                properties = mapOf(
-                    "COMPOSER" to "Test Composer",
-                    "COPYRIGHT" to "2025 Test Label",
-                    "BPM" to "128",
+        val result =
+            writer.writePath(
+                path,
+                WriteMeta(
+                    title = "Props Test",
+                    properties =
+                        mapOf(
+                            "COMPOSER" to "Test Composer",
+                            "COPYRIGHT" to "2025 Test Label",
+                            "BPM" to "128",
+                        ),
                 ),
-            ),
-        )
+            )
 
-        assertTrue(result is WriteResult.Success, "Expected Success, got $result")
+        assertTrue(
+            result is WriteResult.Success, "Expected Success, got $result")
 
         // Verify properties
         val reader = createTagLibReader()
@@ -85,7 +95,8 @@ class JvmTagLibWriterTest {
         val channels = 1
         val bitsPerSample = 8
         val durationSeconds = 1
-        val dataSize = sampleRate * channels * (bitsPerSample / 8) * durationSeconds
+        val dataSize =
+            sampleRate * channels * (bitsPerSample / 8) * durationSeconds
         val formatChunkSize = 16
         val riffSize = 4 + (8 + formatChunkSize) + (8 + dataSize)
         val wav = ByteArrayOutputStream()
@@ -105,10 +116,11 @@ class JvmTagLibWriterTest {
         wav.writeIntLe(dataSize)
         wav.write(ByteArray(dataSize) { 0x80.toByte() })
 
-        return File.createTempFile("rhythhaus-taglib-write-fixture", ".wav").apply {
-            writeBytes(wav.toByteArray())
-            deleteOnExit()
-        }
+        return File.createTempFile("rhythhaus-taglib-write-fixture", ".wav")
+            .apply {
+                writeBytes(wav.toByteArray())
+                deleteOnExit()
+            }
     }
 
     private fun ByteArrayOutputStream.writeAscii(value: String) {

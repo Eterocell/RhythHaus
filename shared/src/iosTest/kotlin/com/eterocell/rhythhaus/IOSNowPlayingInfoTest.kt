@@ -1,5 +1,10 @@
 package com.eterocell.rhythhaus
 
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import platform.MediaPlayer.MPMediaItemPropertyArtwork
@@ -7,26 +12,24 @@ import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusCommandFailed
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotEquals
-import kotlin.test.assertTrue
 
 class IOSNowPlayingInfoTest {
 
     @Test
     fun nowPlayingInfoCarriesTrackMetadataForIOSControlCenter() {
-        val track = PlayableTrack(
-            id = "track-1",
-            title = "Night Drive",
-            artist = "Rhyth Haus",
-            album = "Local Sessions",
-            durationMillis = 181_000L,
-            source = AudioSource.FilePath("/tmp/night-drive.wav"),
-        )
+        val track =
+            PlayableTrack(
+                id = "track-1",
+                title = "Night Drive",
+                artist = "Rhyth Haus",
+                album = "Local Sessions",
+                durationMillis = 181_000L,
+                source = AudioSource.FilePath("/tmp/night-drive.wav"),
+            )
 
-        val nowPlayingInfo = buildIOSNowPlayingInfo(track, positionMillis = 42_000L, durationMillis = 181_000L)
+        val nowPlayingInfo =
+            buildIOSNowPlayingInfo(
+                track, positionMillis = 42_000L, durationMillis = 181_000L)
 
         assertEquals("Night Drive", nowPlayingInfo["title"])
         assertEquals("Rhyth Haus", nowPlayingInfo["artist"])
@@ -58,7 +61,8 @@ class IOSNowPlayingInfoTest {
 
         configureIOSRemoteCommandAvailability(commandCenter)
 
-        // Track-level transport controls must be enabled — these are the ones this app can
+        // Track-level transport controls must be enabled — these are the ones
+        // this app can
         // actually service (play/pause/stop/scrub/previous track/next track).
         assertTrue(commandCenter.playCommand.enabled)
         assertTrue(commandCenter.pauseCommand.enabled)
@@ -68,7 +72,8 @@ class IOSNowPlayingInfoTest {
         assertTrue(commandCenter.previousTrackCommand.enabled)
         assertTrue(commandCenter.nextTrackCommand.enabled)
 
-        // Skip-interval controls must be disabled — left enabled without a handler, iOS renders
+        // Skip-interval controls must be disabled — left enabled without a
+        // handler, iOS renders
         // them (greyed out) on the lock screen INSTEAD OF previous/next track.
         assertFalse(commandCenter.skipForwardCommand.enabled)
         assertFalse(commandCenter.skipBackwardCommand.enabled)
@@ -79,25 +84,28 @@ class IOSNowPlayingInfoTest {
     @OptIn(ExperimentalForeignApi::class)
     @Test
     fun nowPlayingDictionaryPreservesArtworkAndExplicitPausedRate() {
-        val track = PlayableTrack(
-            id = "track-artwork",
-            title = "Artwork Track",
-            artist = "Rhyth Haus",
-            album = "Control Center",
-            durationMillis = 120_000L,
-            source = AudioSource.FilePath("/tmp/artwork-track.wav"),
-        )
+        val track =
+            PlayableTrack(
+                id = "track-artwork",
+                title = "Artwork Track",
+                artist = "Rhyth Haus",
+                album = "Control Center",
+                durationMillis = 120_000L,
+                source = AudioSource.FilePath("/tmp/artwork-track.wav"),
+            )
         val artworkSentinel = Any()
 
-        val nowPlayingInfo = buildIOSNowPlayingDictionary(
-            track = track,
-            positionMillis = 5_000L,
-            durationMillis = 120_000L,
-            playbackRate = 0.0,
-            existingArtwork = artworkSentinel,
-        )
+        val nowPlayingInfo =
+            buildIOSNowPlayingDictionary(
+                track = track,
+                positionMillis = 5_000L,
+                durationMillis = 120_000L,
+                playbackRate = 0.0,
+                existingArtwork = artworkSentinel,
+            )
 
-        assertEquals(artworkSentinel, nowPlayingInfo[MPMediaItemPropertyArtwork])
+        assertEquals(
+            artworkSentinel, nowPlayingInfo[MPMediaItemPropertyArtwork])
         assertEquals(0.0, nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate])
     }
 
@@ -107,13 +115,21 @@ class IOSNowPlayingInfoTest {
         val gate = IOSRemoteTransportGate()
         gate.setEnabled(false)
 
-        assertEquals(MPRemoteCommandHandlerStatusCommandFailed, gate.play { actions += "play" })
-        assertEquals(MPRemoteCommandHandlerStatusCommandFailed, gate.seek(2_000L) { actions += "seek:$it" })
+        assertEquals(
+            MPRemoteCommandHandlerStatusCommandFailed,
+            gate.play { actions += "play" })
+        assertEquals(
+            MPRemoteCommandHandlerStatusCommandFailed,
+            gate.seek(2_000L) { actions += "seek:$it" })
         assertEquals(emptyList(), actions)
 
         gate.setEnabled(true)
-        assertEquals(MPRemoteCommandHandlerStatusSuccess, gate.play { actions += "play" })
-        assertEquals(MPRemoteCommandHandlerStatusSuccess, gate.seek(2_000L) { actions += "seek:$it" })
+        assertEquals(
+            MPRemoteCommandHandlerStatusSuccess,
+            gate.play { actions += "play" })
+        assertEquals(
+            MPRemoteCommandHandlerStatusSuccess,
+            gate.seek(2_000L) { actions += "seek:$it" })
         assertEquals(listOf("play", "seek:2000"), actions)
     }
 }

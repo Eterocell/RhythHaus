@@ -46,57 +46,81 @@ data class PlaylistBackupUiState(
     val result: PlaylistBackupImportResult? = null,
     val error: PlaylistBackupUiError? = null,
 ) {
-    val isBusy: Boolean get() = operation != PlaylistBackupOperation.Idle
+    val isBusy: Boolean
+        get() = operation != PlaylistBackupOperation.Idle
 }
 
 sealed interface PlaylistBackupUiAction {
-    data class OperationStarted(val operation: PlaylistBackupOperation) : PlaylistBackupUiAction
+    data class OperationStarted(val operation: PlaylistBackupOperation) :
+        PlaylistBackupUiAction
+
     data object PanelCancelled : PlaylistBackupUiAction
+
     data object OperationCancelled : PlaylistBackupUiAction
-    data class PreviewReady(val plan: PlaylistImportPlan) : PlaylistBackupUiAction
+
+    data class PreviewReady(val plan: PlaylistImportPlan) :
+        PlaylistBackupUiAction
+
     data object DismissPreview : PlaylistBackupUiAction
+
     data object DismissResult : PlaylistBackupUiAction
-    data class ImportSucceeded(val totals: PlaylistImportTotals) : PlaylistBackupUiAction
+
+    data class ImportSucceeded(val totals: PlaylistImportTotals) :
+        PlaylistBackupUiAction
+
     data class Failed(val error: PlaylistBackupUiError) : PlaylistBackupUiAction
+
     data object ClearError : PlaylistBackupUiAction
 }
 
 fun reducePlaylistBackupUiState(
     state: PlaylistBackupUiState,
     action: PlaylistBackupUiAction,
-): PlaylistBackupUiState = when (action) {
-    is PlaylistBackupUiAction.OperationStarted -> state.copy(operation = action.operation, error = null)
+): PlaylistBackupUiState =
+    when (action) {
+        is PlaylistBackupUiAction.OperationStarted ->
+            state.copy(operation = action.operation, error = null)
 
-    PlaylistBackupUiAction.PanelCancelled -> state.copy(operation = PlaylistBackupOperation.Idle, error = null)
+        PlaylistBackupUiAction.PanelCancelled ->
+            state.copy(operation = PlaylistBackupOperation.Idle, error = null)
 
-    PlaylistBackupUiAction.OperationCancelled -> state.copy(operation = PlaylistBackupOperation.Idle, error = null)
+        PlaylistBackupUiAction.OperationCancelled ->
+            state.copy(operation = PlaylistBackupOperation.Idle, error = null)
 
-    is PlaylistBackupUiAction.PreviewReady -> state.copy(
-        operation = PlaylistBackupOperation.Idle,
-        preview = PlaylistBackupPreview(action.plan),
-        result = null,
-        error = null,
-    )
+        is PlaylistBackupUiAction.PreviewReady ->
+            state.copy(
+                operation = PlaylistBackupOperation.Idle,
+                preview = PlaylistBackupPreview(action.plan),
+                result = null,
+                error = null,
+            )
 
-    PlaylistBackupUiAction.DismissPreview -> state.copy(preview = null, error = null)
+        PlaylistBackupUiAction.DismissPreview ->
+            state.copy(preview = null, error = null)
 
-    PlaylistBackupUiAction.DismissResult -> state.copy(result = null, error = null)
+        PlaylistBackupUiAction.DismissResult ->
+            state.copy(result = null, error = null)
 
-    is PlaylistBackupUiAction.ImportSucceeded -> state.copy(
-        operation = PlaylistBackupOperation.Idle,
-        preview = null,
-        result = PlaylistBackupImportResult(action.totals),
-        error = null,
-    )
+        is PlaylistBackupUiAction.ImportSucceeded ->
+            state.copy(
+                operation = PlaylistBackupOperation.Idle,
+                preview = null,
+                result = PlaylistBackupImportResult(action.totals),
+                error = null,
+            )
 
-    is PlaylistBackupUiAction.Failed -> state.copy(operation = PlaylistBackupOperation.Idle, error = action.error)
+        is PlaylistBackupUiAction.Failed ->
+            state.copy(
+                operation = PlaylistBackupOperation.Idle, error = action.error)
 
-    PlaylistBackupUiAction.ClearError -> state.copy(error = null)
-}
+        PlaylistBackupUiAction.ClearError -> state.copy(error = null)
+    }
 
 sealed interface PlaylistBackupExportPreparation {
     data class Ready(val bytes: ByteArray) : PlaylistBackupExportPreparation
-    data class Failed(val error: PlaylistBackupUiError) : PlaylistBackupExportPreparation
+
+    data class Failed(val error: PlaylistBackupUiError) :
+        PlaylistBackupExportPreparation
 }
 
 suspend fun preparePlaylistBackupExport(
@@ -104,28 +128,44 @@ suspend fun preparePlaylistBackupExport(
     authoritativeTracks: List<LibraryTrack>,
     exportedAtEpochMillis: Long,
     dispatcher: CoroutineDispatcher,
-    validate: (ByteArray) -> PlaylistBackupDecodeResult = PlaylistBackupCodec::decode,
-): PlaylistBackupExportPreparation = withContext(dispatcher) {
-    when (val exported = exportPlaylistBackup(snapshot, authoritativeTracks, exportedAtEpochMillis)) {
-        is PlaylistBackupExportResult.Failure -> PlaylistBackupExportPreparation.Failed(
-            when (exported.error) {
-                PlaylistBackupExportError.MISSING_TRACK -> PlaylistBackupUiError.ExportMissingTrack
-                PlaylistBackupExportError.MISSING_DURATION -> PlaylistBackupUiError.ExportMissingDuration
-                PlaylistBackupExportError.INVALID_DURATION -> PlaylistBackupUiError.ExportInvalidDuration
-                PlaylistBackupExportError.CODEC_BOUNDS -> PlaylistBackupUiError.ExportInvalidData
-            },
-        )
+    validate: (ByteArray) -> PlaylistBackupDecodeResult =
+        PlaylistBackupCodec::decode,
+): PlaylistBackupExportPreparation =
+    withContext(dispatcher) {
+        when (val exported =
+            exportPlaylistBackup(
+                snapshot, authoritativeTracks, exportedAtEpochMillis)) {
+            is PlaylistBackupExportResult.Failure ->
+                PlaylistBackupExportPreparation.Failed(
+                    when (exported.error) {
+                        PlaylistBackupExportError.MISSING_TRACK ->
+                            PlaylistBackupUiError.ExportMissingTrack
+                        PlaylistBackupExportError.MISSING_DURATION ->
+                            PlaylistBackupUiError.ExportMissingDuration
+                        PlaylistBackupExportError.INVALID_DURATION ->
+                            PlaylistBackupUiError.ExportInvalidDuration
+                        PlaylistBackupExportError.CODEC_BOUNDS ->
+                            PlaylistBackupUiError.ExportInvalidData
+                    },
+                )
 
-        is PlaylistBackupExportResult.Success -> when (val decoded = validate(exported.bytes)) {
-            is PlaylistBackupDecodeResult.Success -> PlaylistBackupExportPreparation.Ready(exported.bytes)
-            is PlaylistBackupDecodeResult.Invalid -> PlaylistBackupExportPreparation.Failed(playlistBackupUiError(decoded.error))
+            is PlaylistBackupExportResult.Success ->
+                when (val decoded = validate(exported.bytes)) {
+                    is PlaylistBackupDecodeResult.Success ->
+                        PlaylistBackupExportPreparation.Ready(exported.bytes)
+                    is PlaylistBackupDecodeResult.Invalid ->
+                        PlaylistBackupExportPreparation.Failed(
+                            playlistBackupUiError(decoded.error))
+                }
         }
     }
-}
 
 sealed interface PlaylistBackupImportPreparation {
-    data class Ready(val plan: PlaylistImportPlan) : PlaylistBackupImportPreparation
-    data class Failed(val error: PlaylistBackupUiError) : PlaylistBackupImportPreparation
+    data class Ready(val plan: PlaylistImportPlan) :
+        PlaylistBackupImportPreparation
+
+    data class Failed(val error: PlaylistBackupUiError) :
+        PlaylistBackupImportPreparation
 }
 
 suspend fun preparePlaylistBackupImport(
@@ -135,41 +175,50 @@ suspend fun preparePlaylistBackupImport(
     importedSuffix: String,
     libraryRevision: Long,
     dispatcher: CoroutineDispatcher,
-): PlaylistBackupImportPreparation = withContext(dispatcher) {
-    when (val decoded = PlaylistBackupCodec.decode(bytes)) {
-        is PlaylistBackupDecodeResult.Invalid -> PlaylistBackupImportPreparation.Failed(playlistBackupUiError(decoded.error))
+): PlaylistBackupImportPreparation =
+    withContext(dispatcher) {
+        when (val decoded = PlaylistBackupCodec.decode(bytes)) {
+            is PlaylistBackupDecodeResult.Invalid ->
+                PlaylistBackupImportPreparation.Failed(
+                    playlistBackupUiError(decoded.error))
 
-        is PlaylistBackupDecodeResult.Success -> PlaylistBackupImportPreparation.Ready(
-            planPlaylistImport(
-                document = decoded.document,
-                destinationTracks = destinationTracks,
-                existingPlaylistNames = existingPlaylistNames,
-                importedSuffix = importedSuffix,
-                libraryRevision = libraryRevision,
-            ),
-        )
+            is PlaylistBackupDecodeResult.Success ->
+                PlaylistBackupImportPreparation.Ready(
+                    planPlaylistImport(
+                        document = decoded.document,
+                        destinationTracks = destinationTracks,
+                        existingPlaylistNames = existingPlaylistNames,
+                        importedSuffix = importedSuffix,
+                        libraryRevision = libraryRevision,
+                    ),
+                )
+        }
     }
-}
 
-fun playlistBackupUiError(error: PlaylistBackupValidationError): PlaylistBackupUiError = when (error) {
-    PlaylistBackupValidationError.INPUT_TOO_LARGE -> PlaylistBackupUiError.Oversized
+fun playlistBackupUiError(
+    error: PlaylistBackupValidationError
+): PlaylistBackupUiError =
+    when (error) {
+        PlaylistBackupValidationError.INPUT_TOO_LARGE ->
+            PlaylistBackupUiError.Oversized
 
-    PlaylistBackupValidationError.INVALID_CHECKSUM -> PlaylistBackupUiError.Checksum
+        PlaylistBackupValidationError.INVALID_CHECKSUM ->
+            PlaylistBackupUiError.Checksum
 
-    PlaylistBackupValidationError.UNSUPPORTED_FORMAT,
-    PlaylistBackupValidationError.UNSUPPORTED_VERSION,
-    -> PlaylistBackupUiError.UnsupportedVersion
+        PlaylistBackupValidationError.UNSUPPORTED_FORMAT,
+        PlaylistBackupValidationError.UNSUPPORTED_VERSION,
+        -> PlaylistBackupUiError.UnsupportedVersion
 
-    PlaylistBackupValidationError.PLAYLIST_LIMIT_EXCEEDED,
-    PlaylistBackupValidationError.PLAYLIST_ENTRY_LIMIT_EXCEEDED,
-    PlaylistBackupValidationError.TOTAL_ENTRY_LIMIT_EXCEEDED,
-    PlaylistBackupValidationError.STRING_LIMIT_EXCEEDED,
-    PlaylistBackupValidationError.BLANK_PLAYLIST_NAME,
-    PlaylistBackupValidationError.INVALID_DURATION,
-    -> PlaylistBackupUiError.InvalidData
+        PlaylistBackupValidationError.PLAYLIST_LIMIT_EXCEEDED,
+        PlaylistBackupValidationError.PLAYLIST_ENTRY_LIMIT_EXCEEDED,
+        PlaylistBackupValidationError.TOTAL_ENTRY_LIMIT_EXCEEDED,
+        PlaylistBackupValidationError.STRING_LIMIT_EXCEEDED,
+        PlaylistBackupValidationError.BLANK_PLAYLIST_NAME,
+        PlaylistBackupValidationError.INVALID_DURATION,
+        -> PlaylistBackupUiError.InvalidData
 
-    else -> PlaylistBackupUiError.Malformed
-}
+        else -> PlaylistBackupUiError.Malformed
+    }
 
 data class PlaylistBackupImportConfirmation(
     val state: PlaylistBackupUiState,
@@ -181,36 +230,54 @@ suspend fun confirmPlaylistBackupImportSerialized(
     state: PlaylistBackupUiState,
     currentLibraryRevision: Long,
     lastConfirmedSnapshot: PlaylistSnapshot? = null,
-    mutateAndRefresh: suspend (List<PlaylistImportMutation>) -> PlaylistImportOwnerResult,
+    mutateAndRefresh:
+        suspend (List<PlaylistImportMutation>) -> PlaylistImportOwnerResult,
 ): PlaylistBackupImportConfirmation {
-    val preview = state.preview ?: return PlaylistBackupImportConfirmation(state, lastConfirmedSnapshot)
+    val preview =
+        state.preview
+            ?: return PlaylistBackupImportConfirmation(
+                state, lastConfirmedSnapshot)
     if (preview.plan.libraryRevision != currentLibraryRevision) {
         return PlaylistBackupImportConfirmation(
-            state.copy(operation = PlaylistBackupOperation.Idle, error = PlaylistBackupUiError.StalePreview),
+            state.copy(
+                operation = PlaylistBackupOperation.Idle,
+                error = PlaylistBackupUiError.StalePreview),
             lastConfirmedSnapshot,
         )
     }
-    if (!preview.canConfirm) return PlaylistBackupImportConfirmation(state, lastConfirmedSnapshot)
-    val mutations = preview.plan.playlists.map { playlist ->
-        PlaylistImportMutation(playlist.name, playlist.trackIds)
-    }
+    if (!preview.canConfirm)
+        return PlaylistBackupImportConfirmation(state, lastConfirmedSnapshot)
+    val mutations =
+        preview.plan.playlists.map { playlist ->
+            PlaylistImportMutation(playlist.name, playlist.trackIds)
+        }
     return try {
         when (val result = mutateAndRefresh(mutations)) {
-            is PlaylistImportOwnerResult.Success -> PlaylistBackupImportConfirmation(
-                reducePlaylistBackupUiState(state, PlaylistBackupUiAction.ImportSucceeded(preview.plan.totals)),
-                result.snapshot,
-                result.revision,
-            )
+            is PlaylistImportOwnerResult.Success ->
+                PlaylistBackupImportConfirmation(
+                    reducePlaylistBackupUiState(
+                        state,
+                        PlaylistBackupUiAction.ImportSucceeded(
+                            preview.plan.totals)),
+                    result.snapshot,
+                    result.revision,
+                )
 
-            PlaylistImportOwnerResult.Stale -> PlaylistBackupImportConfirmation(
-                state.copy(operation = PlaylistBackupOperation.Idle, error = PlaylistBackupUiError.StalePreview),
-                lastConfirmedSnapshot,
-            )
+            PlaylistImportOwnerResult.Stale ->
+                PlaylistBackupImportConfirmation(
+                    state.copy(
+                        operation = PlaylistBackupOperation.Idle,
+                        error = PlaylistBackupUiError.StalePreview),
+                    lastConfirmedSnapshot,
+                )
 
-            is PlaylistImportOwnerResult.Failure -> PlaylistBackupImportConfirmation(
-                state.copy(operation = PlaylistBackupOperation.Idle, error = PlaylistBackupUiError.RepositoryFailed),
-                lastConfirmedSnapshot,
-            )
+            is PlaylistImportOwnerResult.Failure ->
+                PlaylistBackupImportConfirmation(
+                    state.copy(
+                        operation = PlaylistBackupOperation.Idle,
+                        error = PlaylistBackupUiError.RepositoryFailed),
+                    lastConfirmedSnapshot,
+                )
         }
     } catch (cancelled: CancellationException) {
         throw cancelled

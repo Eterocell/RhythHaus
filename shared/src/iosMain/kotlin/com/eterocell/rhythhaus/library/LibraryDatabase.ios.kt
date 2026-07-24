@@ -11,13 +11,16 @@ actual class LibraryDatabase {
             name = "rhythhaus.db",
             onConfiguration = { configuration ->
                 configuration.copy(
-                    extendedConfig = DatabaseConfiguration.Extended(foreignKeyConstraints = true),
+                    extendedConfig =
+                        DatabaseConfiguration.Extended(
+                            foreignKeyConstraints = true),
                 )
             },
         )
     }
 
-    actual val driver: SqlDriver get() = nativeDriver
+    actual val driver: SqlDriver
+        get() = nativeDriver
 
     actual val database: RhythHausDatabase by lazy { RhythHausDatabase(driver) }
 }

@@ -1,6 +1,5 @@
 package com.eterocell.rhythhaus.library
 
-import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.eterocell.rhythhaus.AudioSource
 import java.io.File
 import java.nio.file.Files
@@ -18,11 +17,12 @@ class PlaylistSqlDelightRepositoryJvmTest {
             open.seedTrack("track-a", "scan-1")
             open.seedTrack("track-b", "scan-1")
             val playlist = open.playlists.create("Road trip")
-            val secondRepository = SqlDelightPlaylistRepository(
-                open.libraryDatabase,
-                now = { 200L },
-                idFactory = { "entry-b" },
-            )
+            val secondRepository =
+                SqlDelightPlaylistRepository(
+                    open.libraryDatabase,
+                    now = { 200L },
+                    idFactory = { "entry-b" },
+                )
             open.playlists.mutationReadObserver = {
                 open.playlists.mutationReadObserver = {}
                 secondRepository.append(playlist.id, listOf("track-b"))
@@ -30,7 +30,9 @@ class PlaylistSqlDelightRepositoryJvmTest {
 
             open.playlists.append(playlist.id, listOf("track-a"))
 
-            assertEquals(listOf("track-b", "track-a"), open.playlists.entries(playlist.id).map(PlaylistEntry::trackId))
+            assertEquals(
+                listOf("track-b", "track-a"),
+                open.playlists.entries(playlist.id).map(PlaylistEntry::trackId))
         }
     }
 
@@ -42,22 +44,24 @@ class PlaylistSqlDelightRepositoryJvmTest {
             open.playlists.append(playlist.id, listOf("track-a"))
             val entry = open.playlists.entries(playlist.id).single()
 
-            val result = open.library.upsertTrack(
-                testTrack("replacement-id", "scan-2").copy(
-                    sourceLocalKey = "track-a.mp3",
-                    title = "Updated title",
-                    artist = "Updated artist",
-                    album = "Updated album",
-                    durationMillis = 123_000,
-                    sizeBytes = 456_000,
-                    modifiedAtEpochMillis = 789,
-                    updatedAtEpochMillis = 200,
-                    trackNumber = 4,
-                    discNumber = 2,
-                    artworkBytes = byteArrayOf(1, 2, 3),
-                    artworkMimeType = "image/png",
-                ),
-            )
+            val result =
+                open.library.upsertTrack(
+                    testTrack("replacement-id", "scan-2")
+                        .copy(
+                            sourceLocalKey = "track-a.mp3",
+                            title = "Updated title",
+                            artist = "Updated artist",
+                            album = "Updated album",
+                            durationMillis = 123_000,
+                            sizeBytes = 456_000,
+                            modifiedAtEpochMillis = 789,
+                            updatedAtEpochMillis = 200,
+                            trackNumber = 4,
+                            discNumber = 2,
+                            artworkBytes = byteArrayOf(1, 2, 3),
+                            artworkMimeType = "image/png",
+                        ),
+                )
 
             assertEquals(TrackUpsertResult.Updated, result)
             val updated = open.library.tracks().single()
@@ -86,8 +90,11 @@ class PlaylistSqlDelightRepositoryJvmTest {
             open.playlists.append(playlist.id, listOf("track-a", "track-a"))
 
             val entries = open.playlists.entries(playlist.id)
-            assertEquals("Road trip", open.playlists.playlist(playlist.id)?.name)
-            assertEquals(listOf("track-a", "track-a"), entries.map(PlaylistEntry::trackId))
+            assertEquals(
+                "Road trip", open.playlists.playlist(playlist.id)?.name)
+            assertEquals(
+                listOf("track-a", "track-a"),
+                entries.map(PlaylistEntry::trackId))
             assertEquals(2, entries.map(PlaylistEntry::id).toSet().size)
             assertEquals(listOf(0, 1), entries.map(PlaylistEntry::position))
         }
@@ -100,7 +107,8 @@ class PlaylistSqlDelightRepositoryJvmTest {
 
             assertFails { open.playlists.rename(playlist.id, "   ") }
 
-            assertEquals("Road trip", open.playlists.playlist(playlist.id)?.name)
+            assertEquals(
+                "Road trip", open.playlists.playlist(playlist.id)?.name)
         }
     }
 
@@ -110,14 +118,18 @@ class PlaylistSqlDelightRepositoryJvmTest {
             open.seedTrack("track-a", "scan-1")
             open.seedTrack("track-b", "scan-1")
             val playlist = open.playlists.create("Road trip")
-            open.playlists.append(playlist.id, listOf("track-a", "track-b", "track-a"))
+            open.playlists.append(
+                playlist.id, listOf("track-a", "track-b", "track-a"))
             val entries = open.playlists.entries(playlist.id)
 
             open.playlists.removeEntry(entries[1].id)
-            open.playlists.reorder(playlist.id, listOf(entries[2].id, entries[0].id))
+            open.playlists.reorder(
+                playlist.id, listOf(entries[2].id, entries[0].id))
 
             val reordered = open.playlists.entries(playlist.id)
-            assertEquals(listOf(entries[2].id, entries[0].id), reordered.map(PlaylistEntry::id))
+            assertEquals(
+                listOf(entries[2].id, entries[0].id),
+                reordered.map(PlaylistEntry::id))
             assertEquals(listOf(0, 1), reordered.map(PlaylistEntry::position))
         }
     }
@@ -129,7 +141,8 @@ class PlaylistSqlDelightRepositoryJvmTest {
             val playlist = open.playlists.create("Road trip")
             open.playlists.append(playlist.id, listOf("track-a"))
 
-            open.playlists.removeEntry(open.playlists.entries(playlist.id).single().id)
+            open.playlists.removeEntry(
+                open.playlists.entries(playlist.id).single().id)
 
             assertNotNull(open.playlists.playlist(playlist.id))
             assertEquals(emptyList(), open.playlists.entries(playlist.id))
@@ -142,7 +155,9 @@ class PlaylistSqlDelightRepositoryJvmTest {
         seedVersionOneLibrary(databaseFile)
 
         openRepositories(databaseFile).use { open ->
-            assertEquals(listOf("legacy-track"), open.library.tracks().map(LibraryTrack::id))
+            assertEquals(
+                listOf("legacy-track"),
+                open.library.tracks().map(LibraryTrack::id))
             assertEquals(emptyList(), open.playlists.playlists())
             assertNotNull(open.playlists.create("Migrated"))
         }
@@ -168,7 +183,8 @@ class PlaylistSqlDelightRepositoryJvmTest {
             val playlist = open.playlists.create("Road trip")
             open.playlists.append(playlist.id, listOf("track-a"))
 
-            assertEquals(1, open.library.removeMissingTracks("source-1", "scan-2"))
+            assertEquals(
+                1, open.library.removeMissingTracks("source-1", "scan-2"))
 
             assertNotNull(open.playlists.playlist(playlist.id))
             assertEquals(emptyList(), open.playlists.entries(playlist.id))
@@ -213,15 +229,21 @@ class PlaylistSqlDelightRepositoryJvmTest {
             val before = open.playlists.entries(playlist.id)
 
             open.database.playlistQueries.deletePlaylist("failure-target")
-            open.database.playlistQueries.insertPlaylist("failure-target", "Failure", 1, 1)
-            open.database.playlistQueries.insertEntry("failure-entry", "failure-target", "track-a", 0, 1)
+            open.database.playlistQueries.insertPlaylist(
+                "failure-target", "Failure", 1, 1)
+            open.database.playlistQueries.insertEntry(
+                "failure-entry", "failure-target", "track-a", 0, 1)
             open.driver.execute(
                 identifier = null,
-                sql = "CREATE TRIGGER fail_second_entry BEFORE INSERT ON playlist_entry WHEN NEW.position = 1 BEGIN SELECT RAISE(ABORT, 'forced reorder failure'); END",
+                sql =
+                    "CREATE TRIGGER fail_second_entry BEFORE INSERT ON playlist_entry WHEN NEW.position = 1 BEGIN SELECT RAISE(ABORT, 'forced reorder failure'); END",
                 parameters = 0,
             )
 
-            assertFails { open.playlists.reorder(playlist.id, listOf(before.last().id, before.first().id)) }
+            assertFails {
+                open.playlists.reorder(
+                    playlist.id, listOf(before.last().id, before.first().id))
+            }
 
             assertEquals(before, open.playlists.entries(playlist.id))
         }
@@ -248,7 +270,8 @@ class PlaylistSqlDelightRepositoryJvmTest {
             val before = open.playlists.playlists()
 
             assertFails {
-                open.playlists.createWithEntries("Transient", listOf("missing-track"))
+                open.playlists.createWithEntries(
+                    "Transient", listOf("missing-track"))
             }
 
             assertEquals(before, open.playlists.playlists())
@@ -260,30 +283,49 @@ class PlaylistSqlDelightRepositoryJvmTest {
         openRepositories().use { open ->
             open.seedTrack("track-a", "scan-1")
 
-            val first = open.playlists.createWithEntries(" Same ", listOf("track-a", "track-a"))
-            val second = open.playlists.createWithEntries("Same", listOf("track-a"))
+            val first =
+                open.playlists.createWithEntries(
+                    " Same ", listOf("track-a", "track-a"))
+            val second =
+                open.playlists.createWithEntries("Same", listOf("track-a"))
 
-            assertEquals(listOf("Same", "Same"), open.playlists.playlists().map(Playlist::name))
-            assertEquals(listOf("track-a", "track-a"), open.playlists.entries(first.id).map(PlaylistEntry::trackId))
-            assertEquals(listOf(0, 1), open.playlists.entries(first.id).map(PlaylistEntry::position))
-            assertEquals(listOf("track-a"), open.playlists.entries(second.id).map(PlaylistEntry::trackId))
+            assertEquals(
+                listOf("Same", "Same"),
+                open.playlists.playlists().map(Playlist::name))
+            assertEquals(
+                listOf("track-a", "track-a"),
+                open.playlists.entries(first.id).map(PlaylistEntry::trackId))
+            assertEquals(
+                listOf(0, 1),
+                open.playlists.entries(first.id).map(PlaylistEntry::position))
+            assertEquals(
+                listOf("track-a"),
+                open.playlists.entries(second.id).map(PlaylistEntry::trackId))
         }
     }
 
     @Test
     fun importPlaylistsRollsBackEverySqlRowOnSecondPlaylistEntryFailureAndRetryCreatesAllOnce() {
         openRepositories().use { open ->
-            listOf("track-existing", "track-a", "track-b", "track-c").forEach { open.seedTrack(it, "scan-1") }
-            val existing = open.playlists.createWithEntries("Existing", listOf("track-existing"))
+            listOf("track-existing", "track-a", "track-b", "track-c").forEach {
+                open.seedTrack(it, "scan-1")
+            }
+            val existing =
+                open.playlists.createWithEntries(
+                    "Existing", listOf("track-existing"))
             val existingPlaylists = open.playlists.playlists()
             val existingEntries = open.playlists.entries(existing.id)
-            val request = listOf(
-                PlaylistImportMutation(" First ", listOf("track-a", "track-a")),
-                PlaylistImportMutation("Second", listOf("track-b", "track-c")),
-            )
+            val request =
+                listOf(
+                    PlaylistImportMutation(
+                        " First ", listOf("track-a", "track-a")),
+                    PlaylistImportMutation(
+                        "Second", listOf("track-b", "track-c")),
+                )
             open.driver.execute(
                 identifier = null,
-                sql = "CREATE TRIGGER fail_second_import_entry BEFORE INSERT ON playlist_entry WHEN NEW.trackId = 'track-b' BEGIN SELECT RAISE(ABORT, 'forced second playlist entry failure'); END",
+                sql =
+                    "CREATE TRIGGER fail_second_import_entry BEFORE INSERT ON playlist_entry WHEN NEW.trackId = 'track-b' BEGIN SELECT RAISE(ABORT, 'forced second playlist entry failure'); END",
                 parameters = 0,
             )
 
@@ -299,23 +341,48 @@ class PlaylistSqlDelightRepositoryJvmTest {
 
             val imported = open.playlists.importPlaylists(request)
 
-            assertEquals(listOf("First", "Second"), imported.map(Playlist::name))
-            assertEquals(setOf("Existing", "First", "Second"), open.playlists.playlists().map(Playlist::name).toSet())
+            assertEquals(
+                listOf("First", "Second"), imported.map(Playlist::name))
+            assertEquals(
+                setOf("Existing", "First", "Second"),
+                open.playlists.playlists().map(Playlist::name).toSet())
             assertEquals(3, open.playlists.playlists().size)
-            assertEquals(listOf("track-a", "track-a"), open.playlists.entries(imported[0].id).map(PlaylistEntry::trackId))
-            assertEquals(listOf(0, 1), open.playlists.entries(imported[0].id).map(PlaylistEntry::position))
-            assertEquals(2, open.playlists.entries(imported[0].id).map(PlaylistEntry::id).toSet().size)
-            assertEquals(listOf("track-b", "track-c"), open.playlists.entries(imported[1].id).map(PlaylistEntry::trackId))
+            assertEquals(
+                listOf("track-a", "track-a"),
+                open.playlists
+                    .entries(imported[0].id)
+                    .map(PlaylistEntry::trackId))
+            assertEquals(
+                listOf(0, 1),
+                open.playlists
+                    .entries(imported[0].id)
+                    .map(PlaylistEntry::position))
+            assertEquals(
+                2,
+                open.playlists
+                    .entries(imported[0].id)
+                    .map(PlaylistEntry::id)
+                    .toSet()
+                    .size)
+            assertEquals(
+                listOf("track-b", "track-c"),
+                open.playlists
+                    .entries(imported[1].id)
+                    .map(PlaylistEntry::trackId))
         }
     }
 
-    private fun openRepositories(databaseFile: File = tempDatabase()): OpenRepositories {
+    private fun openRepositories(
+        databaseFile: File = tempDatabase()
+    ): OpenRepositories {
         val database = LibraryDatabase(databaseFile)
         return OpenRepositories(
             libraryDatabase = database,
             database = database.database,
             library = SqlDelightLibraryRepository(database),
-            playlists = SqlDelightPlaylistRepository(database, now = { 100L }, idFactory = ::uuid4),
+            playlists =
+                SqlDelightPlaylistRepository(
+                    database, now = { 100L }, idFactory = ::uuid4),
             driver = database.driver,
             close = { database.driver.close() },
         )
@@ -340,50 +407,59 @@ class PlaylistSqlDelightRepositoryJvmTest {
     }
 }
 
-private fun tempDatabase(): File = Files.createTempFile("rhythhaus-playlist", ".db").toFile().apply {
-    delete()
-    deleteOnExit()
-}
+private fun tempDatabase(): File =
+    Files.createTempFile("rhythhaus-playlist", ".db").toFile().apply {
+        delete()
+        deleteOnExit()
+    }
 
 private fun copyVersionOneDatabase(): File {
     val target = tempDatabase()
     val baseline = File("src/commonMain/sqldelight/databases/1.db")
-    check(baseline.isFile) { "Missing SQLDelight version-1 baseline: ${baseline.absolutePath}" }
-    Files.copy(baseline.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    check(baseline.isFile) {
+        "Missing SQLDelight version-1 baseline: ${baseline.absolutePath}"
+    }
+    Files.copy(
+        baseline.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
     return target
 }
 
 private fun seedVersionOneLibrary(databaseFile: File) {
-    DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}").use { connection ->
-        connection.createStatement().use { statement ->
-            statement.execute("PRAGMA foreign_keys = ON")
-            statement.execute("INSERT INTO library_source(id, platformKind, displayName, handle, createdAtEpochMillis, accessStatus) VALUES ('source-1', 'JvmFolder', 'Music', '/Music', 1, 'Available')")
-            statement.execute("INSERT INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, createdAtEpochMillis, updatedAtEpochMillis) VALUES ('legacy-track', 'source-1', 'legacy.mp3', 'FilePath', '/Music/legacy.mp3', 'legacy.mp3', 'Legacy', 'Artist', 'Album', 1, 2)")
+    DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
+        .use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("PRAGMA foreign_keys = ON")
+                statement.execute(
+                    "INSERT INTO library_source(id, platformKind, displayName, handle, createdAtEpochMillis, accessStatus) VALUES ('source-1', 'JvmFolder', 'Music', '/Music', 1, 'Available')")
+                statement.execute(
+                    "INSERT INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, createdAtEpochMillis, updatedAtEpochMillis) VALUES ('legacy-track', 'source-1', 'legacy.mp3', 'FilePath', '/Music/legacy.mp3', 'legacy.mp3', 'Legacy', 'Artist', 'Album', 1, 2)")
+            }
         }
-    }
 }
 
-private fun testSource() = LibrarySource(
-    id = "source-1",
-    platformKind = LibraryPlatformKind.JvmFolder,
-    displayName = "Music",
-    handle = "/Music",
-    createdAtEpochMillis = 1,
-)
+private fun testSource() =
+    LibrarySource(
+        id = "source-1",
+        platformKind = LibraryPlatformKind.JvmFolder,
+        displayName = "Music",
+        handle = "/Music",
+        createdAtEpochMillis = 1,
+    )
 
-private fun testTrack(id: String, scanId: String) = LibraryTrack(
-    id = id,
-    sourceId = "source-1",
-    sourceLocalKey = "$id.mp3",
-    audioSource = AudioSource.FilePath("/Music/$id.mp3"),
-    displayName = "$id.mp3",
-    title = id,
-    artist = "Artist",
-    album = "Album",
-    durationMillis = null,
-    sizeBytes = null,
-    modifiedAtEpochMillis = null,
-    lastSeenScanId = scanId,
-    createdAtEpochMillis = 1,
-    updatedAtEpochMillis = 2,
-)
+private fun testTrack(id: String, scanId: String) =
+    LibraryTrack(
+        id = id,
+        sourceId = "source-1",
+        sourceLocalKey = "$id.mp3",
+        audioSource = AudioSource.FilePath("/Music/$id.mp3"),
+        displayName = "$id.mp3",
+        title = id,
+        artist = "Artist",
+        album = "Album",
+        durationMillis = null,
+        sizeBytes = null,
+        modifiedAtEpochMillis = null,
+        lastSeenScanId = scanId,
+        createdAtEpochMillis = 1,
+        updatedAtEpochMillis = 2,
+    )

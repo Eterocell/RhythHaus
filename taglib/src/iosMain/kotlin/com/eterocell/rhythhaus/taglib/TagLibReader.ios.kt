@@ -15,42 +15,56 @@ private class IosNativeTagLibReader : TagLibReader {
     override fun readPath(path: String): TagReadResult {
         val result = rh_taglib_read_path(path)
         val status = result.useContents { status }
-        val tagResult = when (status) {
-            STATUS_FOUND -> TagReadResult.Found(
-                result.useContents {
-                    TagMetadata(
-                        title = metadata.title?.toKString(),
-                        artist = metadata.artist?.toKString(),
-                        album = metadata.album?.toKString(),
-                        albumArtist = metadata.album_artist?.toKString(),
-                        genre = metadata.genre?.toKString(),
-                        comment = metadata.comment?.toKString(),
-                        year = metadata.year.positiveOrNull(),
-                        trackNumber = metadata.track.positiveOrNull(),
-                        trackTotal = metadata.track_total.positiveOrNull(),
-                        discNumber = metadata.disc_number.positiveOrNull(),
-                        discTotal = metadata.disc_total.positiveOrNull(),
-                        durationMillis = metadata.duration_seconds.positiveOrNull()?.times(1_000L),
-                        bitrate = metadata.bitrate.positiveOrNull(),
-                        sampleRate = metadata.sample_rate.positiveOrNull(),
-                        channels = metadata.channels.positiveOrNull(),
-                        artwork = iosArtwork(metadata),
+        val tagResult =
+            when (status) {
+                STATUS_FOUND ->
+                    TagReadResult.Found(
+                        result.useContents {
+                            TagMetadata(
+                                title = metadata.title?.toKString(),
+                                artist = metadata.artist?.toKString(),
+                                album = metadata.album?.toKString(),
+                                albumArtist =
+                                    metadata.album_artist?.toKString(),
+                                genre = metadata.genre?.toKString(),
+                                comment = metadata.comment?.toKString(),
+                                year = metadata.year.positiveOrNull(),
+                                trackNumber = metadata.track.positiveOrNull(),
+                                trackTotal =
+                                    metadata.track_total.positiveOrNull(),
+                                discNumber =
+                                    metadata.disc_number.positiveOrNull(),
+                                discTotal =
+                                    metadata.disc_total.positiveOrNull(),
+                                durationMillis =
+                                    metadata.duration_seconds
+                                        .positiveOrNull()
+                                        ?.times(1_000L),
+                                bitrate = metadata.bitrate.positiveOrNull(),
+                                sampleRate =
+                                    metadata.sample_rate.positiveOrNull(),
+                                channels = metadata.channels.positiveOrNull(),
+                                artwork = iosArtwork(metadata),
+                            )
+                        },
                     )
-                },
-            )
 
-            STATUS_UNSUPPORTED -> TagReadResult.Unsupported(
-                result.useContents { error_message?.toKString() }
-                    ?: "Native TagLib reader does not support this path",
-            )
+                STATUS_UNSUPPORTED ->
+                    TagReadResult.Unsupported(
+                        result.useContents { error_message?.toKString() }
+                            ?: "Native TagLib reader does not support this path",
+                    )
 
-            STATUS_FAILED -> TagReadResult.Failed(
-                result.useContents { error_message?.toKString() }
-                    ?: "Native TagLib reader failed",
-            )
+                STATUS_FAILED ->
+                    TagReadResult.Failed(
+                        result.useContents { error_message?.toKString() }
+                            ?: "Native TagLib reader failed",
+                    )
 
-            else -> TagReadResult.Failed("Native TagLib reader returned unknown status: $status")
-        }
+                else ->
+                    TagReadResult.Failed(
+                        "Native TagLib reader returned unknown status: $status")
+            }
         rh_taglib_free_result(result)
         return tagResult
     }
@@ -59,15 +73,18 @@ private class IosNativeTagLibReader : TagLibReader {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun iosArtwork(metadata: com.eterocell.rhythhaus.taglib.cinterop.RhTagLibMetadata): EmbeddedArtwork? {
+private fun iosArtwork(
+    metadata: com.eterocell.rhythhaus.taglib.cinterop.RhTagLibMetadata
+): EmbeddedArtwork? {
     val size = metadata.artwork_size
     if (size <= 0) return null
     val data = metadata.artwork_data ?: return null
-    val bytes = try {
-        data.readBytes(size)
-    } catch (_: Exception) {
-        return null
-    }
+    val bytes =
+        try {
+            data.readBytes(size)
+        } catch (_: Exception) {
+            return null
+        }
     if (bytes.isEmpty()) return null
     val mimeType = metadata.artwork_mime_type?.toKString()
     return EmbeddedArtwork(mimeType, bytes)

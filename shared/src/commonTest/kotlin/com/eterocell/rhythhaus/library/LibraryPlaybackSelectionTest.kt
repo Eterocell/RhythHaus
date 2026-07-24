@@ -10,51 +10,59 @@ import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
+import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import kotlin.test.Test
-import kotlin.test.assertEquals
 
 class LibraryPlaybackSelectionTest {
     @Test
-    fun savedPlaylistSelectionStartsTheSelectedDuplicateOccurrence() = runBlocking {
-        val engine = RecordingPlaybackEngine()
-        val controller = PlaybackController(engine)
-        val duplicate = tracks("duplicate").single()
-        val visibleQueue = listOf(
-            QueueOccurrence("entry-1", duplicate),
-            QueueOccurrence("entry-2", duplicate),
-        )
+    fun savedPlaylistSelectionStartsTheSelectedDuplicateOccurrence() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val duplicate = tracks("duplicate").single()
+            val visibleQueue =
+                listOf(
+                    QueueOccurrence("entry-1", duplicate),
+                    QueueOccurrence("entry-2", duplicate),
+                )
 
-        selectOccurrenceForPlayback(controller, visibleQueue, selectedOccurrenceId = "entry-2")
-        engine.awaitEvents(2)
+            selectOccurrenceForPlayback(
+                controller, visibleQueue, selectedOccurrenceId = "entry-2")
+            engine.awaitEvents(2)
 
-        assertEquals("entry-2", controller.state.value.currentOccurrenceId)
-        assertEquals(listOf("entry-1", "entry-2"), controller.state.value.queue.map { it.id })
-        assertEquals("duplicate", controller.state.value.currentTrack?.id)
-    }
+            assertEquals("entry-2", controller.state.value.currentOccurrenceId)
+            assertEquals(
+                listOf("entry-1", "entry-2"),
+                controller.state.value.queue.map { it.id })
+            assertEquals("duplicate", controller.state.value.currentTrack?.id)
+        }
 
     @Test
-    fun selectingTheCurrentOccurrenceRestartsWithoutReplacingItsQueue() = runBlocking {
-        val engine = RecordingPlaybackEngine()
-        val controller = PlaybackController(engine)
-        val duplicate = tracks("duplicate").single()
-        val existingQueue = listOf(
-            QueueOccurrence("entry-1", duplicate),
-            QueueOccurrence("entry-2", duplicate),
-        )
-        controller.setOccurrenceQueue(existingQueue, "entry-2")
-        engine.awaitLoad()
-        engine.clearEvents()
+    fun selectingTheCurrentOccurrenceRestartsWithoutReplacingItsQueue() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val duplicate = tracks("duplicate").single()
+            val existingQueue =
+                listOf(
+                    QueueOccurrence("entry-1", duplicate),
+                    QueueOccurrence("entry-2", duplicate),
+                )
+            controller.setOccurrenceQueue(existingQueue, "entry-2")
+            engine.awaitLoad()
+            engine.clearEvents()
 
-        selectOccurrenceForPlayback(controller, existingQueue.reversed(), "entry-2")
-        engine.awaitEvents(2)
+            selectOccurrenceForPlayback(
+                controller, existingQueue.reversed(), "entry-2")
+            engine.awaitEvents(2)
 
-        assertEquals(existingQueue, controller.state.value.queue)
-        assertEquals("entry-2", controller.state.value.currentOccurrenceId)
-    }
+            assertEquals(existingQueue, controller.state.value.queue)
+            assertEquals("entry-2", controller.state.value.currentOccurrenceId)
+        }
 
     @Test
     fun currentSelectionRestartsWithoutReplacingExistingQueue() = runBlocking {
@@ -64,46 +72,55 @@ class LibraryPlaybackSelectionTest {
         val visibleQueue = tracks("visible-1", "existing-2", "visible-3")
         controller.setQueue(existingQueue, selectedTrackId = "existing-2")
         engine.awaitLoad()
-        engine.listener?.onPlaybackProgress(engine.generation, 750L, existingQueue[1].durationMillis)
+        engine.listener?.onPlaybackProgress(
+            engine.generation, 750L, existingQueue[1].durationMillis)
         engine.clearEvents()
 
-        selectLibraryTrackForPlayback(controller, visibleQueue, selectedTrackId = "existing-2")
+        selectLibraryTrackForPlayback(
+            controller, visibleQueue, selectedTrackId = "existing-2")
         engine.awaitEvents(2)
 
-        assertEquals(existingQueue, controller.state.value.queue.map { it.track })
+        assertEquals(
+            existingQueue, controller.state.value.queue.map { it.track })
         assertEquals("existing-2", controller.state.value.currentTrack?.id)
         assertEquals(0L, controller.state.value.positionMillis)
         assertEquals(PlaybackStatus.Playing, controller.state.value.status)
     }
 
     @Test
-    fun differentSelectionReplacesQueueWithVisibleOrderAndAutoplays() = runBlocking {
-        val engine = RecordingPlaybackEngine()
-        val controller = PlaybackController(engine)
-        controller.setQueue(tracks("existing-1"), selectedTrackId = "existing-1")
-        engine.awaitLoad()
-        engine.clearEvents()
-        val visibleQueue = tracks("visible-3", "visible-1", "visible-2")
+    fun differentSelectionReplacesQueueWithVisibleOrderAndAutoplays() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            controller.setQueue(
+                tracks("existing-1"), selectedTrackId = "existing-1")
+            engine.awaitLoad()
+            engine.clearEvents()
+            val visibleQueue = tracks("visible-3", "visible-1", "visible-2")
 
-        selectLibraryTrackForPlayback(controller, visibleQueue, selectedTrackId = "visible-1")
-        engine.awaitEvents(2)
+            selectLibraryTrackForPlayback(
+                controller, visibleQueue, selectedTrackId = "visible-1")
+            engine.awaitEvents(2)
 
-        assertEquals(visibleQueue, controller.state.value.queue.map { it.track })
-        assertEquals("visible-1", controller.state.value.currentTrack?.id)
-        assertEquals(PlaybackStatus.Playing, controller.state.value.status)
-    }
+            assertEquals(
+                visibleQueue, controller.state.value.queue.map { it.track })
+            assertEquals("visible-1", controller.state.value.currentTrack?.id)
+            assertEquals(PlaybackStatus.Playing, controller.state.value.status)
+        }
 
     @Test
     fun differentSelectionPreservesRepeatAndShuffleModes() = runBlocking {
         val engine = RecordingPlaybackEngine()
         val controller = PlaybackController(engine)
-        controller.setQueue(tracks("existing-1"), selectedTrackId = "existing-1")
+        controller.setQueue(
+            tracks("existing-1"), selectedTrackId = "existing-1")
         engine.awaitLoad()
         controller.setRepeatMode(RepeatMode.RepeatOne)
         controller.setShuffleMode(ShuffleMode.On)
         engine.clearEvents()
 
-        selectLibraryTrackForPlayback(controller, tracks("visible-1", "visible-2"), "visible-2")
+        selectLibraryTrackForPlayback(
+            controller, tracks("visible-1", "visible-2"), "visible-2")
         engine.awaitEvents(2)
 
         assertEquals(RepeatMode.RepeatOne, controller.state.value.repeatMode)
@@ -120,7 +137,8 @@ class LibraryPlaybackSelectionTest {
         engine.clearEvents()
         val initialState = controller.state.value
 
-        selectLibraryTrackForPlayback(controller, tracks("visible-1", "visible-2"), "missing")
+        selectLibraryTrackForPlayback(
+            controller, tracks("visible-1", "visible-2"), "missing")
 
         assertEquals(initialState, controller.state.value)
         assertEquals(emptyList(), engine.eventSnapshot())
@@ -142,20 +160,23 @@ class LibraryPlaybackSelectionTest {
         assertEquals(emptyList(), engine.eventSnapshot())
     }
 
-    private fun tracks(vararg ids: String): List<PlayableTrack> = ids.mapIndexed { index, id ->
-        PlayableTrack(
-            id = id,
-            title = "Track $id",
-            artist = "Test Artist",
-            album = "Test Album",
-            durationMillis = (index + 1) * 1_000L,
-            source = AudioSource.FilePath("/tmp/$id.mp3"),
-        )
-    }
+    private fun tracks(vararg ids: String): List<PlayableTrack> =
+        ids.mapIndexed { index, id ->
+            PlayableTrack(
+                id = id,
+                title = "Track $id",
+                artist = "Test Artist",
+                album = "Test Album",
+                durationMillis = (index + 1) * 1_000L,
+                source = AudioSource.FilePath("/tmp/$id.mp3"),
+            )
+        }
 
     private sealed interface EngineEvent {
         data class Load(val trackId: String) : EngineEvent
+
         data class Seek(val positionMillis: Long) : EngineEvent
+
         data object Play : EngineEvent
     }
 
@@ -166,7 +187,10 @@ class LibraryPlaybackSelectionTest {
         var generation: Long = 0L
             private set
 
-        override suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback {
+        override suspend fun loadPaused(
+            track: PlayableTrack,
+            generation: Long
+        ): LoadedPlayback {
             this.generation = generation
             record(EngineEvent.Load(track.id))
             listener?.onPlaybackProgress(generation, 0L, track.durationMillis)
@@ -192,9 +216,10 @@ class LibraryPlaybackSelectionTest {
             while (true) add(events.tryReceive().getOrNull() ?: break)
         }
 
-        suspend fun awaitEvents(count: Int): List<EngineEvent> = withTimeout(5_000) {
-            List(count) { events.receive() }
-        }
+        suspend fun awaitEvents(count: Int): List<EngineEvent> =
+            withTimeout(5_000) {
+                List(count) { events.receive() }
+            }
 
         override fun play() {
             record(EngineEvent.Play)

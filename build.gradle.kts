@@ -22,46 +22,56 @@ plugins {
     alias(libs.plugins.version.catalog.update)
 }
 
-val rhythHausVersionName = findProperty("rhythhaus.versionName")?.toString()
-    ?: throw GradleException("Missing required Gradle property 'rhythhaus.versionName'")
-val rhythHausVersionCode = findProperty("rhythhaus.versionCode")?.toString()
-    ?: throw GradleException("Missing required Gradle property 'rhythhaus.versionCode'")
+val rhythHausVersionName =
+    findProperty("rhythhaus.versionName")?.toString()
+        ?: throw GradleException(
+            "Missing required Gradle property 'rhythhaus.versionName'")
+val rhythHausVersionCode =
+    findProperty("rhythhaus.versionCode")?.toString()
+        ?: throw GradleException(
+            "Missing required Gradle property 'rhythhaus.versionCode'")
 
 @CacheableTask
 abstract class SyncIosVersionXcconfigTask : DefaultTask() {
-    @get:Input
-    abstract val versionName: Property<String>
+    @get:Input abstract val versionName: Property<String>
 
-    @get:Input
-    abstract val versionCode: Property<String>
+    @get:Input abstract val versionCode: Property<String>
 
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
+    @get:OutputFile abstract val outputFile: RegularFileProperty
 
     @TaskAction
     fun writeXcconfig() {
         val code = versionCode.get()
         code.toIntOrNull()
-            ?: throw GradleException("Gradle property 'rhythhaus.versionCode' must be an integer, was '$code'")
-        outputFile.get().asFile.writeText(
-            """
+            ?: throw GradleException(
+                "Gradle property 'rhythhaus.versionCode' must be an integer, was '$code'")
+        outputFile
+            .get()
+            .asFile
+            .writeText(
+                """
             // Generated from root gradle.properties by ./gradlew syncIosVersionXcconfig.
             // Edit rhythhaus.versionName and rhythhaus.versionCode in ../../gradle.properties.
             RHYTHHAUS_VERSION_NAME = ${versionName.get()}
             RHYTHHAUS_VERSION_CODE = $code
-            """.trimIndent() + "\n",
-        )
+            """
+                    .trimIndent() + "\n",
+            )
     }
 }
 
 tasks.register<SyncIosVersionXcconfigTask>("syncIosVersionXcconfig") {
     versionName.set(rhythHausVersionName)
     versionCode.set(rhythHausVersionCode)
-    outputFile.set(layout.projectDirectory.file("iosApp/Configuration/Version.xcconfig"))
+    outputFile.set(
+        layout.projectDirectory.file("iosApp/Configuration/Version.xcconfig"))
 }
 
 fun isNonStable(version: String): Boolean {
-    val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { version.uppercase().contains(it) }
+    val stableKeyword =
+        listOf("RELEASE", "FINAL", "GA").any {
+            version.uppercase().contains(it)
+        }
     val regex = "^[0-9,.v-]+(-r)?$".toRegex()
     val isStable = stableKeyword || regex.matches(version)
     return isStable.not()

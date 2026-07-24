@@ -6,21 +6,35 @@ import kotlin.test.assertEquals
 class PlatformPlaylistBackupDocumentsTest {
     @Test
     fun backupExtensionIsAppendedOnlyWhenAbsent() {
-        assertEquals("playlists.rhythhaus-playlists.json", playlistBackupFileName("playlists"))
-        assertEquals("playlists.rhythhaus-playlists.json", playlistBackupFileName("playlists.rhythhaus-playlists.json"))
+        assertEquals(
+            "playlists.rhythhaus-playlists.json",
+            playlistBackupFileName("playlists"))
+        assertEquals(
+            "playlists.rhythhaus-playlists.json",
+            playlistBackupFileName("playlists.rhythhaus-playlists.json"))
     }
 
     @Test
     fun backupExtensionComparisonIgnoresCase() {
-        assertEquals("PLAYLISTS.RHYTHHAUS-PLAYLISTS.JSON", playlistBackupFileName("PLAYLISTS.RHYTHHAUS-PLAYLISTS.JSON"))
+        assertEquals(
+            "PLAYLISTS.RHYTHHAUS-PLAYLISTS.JSON",
+            playlistBackupFileName("PLAYLISTS.RHYTHHAUS-PLAYLISTS.JSON"))
     }
 
     @Test
     fun backupFileNameIsAlwaysOneSafePathComponent() {
-        assertEquals("backup.rhythhaus-playlists.json", playlistBackupFileName("../backup"))
-        assertEquals("backup.rhythhaus-playlists.json", playlistBackupFileName("folder\\backup"))
-        assertEquals("rhythhaus-playlists.rhythhaus-playlists.json", playlistBackupFileName(".."))
-        assertEquals("rhythhaus-playlists.rhythhaus-playlists.json", playlistBackupFileName("  "))
+        assertEquals(
+            "backup.rhythhaus-playlists.json",
+            playlistBackupFileName("../backup"))
+        assertEquals(
+            "backup.rhythhaus-playlists.json",
+            playlistBackupFileName("folder\\backup"))
+        assertEquals(
+            "rhythhaus-playlists.rhythhaus-playlists.json",
+            playlistBackupFileName(".."))
+        assertEquals(
+            "rhythhaus-playlists.rhythhaus-playlists.json",
+            playlistBackupFileName("  "))
     }
 
     @Test

@@ -42,14 +42,18 @@ internal data class HausDialogPresentation(
 
 private const val DarkHausDialogScrimAlpha = 0.72f
 
-internal fun hausDialogPresentation(palette: HausColorPalette): HausDialogPresentation = HausDialogPresentation(
-    panelColor = palette.panel,
-    scrimColor = if (palette == DarkHausPalette) {
-        palette.paper.copy(alpha = DarkHausDialogScrimAlpha)
-    } else {
-        palette.ink.copy(alpha = 0.36f)
-    },
-)
+internal fun hausDialogPresentation(
+    palette: HausColorPalette
+): HausDialogPresentation =
+    HausDialogPresentation(
+        panelColor = palette.panel,
+        scrimColor =
+            if (palette == DarkHausPalette) {
+                palette.paper.copy(alpha = DarkHausDialogScrimAlpha)
+            } else {
+                palette.ink.copy(alpha = 0.36f)
+            },
+    )
 
 @Composable
 internal fun HausDialog(
@@ -61,49 +65,46 @@ internal fun HausDialog(
 ) {
     val presentation = hausDialogPresentation(HausColors.current)
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(presentation.scrimColor)
-            .pointerInput(onDismiss) {
-                detectTapGestures(onTap = { onDismiss() })
-            }
-            .semantics {
-                dialog()
-                paneTitle = title
-                dismiss(label = dismissLabel) {
-                    onDismiss()
-                    true
+        modifier =
+            Modifier.fillMaxSize()
+                .background(presentation.scrimColor)
+                .pointerInput(onDismiss) {
+                    detectTapGestures(onTap = { onDismiss() })
                 }
-            }
-            .padding(presentation.outerPadding),
+                .semantics {
+                    dialog()
+                    paneTitle = title
+                    dismiss(label = dismissLabel) {
+                        onDismiss()
+                        true
+                    }
+                }
+                .padding(presentation.outerPadding),
         contentAlignment = Alignment.Center,
     ) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = presentation.maxPanelHeight)
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = {})
-                },
+            modifier =
+                Modifier.fillMaxWidth()
+                    .heightIn(max = presentation.maxPanelHeight)
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {})
+                    },
             cornerRadius = presentation.cornerRadius,
-            colors = CardDefaults.defaultColors(color = presentation.panelColor),
+            colors =
+                CardDefaults.defaultColors(color = presentation.panelColor),
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState()),
+                    modifier =
+                        Modifier.fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
                     content = body,
                 )
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 20.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
                     content = actions,
                 )
             }
@@ -122,32 +123,36 @@ internal fun HausLazyDialog(
 ) {
     val presentation = hausDialogPresentation(HausColors.current)
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(presentation.scrimColor)
-            .pointerInput(onDismiss) { detectTapGestures(onTap = { onDismiss() }) }
-            .semantics {
-                dialog()
-                paneTitle = title
-                dismiss(label = dismissLabel) {
-                    onDismiss()
-                    true
+        modifier =
+            Modifier.fillMaxSize()
+                .background(presentation.scrimColor)
+                .pointerInput(onDismiss) {
+                    detectTapGestures(onTap = { onDismiss() })
                 }
-            }
-            .padding(presentation.outerPadding),
+                .semantics {
+                    dialog()
+                    paneTitle = title
+                    dismiss(label = dismissLabel) {
+                        onDismiss()
+                        true
+                    }
+                }
+                .padding(presentation.outerPadding),
         contentAlignment = Alignment.Center,
     ) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = presentation.maxPanelHeight)
-                .pointerInput(Unit) { detectTapGestures(onTap = {}) },
+            modifier =
+                Modifier.fillMaxWidth()
+                    .heightIn(max = presentation.maxPanelHeight)
+                    .pointerInput(Unit) { detectTapGestures(onTap = {}) },
             cornerRadius = presentation.cornerRadius,
-            colors = CardDefaults.defaultColors(color = presentation.panelColor),
+            colors =
+                CardDefaults.defaultColors(color = presentation.panelColor),
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
                 LazyColumn(
-                    modifier = bodyModifier.fillMaxWidth().weight(1f, fill = false),
+                    modifier =
+                        bodyModifier.fillMaxWidth().weight(1f, fill = false),
                     content = body,
                 )
                 Row(

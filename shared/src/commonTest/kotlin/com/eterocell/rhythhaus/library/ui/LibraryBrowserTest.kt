@@ -6,7 +6,9 @@ import kotlin.test.assertEquals
 class LibraryBrowserTest {
     @Test
     fun browseModesIncludeAlbumsArtistsAndSongsInOrder() {
-        assertEquals(listOf(BrowseMode.Albums, BrowseMode.Artists, BrowseMode.Songs), BrowseMode.entries.toList())
+        assertEquals(
+            listOf(BrowseMode.Albums, BrowseMode.Artists, BrowseMode.Songs),
+            BrowseMode.entries.toList())
     }
 
     @Test

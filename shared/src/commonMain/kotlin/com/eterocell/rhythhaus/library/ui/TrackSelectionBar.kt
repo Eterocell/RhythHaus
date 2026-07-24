@@ -40,11 +40,12 @@ fun trackSelectionBarSemantics(
     selectedCountDescription: String,
     cancelDescription: String,
     addToPlaylistDescription: String,
-): TrackSelectionBarSemantics = TrackSelectionBarSemantics(
-    selectedCountDescription = selectedCountDescription,
-    cancelDescription = cancelDescription,
-    addToPlaylistDescription = addToPlaylistDescription,
-)
+): TrackSelectionBarSemantics =
+    TrackSelectionBarSemantics(
+        selectedCountDescription = selectedCountDescription,
+        cancelDescription = cancelDescription,
+        addToPlaylistDescription = addToPlaylistDescription,
+    )
 
 @Composable
 fun TrackSelectionBar(
@@ -55,26 +56,34 @@ fun TrackSelectionBar(
     modifier: Modifier = Modifier,
 ) {
     require(selectedCount > 0)
-    val countDescription = stringResource(
-        if (selectedCount == 1) Res.string.selection_count_one else Res.string.selection_count_many,
-        selectedCount,
-    )
+    val countDescription =
+        stringResource(
+            if (selectedCount == 1) Res.string.selection_count_one
+            else Res.string.selection_count_many,
+            selectedCount,
+        )
     val cancelDescription = stringResource(Res.string.selection_cancel)
     val addDescription = stringResource(Res.string.selection_add_to_playlist)
-    val semantics = trackSelectionBarSemantics(countDescription, cancelDescription, addDescription)
+    val semantics =
+        trackSelectionBarSemantics(
+            countDescription, cancelDescription, addDescription)
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-            .background(HausColors.current.panel, RoundedCornerShape(20.dp))
-            .padding(12.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                .background(HausColors.current.panel, RoundedCornerShape(20.dp))
+                .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
             text = countDescription,
-            modifier = Modifier.semantics { contentDescription = semantics.selectedCountDescription },
+            modifier =
+                Modifier.semantics {
+                    contentDescription = semantics.selectedCountDescription
+                },
             color = HausColors.current.ink,
             fontSize = 15.sp,
             fontWeight = FontWeight.Black,
@@ -116,16 +125,27 @@ private fun SelectionBarButton(
 ) {
     Button(
         onClick = onClick,
-        modifier = modifier
-            .heightIn(min = 44.dp)
-            .semantics { this.contentDescription = contentDescription },
+        modifier =
+            modifier.heightIn(min = 44.dp).semantics {
+                this.contentDescription = contentDescription
+            },
         cornerRadius = 14.dp,
         insideMargin = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-        colors = ButtonDefaults.buttonColors(
-            color = if (emphasized) HausColors.current.ink else HausColors.current.panelStrong,
-            contentColor = if (emphasized) HausColors.current.paper else HausColors.current.ink,
-        ),
+        colors =
+            ButtonDefaults.buttonColors(
+                color =
+                    if (emphasized) HausColors.current.ink
+                    else HausColors.current.panelStrong,
+                contentColor =
+                    if (emphasized) HausColors.current.paper
+                    else HausColors.current.ink,
+            ),
     ) {
-        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            text,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
     }
 }

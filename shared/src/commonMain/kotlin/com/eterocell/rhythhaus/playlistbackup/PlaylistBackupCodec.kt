@@ -7,31 +7,47 @@ object PlaylistBackupCodec {
     fun encode(payload: PlaylistBackupPayload): ByteArray {
         validatePayload(payload)
         val canonicalPayload = canonicalPayload(payload)
-        val complete = canonicalPayload.dropLast(1) + ",\"checksumCrc32\":\"${Crc32.hex(canonicalPayload.encodeToByteArray())}\"}"
+        val complete =
+            canonicalPayload.dropLast(1) +
+                ",\"checksumCrc32\":\"${Crc32.hex(canonicalPayload.encodeToByteArray())}\"}"
         return complete.encodeToByteArray().also {
-            require(it.size <= PlaylistBackupLimits.MAX_BYTES) { "Encoded playlist backup exceeds 4 MiB" }
+            require(it.size <= PlaylistBackupLimits.MAX_BYTES) {
+                "Encoded playlist backup exceeds 4 MiB"
+            }
         }
     }
 
     fun decode(bytes: ByteArray): PlaylistBackupDecodeResult {
-        if (bytes.size > PlaylistBackupLimits.MAX_BYTES) return invalid(PlaylistBackupValidationError.INPUT_TOO_LARGE)
-        val text = decodeUtf8Strict(bytes) ?: return invalid(PlaylistBackupValidationError.MALFORMED_UTF8)
+        if (bytes.size > PlaylistBackupLimits.MAX_BYTES)
+            return invalid(PlaylistBackupValidationError.INPUT_TOO_LARGE)
+        val text =
+            decodeUtf8Strict(bytes)
+                ?: return invalid(PlaylistBackupValidationError.MALFORMED_UTF8)
         return try {
             val parsed = StrictJsonParser(text).parse()
             val checksum = parsed.document.checksumCrc32
-            if (checksum.length != 8 || checksum.any { it !in '0'..'9' && it !in 'a'..'f' }) {
+            if (checksum.length != 8 ||
+                checksum.any { it !in '0'..'9' && it !in 'a'..'f' }) {
                 invalid(PlaylistBackupValidationError.INVALID_CHECKSUM)
             } else {
-                val payloadBytes = text.substring(0, parsed.canonicalPayloadEnd).plus("}").encodeToByteArray()
+                val payloadBytes =
+                    text
+                        .substring(0, parsed.canonicalPayloadEnd)
+                        .plus("}")
+                        .encodeToByteArray()
                 if (Crc32.hex(payloadBytes) != checksum) {
                     invalid(PlaylistBackupValidationError.INVALID_CHECKSUM)
                 } else {
-                    val canonical = completeDocument(
-                        PlaylistBackupPayload(parsed.document.exportedAtEpochMillis, parsed.document.playlists),
-                        checksum,
-                    )
+                    val canonical =
+                        completeDocument(
+                            PlaylistBackupPayload(
+                                parsed.document.exportedAtEpochMillis,
+                                parsed.document.playlists),
+                            checksum,
+                        )
                     if (text != canonical) {
-                        invalid(PlaylistBackupValidationError.NON_CANONICAL_JSON)
+                        invalid(
+                            PlaylistBackupValidationError.NON_CANONICAL_JSON)
                     } else {
                         PlaylistBackupDecodeResult.Success(parsed.document)
                     }
@@ -42,32 +58,43 @@ object PlaylistBackupCodec {
         }
     }
 
-    private fun canonicalPayload(payload: PlaylistBackupPayload): String = BoundedJsonWriter().apply {
-        append("{\"format\":\"").append(FORMAT)
-        append("\",\"version\":").append(VERSION)
-        append(",\"exportedAtEpochMillis\":").append(payload.exportedAtEpochMillis)
-        append(",\"playlists\":[")
-        payload.playlists.forEachIndexed { playlistIndex, playlist ->
-            if (playlistIndex > 0) append(',')
-            append("{\"name\":")
-            appendJsonString(playlist.name)
-            append(",\"entries\":[")
-            playlist.entries.forEachIndexed { entryIndex, entry ->
-                if (entryIndex > 0) append(',')
-                append("{\"title\":")
-                appendJsonString(entry.title)
-                append(",\"artist\":")
-                appendJsonString(entry.artist)
-                append(",\"album\":")
-                appendJsonString(entry.album)
-                append(",\"durationSeconds\":").append(entry.durationSeconds).append('}')
+    private fun canonicalPayload(payload: PlaylistBackupPayload): String =
+        BoundedJsonWriter()
+            .apply {
+                append("{\"format\":\"").append(FORMAT)
+                append("\",\"version\":").append(VERSION)
+                append(",\"exportedAtEpochMillis\":")
+                    .append(payload.exportedAtEpochMillis)
+                append(",\"playlists\":[")
+                payload.playlists.forEachIndexed { playlistIndex, playlist ->
+                    if (playlistIndex > 0) append(',')
+                    append("{\"name\":")
+                    appendJsonString(playlist.name)
+                    append(",\"entries\":[")
+                    playlist.entries.forEachIndexed { entryIndex, entry ->
+                        if (entryIndex > 0) append(',')
+                        append("{\"title\":")
+                        appendJsonString(entry.title)
+                        append(",\"artist\":")
+                        appendJsonString(entry.artist)
+                        append(",\"album\":")
+                        appendJsonString(entry.album)
+                        append(",\"durationSeconds\":")
+                            .append(entry.durationSeconds)
+                            .append('}')
+                    }
+                    append("]}")
+                }
+                append("]}")
             }
-            append("]}")
-        }
-        append("]}")
-    }.toString()
+            .toString()
 
-    private fun completeDocument(payload: PlaylistBackupPayload, checksum: String): String = canonicalPayload(payload).dropLast(1) + ",\"checksumCrc32\":\"$checksum\"}"
+    private fun completeDocument(
+        payload: PlaylistBackupPayload,
+        checksum: String
+    ): String =
+        canonicalPayload(payload).dropLast(1) +
+            ",\"checksumCrc32\":\"$checksum\"}"
 
     private fun BoundedJsonWriter.appendJsonString(value: String) {
         append('"')
@@ -89,16 +116,19 @@ object PlaylistBackupCodec {
 
                 '\t' -> append("\\t")
 
-                else -> when {
-                    char.code < 0x20 -> append("\\u").append(char.code.toString(16).padStart(4, '0'))
+                else ->
+                    when {
+                        char.code < 0x20 ->
+                            append("\\u")
+                                .append(char.code.toString(16).padStart(4, '0'))
 
-                    char.isHighSurrogate() -> {
-                        append(value.substring(index, index + 2))
-                        index++
+                        char.isHighSurrogate() -> {
+                            append(value.substring(index, index + 2))
+                            index++
+                        }
+
+                        else -> append(char)
                     }
-
-                    else -> append(char)
-                }
             }
             index++
         }
@@ -111,12 +141,19 @@ object PlaylistBackupCodec {
         payload.playlists.forEach { playlist ->
             require(!playlist.name.isBlank())
             require(validString(playlist.name))
-            require(playlist.entries.size <= PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST)
+            require(
+                playlist.entries.size <=
+                    PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST)
             totalEntries += playlist.entries.size
             require(totalEntries <= PlaylistBackupLimits.MAX_TOTAL_ENTRIES)
             playlist.entries.forEach { entry ->
-                require(validString(entry.title) && validString(entry.artist) && validString(entry.album))
-                require(entry.durationSeconds in 0..PlaylistBackupLimits.MAX_DURATION_SECONDS)
+                require(
+                    validString(entry.title) &&
+                        validString(entry.artist) &&
+                        validString(entry.album))
+                require(
+                    entry.durationSeconds in
+                        0..PlaylistBackupLimits.MAX_DURATION_SECONDS)
             }
         }
     }
@@ -127,14 +164,17 @@ object PlaylistBackupCodec {
         while (index < value.length) {
             val char = value[index]
             if (char.isHighSurrogate()) {
-                if (index + 1 >= value.length || !value[index + 1].isLowSurrogate()) return false
+                if (index + 1 >= value.length ||
+                    !value[index + 1].isLowSurrogate())
+                    return false
                 index += 2
             } else {
                 if (char.isLowSurrogate()) return false
                 index++
             }
             count++
-            if (count > PlaylistBackupLimits.MAX_STRING_CODE_POINTS) return false
+            if (count > PlaylistBackupLimits.MAX_STRING_CODE_POINTS)
+                return false
         }
         return true
     }
@@ -162,8 +202,12 @@ object PlaylistBackupCodec {
                     val secondByte = bytes[index + 1].toInt() and 0xff
                     val second = continuation(bytes[index + 1]) ?: return null
                     val third = continuation(bytes[index + 2]) ?: return null
-                    if (first == 0xe0 && secondByte < 0xa0 || first == 0xed && secondByte >= 0xa0) return null
-                    result.append(((first and 0x0f) shl 12 or (second shl 6) or third).toChar())
+                    if (first == 0xe0 && secondByte < 0xa0 ||
+                        first == 0xed && secondByte >= 0xa0)
+                        return null
+                    result.append(
+                        ((first and 0x0f) shl 12 or (second shl 6) or third)
+                            .toChar())
                     index += 3
                 }
 
@@ -173,8 +217,15 @@ object PlaylistBackupCodec {
                     val second = continuation(bytes[index + 1]) ?: return null
                     val third = continuation(bytes[index + 2]) ?: return null
                     val fourth = continuation(bytes[index + 3]) ?: return null
-                    if (first == 0xf0 && secondByte < 0x90 || first == 0xf4 && secondByte >= 0x90) return null
-                    val codePoint = (first and 0x07) shl 18 or (second shl 12) or (third shl 6) or fourth
+                    if (first == 0xf0 && secondByte < 0x90 ||
+                        first == 0xf4 && secondByte >= 0x90)
+                        return null
+                    val codePoint =
+                        (first and 0x07) shl
+                            18 or
+                            (second shl 12) or
+                            (third shl 6) or
+                            fourth
                     val adjusted = codePoint - 0x10000
                     result.append((0xd800 + (adjusted shr 10)).toChar())
                     result.append((0xdc00 + (adjusted and 0x3ff)).toChar())
@@ -192,7 +243,8 @@ object PlaylistBackupCodec {
         return if (value in 0x80..0xbf) value and 0x3f else null
     }
 
-    private fun invalid(error: PlaylistBackupValidationError) = PlaylistBackupDecodeResult.Invalid(error)
+    private fun invalid(error: PlaylistBackupValidationError) =
+        PlaylistBackupDecodeResult.Invalid(error)
 
     private class BoundedJsonWriter {
         private val builder = StringBuilder()
@@ -202,22 +254,26 @@ object PlaylistBackupCodec {
             var index = 0
             while (index < value.length) {
                 val char = value[index]
-                val byteCount = when {
-                    char.code <= 0x7f -> 1
+                val byteCount =
+                    when {
+                        char.code <= 0x7f -> 1
 
-                    char.code <= 0x7ff -> 2
+                        char.code <= 0x7ff -> 2
 
-                    char.isHighSurrogate() -> {
-                        require(index + 1 < value.length && value[index + 1].isLowSurrogate())
-                        index++
-                        4
+                        char.isHighSurrogate() -> {
+                            require(
+                                index + 1 < value.length &&
+                                    value[index + 1].isLowSurrogate())
+                            index++
+                            4
+                        }
+
+                        else -> 3
                     }
-
-                    else -> 3
-                }
-                require(utf8Bytes <= PlaylistBackupLimits.MAX_BYTES - byteCount) {
-                    "Encoded playlist backup exceeds 4 MiB"
-                }
+                require(
+                    utf8Bytes <= PlaylistBackupLimits.MAX_BYTES - byteCount) {
+                        "Encoded playlist backup exceeds 4 MiB"
+                    }
                 utf8Bytes += byteCount
                 builder.append(char)
                 if (byteCount == 4) builder.append(value[index])

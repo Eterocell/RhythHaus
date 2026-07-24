@@ -9,33 +9,46 @@ const val PlaylistBackupMaxBytes = 4 * 1024 * 1024
 
 sealed interface PlaylistBackupDocumentSaveResult {
     data object Success : PlaylistBackupDocumentSaveResult
+
     data object Cancelled : PlaylistBackupDocumentSaveResult
-    data class Unavailable(val message: String) : PlaylistBackupDocumentSaveResult
+
+    data class Unavailable(val message: String) :
+        PlaylistBackupDocumentSaveResult
+
     data class Failure(val message: String) : PlaylistBackupDocumentSaveResult
 }
 
 sealed interface PlaylistBackupDocumentOpenResult {
     data class Success(val bytes: ByteArray) : PlaylistBackupDocumentOpenResult
+
     data object Cancelled : PlaylistBackupDocumentOpenResult
-    data class Unavailable(val message: String) : PlaylistBackupDocumentOpenResult
+
+    data class Unavailable(val message: String) :
+        PlaylistBackupDocumentOpenResult
+
     data class TooLarge(val maxBytes: Int) : PlaylistBackupDocumentOpenResult
+
     data class Failure(val message: String) : PlaylistBackupDocumentOpenResult
 }
 
 interface PlatformPlaylistBackupDocumentLauncher {
     val isAvailable: Boolean
+
     fun save(suggestedFileName: String, bytes: ByteArray)
+
     fun open()
 }
 
 fun playlistBackupFileName(suggestedFileName: String): String {
-    val safeBaseName = suggestedFileName
-        .substringAfterLast('/')
-        .substringAfterLast('\\')
-        .trim()
-        .takeUnless { it.isBlank() || it == "." || it == ".." }
-        ?: "rhythhaus-playlists"
-    return if (safeBaseName.endsWith(PlaylistBackupFileExtension, ignoreCase = true)) {
+    val safeBaseName =
+        suggestedFileName
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .trim()
+            .takeUnless { it.isBlank() || it == "." || it == ".." }
+            ?: "rhythhaus-playlists"
+    return if (safeBaseName.endsWith(
+        PlaylistBackupFileExtension, ignoreCase = true)) {
         safeBaseName
     } else {
         safeBaseName + PlaylistBackupFileExtension

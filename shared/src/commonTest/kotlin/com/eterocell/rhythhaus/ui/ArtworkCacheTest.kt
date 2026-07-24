@@ -16,13 +16,18 @@ class ArtworkCacheTest {
 
     @Test
     fun fullSizeAndThumbnailEntriesUseDistinctCacheKeys() {
-        assertNotEquals(artworkCacheKey(bytes), artworkCacheKey(bytes, maxPixelSize = 128))
+        assertNotEquals(
+            artworkCacheKey(bytes), artworkCacheKey(bytes, maxPixelSize = 128))
     }
 
     @Test
     fun thumbnailSizeIsPartOfCacheKey() {
-        assertNotEquals(artworkCacheKey(bytes, maxPixelSize = 64), artworkCacheKey(bytes, maxPixelSize = 128))
-        assertNotEquals(artworkCacheKey(bytes, maxPixelSize = 64), artworkCacheKey(bytes, maxPixelSize = 96))
+        assertNotEquals(
+            artworkCacheKey(bytes, maxPixelSize = 64),
+            artworkCacheKey(bytes, maxPixelSize = 128))
+        assertNotEquals(
+            artworkCacheKey(bytes, maxPixelSize = 64),
+            artworkCacheKey(bytes, maxPixelSize = 96))
     }
 
     @Test
@@ -34,7 +39,8 @@ class ArtworkCacheTest {
 
     @Test
     fun scaledThumbnailDimensionBoundsLargestDimensionForWideArtwork() {
-        val (width, height) = scaledThumbnailDimension(width = 4000, height = 500, target = 128)
+        val (width, height) =
+            scaledThumbnailDimension(width = 4000, height = 500, target = 128)
 
         assertEquals(128, width)
         assertEquals(16, height)
@@ -42,7 +48,8 @@ class ArtworkCacheTest {
 
     @Test
     fun scaledThumbnailDimensionBoundsLargestDimensionForTallArtwork() {
-        val (width, height) = scaledThumbnailDimension(width = 500, height = 4000, target = 128)
+        val (width, height) =
+            scaledThumbnailDimension(width = 500, height = 4000, target = 128)
 
         assertEquals(16, width)
         assertEquals(128, height)

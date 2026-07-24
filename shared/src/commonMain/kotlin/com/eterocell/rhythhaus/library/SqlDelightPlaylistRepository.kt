@@ -8,28 +8,52 @@ class SqlDelightPlaylistRepository(
     private val database = libraryDatabase.database
     internal var mutationReadObserver: () -> Unit = {}
 
-    override fun playlists(): List<Playlist> = database.playlistQueries.selectAllPlaylists(::playlistFrom).executeAsList()
+    override fun playlists(): List<Playlist> =
+        database.playlistQueries
+            .selectAllPlaylists(::playlistFrom)
+            .executeAsList()
 
-    override fun playlist(id: String): Playlist? = database.playlistQueries.selectPlaylist(id, ::playlistFrom).executeAsOneOrNull()
+    override fun playlist(id: String): Playlist? =
+        database.playlistQueries
+            .selectPlaylist(id, ::playlistFrom)
+            .executeAsOneOrNull()
 
-    override fun entries(playlistId: String): List<PlaylistEntry> = database.playlistQueries
-        .selectEntries(playlistId) { id, playlistId_, trackId, position, createdAtEpochMillis ->
-            PlaylistEntry(id, playlistId_, trackId, position.toInt(), createdAtEpochMillis)
-        }
-        .executeAsList()
+    override fun entries(playlistId: String): List<PlaylistEntry> =
+        database.playlistQueries
+            .selectEntries(playlistId) {
+                id,
+                playlistId_,
+                trackId,
+                position,
+                createdAtEpochMillis ->
+                PlaylistEntry(
+                    id,
+                    playlistId_,
+                    trackId,
+                    position.toInt(),
+                    createdAtEpochMillis)
+            }
+            .executeAsList()
 
     override fun create(name: String): Playlist {
         val timestamp = now()
-        val playlist = Playlist(idFactory(), requireName(name), timestamp, timestamp)
-        database.playlistQueries.insertPlaylist(playlist.id, playlist.name, timestamp, timestamp)
+        val playlist =
+            Playlist(idFactory(), requireName(name), timestamp, timestamp)
+        database.playlistQueries.insertPlaylist(
+            playlist.id, playlist.name, timestamp, timestamp)
         return playlist
     }
 
-    override fun createWithEntries(name: String, trackIds: List<String>): Playlist {
+    override fun createWithEntries(
+        name: String,
+        trackIds: List<String>
+    ): Playlist {
         val timestamp = now()
-        val playlist = Playlist(idFactory(), requireName(name), timestamp, timestamp)
+        val playlist =
+            Playlist(idFactory(), requireName(name), timestamp, timestamp)
         database.transaction {
-            database.playlistQueries.insertPlaylist(playlist.id, playlist.name, timestamp, timestamp)
+            database.playlistQueries.insertPlaylist(
+                playlist.id, playlist.name, timestamp, timestamp)
             trackIds.forEachIndexed { position, trackId ->
                 database.playlistQueries.insertEntry(
                     id = idFactory(),
@@ -43,7 +67,9 @@ class SqlDelightPlaylistRepository(
         return playlist
     }
 
-    override fun importPlaylists(playlists: List<PlaylistImportMutation>): List<Playlist> {
+    override fun importPlaylists(
+        playlists: List<PlaylistImportMutation>
+    ): List<Playlist> {
         val validated = validatePlaylistImports(playlists)
         if (validated.isEmpty()) return emptyList()
 
@@ -51,8 +77,10 @@ class SqlDelightPlaylistRepository(
         database.transaction {
             validated.forEach { mutation ->
                 val timestamp = now()
-                val playlist = Playlist(idFactory(), mutation.name, timestamp, timestamp)
-                database.playlistQueries.insertPlaylist(playlist.id, playlist.name, timestamp, timestamp)
+                val playlist =
+                    Playlist(idFactory(), mutation.name, timestamp, timestamp)
+                database.playlistQueries.insertPlaylist(
+                    playlist.id, playlist.name, timestamp, timestamp)
                 mutation.trackIds.forEachIndexed { position, trackId ->
                     database.playlistQueries.insertEntry(
                         id = idFactory(),
@@ -80,10 +108,18 @@ class SqlDelightPlaylistRepository(
     override fun append(playlistId: String, trackIds: List<String>) {
         database.transaction {
             mutationReadObserver()
-            requireNotNull(playlist(playlistId)) { "Playlist not found: $playlistId" }
+            requireNotNull(playlist(playlistId)) {
+                "Playlist not found: $playlistId"
+            }
             val replacement = entries(playlistId).toMutableList()
             trackIds.forEach { trackId ->
-                replacement += PlaylistEntry(idFactory(), playlistId, trackId, replacement.size, now())
+                replacement +=
+                    PlaylistEntry(
+                        idFactory(),
+                        playlistId,
+                        trackId,
+                        replacement.size,
+                        now())
             }
             replaceEntries(playlistId, replacement)
         }
@@ -92,9 +128,14 @@ class SqlDelightPlaylistRepository(
     override fun removeEntry(entryId: String) {
         database.transaction {
             mutationReadObserver()
-            val entry = database.playlistQueries.selectEntry(entryId).executeAsOneOrNull()
-                ?: throw IllegalArgumentException("Playlist entry not found: $entryId")
-            val replacement = entries(entry.playlistId).filterNot { it.id == entryId }
+            val entry =
+                database.playlistQueries
+                    .selectEntry(entryId)
+                    .executeAsOneOrNull()
+                    ?: throw IllegalArgumentException(
+                        "Playlist entry not found: $entryId")
+            val replacement =
+                entries(entry.playlistId).filterNot { it.id == entryId }
             replaceEntries(entry.playlistId, replacement)
         }
     }
@@ -103,18 +144,25 @@ class SqlDelightPlaylistRepository(
         database.transaction {
             mutationReadObserver()
             val current = entries(playlistId)
-            require(entryIds.size == current.size && entryIds.toSet().size == current.size) {
-                "Reorder must contain every playlist entry exactly once"
-            }
+            require(
+                entryIds.size == current.size &&
+                    entryIds.toSet().size == current.size) {
+                    "Reorder must contain every playlist entry exactly once"
+                }
             val byId = current.associateBy(PlaylistEntry::id)
             replaceEntries(
                 playlistId,
-                entryIds.map { id -> requireNotNull(byId[id]) { "Playlist entry not found: $id" } },
+                entryIds.map { id ->
+                    requireNotNull(byId[id]) { "Playlist entry not found: $id" }
+                },
             )
         }
     }
 
-    private fun replaceEntries(playlistId: String, replacement: List<PlaylistEntry>) {
+    private fun replaceEntries(
+        playlistId: String,
+        replacement: List<PlaylistEntry>
+    ) {
         database.playlistQueries.clearEntriesForPlaylist(playlistId)
         replacement.forEachIndexed { position, entry ->
             database.playlistQueries.insertEntry(

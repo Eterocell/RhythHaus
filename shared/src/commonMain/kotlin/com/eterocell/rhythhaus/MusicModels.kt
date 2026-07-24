@@ -15,12 +15,18 @@ data class Track(
     val discNumber: Int? = null,
     val artworkBytes: ByteArray? = null,
 ) {
-    override fun equals(other: Any?): Boolean = other is Track &&
-        id == other.id && title == other.title && artist == other.artist &&
-        album == other.album && durationSeconds == other.durationSeconds &&
-        accent == other.accent && source == other.source &&
-        trackNumber == other.trackNumber && discNumber == other.discNumber &&
-        artworkBytes.contentEquals(other.artworkBytes)
+    override fun equals(other: Any?): Boolean =
+        other is Track &&
+            id == other.id &&
+            title == other.title &&
+            artist == other.artist &&
+            album == other.album &&
+            durationSeconds == other.durationSeconds &&
+            accent == other.accent &&
+            source == other.source &&
+            trackNumber == other.trackNumber &&
+            discNumber == other.discNumber &&
+            artworkBytes.contentEquals(other.artworkBytes)
 
     override fun hashCode(): Int {
         var result = id.hashCode()
@@ -60,15 +66,16 @@ fun formatDuration(totalSeconds: Int): String {
 }
 
 fun accentForIndex(index: Int): TrackAccent {
-    val hues = listOf(
-        0xFF111018L to 0xFF776F66L,
-        0xFF1A1422L to 0xFF794A4AL,
-        0xFF14202AL to 0xFF4B6B7AL,
-        0xFF1A1E1AL to 0xFF5C784CL,
-        0xFF201A16L to 0xFF7A6448L,
-        0xFF161A24L to 0xFF4B5C7AL,
-        0xFF1A1420L to 0xFF6E4B7AL,
-    )
+    val hues =
+        listOf(
+            0xFF111018L to 0xFF776F66L,
+            0xFF1A1422L to 0xFF794A4AL,
+            0xFF14202AL to 0xFF4B6B7AL,
+            0xFF1A1E1AL to 0xFF5C784CL,
+            0xFF201A16L to 0xFF7A6448L,
+            0xFF161A24L to 0xFF4B5C7AL,
+            0xFF1A1420L to 0xFF6E4B7AL,
+        )
     val (start, end) = hues[index % hues.size]
     return TrackAccent(start = start, end = end)
 }
@@ -96,12 +103,13 @@ fun librarySnapshot(tracks: List<LibraryTrack>): LibrarySnapshot {
     )
 }
 
-fun Track.toPlayableTrack(): PlayableTrack = PlayableTrack(
-    id = id,
-    title = title,
-    artist = artist,
-    album = album,
-    durationMillis = durationSeconds.takeIf { it > 0 }?.times(1_000L),
-    source = source,
-    artworkBytes = artworkBytes,
-)
+fun Track.toPlayableTrack(): PlayableTrack =
+    PlayableTrack(
+        id = id,
+        title = title,
+        artist = artist,
+        album = album,
+        durationMillis = durationSeconds.takeIf { it > 0 }?.times(1_000L),
+        source = source,
+        artworkBytes = artworkBytes,
+    )

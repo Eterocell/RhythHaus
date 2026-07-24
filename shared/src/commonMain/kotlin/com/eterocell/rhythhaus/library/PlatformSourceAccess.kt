@@ -4,13 +4,17 @@ import androidx.compose.runtime.Composable
 
 sealed interface PlatformFolderPickResult {
     data class Success(val source: LibrarySource) : PlatformFolderPickResult
+
     data class Unavailable(val message: String) : PlatformFolderPickResult
-    data class Failure(val message: String, val cause: String? = null) : PlatformFolderPickResult
+
+    data class Failure(val message: String, val cause: String? = null) :
+        PlatformFolderPickResult
 }
 
 interface PlatformFolderPickerLauncher {
     val isAvailable: Boolean
     val supportsAdditionalSources: Boolean
+
     fun launch()
 }
 
@@ -33,8 +37,9 @@ fun normalizePickedSource(
     pickedSource: LibrarySource,
     existingSources: List<LibrarySource>,
 ): LibrarySource {
-    val existingSource = existingSources.firstOrNull { it.handle == pickedSource.handle }
-        ?: return pickedSource
+    val existingSource =
+        existingSources.firstOrNull { it.handle == pickedSource.handle }
+            ?: return pickedSource
     return pickedSource.copy(
         id = existingSource.id,
         createdAtEpochMillis = existingSource.createdAtEpochMillis,
@@ -61,7 +66,9 @@ expect fun rememberPlatformFolderPickerLauncher(
 ): PlatformFolderPickerLauncher
 
 interface PlatformSourceAccess : PlatformAudioScanner {
-    fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus = LibrarySourceAccessStatus.Available
+    fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus =
+        LibrarySourceAccessStatus.Available
+
     fun releaseAccess(source: LibrarySource) = Unit
 }
 
@@ -75,40 +82,40 @@ fun audioCandidateForSourceFile(
     cleanupMetadataAudioSource: (() -> Unit)? = null,
     sizeBytes: Long? = null,
     modifiedAtEpochMillis: Long? = null,
-): PlatformScanEvent = if (isSupportedAudioName(displayName)) {
-    PlatformScanEvent.AudioCandidate(
-        AudioScanCandidate(
-            sourceId = source.id,
+): PlatformScanEvent =
+    if (isSupportedAudioName(displayName)) {
+        PlatformScanEvent.AudioCandidate(
+            AudioScanCandidate(
+                sourceId = source.id,
+                sourceLocalKey = sourceLocalKey.normalizedSourceLocalKey(),
+                displayPath = displayPath,
+                displayName = displayName,
+                audioSource = audioSource,
+                metadataAudioSource = metadataAudioSource,
+                cleanupMetadataAudioSource = cleanupMetadataAudioSource,
+                sizeBytes = sizeBytes,
+                modifiedAtEpochMillis = modifiedAtEpochMillis,
+            ),
+        )
+    } else {
+        PlatformScanEvent.Skipped(
             sourceLocalKey = sourceLocalKey.normalizedSourceLocalKey(),
             displayPath = displayPath,
-            displayName = displayName,
-            audioSource = audioSource,
-            metadataAudioSource = metadataAudioSource,
-            cleanupMetadataAudioSource = cleanupMetadataAudioSource,
-            sizeBytes = sizeBytes,
-            modifiedAtEpochMillis = modifiedAtEpochMillis,
-        ),
-    )
-} else {
-    PlatformScanEvent.Skipped(
-        sourceLocalKey = sourceLocalKey.normalizedSourceLocalKey(),
-        displayPath = displayPath,
-        reason = "Unsupported audio type",
-        recoverable = false,
-    )
-}
+            reason = "Unsupported audio type",
+            recoverable = false,
+        )
+    }
 
-fun sourceLocalKey(vararg pathSegments: String): String = pathSegments
-    .asList()
-    .sourceLocalKey()
+fun sourceLocalKey(vararg pathSegments: String): String =
+    pathSegments.asList().sourceLocalKey()
 
-fun Iterable<String>.sourceLocalKey(): String = joinToString("/") { segment ->
-    segment.trim().trim('/').trim('\\')
-}.normalizedSourceLocalKey()
+fun Iterable<String>.sourceLocalKey(): String =
+    joinToString("/") { segment ->
+            segment.trim().trim('/').trim('\\')
+        }
+        .normalizedSourceLocalKey()
 
-fun String.normalizedSourceLocalKey(): String = replace('\\', '/')
-    .split('/')
-    .filter { it.isNotBlank() }
-    .joinToString("/")
+fun String.normalizedSourceLocalKey(): String =
+    replace('\\', '/').split('/').filter { it.isNotBlank() }.joinToString("/")
 
 expect fun createPlatformSourceAccess(): PlatformSourceAccess

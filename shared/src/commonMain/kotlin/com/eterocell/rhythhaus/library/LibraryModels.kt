@@ -3,9 +3,25 @@ package com.eterocell.rhythhaus.library
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.PlayableTrack
 
-enum class LibraryPlatformKind { AndroidSafTree, JvmFolder, IosAppLocal }
-enum class LibrarySourceAccessStatus { Available, LostAccess }
-enum class ScanStatus { Idle, Scanning, Cancelling, Completed, Cancelled, Failed }
+enum class LibraryPlatformKind {
+    AndroidSafTree,
+    JvmFolder,
+    IosAppLocal
+}
+
+enum class LibrarySourceAccessStatus {
+    Available,
+    LostAccess
+}
+
+enum class ScanStatus {
+    Idle,
+    Scanning,
+    Cancelling,
+    Completed,
+    Cancelled,
+    Failed
+}
 
 data class LibrarySource(
     val id: String,
@@ -14,7 +30,8 @@ data class LibrarySource(
     val handle: String,
     val createdAtEpochMillis: Long,
     val lastScanAtEpochMillis: Long? = null,
-    val accessStatus: LibrarySourceAccessStatus = LibrarySourceAccessStatus.Available,
+    val accessStatus: LibrarySourceAccessStatus =
+        LibrarySourceAccessStatus.Available,
 )
 
 data class LibraryTrack(
@@ -37,28 +54,37 @@ data class LibraryTrack(
     val artworkBytes: ByteArray? = null,
     val artworkMimeType: String? = null,
 ) {
-    fun toPlayableTrack(): PlayableTrack = PlayableTrack(
-        id = id,
-        title = title,
-        artist = artist,
-        album = album,
-        durationMillis = durationMillis,
-        source = audioSource,
-        artworkBytes = artworkBytes,
-    )
+    fun toPlayableTrack(): PlayableTrack =
+        PlayableTrack(
+            id = id,
+            title = title,
+            artist = artist,
+            album = album,
+            durationMillis = durationMillis,
+            source = audioSource,
+            artworkBytes = artworkBytes,
+        )
 
-    override fun equals(other: Any?): Boolean = other is LibraryTrack &&
-        id == other.id && sourceId == other.sourceId && sourceLocalKey == other.sourceLocalKey &&
-        audioSource == other.audioSource && displayName == other.displayName &&
-        title == other.title && artist == other.artist && album == other.album &&
-        durationMillis == other.durationMillis && sizeBytes == other.sizeBytes &&
-        modifiedAtEpochMillis == other.modifiedAtEpochMillis &&
-        lastSeenScanId == other.lastSeenScanId &&
-        createdAtEpochMillis == other.createdAtEpochMillis &&
-        updatedAtEpochMillis == other.updatedAtEpochMillis &&
-        trackNumber == other.trackNumber && discNumber == other.discNumber &&
-        artworkMimeType == other.artworkMimeType &&
-        artworkBytes.contentEquals(other.artworkBytes)
+    override fun equals(other: Any?): Boolean =
+        other is LibraryTrack &&
+            id == other.id &&
+            sourceId == other.sourceId &&
+            sourceLocalKey == other.sourceLocalKey &&
+            audioSource == other.audioSource &&
+            displayName == other.displayName &&
+            title == other.title &&
+            artist == other.artist &&
+            album == other.album &&
+            durationMillis == other.durationMillis &&
+            sizeBytes == other.sizeBytes &&
+            modifiedAtEpochMillis == other.modifiedAtEpochMillis &&
+            lastSeenScanId == other.lastSeenScanId &&
+            createdAtEpochMillis == other.createdAtEpochMillis &&
+            updatedAtEpochMillis == other.updatedAtEpochMillis &&
+            trackNumber == other.trackNumber &&
+            discNumber == other.discNumber &&
+            artworkMimeType == other.artworkMimeType &&
+            artworkBytes.contentEquals(other.artworkBytes)
 
     override fun hashCode(): Int {
         var result = id.hashCode()
@@ -87,9 +113,10 @@ data class TrackArtwork(
     val bytes: ByteArray,
     val mimeType: String?,
 ) {
-    override fun equals(other: Any?): Boolean = other is TrackArtwork &&
-        mimeType == other.mimeType &&
-        bytes.contentEquals(other.bytes)
+    override fun equals(other: Any?): Boolean =
+        other is TrackArtwork &&
+            mimeType == other.mimeType &&
+            bytes.contentEquals(other.bytes)
 
     override fun hashCode(): Int {
         var result = bytes.contentHashCode()
@@ -128,7 +155,8 @@ data class ScanProgress(
     val session: ScanSession? = null,
     val latestItem: String? = null,
 ) {
-    val isActive: Boolean = session?.status in setOf(ScanStatus.Scanning, ScanStatus.Cancelling)
+    val isActive: Boolean =
+        session?.status in setOf(ScanStatus.Scanning, ScanStatus.Cancelling)
 }
 
 data class ScanError(

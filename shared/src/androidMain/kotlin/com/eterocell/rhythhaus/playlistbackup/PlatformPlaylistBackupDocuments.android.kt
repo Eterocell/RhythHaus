@@ -1,6 +1,5 @@
 package com.eterocell.rhythhaus.playlistbackup
 
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -25,12 +24,21 @@ actual fun rememberPlatformPlaylistBackupDocumentLauncher(
             onOpenResult = { currentOpenResult.value(it) },
         )
     }
-    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(PlaylistBackupMimeType)) { uri ->
-        coordinator.completeSave(uri) { selected, _ -> context.contentResolver.openOutputStream(selected, "wt") }
-    }
-    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        coordinator.completeOpen(uri) { selected -> context.contentResolver.openInputStream(selected) }
-    }
+    val saveLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument(PlaylistBackupMimeType)) {
+                uri ->
+                coordinator.completeSave(uri) { selected, _ ->
+                    context.contentResolver.openOutputStream(selected, "wt")
+                }
+            }
+    val openLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenDocument()) { uri ->
+                coordinator.completeOpen(uri) { selected ->
+                    context.contentResolver.openInputStream(selected)
+                }
+            }
 
     return remember(saveLauncher, openLauncher) {
         object : PlatformPlaylistBackupDocumentLauncher {
@@ -38,13 +46,16 @@ actual fun rememberPlatformPlaylistBackupDocumentLauncher(
 
             override fun save(suggestedFileName: String, bytes: ByteArray) {
                 coordinator.launchSave(bytes) {
-                    saveLauncher.launch(playlistBackupFileName(suggestedFileName))
+                    saveLauncher.launch(
+                        playlistBackupFileName(suggestedFileName))
                 }
             }
 
             override fun open() {
                 coordinator.launchOpen {
-                    openLauncher.launch(arrayOf(PlaylistBackupMimeType, PlaylistBackupJsonMimeType))
+                    openLauncher.launch(
+                        arrayOf(
+                            PlaylistBackupMimeType, PlaylistBackupJsonMimeType))
                 }
             }
         }
@@ -60,12 +71,15 @@ internal class AndroidPlaylistBackupDocumentCoordinator(
 
     val isActive: Boolean
         get() = operationGate.isActive
+
     val hasPendingSavePayload: Boolean
         get() = pendingSaveBytes != null
 
     fun launchSave(bytes: ByteArray, launch: () -> Unit) {
         if (!operationGate.tryStart()) {
-            onSaveResult(PlaylistBackupDocumentSaveResult.Unavailable("Another document operation is active"))
+            onSaveResult(
+                PlaylistBackupDocumentSaveResult.Unavailable(
+                    "Another document operation is active"))
             return
         }
         pendingSaveBytes = bytes
@@ -74,20 +88,28 @@ internal class AndroidPlaylistBackupDocumentCoordinator(
         } catch (exception: Exception) {
             pendingSaveBytes = null
             operationGate.finish()
-            onSaveResult(PlaylistBackupDocumentSaveResult.Failure(exception.message ?: "Could not present save document panel"))
+            onSaveResult(
+                PlaylistBackupDocumentSaveResult.Failure(
+                    exception.message
+                        ?: "Could not present save document panel"))
         }
     }
 
     fun launchOpen(launch: () -> Unit) {
         if (!operationGate.tryStart()) {
-            onOpenResult(PlaylistBackupDocumentOpenResult.Unavailable("Another document operation is active"))
+            onOpenResult(
+                PlaylistBackupDocumentOpenResult.Unavailable(
+                    "Another document operation is active"))
             return
         }
         try {
             launch()
         } catch (exception: Exception) {
             operationGate.finish()
-            onOpenResult(PlaylistBackupDocumentOpenResult.Failure(exception.message ?: "Could not present open document panel"))
+            onOpenResult(
+                PlaylistBackupDocumentOpenResult.Failure(
+                    exception.message
+                        ?: "Could not present open document panel"))
         }
     }
 
@@ -97,9 +119,12 @@ internal class AndroidPlaylistBackupDocumentCoordinator(
         operationGate.finish()
         onSaveResult(
             if (bytes == null) {
-                PlaylistBackupDocumentSaveResult.Failure("No playlist backup payload was pending")
+                PlaylistBackupDocumentSaveResult.Failure(
+                    "No playlist backup payload was pending")
             } else {
-                saveAndroidPlaylistBackupDocument(uri, bytes) { selected -> openOutput(selected, bytes) }
+                saveAndroidPlaylistBackupDocument(uri, bytes) { selected ->
+                    openOutput(selected, bytes)
+                }
             },
         )
     }
@@ -117,11 +142,15 @@ internal fun <T> saveAndroidPlaylistBackupDocument(
 ): PlaylistBackupDocumentSaveResult {
     if (uri == null) return PlaylistBackupDocumentSaveResult.Cancelled
     return try {
-        val output = openOutput(uri) ?: return PlaylistBackupDocumentSaveResult.Unavailable("Selected document cannot be written")
+        val output =
+            openOutput(uri)
+                ?: return PlaylistBackupDocumentSaveResult.Unavailable(
+                    "Selected document cannot be written")
         output.use { it.write(bytes) }
         PlaylistBackupDocumentSaveResult.Success
     } catch (exception: Exception) {
-        PlaylistBackupDocumentSaveResult.Failure(exception.message ?: "Could not save playlist backup")
+        PlaylistBackupDocumentSaveResult.Failure(
+            exception.message ?: "Could not save playlist backup")
     }
 }
 
@@ -131,7 +160,10 @@ internal fun <T> openAndroidPlaylistBackupDocument(
 ): PlaylistBackupDocumentOpenResult {
     if (uri == null) return PlaylistBackupDocumentOpenResult.Cancelled
     return try {
-        val input = openInput(uri) ?: return PlaylistBackupDocumentOpenResult.Unavailable("Selected document cannot be read")
+        val input =
+            openInput(uri)
+                ?: return PlaylistBackupDocumentOpenResult.Unavailable(
+                    "Selected document cannot be read")
         val bytes = input.use(::readAndroidPlaylistBackupBounded)
         if (bytes.size > PlaylistBackupMaxBytes) {
             PlaylistBackupDocumentOpenResult.TooLarge(PlaylistBackupMaxBytes)
@@ -139,7 +171,8 @@ internal fun <T> openAndroidPlaylistBackupDocument(
             PlaylistBackupDocumentOpenResult.Success(bytes)
         }
     } catch (exception: Exception) {
-        PlaylistBackupDocumentOpenResult.Failure(exception.message ?: "Could not open playlist backup")
+        PlaylistBackupDocumentOpenResult.Failure(
+            exception.message ?: "Could not open playlist backup")
     }
 }
 

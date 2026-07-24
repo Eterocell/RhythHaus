@@ -17,29 +17,40 @@ class LibraryAppState(
     private var browseModeState by mutableStateOf(BrowseMode.Albums)
     val browseMode: BrowseMode
         get() = browseModeState
+
     var showNowPlaying by mutableStateOf(false)
         private set
+
     var isNowPlayingBarVisible by mutableStateOf(true)
         private set
+
     var navigation by mutableStateOf(LibraryNavigationStack())
         private set
-    var lastNavigationTransition by mutableStateOf(LibraryNavigationTransition.None)
+
+    var lastNavigationTransition by
+        mutableStateOf(LibraryNavigationTransition.None)
         private set
-    private var bottomBarVisibilityState by mutableStateOf(LibraryBottomBarVisibilityState())
+
+    private var bottomBarVisibilityState by
+        mutableStateOf(LibraryBottomBarVisibilityState())
 
     fun setSelectedTrackId(trackId: String?) {
         selectedTrackIdState = trackId
     }
 
     fun syncSelectedTrackWithPlayback(playbackTrackId: String?) {
-        selectedTrackIdState = selectedTrackIdForPlaybackChange(selectedTrackId, playbackTrackId)
+        selectedTrackIdState =
+            selectedTrackIdForPlaybackChange(selectedTrackId, playbackTrackId)
     }
 
     fun setBrowseMode(mode: BrowseMode) {
         browseModeState = mode
     }
 
-    fun recoverStalePlaylistDetail(message: String, showMessage: (String) -> Unit) {
+    fun recoverStalePlaylistDetail(
+        message: String,
+        showMessage: (String) -> Unit
+    ) {
         showMessage(message)
         replaceTopRoute(LibraryRoute.PlaylistHub)
     }
@@ -68,8 +79,12 @@ class LibraryAppState(
         applyNavigation(LibraryNavigationAction.PopToRoot)
     }
 
-    fun openDetailRoute(route: LibraryRoute, adaptiveLayoutMode: LibraryAdaptiveLayoutMode) {
-        if (shouldReplaceWideDetailRoute(adaptiveLayoutMode, navigation.current, route)) {
+    fun openDetailRoute(
+        route: LibraryRoute,
+        adaptiveLayoutMode: LibraryAdaptiveLayoutMode
+    ) {
+        if (shouldReplaceWideDetailRoute(
+            adaptiveLayoutMode, navigation.current, route)) {
             replaceTopRoute(route)
         } else {
             pushRoute(route)
@@ -81,13 +96,18 @@ class LibraryAppState(
         navigation = next
     }
 
-    fun updateNowPlayingBarVisibilityForScroll(currentPosition: LibraryScrollPosition) {
-        bottomBarVisibilityState = updateBottomBarVisibilityForScroll(bottomBarVisibilityState, currentPosition)
+    fun updateNowPlayingBarVisibilityForScroll(
+        currentPosition: LibraryScrollPosition
+    ) {
+        bottomBarVisibilityState =
+            updateBottomBarVisibilityForScroll(
+                bottomBarVisibilityState, currentPosition)
         isNowPlayingBarVisible = bottomBarVisibilityState.visible
     }
 
     private fun applyNavigation(action: LibraryNavigationAction) {
-        lastNavigationTransition = transitionForNavigationAction(navigation, action)
+        lastNavigationTransition =
+            transitionForNavigationAction(navigation, action)
         navigation = applyNavigationAction(navigation, action)
     }
 }
@@ -95,6 +115,7 @@ class LibraryAppState(
 @Composable
 fun rememberLibraryAppState(
     snapshot: LibrarySnapshot,
-): LibraryAppState = remember(snapshot.nowPlayingTrackId) {
-    LibraryAppState(initialSelectedTrackId = snapshot.nowPlayingTrackId)
-}
+): LibraryAppState =
+    remember(snapshot.nowPlayingTrackId) {
+        LibraryAppState(initialSelectedTrackId = snapshot.nowPlayingTrackId)
+    }

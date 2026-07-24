@@ -8,19 +8,21 @@ import kotlin.test.assertTrue
 class RhythHausTagLibTest {
     @Test
     fun readPathDelegatesToReader() {
-        val expected = TagReadResult.Found(
-            TagMetadata(
-                title = "Maple Garden",
-                artist = "RhythHaus",
-                durationMillis = 123_000,
-                bitrate = 320,
-                sampleRate = 44_100,
-                channels = 2,
-            ),
-        )
+        val expected =
+            TagReadResult.Found(
+                TagMetadata(
+                    title = "Maple Garden",
+                    artist = "RhythHaus",
+                    durationMillis = 123_000,
+                    bitrate = 320,
+                    sampleRate = 44_100,
+                    channels = 2,
+                ),
+            )
         val reader = RecordingReader(expected)
 
-        val result = RhythHausTagLib.readPath("/music/maple-garden.flac", reader)
+        val result =
+            RhythHausTagLib.readPath("/music/maple-garden.flac", reader)
 
         assertSame(expected, result)
         assertEquals(listOf("/music/maple-garden.flac"), reader.paths)
@@ -28,7 +30,8 @@ class RhythHausTagLibTest {
 
     @Test
     fun unsupportedPathResultIsPublicModel() {
-        val result: TagReadResult = TagReadResult.Unsupported("Native TagLib reader is not linked yet")
+        val result: TagReadResult =
+            TagReadResult.Unsupported("Native TagLib reader is not linked yet")
 
         assertTrue(result is TagReadResult.Unsupported)
         assertEquals("Native TagLib reader is not linked yet", result.reason)
@@ -44,6 +47,7 @@ class RhythHausTagLibTest {
             return result
         }
 
-        override fun readProperties(path: String): Map<String, String> = emptyMap()
+        override fun readProperties(path: String): Map<String, String> =
+            emptyMap()
     }
 }

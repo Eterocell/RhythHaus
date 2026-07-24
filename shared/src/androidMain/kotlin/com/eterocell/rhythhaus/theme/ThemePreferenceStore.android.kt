@@ -4,16 +4,19 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.eterocell.rhythhaus.library.LibraryDatabaseContext
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import okio.Path.Companion.toOkioPath
-import java.io.File
 
 private const val ThemePreferenceFileName = "theme.preferences_pb"
 
 private val themeDataStore by lazy {
-    val file = File(LibraryDatabaseContext.applicationContext.filesDir, ThemePreferenceFileName)
+    val file =
+        File(
+            LibraryDatabaseContext.applicationContext.filesDir,
+            ThemePreferenceFileName)
     PreferenceDataStoreFactory.createWithPath(
         corruptionHandler = null,
         migrations = emptyList(),
@@ -22,7 +25,7 @@ private val themeDataStore by lazy {
     )
 }
 
-actual fun createThemePreferenceStore(): ThemePreferenceStore = DataStoreThemePreferenceStore(themeDataStore)
+actual fun createThemePreferenceStore(): ThemePreferenceStore =
+    DataStoreThemePreferenceStore(themeDataStore)
 
-@Composable
-actual fun systemPrefersDarkTheme(): Boolean = isSystemInDarkTheme()
+@Composable actual fun systemPrefersDarkTheme(): Boolean = isSystemInDarkTheme()

@@ -60,19 +60,20 @@ class LibraryNavigationTest {
 
     @Test
     fun duplicateTopPushIsNoOp() {
-        val stack = LibraryNavigationStack()
-            .push(LibraryRoute.Search)
-            .push(LibraryRoute.Search)
+        val stack =
+            LibraryNavigationStack()
+                .push(LibraryRoute.Search)
+                .push(LibraryRoute.Search)
 
-        assertEquals(listOf(LibraryRoute.Home, LibraryRoute.Search), stack.routes)
+        assertEquals(
+            listOf(LibraryRoute.Home, LibraryRoute.Search), stack.routes)
     }
 
     @Test
     fun searchOpenedFromAlbumReturnsToAlbum() {
         val album = LibraryRoute.AlbumDetail("Blue Train")
-        val stack = LibraryNavigationStack()
-            .push(album)
-            .push(LibraryRoute.Search)
+        val stack =
+            LibraryNavigationStack().push(album).push(LibraryRoute.Search)
 
         assertEquals(LibraryRoute.Search, stack.current)
         assertTrue(stack.canPop)
@@ -83,9 +84,8 @@ class LibraryNavigationTest {
     @Test
     fun nowPlayingOpenedFromArtistReturnsToArtist() {
         val artist = LibraryRoute.ArtistDetail("John Coltrane")
-        val stack = LibraryNavigationStack()
-            .push(artist)
-            .push(LibraryRoute.NowPlaying)
+        val stack =
+            LibraryNavigationStack().push(artist).push(LibraryRoute.NowPlaying)
 
         assertEquals(LibraryRoute.NowPlaying, stack.current)
         assertEquals(artist, stack.pop().current)
@@ -93,9 +93,10 @@ class LibraryNavigationTest {
 
     @Test
     fun clearDialogPopsBackToSettingsOrigin() {
-        val stack = LibraryNavigationStack()
-            .push(LibraryRoute.Settings)
-            .push(LibraryRoute.ClearLibraryDialog)
+        val stack =
+            LibraryNavigationStack()
+                .push(LibraryRoute.Settings)
+                .push(LibraryRoute.ClearLibraryDialog)
 
         assertEquals(LibraryRoute.ClearLibraryDialog, stack.current)
         assertEquals(LibraryRoute.Settings, stack.pop().current)
@@ -103,10 +104,11 @@ class LibraryNavigationTest {
 
     @Test
     fun settingsAboutAndLibrariesPopBackThroughSettingsToHome() {
-        val stack = LibraryNavigationStack()
-            .push(LibraryRoute.Settings)
-            .push(LibraryRoute.SettingsAbout)
-            .push(LibraryRoute.OpenSourceLibraries)
+        val stack =
+            LibraryNavigationStack()
+                .push(LibraryRoute.Settings)
+                .push(LibraryRoute.SettingsAbout)
+                .push(LibraryRoute.OpenSourceLibraries)
 
         assertEquals(LibraryRoute.OpenSourceLibraries, stack.current)
         assertEquals(LibraryRoute.SettingsAbout, stack.pop().current)
@@ -116,9 +118,10 @@ class LibraryNavigationTest {
 
     @Test
     fun playlistHubAndKeyedDetailUseTypedStackRoutes() {
-        val stack = LibraryNavigationStack()
-            .push(LibraryRoute.PlaylistHub)
-            .push(LibraryRoute.PlaylistDetail("playlist-1"))
+        val stack =
+            LibraryNavigationStack()
+                .push(LibraryRoute.PlaylistHub)
+                .push(LibraryRoute.PlaylistDetail("playlist-1"))
 
         assertEquals(LibraryRoute.PlaylistDetail("playlist-1"), stack.current)
         assertEquals(LibraryRoute.PlaylistHub, stack.pop().current)
@@ -128,27 +131,36 @@ class LibraryNavigationTest {
     @Test
     fun playlistRoutesPreserveNowPlayingBarPolicy() {
         assertTrue(routePermitsNowPlayingBar(LibraryRoute.PlaylistHub))
-        assertTrue(routePermitsNowPlayingBar(LibraryRoute.PlaylistDetail("playlist-1")))
+        assertTrue(
+            routePermitsNowPlayingBar(
+                LibraryRoute.PlaylistDetail("playlist-1")))
     }
 
     @Test
     fun playlistRoutesUseContentOwnershipInsteadOfSettingsOverlayOwnership() {
         LibraryAdaptiveLayoutMode.entries.forEach { mode ->
-            assertFalse(libraryRouteRendersAsActiveOverlay(LibraryRoute.PlaylistHub, mode))
-            assertFalse(libraryRouteRendersAsActiveOverlay(LibraryRoute.PlaylistDetail("playlist-1"), mode))
+            assertFalse(
+                libraryRouteRendersAsActiveOverlay(
+                    LibraryRoute.PlaylistHub, mode))
+            assertFalse(
+                libraryRouteRendersAsActiveOverlay(
+                    LibraryRoute.PlaylistDetail("playlist-1"), mode))
         }
     }
 
     @Test
     fun settingsAboutRoutesUseActiveOverlayOwnershipInCompactAndWideLayouts() {
-        val routes = listOf(
-            LibraryRoute.SettingsAbout,
-            LibraryRoute.OpenSourceLibraries,
-        )
+        val routes =
+            listOf(
+                LibraryRoute.SettingsAbout,
+                LibraryRoute.OpenSourceLibraries,
+            )
 
         LibraryAdaptiveLayoutMode.entries.forEach { mode ->
             routes.forEach { route ->
-                assertTrue(libraryRouteRendersAsActiveOverlay(route = route, mode = mode))
+                assertTrue(
+                    libraryRouteRendersAsActiveOverlay(
+                        route = route, mode = mode))
             }
         }
 
@@ -162,13 +174,17 @@ class LibraryNavigationTest {
 
     @Test
     fun clearDialogDoesNotUseRouteContentAnimation() {
-        val stack = LibraryNavigationStack()
-            .push(LibraryRoute.Settings)
-            .push(LibraryRoute.ClearLibraryDialog)
+        val stack =
+            LibraryNavigationStack()
+                .push(LibraryRoute.Settings)
+                .push(LibraryRoute.ClearLibraryDialog)
 
         assertEquals(LibraryRoute.ClearLibraryDialog, stack.current)
-        assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.ClearLibraryDialog))
-        assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.Settings))
+        assertFalse(
+            routeRequiresInWindowContentAnimation(
+                LibraryRoute.ClearLibraryDialog))
+        assertFalse(
+            routeRequiresInWindowContentAnimation(LibraryRoute.Settings))
         assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.Search))
         assertFalse(routeRequiresInWindowContentAnimation(LibraryRoute.Home))
     }
@@ -255,10 +271,11 @@ class LibraryNavigationTest {
 
     @Test
     fun pushingHomeReturnsToRoot() {
-        val stack = LibraryNavigationStack()
-            .push(LibraryRoute.AlbumDetail("A"))
-            .push(LibraryRoute.Search)
-            .push(LibraryRoute.Home)
+        val stack =
+            LibraryNavigationStack()
+                .push(LibraryRoute.AlbumDetail("A"))
+                .push(LibraryRoute.Search)
+                .push(LibraryRoute.Home)
 
         assertEquals(listOf(LibraryRoute.Home), stack.routes)
         assertEquals(LibraryRoute.Home, stack.current)
@@ -269,51 +286,65 @@ class LibraryNavigationTest {
         val from = LibraryNavigationStack()
         val to = from.push(LibraryRoute.AlbumDetail("Blue Train"))
 
-        assertEquals(LibraryNavigationTransition.Push, classifyNavigationTransition(from, to))
+        assertEquals(
+            LibraryNavigationTransition.Push,
+            classifyNavigationTransition(from, to))
     }
 
     @Test
     fun poppingNestedRouteClassifiesAsPop() {
-        val from = LibraryNavigationStack()
-            .push(LibraryRoute.AlbumDetail("Blue Train"))
-            .push(LibraryRoute.Search)
+        val from =
+            LibraryNavigationStack()
+                .push(LibraryRoute.AlbumDetail("Blue Train"))
+                .push(LibraryRoute.Search)
         val to = from.pop()
 
-        assertEquals(LibraryNavigationTransition.Pop, classifyNavigationTransition(from, to))
+        assertEquals(
+            LibraryNavigationTransition.Pop,
+            classifyNavigationTransition(from, to))
     }
 
     @Test
     fun pushingHomeClassifiesAsRoot() {
-        val from = LibraryNavigationStack()
-            .push(LibraryRoute.AlbumDetail("Blue Train"))
-            .push(LibraryRoute.Search)
+        val from =
+            LibraryNavigationStack()
+                .push(LibraryRoute.AlbumDetail("Blue Train"))
+                .push(LibraryRoute.Search)
         val to = from.push(LibraryRoute.Home)
 
-        assertEquals(LibraryNavigationTransition.Root, classifyNavigationTransition(from, to))
+        assertEquals(
+            LibraryNavigationTransition.Root,
+            classifyNavigationTransition(from, to))
     }
 
     @Test
     fun replacingTopRouteClassifiesAsReplace() {
-        val from = LibraryNavigationStack()
-            .push(LibraryRoute.Search)
+        val from = LibraryNavigationStack().push(LibraryRoute.Search)
         val to = from.replaceTop(LibraryRoute.Settings)
 
-        assertEquals(LibraryNavigationTransition.Replace, classifyNavigationTransition(from, to))
+        assertEquals(
+            LibraryNavigationTransition.Replace,
+            classifyNavigationTransition(from, to))
     }
 
     @Test
     fun duplicateTopPushClassifiesAsNone() {
-        val from = LibraryNavigationStack()
-            .push(LibraryRoute.Search)
+        val from = LibraryNavigationStack().push(LibraryRoute.Search)
         val to = from.push(LibraryRoute.Search)
 
-        assertEquals(LibraryNavigationTransition.None, classifyNavigationTransition(from, to))
+        assertEquals(
+            LibraryNavigationTransition.None,
+            classifyNavigationTransition(from, to))
     }
 
     @Test
     fun libraryScrollDownWithinSameItemHidesNowPlayingBar() {
-        val previous = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10)
-        val current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30)
+        val previous =
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10)
+        val current =
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30)
 
         assertFalse(
             decideNowPlayingBarVisibilityForLibraryScroll(
@@ -326,8 +357,12 @@ class LibraryNavigationTest {
 
     @Test
     fun libraryScrollUpWithinSameItemShowsNowPlayingBar() {
-        val previous = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30)
-        val current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10)
+        val previous =
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30)
+        val current =
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10)
 
         assertTrue(
             decideNowPlayingBarVisibilityForLibraryScroll(
@@ -340,8 +375,12 @@ class LibraryNavigationTest {
 
     @Test
     fun libraryScrollDownAcrossItemBoundaryHidesNowPlayingBar() {
-        val previous = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 120)
-        val current = LibraryScrollPosition(firstVisibleItemIndex = 1, firstVisibleItemScrollOffset = 0)
+        val previous =
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 120)
+        val current =
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 1, firstVisibleItemScrollOffset = 0)
 
         assertFalse(
             decideNowPlayingBarVisibilityForLibraryScroll(
@@ -354,8 +393,12 @@ class LibraryNavigationTest {
 
     @Test
     fun libraryScrollUpAcrossItemBoundaryShowsNowPlayingBar() {
-        val previous = LibraryScrollPosition(firstVisibleItemIndex = 1, firstVisibleItemScrollOffset = 0)
-        val current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 120)
+        val previous =
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 1, firstVisibleItemScrollOffset = 0)
+        val current =
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 120)
 
         assertTrue(
             decideNowPlayingBarVisibilityForLibraryScroll(
@@ -368,8 +411,12 @@ class LibraryNavigationTest {
 
     @Test
     fun libraryScrollJitterKeepsCurrentNowPlayingBarVisibility() {
-        val previous = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30)
-        val current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 31)
+        val previous =
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30)
+        val current =
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 31)
 
         assertTrue(
             decideNowPlayingBarVisibilityForLibraryScroll(
@@ -431,23 +478,40 @@ class LibraryNavigationTest {
     @Test
     fun navigationActionsApplyExistingStackSemantics() {
         val album = LibraryRoute.AlbumDetail("Blue Train")
-        val pushed = applyNavigationAction(LibraryNavigationStack(), LibraryNavigationAction.Push(album))
+        val pushed =
+            applyNavigationAction(
+                LibraryNavigationStack(), LibraryNavigationAction.Push(album))
         assertEquals(listOf(LibraryRoute.Home, album), pushed.routes)
 
-        val replaced = applyNavigationAction(pushed, LibraryNavigationAction.ReplaceTop(LibraryRoute.ArtistDetail("Alice")))
-        assertEquals(listOf(LibraryRoute.Home, LibraryRoute.ArtistDetail("Alice")), replaced.routes)
+        val replaced =
+            applyNavigationAction(
+                pushed,
+                LibraryNavigationAction.ReplaceTop(
+                    LibraryRoute.ArtistDetail("Alice")))
+        assertEquals(
+            listOf(LibraryRoute.Home, LibraryRoute.ArtistDetail("Alice")),
+            replaced.routes)
 
-        assertEquals(LibraryRoute.Home, applyNavigationAction(replaced, LibraryNavigationAction.Pop).current)
-        assertEquals(listOf(LibraryRoute.Home), applyNavigationAction(replaced, LibraryNavigationAction.PopToRoot).routes)
+        assertEquals(
+            LibraryRoute.Home,
+            applyNavigationAction(replaced, LibraryNavigationAction.Pop)
+                .current)
+        assertEquals(
+            listOf(LibraryRoute.Home),
+            applyNavigationAction(replaced, LibraryNavigationAction.PopToRoot)
+                .routes)
     }
 
     @Test
     fun navigationActionTransitionMatchesStackChange() {
-        val from = LibraryNavigationStack().push(LibraryRoute.AlbumDetail("Blue Train"))
+        val from =
+            LibraryNavigationStack()
+                .push(LibraryRoute.AlbumDetail("Blue Train"))
 
         assertEquals(
             LibraryNavigationTransition.Push,
-            transitionForNavigationAction(from, LibraryNavigationAction.Push(LibraryRoute.Search)),
+            transitionForNavigationAction(
+                from, LibraryNavigationAction.Push(LibraryRoute.Search)),
         )
         assertEquals(
             LibraryNavigationTransition.Pop,
@@ -455,45 +519,69 @@ class LibraryNavigationTest {
         )
         assertEquals(
             LibraryNavigationTransition.Replace,
-            transitionForNavigationAction(from, LibraryNavigationAction.ReplaceTop(LibraryRoute.ArtistDetail("Alice"))),
+            transitionForNavigationAction(
+                from,
+                LibraryNavigationAction.ReplaceTop(
+                    LibraryRoute.ArtistDetail("Alice"))),
         )
         assertEquals(
             LibraryNavigationTransition.Root,
-            transitionForNavigationAction(from, LibraryNavigationAction.PopToRoot),
+            transitionForNavigationAction(
+                from, LibraryNavigationAction.PopToRoot),
         )
         assertEquals(
             LibraryNavigationTransition.None,
-            transitionForNavigationAction(LibraryNavigationStack(), LibraryNavigationAction.Pop),
+            transitionForNavigationAction(
+                LibraryNavigationStack(), LibraryNavigationAction.Pop),
         )
         assertEquals(
             LibraryNavigationTransition.None,
-            transitionForNavigationAction(LibraryNavigationStack(), LibraryNavigationAction.PopToRoot),
+            transitionForNavigationAction(
+                LibraryNavigationStack(), LibraryNavigationAction.PopToRoot),
         )
     }
 
     @Test
     fun playbackTrackSelectionOverridesOnlyWhenPlaybackHasTrack() {
-        assertEquals("playing", selectedTrackIdForPlaybackChange("selected", "playing"))
-        assertEquals("selected", selectedTrackIdForPlaybackChange("selected", null))
+        assertEquals(
+            "playing", selectedTrackIdForPlaybackChange("selected", "playing"))
+        assertEquals(
+            "selected", selectedTrackIdForPlaybackChange("selected", null))
         assertEquals(null, selectedTrackIdForPlaybackChange(null, null))
     }
 
     @Test
     fun bottomBarVisibilityStateStoresPreviousScrollPosition() {
-        val initial = LibraryBottomBarVisibilityState(visible = true, previousScrollPosition = null)
-        val first = updateBottomBarVisibilityForScroll(
-            state = initial,
-            current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10),
-        )
+        val initial =
+            LibraryBottomBarVisibilityState(
+                visible = true, previousScrollPosition = null)
+        val first =
+            updateBottomBarVisibilityForScroll(
+                state = initial,
+                current =
+                    LibraryScrollPosition(
+                        firstVisibleItemIndex = 0,
+                        firstVisibleItemScrollOffset = 10),
+            )
         assertTrue(first.visible)
-        assertEquals(LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10), first.previousScrollPosition)
+        assertEquals(
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 10),
+            first.previousScrollPosition)
 
-        val second = updateBottomBarVisibilityForScroll(
-            state = first,
-            current = LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30),
-        )
+        val second =
+            updateBottomBarVisibilityForScroll(
+                state = first,
+                current =
+                    LibraryScrollPosition(
+                        firstVisibleItemIndex = 0,
+                        firstVisibleItemScrollOffset = 30),
+            )
         assertFalse(second.visible)
-        assertEquals(LibraryScrollPosition(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30), second.previousScrollPosition)
+        assertEquals(
+            LibraryScrollPosition(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 30),
+            second.previousScrollPosition)
     }
 
     @Test
@@ -502,15 +590,18 @@ class LibraryNavigationTest {
 
         state.pushRoute(LibraryRoute.AlbumDetail("A"))
         assertEquals(LibraryRoute.AlbumDetail("A"), state.navigation.current)
-        assertEquals(LibraryNavigationTransition.Push, state.lastNavigationTransition)
+        assertEquals(
+            LibraryNavigationTransition.Push, state.lastNavigationTransition)
 
         state.replaceTopRoute(LibraryRoute.ArtistDetail("B"))
         assertEquals(LibraryRoute.ArtistDetail("B"), state.navigation.current)
-        assertEquals(LibraryNavigationTransition.Replace, state.lastNavigationTransition)
+        assertEquals(
+            LibraryNavigationTransition.Replace, state.lastNavigationTransition)
 
         state.popRoute()
         assertEquals(LibraryRoute.Home, state.navigation.current)
-        assertEquals(LibraryNavigationTransition.Pop, state.lastNavigationTransition)
+        assertEquals(
+            LibraryNavigationTransition.Pop, state.lastNavigationTransition)
     }
 
     @Test
@@ -523,7 +614,8 @@ class LibraryNavigationTest {
         state.recoverStalePlaylistDetail("playlist_changed") { message = it }
 
         assertEquals(LibraryRoute.PlaylistHub, state.navigation.current)
-        assertEquals(LibraryNavigationTransition.Replace, state.lastNavigationTransition)
+        assertEquals(
+            LibraryNavigationTransition.Replace, state.lastNavigationTransition)
         assertEquals("playlist_changed", message)
     }
 
@@ -539,9 +631,11 @@ class LibraryNavigationTest {
         state.hideNowPlaying()
         assertFalse(state.showNowPlaying)
 
-        state.updateNowPlayingBarVisibilityForScroll(LibraryScrollPosition(0, 10))
+        state.updateNowPlayingBarVisibilityForScroll(
+            LibraryScrollPosition(0, 10))
         assertTrue(state.isNowPlayingBarVisible)
-        state.updateNowPlayingBarVisibilityForScroll(LibraryScrollPosition(0, 30))
+        state.updateNowPlayingBarVisibilityForScroll(
+            LibraryScrollPosition(0, 30))
         assertFalse(state.isNowPlayingBarVisible)
     }
 
@@ -554,28 +648,39 @@ class LibraryNavigationTest {
 
     @Test
     fun otherRoutesPermitNowPlayingBar() {
-        val permittedRoutes = listOf(
-            LibraryRoute.Home,
-            LibraryRoute.AlbumDetail("Album"),
-            LibraryRoute.ArtistDetail("Artist"),
-            LibraryRoute.NowPlaying,
-            LibraryRoute.Search,
-            LibraryRoute.ClearLibraryDialog,
-            LibraryRoute.PlaylistHub,
-            LibraryRoute.PlaylistDetail("playlist-1"),
-        )
+        val permittedRoutes =
+            listOf(
+                LibraryRoute.Home,
+                LibraryRoute.AlbumDetail("Album"),
+                LibraryRoute.ArtistDetail("Artist"),
+                LibraryRoute.NowPlaying,
+                LibraryRoute.Search,
+                LibraryRoute.ClearLibraryDialog,
+                LibraryRoute.PlaylistHub,
+                LibraryRoute.PlaylistDetail("playlist-1"),
+            )
 
         permittedRoutes.forEach { route ->
-            assertTrue(routePermitsNowPlayingBar(route), "Expected $route to permit the bar")
+            assertTrue(
+                routePermitsNowPlayingBar(route),
+                "Expected $route to permit the bar")
         }
     }
 
     @Test
     fun routeEligibilityCombinesWithExistingVisibility() {
-        assertTrue(shouldShowNowPlayingBar(LibraryRoute.Home, existingVisibility = true))
-        assertFalse(shouldShowNowPlayingBar(LibraryRoute.Home, existingVisibility = false))
-        assertFalse(shouldShowNowPlayingBar(LibraryRoute.Settings, existingVisibility = true))
-        assertFalse(shouldShowNowPlayingBar(LibraryRoute.SettingsAbout, existingVisibility = true))
+        assertTrue(
+            shouldShowNowPlayingBar(
+                LibraryRoute.Home, existingVisibility = true))
+        assertFalse(
+            shouldShowNowPlayingBar(
+                LibraryRoute.Home, existingVisibility = false))
+        assertFalse(
+            shouldShowNowPlayingBar(
+                LibraryRoute.Settings, existingVisibility = true))
+        assertFalse(
+            shouldShowNowPlayingBar(
+                LibraryRoute.SettingsAbout, existingVisibility = true))
     }
 
     @Test
@@ -583,10 +688,11 @@ class LibraryNavigationTest {
         assertEquals(
             LibraryBackDecision.CancelSelection,
             libraryBackDecision(
-                selectionState = TrackSelectionState(
-                    TrackSelectionPageKey.Album("Night"),
-                    setOf("track-a"),
-                ),
+                selectionState =
+                    TrackSelectionState(
+                        TrackSelectionPageKey.Album("Night"),
+                        setOf("track-a"),
+                    ),
                 isNowPlayingExpanded = false,
                 canPopRoute = true,
             ),
@@ -603,17 +709,30 @@ class LibraryNavigationTest {
 
     @Test
     fun backDecisionUsesPlaylistModalEditSelectionNowPlayingAndRoutePrecedence() {
-        val selected = TrackSelectionState(
-            TrackSelectionPageKey.Album("Night"),
-            setOf("track-a"),
-        )
+        val selected =
+            TrackSelectionState(
+                TrackSelectionPageKey.Album("Night"),
+                setOf("track-a"),
+            )
         val emptySelection = TrackSelectionState()
-        assertEquals(LibraryBackDecision.DismissPlaylistModal, libraryBackDecision(true, true, selected, true, true))
-        assertEquals(LibraryBackDecision.ExitPlaylistEditMode, libraryBackDecision(false, true, selected, true, true))
-        assertEquals(LibraryBackDecision.CancelSelection, libraryBackDecision(false, false, selected, true, true))
-        assertEquals(LibraryBackDecision.HideNowPlaying, libraryBackDecision(false, false, emptySelection, true, true))
-        assertEquals(LibraryBackDecision.PopRoute, libraryBackDecision(false, false, emptySelection, false, true))
-        assertEquals(LibraryBackDecision.None, libraryBackDecision(false, false, emptySelection, false, false))
+        assertEquals(
+            LibraryBackDecision.DismissPlaylistModal,
+            libraryBackDecision(true, true, selected, true, true))
+        assertEquals(
+            LibraryBackDecision.ExitPlaylistEditMode,
+            libraryBackDecision(false, true, selected, true, true))
+        assertEquals(
+            LibraryBackDecision.CancelSelection,
+            libraryBackDecision(false, false, selected, true, true))
+        assertEquals(
+            LibraryBackDecision.HideNowPlaying,
+            libraryBackDecision(false, false, emptySelection, true, true))
+        assertEquals(
+            LibraryBackDecision.PopRoute,
+            libraryBackDecision(false, false, emptySelection, false, true))
+        assertEquals(
+            LibraryBackDecision.None,
+            libraryBackDecision(false, false, emptySelection, false, false))
     }
 
     @Test
@@ -622,18 +741,28 @@ class LibraryNavigationTest {
             TrackSelectionPageKey.HomeSongs,
             trackSelectionPageKeyFor(LibraryRoute.Home, BrowseMode.Songs),
         )
-        assertEquals(null, trackSelectionPageKeyFor(LibraryRoute.Home, BrowseMode.Albums))
+        assertEquals(
+            null,
+            trackSelectionPageKeyFor(LibraryRoute.Home, BrowseMode.Albums))
         assertEquals(
             TrackSelectionPageKey.Album("Night"),
-            trackSelectionPageKeyFor(LibraryRoute.AlbumDetail("Night"), BrowseMode.Songs),
+            trackSelectionPageKeyFor(
+                LibraryRoute.AlbumDetail("Night"), BrowseMode.Songs),
         )
-        assertEquals(TrackSelectionPageKey.Search, trackSelectionPageKeyFor(LibraryRoute.Search, BrowseMode.Songs))
-        assertEquals(null, trackSelectionPageKeyFor(LibraryRoute.PlaylistHub, BrowseMode.Songs))
+        assertEquals(
+            TrackSelectionPageKey.Search,
+            trackSelectionPageKeyFor(LibraryRoute.Search, BrowseMode.Songs))
+        assertEquals(
+            null,
+            trackSelectionPageKeyFor(
+                LibraryRoute.PlaylistHub, BrowseMode.Songs))
     }
 
     @Test
     fun nowPlayingBarOffsetPxIsZeroWhenFullyShown() {
-        assertEquals(0, nowPlayingBarOffsetPx(hiddenFraction = 0f, measuredHeightPx = 312))
+        assertEquals(
+            0,
+            nowPlayingBarOffsetPx(hiddenFraction = 0f, measuredHeightPx = 312))
     }
 
     @Test
@@ -641,27 +770,39 @@ class LibraryNavigationTest {
         // Regression guard: measured height can exceed the old 156px estimate
         // (e.g. after platform navigation-bar insets), so the offset must move
         // the entire measured wrapper off-screen, not a fixed fallback amount.
-        assertEquals(312, nowPlayingBarOffsetPx(hiddenFraction = 1f, measuredHeightPx = 312))
+        assertEquals(
+            312,
+            nowPlayingBarOffsetPx(hiddenFraction = 1f, measuredHeightPx = 312))
     }
 
     @Test
     fun nowPlayingBarOffsetPxScalesLinearlyWithFraction() {
-        assertEquals(78, nowPlayingBarOffsetPx(hiddenFraction = 0.25f, measuredHeightPx = 312))
+        assertEquals(
+            78,
+            nowPlayingBarOffsetPx(
+                hiddenFraction = 0.25f, measuredHeightPx = 312))
     }
 
     @Test
     fun nowPlayingBarOffsetPxCoercesFractionOutsideUnitRange() {
-        assertEquals(0, nowPlayingBarOffsetPx(hiddenFraction = -0.5f, measuredHeightPx = 312))
-        assertEquals(312, nowPlayingBarOffsetPx(hiddenFraction = 1.5f, measuredHeightPx = 312))
+        assertEquals(
+            0,
+            nowPlayingBarOffsetPx(
+                hiddenFraction = -0.5f, measuredHeightPx = 312))
+        assertEquals(
+            312,
+            nowPlayingBarOffsetPx(
+                hiddenFraction = 1.5f, measuredHeightPx = 312))
     }
 }
 
-private fun testTrack(id: String): Track = Track(
-    id = id,
-    title = "Title $id",
-    artist = "Artist",
-    album = "Album",
-    durationSeconds = 180,
-    accent = TrackAccent(start = 0xFF111111, end = 0xFF222222),
-    source = AudioSource.FilePath("audio/$id.mp3"),
-)
+private fun testTrack(id: String): Track =
+    Track(
+        id = id,
+        title = "Title $id",
+        artist = "Artist",
+        album = "Album",
+        durationSeconds = 180,
+        accent = TrackAccent(start = 0xFF111111, end = 0xFF222222),
+        source = AudioSource.FilePath("audio/$id.mp3"),
+    )

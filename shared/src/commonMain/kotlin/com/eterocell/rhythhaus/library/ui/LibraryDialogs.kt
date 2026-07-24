@@ -51,26 +51,36 @@ internal fun AnimatedClearLibraryDialogRoute(
                 onClick = onDismiss,
                 modifier = Modifier.height(36.dp),
                 cornerRadius = 12.dp,
-                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
-                colors = ButtonDefaults.buttonColors(
-                    color = HausColors.current.muted.copy(alpha = 0.15f),
-                    contentColor = HausColors.current.muted,
-                ),
+                insideMargin =
+                    PaddingValues(horizontal = 16.dp, vertical = 9.dp),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color = HausColors.current.muted.copy(alpha = 0.15f),
+                        contentColor = HausColors.current.muted,
+                    ),
             ) {
-                Text(stringResource(Res.string.cancel), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    stringResource(Res.string.cancel),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium)
             }
             Spacer(Modifier.width(12.dp))
             Button(
                 onClick = onClearLibrary,
                 modifier = Modifier.height(36.dp),
                 cornerRadius = 12.dp,
-                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
-                colors = ButtonDefaults.buttonColors(
-                    color = HausColors.current.pulse,
-                    contentColor = HausColors.current.paper,
-                ),
+                insideMargin =
+                    PaddingValues(horizontal = 16.dp, vertical = 9.dp),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color = HausColors.current.pulse,
+                        contentColor = HausColors.current.paper,
+                    ),
             ) {
-                Text(stringResource(Res.string.clear), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    stringResource(Res.string.clear),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium)
             }
         },
     )

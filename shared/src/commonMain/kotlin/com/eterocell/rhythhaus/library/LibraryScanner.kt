@@ -6,7 +6,10 @@ import kotlin.coroutines.cancellation.CancellationException
 
 sealed interface PlatformScanEvent {
     data class FolderVisited(val displayPath: String) : PlatformScanEvent
-    data class AudioCandidate(val candidate: AudioScanCandidate) : PlatformScanEvent
+
+    data class AudioCandidate(val candidate: AudioScanCandidate) :
+        PlatformScanEvent
+
     data class Skipped(
         val sourceLocalKey: String,
         val displayPath: String,
@@ -32,12 +35,13 @@ class LibraryScanner(
         onProgress: (ScanProgress) -> Unit = {},
     ): ScanSession {
         val scanId = idFactory("scan")
-        var session = ScanSession(
-            id = scanId,
-            sourceId = source.id,
-            status = ScanStatus.Scanning,
-            startedAtEpochMillis = now(),
-        )
+        var session =
+            ScanSession(
+                id = scanId,
+                sourceId = source.id,
+                status = ScanStatus.Scanning,
+                startedAtEpochMillis = now(),
+            )
 
         repository.upsertSource(source)
         repository.insertScanSession(session)
@@ -55,28 +59,36 @@ class LibraryScanner(
                     return session
                 }
 
-                session = when (event) {
-                    is PlatformScanEvent.FolderVisited -> session.copy(
-                        foldersVisited = session.foldersVisited + 1,
-                    )
+                session =
+                    when (event) {
+                        is PlatformScanEvent.FolderVisited ->
+                            session.copy(
+                                foldersVisited = session.foldersVisited + 1,
+                            )
 
-                    is PlatformScanEvent.Skipped -> session.recordSkipped(scanId, event)
+                        is PlatformScanEvent.Skipped ->
+                            session.recordSkipped(scanId, event)
 
-                    is PlatformScanEvent.AudioCandidate -> session.importCandidate(scanId, event.candidate)
-                }
+                        is PlatformScanEvent.AudioCandidate ->
+                            session.importCandidate(scanId, event.candidate)
+                    }
                 repository.updateScanSession(session)
-                onProgress(ScanProgress(session = session, latestItem = event.displayPath))
+                onProgress(
+                    ScanProgress(
+                        session = session, latestItem = event.displayPath))
             }
 
             if (isCancelled()) {
                 session = session.cancelled()
             } else {
                 val completedAt = now()
-                session = session.copy(
-                    status = ScanStatus.Completed,
-                    completedAtEpochMillis = completedAt,
-                )
-                repository.upsertSource(source.copy(lastScanAtEpochMillis = completedAt))
+                session =
+                    session.copy(
+                        status = ScanStatus.Completed,
+                        completedAtEpochMillis = completedAt,
+                    )
+                repository.upsertSource(
+                    source.copy(lastScanAtEpochMillis = completedAt))
             }
             repository.updateScanSession(session)
             onProgress(ScanProgress(session = session))
@@ -84,11 +96,15 @@ class LibraryScanner(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (throwable: Throwable) {
-            session = session.copy(
-                status = ScanStatus.Failed,
-                completedAtEpochMillis = now(),
-                terminalMessage = throwable.message ?: throwable::class.simpleName ?: "Scan failed",
-            )
+            session =
+                session.copy(
+                    status = ScanStatus.Failed,
+                    completedAtEpochMillis = now(),
+                    terminalMessage =
+                        throwable.message
+                            ?: throwable::class.simpleName
+                            ?: "Scan failed",
+                )
             repository.updateScanSession(session)
             onProgress(ScanProgress(session = session))
             session
@@ -96,11 +112,12 @@ class LibraryScanner(
     }
 
     private val PlatformScanEvent.displayPath: String
-        get() = when (this) {
-            is PlatformScanEvent.AudioCandidate -> candidate.displayPath
-            is PlatformScanEvent.FolderVisited -> displayPath
-            is PlatformScanEvent.Skipped -> displayPath
-        }
+        get() =
+            when (this) {
+                is PlatformScanEvent.AudioCandidate -> candidate.displayPath
+                is PlatformScanEvent.FolderVisited -> displayPath
+                is PlatformScanEvent.Skipped -> displayPath
+            }
 
     private fun ScanSession.recordSkipped(
         scanId: String,
@@ -127,30 +144,34 @@ class LibraryScanner(
         scanId: String,
         candidate: AudioScanCandidate,
     ): ScanSession {
-        val track = candidate.toLibraryTrack(
-            scanId = scanId,
-            timestamp = now(),
-            trackId = idFactory("track"),
-            metadataReader = metadataReader,
-        )
+        val track =
+            candidate.toLibraryTrack(
+                scanId = scanId,
+                timestamp = now(),
+                trackId = idFactory("track"),
+                metadataReader = metadataReader,
+            )
         return when (repository.upsertTrack(track)) {
-            TrackUpsertResult.Added -> copy(
-                filesVisited = filesVisited + 1,
-                tracksAdded = tracksAdded + 1,
-            )
+            TrackUpsertResult.Added ->
+                copy(
+                    filesVisited = filesVisited + 1,
+                    tracksAdded = tracksAdded + 1,
+                )
 
-            TrackUpsertResult.Updated -> copy(
-                filesVisited = filesVisited + 1,
-                tracksUpdated = tracksUpdated + 1,
-            )
+            TrackUpsertResult.Updated ->
+                copy(
+                    filesVisited = filesVisited + 1,
+                    tracksUpdated = tracksUpdated + 1,
+                )
         }
     }
 
-    private fun ScanSession.cancelled(): ScanSession = copy(
-        status = ScanStatus.Cancelled,
-        completedAtEpochMillis = now(),
-        terminalMessage = "Scan cancelled",
-    )
+    private fun ScanSession.cancelled(): ScanSession =
+        copy(
+            status = ScanStatus.Cancelled,
+            completedAtEpochMillis = now(),
+            terminalMessage = "Scan cancelled",
+        )
 }
 
 private fun AudioScanCandidate.toLibraryTrack(
@@ -159,16 +180,19 @@ private fun AudioScanCandidate.toLibraryTrack(
     trackId: String,
     metadataReader: AudioMetadataReader,
 ): LibraryTrack {
-    val resolvedSource = when (val source = metadataAudioSource) {
-        is AudioSource.FilePath -> source.copy(path = resolvePathForMetadata(source.path))
-        is AudioSource.FileDescriptor -> source
-        is AudioSource.Uri -> source
-    }
-    val metadata = try {
-        runCatching { metadataReader.read(resolvedSource) }.getOrNull()
-    } finally {
-        cleanupMetadataAudioSource?.invoke()
-    }
+    val resolvedSource =
+        when (val source = metadataAudioSource) {
+            is AudioSource.FilePath ->
+                source.copy(path = resolvePathForMetadata(source.path))
+            is AudioSource.FileDescriptor -> source
+            is AudioSource.Uri -> source
+        }
+    val metadata =
+        try {
+            runCatching { metadataReader.read(resolvedSource) }.getOrNull()
+        } finally {
+            cleanupMetadataAudioSource?.invoke()
+        }
     return LibraryTrack(
         id = trackId,
         sourceId = sourceId,
@@ -191,8 +215,9 @@ private fun AudioScanCandidate.toLibraryTrack(
     )
 }
 
-private fun String.fallbackTitle(): String = substringBeforeLast('.', missingDelimiterValue = this)
-    .replace('_', ' ')
-    .replace('-', ' ')
-    .trim()
-    .ifBlank { "Untitled audio" }
+private fun String.fallbackTitle(): String =
+    substringBeforeLast('.', missingDelimiterValue = this)
+        .replace('_', ' ')
+        .replace('-', ' ')
+        .trim()
+        .ifBlank { "Untitled audio" }

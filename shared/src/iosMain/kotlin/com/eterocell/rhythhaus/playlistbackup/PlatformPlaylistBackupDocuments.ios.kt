@@ -17,8 +17,16 @@ interface IOSPlaylistBackupDocumentCompletion {
 }
 
 interface IOSPlaylistBackupDocumentProvider {
-    fun saveDocument(fileName: String, bytes: ByteArray, completion: IOSPlaylistBackupDocumentCompletion)
-    fun openDocument(maxBytes: Int, completion: IOSPlaylistBackupDocumentCompletion)
+    fun saveDocument(
+        fileName: String,
+        bytes: ByteArray,
+        completion: IOSPlaylistBackupDocumentCompletion
+    )
+
+    fun openDocument(
+        maxBytes: Int,
+        completion: IOSPlaylistBackupDocumentCompletion
+    )
 }
 
 object IOSPlaylistBackupDocumentBridge {
@@ -40,15 +48,21 @@ actual fun rememberPlatformPlaylistBackupDocumentLauncher(
             override fun save(suggestedFileName: String, bytes: ByteArray) {
                 val provider = IOSPlaylistBackupDocumentBridge.provider
                 if (provider == null) {
-                    currentSaveResult.value(iosPlaylistBackupUnavailableSaveResult())
+                    currentSaveResult.value(
+                        iosPlaylistBackupUnavailableSaveResult())
                     return
                 }
                 provider.saveDocument(
                     playlistBackupFileName(suggestedFileName),
                     bytes,
                     object : IOSPlaylistBackupDocumentCompletion {
-                        override fun complete(status: Int, bytes: ByteArray?, message: String?) {
-                            currentSaveResult.value(iosPlaylistBackupSaveResult(status, message))
+                        override fun complete(
+                            status: Int,
+                            bytes: ByteArray?,
+                            message: String?
+                        ) {
+                            currentSaveResult.value(
+                                iosPlaylistBackupSaveResult(status, message))
                         }
                     },
                 )
@@ -57,14 +71,21 @@ actual fun rememberPlatformPlaylistBackupDocumentLauncher(
             override fun open() {
                 val provider = IOSPlaylistBackupDocumentBridge.provider
                 if (provider == null) {
-                    currentOpenResult.value(iosPlaylistBackupUnavailableOpenResult())
+                    currentOpenResult.value(
+                        iosPlaylistBackupUnavailableOpenResult())
                     return
                 }
                 provider.openDocument(
                     PlaylistBackupMaxBytes,
                     object : IOSPlaylistBackupDocumentCompletion {
-                        override fun complete(status: Int, bytes: ByteArray?, message: String?) {
-                            currentOpenResult.value(iosPlaylistBackupOpenResult(status, bytes, message))
+                        override fun complete(
+                            status: Int,
+                            bytes: ByteArray?,
+                            message: String?
+                        ) {
+                            currentOpenResult.value(
+                                iosPlaylistBackupOpenResult(
+                                    status, bytes, message))
                         }
                     },
                 )
@@ -73,37 +94,58 @@ actual fun rememberPlatformPlaylistBackupDocumentLauncher(
     }
 }
 
-internal fun iosPlaylistBackupUnavailableSaveResult() = PlaylistBackupDocumentSaveResult.Unavailable("iOS document provider is unavailable")
+internal fun iosPlaylistBackupUnavailableSaveResult() =
+    PlaylistBackupDocumentSaveResult.Unavailable(
+        "iOS document provider is unavailable")
 
-internal fun iosPlaylistBackupUnavailableOpenResult() = PlaylistBackupDocumentOpenResult.Unavailable("iOS document provider is unavailable")
+internal fun iosPlaylistBackupUnavailableOpenResult() =
+    PlaylistBackupDocumentOpenResult.Unavailable(
+        "iOS document provider is unavailable")
 
-internal fun iosPlaylistBackupSaveResult(status: Int, message: String?): PlaylistBackupDocumentSaveResult = when (status) {
-    IOSPlaylistBackupDocumentStatus.SUCCESS -> PlaylistBackupDocumentSaveResult.Success
+internal fun iosPlaylistBackupSaveResult(
+    status: Int,
+    message: String?
+): PlaylistBackupDocumentSaveResult =
+    when (status) {
+        IOSPlaylistBackupDocumentStatus.SUCCESS ->
+            PlaylistBackupDocumentSaveResult.Success
 
-    IOSPlaylistBackupDocumentStatus.CANCELLED -> PlaylistBackupDocumentSaveResult.Cancelled
+        IOSPlaylistBackupDocumentStatus.CANCELLED ->
+            PlaylistBackupDocumentSaveResult.Cancelled
 
-    IOSPlaylistBackupDocumentStatus.UNAVAILABLE -> PlaylistBackupDocumentSaveResult.Unavailable(
-        message ?: "iOS document provider is unavailable",
-    )
+        IOSPlaylistBackupDocumentStatus.UNAVAILABLE ->
+            PlaylistBackupDocumentSaveResult.Unavailable(
+                message ?: "iOS document provider is unavailable",
+            )
 
-    else -> PlaylistBackupDocumentSaveResult.Failure(message ?: "Could not save playlist backup")
-}
+        else ->
+            PlaylistBackupDocumentSaveResult.Failure(
+                message ?: "Could not save playlist backup")
+    }
 
 internal fun iosPlaylistBackupOpenResult(
     status: Int,
     bytes: ByteArray?,
     message: String?,
-): PlaylistBackupDocumentOpenResult = when (status) {
-    IOSPlaylistBackupDocumentStatus.SUCCESS -> bytes?.let(PlaylistBackupDocumentOpenResult::Success)
-        ?: PlaylistBackupDocumentOpenResult.Failure(message ?: "Document provider returned no bytes")
+): PlaylistBackupDocumentOpenResult =
+    when (status) {
+        IOSPlaylistBackupDocumentStatus.SUCCESS ->
+            bytes?.let(PlaylistBackupDocumentOpenResult::Success)
+                ?: PlaylistBackupDocumentOpenResult.Failure(
+                    message ?: "Document provider returned no bytes")
 
-    IOSPlaylistBackupDocumentStatus.CANCELLED -> PlaylistBackupDocumentOpenResult.Cancelled
+        IOSPlaylistBackupDocumentStatus.CANCELLED ->
+            PlaylistBackupDocumentOpenResult.Cancelled
 
-    IOSPlaylistBackupDocumentStatus.TOO_LARGE -> PlaylistBackupDocumentOpenResult.TooLarge(PlaylistBackupMaxBytes)
+        IOSPlaylistBackupDocumentStatus.TOO_LARGE ->
+            PlaylistBackupDocumentOpenResult.TooLarge(PlaylistBackupMaxBytes)
 
-    IOSPlaylistBackupDocumentStatus.UNAVAILABLE -> PlaylistBackupDocumentOpenResult.Unavailable(
-        message ?: "iOS document provider is unavailable",
-    )
+        IOSPlaylistBackupDocumentStatus.UNAVAILABLE ->
+            PlaylistBackupDocumentOpenResult.Unavailable(
+                message ?: "iOS document provider is unavailable",
+            )
 
-    else -> PlaylistBackupDocumentOpenResult.Failure(message ?: "Could not open playlist backup")
-}
+        else ->
+            PlaylistBackupDocumentOpenResult.Failure(
+                message ?: "Could not open playlist backup")
+    }

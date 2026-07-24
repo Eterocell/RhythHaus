@@ -115,7 +115,9 @@ fun LibraryHomeScreen(
     LaunchedEffect(playbackState.currentTrack?.id) {
         appState.syncSelectedTrackWithPlayback(playbackState.currentTrack?.id)
     }
-    val selectedTrack = snapshot.tracks.firstOrNull { it.id == appState.selectedTrackId } ?: snapshot.tracks.firstOrNull()
+    val selectedTrack =
+        snapshot.tracks.firstOrNull { it.id == appState.selectedTrackId }
+            ?: snapshot.tracks.firstOrNull()
     val homeListState = rememberLazyListState()
     val expandProgress = remember { Animatable(0f) }
     var screenHeightPx by remember { mutableFloatStateOf(0f) }
@@ -123,24 +125,38 @@ fun LibraryHomeScreen(
         val target = if (appState.showNowPlaying) 1f else 0f
         expandProgress.animateTo(target, tween(300))
     }
-    val albums = remember(snapshot.tracks) { groupTracksByAlbum(snapshot.tracks) }
-    val artists = remember(snapshot.tracks) { groupTracksByArtist(snapshot.tracks) }
-    var backGestureProgressAtCompletion by remember { mutableStateOf<Float?>(null) }
-    var trackSelectionState by remember { mutableStateOf(TrackSelectionState()) }
-    val playlistBackRegistration = remember { PlaylistBackRegistrationState() }
-    var searchVisibleTrackIds by remember { mutableStateOf(emptyList<String>()) }
-    var bottomBarMeasurement by remember { mutableStateOf<LibraryBottomBarMeasurement?>(null) }
-    val bottomBarContent = libraryBottomBarContent(
-        route = appState.navigation.current,
-        selectionState = trackSelectionState,
-        isNowPlayingVisible = appState.isNowPlayingBarVisible,
-    )
-    val density = LocalDensity.current
-    val activeBottomBarClearance = with(density) {
-        activeBottomBarClearancePx(bottomBarContent, bottomBarMeasurement).toDp()
+    val albums =
+        remember(snapshot.tracks) { groupTracksByAlbum(snapshot.tracks) }
+    val artists =
+        remember(snapshot.tracks) { groupTracksByArtist(snapshot.tracks) }
+    var backGestureProgressAtCompletion by remember {
+        mutableStateOf<Float?>(null)
     }
+    var trackSelectionState by remember {
+        mutableStateOf(TrackSelectionState())
+    }
+    val playlistBackRegistration = remember { PlaylistBackRegistrationState() }
+    var searchVisibleTrackIds by remember {
+        mutableStateOf(emptyList<String>())
+    }
+    var bottomBarMeasurement by remember {
+        mutableStateOf<LibraryBottomBarMeasurement?>(null)
+    }
+    val bottomBarContent =
+        libraryBottomBarContent(
+            route = appState.navigation.current,
+            selectionState = trackSelectionState,
+            isNowPlayingVisible = appState.isNowPlayingBarVisible,
+        )
+    val density = LocalDensity.current
+    val activeBottomBarClearance =
+        with(density) {
+            activeBottomBarClearancePx(bottomBarContent, bottomBarMeasurement)
+                .toDp()
+        }
     fun dispatchTrackSelection(action: TrackSelectionAction) {
-        if (action is TrackSelectionAction.ReconcileVisible && action.pageKey == TrackSelectionPageKey.Search) {
+        if (action is TrackSelectionAction.ReconcileVisible &&
+            action.pageKey == TrackSelectionPageKey.Search) {
             searchVisibleTrackIds = action.visibleTrackIds
         }
         trackSelectionState = reduceTrackSelection(trackSelectionState, action)
@@ -158,72 +174,105 @@ fun LibraryHomeScreen(
     }
     fun openSelectedTracksPicker() {
         val pageKey = trackSelectionState.pageKey ?: return
-        val visibleTrackIds = when (pageKey) {
-            TrackSelectionPageKey.HomeSongs -> snapshot.tracks.map(Track::id)
-            is TrackSelectionPageKey.Album -> albums.firstOrNull { it.album == pageKey.album }?.tracks.orEmpty().map(Track::id)
-            is TrackSelectionPageKey.Artist -> artists.firstOrNull { it.artist == pageKey.artist }?.tracks.orEmpty().map(Track::id)
-            TrackSelectionPageKey.Search -> searchVisibleTrackIds
+        val visibleTrackIds =
+            when (pageKey) {
+                TrackSelectionPageKey.HomeSongs ->
+                    snapshot.tracks.map(Track::id)
+                is TrackSelectionPageKey.Album ->
+                    albums
+                        .firstOrNull { it.album == pageKey.album }
+                        ?.tracks
+                        .orEmpty()
+                        .map(Track::id)
+                is TrackSelectionPageKey.Artist ->
+                    artists
+                        .firstOrNull { it.artist == pageKey.artist }
+                        ?.tracks
+                        .orEmpty()
+                        .map(Track::id)
+                TrackSelectionPageKey.Search -> searchVisibleTrackIds
+            }
+        val orderedIds =
+            orderedSelectedTrackIds(
+                trackSelectionState, pageKey, visibleTrackIds)
+        if (orderedIds.isNotEmpty())
+            onPlaylistStateAction(openAddToPlaylistPickerAction(orderedIds))
+    }
+    fun registerPlaylistEditMode(owner: Any, clear: () -> Unit): () -> Unit =
+        playlistBackRegistration.registerEdit(owner, clear)
+    fun registerPlaylistModalDismiss(
+        owner: Any,
+        dismiss: (() -> Unit)?
+    ): () -> Unit =
+        if (dismiss == null) {
+            {}
+        } else {
+            playlistBackRegistration.registerModal(owner, dismiss)
         }
-        val orderedIds = orderedSelectedTrackIds(trackSelectionState, pageKey, visibleTrackIds)
-        if (orderedIds.isNotEmpty()) onPlaylistStateAction(openAddToPlaylistPickerAction(orderedIds))
-    }
-    fun registerPlaylistEditMode(owner: Any, clear: () -> Unit): () -> Unit = playlistBackRegistration.registerEdit(owner, clear)
-    fun registerPlaylistModalDismiss(owner: Any, dismiss: (() -> Unit)?): () -> Unit = if (dismiss == null) {
-        {}
-    } else {
-        playlistBackRegistration.registerModal(owner, dismiss)
-    }
-    val libraryBackDecision = libraryBackDecision(
-        hasPlaylistModal = playlistBackRegistration.decision() == LibraryBackDecision.DismissPlaylistModal,
-        isPlaylistEditModeActive = playlistBackRegistration.decision() == LibraryBackDecision.ExitPlaylistEditMode,
-        selectionState = trackSelectionState,
-        isNowPlayingExpanded = appState.showNowPlaying,
-        canPopRoute = appState.navigation.canPop,
-    )
+    val libraryBackDecision =
+        libraryBackDecision(
+            hasPlaylistModal =
+                playlistBackRegistration.decision() ==
+                    LibraryBackDecision.DismissPlaylistModal,
+            isPlaylistEditModeActive =
+                playlistBackRegistration.decision() ==
+                    LibraryBackDecision.ExitPlaylistEditMode,
+            selectionState = trackSelectionState,
+            isNowPlayingExpanded = appState.showNowPlaying,
+            canPopRoute = appState.navigation.canPop,
+        )
     val navState = rememberNavigationEventState(NavigationEventInfo.None)
     val requestLibraryBack: () -> Unit = {
         PlaylistBackDispatchController(
-            registration = playlistBackRegistration,
-            selectionState = { trackSelectionState },
-            isNowPlayingExpanded = { appState.showNowPlaying },
-            canPopRoute = { appState.navigation.canPop },
-            cancelSelection = { dispatchTrackSelection(TrackSelectionAction.Cancel) },
-            hideNowPlaying = appState::hideNowPlaying,
-            directPopRoute = ::directPopRoute,
-        ).dispatch()
+                registration = playlistBackRegistration,
+                selectionState = { trackSelectionState },
+                isNowPlayingExpanded = { appState.showNowPlaying },
+                canPopRoute = { appState.navigation.canPop },
+                cancelSelection = {
+                    dispatchTrackSelection(TrackSelectionAction.Cancel)
+                },
+                hideNowPlaying = appState::hideNowPlaying,
+                directPopRoute = ::directPopRoute,
+            )
+            .dispatch()
     }
-    val backCallbacks = libraryBackCallbacks(
-        ordinaryBack = requestLibraryBack,
-        decision = { libraryBackDecision },
-        transitionProgress = {
-            when (val ts = navState.transitionState) {
-                is NavigationEventTransitionState.InProgress -> ts.latestEvent.progress
-                else -> null
-            }
-        },
-        setCompletionProgress = { backGestureProgressAtCompletion = it },
-        navigationPop = appState.navigation::pop,
-        completePredictivePop = appState::completePredictivePop,
-        clearSelection = ::clearSelection,
-        popRoute = appState::popRoute,
-    )
+    val backCallbacks =
+        libraryBackCallbacks(
+            ordinaryBack = requestLibraryBack,
+            decision = { libraryBackDecision },
+            transitionProgress = {
+                when (val ts = navState.transitionState) {
+                    is NavigationEventTransitionState.InProgress ->
+                        ts.latestEvent.progress
+                    else -> null
+                }
+            },
+            setCompletionProgress = { backGestureProgressAtCompletion = it },
+            navigationPop = appState.navigation::pop,
+            completePredictivePop = appState::completePredictivePop,
+            clearSelection = ::clearSelection,
+            popRoute = appState::popRoute,
+        )
     NavigationBackHandler(
         state = navState,
         isBackEnabled = libraryBackDecision != LibraryBackDecision.None,
-        onBackCancelled = { },
+        onBackCancelled = {},
         onBackCompleted = backCallbacks.systemBackCompleted,
     )
-    val predictiveBackProgress = when (val ts = navState.transitionState) {
-        is NavigationEventTransitionState.InProgress -> {
-            if (libraryBackDecision == LibraryBackDecision.PopRoute && ts.direction == NavigationEventTransitionState.TRANSITIONING_BACK) {
-                ts.latestEvent.progress
-            } else {
-                0f
+    val predictiveBackProgress =
+        when (val ts = navState.transitionState) {
+            is NavigationEventTransitionState.InProgress -> {
+                if (libraryBackDecision == LibraryBackDecision.PopRoute &&
+                    ts.direction ==
+                        NavigationEventTransitionState.TRANSITIONING_BACK) {
+                    ts.latestEvent.progress
+                } else {
+                    0f
+                }
             }
-        }
 
-        else -> 0f
-    }
+            else -> 0f
+        }
     val predictiveBackOffset = remember { Animatable(0f) }
     LaunchedEffect(predictiveBackProgress) {
         if (predictiveBackProgress > 0f) {
@@ -233,11 +282,17 @@ fun LibraryHomeScreen(
         }
     }
 
-    val previousRoute = if (appState.navigation.routes.size >= 2) appState.navigation.routes[appState.navigation.routes.size - 2] else null
+    val previousRoute =
+        if (appState.navigation.routes.size >= 2)
+            appState.navigation.routes[appState.navigation.routes.size - 2]
+        else null
 
-    LaunchedEffect(homeListState.firstVisibleItemIndex, homeListState.firstVisibleItemScrollOffset) {
-        appState.updateNowPlayingBarVisibilityForScroll(homeListState.toLibraryScrollPosition())
-    }
+    LaunchedEffect(
+        homeListState.firstVisibleItemIndex,
+        homeListState.firstVisibleItemScrollOffset) {
+            appState.updateNowPlayingBarVisibilityForScroll(
+                homeListState.toLibraryScrollPosition())
+        }
     fun selectTrackFromTracks(tracks: List<Track>, track: Track) {
         selectLibraryTrackForPlayback(
             playbackController = playbackController,
@@ -284,9 +339,12 @@ fun LibraryHomeScreen(
             onRemoveSource = onRemoveSource,
             onCancelScan = onCancelScan,
             onShowSettingsAbout = { pushRoute(LibraryRoute.SettingsAbout) },
-            onShowOpenSourceLibraries = { pushRoute(LibraryRoute.OpenSourceLibraries) },
+            onShowOpenSourceLibraries = {
+                pushRoute(LibraryRoute.OpenSourceLibraries)
+            },
             onDismiss = requestLibraryBack,
-            onScrollPositionChanged = appState::updateNowPlayingBarVisibilityForScroll,
+            onScrollPositionChanged =
+                appState::updateNowPlayingBarVisibilityForScroll,
             trackSelectionState = trackSelectionState,
             onTrackSelectionAction = ::dispatchTrackSelection,
             bottomContentPadding = activeBottomBarClearance,
@@ -311,8 +369,11 @@ fun LibraryHomeScreen(
             onPlaylistMutation = onPlaylistMutation,
             onRecoverStalePlaylistDetail = { message ->
                 clearSelection()
-                appState.recoverStalePlaylistDetail(message) { recoverableMessage ->
-                    onPlaylistStateAction(PlaylistStateAction.ShowRecoverableMessage(recoverableMessage))
+                appState.recoverStalePlaylistDetail(message) {
+                    recoverableMessage ->
+                    onPlaylistStateAction(
+                        PlaylistStateAction.ShowRecoverableMessage(
+                            recoverableMessage))
                 }
             },
             selectedTrackId = appState.selectedTrackId,
@@ -327,7 +388,8 @@ fun LibraryHomeScreen(
             onExpandNowPlaying = ::expandNowPlaying,
             onShowSettings = { pushRoute(LibraryRoute.Settings) },
             onShowSearch = { pushRoute(LibraryRoute.Search) },
-            onScrollPositionChanged = appState::updateNowPlayingBarVisibilityForScroll,
+            onScrollPositionChanged =
+                appState::updateNowPlayingBarVisibilityForScroll,
             trackSelectionState = trackSelectionState,
             onTrackSelectionAction = ::dispatchTrackSelection,
             bottomContentPadding = activeBottomBarClearance,
@@ -352,19 +414,18 @@ fun LibraryHomeScreen(
                     onOpenDetailRoute = onOpenDetailRoute,
                     onShowPlaylists = { pushRoute(LibraryRoute.PlaylistHub) },
                     onAddToPlaylist = { trackId ->
-                        onPlaylistStateAction(openAddToPlaylistPickerAction(trackId))
+                        onPlaylistStateAction(
+                            openAddToPlaylistPickerAction(trackId))
                     },
                     onTrackSelected = appState::setSelectedTrackId,
                     trackSelectionState = trackSelectionState,
                     onTrackSelectionAction = ::dispatchTrackSelection,
                     bottomContentPadding = activeBottomBarClearance,
                 )
-                if (
-                    libraryRouteRendersAsActiveOverlay(
-                        route = route,
-                        mode = LibraryAdaptiveLayoutMode.Compact,
-                    )
-                ) {
+                if (libraryRouteRendersAsActiveOverlay(
+                    route = route,
+                    mode = LibraryAdaptiveLayoutMode.Compact,
+                )) {
                     RouteOverlays(route = route)
                 }
             },
@@ -372,32 +433,33 @@ fun LibraryHomeScreen(
     }
 
     BoxWithConstraints(
-        modifier = modifier
-            .fillMaxSize()
-            .background(HausColors.current.paper)
-            .onSizeChanged { screenHeightPx = it.height.toFloat() },
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(HausColors.current.paper)
+                .onSizeChanged { screenHeightPx = it.height.toFloat() },
     ) {
         val rootBackdrop = rememberRhythHausBackdrop()
-        val adaptiveLayoutMode = libraryAdaptiveLayoutModeFor(
-            widthDp = maxWidth.value,
-            heightDp = maxHeight.value,
-        )
+        val adaptiveLayoutMode =
+            libraryAdaptiveLayoutModeFor(
+                widthDp = maxWidth.value,
+                heightDp = maxHeight.value,
+            )
         fun openDetailRoute(route: LibraryRoute) {
             clearSelection()
-            appState.openDetailRoute(route = route, adaptiveLayoutMode = adaptiveLayoutMode)
+            appState.openDetailRoute(
+                route = route, adaptiveLayoutMode = adaptiveLayoutMode)
         }
 
         if (adaptiveLayoutMode == LibraryAdaptiveLayoutMode.ListDetail) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .recordRhythHausBackdrop(rootBackdrop),
+                    modifier =
+                        Modifier.fillMaxSize()
+                            .recordRhythHausBackdrop(rootBackdrop),
                 ) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .weight(0.42f),
+                        modifier = Modifier.fillMaxHeight().weight(0.42f),
                     ) {
                         LibraryHomeContent(
                             snapshot = snapshot,
@@ -406,7 +468,8 @@ fun LibraryHomeScreen(
                             browseMode = appState.browseMode,
                             homeListState = homeListState,
                             folderPickerLauncher = folderPickerLauncher,
-                            sourcePickerActionVisible = sourcePickerActionVisible,
+                            sourcePickerActionVisible =
+                                sourcePickerActionVisible,
                             importMessage = importMessage,
                             scanProgress = scanProgress,
                             scanJob = scanJob,
@@ -417,9 +480,12 @@ fun LibraryHomeScreen(
                             onClearLibrary = onClearLibrary,
                             onCancelScan = onCancelScan,
                             onOpenDetailRoute = ::openDetailRoute,
-                            onShowPlaylists = { pushRoute(LibraryRoute.PlaylistHub) },
+                            onShowPlaylists = {
+                                pushRoute(LibraryRoute.PlaylistHub)
+                            },
                             onAddToPlaylist = { trackId ->
-                                onPlaylistStateAction(openAddToPlaylistPickerAction(trackId))
+                                onPlaylistStateAction(
+                                    openAddToPlaylistPickerAction(trackId))
                             },
                             onTrackSelected = appState::setSelectedTrackId,
                             trackSelectionState = trackSelectionState,
@@ -428,9 +494,7 @@ fun LibraryHomeScreen(
                         )
                     }
                     Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .weight(0.58f),
+                        modifier = Modifier.fillMaxHeight().weight(0.58f),
                     ) {
                         when (val route = appState.navigation.current) {
                             is LibraryRoute.AlbumDetail,
@@ -445,12 +509,10 @@ fun LibraryHomeScreen(
                         }
                     }
                 }
-                if (
-                    libraryRouteRendersAsActiveOverlay(
-                        route = appState.navigation.current,
-                        mode = adaptiveLayoutMode,
-                    )
-                ) {
+                if (libraryRouteRendersAsActiveOverlay(
+                    route = appState.navigation.current,
+                    mode = adaptiveLayoutMode,
+                )) {
                     RouteOverlays(route = appState.navigation.current)
                 }
             }
@@ -464,66 +526,92 @@ fun LibraryHomeScreen(
                     routeContentTransform(appState.lastNavigationTransition)
                 },
                 label = "LibraryRouteTransition",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .recordRhythHausBackdrop(rootBackdrop)
-                    .offset(x = predictiveBackOffset.value.dp),
+                modifier =
+                    Modifier.fillMaxSize()
+                        .recordRhythHausBackdrop(rootBackdrop)
+                        .offset(x = predictiveBackOffset.value.dp),
             ) { currentRoute ->
                 RouteContent(route = currentRoute)
             }
         }
 
-        // Fixed bottom bar (outside AnimatedContent). It stays in composition so
-        // returning from Now Playing does not re-trigger the enter animation when
+        // Fixed bottom bar (outside AnimatedContent). It stays in composition
+        // so
+        // returning from Now Playing does not re-trigger the enter animation
+        // when
         // the bar was already visible underneath the overlay.
-        val bottomBarOffset by animateFloatAsState(
-            targetValue = if (bottomBarContent == LibraryBottomBarContent.Hidden) 1f else 0f,
-            animationSpec = tween(250),
-            label = "BottomBarOffset",
-        )
-        val bottomBarPresentation = libraryBottomBarPresentation(
-            content = bottomBarContent,
-            measurement = bottomBarMeasurement,
-            hiddenFraction = bottomBarOffset,
-        )
+        val bottomBarOffset by
+            animateFloatAsState(
+                targetValue =
+                    if (bottomBarContent == LibraryBottomBarContent.Hidden) 1f
+                    else 0f,
+                animationSpec = tween(250),
+                label = "BottomBarOffset",
+            )
+        val bottomBarPresentation =
+            libraryBottomBarPresentation(
+                content = bottomBarContent,
+                measurement = bottomBarMeasurement,
+                hiddenFraction = bottomBarOffset,
+            )
         if (bottomBarContent != LibraryBottomBarContent.Hidden) {
             key(bottomBarContent) {
                 Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .onSizeChanged { bottomBarMeasurement = LibraryBottomBarMeasurement(bottomBarContent, it.height) }
-                        .offset {
-                            IntOffset(
-                                x = 0,
-                                y = nowPlayingBarOffsetPx(
-                                    hiddenFraction = bottomBarOffset,
-                                    measuredHeightPx = bottomBarPresentation.clearancePx,
-                                ),
-                            )
-                        }
-                        .alpha(bottomBarPresentation.alpha),
+                    modifier =
+                        Modifier.align(Alignment.BottomCenter)
+                            .onSizeChanged {
+                                bottomBarMeasurement =
+                                    LibraryBottomBarMeasurement(
+                                        bottomBarContent, it.height)
+                            }
+                            .offset {
+                                IntOffset(
+                                    x = 0,
+                                    y =
+                                        nowPlayingBarOffsetPx(
+                                            hiddenFraction = bottomBarOffset,
+                                            measuredHeightPx =
+                                                bottomBarPresentation
+                                                    .clearancePx,
+                                        ),
+                                )
+                            }
+                            .alpha(bottomBarPresentation.alpha),
                 ) {
                     when (val content = bottomBarContent) {
-                        is LibraryBottomBarContent.Selection -> TrackSelectionBar(
-                            selectedCount = content.selectedCount,
-                            onCancel = { dispatchTrackSelection(TrackSelectionAction.Cancel) },
-                            onAddToPlaylist = ::openSelectedTracksPicker,
-                            interactive = bottomBarPresentation.isInteractive,
-                        )
+                        is LibraryBottomBarContent.Selection ->
+                            TrackSelectionBar(
+                                selectedCount = content.selectedCount,
+                                onCancel = {
+                                    dispatchTrackSelection(
+                                        TrackSelectionAction.Cancel)
+                                },
+                                onAddToPlaylist = ::openSelectedTracksPicker,
+                                interactive =
+                                    bottomBarPresentation.isInteractive,
+                            )
 
-                        LibraryBottomBarContent.NowPlaying -> NowPlayingBar(
-                            track = selectedTrack,
-                            playbackState = playbackState,
-                            onPlayPause = playbackController::togglePlayPause,
-                            onExpand = { if (selectedTrack != null) appState.showNowPlaying() },
-                            onSettings = { pushRoute(LibraryRoute.Settings) },
-                            onSearch = { pushRoute(LibraryRoute.Search) },
-                            expandProgress = expandProgress,
-                            isExpanded = appState.showNowPlaying,
-                            interactive = bottomBarPresentation.isInteractive,
-                            screenHeightPx = screenHeightPx,
-                            backdrop = rootBackdrop,
-                        )
+                        LibraryBottomBarContent.NowPlaying ->
+                            NowPlayingBar(
+                                track = selectedTrack,
+                                playbackState = playbackState,
+                                onPlayPause =
+                                    playbackController::togglePlayPause,
+                                onExpand = {
+                                    if (selectedTrack != null)
+                                        appState.showNowPlaying()
+                                },
+                                onSettings = {
+                                    pushRoute(LibraryRoute.Settings)
+                                },
+                                onSearch = { pushRoute(LibraryRoute.Search) },
+                                expandProgress = expandProgress,
+                                isExpanded = appState.showNowPlaying,
+                                interactive =
+                                    bottomBarPresentation.isInteractive,
+                                screenHeightPx = screenHeightPx,
+                                backdrop = rootBackdrop,
+                            )
 
                         LibraryBottomBarContent.Hidden -> Unit
                     }
@@ -537,7 +625,8 @@ fun LibraryHomeScreen(
             playbackState = playbackState,
             playbackController = playbackController,
             tagLibReader = tagLibReader,
-            currentLibraryTrack = libraryTracks.firstOrNull { it.id == selectedTrack?.id },
+            currentLibraryTrack =
+                libraryTracks.firstOrNull { it.id == selectedTrack?.id },
             isVisible = appState.showNowPlaying,
             expandProgress = expandProgress,
             onBack = { appState.hideNowPlaying() },
@@ -547,11 +636,12 @@ fun LibraryHomeScreen(
         playlistState.picker?.let { picker ->
             AddToPlaylistPicker(
                 playlists = playlistState.confirmedSnapshot.playlists,
-                state = AddToPlaylistPickerState(
-                    trackIds = picker.trackIds,
-                    selectedPlaylistId = picker.selectedPlaylistId,
-                    enteredName = picker.enteredName,
-                ),
+                state =
+                    AddToPlaylistPickerState(
+                        trackIds = picker.trackIds,
+                        selectedPlaylistId = picker.selectedPlaylistId,
+                        enteredName = picker.enteredName,
+                    ),
                 onStateChange = { updated ->
                     onPlaylistStateAction(
                         PlaylistStateAction.OpenPicker(
@@ -563,15 +653,22 @@ fun LibraryHomeScreen(
                         ),
                     )
                 },
-                onDismiss = { onPlaylistStateAction(PlaylistStateAction.ClosePicker) },
+                onDismiss = {
+                    onPlaylistStateAction(PlaylistStateAction.ClosePicker)
+                },
                 notice = playlistPickerPresentation(playlistState)?.notice,
                 onAppend = { request ->
                     onPlaylistMutation(
                         { append(request.playlistId, request.trackIds) },
                         { outcome ->
-                            if (playlistMutationDecision(PlaylistMutationWorkflow.PickerAppend, outcome) == PlaylistMutationDecision.CloseModal) {
-                                onPlaylistStateAction(PlaylistStateAction.ClosePicker)
-                                trackSelectionActionAfterPickerOutcome(outcome)?.let(::dispatchTrackSelection)
+                            if (playlistMutationDecision(
+                                PlaylistMutationWorkflow.PickerAppend,
+                                outcome) ==
+                                PlaylistMutationDecision.CloseModal) {
+                                onPlaylistStateAction(
+                                    PlaylistStateAction.ClosePicker)
+                                trackSelectionActionAfterPickerOutcome(outcome)
+                                    ?.let(::dispatchTrackSelection)
                             }
                         },
                     )
@@ -582,9 +679,14 @@ fun LibraryHomeScreen(
                             createWithEntries(request.name, request.trackIds)
                         },
                         { outcome ->
-                            if (playlistMutationDecision(PlaylistMutationWorkflow.PickerInlineCreate, outcome) == PlaylistMutationDecision.CloseModal) {
-                                onPlaylistStateAction(PlaylistStateAction.ClosePicker)
-                                trackSelectionActionAfterPickerOutcome(outcome)?.let(::dispatchTrackSelection)
+                            if (playlistMutationDecision(
+                                PlaylistMutationWorkflow.PickerInlineCreate,
+                                outcome) ==
+                                PlaylistMutationDecision.CloseModal) {
+                                onPlaylistStateAction(
+                                    PlaylistStateAction.ClosePicker)
+                                trackSelectionActionAfterPickerOutcome(outcome)
+                                    ?.let(::dispatchTrackSelection)
                             }
                         },
                     )
@@ -593,17 +695,19 @@ fun LibraryHomeScreen(
         }
 
         playlistState.browser?.let { browser ->
-            val playlist = playlistState.confirmedSnapshot.playlist(browser.playlistId)
+            val playlist =
+                playlistState.confirmedSnapshot.playlist(browser.playlistId)
             if (playlist != null) {
                 PlaylistTrackBrowser(
                     playlistName = playlist.name,
                     libraryTracks = libraryTracks,
-                    state = PlaylistTrackBrowserState(
-                        playlistId = browser.playlistId,
-                        query = browser.query,
-                        visibleTrackIds = browser.visibleTrackIds,
-                        selectedTrackIds = browser.selectedTrackIds,
-                    ),
+                    state =
+                        PlaylistTrackBrowserState(
+                            playlistId = browser.playlistId,
+                            query = browser.query,
+                            visibleTrackIds = browser.visibleTrackIds,
+                            selectedTrackIds = browser.selectedTrackIds,
+                        ),
                     onStateChange = { updated ->
                         onPlaylistStateAction(
                             PlaylistStateAction.OpenBrowser(
@@ -616,14 +720,20 @@ fun LibraryHomeScreen(
                             ),
                         )
                     },
-                    onDismiss = { onPlaylistStateAction(PlaylistStateAction.CloseBrowser) },
+                    onDismiss = {
+                        onPlaylistStateAction(PlaylistStateAction.CloseBrowser)
+                    },
                     notice = playlistBrowserPresentation(playlistState)?.notice,
                     onConfirm = { request ->
                         onPlaylistMutation(
                             { append(request.playlistId, request.trackIds) },
                             { outcome ->
-                                if (playlistMutationDecision(PlaylistMutationWorkflow.BrowserAppend, outcome) == PlaylistMutationDecision.CloseModal) {
-                                    onPlaylistStateAction(PlaylistStateAction.CloseBrowser)
+                                if (playlistMutationDecision(
+                                    PlaylistMutationWorkflow.BrowserAppend,
+                                    outcome) ==
+                                    PlaylistMutationDecision.CloseModal) {
+                                    onPlaylistStateAction(
+                                        PlaylistStateAction.CloseBrowser)
                                 }
                             },
                         )
@@ -637,10 +747,10 @@ fun LibraryHomeScreen(
 @Composable
 private fun AdaptiveDetailPlaceholder() {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(HausColors.current.paper)
-            .padding(32.dp),
+        modifier =
+            Modifier.fillMaxSize()
+                .background(HausColors.current.paper)
+                .padding(32.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -680,23 +790,24 @@ private fun NowPlayingExpandOverlay(
         val fraction = expandProgress.value
         Box(modifier = modifier) {
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(fraction)
-                    .align(Alignment.BottomCenter)
-                    .verticalSheetGesture(
-                        expandProgress = expandProgress,
-                        isActive = true,
-                        scope = gestureScope,
-                        onSwipeExpand = {},
-                        onSwipeCollapse = onBack,
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .fillMaxHeight(fraction)
+                        .align(Alignment.BottomCenter)
+                        .verticalSheetGesture(
+                            expandProgress = expandProgress,
+                            isActive = true,
+                            scope = gestureScope,
+                            onSwipeExpand = {},
+                            onSwipeCollapse = onBack,
+                        ),
+                shape =
+                    RoundedCornerShape(
+                        topStart = (24 * (1f - fraction).coerceAtLeast(0f)).dp,
+                        topEnd = (24 * (1f - fraction).coerceAtLeast(0f)).dp,
+                        bottomStart = 0.dp,
+                        bottomEnd = 0.dp,
                     ),
-                shape = RoundedCornerShape(
-                    topStart = (24 * (1f - fraction).coerceAtLeast(0f)).dp,
-                    topEnd = (24 * (1f - fraction).coerceAtLeast(0f)).dp,
-                    bottomStart = 0.dp,
-                    bottomEnd = 0.dp,
-                ),
                 color = HausColors.current.paper,
             ) {
                 NowPlayingScreen(
@@ -715,37 +826,42 @@ private fun NowPlayingExpandOverlay(
 private const val NavigationAnimationMillis = 240
 private const val NavigationSlideDistancePx = 90
 
-private fun routeContentTransform(transition: LibraryNavigationTransition): ContentTransform = when (transition) {
-    LibraryNavigationTransition.Push -> routeSlideContentTransform(forward = true)
+private fun routeContentTransform(
+    transition: LibraryNavigationTransition
+): ContentTransform =
+    when (transition) {
+        LibraryNavigationTransition.Push ->
+            routeSlideContentTransform(forward = true)
 
-    LibraryNavigationTransition.Pop,
-    LibraryNavigationTransition.Root,
-    -> routeSlideContentTransform(forward = false)
+        LibraryNavigationTransition.Pop,
+        LibraryNavigationTransition.Root,
+        -> routeSlideContentTransform(forward = false)
 
-    LibraryNavigationTransition.Replace -> routeFadeContentTransform()
+        LibraryNavigationTransition.Replace -> routeFadeContentTransform()
 
-    LibraryNavigationTransition.None -> routeFadeContentTransform()
-}
+        LibraryNavigationTransition.None -> routeFadeContentTransform()
+    }
 
 private fun routeSlideContentTransform(forward: Boolean): ContentTransform {
     val direction = if (forward) 1 else -1
-    return (
-        fadeIn(animationSpec = tween(NavigationAnimationMillis)) +
+    return (fadeIn(animationSpec = tween(NavigationAnimationMillis)) +
             slideInHorizontally(
                 animationSpec = tween(NavigationAnimationMillis),
                 initialOffsetX = { NavigationSlideDistancePx * direction },
-            )
-        ).togetherWith(
-        fadeOut(animationSpec = tween(NavigationAnimationMillis)) +
-            slideOutHorizontally(
-                animationSpec = tween(NavigationAnimationMillis),
-                targetOffsetX = { -NavigationSlideDistancePx * direction },
-            ),
-    )
+            ))
+        .togetherWith(
+            fadeOut(animationSpec = tween(NavigationAnimationMillis)) +
+                slideOutHorizontally(
+                    animationSpec = tween(NavigationAnimationMillis),
+                    targetOffsetX = { -NavigationSlideDistancePx * direction },
+                ),
+        )
 }
 
-private fun routeFadeContentTransform(): ContentTransform = fadeIn(
-    animationSpec = tween(NavigationAnimationMillis),
-).togetherWith(
-    fadeOut(animationSpec = tween(NavigationAnimationMillis)),
-)
+private fun routeFadeContentTransform(): ContentTransform =
+    fadeIn(
+            animationSpec = tween(NavigationAnimationMillis),
+        )
+        .togetherWith(
+            fadeOut(animationSpec = tween(NavigationAnimationMillis)),
+        )

@@ -9,42 +9,26 @@ val LocalHausColors = staticCompositionLocalOf { LightHausPalette }
 
 object HausColors {
     val current: HausColorPalette
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalHausColors.current
+        @Composable @ReadOnlyComposable get() = LocalHausColors.current
 }
 
 val HausInk: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = HausColors.current.ink
+    @Composable @ReadOnlyComposable get() = HausColors.current.ink
 
 val HausPaper: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = HausColors.current.paper
+    @Composable @ReadOnlyComposable get() = HausColors.current.paper
 
 val HausMuted: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = HausColors.current.muted
+    @Composable @ReadOnlyComposable get() = HausColors.current.muted
 
 val HausLine: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = HausColors.current.line
+    @Composable @ReadOnlyComposable get() = HausColors.current.line
 
 val HausPanel: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = HausColors.current.panel
+    @Composable @ReadOnlyComposable get() = HausColors.current.panel
 
 val HausPanelStrong: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = HausColors.current.panelStrong
+    @Composable @ReadOnlyComposable get() = HausColors.current.panelStrong
 
 val HausPulse: Color
-    @Composable
-    @ReadOnlyComposable
-    get() = HausColors.current.pulse
+    @Composable @ReadOnlyComposable get() = HausColors.current.pulse

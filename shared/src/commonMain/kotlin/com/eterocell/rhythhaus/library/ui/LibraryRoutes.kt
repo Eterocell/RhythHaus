@@ -61,11 +61,19 @@ internal class QueueMutationDispatcher(
     private val removeCommand: suspend (String) -> QueueMutationResult,
     private val clearCommand: suspend () -> QueueMutationResult,
 ) {
-    suspend fun reorder(occurrenceId: String, targetIndex: Int): QueueMutationFeedback = executeQueueMutation(state) { reorderCommand(occurrenceId, targetIndex) }
+    suspend fun reorder(
+        occurrenceId: String,
+        targetIndex: Int
+    ): QueueMutationFeedback =
+        executeQueueMutation(state) {
+            reorderCommand(occurrenceId, targetIndex)
+        }
 
-    suspend fun remove(occurrenceId: String): QueueMutationFeedback = executeQueueMutation(state) { removeCommand(occurrenceId) }
+    suspend fun remove(occurrenceId: String): QueueMutationFeedback =
+        executeQueueMutation(state) { removeCommand(occurrenceId) }
 
-    suspend fun clear(): QueueMutationFeedback = executeQueueMutation(state, clearCommand)
+    suspend fun clear(): QueueMutationFeedback =
+        executeQueueMutation(state, clearCommand)
 }
 
 @Composable
@@ -108,50 +116,54 @@ internal fun LibraryRouteOverlays(
     bottomContentPadding: Dp = 0.dp,
 ) {
     when (route) {
-        LibraryRoute.Settings -> SettingsScreen(
-            sources = sources,
-            folderPickerLauncher = folderPickerLauncher,
-            sourcePickerActionVisible = sourcePickerActionVisible,
-            importMessage = importMessage,
-            scanProgress = scanProgress,
-            scanJob = scanJob,
-            hasImportedTracks = snapshot.tracks.isNotEmpty(),
-            currentThemeMode = currentThemeMode,
-            playlistBackupState = playlistBackupState,
-            backupDocumentAvailable = backupDocumentAvailable,
-            onExportPlaylists = onExportPlaylists,
-            onOpenPlaylistBackup = onOpenPlaylistBackup,
-            onConfirmPlaylistBackup = onConfirmPlaylistBackup,
-            onPlaylistBackupAction = onPlaylistBackupAction,
-            onThemeModeSelected = onThemeModeSelected,
-            onClearLibrary = onClearLibrary,
-            onRescanSource = onRescanSource,
-            onRemoveSource = onRemoveSource,
-            onCancelScan = onCancelScan,
-            onAboutClick = onShowSettingsAbout,
-            onDismiss = onDismiss,
-        )
+        LibraryRoute.Settings ->
+            SettingsScreen(
+                sources = sources,
+                folderPickerLauncher = folderPickerLauncher,
+                sourcePickerActionVisible = sourcePickerActionVisible,
+                importMessage = importMessage,
+                scanProgress = scanProgress,
+                scanJob = scanJob,
+                hasImportedTracks = snapshot.tracks.isNotEmpty(),
+                currentThemeMode = currentThemeMode,
+                playlistBackupState = playlistBackupState,
+                backupDocumentAvailable = backupDocumentAvailable,
+                onExportPlaylists = onExportPlaylists,
+                onOpenPlaylistBackup = onOpenPlaylistBackup,
+                onConfirmPlaylistBackup = onConfirmPlaylistBackup,
+                onPlaylistBackupAction = onPlaylistBackupAction,
+                onThemeModeSelected = onThemeModeSelected,
+                onClearLibrary = onClearLibrary,
+                onRescanSource = onRescanSource,
+                onRemoveSource = onRemoveSource,
+                onCancelScan = onCancelScan,
+                onAboutClick = onShowSettingsAbout,
+                onDismiss = onDismiss,
+            )
 
-        LibraryRoute.Search -> SearchScreen(
-            libraryTracks = libraryTracks,
-            tagLibReader = tagLibReader,
-            playbackController = playbackController,
-            playbackState = playbackState,
-            onDismiss = onDismiss,
-            onScrollPositionChanged = onScrollPositionChanged,
-            trackSelectionState = trackSelectionState,
-            onTrackSelectionAction = onTrackSelectionAction,
-            bottomContentPadding = bottomContentPadding,
-        )
+        LibraryRoute.Search ->
+            SearchScreen(
+                libraryTracks = libraryTracks,
+                tagLibReader = tagLibReader,
+                playbackController = playbackController,
+                playbackState = playbackState,
+                onDismiss = onDismiss,
+                onScrollPositionChanged = onScrollPositionChanged,
+                trackSelectionState = trackSelectionState,
+                onTrackSelectionAction = onTrackSelectionAction,
+                bottomContentPadding = bottomContentPadding,
+            )
 
-        LibraryRoute.SettingsAbout -> SettingsAboutScreen(
-            onOpenLibraries = onShowOpenSourceLibraries,
-            onDismiss = onDismiss,
-        )
+        LibraryRoute.SettingsAbout ->
+            SettingsAboutScreen(
+                onOpenLibraries = onShowOpenSourceLibraries,
+                onDismiss = onDismiss,
+            )
 
-        LibraryRoute.OpenSourceLibraries -> OpenSourceLibrariesScreen(
-            onDismiss = onDismiss,
-        )
+        LibraryRoute.OpenSourceLibraries ->
+            OpenSourceLibrariesScreen(
+                onDismiss = onDismiss,
+            )
 
         LibraryRoute.Home,
         is LibraryRoute.AlbumDetail,
@@ -185,7 +197,9 @@ internal fun LibraryRouteContent(
     onBack: () -> Unit,
     onDeleteCompleted: () -> Unit = {},
     registerPlaylistEditMode: (Any, () -> Unit) -> () -> Unit = { _, _ -> {} },
-    registerPlaylistModalDismiss: (Any, (() -> Unit)?) -> () -> Unit = { _, _ -> {} },
+    registerPlaylistModalDismiss: (Any, (() -> Unit)?) -> () -> Unit = { _, _ ->
+        {}
+    },
     onOpenDetailRoute: (LibraryRoute) -> Unit,
     onTrackSelected: (String) -> Unit,
     onTrackClickFromTracks: (List<Track>, Track) -> Unit,
@@ -206,11 +220,21 @@ internal fun LibraryRouteContent(
                 Box(modifier = Modifier.fillMaxSize())
             } else {
                 val albumTracks = album.tracks
-                val selectedAlbumTrackId by remember(album.album) { mutableStateOf(albumTracks.firstOrNull()?.id) }
-                val selectedAlbumTrack = albumTracks.firstOrNull { it.id == selectedAlbumTrackId } ?: albumTracks.firstOrNull()
+                val selectedAlbumTrackId by
+                    remember(album.album) {
+                        mutableStateOf(albumTracks.firstOrNull()?.id)
+                    }
+                val selectedAlbumTrack =
+                    albumTracks.firstOrNull { it.id == selectedAlbumTrackId }
+                        ?: albumTracks.firstOrNull()
                 DrillDownView(
                     title = album.album,
-                    subtitle = stringResource(Res.string.album_detail_subtitle_format, albumTracks.size, album.artist ?: stringResource(Res.string.unknown_artist)),
+                    subtitle =
+                        stringResource(
+                            Res.string.album_detail_subtitle_format,
+                            albumTracks.size,
+                            album.artist
+                                ?: stringResource(Res.string.unknown_artist)),
                     tracks = albumTracks,
                     topBarArtworkTrack = albumTracks.firstOrNull(),
                     selectedTrack = selectedAlbumTrack,
@@ -240,11 +264,20 @@ internal fun LibraryRouteContent(
                 Box(modifier = Modifier.fillMaxSize())
             } else {
                 val artistTracks = artist.tracks
-                val selectedArtistTrackId by remember(artist.artist) { mutableStateOf(artistTracks.firstOrNull()?.id) }
-                val selectedArtistTrack = artistTracks.firstOrNull { it.id == selectedArtistTrackId } ?: artistTracks.firstOrNull()
+                val selectedArtistTrackId by
+                    remember(artist.artist) {
+                        mutableStateOf(artistTracks.firstOrNull()?.id)
+                    }
+                val selectedArtistTrack =
+                    artistTracks.firstOrNull { it.id == selectedArtistTrackId }
+                        ?: artistTracks.firstOrNull()
                 DrillDownView(
                     title = artist.artist,
-                    subtitle = stringResource(Res.string.artist_detail_subtitle_format, artist.albumCount, artistTracks.size),
+                    subtitle =
+                        stringResource(
+                            Res.string.artist_detail_subtitle_format,
+                            artist.albumCount,
+                            artistTracks.size),
                     tracks = artistTracks,
                     topBarArtworkTrack = artistTracks.firstOrNull(),
                     selectedTrack = selectedArtistTrack,
@@ -258,7 +291,8 @@ internal fun LibraryRouteContent(
                         onTrackClickFromTracks(artistTracks, track)
                     },
                     onPlayPause = playbackController::togglePlayPause,
-                    selectionPageKey = TrackSelectionPageKey.Artist(artist.artist),
+                    selectionPageKey =
+                        TrackSelectionPageKey.Artist(artist.artist),
                     trackSelectionState = trackSelectionState,
                     onTrackSelectionAction = onTrackSelectionAction,
                     bottomContentPadding = bottomContentPadding,
@@ -272,19 +306,24 @@ internal fun LibraryRouteContent(
         }
 
         LibraryRoute.PlaylistHub -> {
-            val queueMutations = QueueMutationDispatcher(
-                state = playbackController.state,
-                reorderCommand = playbackController::reorderUpcoming,
-                removeCommand = playbackController::removeUpcoming,
-                clearCommand = playbackController::clearUpcoming,
-            )
+            val queueMutations =
+                QueueMutationDispatcher(
+                    state = playbackController.state,
+                    reorderCommand = playbackController::reorderUpcoming,
+                    removeCommand = playbackController::removeUpcoming,
+                    clearCommand = playbackController::clearUpcoming,
+                )
             PlaylistHubScreen(
                 state = playlistState,
                 playbackState = playbackState,
                 onBack = onBack,
                 onRetry = onRefreshPlaylists,
-                onOpenPlaylist = { onOpenDetailRoute(LibraryRoute.PlaylistDetail(it)) },
-                onSelectTab = { onPlaylistStateAction(PlaylistStateAction.SelectTab(it)) },
+                onOpenPlaylist = {
+                    onOpenDetailRoute(LibraryRoute.PlaylistDetail(it))
+                },
+                onSelectTab = {
+                    onPlaylistStateAction(PlaylistStateAction.SelectTab(it))
+                },
                 onCreate = { name, onSuccess ->
                     onPlaylistMutation({ create(name) }, onSuccess)
                 },
@@ -296,66 +335,81 @@ internal fun LibraryRouteContent(
         }
 
         is LibraryRoute.PlaylistDetail -> {
-            when (val resolution = playlistDetailResolution(route.playlistId, playlistState)) {
-                PlaylistDetailResolution.AwaitConfirmation -> PlaylistRoutePlaceholder(
-                    title = stringResource(Res.string.playlists),
-                    state = playlistState,
-                    onBack = onBack,
-                    onRetry = onRefreshPlaylists,
-                )
+            when (val resolution =
+                playlistDetailResolution(route.playlistId, playlistState)) {
+                PlaylistDetailResolution.AwaitConfirmation ->
+                    PlaylistRoutePlaceholder(
+                        title = stringResource(Res.string.playlists),
+                        state = playlistState,
+                        onBack = onBack,
+                        onRetry = onRefreshPlaylists,
+                    )
 
-                is PlaylistDetailResolution.Show -> PlaylistDetailScreen(
-                    playlist = resolution.playlist,
-                    entries = playlistState.confirmedSnapshot.entries(resolution.playlist.id),
-                    libraryTracks = libraryTracks,
-                    state = playlistState,
-                    onBack = onBack,
-                    onRetry = onRefreshPlaylists,
-                    onRename = { name, onSuccess ->
-                        onPlaylistMutation({ rename(resolution.playlist.id, name) }, onSuccess)
-                    },
-                    onDelete = { onOutcome ->
-                        onPlaylistMutation(
-                            { delete(resolution.playlist.id) },
-                            { outcome ->
-                                onOutcome(outcome)
-                            },
-                        )
-                    },
-                    onDeleteCompleted = onDeleteCompleted,
-                    onOpenBrowser = {
-                        onPlaylistStateAction(
-                            PlaylistStateAction.OpenBrowser(
-                                PlaylistBrowserState(playlistId = resolution.playlist.id),
-                            ),
-                        )
-                    },
-                    onPlayEntry = { request ->
-                        selectOccurrenceForPlayback(
-                            playbackController,
-                            request.occurrences,
-                            request.selectedOccurrenceId,
-                        )
-                    },
-                    onRemoveEntry = { entryId ->
-                        onPlaylistMutation({ removeEntry(entryId) }) { outcome ->
-                            playlistMutationDecision(PlaylistMutationWorkflow.Remove, outcome)
-                        }
-                    },
-                    onReorder = { entryIds ->
-                        onPlaylistMutation({ reorder(resolution.playlist.id, entryIds) }) { outcome ->
-                            playlistMutationDecision(PlaylistMutationWorkflow.Reorder, outcome)
-                        }
-                    },
-                    bottomContentPadding = bottomContentPadding,
-                    onScrollPositionChanged = onScrollPositionChanged,
-                    registerPlaylistEditMode = registerPlaylistEditMode,
-                    registerPlaylistModalDismiss = registerPlaylistModalDismiss,
-                )
+                is PlaylistDetailResolution.Show ->
+                    PlaylistDetailScreen(
+                        playlist = resolution.playlist,
+                        entries =
+                            playlistState.confirmedSnapshot.entries(
+                                resolution.playlist.id),
+                        libraryTracks = libraryTracks,
+                        state = playlistState,
+                        onBack = onBack,
+                        onRetry = onRefreshPlaylists,
+                        onRename = { name, onSuccess ->
+                            onPlaylistMutation(
+                                { rename(resolution.playlist.id, name) },
+                                onSuccess)
+                        },
+                        onDelete = { onOutcome ->
+                            onPlaylistMutation(
+                                { delete(resolution.playlist.id) },
+                                { outcome ->
+                                    onOutcome(outcome)
+                                },
+                            )
+                        },
+                        onDeleteCompleted = onDeleteCompleted,
+                        onOpenBrowser = {
+                            onPlaylistStateAction(
+                                PlaylistStateAction.OpenBrowser(
+                                    PlaylistBrowserState(
+                                        playlistId = resolution.playlist.id),
+                                ),
+                            )
+                        },
+                        onPlayEntry = { request ->
+                            selectOccurrenceForPlayback(
+                                playbackController,
+                                request.occurrences,
+                                request.selectedOccurrenceId,
+                            )
+                        },
+                        onRemoveEntry = { entryId ->
+                            onPlaylistMutation({ removeEntry(entryId) }) {
+                                outcome ->
+                                playlistMutationDecision(
+                                    PlaylistMutationWorkflow.Remove, outcome)
+                            }
+                        },
+                        onReorder = { entryIds ->
+                            onPlaylistMutation({
+                                reorder(resolution.playlist.id, entryIds)
+                            }) { outcome ->
+                                playlistMutationDecision(
+                                    PlaylistMutationWorkflow.Reorder, outcome)
+                            }
+                        },
+                        bottomContentPadding = bottomContentPadding,
+                        onScrollPositionChanged = onScrollPositionChanged,
+                        registerPlaylistEditMode = registerPlaylistEditMode,
+                        registerPlaylistModalDismiss =
+                            registerPlaylistModalDismiss,
+                    )
 
-                is PlaylistDetailResolution.ReturnToHub -> LaunchedEffect(route) {
-                    onRecoverStalePlaylistDetail(resolution.message)
-                }
+                is PlaylistDetailResolution.ReturnToHub ->
+                    LaunchedEffect(route) {
+                        onRecoverStalePlaylistDetail(resolution.message)
+                    }
             }
         }
 
@@ -392,17 +446,16 @@ private fun PlaylistRoutePlaceholder(
             backdrop = null,
         )
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
             when {
-                state.isLoading -> Text(
-                    text = stringResource(Res.string.playlist_loading),
-                    color = HausColors.current.muted,
-                )
+                state.isLoading ->
+                    Text(
+                        text = stringResource(Res.string.playlist_loading),
+                        color = HausColors.current.muted,
+                    )
 
                 state.readErrorMessage != null -> {
                     Text(
@@ -411,33 +464,37 @@ private fun PlaylistRoutePlaceholder(
                     )
                     Button(
                         onClick = onRetry,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp)
-                            .height(48.dp)
-                            .semantics { contentDescription = retryLabel },
+                        modifier =
+                            Modifier.fillMaxWidth()
+                                .padding(top = 12.dp)
+                                .height(48.dp)
+                                .semantics { contentDescription = retryLabel },
                         cornerRadius = 16.dp,
-                        colors = ButtonDefaults.buttonColors(
-                            color = HausColors.current.ink,
-                            contentColor = HausColors.current.paper,
-                        ),
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                color = HausColors.current.ink,
+                                contentColor = HausColors.current.paper,
+                            ),
                     ) {
                         Text(retryLabel)
                     }
                 }
             }
             when (playlistRouteNotice(state)) {
-                PlaylistRouteNotice.PlaylistChanged -> Text(
-                    text = stringResource(Res.string.playlist_changed),
-                    color = HausColors.current.muted,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
+                PlaylistRouteNotice.PlaylistChanged ->
+                    Text(
+                        text = stringResource(Res.string.playlist_changed),
+                        color = HausColors.current.muted,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
 
-                PlaylistRouteNotice.MutationFailed -> Text(
-                    text = stringResource(Res.string.playlist_mutation_failed),
-                    color = HausColors.current.muted,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
+                PlaylistRouteNotice.MutationFailed ->
+                    Text(
+                        text =
+                            stringResource(Res.string.playlist_mutation_failed),
+                        color = HausColors.current.muted,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
 
                 null -> Unit
             }

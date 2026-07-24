@@ -37,7 +37,8 @@ class SearchSelectionPoliciesJvmTest {
             )
         }
 
-        onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick)).performClick()
+        onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick))
+            .performClick()
         waitForIdle()
 
         assertEquals(1, playCount)
@@ -72,43 +73,51 @@ class SearchSelectionPoliciesJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun selectionModeRowAndCheckboxEachToggleExactlyOnceWithoutPlayback() = runComposeUiTest {
-        var playCount = 0
-        var toggleCount = 0
-        setContent {
-            SearchResultRow(
-                track = testTrack(),
-                isNowPlaying = false,
-                isPlaying = false,
-                selectionModeActive = true,
-                isSelected = false,
-                onPlay = { playCount += 1 },
-                onToggleSelection = { toggleCount += 1 },
-                onStartSelection = {},
-            )
+    fun selectionModeRowAndCheckboxEachToggleExactlyOnceWithoutPlayback() =
+        runComposeUiTest {
+            var playCount = 0
+            var toggleCount = 0
+            setContent {
+                SearchResultRow(
+                    track = testTrack(),
+                    isNowPlaying = false,
+                    isPlaying = false,
+                    selectionModeActive = true,
+                    isSelected = false,
+                    onPlay = { playCount += 1 },
+                    onToggleSelection = { toggleCount += 1 },
+                    onStartSelection = {},
+                )
+            }
+
+            onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick))
+                .performClick()
+            waitForIdle()
+
+            assertEquals(0, playCount)
+            assertEquals(1, toggleCount)
+
+            onNode(
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.Role, Role.Checkbox) and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.ToggleableState,
+                            ToggleableState.Off),
+                )
+                .performClick()
+            waitForIdle()
+
+            assertEquals(0, playCount)
+            assertEquals(2, toggleCount)
         }
-
-        onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick)).performClick()
-        waitForIdle()
-
-        assertEquals(0, playCount)
-        assertEquals(1, toggleCount)
-
-        onNode(
-            SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox) and
-                SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, ToggleableState.Off),
-        ).performClick()
-        waitForIdle()
-
-        assertEquals(0, playCount)
-        assertEquals(2, toggleCount)
-    }
 
     @Test
     fun changingFilteredIdsDispatchesEachSearchReconciliation() {
         val actions = mutableListOf<TrackSelectionAction>()
 
-        dispatchSearchVisibleTrackIds(listOf("track-a", "track-b")) { actions += it }
+        dispatchSearchVisibleTrackIds(listOf("track-a", "track-b")) {
+            actions += it
+        }
         dispatchSearchVisibleTrackIds(listOf("track-b")) { actions += it }
 
         assertEquals(
@@ -139,25 +148,29 @@ class SearchSelectionPoliciesJvmTest {
                 onBrowseModeChange = { modes += it },
             )
 
-            assertEquals(listOf<TrackSelectionAction>(TrackSelectionAction.RouteChanged(null)), actions)
+            assertEquals(
+                listOf<TrackSelectionAction>(
+                    TrackSelectionAction.RouteChanged(null)),
+                actions)
             assertEquals(listOf(destination), modes)
         }
     }
 
-    private fun testTrack() = LibraryTrack(
-        id = "track-1",
-        sourceId = "source-1",
-        sourceLocalKey = "song.mp3",
-        audioSource = AudioSource.FilePath("song.mp3"),
-        displayName = "song.mp3",
-        title = "Song",
-        artist = "Artist",
-        album = "Album",
-        durationMillis = 180_000,
-        sizeBytes = null,
-        modifiedAtEpochMillis = null,
-        lastSeenScanId = "scan-1",
-        createdAtEpochMillis = 1,
-        updatedAtEpochMillis = 1,
-    )
+    private fun testTrack() =
+        LibraryTrack(
+            id = "track-1",
+            sourceId = "source-1",
+            sourceLocalKey = "song.mp3",
+            audioSource = AudioSource.FilePath("song.mp3"),
+            displayName = "song.mp3",
+            title = "Song",
+            artist = "Artist",
+            album = "Album",
+            durationMillis = 180_000,
+            sizeBytes = null,
+            modifiedAtEpochMillis = null,
+            lastSeenScanId = "scan-1",
+            createdAtEpochMillis = 1,
+            updatedAtEpochMillis = 1,
+        )
 }

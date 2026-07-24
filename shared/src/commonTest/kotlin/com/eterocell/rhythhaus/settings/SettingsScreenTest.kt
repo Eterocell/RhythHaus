@@ -12,11 +12,13 @@ class SettingsScreenTest {
     @Test
     fun backupActionsRequireAvailableLauncherAndIdleWorkflow() {
         assertTrue(playlistBackupActionsEnabled(true, PlaylistBackupUiState()))
-        assertFalse(playlistBackupActionsEnabled(false, PlaylistBackupUiState()))
+        assertFalse(
+            playlistBackupActionsEnabled(false, PlaylistBackupUiState()))
         assertFalse(
             playlistBackupActionsEnabled(
                 true,
-                PlaylistBackupUiState(operation = PlaylistBackupOperation.Opening),
+                PlaylistBackupUiState(
+                    operation = PlaylistBackupOperation.Opening),
             ),
         )
     }
@@ -37,14 +39,18 @@ class SettingsScreenTest {
     @Test
     fun compactSettingsLayoutPolicyZerosOutComponentOwnedHorizontalPaddingInsidePageInset() {
         assertEquals(0.dp, CompactSettingsLayoutPolicy.topBarTitlePadding)
-        assertEquals(0.dp, CompactSettingsLayoutPolicy.topBarNavigationIconPadding)
-        assertEquals(0.dp, CompactSettingsLayoutPolicy.appearanceHorizontalInsidePadding)
-        assertEquals(16.dp, CompactSettingsLayoutPolicy.appearanceVerticalInsidePadding)
+        assertEquals(
+            0.dp, CompactSettingsLayoutPolicy.topBarNavigationIconPadding)
+        assertEquals(
+            0.dp, CompactSettingsLayoutPolicy.appearanceHorizontalInsidePadding)
+        assertEquals(
+            16.dp, CompactSettingsLayoutPolicy.appearanceVerticalInsidePadding)
     }
 
     @Test
     fun rhythHausSourceUrlIsExactRepositoryAddress() {
-        assertEquals("https://github.com/Eterocell/RhythHaus", RhythHausSourceUrl)
+        assertEquals(
+            "https://github.com/Eterocell/RhythHaus", RhythHausSourceUrl)
     }
 
     @Test

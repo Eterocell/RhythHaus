@@ -19,22 +19,23 @@ class LibraryModelsTest {
 
     @Test
     fun libraryTrackMapsToPlayableTrack() {
-        val track = LibraryTrack(
-            id = "track-1",
-            sourceId = "source-1",
-            sourceLocalKey = "Album/Track.mp3",
-            audioSource = AudioSource.FilePath("/Music/Album/Track.mp3"),
-            displayName = "Track.mp3",
-            title = "Track",
-            artist = "Artist",
-            album = "Album",
-            durationMillis = 123_000L,
-            sizeBytes = 1000L,
-            modifiedAtEpochMillis = 456L,
-            lastSeenScanId = "scan-1",
-            createdAtEpochMillis = 1L,
-            updatedAtEpochMillis = 2L,
-        )
+        val track =
+            LibraryTrack(
+                id = "track-1",
+                sourceId = "source-1",
+                sourceLocalKey = "Album/Track.mp3",
+                audioSource = AudioSource.FilePath("/Music/Album/Track.mp3"),
+                displayName = "Track.mp3",
+                title = "Track",
+                artist = "Artist",
+                album = "Album",
+                durationMillis = 123_000L,
+                sizeBytes = 1000L,
+                modifiedAtEpochMillis = 456L,
+                lastSeenScanId = "scan-1",
+                createdAtEpochMillis = 1L,
+                updatedAtEpochMillis = 2L,
+            )
 
         val playable = track.toPlayableTrack()
 
@@ -43,27 +44,29 @@ class LibraryModelsTest {
         assertEquals("Artist", playable.artist)
         assertEquals("Album", playable.album)
         assertEquals(123_000L, playable.durationMillis)
-        assertEquals(AudioSource.FilePath("/Music/Album/Track.mp3"), playable.source)
+        assertEquals(
+            AudioSource.FilePath("/Music/Album/Track.mp3"), playable.source)
     }
 
     @Test
     fun libraryTrackWithUnknownDurationMapsToPlayableTrackWithNullDuration() {
-        val track = LibraryTrack(
-            id = "track-unknown-duration",
-            sourceId = "source-1",
-            sourceLocalKey = "Album/Unknown.mp3",
-            audioSource = AudioSource.FilePath("/Music/Album/Unknown.mp3"),
-            displayName = "Unknown.mp3",
-            title = "Unknown",
-            artist = "Artist",
-            album = "Album",
-            durationMillis = null,
-            sizeBytes = 1000L,
-            modifiedAtEpochMillis = 456L,
-            lastSeenScanId = "scan-1",
-            createdAtEpochMillis = 1L,
-            updatedAtEpochMillis = 2L,
-        )
+        val track =
+            LibraryTrack(
+                id = "track-unknown-duration",
+                sourceId = "source-1",
+                sourceLocalKey = "Album/Unknown.mp3",
+                audioSource = AudioSource.FilePath("/Music/Album/Unknown.mp3"),
+                displayName = "Unknown.mp3",
+                title = "Unknown",
+                artist = "Artist",
+                album = "Album",
+                durationMillis = null,
+                sizeBytes = 1000L,
+                modifiedAtEpochMillis = 456L,
+                lastSeenScanId = "scan-1",
+                createdAtEpochMillis = 1L,
+                updatedAtEpochMillis = 2L,
+            )
 
         val playable = track.toPlayableTrack()
 

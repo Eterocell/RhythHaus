@@ -1,8 +1,5 @@
 package com.eterocell.rhythhaus
 
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -12,19 +9,24 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 class AndroidPlaybackMediaSessionTest {
 
     @Test
     fun mediaItemCarriesTrackMetadataForAndroidSystemControls() {
-        val track = PlayableTrack(
-            id = "track-1",
-            title = "Night Drive",
-            artist = "Rhyth Haus",
-            album = "Local Sessions",
-            durationMillis = 181_000L,
-            source = AudioSource.Uri("content://media/external/audio/media/42"),
-        )
+        val track =
+            PlayableTrack(
+                id = "track-1",
+                title = "Night Drive",
+                artist = "Rhyth Haus",
+                album = "Local Sessions",
+                durationMillis = 181_000L,
+                source =
+                    AudioSource.Uri("content://media/external/audio/media/42"),
+            )
 
         val mediaMetadata = buildAndroidPlaybackMediaMetadata(track)
 
@@ -45,14 +47,16 @@ class AndroidPlaybackMediaSessionTest {
 
     @Test
     fun androidMediaItemCarriesUniqueGenerationRequestToken() {
-        val track = PlayableTrack(
-            id = "same-track",
-            title = "Same Track",
-            artist = "Rhyth Haus",
-            album = null,
-            durationMillis = 1_000L,
-            source = AudioSource.Uri("content://media/external/audio/media/42"),
-        )
+        val track =
+            PlayableTrack(
+                id = "same-track",
+                title = "Same Track",
+                artist = "Rhyth Haus",
+                album = null,
+                durationMillis = 1_000L,
+                source =
+                    AudioSource.Uri("content://media/external/audio/media/42"),
+            )
         val tracker = Media3RequestTokenTracker()
         val first = tracker.begin(20L)
         val second = tracker.begin(21L)
@@ -75,21 +79,28 @@ class AndroidPlaybackMediaSessionTest {
         assertFailsWith<IllegalStateException> { first.result.await() }
         val second = requests.begin(31L)
         requests.ready(second.token, durationMillis = 2_000L)
-        assertEquals(LoadedPlayback(31L, 2_000L), withTimeout(1_000) { second.result.await() })
+        assertEquals(
+            LoadedPlayback(31L, 2_000L),
+            withTimeout(1_000) { second.result.await() })
     }
 
     @Test
-    fun matchingTokenPlayerErrorSettlesLoadAndLaterLoadCanBecomeReady() = runBlocking {
-        val requests = AndroidPlaybackRequestState()
-        val first = requests.begin(40L)
+    fun matchingTokenPlayerErrorSettlesLoadAndLaterLoadCanBecomeReady() =
+        runBlocking {
+            val requests = AndroidPlaybackRequestState()
+            val first = requests.begin(40L)
 
-        assertTrue(requests.fail(first.token, first.token, IllegalArgumentException("decoder")))
-        assertFailsWith<IllegalArgumentException> { first.result.await() }
+            assertTrue(
+                requests.fail(
+                    first.token,
+                    first.token,
+                    IllegalArgumentException("decoder")))
+            assertFailsWith<IllegalArgumentException> { first.result.await() }
 
-        val second = requests.begin(41L)
-        requests.ready(second.token, durationMillis = 3_000L)
-        assertEquals(LoadedPlayback(41L, 3_000L), second.result.await())
-    }
+            val second = requests.begin(41L)
+            requests.ready(second.token, durationMillis = 3_000L)
+            assertEquals(LoadedPlayback(41L, 3_000L), second.result.await())
+        }
 
     @Test
     fun cancellingOldLoadCannotInvalidateOrCompleteReplacement() = runBlocking {
@@ -117,18 +128,19 @@ class AndroidPlaybackMediaSessionTest {
     }
 
     @Test
-    fun readySourceRetainsObservableGenerationForLaterCallbacks() = runBlocking {
-        val requests = AndroidPlaybackRequestState()
-        val request = requests.begin(70L)
+    fun readySourceRetainsObservableGenerationForLaterCallbacks() =
+        runBlocking {
+            val requests = AndroidPlaybackRequestState()
+            val request = requests.begin(70L)
 
-        assertTrue(requests.ready(request.token, durationMillis = 1_234L))
-        assertEquals(LoadedPlayback(70L, 1_234L), request.result.await())
+            assertTrue(requests.ready(request.token, durationMillis = 1_234L))
+            assertEquals(LoadedPlayback(70L, 1_234L), request.result.await())
 
-        assertEquals(70L, requests.observableGeneration(request.token))
-        assertEquals(70L, requests.observableGeneration(request.token))
-        assertEquals(70L, requests.observableGeneration(request.token))
-        assertEquals(70L, requests.observableGeneration(request.token))
-    }
+            assertEquals(70L, requests.observableGeneration(request.token))
+            assertEquals(70L, requests.observableGeneration(request.token))
+            assertEquals(70L, requests.observableGeneration(request.token))
+            assertEquals(70L, requests.observableGeneration(request.token))
+        }
 
     @Test
     fun replacementInvalidatesReadySourceAndRejectsLateCallbacks() {
@@ -180,13 +192,14 @@ class AndroidPlaybackMediaSessionTest {
         val releaseQueued = CountDownLatch(1)
 
         lifecycle.dispatchControllerWork { calls += "queued-before-release" }
-        val releaseThread = thread(start = true) {
-            lifecycle.release {
-                calls += "release-controller"
-                calls += "release-future"
+        val releaseThread =
+            thread(start = true) {
+                lifecycle.release {
+                    calls += "release-controller"
+                    calls += "release-future"
+                }
+                releaseQueued.countDown()
             }
-            releaseQueued.countDown()
-        }
         assertTrue(releaseQueued.await(1, TimeUnit.SECONDS))
         releaseThread.join()
         lifecycle.dispatchControllerWork { calls += "queued-after-release" }
@@ -199,9 +212,11 @@ class AndroidPlaybackMediaSessionTest {
         assertEquals(0, executor.pendingCount)
     }
 
-    private class RecordingAndroidControllerExecutor : AndroidControllerExecutor {
+    private class RecordingAndroidControllerExecutor :
+        AndroidControllerExecutor {
         private val pending = ArrayDeque<() -> Unit>()
-        val pendingCount: Int get() = pending.size
+        val pendingCount: Int
+            get() = pending.size
 
         override fun execute(action: () -> Unit) {
             pending += action

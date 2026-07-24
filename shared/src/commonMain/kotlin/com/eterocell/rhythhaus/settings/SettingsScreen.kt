@@ -112,8 +112,6 @@ import rhythhaus.shared.generated.resources.theme_system_label
 import rhythhaus.shared.generated.resources.unnamed_folder
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Surface
@@ -131,16 +129,17 @@ internal data class SettingsLayoutPolicy(
     val appearanceVerticalInsidePadding: Dp,
 )
 
-internal val CompactSettingsLayoutPolicy = SettingsLayoutPolicy(
-    horizontalPagePadding = 16.dp,
-    verticalPagePadding = 8.dp,
-    itemSpacing = 12.dp,
-    bottomContentPadding = 8.dp,
-    topBarTitlePadding = 0.dp,
-    topBarNavigationIconPadding = 0.dp,
-    appearanceHorizontalInsidePadding = 0.dp,
-    appearanceVerticalInsidePadding = 16.dp,
-)
+internal val CompactSettingsLayoutPolicy =
+    SettingsLayoutPolicy(
+        horizontalPagePadding = 16.dp,
+        verticalPagePadding = 8.dp,
+        itemSpacing = 12.dp,
+        bottomContentPadding = 8.dp,
+        topBarTitlePadding = 0.dp,
+        topBarNavigationIconPadding = 0.dp,
+        appearanceHorizontalInsidePadding = 0.dp,
+        appearanceVerticalInsidePadding = 16.dp,
+    )
 
 @Composable
 fun SettingsScreen(
@@ -168,224 +167,265 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     var showClearLibraryDialog by remember { mutableStateOf(false) }
-    var sourcePendingRemoval by remember { mutableStateOf<LibrarySource?>(null) }
+    var sourcePendingRemoval by remember {
+        mutableStateOf<LibrarySource?>(null)
+    }
     val layoutPolicy = CompactSettingsLayoutPolicy
-    val mutationsEnabled = sourceMutationsAllowed(
-        isProgressActive = scanProgress?.isActive == true,
-        isJobActive = scanJob?.isActive == true,
-    )
+    val mutationsEnabled =
+        sourceMutationsAllowed(
+            isProgressActive = scanProgress?.isActive == true,
+            isJobActive = scanJob?.isActive == true,
+        )
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(HausColors.current.paper)
-            .clickable(enabled = false, onClick = {}),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(HausColors.current.paper)
+                .clickable(enabled = false, onClick = {}),
     ) {
-        Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                containerColor = HausColors.current.paper,
-                contentWindowInsets = WindowInsets(0.dp),
-            ) {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .safeContentPadding()
-                        .padding(
-                            horizontal = layoutPolicy.horizontalPagePadding,
-                            vertical = layoutPolicy.verticalPagePadding,
-                        ),
-                    contentPadding = PaddingValues(bottom = layoutPolicy.bottomContentPadding),
-                    verticalArrangement = Arrangement.spacedBy(layoutPolicy.itemSpacing),
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = HausColors.current.paper) {
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    containerColor = HausColors.current.paper,
+                    contentWindowInsets = WindowInsets(0.dp),
                 ) {
-                    item {
-                        RhythHausTopAppBar(
-                            title = stringResource(Res.string.settings),
-                            onBack = onDismiss,
-                            titlePadding = layoutPolicy.topBarTitlePadding,
-                            navigationIconPadding = layoutPolicy.topBarNavigationIconPadding,
-                        )
-                    }
-
-                    item {
-                        AppearanceDropdown(
-                            currentThemeMode = currentThemeMode,
-                            onThemeModeSelected = onThemeModeSelected,
-                            horizontalInsidePadding = layoutPolicy.appearanceHorizontalInsidePadding,
-                            verticalInsidePadding = layoutPolicy.appearanceVerticalInsidePadding,
-                        )
-                    }
-
-                    item {
-                        Text(
-                            text = stringResource(Res.string.manage_music),
-                            color = HausColors.current.ink,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Black,
-                        )
-                    }
-
-                    item {
-                        Text(
-                            text = stringResource(Res.string.playlist_backup_section),
-                            color = HausColors.current.ink,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Black,
-                        )
-                    }
-
-                    item {
-                        PlaylistBackupActions(
-                            state = playlistBackupState,
-                            launcherAvailable = backupDocumentAvailable,
-                            onExport = onExportPlaylists,
-                            onImport = onOpenPlaylistBackup,
-                        )
-                    }
-
-                    playlistBackupState.error?.let { error ->
-                        item {
-                            Text(
-                                text = playlistBackupErrorMessage(error),
-                                color = HausColors.current.pulse,
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
-                        }
-                    }
-
-                    if (scanProgress?.isActive == true) {
-                        item {
-                            val ss = scanProgress.session!!
-                            ScanningCard(
-                                foldersVisited = ss.foldersVisited,
-                                filesVisited = ss.filesVisited,
-                                tracksAdded = ss.tracksAdded,
-                                latestItem = scanProgress.latestItem,
-                                onCancel = onCancelScan,
-                            )
-                        }
-                    }
-
-                    if (sources.isNotEmpty()) {
-                        item {
-                            Text(
-                                text = stringResource(Res.string.configured_folders),
-                                color = HausColors.current.muted,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                        items(sources, key = LibrarySource::id) { source ->
-                            ConfiguredSourceRow(
-                                source = source,
-                                mutationsEnabled = mutationsEnabled,
-                                onRescan = { onRescanSource(source) },
-                                onRemove = { sourcePendingRemoval = source },
-                            )
-                        }
-                    }
-
-                    if (sourcePickerActionVisible) {
-                        item {
-                            Button(
-                                onClick = folderPickerLauncher::launch,
-                                enabled = folderPickerLauncher.isAvailable && mutationsEnabled,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp),
-                                cornerRadius = 16.dp,
-                                colors = ButtonDefaults.buttonColors(
-                                    color = HausColors.current.ink,
-                                    contentColor = HausColors.current.paper,
-                                    disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                                    disabledContentColor = HausColors.current.muted,
+                    LazyColumn(
+                        modifier =
+                            Modifier.fillMaxSize()
+                                .safeContentPadding()
+                                .padding(
+                                    horizontal =
+                                        layoutPolicy.horizontalPagePadding,
+                                    vertical = layoutPolicy.verticalPagePadding,
                                 ),
-                            ) {
-                                Text(
-                                    text = if (folderPickerLauncher.isAvailable) {
-                                        stringResource(Res.string.add_music_folder)
-                                    } else {
-                                        stringResource(
-                                            Res.string.folder_picker_unavailable,
-                                        )
-                                    },
-                                    fontWeight = FontWeight.Black,
-                                )
-                            }
-                        }
-                    }
-
-                    importMessage?.let { msg ->
+                        contentPadding =
+                            PaddingValues(
+                                bottom = layoutPolicy.bottomContentPadding),
+                        verticalArrangement =
+                            Arrangement.spacedBy(layoutPolicy.itemSpacing),
+                    ) {
                         item {
-                            Text(
-                                text = msg,
-                                color = HausColors.current.muted,
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp,
-                                fontWeight = FontWeight.Medium,
+                            RhythHausTopAppBar(
+                                title = stringResource(Res.string.settings),
+                                onBack = onDismiss,
+                                titlePadding = layoutPolicy.topBarTitlePadding,
+                                navigationIconPadding =
+                                    layoutPolicy.topBarNavigationIconPadding,
                             )
                         }
-                    }
 
-                    if (hasImportedTracks) {
                         item {
-                            Button(
-                                onClick = { showClearLibraryDialog = true },
-                                enabled = mutationsEnabled,
-                                modifier = Modifier.fillMaxWidth().height(48.dp),
-                                cornerRadius = 18.dp,
-                                colors = ButtonDefaults.buttonColors(
-                                    color = HausColors.current.pulse.copy(alpha = 0.15f),
-                                    contentColor = HausColors.current.pulse,
-                                ),
-                            ) {
-                                Text(
-                                    text = stringResource(Res.string.clear_library),
-                                    fontWeight = FontWeight.Black,
-                                )
-                            }
-                        }
-                    }
-
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .clickable(onClick = onAboutClick)
-                                .semantics(mergeDescendants = true) {
-                                    role = Role.Button
-                                }
-                                .padding(horizontal = 4.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = HausColors.current.ink,
-                                modifier = Modifier.size(22.dp),
+                            AppearanceDropdown(
+                                currentThemeMode = currentThemeMode,
+                                onThemeModeSelected = onThemeModeSelected,
+                                horizontalInsidePadding =
+                                    layoutPolicy
+                                        .appearanceHorizontalInsidePadding,
+                                verticalInsidePadding =
+                                    layoutPolicy
+                                        .appearanceVerticalInsidePadding,
                             )
-                            Spacer(Modifier.width(12.dp))
+                        }
+
+                        item {
                             Text(
-                                text = stringResource(Res.string.about),
-                                modifier = Modifier.weight(1f),
+                                text = stringResource(Res.string.manage_music),
                                 color = HausColors.current.ink,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
                             )
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = HausColors.current.muted,
-                                modifier = Modifier.size(22.dp),
+                        }
+
+                        item {
+                            Text(
+                                text =
+                                    stringResource(
+                                        Res.string.playlist_backup_section),
+                                color = HausColors.current.ink,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
                             )
+                        }
+
+                        item {
+                            PlaylistBackupActions(
+                                state = playlistBackupState,
+                                launcherAvailable = backupDocumentAvailable,
+                                onExport = onExportPlaylists,
+                                onImport = onOpenPlaylistBackup,
+                            )
+                        }
+
+                        playlistBackupState.error?.let { error ->
+                            item {
+                                Text(
+                                    text = playlistBackupErrorMessage(error),
+                                    color = HausColors.current.pulse,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                        }
+
+                        if (scanProgress?.isActive == true) {
+                            item {
+                                val ss = scanProgress.session!!
+                                ScanningCard(
+                                    foldersVisited = ss.foldersVisited,
+                                    filesVisited = ss.filesVisited,
+                                    tracksAdded = ss.tracksAdded,
+                                    latestItem = scanProgress.latestItem,
+                                    onCancel = onCancelScan,
+                                )
+                            }
+                        }
+
+                        if (sources.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text =
+                                        stringResource(
+                                            Res.string.configured_folders),
+                                    color = HausColors.current.muted,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                            items(sources, key = LibrarySource::id) { source ->
+                                ConfiguredSourceRow(
+                                    source = source,
+                                    mutationsEnabled = mutationsEnabled,
+                                    onRescan = { onRescanSource(source) },
+                                    onRemove = {
+                                        sourcePendingRemoval = source
+                                    },
+                                )
+                            }
+                        }
+
+                        if (sourcePickerActionVisible) {
+                            item {
+                                Button(
+                                    onClick = folderPickerLauncher::launch,
+                                    enabled =
+                                        folderPickerLauncher.isAvailable &&
+                                            mutationsEnabled,
+                                    modifier =
+                                        Modifier.fillMaxWidth().height(48.dp),
+                                    cornerRadius = 16.dp,
+                                    colors =
+                                        ButtonDefaults.buttonColors(
+                                            color = HausColors.current.ink,
+                                            contentColor =
+                                                HausColors.current.paper,
+                                            disabledColor =
+                                                HausColors.current.muted.copy(
+                                                    alpha = 0.28f),
+                                            disabledContentColor =
+                                                HausColors.current.muted,
+                                        ),
+                                ) {
+                                    Text(
+                                        text =
+                                            if (folderPickerLauncher
+                                                .isAvailable) {
+                                                stringResource(
+                                                    Res.string.add_music_folder)
+                                            } else {
+                                                stringResource(
+                                                    Res.string
+                                                        .folder_picker_unavailable,
+                                                )
+                                            },
+                                        fontWeight = FontWeight.Black,
+                                    )
+                                }
+                            }
+                        }
+
+                        importMessage?.let { msg ->
+                            item {
+                                Text(
+                                    text = msg,
+                                    color = HausColors.current.muted,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                        }
+
+                        if (hasImportedTracks) {
+                            item {
+                                Button(
+                                    onClick = { showClearLibraryDialog = true },
+                                    enabled = mutationsEnabled,
+                                    modifier =
+                                        Modifier.fillMaxWidth().height(48.dp),
+                                    cornerRadius = 18.dp,
+                                    colors =
+                                        ButtonDefaults.buttonColors(
+                                            color =
+                                                HausColors.current.pulse.copy(
+                                                    alpha = 0.15f),
+                                            contentColor =
+                                                HausColors.current.pulse,
+                                        ),
+                                ) {
+                                    Text(
+                                        text =
+                                            stringResource(
+                                                Res.string.clear_library),
+                                        fontWeight = FontWeight.Black,
+                                    )
+                                }
+                            }
+                        }
+
+                        item {
+                            Row(
+                                modifier =
+                                    Modifier.fillMaxWidth()
+                                        .heightIn(min = 48.dp)
+                                        .clickable(onClick = onAboutClick)
+                                        .semantics(mergeDescendants = true) {
+                                            role = Role.Button
+                                        }
+                                        .padding(
+                                            horizontal = 4.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = HausColors.current.ink,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = stringResource(Res.string.about),
+                                    modifier = Modifier.weight(1f),
+                                    color = HausColors.current.ink,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Icon(
+                                    imageVector =
+                                        Icons.AutoMirrored.Filled
+                                            .KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = HausColors.current.muted,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
         if (showClearLibraryDialog) {
             AnimatedClearLibraryDialogRoute(
                 onDismiss = { showClearLibraryDialog = false },
@@ -410,14 +450,19 @@ fun SettingsScreen(
             PlaylistBackupPreviewDialog(
                 preview = preview,
                 isBusy = playlistBackupState.isBusy,
-                onDismiss = { onPlaylistBackupAction(PlaylistBackupUiAction.DismissPreview) },
+                onDismiss = {
+                    onPlaylistBackupAction(
+                        PlaylistBackupUiAction.DismissPreview)
+                },
                 onConfirm = onConfirmPlaylistBackup,
             )
         }
         playlistBackupState.result?.let { result ->
             PlaylistBackupResultDialog(
                 result = result,
-                onDismiss = { onPlaylistBackupAction(PlaylistBackupUiAction.DismissResult) },
+                onDismiss = {
+                    onPlaylistBackupAction(PlaylistBackupUiAction.DismissResult)
+                },
             )
         }
     }
@@ -445,19 +490,23 @@ private fun PlaylistBackupActions(
             enabled = enabled,
             modifier = Modifier.fillMaxWidth().height(48.dp),
             cornerRadius = 16.dp,
-            colors = ButtonDefaults.buttonColors(
-                color = HausColors.current.ink,
-                contentColor = HausColors.current.paper,
-                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                disabledContentColor = HausColors.current.muted,
-            ),
+            colors =
+                ButtonDefaults.buttonColors(
+                    color = HausColors.current.ink,
+                    contentColor = HausColors.current.paper,
+                    disabledColor =
+                        HausColors.current.muted.copy(alpha = 0.28f),
+                    disabledContentColor = HausColors.current.muted,
+                ),
         ) {
             Text(
-                text = if (state.operation == PlaylistBackupOperation.Exporting || state.operation == PlaylistBackupOperation.Saving) {
-                    stringResource(Res.string.playlist_backup_exporting)
-                } else {
-                    stringResource(Res.string.playlist_backup_export)
-                },
+                text =
+                    if (state.operation == PlaylistBackupOperation.Exporting ||
+                        state.operation == PlaylistBackupOperation.Saving) {
+                        stringResource(Res.string.playlist_backup_exporting)
+                    } else {
+                        stringResource(Res.string.playlist_backup_export)
+                    },
                 fontWeight = FontWeight.Black,
             )
         }
@@ -466,22 +515,24 @@ private fun PlaylistBackupActions(
             enabled = enabled,
             modifier = Modifier.fillMaxWidth().height(48.dp),
             cornerRadius = 16.dp,
-            colors = ButtonDefaults.buttonColors(
-                color = HausColors.current.panel,
-                contentColor = HausColors.current.ink,
-                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                disabledContentColor = HausColors.current.muted,
-            ),
+            colors =
+                ButtonDefaults.buttonColors(
+                    color = HausColors.current.panel,
+                    contentColor = HausColors.current.ink,
+                    disabledColor =
+                        HausColors.current.muted.copy(alpha = 0.28f),
+                    disabledContentColor = HausColors.current.muted,
+                ),
         ) {
             Text(
-                text = if (state.operation == PlaylistBackupOperation.Opening ||
-                    state.operation == PlaylistBackupOperation.Planning ||
-                    state.operation == PlaylistBackupOperation.Importing
-                ) {
-                    stringResource(Res.string.playlist_backup_importing)
-                } else {
-                    stringResource(Res.string.playlist_backup_import)
-                },
+                text =
+                    if (state.operation == PlaylistBackupOperation.Opening ||
+                        state.operation == PlaylistBackupOperation.Planning ||
+                        state.operation == PlaylistBackupOperation.Importing) {
+                        stringResource(Res.string.playlist_backup_importing)
+                    } else {
+                        stringResource(Res.string.playlist_backup_import)
+                    },
                 fontWeight = FontWeight.Black,
             )
         }
@@ -489,38 +540,69 @@ private fun PlaylistBackupActions(
 }
 
 @Composable
-private fun playlistBackupErrorMessage(error: PlaylistBackupUiError): String = when (error) {
-    PlaylistBackupUiError.Unavailable -> stringResource(Res.string.playlist_backup_unavailable_error)
-    PlaylistBackupUiError.ReadFailed -> stringResource(Res.string.playlist_backup_read_error)
-    PlaylistBackupUiError.WriteFailed -> stringResource(Res.string.playlist_backup_write_error)
-    PlaylistBackupUiError.Oversized -> stringResource(Res.string.playlist_backup_oversized_error)
-    PlaylistBackupUiError.Malformed -> stringResource(Res.string.playlist_backup_malformed_error)
-    PlaylistBackupUiError.InvalidData -> stringResource(Res.string.playlist_backup_import_invalid_data_error)
-    PlaylistBackupUiError.Checksum -> stringResource(Res.string.playlist_backup_checksum_error)
-    PlaylistBackupUiError.UnsupportedVersion -> stringResource(Res.string.playlist_backup_version_error)
-    PlaylistBackupUiError.StalePreview -> stringResource(Res.string.playlist_backup_stale_error)
-    PlaylistBackupUiError.ExportMissingTrack -> stringResource(Res.string.playlist_backup_missing_track_error)
-    PlaylistBackupUiError.ExportMissingDuration -> stringResource(Res.string.playlist_backup_missing_duration_error)
-    PlaylistBackupUiError.ExportInvalidDuration -> stringResource(Res.string.playlist_backup_invalid_duration_error)
-    PlaylistBackupUiError.ExportInvalidData -> stringResource(Res.string.playlist_backup_invalid_data_error)
-    PlaylistBackupUiError.RepositoryFailed -> stringResource(Res.string.playlist_backup_repository_error)
+private fun playlistBackupErrorMessage(error: PlaylistBackupUiError): String =
+    when (error) {
+        PlaylistBackupUiError.Unavailable ->
+            stringResource(Res.string.playlist_backup_unavailable_error)
+        PlaylistBackupUiError.ReadFailed ->
+            stringResource(Res.string.playlist_backup_read_error)
+        PlaylistBackupUiError.WriteFailed ->
+            stringResource(Res.string.playlist_backup_write_error)
+        PlaylistBackupUiError.Oversized ->
+            stringResource(Res.string.playlist_backup_oversized_error)
+        PlaylistBackupUiError.Malformed ->
+            stringResource(Res.string.playlist_backup_malformed_error)
+        PlaylistBackupUiError.InvalidData ->
+            stringResource(Res.string.playlist_backup_import_invalid_data_error)
+        PlaylistBackupUiError.Checksum ->
+            stringResource(Res.string.playlist_backup_checksum_error)
+        PlaylistBackupUiError.UnsupportedVersion ->
+            stringResource(Res.string.playlist_backup_version_error)
+        PlaylistBackupUiError.StalePreview ->
+            stringResource(Res.string.playlist_backup_stale_error)
+        PlaylistBackupUiError.ExportMissingTrack ->
+            stringResource(Res.string.playlist_backup_missing_track_error)
+        PlaylistBackupUiError.ExportMissingDuration ->
+            stringResource(Res.string.playlist_backup_missing_duration_error)
+        PlaylistBackupUiError.ExportInvalidDuration ->
+            stringResource(Res.string.playlist_backup_invalid_duration_error)
+        PlaylistBackupUiError.ExportInvalidData ->
+            stringResource(Res.string.playlist_backup_invalid_data_error)
+        PlaylistBackupUiError.RepositoryFailed ->
+            stringResource(Res.string.playlist_backup_repository_error)
+    }
+
+internal enum class SourceAccessLabel {
+    Available,
+    LostAccess
 }
 
-internal enum class SourceAccessLabel { Available, LostAccess }
+internal enum class SourceScanLabel {
+    NeverScanned,
+    LastScanned
+}
 
-internal enum class SourceScanLabel { NeverScanned, LastScanned }
-
-internal fun sourceManagementLabels(source: LibrarySource): Pair<SourceAccessLabel, SourceScanLabel> = (if (source.accessStatus == LibrarySourceAccessStatus.Available) SourceAccessLabel.Available else SourceAccessLabel.LostAccess) to
-    (if (source.lastScanAtEpochMillis == null) SourceScanLabel.NeverScanned else SourceScanLabel.LastScanned)
+internal fun sourceManagementLabels(
+    source: LibrarySource
+): Pair<SourceAccessLabel, SourceScanLabel> =
+    (if (source.accessStatus == LibrarySourceAccessStatus.Available)
+        SourceAccessLabel.Available
+    else SourceAccessLabel.LostAccess) to
+        (if (source.lastScanAtEpochMillis == null) SourceScanLabel.NeverScanned
+        else SourceScanLabel.LastScanned)
 
 internal data class SourceDialogName(
     val visual: String,
     val accessibility: String,
 )
 
-internal fun sourceDialogName(source: LibrarySource, unnamedLabel: String): SourceDialogName {
+internal fun sourceDialogName(
+    source: LibrarySource,
+    unnamedLabel: String
+): SourceDialogName {
     val fullName = source.displayName.ifBlank { unnamedLabel }
-    val visualName = if (fullName.length <= 64) fullName else fullName.take(63) + "…"
+    val visualName =
+        if (fullName.length <= 64) fullName else fullName.take(63) + "…"
     return SourceDialogName(visual = visualName, accessibility = fullName)
 }
 
@@ -531,27 +613,40 @@ private fun ConfiguredSourceRow(
     onRescan: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    val displayName = source.displayName.ifBlank { stringResource(Res.string.unnamed_folder) }
+    val displayName =
+        source.displayName.ifBlank { stringResource(Res.string.unnamed_folder) }
     val labels = sourceManagementLabels(source)
-    val accessLabel = when (labels.first) {
-        SourceAccessLabel.Available -> stringResource(Res.string.source_access_available)
-        SourceAccessLabel.LostAccess -> stringResource(Res.string.source_access_lost)
-    }
-    val scanLabel = when (labels.second) {
-        SourceScanLabel.NeverScanned -> stringResource(Res.string.source_never_scanned)
-        SourceScanLabel.LastScanned -> stringResource(Res.string.source_last_scanned)
-    }
-    val rescanDescription = stringResource(Res.string.rescan_source_format, displayName)
-    val removeDescription = stringResource(Res.string.remove_source_format, displayName)
+    val accessLabel =
+        when (labels.first) {
+            SourceAccessLabel.Available ->
+                stringResource(Res.string.source_access_available)
+            SourceAccessLabel.LostAccess ->
+                stringResource(Res.string.source_access_lost)
+        }
+    val scanLabel =
+        when (labels.second) {
+            SourceScanLabel.NeverScanned ->
+                stringResource(Res.string.source_never_scanned)
+            SourceScanLabel.LastScanned ->
+                stringResource(Res.string.source_last_scanned)
+        }
+    val rescanDescription =
+        stringResource(Res.string.rescan_source_format, displayName)
+    val removeDescription =
+        stringResource(Res.string.remove_source_format, displayName)
     val contentAlpha = if (mutationsEnabled) 1f else 0.42f
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 72.dp)
-            .background(HausColors.current.panel.copy(alpha = 0.54f), RoundedCornerShape(16.dp))
-            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
-            .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+        modifier =
+            Modifier.fillMaxWidth()
+                .heightIn(min = 72.dp)
+                .background(
+                    HausColors.current.panel.copy(alpha = 0.54f),
+                    RoundedCornerShape(16.dp))
+                .border(
+                    1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+                .padding(
+                    start = 14.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -569,7 +664,11 @@ private fun ConfiguredSourceRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(Res.string.source_status_format, accessLabel, scanLabel),
+                text =
+                    stringResource(
+                        Res.string.source_status_format,
+                        accessLabel,
+                        scanLabel),
                 color = HausColors.current.muted,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,
@@ -615,7 +714,8 @@ private fun RemoveSourceDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val name = sourceDialogName(source, stringResource(Res.string.unnamed_folder))
+    val name =
+        sourceDialogName(source, stringResource(Res.string.unnamed_folder))
     val dialogTitle = stringResource(Res.string.remove_folder)
     val dismissLabel = stringResource(Res.string.cancel)
     HausDialog(
@@ -632,9 +732,10 @@ private fun RemoveSourceDialog(
             Spacer(Modifier.height(12.dp))
             Text(
                 text = name.visual,
-                modifier = Modifier.clearAndSetSemantics {
-                    contentDescription = name.accessibility
-                },
+                modifier =
+                    Modifier.clearAndSetSemantics {
+                        contentDescription = name.accessibility
+                    },
                 color = HausColors.current.ink,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -656,13 +757,18 @@ private fun RemoveSourceDialog(
                 onClick = onDismiss,
                 modifier = Modifier.height(44.dp),
                 cornerRadius = 12.dp,
-                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
-                colors = ButtonDefaults.buttonColors(
-                    color = HausColors.current.muted.copy(alpha = 0.15f),
-                    contentColor = HausColors.current.muted,
-                ),
+                insideMargin =
+                    PaddingValues(horizontal = 16.dp, vertical = 9.dp),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color = HausColors.current.muted.copy(alpha = 0.15f),
+                        contentColor = HausColors.current.muted,
+                    ),
             ) {
-                Text(stringResource(Res.string.cancel), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    stringResource(Res.string.cancel),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium)
             }
             Spacer(Modifier.width(12.dp))
             Button(
@@ -670,15 +776,21 @@ private fun RemoveSourceDialog(
                 enabled = mutationsEnabled,
                 modifier = Modifier.height(44.dp),
                 cornerRadius = 12.dp,
-                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
-                colors = ButtonDefaults.buttonColors(
-                    color = HausColors.current.pulse,
-                    contentColor = HausColors.current.paper,
-                    disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                    disabledContentColor = HausColors.current.muted,
-                ),
+                insideMargin =
+                    PaddingValues(horizontal = 16.dp, vertical = 9.dp),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color = HausColors.current.pulse,
+                        contentColor = HausColors.current.paper,
+                        disabledColor =
+                            HausColors.current.muted.copy(alpha = 0.28f),
+                        disabledContentColor = HausColors.current.muted,
+                    ),
             ) {
-                Text(stringResource(Res.string.remove), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    stringResource(Res.string.remove),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium)
             }
         },
     )
@@ -699,10 +811,11 @@ private fun AppearanceDropdown(
         title = stringResource(Res.string.appearance),
         summary = currentThemeMode.displayDescriptionResource(),
         modifier = Modifier.fillMaxWidth(),
-        insideMargin = PaddingValues(
-            horizontal = horizontalInsidePadding,
-            vertical = verticalInsidePadding,
-        ),
+        insideMargin =
+            PaddingValues(
+                horizontal = horizontalInsidePadding,
+                vertical = verticalInsidePadding,
+            ),
         renderInRootScaffold = false,
         onSelectedIndexChange = { index ->
             options.getOrNull(index)?.let(onThemeModeSelected)
@@ -711,15 +824,21 @@ private fun AppearanceDropdown(
 }
 
 @Composable
-private fun RhythHausThemeMode.displayLabelResource(): String = when (this) {
-    RhythHausThemeMode.System -> stringResource(Res.string.theme_system_label)
-    RhythHausThemeMode.Light -> stringResource(Res.string.theme_light_label)
-    RhythHausThemeMode.Dark -> stringResource(Res.string.theme_dark_label)
-}
+private fun RhythHausThemeMode.displayLabelResource(): String =
+    when (this) {
+        RhythHausThemeMode.System ->
+            stringResource(Res.string.theme_system_label)
+        RhythHausThemeMode.Light -> stringResource(Res.string.theme_light_label)
+        RhythHausThemeMode.Dark -> stringResource(Res.string.theme_dark_label)
+    }
 
 @Composable
-private fun RhythHausThemeMode.displayDescriptionResource(): String = when (this) {
-    RhythHausThemeMode.System -> stringResource(Res.string.theme_system_description)
-    RhythHausThemeMode.Light -> stringResource(Res.string.theme_light_description)
-    RhythHausThemeMode.Dark -> stringResource(Res.string.theme_dark_description)
-}
+private fun RhythHausThemeMode.displayDescriptionResource(): String =
+    when (this) {
+        RhythHausThemeMode.System ->
+            stringResource(Res.string.theme_system_description)
+        RhythHausThemeMode.Light ->
+            stringResource(Res.string.theme_light_description)
+        RhythHausThemeMode.Dark ->
+            stringResource(Res.string.theme_dark_description)
+    }

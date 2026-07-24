@@ -27,20 +27,24 @@ fun BackChip(
     modifier: Modifier = Modifier,
 ) {
     val backContentDescription = stringResource(Res.string.back)
-    // The min-44dp height below is a touch-target size for accessibility (tap area),
-    // kept separate from the ink chip's own size so the visible chip stays compact.
+    // The min-44dp height below is a touch-target size for accessibility (tap
+    // area),
+    // kept separate from the ink chip's own size so the visible chip stays
+    // compact.
     Box(
-        modifier = modifier
-            .heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .hausClickable(onClick = onClick)
-            .semantics { contentDescription = backContentDescription },
+        modifier =
+            modifier
+                .heightIn(min = 44.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .hausClickable(onClick = onClick)
+                .semantics { contentDescription = backContentDescription },
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            modifier = Modifier
-                .background(HausColors.current.ink, RoundedCornerShape(10.dp))
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier =
+                Modifier.background(
+                        HausColors.current.ink, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(

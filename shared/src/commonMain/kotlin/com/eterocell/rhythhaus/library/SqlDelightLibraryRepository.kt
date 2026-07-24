@@ -27,46 +27,79 @@ class SqlDelightLibraryRepository(
         )
     }
 
-    override fun sources(): List<LibrarySource> = database.librarySourceQueries.selectAllSources { id, platformKind, displayName, handle, createdAtEpochMillis, lastScanAtEpochMillis, accessStatus ->
-        LibrarySource(
-            id = id,
-            platformKind = LibraryPlatformKind.valueOf(platformKind),
-            displayName = displayName,
-            handle = handle,
-            createdAtEpochMillis = createdAtEpochMillis,
-            lastScanAtEpochMillis = lastScanAtEpochMillis,
-            accessStatus = LibrarySourceAccessStatus.valueOf(accessStatus),
-        )
-    }.executeAsList()
+    override fun sources(): List<LibrarySource> =
+        database.librarySourceQueries
+            .selectAllSources {
+                id,
+                platformKind,
+                displayName,
+                handle,
+                createdAtEpochMillis,
+                lastScanAtEpochMillis,
+                accessStatus ->
+                LibrarySource(
+                    id = id,
+                    platformKind = LibraryPlatformKind.valueOf(platformKind),
+                    displayName = displayName,
+                    handle = handle,
+                    createdAtEpochMillis = createdAtEpochMillis,
+                    lastScanAtEpochMillis = lastScanAtEpochMillis,
+                    accessStatus =
+                        LibrarySourceAccessStatus.valueOf(accessStatus),
+                )
+            }
+            .executeAsList()
 
     override fun upsertTrack(track: LibraryTrack): TrackUpsertResult {
-        val existing = database.libraryTrackQueries.selectTrackBySourceKey(
-            sourceId = track.sourceId,
-            sourceLocalKey = track.sourceLocalKey,
-            mapper = { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber, artworkBytes, artworkMimeType ->
-                DomainTrackRow(
-                    id = id,
-                    sourceId = sourceId,
-                    sourceLocalKey = sourceLocalKey,
-                    audioSourceKind = audioSourceKind,
-                    audioSourceValue = audioSourceValue,
-                    displayName = displayName,
-                    title = title,
-                    artist = artist,
-                    album = album,
-                    durationMillis = durationMillis,
-                    sizeBytes = sizeBytes,
-                    modifiedAtEpochMillis = modifiedAtEpochMillis,
-                    lastSeenScanId = lastSeenScanId,
-                    createdAtEpochMillis = createdAtEpochMillis,
-                    updatedAtEpochMillis = updatedAtEpochMillis,
-                    trackNumber = trackNumber,
-                    discNumber = discNumber,
-                    artworkBytes = artworkBytes,
-                    artworkMimeType = artworkMimeType,
+        val existing =
+            database.libraryTrackQueries
+                .selectTrackBySourceKey(
+                    sourceId = track.sourceId,
+                    sourceLocalKey = track.sourceLocalKey,
+                    mapper = {
+                        id,
+                        sourceId,
+                        sourceLocalKey,
+                        audioSourceKind,
+                        audioSourceValue,
+                        displayName,
+                        title,
+                        artist,
+                        album,
+                        durationMillis,
+                        sizeBytes,
+                        modifiedAtEpochMillis,
+                        lastSeenScanId,
+                        createdAtEpochMillis,
+                        updatedAtEpochMillis,
+                        trackNumber,
+                        discNumber,
+                        artworkBytes,
+                        artworkMimeType ->
+                        DomainTrackRow(
+                            id = id,
+                            sourceId = sourceId,
+                            sourceLocalKey = sourceLocalKey,
+                            audioSourceKind = audioSourceKind,
+                            audioSourceValue = audioSourceValue,
+                            displayName = displayName,
+                            title = title,
+                            artist = artist,
+                            album = album,
+                            durationMillis = durationMillis,
+                            sizeBytes = sizeBytes,
+                            modifiedAtEpochMillis = modifiedAtEpochMillis,
+                            lastSeenScanId = lastSeenScanId,
+                            createdAtEpochMillis = createdAtEpochMillis,
+                            updatedAtEpochMillis = updatedAtEpochMillis,
+                            trackNumber = trackNumber,
+                            discNumber = discNumber,
+                            artworkBytes = artworkBytes,
+                            artworkMimeType = artworkMimeType,
+                        )
+                    },
                 )
-            },
-        ).executeAsOneOrNull()
+                .executeAsOneOrNull()
 
         return if (existing == null) {
             val audioSource = track.audioSource
@@ -119,78 +152,134 @@ class SqlDelightLibraryRepository(
         }
     }
 
-    override fun tracks(): List<LibraryTrack> = database.libraryTrackQueries.selectAllTracks { id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber, artworkBytes, artworkMimeType ->
-        LibraryTrack(
-            id = id,
-            sourceId = sourceId,
-            sourceLocalKey = sourceLocalKey,
-            audioSource = audioSourceFrom(audioSourceKind, audioSourceValue),
-            displayName = displayName,
-            title = title,
-            artist = artist,
-            album = album,
-            durationMillis = durationMillis,
-            sizeBytes = sizeBytes,
-            modifiedAtEpochMillis = modifiedAtEpochMillis,
-            lastSeenScanId = lastSeenScanId,
-            createdAtEpochMillis = createdAtEpochMillis,
-            updatedAtEpochMillis = updatedAtEpochMillis,
-            trackNumber = trackNumber?.toInt(),
-            discNumber = discNumber?.toInt(),
-            artworkBytes = artworkBytes,
-            artworkMimeType = artworkMimeType,
-        )
-    }.executeAsList()
+    override fun tracks(): List<LibraryTrack> =
+        database.libraryTrackQueries
+            .selectAllTracks {
+                id,
+                sourceId,
+                sourceLocalKey,
+                audioSourceKind,
+                audioSourceValue,
+                displayName,
+                title,
+                artist,
+                album,
+                durationMillis,
+                sizeBytes,
+                modifiedAtEpochMillis,
+                lastSeenScanId,
+                createdAtEpochMillis,
+                updatedAtEpochMillis,
+                trackNumber,
+                discNumber,
+                artworkBytes,
+                artworkMimeType ->
+                LibraryTrack(
+                    id = id,
+                    sourceId = sourceId,
+                    sourceLocalKey = sourceLocalKey,
+                    audioSource =
+                        audioSourceFrom(audioSourceKind, audioSourceValue),
+                    displayName = displayName,
+                    title = title,
+                    artist = artist,
+                    album = album,
+                    durationMillis = durationMillis,
+                    sizeBytes = sizeBytes,
+                    modifiedAtEpochMillis = modifiedAtEpochMillis,
+                    lastSeenScanId = lastSeenScanId,
+                    createdAtEpochMillis = createdAtEpochMillis,
+                    updatedAtEpochMillis = updatedAtEpochMillis,
+                    trackNumber = trackNumber?.toInt(),
+                    discNumber = discNumber?.toInt(),
+                    artworkBytes = artworkBytes,
+                    artworkMimeType = artworkMimeType,
+                )
+            }
+            .executeAsList()
 
-    override fun tracksForSource(sourceId: String): List<LibraryTrack> = database.libraryTrackQueries.selectTracksForSource(sourceId) { id, srcId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis, lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber, artworkBytes, artworkMimeType ->
-        LibraryTrack(
-            id = id,
-            sourceId = srcId,
-            sourceLocalKey = sourceLocalKey,
-            audioSource = audioSourceFrom(audioSourceKind, audioSourceValue),
-            displayName = displayName,
-            title = title,
-            artist = artist,
-            album = album,
-            durationMillis = durationMillis,
-            sizeBytes = sizeBytes,
-            modifiedAtEpochMillis = modifiedAtEpochMillis,
-            lastSeenScanId = lastSeenScanId,
-            createdAtEpochMillis = createdAtEpochMillis,
-            updatedAtEpochMillis = updatedAtEpochMillis,
-            trackNumber = trackNumber?.toInt(),
-            discNumber = discNumber?.toInt(),
-            artworkBytes = artworkBytes,
-            artworkMimeType = artworkMimeType,
-        )
-    }.executeAsList()
+    override fun tracksForSource(sourceId: String): List<LibraryTrack> =
+        database.libraryTrackQueries
+            .selectTracksForSource(sourceId) {
+                id,
+                srcId,
+                sourceLocalKey,
+                audioSourceKind,
+                audioSourceValue,
+                displayName,
+                title,
+                artist,
+                album,
+                durationMillis,
+                sizeBytes,
+                modifiedAtEpochMillis,
+                lastSeenScanId,
+                createdAtEpochMillis,
+                updatedAtEpochMillis,
+                trackNumber,
+                discNumber,
+                artworkBytes,
+                artworkMimeType ->
+                LibraryTrack(
+                    id = id,
+                    sourceId = srcId,
+                    sourceLocalKey = sourceLocalKey,
+                    audioSource =
+                        audioSourceFrom(audioSourceKind, audioSourceValue),
+                    displayName = displayName,
+                    title = title,
+                    artist = artist,
+                    album = album,
+                    durationMillis = durationMillis,
+                    sizeBytes = sizeBytes,
+                    modifiedAtEpochMillis = modifiedAtEpochMillis,
+                    lastSeenScanId = lastSeenScanId,
+                    createdAtEpochMillis = createdAtEpochMillis,
+                    updatedAtEpochMillis = updatedAtEpochMillis,
+                    trackNumber = trackNumber?.toInt(),
+                    discNumber = discNumber?.toInt(),
+                    artworkBytes = artworkBytes,
+                    artworkMimeType = artworkMimeType,
+                )
+            }
+            .executeAsList()
 
     override fun artworkForTrack(trackId: String): TrackArtwork? {
-        val metadata = database.libraryTrackQueries
-            .selectArtworkMetadataForTrack(trackId)
-            .executeAsOneOrNull() ?: return null
+        val metadata =
+            database.libraryTrackQueries
+                .selectArtworkMetadataForTrack(trackId)
+                .executeAsOneOrNull() ?: return null
         val byteLength = metadata.artworkByteLength ?: return null
         if (byteLength < 0L || byteLength > Int.MAX_VALUE.toLong()) return null
-        if (byteLength == 0L) return TrackArtwork(bytes = ByteArray(0), mimeType = metadata.artworkMimeType)
+        if (byteLength == 0L)
+            return TrackArtwork(
+                bytes = ByteArray(0), mimeType = metadata.artworkMimeType)
 
         val artworkBytes = ByteArray(byteLength.toInt())
         repeat(artworkChunkCount(byteLength)) { chunkIndex ->
             val destinationOffset = chunkIndex * ARTWORK_CHUNK_SIZE_BYTES
-            val requestedLength = minOf(ARTWORK_CHUNK_SIZE_BYTES, artworkBytes.size - destinationOffset)
-            val chunk = database.libraryTrackQueries
-                .selectArtworkChunkForTrack(
-                    startPosition = (destinationOffset.toLong() + 1L).toString(),
-                    chunkLength = requestedLength.toString(),
-                    id = trackId,
-                )
-                .executeAsOneOrNull()?.artworkChunk ?: return null
+            val requestedLength =
+                minOf(
+                    ARTWORK_CHUNK_SIZE_BYTES,
+                    artworkBytes.size - destinationOffset)
+            val chunk =
+                database.libraryTrackQueries
+                    .selectArtworkChunkForTrack(
+                        startPosition =
+                            (destinationOffset.toLong() + 1L).toString(),
+                        chunkLength = requestedLength.toString(),
+                        id = trackId,
+                    )
+                    .executeAsOneOrNull()
+                    ?.artworkChunk ?: return null
             if (chunk.size != requestedLength) return null
             chunk.copyInto(
                 destination = artworkBytes,
                 destinationOffset = destinationOffset,
             )
         }
-        return TrackArtwork(bytes = artworkBytes, mimeType = metadata.artworkMimeType)
+        return TrackArtwork(
+            bytes = artworkBytes, mimeType = metadata.artworkMimeType)
     }
 
     override fun insertScanSession(session: ScanSession) {
@@ -235,20 +324,35 @@ class SqlDelightLibraryRepository(
         )
     }
 
-    override fun scanErrors(scanId: String): List<ScanError> = database.scanSessionQueries.selectScanErrorsForScan(scanId) { id, scanId_, sourceLocalKey, displayPath, reason, recoverable, createdAtEpochMillis ->
-        ScanError(
-            id = id,
-            scanId = scanId_,
-            sourceLocalKey = sourceLocalKey,
-            displayPath = displayPath,
-            reason = reason,
-            recoverable = recoverable != 0L,
-            createdAtEpochMillis = createdAtEpochMillis,
-        )
-    }.executeAsList()
+    override fun scanErrors(scanId: String): List<ScanError> =
+        database.scanSessionQueries
+            .selectScanErrorsForScan(scanId) {
+                id,
+                scanId_,
+                sourceLocalKey,
+                displayPath,
+                reason,
+                recoverable,
+                createdAtEpochMillis ->
+                ScanError(
+                    id = id,
+                    scanId = scanId_,
+                    sourceLocalKey = sourceLocalKey,
+                    displayPath = displayPath,
+                    reason = reason,
+                    recoverable = recoverable != 0L,
+                    createdAtEpochMillis = createdAtEpochMillis,
+                )
+            }
+            .executeAsList()
 
-    override fun removeMissingTracks(sourceId: String, latestScanId: String): Int {
-        val result = database.libraryTrackQueries.removeMissingTracks(sourceId, latestScanId)
+    override fun removeMissingTracks(
+        sourceId: String,
+        latestScanId: String
+    ): Int {
+        val result =
+            database.libraryTrackQueries.removeMissingTracks(
+                sourceId, latestScanId)
         return result.value.toInt()
     }
 
@@ -296,22 +400,25 @@ private data class DomainTrackRow(
 )
 
 private val AudioSource.kindName: String
-    get() = when (this) {
-        is AudioSource.FilePath -> "FilePath"
-        is AudioSource.Uri -> "Uri"
-        is AudioSource.FileDescriptor -> "FileDescriptor"
-    }
+    get() =
+        when (this) {
+            is AudioSource.FilePath -> "FilePath"
+            is AudioSource.Uri -> "Uri"
+            is AudioSource.FileDescriptor -> "FileDescriptor"
+        }
 
 private val AudioSource.stableValue: String
-    get() = when (this) {
-        is AudioSource.FilePath -> path
-        is AudioSource.Uri -> value
-        is AudioSource.FileDescriptor -> stableKey
-    }
+    get() =
+        when (this) {
+            is AudioSource.FilePath -> path
+            is AudioSource.Uri -> value
+            is AudioSource.FileDescriptor -> stableKey
+        }
 
-private fun audioSourceFrom(kind: String, value: String): AudioSource = when (kind) {
-    "FilePath" -> AudioSource.FilePath(value)
-    "Uri" -> AudioSource.Uri(value)
-    "FileDescriptor" -> AudioSource.Uri(value)
-    else -> AudioSource.Uri(value)
-}
+private fun audioSourceFrom(kind: String, value: String): AudioSource =
+    when (kind) {
+        "FilePath" -> AudioSource.FilePath(value)
+        "Uri" -> AudioSource.Uri(value)
+        "FileDescriptor" -> AudioSource.Uri(value)
+        else -> AudioSource.Uri(value)
+    }

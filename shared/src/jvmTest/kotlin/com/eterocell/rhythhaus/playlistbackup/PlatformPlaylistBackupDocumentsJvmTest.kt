@@ -19,15 +19,16 @@ class PlatformPlaylistBackupDocumentsJvmTest {
         var writtenFile: File? = null
         var writtenBytes: ByteArray? = null
 
-        val result = saveJvmPlaylistBackupDocument(
-            bytes = payload,
-            selectFile = { selected },
-            writeFile = { file, bytes ->
-                writes += 1
-                writtenFile = file
-                writtenBytes = bytes.copyOf()
-            },
-        )
+        val result =
+            saveJvmPlaylistBackupDocument(
+                bytes = payload,
+                selectFile = { selected },
+                writeFile = { file, bytes ->
+                    writes += 1
+                    writtenFile = file
+                    writtenBytes = bytes.copyOf()
+                },
+            )
 
         assertIs<PlaylistBackupDocumentSaveResult.Success>(result)
         assertEquals(1, writes)
@@ -38,7 +39,10 @@ class PlatformPlaylistBackupDocumentsJvmTest {
     @Test
     fun saveCancellationIsSilentAndDoesNotWrite() {
         var writes = 0
-        val result = saveJvmPlaylistBackupDocument(byteArrayOf(1), { null }) { _, _ -> writes += 1 }
+        val result =
+            saveJvmPlaylistBackupDocument(byteArrayOf(1), { null }) { _, _ ->
+                writes += 1
+            }
 
         assertIs<PlaylistBackupDocumentSaveResult.Cancelled>(result)
         assertEquals(0, writes)
@@ -46,7 +50,10 @@ class PlatformPlaylistBackupDocumentsJvmTest {
 
     @Test
     fun saveSelectionExceptionIsFailure() {
-        val result = saveJvmPlaylistBackupDocument(byteArrayOf(1), { error("panel failed") }) { _, _ -> }
+        val result =
+            saveJvmPlaylistBackupDocument(
+                byteArrayOf(1), { error("panel failed") }) { _, _ ->
+                }
 
         assertIs<PlaylistBackupDocumentSaveResult.Failure>(result)
     }
@@ -58,19 +65,28 @@ class PlatformPlaylistBackupDocumentsJvmTest {
         assertContentEquals(
             exact,
             assertIs<PlaylistBackupDocumentOpenResult.Success>(
-                openJvmPlaylistBackupDocument({ selected }) { exact },
-            ).bytes,
+                    openJvmPlaylistBackupDocument({ selected }) { exact },
+                )
+                .bytes,
         )
 
-        val oversized = openJvmPlaylistBackupDocument({ selected }) { ByteArray(PlaylistBackupMaxBytes + 1) }
-        assertEquals(PlaylistBackupDocumentOpenResult.TooLarge(PlaylistBackupMaxBytes), oversized)
+        val oversized =
+            openJvmPlaylistBackupDocument({ selected }) {
+                ByteArray(PlaylistBackupMaxBytes + 1)
+            }
+        assertEquals(
+            PlaylistBackupDocumentOpenResult.TooLarge(PlaylistBackupMaxBytes),
+            oversized)
     }
 
     @Test
     fun openCancellationAndReadExceptionAreDistinct() {
-        assertIs<PlaylistBackupDocumentOpenResult.Cancelled>(openJvmPlaylistBackupDocument({ null }) { error("unused") })
+        assertIs<PlaylistBackupDocumentOpenResult.Cancelled>(
+            openJvmPlaylistBackupDocument({ null }) { error("unused") })
         assertIs<PlaylistBackupDocumentOpenResult.Failure>(
-            openJvmPlaylistBackupDocument({ File("backup") }) { error("read failed") },
+            openJvmPlaylistBackupDocument({ File("backup") }) {
+                error("read failed")
+            },
         )
     }
 
@@ -83,7 +99,8 @@ class PlatformPlaylistBackupDocumentsJvmTest {
             withJvmDocumentDialogMode { assertNull(System.getProperty(key)) }
             assertEquals("custom", System.getProperty(key))
         } finally {
-            if (previous == null) System.clearProperty(key) else System.setProperty(key, previous)
+            if (previous == null) System.clearProperty(key)
+            else System.setProperty(key, previous)
         }
     }
 
@@ -91,21 +108,27 @@ class PlatformPlaylistBackupDocumentsJvmTest {
     fun boundedReaderMakesProgressAfterZeroLengthRead() {
         val input = ZeroThenBytesInputStream(byteArrayOf(1, 2, 3))
 
-        assertContentEquals(byteArrayOf(1, 2, 3), readJvmPlaylistBackupBounded(input))
+        assertContentEquals(
+            byteArrayOf(1, 2, 3), readJvmPlaylistBackupBounded(input))
     }
 
     @Test
     fun boundedReaderReadsExactLimitAndOnlyLimitPlusOneFromLargerStreams() {
         val exact = CountingInputStream(PlaylistBackupMaxBytes)
-        assertEquals(PlaylistBackupMaxBytes, readJvmPlaylistBackupBounded(exact).size)
+        assertEquals(
+            PlaylistBackupMaxBytes, readJvmPlaylistBackupBounded(exact).size)
         assertEquals(PlaylistBackupMaxBytes, exact.bytesRead)
 
         val plusOne = CountingInputStream(PlaylistBackupMaxBytes + 1)
-        assertEquals(PlaylistBackupMaxBytes + 1, readJvmPlaylistBackupBounded(plusOne).size)
+        assertEquals(
+            PlaylistBackupMaxBytes + 1,
+            readJvmPlaylistBackupBounded(plusOne).size)
         assertEquals(PlaylistBackupMaxBytes + 1, plusOne.bytesRead)
 
         val muchLarger = CountingInputStream(PlaylistBackupMaxBytes * 2)
-        assertEquals(PlaylistBackupMaxBytes + 1, readJvmPlaylistBackupBounded(muchLarger).size)
+        assertEquals(
+            PlaylistBackupMaxBytes + 1,
+            readJvmPlaylistBackupBounded(muchLarger).size)
         assertEquals(PlaylistBackupMaxBytes + 1, muchLarger.bytesRead)
     }
 
@@ -131,7 +154,8 @@ class PlatformPlaylistBackupDocumentsJvmTest {
             withJvmDocumentDialogMode(properties) { error("dialog failed") }
         }
 
-        assertEquals("custom", properties.get("apple.awt.fileDialogForDirectories"))
+        assertEquals(
+            "custom", properties.get("apple.awt.fileDialogForDirectories"))
     }
 }
 
@@ -146,10 +170,12 @@ private class CountingInputStream(private val size: Int) : InputStream() {
         return count
     }
 
-    override fun read(): Int = if (bytesRead >= size) -1 else 1.also { bytesRead += 1 }
+    override fun read(): Int =
+        if (bytesRead >= size) -1 else 1.also { bytesRead += 1 }
 }
 
-private class FakeJvmSystemPropertyAccess(initialValue: String? = null) : JvmSystemPropertyAccess {
+private class FakeJvmSystemPropertyAccess(initialValue: String? = null) :
+    JvmSystemPropertyAccess {
     private var value = initialValue
 
     override fun get(key: String): String? = value
@@ -163,7 +189,8 @@ private class FakeJvmSystemPropertyAccess(initialValue: String? = null) : JvmSys
     }
 }
 
-private class ZeroThenBytesInputStream(private val bytes: ByteArray) : InputStream() {
+private class ZeroThenBytesInputStream(private val bytes: ByteArray) :
+    InputStream() {
     private var returnedZero = false
     private var index = 0
 
@@ -179,5 +206,6 @@ private class ZeroThenBytesInputStream(private val bytes: ByteArray) : InputStre
         return count
     }
 
-    override fun read(): Int = if (index >= bytes.size) -1 else bytes[index++].toInt() and 0xff
+    override fun read(): Int =
+        if (index >= bytes.size) -1 else bytes[index++].toInt() and 0xff
 }

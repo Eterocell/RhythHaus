@@ -92,60 +92,72 @@ fun NowPlayingScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val brush = Brush.linearGradient(
-        colors = listOf(Color(track.accent.start), Color(track.accent.end)),
-        start = androidx.compose.ui.geometry.Offset.Zero,
-        end = androidx.compose.ui.geometry.Offset.Infinite,
-    )
-    val durationMillis = playbackState.durationMillis ?: track.durationSeconds * 1_000L
-    val positionMillis = playbackState.positionMillis.coerceIn(0L, durationMillis)
-    val statusText = playbackState.error?.message ?: statusLabel(playbackState.status)
+    val brush =
+        Brush.linearGradient(
+            colors = listOf(Color(track.accent.start), Color(track.accent.end)),
+            start = androidx.compose.ui.geometry.Offset.Zero,
+            end = androidx.compose.ui.geometry.Offset.Infinite,
+        )
+    val durationMillis =
+        playbackState.durationMillis ?: track.durationSeconds * 1_000L
+    val positionMillis =
+        playbackState.positionMillis.coerceIn(0L, durationMillis)
+    val statusText =
+        playbackState.error?.message ?: statusLabel(playbackState.status)
     val isPlaying = playbackState.isPlaying
     val shuffleEnabled = playbackState.shuffleMode == ShuffleMode.On
-    val repeatContentDescription = when (playbackState.repeatMode) {
-        RepeatMode.StopAfterQueue -> stringResource(Res.string.repeat_mode_stop_after_queue)
-        RepeatMode.RepeatPlaylist -> stringResource(Res.string.repeat_mode_repeat_playlist)
-        RepeatMode.RepeatOne -> stringResource(Res.string.repeat_mode_repeat_one)
-        RepeatMode.StopAfterCurrent -> stringResource(Res.string.repeat_mode_stop_after_current)
-    }
-    val shuffleContentDescription = if (shuffleEnabled) {
-        stringResource(Res.string.shuffle_on)
-    } else {
-        stringResource(Res.string.shuffle_off)
-    }
-    val uiState = NowPlayingUiState(
-        durationMillis = durationMillis,
-        positionMillis = positionMillis,
-        statusText = statusText,
-        isPlaying = isPlaying,
-        shuffleEnabled = shuffleEnabled,
-        repeatContentDescription = repeatContentDescription,
-        shuffleContentDescription = shuffleContentDescription,
-    )
+    val repeatContentDescription =
+        when (playbackState.repeatMode) {
+            RepeatMode.StopAfterQueue ->
+                stringResource(Res.string.repeat_mode_stop_after_queue)
+            RepeatMode.RepeatPlaylist ->
+                stringResource(Res.string.repeat_mode_repeat_playlist)
+            RepeatMode.RepeatOne ->
+                stringResource(Res.string.repeat_mode_repeat_one)
+            RepeatMode.StopAfterCurrent ->
+                stringResource(Res.string.repeat_mode_stop_after_current)
+        }
+    val shuffleContentDescription =
+        if (shuffleEnabled) {
+            stringResource(Res.string.shuffle_on)
+        } else {
+            stringResource(Res.string.shuffle_off)
+        }
+    val uiState =
+        NowPlayingUiState(
+            durationMillis = durationMillis,
+            positionMillis = positionMillis,
+            statusText = statusText,
+            isPlaying = isPlaying,
+            shuffleEnabled = shuffleEnabled,
+            repeatContentDescription = repeatContentDescription,
+            shuffleContentDescription = shuffleContentDescription,
+        )
 
     Surface(
-        modifier = modifier
-            .fillMaxSize()
-            .leftEdgeSwipeBack(onBack),
+        modifier = modifier.fillMaxSize().leftEdgeSwipeBack(onBack),
         color = HausColors.current.paper,
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            when (nowPlayingAdaptiveLayoutModeFor(widthDp = maxWidth.value, heightDp = maxHeight.value)) {
-                NowPlayingAdaptiveLayoutMode.Compact -> CompactNowPlayingLayout(
-                    track = track,
-                    playbackState = playbackState,
-                    playbackController = playbackController,
-                    uiState = uiState,
-                    brush = brush,
-                )
+            when (nowPlayingAdaptiveLayoutModeFor(
+                widthDp = maxWidth.value, heightDp = maxHeight.value)) {
+                NowPlayingAdaptiveLayoutMode.Compact ->
+                    CompactNowPlayingLayout(
+                        track = track,
+                        playbackState = playbackState,
+                        playbackController = playbackController,
+                        uiState = uiState,
+                        brush = brush,
+                    )
 
-                NowPlayingAdaptiveLayoutMode.Split -> WideNowPlayingLayout(
-                    track = track,
-                    playbackState = playbackState,
-                    playbackController = playbackController,
-                    uiState = uiState,
-                    brush = brush,
-                )
+                NowPlayingAdaptiveLayoutMode.Split ->
+                    WideNowPlayingLayout(
+                        track = track,
+                        playbackState = playbackState,
+                        playbackController = playbackController,
+                        uiState = uiState,
+                        brush = brush,
+                    )
             }
         }
     }
@@ -163,10 +175,8 @@ private fun NowPlayingArtworkPane(
         colors = CardDefaults.defaultColors(color = HausColors.current.ink),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .background(brush),
+            modifier =
+                Modifier.fillMaxWidth().aspectRatio(1f).background(brush),
             contentAlignment = Alignment.Center,
         ) {
             LazyTrackArtworkImage(
@@ -207,7 +217,11 @@ private fun NowPlayingControlsPane(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(Res.string.track_artist_album_format, track.artist, track.album),
+                text =
+                    stringResource(
+                        Res.string.track_artist_album_format,
+                        track.artist,
+                        track.album),
                 color = HausColors.current.muted,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
@@ -216,7 +230,9 @@ private fun NowPlayingControlsPane(
             )
             if (track.trackNumber != null) {
                 Text(
-                    text = stringResource(Res.string.track_number_format, track.trackNumber),
+                    text =
+                        stringResource(
+                            Res.string.track_number_format, track.trackNumber),
                     color = HausColors.current.muted,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
@@ -258,25 +274,35 @@ private fun NowPlayingControlsPane(
                 Icon(
                     imageVector = Icons.Filled.Shuffle,
                     contentDescription = null,
-                    tint = if (uiState.shuffleEnabled) Color.White else HausColors.current.ink,
+                    tint =
+                        if (uiState.shuffleEnabled) Color.White
+                        else HausColors.current.ink,
                     modifier = Modifier.size(22.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
             PlaybackModeButton(
-                selected = playbackState.repeatMode == RepeatMode.RepeatPlaylist || playbackState.repeatMode == RepeatMode.RepeatOne,
+                selected =
+                    playbackState.repeatMode == RepeatMode.RepeatPlaylist ||
+                        playbackState.repeatMode == RepeatMode.RepeatOne,
                 contentDescription = uiState.repeatContentDescription,
                 onClick = playbackController::cycleRepeatMode,
             ) {
-                val repeatIcon = when (playbackState.repeatMode) {
-                    RepeatMode.RepeatOne -> Icons.Filled.RepeatOne
-                    RepeatMode.StopAfterCurrent -> Icons.Filled.Filter1
-                    else -> Icons.Filled.Repeat
-                }
+                val repeatIcon =
+                    when (playbackState.repeatMode) {
+                        RepeatMode.RepeatOne -> Icons.Filled.RepeatOne
+                        RepeatMode.StopAfterCurrent -> Icons.Filled.Filter1
+                        else -> Icons.Filled.Repeat
+                    }
                 Icon(
                     imageVector = repeatIcon,
                     contentDescription = null,
-                    tint = if (playbackState.repeatMode == RepeatMode.RepeatPlaylist || playbackState.repeatMode == RepeatMode.RepeatOne) Color.White else HausColors.current.ink,
+                    tint =
+                        if (playbackState.repeatMode ==
+                            RepeatMode.RepeatPlaylist ||
+                            playbackState.repeatMode == RepeatMode.RepeatOne)
+                            Color.White
+                        else HausColors.current.ink,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -290,43 +316,48 @@ private fun NowPlayingControlsPane(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(HausColors.current.panel)
-                    .hausClickable { playbackController.skipToPrevious() },
+                modifier =
+                    Modifier.size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(HausColors.current.panel)
+                        .hausClickable { playbackController.skipToPrevious() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Filled.SkipPrevious,
-                    contentDescription = stringResource(Res.string.previous_track),
+                    contentDescription =
+                        stringResource(Res.string.previous_track),
                     tint = HausColors.current.ink,
                     modifier = Modifier.size(26.dp),
                 )
             }
 
             Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(HausColors.current.pulse)
-                    .hausClickable { playbackController.togglePlayPause() },
+                modifier =
+                    Modifier.size(64.dp)
+                        .clip(CircleShape)
+                        .background(HausColors.current.pulse)
+                        .hausClickable { playbackController.togglePlayPause() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = if (uiState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (uiState.isPlaying) stringResource(Res.string.pause) else stringResource(Res.string.play),
+                    imageVector =
+                        if (uiState.isPlaying) Icons.Filled.Pause
+                        else Icons.Filled.PlayArrow,
+                    contentDescription =
+                        if (uiState.isPlaying) stringResource(Res.string.pause)
+                        else stringResource(Res.string.play),
                     tint = Color.White,
                     modifier = Modifier.size(34.dp),
                 )
             }
 
             Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(HausColors.current.panel)
-                    .hausClickable { playbackController.skipToNext() },
+                modifier =
+                    Modifier.size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(HausColors.current.panel)
+                        .hausClickable { playbackController.skipToNext() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -352,10 +383,11 @@ private fun CompactNowPlayingLayout(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .safeContentPadding()
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
+        modifier =
+            modifier
+                .safeContentPadding()
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(18.dp))
         NowPlayingArtworkPane(
@@ -384,31 +416,26 @@ private fun WideNowPlayingLayout(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .safeContentPadding()
-            .fillMaxSize()
-            .padding(horizontal = 32.dp, vertical = 28.dp),
+        modifier =
+            modifier
+                .safeContentPadding()
+                .fillMaxSize()
+                .padding(horizontal = 32.dp, vertical = 28.dp),
         horizontalArrangement = Arrangement.spacedBy(32.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .weight(0.48f),
+            modifier = Modifier.fillMaxHeight().weight(0.48f),
             contentAlignment = Alignment.Center,
         ) {
             NowPlayingArtworkPane(
                 track = track,
                 brush = brush,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f),
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
             )
         }
         Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .weight(0.52f),
+            modifier = Modifier.fillMaxHeight().weight(0.52f),
             contentAlignment = Alignment.Center,
         ) {
             NowPlayingControlsPane(
@@ -430,24 +457,32 @@ private fun PlaybackModeButton(
     content: @Composable BoxScope.() -> Unit,
 ) {
     Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) HausColors.current.pulse else HausColors.current.panel)
-            .hausClickable(onClick)
-            .semantics { this.contentDescription = contentDescription },
+        modifier =
+            Modifier.size(44.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(
+                    if (selected) HausColors.current.pulse
+                    else HausColors.current.panel)
+                .hausClickable(onClick)
+                .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
         content = content,
     )
 }
 
 @Composable
-private fun statusLabel(status: PlaybackStatus): String = when (status) {
-    PlaybackStatus.Idle -> stringResource(Res.string.playback_status_ready)
-    PlaybackStatus.Loading -> stringResource(Res.string.playback_status_loading)
-    PlaybackStatus.Buffering -> stringResource(Res.string.playback_status_buffering)
-    PlaybackStatus.Playing -> stringResource(Res.string.playback_status_playing)
-    PlaybackStatus.Paused -> stringResource(Res.string.playback_status_paused)
-    PlaybackStatus.Stopped -> stringResource(Res.string.playback_status_stopped)
-    PlaybackStatus.Error -> stringResource(Res.string.playback_status_error)
-}
+private fun statusLabel(status: PlaybackStatus): String =
+    when (status) {
+        PlaybackStatus.Idle -> stringResource(Res.string.playback_status_ready)
+        PlaybackStatus.Loading ->
+            stringResource(Res.string.playback_status_loading)
+        PlaybackStatus.Buffering ->
+            stringResource(Res.string.playback_status_buffering)
+        PlaybackStatus.Playing ->
+            stringResource(Res.string.playback_status_playing)
+        PlaybackStatus.Paused ->
+            stringResource(Res.string.playback_status_paused)
+        PlaybackStatus.Stopped ->
+            stringResource(Res.string.playback_status_stopped)
+        PlaybackStatus.Error -> stringResource(Res.string.playback_status_error)
+    }

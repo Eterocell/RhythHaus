@@ -19,15 +19,18 @@ actual class LibraryDatabase(private val context: Context) {
         )
     }
 
-    actual val driver: SqlDriver get() = androidDriver
+    actual val driver: SqlDriver
+        get() = androidDriver
 
     actual val database: RhythHausDatabase by lazy { RhythHausDatabase(driver) }
 }
 
-actual fun createLibraryDatabase(): LibraryDatabase = LibraryDatabase(LibraryDatabaseContext.applicationContext)
+actual fun createLibraryDatabase(): LibraryDatabase =
+    LibraryDatabase(LibraryDatabaseContext.applicationContext)
 
-internal fun libraryDatabaseCallback() = object : AndroidSqliteDriver.Callback(RhythHausDatabase.Schema) {
-    override fun onOpen(db: SupportSQLiteDatabase) {
-        db.setForeignKeyConstraintsEnabled(true)
+internal fun libraryDatabaseCallback() =
+    object : AndroidSqliteDriver.Callback(RhythHausDatabase.Schema) {
+        override fun onOpen(db: SupportSQLiteDatabase) {
+            db.setForeignKeyConstraintsEnabled(true)
+        }
     }
-}

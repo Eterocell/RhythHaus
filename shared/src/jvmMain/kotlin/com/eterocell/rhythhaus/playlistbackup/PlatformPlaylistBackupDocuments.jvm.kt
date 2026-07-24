@@ -12,70 +12,94 @@ import java.io.InputStream
 actual fun rememberPlatformPlaylistBackupDocumentLauncher(
     onSaveResult: (PlaylistBackupDocumentSaveResult) -> Unit,
     onOpenResult: (PlaylistBackupDocumentOpenResult) -> Unit,
-): PlatformPlaylistBackupDocumentLauncher = remember(onSaveResult, onOpenResult) {
-    object : PlatformPlaylistBackupDocumentLauncher {
-        override val isAvailable: Boolean = true
+): PlatformPlaylistBackupDocumentLauncher =
+    remember(onSaveResult, onOpenResult) {
+        object : PlatformPlaylistBackupDocumentLauncher {
+            override val isAvailable: Boolean = true
 
-        override fun save(suggestedFileName: String, bytes: ByteArray) {
-            onSaveResult(
-                saveJvmPlaylistBackupDocument(
-                    bytes = bytes,
-                    selectFile = { openJvmPlaylistBackupDialog(FileDialog.SAVE, playlistBackupFileName(suggestedFileName)) },
-                    writeFile = { file, payload -> file.outputStream().use { it.write(payload) } },
-                ),
-            )
-        }
+            override fun save(suggestedFileName: String, bytes: ByteArray) {
+                onSaveResult(
+                    saveJvmPlaylistBackupDocument(
+                        bytes = bytes,
+                        selectFile = {
+                            openJvmPlaylistBackupDialog(
+                                FileDialog.SAVE,
+                                playlistBackupFileName(suggestedFileName))
+                        },
+                        writeFile = { file, payload ->
+                            file.outputStream().use { it.write(payload) }
+                        },
+                    ),
+                )
+            }
 
-        override fun open() {
-            onOpenResult(
-                openJvmPlaylistBackupDocument(
-                    selectFile = { openJvmPlaylistBackupDialog(FileDialog.LOAD, null) },
-                    readFile = { file -> file.inputStream().use(::readJvmPlaylistBackupBounded) },
-                ),
-            )
+            override fun open() {
+                onOpenResult(
+                    openJvmPlaylistBackupDocument(
+                        selectFile = {
+                            openJvmPlaylistBackupDialog(FileDialog.LOAD, null)
+                        },
+                        readFile = { file ->
+                            file
+                                .inputStream()
+                                .use(::readJvmPlaylistBackupBounded)
+                        },
+                    ),
+                )
+            }
         }
     }
-}
 
 internal fun saveJvmPlaylistBackupDocument(
     bytes: ByteArray,
     selectFile: () -> File?,
     writeFile: (File, ByteArray) -> Unit,
-): PlaylistBackupDocumentSaveResult = try {
-    val selected = selectFile() ?: return PlaylistBackupDocumentSaveResult.Cancelled
-    val destination = File(selected.parentFile, playlistBackupFileName(selected.name))
-    writeFile(destination, bytes)
-    PlaylistBackupDocumentSaveResult.Success
-} catch (exception: Exception) {
-    PlaylistBackupDocumentSaveResult.Failure(exception.message ?: "Could not save playlist backup")
-}
+): PlaylistBackupDocumentSaveResult =
+    try {
+        val selected =
+            selectFile() ?: return PlaylistBackupDocumentSaveResult.Cancelled
+        val destination =
+            File(selected.parentFile, playlistBackupFileName(selected.name))
+        writeFile(destination, bytes)
+        PlaylistBackupDocumentSaveResult.Success
+    } catch (exception: Exception) {
+        PlaylistBackupDocumentSaveResult.Failure(
+            exception.message ?: "Could not save playlist backup")
+    }
 
 internal fun openJvmPlaylistBackupDocument(
     selectFile: () -> File?,
     readFile: (File) -> ByteArray,
-): PlaylistBackupDocumentOpenResult = try {
-    val selected = selectFile() ?: return PlaylistBackupDocumentOpenResult.Cancelled
-    val bytes = readFile(selected)
-    if (bytes.size > PlaylistBackupMaxBytes) {
-        PlaylistBackupDocumentOpenResult.TooLarge(PlaylistBackupMaxBytes)
-    } else {
-        PlaylistBackupDocumentOpenResult.Success(bytes)
+): PlaylistBackupDocumentOpenResult =
+    try {
+        val selected =
+            selectFile() ?: return PlaylistBackupDocumentOpenResult.Cancelled
+        val bytes = readFile(selected)
+        if (bytes.size > PlaylistBackupMaxBytes) {
+            PlaylistBackupDocumentOpenResult.TooLarge(PlaylistBackupMaxBytes)
+        } else {
+            PlaylistBackupDocumentOpenResult.Success(bytes)
+        }
+    } catch (exception: Exception) {
+        PlaylistBackupDocumentOpenResult.Failure(
+            exception.message ?: "Could not open playlist backup")
     }
-} catch (exception: Exception) {
-    PlaylistBackupDocumentOpenResult.Failure(exception.message ?: "Could not open playlist backup")
-}
 
 internal interface JvmSystemPropertyAccess {
     fun get(key: String): String?
+
     fun set(key: String, value: String)
+
     fun clear(key: String)
 }
 
 private object RealJvmSystemPropertyAccess : JvmSystemPropertyAccess {
     override fun get(key: String): String? = System.getProperty(key)
+
     override fun set(key: String, value: String) {
         System.setProperty(key, value)
     }
+
     override fun clear(key: String) {
         System.clearProperty(key)
     }
@@ -91,17 +115,27 @@ internal fun <T> withJvmDocumentDialogMode(
     return try {
         block()
     } finally {
-        if (previous == null) properties.clear(key) else properties.set(key, previous)
+        if (previous == null) properties.clear(key)
+        else properties.set(key, previous)
     }
 }
 
-private fun openJvmPlaylistBackupDialog(mode: Int, suggestedFileName: String?): File? = withJvmDocumentDialogMode {
-    val dialog = FileDialog(null as Frame?, if (mode == FileDialog.SAVE) "Export playlist backup" else "Import playlist backup", mode)
+private fun openJvmPlaylistBackupDialog(
+    mode: Int,
+    suggestedFileName: String?
+): File? = withJvmDocumentDialogMode {
+    val dialog =
+        FileDialog(
+            null as Frame?,
+            if (mode == FileDialog.SAVE) "Export playlist backup"
+            else "Import playlist backup",
+            mode)
     try {
         dialog.directory = System.getProperty("user.home")
         dialog.file = suggestedFileName
         dialog.isVisible = true
-        dialog.files.firstOrNull() ?: dialog.file?.let { File(dialog.directory ?: "", it) }
+        dialog.files.firstOrNull()
+            ?: dialog.file?.let { File(dialog.directory ?: "", it) }
     } finally {
         dialog.dispose()
     }

@@ -17,37 +17,41 @@ import kotlin.test.assertFalse
 class HausDialogSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun dismissSemanticsPreservesLabelAndInvokesTheExistingDismissCallbackOnce() = runComposeUiTest {
-        var visible by mutableStateOf(true)
-        var dismissCount = 0
-        setContent {
-            if (visible) {
-                HausDialog(
-                    title = "Dialog",
-                    dismissLabel = "Cancel",
-                    onDismiss = {
-                        dismissCount += 1
-                        visible = false
-                    },
-                    body = {},
-                    actions = {},
-                )
+    fun dismissSemanticsPreservesLabelAndInvokesTheExistingDismissCallbackOnce() =
+        runComposeUiTest {
+            var visible by mutableStateOf(true)
+            var dismissCount = 0
+            setContent {
+                if (visible) {
+                    HausDialog(
+                        title = "Dialog",
+                        dismissLabel = "Cancel",
+                        onDismiss = {
+                            dismissCount += 1
+                            visible = false
+                        },
+                        body = {},
+                        actions = {},
+                    )
+                }
             }
+
+            val dismissMatcher =
+                SemanticsMatcher.keyIsDefined(SemanticsActions.Dismiss)
+            onNode(dismissMatcher)
+                .assertExists()
+                .assert(
+                    SemanticsMatcher("Dismiss action label is Cancel") { node ->
+                        node.config
+                            .getOrNull(SemanticsActions.Dismiss)
+                            ?.label == "Cancel"
+                    },
+                )
+                .performSemanticsAction(SemanticsActions.Dismiss)
+            waitForIdle()
+
+            assertFalse(visible)
+            assertEquals(1, dismissCount)
+            onNode(dismissMatcher).assertDoesNotExist()
         }
-
-        val dismissMatcher = SemanticsMatcher.keyIsDefined(SemanticsActions.Dismiss)
-        onNode(dismissMatcher)
-            .assertExists()
-            .assert(
-                SemanticsMatcher("Dismiss action label is Cancel") { node ->
-                    node.config.getOrNull(SemanticsActions.Dismiss)?.label == "Cancel"
-                },
-            )
-            .performSemanticsAction(SemanticsActions.Dismiss)
-        waitForIdle()
-
-        assertFalse(visible)
-        assertEquals(1, dismissCount)
-        onNode(dismissMatcher).assertDoesNotExist()
-    }
 }

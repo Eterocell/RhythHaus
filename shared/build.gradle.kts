@@ -14,18 +14,18 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 
 @CacheableTask
 abstract class GenerateRhythHausBuildInfoTask : DefaultTask() {
-    @get:Input
-    abstract val versionName: Property<String>
+    @get:Input abstract val versionName: Property<String>
 
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
+    @get:OutputFile abstract val outputFile: RegularFileProperty
 
     @TaskAction
     fun generate() {
-        val escapedVersionName = versionName.get()
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("$", "\\$")
+        val escapedVersionName =
+            versionName
+                .get()
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("$", "\\$")
         val generatedFile = outputFile.get().asFile
         generatedFile.parentFile.mkdirs()
         generatedFile.writeText(
@@ -35,14 +35,14 @@ abstract class GenerateRhythHausBuildInfoTask : DefaultTask() {
             internal object RhythHausBuildInfo {
                 const val versionName: String = "$escapedVersionName"
             }
-            """.trimIndent() + "\n",
+            """
+                .trimIndent() + "\n",
         )
     }
 }
 
 abstract class VerifyRhythHausVersionOverrideTask : DefaultTask() {
-    @get:Input
-    abstract val expectedVersionName: Property<String>
+    @get:Input abstract val expectedVersionName: Property<String>
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.RELATIVE)
@@ -50,50 +50,72 @@ abstract class VerifyRhythHausVersionOverrideTask : DefaultTask() {
 
     @TaskAction
     fun verify() {
-        val expectedDeclaration = "const val versionName: String = \"${expectedVersionName.get()}\""
+        val expectedDeclaration =
+            "const val versionName: String = \"${expectedVersionName.get()}\""
         check(expectedDeclaration in generatedFile.get().asFile.readText()) {
             "Generated RhythHausBuildInfo does not contain the expected version declaration: $expectedDeclaration"
         }
     }
 }
 
-val nativeAudioResourceRoot = layout.buildDirectory.dir("generated/nativeAudioResources/jvmMain")
-val macosAudioResourceArch = when (System.getProperty("os.arch").lowercase()) {
-    "aarch64", "arm64" -> "macos-aarch64"
-    else -> "macos-x64"
-}
-val macosAudioHelperOutputFile = layout.buildDirectory.file("generated/nativeAudioResources/jvmMain/native/$macosAudioResourceArch/librhythhaus_audio.dylib").get().asFile
-val macosAudioHelperSourceFile = layout.projectDirectory.file("src/nativeInterop/macos/rhythhaus_audio.mm").asFile
+val nativeAudioResourceRoot =
+    layout.buildDirectory.dir("generated/nativeAudioResources/jvmMain")
+val macosAudioResourceArch =
+    when (System.getProperty("os.arch").lowercase()) {
+        "aarch64",
+        "arm64" -> "macos-aarch64"
+        else -> "macos-x64"
+    }
+val macosAudioHelperOutputFile =
+    layout.buildDirectory
+        .file(
+            "generated/nativeAudioResources/jvmMain/native/$macosAudioResourceArch/librhythhaus_audio.dylib")
+        .get()
+        .asFile
+val macosAudioHelperSourceFile =
+    layout.projectDirectory
+        .file("src/nativeInterop/macos/rhythhaus_audio.mm")
+        .asFile
 val javaHomePath = providers.systemProperty("java.home").get()
 val rhythHausVersionName = providers.gradleProperty("rhythhaus.versionName")
-val generatedBuildInfoRoot = layout.buildDirectory.dir("generated/rhythHausBuildInfo/commonMain/kotlin")
-val generateRhythHausBuildInfo = tasks.register<GenerateRhythHausBuildInfoTask>("generateRhythHausBuildInfo") {
-    versionName.set(rhythHausVersionName)
-    outputFile.set(
-        generatedBuildInfoRoot.map {
-            it.file("com/eterocell/rhythhaus/settings/RhythHausBuildInfo.kt")
-        },
-    )
-}
-val buildMacosAudioHelper by tasks.registering(Exec::class) {
-    inputs.file(macosAudioHelperSourceFile)
-    outputs.file(macosAudioHelperOutputFile)
-    macosAudioHelperOutputFile.parentFile.mkdirs()
-    executable = "clang++"
-    args(
-        "-dynamiclib",
-        "-std=c++17",
-        "-fobjc-arc",
-        "-framework", "Foundation",
-        "-framework", "AVFoundation",
-        "-framework", "MediaPlayer",
-        "-framework", "AppKit",
-        "-I$javaHomePath/include",
-        "-I$javaHomePath/include/darwin",
-        macosAudioHelperSourceFile.absolutePath,
-        "-o", macosAudioHelperOutputFile.absolutePath,
-    )
-}
+val generatedBuildInfoRoot =
+    layout.buildDirectory.dir("generated/rhythHausBuildInfo/commonMain/kotlin")
+val generateRhythHausBuildInfo =
+    tasks.register<GenerateRhythHausBuildInfoTask>(
+        "generateRhythHausBuildInfo") {
+            versionName.set(rhythHausVersionName)
+            outputFile.set(
+                generatedBuildInfoRoot.map {
+                    it.file(
+                        "com/eterocell/rhythhaus/settings/RhythHausBuildInfo.kt")
+                },
+            )
+        }
+val buildMacosAudioHelper by
+    tasks.registering(Exec::class) {
+        inputs.file(macosAudioHelperSourceFile)
+        outputs.file(macosAudioHelperOutputFile)
+        macosAudioHelperOutputFile.parentFile.mkdirs()
+        executable = "clang++"
+        args(
+            "-dynamiclib",
+            "-std=c++17",
+            "-fobjc-arc",
+            "-framework",
+            "Foundation",
+            "-framework",
+            "AVFoundation",
+            "-framework",
+            "MediaPlayer",
+            "-framework",
+            "AppKit",
+            "-I$javaHomePath/include",
+            "-I$javaHomePath/include/darwin",
+            macosAudioHelperSourceFile.absolutePath,
+            "-o",
+            macosAudioHelperOutputFile.absolutePath,
+        )
+    }
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -109,7 +131,9 @@ aboutLibraries {
         configPath.set(layout.projectDirectory.dir("config"))
     }
     export {
-        outputFile.set(layout.projectDirectory.file("src/commonMain/composeResources/files/aboutlibraries.json"))
+        outputFile.set(
+            layout.projectDirectory.file(
+                "src/commonMain/composeResources/files/aboutlibraries.json"))
         includeMetaData.set(false)
         prettyPrint.set(true)
     }
@@ -119,8 +143,10 @@ sqldelight {
     databases {
         create("RhythHausDatabase") {
             packageName.set("com.eterocell.rhythhaus.library")
-            dialect("app.cash.sqldelight:sqlite-3-38-dialect:${libs.versions.sqldelight.get()}")
-            schemaOutputDirectory.set(file("src/commonMain/sqldelight/databases"))
+            dialect(
+                "app.cash.sqldelight:sqlite-3-38-dialect:${libs.versions.sqldelight.get()}")
+            schemaOutputDirectory.set(
+                file("src/commonMain/sqldelight/databases"))
         }
     }
 }
@@ -131,17 +157,18 @@ kotlin {
     }
 
     listOf(
-        iosArm64(),
-        iosSimulatorArm64(),
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
-            baseName = "Shared"
-            isStatic = true
+            iosArm64(),
+            iosSimulatorArm64(),
+        )
+        .forEach { iosTarget ->
+            iosTarget.binaries.framework {
+                baseName = "Shared"
+                isStatic = true
+            }
+            iosTarget.binaries.all {
+                linkerOpts("-lsqlite3")
+            }
         }
-        iosTarget.binaries.all {
-            linkerOpts("-lsqlite3")
-        }
-    }
 
     jvm()
 
@@ -226,16 +253,21 @@ tasks.withType<KotlinCompilationTask<*>>().configureEach {
     dependsOn(generateRhythHausBuildInfo)
 }
 
-tasks.register<VerifyRhythHausVersionOverrideTask>("verifyRhythHausVersionOverride") {
-    dependsOn("compileKotlinJvm")
-    expectedVersionName.set(rhythHausVersionName)
-    generatedFile.set(generateRhythHausBuildInfo.flatMap { it.outputFile })
-}
+tasks.register<VerifyRhythHausVersionOverrideTask>(
+    "verifyRhythHausVersionOverride") {
+        dependsOn("compileKotlinJvm")
+        expectedVersionName.set(rhythHausVersionName)
+        generatedFile.set(generateRhythHausBuildInfo.flatMap { it.outputFile })
+    }
 
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }
 
-tasks.matching { it.name in setOf("jvmProcessResources", "processJvmMainResources") }.configureEach {
-    dependsOn(buildMacosAudioHelper)
-}
+tasks
+    .matching {
+        it.name in setOf("jvmProcessResources", "processJvmMainResources")
+    }
+    .configureEach {
+        dependsOn(buildMacosAudioHelper)
+    }

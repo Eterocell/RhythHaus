@@ -24,10 +24,12 @@ internal fun selectOccurrenceForPlayback(
     selectedOccurrenceId: String,
 ) {
     if (visibleQueue.none { it.id == selectedOccurrenceId }) return
-    if (playbackController.state.value.currentOccurrenceId == selectedOccurrenceId) {
+    if (playbackController.state.value.currentOccurrenceId ==
+        selectedOccurrenceId) {
         playbackController.restartCurrentTrack()
     } else {
-        playbackController.setOccurrenceQueue(visibleQueue, selectedOccurrenceId)
+        playbackController.setOccurrenceQueue(
+            visibleQueue, selectedOccurrenceId)
         playbackController.play()
     }
 }

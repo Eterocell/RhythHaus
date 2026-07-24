@@ -34,7 +34,9 @@ import org.koin.dsl.module
 import org.koin.mp.KoinPlatform
 
 fun rhythHausModule(): Module = module {
-    single<CoroutineScope> { CoroutineScope(SupervisorJob() + Dispatchers.Default) }
+    single<CoroutineScope> {
+        CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    }
     single<TagLibReader> { createTagLibReader() }
     single { AudioMetadataReader(tagLibReader = get()) }
     single<LibraryDatabase> { createLibraryDatabase() }
@@ -45,7 +47,9 @@ fun rhythHausModule(): Module = module {
     single {
         PlaybackController(
             engine = get(),
-            artworkLoader = { trackId -> get<LibraryRepository>().artworkForTrack(trackId)?.bytes },
+            artworkLoader = { trackId ->
+                get<LibraryRepository>().artworkForTrack(trackId)?.bytes
+            },
         )
     }
     single<PlaybackSessionController> { get<PlaybackController>() }
@@ -58,7 +62,9 @@ fun rhythHausModule(): Module = module {
         )
     }
     single<PlaybackSessionReconciler> { get<PlaybackSessionCoordinator>() }
-    single { PlaybackProcessLifecycle(coordinator = get(), processScope = get()) }
+    single {
+        PlaybackProcessLifecycle(coordinator = get(), processScope = get())
+    }
     single<ThemePreferenceStore> { createThemePreferenceStore() }
     single {
         val platformAccess = get<PlatformSourceAccess>()

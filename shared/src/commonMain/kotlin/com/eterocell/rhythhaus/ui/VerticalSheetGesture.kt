@@ -21,48 +21,52 @@ fun Modifier.verticalSheetGesture(
     onSwipeCollapse: () -> Unit,
     threshold: Float = DefaultThreshold,
     referenceHeight: Float? = null,
-): Modifier = pointerInput(isActive) {
-    if (!isActive) return@pointerInput
-    var totalDrag = 0f
-    detectVerticalDragGestures(
-        onDragStart = {
-            totalDrag = 0f
-        },
-        onVerticalDrag = { _, dragAmount ->
-            scope.launch {
-                totalDrag += dragAmount
-                val screenHeight = referenceHeight ?: size.height.toFloat()
-                if (screenHeight <= 0f) return@launch
-                val current = expandProgress.value
-                val delta = -(dragAmount / screenHeight)
-                var target = current + delta
-                if (target < 0f) {
-                    target = current + delta * RubberBandFactor
-                } else if (target > 1f) {
-                    target = current + delta * RubberBandFactor
+): Modifier =
+    pointerInput(isActive) {
+        if (!isActive) return@pointerInput
+        var totalDrag = 0f
+        detectVerticalDragGestures(
+            onDragStart = {
+                totalDrag = 0f
+            },
+            onVerticalDrag = { _, dragAmount ->
+                scope.launch {
+                    totalDrag += dragAmount
+                    val screenHeight = referenceHeight ?: size.height.toFloat()
+                    if (screenHeight <= 0f) return@launch
+                    val current = expandProgress.value
+                    val delta = -(dragAmount / screenHeight)
+                    var target = current + delta
+                    if (target < 0f) {
+                        target = current + delta * RubberBandFactor
+                    } else if (target > 1f) {
+                        target = current + delta * RubberBandFactor
+                    }
+                    expandProgress.snapTo(target.coerceIn(-0.05f, 1.05f))
                 }
-                expandProgress.snapTo(target.coerceIn(-0.05f, 1.05f))
-            }
-        },
-        onDragEnd = {
-            scope.launch {
-                val target = expandProgress.value
-                if (target >= threshold) {
-                    expandProgress.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow))
-                    onSwipeExpand()
-                } else {
-                    expandProgress.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
-                    onSwipeCollapse()
+            },
+            onDragEnd = {
+                scope.launch {
+                    val target = expandProgress.value
+                    if (target >= threshold) {
+                        expandProgress.animateTo(
+                            1f, spring(stiffness = Spring.StiffnessMediumLow))
+                        onSwipeExpand()
+                    } else {
+                        expandProgress.animateTo(
+                            0f, spring(stiffness = Spring.StiffnessMediumLow))
+                        onSwipeCollapse()
+                    }
                 }
-            }
-        },
-        onDragCancel = {
-            scope.launch {
-                val current = expandProgress.value
-                val target = if (current >= threshold) 1f else 0f
-                expandProgress.animateTo(target, spring(stiffness = Spring.StiffnessMediumLow))
-                if (target == 1f) onSwipeExpand() else onSwipeCollapse()
-            }
-        },
-    )
-}
+            },
+            onDragCancel = {
+                scope.launch {
+                    val current = expandProgress.value
+                    val target = if (current >= threshold) 1f else 0f
+                    expandProgress.animateTo(
+                        target, spring(stiffness = Spring.StiffnessMediumLow))
+                    if (target == 1f) onSwipeExpand() else onSwipeCollapse()
+                }
+            },
+        )
+    }

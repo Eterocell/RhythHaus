@@ -2,8 +2,11 @@ package com.eterocell.rhythhaus.library.ui
 
 sealed interface TrackSelectionPageKey {
     data object HomeSongs : TrackSelectionPageKey
+
     data class Album(val album: String) : TrackSelectionPageKey
+
     data class Artist(val artist: String) : TrackSelectionPageKey
+
     data object Search : TrackSelectionPageKey
 }
 
@@ -13,16 +16,32 @@ data class TrackSelectionState(
 )
 
 sealed interface TrackSelectionAction {
-    data class Start(val pageKey: TrackSelectionPageKey, val trackId: String) : TrackSelectionAction
-    data class Select(val pageKey: TrackSelectionPageKey, val trackId: String) : TrackSelectionAction
-    data class Toggle(val pageKey: TrackSelectionPageKey, val trackId: String) : TrackSelectionAction
-    data class ReconcileVisible(val pageKey: TrackSelectionPageKey, val visibleTrackIds: List<String>) : TrackSelectionAction
-    data class RouteChanged(val pageKey: TrackSelectionPageKey?) : TrackSelectionAction
+    data class Start(val pageKey: TrackSelectionPageKey, val trackId: String) :
+        TrackSelectionAction
+
+    data class Select(val pageKey: TrackSelectionPageKey, val trackId: String) :
+        TrackSelectionAction
+
+    data class Toggle(val pageKey: TrackSelectionPageKey, val trackId: String) :
+        TrackSelectionAction
+
+    data class ReconcileVisible(
+        val pageKey: TrackSelectionPageKey,
+        val visibleTrackIds: List<String>
+    ) : TrackSelectionAction
+
+    data class RouteChanged(val pageKey: TrackSelectionPageKey?) :
+        TrackSelectionAction
+
     data object Cancel : TrackSelectionAction
+
     data object Completed : TrackSelectionAction
 }
 
-fun reduceTrackSelection(state: TrackSelectionState, action: TrackSelectionAction): TrackSelectionState {
+fun reduceTrackSelection(
+    state: TrackSelectionState,
+    action: TrackSelectionAction
+): TrackSelectionState {
     val normalized = state.normalized()
 
     return when (action) {
@@ -35,10 +54,13 @@ fun reduceTrackSelection(state: TrackSelectionState, action: TrackSelectionActio
         }
 
         is TrackSelectionAction.Select -> {
-            if (action.trackId.isBlank() || normalized.pageKey != action.pageKey) {
+            if (action.trackId.isBlank() ||
+                normalized.pageKey != action.pageKey) {
                 normalized
             } else {
-                normalized.copy(selectedTrackIds = normalized.selectedTrackIds + action.trackId)
+                normalized.copy(
+                    selectedTrackIds =
+                        normalized.selectedTrackIds + action.trackId)
             }
         }
 
@@ -50,13 +72,16 @@ fun reduceTrackSelection(state: TrackSelectionState, action: TrackSelectionActio
             } else if (normalized.pageKey != action.pageKey) {
                 normalized
             } else {
-                normalized.copy(
-                    selectedTrackIds = if (action.trackId in normalized.selectedTrackIds) {
-                        normalized.selectedTrackIds - action.trackId
-                    } else {
-                        normalized.selectedTrackIds + action.trackId
-                    },
-                ).normalized()
+                normalized
+                    .copy(
+                        selectedTrackIds =
+                            if (action.trackId in normalized.selectedTrackIds) {
+                                normalized.selectedTrackIds - action.trackId
+                            } else {
+                                normalized.selectedTrackIds + action.trackId
+                            },
+                    )
+                    .normalized()
             }
         }
 
@@ -64,13 +89,16 @@ fun reduceTrackSelection(state: TrackSelectionState, action: TrackSelectionActio
             if (normalized.pageKey != action.pageKey) {
                 normalized
             } else {
-                normalized.copy(
-                    selectedTrackIds = normalized.selectedTrackIds
-                        .asSequence()
-                        .filter(String::isNotBlank)
-                        .filter { it in action.visibleTrackIds }
-                        .toSet(),
-                ).normalized()
+                normalized
+                    .copy(
+                        selectedTrackIds =
+                            normalized.selectedTrackIds
+                                .asSequence()
+                                .filter(String::isNotBlank)
+                                .filter { it in action.visibleTrackIds }
+                                .toSet(),
+                    )
+                    .normalized()
             }
         }
 
@@ -94,11 +122,14 @@ fun orderedSelectedTrackIds(
     val selected = state.selectedTrackIds
     return buildList {
         visibleTrackIds.forEach { trackId ->
-            if (trackId.isNotBlank() && trackId in selected && trackId !in this) {
+            if (trackId.isNotBlank() &&
+                trackId in selected &&
+                trackId !in this) {
                 add(trackId)
             }
         }
     }
 }
 
-private fun TrackSelectionState.normalized(): TrackSelectionState = if (selectedTrackIds.isEmpty()) TrackSelectionState() else this
+private fun TrackSelectionState.normalized(): TrackSelectionState =
+    if (selectedTrackIds.isEmpty()) TrackSelectionState() else this

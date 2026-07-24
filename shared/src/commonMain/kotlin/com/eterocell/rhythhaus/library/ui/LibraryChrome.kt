@@ -51,6 +51,7 @@ import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
+import kotlin.math.max
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
@@ -62,30 +63,34 @@ import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import kotlin.math.max
 
-internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition = LibraryScrollPosition(
-    firstVisibleItemIndex = firstVisibleItemIndex,
-    firstVisibleItemScrollOffset = firstVisibleItemScrollOffset,
-)
+internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition =
+    LibraryScrollPosition(
+        firstVisibleItemIndex = firstVisibleItemIndex,
+        firstVisibleItemScrollOffset = firstVisibleItemScrollOffset,
+    )
 
 internal val NestedScrollChromeToolbarHeight = 56.dp
 internal val DrillDownMiuixScrollContentTopPadding = 128.dp
 
 @Composable
 internal fun rememberSystemBarTopPadding(): Dp {
-    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val systemBarHeight = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
+    val statusBarHeight =
+        WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val systemBarHeight =
+        WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
     return max(statusBarHeight.value, systemBarHeight.value).dp
 }
 
 @Composable
-private fun rememberSafeDrawingStartPadding(): Dp = WindowInsets.safeDrawing
-    .asPaddingValues()
-    .calculateStartPadding(LocalLayoutDirection.current)
+private fun rememberSafeDrawingStartPadding(): Dp =
+    WindowInsets.safeDrawing
+        .asPaddingValues()
+        .calculateStartPadding(LocalLayoutDirection.current)
 
 @Composable
-internal fun rememberMiuixTopAppBarScrollBehavior(): ScrollBehavior = MiuixScrollBehavior()
+internal fun rememberMiuixTopAppBarScrollBehavior(): ScrollBehavior =
+    MiuixScrollBehavior()
 
 @Composable
 internal fun DrillDownMiuixScrollChrome(
@@ -96,22 +101,23 @@ internal fun DrillDownMiuixScrollChrome(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .zIndex(3f),
+        modifier = modifier.fillMaxWidth().zIndex(3f),
     ) {
-        val collapsedChromeHeight = rememberSystemBarTopPadding() + NestedScrollChromeToolbarHeight
+        val collapsedChromeHeight =
+            rememberSystemBarTopPadding() + NestedScrollChromeToolbarHeight
         val navigationStartPadding = rememberSafeDrawingStartPadding() + 12.dp
 
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(collapsedChromeHeight)
-                .rhythHausLiquidGlass(
-                    backdrop = backdrop,
-                    shape = RoundedCornerShape(0.dp),
-                    fallbackColor = HausColors.current.panel.copy(alpha = RhythHausGlassSurfaceAlpha),
-                ),
+            modifier =
+                Modifier.fillMaxWidth()
+                    .height(collapsedChromeHeight)
+                    .rhythHausLiquidGlass(
+                        backdrop = backdrop,
+                        shape = RoundedCornerShape(0.dp),
+                        fallbackColor =
+                            HausColors.current.panel.copy(
+                                alpha = RhythHausGlassSurfaceAlpha),
+                    ),
         ) {
             TopAppBar(
                 title = title,
@@ -135,17 +141,23 @@ internal fun DrillDownMiuixScrollChrome(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(Res.string.back),
+                            contentDescription =
+                                stringResource(Res.string.back),
                             tint = HausColors.current.ink,
                         )
                     }
                 },
                 bottomContent = {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(HausColors.current.line.copy(alpha = 0.42f * scrollBehavior.state.collapsedFraction)),
+                        modifier =
+                            Modifier.fillMaxWidth()
+                                .height(1.dp)
+                                .background(
+                                    HausColors.current.line.copy(
+                                        alpha =
+                                            0.42f *
+                                                scrollBehavior.state
+                                                    .collapsedFraction)),
                     )
                 },
             )
@@ -160,16 +172,15 @@ internal fun DrillDownArtworkUpperSlice(
     upperSliceHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val planeGeometry = artworkSlicePlaneGeometry(
-        expandedSize = expandedHeight.value,
-        viewportHeight = upperSliceHeight.value,
-        imageOffsetY = 0f,
-    )
+    val planeGeometry =
+        artworkSlicePlaneGeometry(
+            expandedSize = expandedHeight.value,
+            viewportHeight = upperSliceHeight.value,
+            imageOffsetY = 0f,
+        )
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(upperSliceHeight)
-            .clipToBounds(),
+        modifier =
+            modifier.fillMaxWidth().height(upperSliceHeight).clipToBounds(),
     ) {
         DrillDownArtworkPlane(
             artworkBytes = artworkBytes,
@@ -190,46 +201,48 @@ internal fun DrillDownArtworkStickySlice(
 ) {
     val collapsedTitleAlpha = (progress * 3f).coerceIn(0f, 1f)
     val largeTitleAlpha = (1f - progress * 2f).coerceIn(0f, 1f)
-    val planeGeometry = artworkSlicePlaneGeometry(
-        expandedSize = expandedHeight.value,
-        viewportHeight = collapsedHeight.value,
-        imageOffsetY = imageOffsetY.value,
-    )
-    BoxWithConstraints(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(collapsedHeight)
-            .clipToBounds(),
-    ) {
-        val titleAvailableWidth = artworkTitleAvailableWidth(
-            containerWidthDp = maxWidth.value,
-            safeStartInsetDp = rememberSafeDrawingStartPadding().value,
+    val planeGeometry =
+        artworkSlicePlaneGeometry(
+            expandedSize = expandedHeight.value,
+            viewportHeight = collapsedHeight.value,
+            imageOffsetY = imageOffsetY.value,
         )
+    BoxWithConstraints(
+        modifier =
+            modifier.fillMaxWidth().height(collapsedHeight).clipToBounds(),
+    ) {
+        val titleAvailableWidth =
+            artworkTitleAvailableWidth(
+                containerWidthDp = maxWidth.value,
+                safeStartInsetDp = rememberSafeDrawingStartPadding().value,
+            )
         DrillDownArtworkPlane(
             artworkBytes = artworkBytes,
             geometry = planeGeometry,
             modifier = Modifier.offset(y = planeGeometry.imageOffsetY.dp),
         )
         Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(HausColors.current.paper.copy(alpha = artworkChromeSolidAlpha(progress))),
+            modifier =
+                Modifier.matchParentSize()
+                    .background(
+                        HausColors.current.paper.copy(
+                            alpha = artworkChromeSolidAlpha(progress))),
         )
         TitleChip(
             title = title,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = rememberSystemBarTopPadding() + 10.dp)
-                .widthIn(max = titleAvailableWidth.collapsedDp.dp)
-                .alpha(collapsedTitleAlpha),
+            modifier =
+                Modifier.align(Alignment.TopCenter)
+                    .padding(top = rememberSystemBarTopPadding() + 10.dp)
+                    .widthIn(max = titleAvailableWidth.collapsedDp.dp)
+                    .alpha(collapsedTitleAlpha),
         )
         TitleChip(
             title = title,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 20.dp, end = 20.dp, bottom = 18.dp)
-                .widthIn(max = titleAvailableWidth.expandedDp.dp)
-                .alpha(largeTitleAlpha),
+            modifier =
+                Modifier.align(Alignment.BottomStart)
+                    .padding(start = 20.dp, end = 20.dp, bottom = 18.dp)
+                    .widthIn(max = titleAvailableWidth.expandedDp.dp)
+                    .alpha(largeTitleAlpha),
         )
     }
 }
@@ -241,9 +254,10 @@ private fun DrillDownArtworkPlane(
     modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .wrapContentSize(Alignment.TopStart, unbounded = true)
-            .size(geometry.planeSide.dp),
+        modifier =
+            modifier
+                .wrapContentSize(Alignment.TopStart, unbounded = true)
+                .size(geometry.planeSide.dp),
     ) {
         ArtworkImage(
             artworkBytes = artworkBytes,
@@ -254,17 +268,17 @@ private fun DrillDownArtworkPlane(
             fallback = {},
         )
         Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Black.copy(alpha = 0.34f),
-                            Color.Black.copy(alpha = 0.18f),
-                            Color.Black.copy(alpha = 0.48f),
+            modifier =
+                Modifier.matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.34f),
+                                Color.Black.copy(alpha = 0.18f),
+                                Color.Black.copy(alpha = 0.48f),
+                            ),
                         ),
                     ),
-                ),
         )
     }
 }
@@ -275,18 +289,21 @@ internal fun DrillDownArtworkBackButton(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val solidBackgroundAlpha by animateFloatAsState(
-        targetValue = if (progress <= 0f) 0f else progress,
-    )
+    val solidBackgroundAlpha by
+        animateFloatAsState(
+            targetValue = if (progress <= 0f) 0f else progress,
+        )
     IconButton(
         onClick = onBack,
-        modifier = modifier
-            .offset(
-                x = rememberSafeDrawingStartPadding() + 12.dp,
-                y = rememberSystemBarTopPadding() + 6.dp,
-            )
-            .size(44.dp),
-        backgroundColor = HausColors.current.paper.copy(alpha = 0.78f * solidBackgroundAlpha),
+        modifier =
+            modifier
+                .offset(
+                    x = rememberSafeDrawingStartPadding() + 12.dp,
+                    y = rememberSystemBarTopPadding() + 6.dp,
+                )
+                .size(44.dp),
+        backgroundColor =
+            HausColors.current.paper.copy(alpha = 0.78f * solidBackgroundAlpha),
         minWidth = 44.dp,
         minHeight = 44.dp,
     ) {
@@ -309,10 +326,11 @@ private fun TitleChip(
         color = HausColors.current.ink,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(HausColors.current.paper.copy(alpha = 0.82f))
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+        modifier =
+            modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(HausColors.current.paper.copy(alpha = 0.82f))
+                .padding(horizontal = 14.dp, vertical = 8.dp),
     )
 }
 
@@ -322,15 +340,18 @@ internal fun DrillDownScrollbar(
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val scrollFraction by remember(listState) {
-        derivedStateOf {
-            val layoutInfo = listState.layoutInfo
-            val total = layoutInfo.totalItemsCount
-            val visible = layoutInfo.visibleItemsInfo.size
-            val maxFirstVisibleIndex = (total - visible).coerceAtLeast(1)
-            (listState.firstVisibleItemIndex.toFloat() / maxFirstVisibleIndex).coerceIn(0f, 1f)
+    val scrollFraction by
+        remember(listState) {
+            derivedStateOf {
+                val layoutInfo = listState.layoutInfo
+                val total = layoutInfo.totalItemsCount
+                val visible = layoutInfo.visibleItemsInfo.size
+                val maxFirstVisibleIndex = (total - visible).coerceAtLeast(1)
+                (listState.firstVisibleItemIndex.toFloat() /
+                        maxFirstVisibleIndex)
+                    .coerceIn(0f, 1f)
+            }
         }
-    }
 
     fun scrollTo(yPosition: Float, trackHeightPx: Float) {
         val layoutInfo = listState.layoutInfo
@@ -340,42 +361,48 @@ internal fun DrillDownScrollbar(
 
         val maxFirstVisibleIndex = (total - visible).coerceAtLeast(0)
         val targetFraction = (yPosition / trackHeightPx).coerceIn(0f, 1f)
-        val targetIndex = (targetFraction * maxFirstVisibleIndex).toInt().coerceIn(0, maxFirstVisibleIndex)
+        val targetIndex =
+            (targetFraction * maxFirstVisibleIndex)
+                .toInt()
+                .coerceIn(0, maxFirstVisibleIndex)
         coroutineScope.launch {
-            // Must be an immediate (non-animated) scroll: animateScrollToItem takes ~300ms
-            // and gets cancelled/restarted on every drag-move event, so the list perpetually
+            // Must be an immediate (non-animated) scroll: animateScrollToItem
+            // takes ~300ms
+            // and gets cancelled/restarted on every drag-move event, so the
+            // list perpetually
             // chases a stale animation and only catches up once the drag ends.
             listState.scrollToItem(index = targetIndex, scrollOffset = 0)
         }
     }
 
     BoxWithConstraints(
-        modifier = modifier
-            .fillMaxHeight()
-            .padding(vertical = 4.dp)
-            .width(24.dp)
-            .pointerInput(listState) {
-                detectTapGestures { offset ->
-                    scrollTo(offset.y, size.height.toFloat())
+        modifier =
+            modifier
+                .fillMaxHeight()
+                .padding(vertical = 4.dp)
+                .width(24.dp)
+                .pointerInput(listState) {
+                    detectTapGestures { offset ->
+                        scrollTo(offset.y, size.height.toFloat())
+                    }
                 }
-            }
-            .pointerInput(listState) {
-                detectVerticalDragGestures { change, _ ->
-                    scrollTo(change.position.y, size.height.toFloat())
-                }
-            },
+                .pointerInput(listState) {
+                    detectVerticalDragGestures { change, _ ->
+                        scrollTo(change.position.y, size.height.toFloat())
+                    }
+                },
         contentAlignment = Alignment.TopCenter,
     ) {
         val thumbHeight = maxHeight * 0.15f
         val thumbOffset = (maxHeight - thumbHeight) * scrollFraction
         Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = thumbOffset)
-                .width(6.dp)
-                .height(thumbHeight)
-                .clip(RoundedCornerShape(3.dp))
-                .background(HausColors.current.muted.copy(alpha = 0.42f)),
+            modifier =
+                Modifier.align(Alignment.TopCenter)
+                    .offset(y = thumbOffset)
+                    .width(6.dp)
+                    .height(thumbHeight)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(HausColors.current.muted.copy(alpha = 0.42f)),
         )
     }
 }

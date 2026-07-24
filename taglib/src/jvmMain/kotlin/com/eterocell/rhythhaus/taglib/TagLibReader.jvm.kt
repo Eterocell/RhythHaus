@@ -6,21 +6,26 @@ import java.nio.file.StandardCopyOption
 actual fun createTagLibReader(): TagLibReader = JvmNativeTagLibReader()
 
 private class JvmNativeTagLibReader : TagLibReader {
-    override fun readPath(path: String): TagReadResult = try {
-        NativeTagLibBridge().readPathNative(path).toTagReadResult()
-    } catch (error: NativeTagLibUnavailableException) {
-        TagReadResult.Unsupported(error.message ?: "Native TagLib reader is not available for JVM")
-    } catch (error: UnsatisfiedLinkError) {
-        TagReadResult.Unsupported("Native TagLib reader could not be loaded: ${error.message ?: "unknown linker error"}")
-    }
+    override fun readPath(path: String): TagReadResult =
+        try {
+            NativeTagLibBridge().readPathNative(path).toTagReadResult()
+        } catch (error: NativeTagLibUnavailableException) {
+            TagReadResult.Unsupported(
+                error.message
+                    ?: "Native TagLib reader is not available for JVM")
+        } catch (error: UnsatisfiedLinkError) {
+            TagReadResult.Unsupported(
+                "Native TagLib reader could not be loaded: ${error.message ?: "unknown linker error"}")
+        }
 
-    override fun readProperties(path: String): Map<String, String> = try {
-        NativeTagLibBridge().readPropertiesNative(path).orEmpty()
-    } catch (error: NativeTagLibUnavailableException) {
-        emptyMap()
-    } catch (error: UnsatisfiedLinkError) {
-        emptyMap()
-    }
+    override fun readProperties(path: String): Map<String, String> =
+        try {
+            NativeTagLibBridge().readPropertiesNative(path).orEmpty()
+        } catch (error: NativeTagLibUnavailableException) {
+            emptyMap()
+        } catch (error: UnsatisfiedLinkError) {
+            emptyMap()
+        }
 }
 
 private class NativeTagLibBridge {
@@ -29,6 +34,7 @@ private class NativeTagLibBridge {
     }
 
     external fun readPathNative(path: String): NativeTagLibReadResult
+
     external fun readPropertiesNative(path: String): Map<String, String>?
 }
 
@@ -53,38 +59,50 @@ internal data class NativeTagLibReadResult(
     val artworkMimeType: String?,
     val artworkBytes: ByteArray?,
 ) {
-    fun toTagReadResult(): TagReadResult = when (status) {
-        STATUS_FOUND -> TagReadResult.Found(
-            TagMetadata(
-                title = title,
-                artist = artist,
-                album = album,
-                albumArtist = albumArtist,
-                genre = genre,
-                comment = comment,
-                year = year.positiveOrNull(),
-                trackNumber = track.positiveOrNull(),
-                trackTotal = trackTotal.positiveOrNull(),
-                discNumber = discNumber.positiveOrNull(),
-                discTotal = discTotal.positiveOrNull(),
-                durationMillis = durationSeconds.positiveOrNull()?.times(1_000L),
-                bitrate = bitrate.positiveOrNull(),
-                sampleRate = sampleRate.positiveOrNull(),
-                channels = channels.positiveOrNull(),
-                artwork = if (artworkBytes != null && artworkBytes.isNotEmpty()) {
-                    EmbeddedArtwork(artworkMimeType, artworkBytes)
-                } else {
-                    null
-                },
-            ),
-        )
+    fun toTagReadResult(): TagReadResult =
+        when (status) {
+            STATUS_FOUND ->
+                TagReadResult.Found(
+                    TagMetadata(
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        albumArtist = albumArtist,
+                        genre = genre,
+                        comment = comment,
+                        year = year.positiveOrNull(),
+                        trackNumber = track.positiveOrNull(),
+                        trackTotal = trackTotal.positiveOrNull(),
+                        discNumber = discNumber.positiveOrNull(),
+                        discTotal = discTotal.positiveOrNull(),
+                        durationMillis =
+                            durationSeconds.positiveOrNull()?.times(1_000L),
+                        bitrate = bitrate.positiveOrNull(),
+                        sampleRate = sampleRate.positiveOrNull(),
+                        channels = channels.positiveOrNull(),
+                        artwork =
+                            if (artworkBytes != null &&
+                                artworkBytes.isNotEmpty()) {
+                                EmbeddedArtwork(artworkMimeType, artworkBytes)
+                            } else {
+                                null
+                            },
+                    ),
+                )
 
-        STATUS_UNSUPPORTED -> TagReadResult.Unsupported(errorMessage ?: "Native TagLib reader does not support this path")
+            STATUS_UNSUPPORTED ->
+                TagReadResult.Unsupported(
+                    errorMessage
+                        ?: "Native TagLib reader does not support this path")
 
-        STATUS_FAILED -> TagReadResult.Failed(errorMessage ?: "Native TagLib reader failed")
+            STATUS_FAILED ->
+                TagReadResult.Failed(
+                    errorMessage ?: "Native TagLib reader failed")
 
-        else -> TagReadResult.Failed("Native TagLib reader returned unknown status: $status")
-    }
+            else ->
+                TagReadResult.Failed(
+                    "Native TagLib reader returned unknown status: $status")
+        }
 
     private fun Int.positiveOrNull(): Int? = takeIf { it > 0 }
 
@@ -104,8 +122,10 @@ private object NativeTagLibLibrary {
         if (loaded) return
 
         val resourcePath = nativeResourcePath()
-        val resource = NativeTagLibLibrary::class.java.getResourceAsStream(resourcePath)
-            ?: throw NativeTagLibUnavailableException("Native TagLib helper resource not found: $resourcePath")
+        val resource =
+            NativeTagLibLibrary::class.java.getResourceAsStream(resourcePath)
+                ?: throw NativeTagLibUnavailableException(
+                    "Native TagLib helper resource not found: $resourcePath")
 
         val libraryPath = Files.createTempFile("rhythhaus-taglib", ".dylib")
         resource.use { input ->
@@ -119,17 +139,22 @@ private object NativeTagLibLibrary {
     private fun nativeResourcePath(): String {
         val osName = System.getProperty("os.name")
         val architecture = System.getProperty("os.arch").lowercase()
-        val platform = when {
-            osName.contains("Mac", ignoreCase = true) && architecture in setOf("aarch64", "arm64") -> "macos-aarch64"
+        val platform =
+            when {
+                osName.contains("Mac", ignoreCase = true) &&
+                    architecture in setOf("aarch64", "arm64") -> "macos-aarch64"
 
-            osName.contains("Mac", ignoreCase = true) && architecture == "x86_64" -> "macos-x64"
+                osName.contains("Mac", ignoreCase = true) &&
+                    architecture == "x86_64" -> "macos-x64"
 
-            else -> throw NativeTagLibUnavailableException(
-                "Native TagLib helper is only packaged for macOS JVM, current os=$osName arch=${System.getProperty("os.arch")}",
-            )
-        }
+                else ->
+                    throw NativeTagLibUnavailableException(
+                        "Native TagLib helper is only packaged for macOS JVM, current os=$osName arch=${System.getProperty("os.arch")}",
+                    )
+            }
         return "/native/$platform/$LIBRARY_NAME"
     }
 }
 
-internal class NativeTagLibUnavailableException(message: String) : RuntimeException(message)
+internal class NativeTagLibUnavailableException(message: String) :
+    RuntimeException(message)

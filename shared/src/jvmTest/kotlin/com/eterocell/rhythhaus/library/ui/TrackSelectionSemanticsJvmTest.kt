@@ -23,53 +23,65 @@ class TrackSelectionSemanticsJvmTest {
     fun activationDispatchesPlaybackOnlyForClickOutsideSelection() {
         assertEquals(
             TrackRowActivation.Play,
-            trackRowActivation(selectionModeActive = false, gesture = TrackRowGesture.Click),
+            trackRowActivation(
+                selectionModeActive = false, gesture = TrackRowGesture.Click),
         )
         assertEquals(
             TrackRowActivation.StartSelection,
-            trackRowActivation(selectionModeActive = false, gesture = TrackRowGesture.LongClick),
+            trackRowActivation(
+                selectionModeActive = false,
+                gesture = TrackRowGesture.LongClick),
         )
         assertEquals(
             TrackRowActivation.ToggleSelection,
-            trackRowActivation(selectionModeActive = true, gesture = TrackRowGesture.Click),
+            trackRowActivation(
+                selectionModeActive = true, gesture = TrackRowGesture.Click),
         )
         assertEquals(
             TrackRowActivation.ToggleSelection,
-            trackRowActivation(selectionModeActive = true, gesture = TrackRowGesture.LongClick),
+            trackRowActivation(
+                selectionModeActive = true,
+                gesture = TrackRowGesture.LongClick),
         )
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun rowExposesAccessibleLongClickSelectionActionOutsideSelectionMode() = runComposeUiTest {
-        var playCount = 0
-        var selectionStartCount = 0
-        setContent {
-            TrackRow(
-                track = testTrack(),
-                isNowPlaying = false,
-                selectionModeActive = false,
-                isSelected = false,
-                onPlay = { playCount += 1 },
-                onToggleSelection = {},
-                onStartSelection = { selectionStartCount += 1 },
-            )
+    fun rowExposesAccessibleLongClickSelectionActionOutsideSelectionMode() =
+        runComposeUiTest {
+            var playCount = 0
+            var selectionStartCount = 0
+            setContent {
+                TrackRow(
+                    track = testTrack(),
+                    isNowPlaying = false,
+                    selectionModeActive = false,
+                    isSelected = false,
+                    onPlay = { playCount += 1 },
+                    onToggleSelection = {},
+                    onStartSelection = { selectionStartCount += 1 },
+                )
+            }
+
+            val longClickMatcher =
+                SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick)
+            onNode(longClickMatcher)
+                .assertExists()
+                .assert(
+                    SemanticsMatcher("Long click has a selection label") { node
+                        ->
+                        !node.config
+                            .getOrNull(SemanticsActions.OnLongClick)
+                            ?.label
+                            .isNullOrBlank()
+                    },
+                )
+                .performSemanticsAction(SemanticsActions.OnLongClick)
+            waitForIdle()
+
+            assertEquals(0, playCount)
+            assertEquals(1, selectionStartCount)
         }
-
-        val longClickMatcher = SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick)
-        onNode(longClickMatcher)
-            .assertExists()
-            .assert(
-                SemanticsMatcher("Long click has a selection label") { node ->
-                    !node.config.getOrNull(SemanticsActions.OnLongClick)?.label.isNullOrBlank()
-                },
-            )
-            .performSemanticsAction(SemanticsActions.OnLongClick)
-        waitForIdle()
-
-        assertEquals(0, playCount)
-        assertEquals(1, selectionStartCount)
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -87,79 +99,92 @@ class TrackSelectionSemanticsJvmTest {
         }
 
         onNode(
-            SemanticsMatcher.expectValue(
-                SemanticsProperties.ToggleableState,
-                ToggleableState.On,
-            ) and SemanticsMatcher.keyIsDefined(SemanticsProperties.StateDescription),
-        )
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.ToggleableState,
+                    ToggleableState.On,
+                ) and
+                    SemanticsMatcher.keyIsDefined(
+                        SemanticsProperties.StateDescription),
+            )
             .assertIsOn()
             .assert(
-                SemanticsMatcher("Now playing state remains available") { node ->
-                    !node.config.getOrNull(SemanticsProperties.StateDescription).isNullOrBlank()
+                SemanticsMatcher("Now playing state remains available") { node
+                    ->
+                    !node.config
+                        .getOrNull(SemanticsProperties.StateDescription)
+                        .isNullOrBlank()
                 },
             )
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun checkboxClickTogglesSelectionExactlyOnceWithoutPlayback() = runComposeUiTest {
-        var playCount = 0
-        var toggleCount = 0
-        setContent {
-            TrackRow(
-                track = testTrack(),
-                isNowPlaying = false,
-                selectionModeActive = true,
-                isSelected = false,
-                onPlay = { playCount += 1 },
-                onToggleSelection = { toggleCount += 1 },
-                onStartSelection = {},
-            )
+    fun checkboxClickTogglesSelectionExactlyOnceWithoutPlayback() =
+        runComposeUiTest {
+            var playCount = 0
+            var toggleCount = 0
+            setContent {
+                TrackRow(
+                    track = testTrack(),
+                    isNowPlaying = false,
+                    selectionModeActive = true,
+                    isSelected = false,
+                    onPlay = { playCount += 1 },
+                    onToggleSelection = { toggleCount += 1 },
+                    onStartSelection = {},
+                )
+            }
+
+            onNode(
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.Role,
+                        Role.Checkbox,
+                    ) and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.ToggleableState,
+                            ToggleableState.Off),
+                )
+                .performClick()
+            waitForIdle()
+
+            assertEquals(0, playCount)
+            assertEquals(1, toggleCount)
         }
-
-        onNode(
-            SemanticsMatcher.expectValue(
-                SemanticsProperties.Role,
-                Role.Checkbox,
-            ) and SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, ToggleableState.Off),
-        ).performClick()
-        waitForIdle()
-
-        assertEquals(0, playCount)
-        assertEquals(1, toggleCount)
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun rowClickInSelectionModeTogglesExactlyOnceWithoutPlayback() = runComposeUiTest {
-        var playCount = 0
-        var toggleCount = 0
-        setContent {
-            TrackRow(
-                track = testTrack(),
-                isNowPlaying = false,
-                selectionModeActive = true,
-                isSelected = false,
-                onPlay = { playCount += 1 },
-                onToggleSelection = { toggleCount += 1 },
-                onStartSelection = {},
-            )
+    fun rowClickInSelectionModeTogglesExactlyOnceWithoutPlayback() =
+        runComposeUiTest {
+            var playCount = 0
+            var toggleCount = 0
+            setContent {
+                TrackRow(
+                    track = testTrack(),
+                    isNowPlaying = false,
+                    selectionModeActive = true,
+                    isSelected = false,
+                    onPlay = { playCount += 1 },
+                    onToggleSelection = { toggleCount += 1 },
+                    onStartSelection = {},
+                )
+            }
+
+            onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick))
+                .performClick()
+            waitForIdle()
+
+            assertEquals(0, playCount)
+            assertEquals(1, toggleCount)
         }
 
-        onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick)).performClick()
-        waitForIdle()
-
-        assertEquals(0, playCount)
-        assertEquals(1, toggleCount)
-    }
-
-    private fun testTrack() = Track(
-        id = "track-1",
-        title = "Song",
-        artist = "Artist",
-        album = "Album",
-        durationSeconds = 180,
-        accent = TrackAccent(0xFF000000, 0xFFFFFFFF),
-        source = AudioSource.FilePath("song.mp3"),
-    )
+    private fun testTrack() =
+        Track(
+            id = "track-1",
+            title = "Song",
+            artist = "Artist",
+            album = "Album",
+            durationSeconds = 180,
+            accent = TrackAccent(0xFF000000, 0xFFFFFFFF),
+            source = AudioSource.FilePath("song.mp3"),
+        )
 }

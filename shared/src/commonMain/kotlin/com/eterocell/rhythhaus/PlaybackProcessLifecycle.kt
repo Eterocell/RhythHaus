@@ -25,9 +25,12 @@ internal class PlaybackProcessLifecycle(
 
     override suspend fun restoreOnce(tracks: List<PlayableTrack>) {
         val sharedAttempt = restoreMutex.withLock {
-            restoreAttempt ?: processScope.async {
-                restoreAction(tracks)
-            }.also { restoreAttempt = it }
+            restoreAttempt
+                ?: processScope
+                    .async {
+                        restoreAction(tracks)
+                    }
+                    .also { restoreAttempt = it }
         }
         sharedAttempt.await()
     }

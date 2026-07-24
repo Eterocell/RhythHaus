@@ -12,7 +12,8 @@ import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSUserDomainMask
 
-private const val PlaybackSessionPreferenceFileName = "playback_session.preferences_pb"
+private const val PlaybackSessionPreferenceFileName =
+    "playback_session.preferences_pb"
 private const val ApplicationSupportFolderName = "RhythHaus"
 
 private val playbackSessionDataStore by lazy {
@@ -24,19 +25,27 @@ private val playbackSessionDataStore by lazy {
     )
 }
 
-actual fun createPlaybackSessionStore(): PlaybackSessionStore = DataStorePlaybackSessionStore(playbackSessionDataStore)
+actual fun createPlaybackSessionStore(): PlaybackSessionStore =
+    DataStorePlaybackSessionStore(playbackSessionDataStore)
 
 @OptIn(ExperimentalForeignApi::class)
 private fun playbackSessionPreferencePath(): String {
     val fileManager = NSFileManager.defaultManager
-    val applicationSupport = fileManager.URLForDirectory(
-        directory = NSApplicationSupportDirectory,
-        inDomain = NSUserDomainMask,
-        appropriateForURL = null,
-        create = true,
-        error = null,
-    )?.path ?: error("Could not resolve application support directory")
+    val applicationSupport =
+        fileManager
+            .URLForDirectory(
+                directory = NSApplicationSupportDirectory,
+                inDomain = NSUserDomainMask,
+                appropriateForURL = null,
+                create = true,
+                error = null,
+            )
+            ?.path ?: error("Could not resolve application support directory")
     val folder = "$applicationSupport/$ApplicationSupportFolderName"
-    fileManager.createDirectoryAtPath(folder, withIntermediateDirectories = true, attributes = null, error = null)
+    fileManager.createDirectoryAtPath(
+        folder,
+        withIntermediateDirectories = true,
+        attributes = null,
+        error = null)
     return "$folder/$PlaybackSessionPreferenceFileName"
 }

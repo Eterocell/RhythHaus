@@ -46,23 +46,42 @@ class RhythHausTransportBridgeTest {
 
     @Test
     fun engineListenerSetterWiresBridgeToListenerSkipCallbacks() {
-        // Setting the engine's listener must route hardware/system skip transport (delivered to the
-        // service and surfaced via the bridge) into that listener, so the shared controller's queue
-        // navigation runs. This verifies the wiring without needing a live MediaController/service.
+        // Setting the engine's listener must route hardware/system skip
+        // transport (delivered to the
+        // service and surfaced via the bridge) into that listener, so the
+        // shared controller's queue
+        // navigation runs. This verifies the wiring without needing a live
+        // MediaController/service.
         var nextCalls = 0
         var prevCalls = 0
-        val listener = object : PlaybackEngineListener {
-            override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) = Unit
-            override fun onPlaybackProgress(generation: Long, positionMillis: Long, durationMillis: Long?) = Unit
-            override fun onPlaybackCompleted(generation: Long) = Unit
-            override fun onPlaybackError(generation: Long, error: PlaybackError) = Unit
-            override fun onSkipToNext(generation: Long) {
-                nextCalls++
+        val listener =
+            object : PlaybackEngineListener {
+                override fun onPlaybackStatus(
+                    generation: Long,
+                    status: PlaybackStatus
+                ) = Unit
+
+                override fun onPlaybackProgress(
+                    generation: Long,
+                    positionMillis: Long,
+                    durationMillis: Long?
+                ) = Unit
+
+                override fun onPlaybackCompleted(generation: Long) = Unit
+
+                override fun onPlaybackError(
+                    generation: Long,
+                    error: PlaybackError
+                ) = Unit
+
+                override fun onSkipToNext(generation: Long) {
+                    nextCalls++
+                }
+
+                override fun onSkipToPrevious(generation: Long) {
+                    prevCalls++
+                }
             }
-            override fun onSkipToPrevious(generation: Long) {
-                prevCalls++
-            }
-        }
 
         val engine = createPlatformPlaybackEngine()
         engine.listener = listener
@@ -84,7 +103,9 @@ class RhythHausTransportBridgeTest {
         assertFalse(bridge.handleServicePlayForTest())
         assertFalse(bridge.handleServiceSeekForTest(2_000L))
         assertFalse(bridge.isCommandAvailableForTest(Player.COMMAND_PLAY_PAUSE))
-        assertFalse(bridge.isCommandAvailableForTest(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
+        assertFalse(
+            bridge.isCommandAvailableForTest(
+                Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
         assertEquals(emptyList(), bridge.forwardedActionsForTest())
     }
 
@@ -98,12 +119,24 @@ class RhythHausTransportBridgeTest {
         assertTrue(bridge.pause { actions += "pause" })
         assertTrue(bridge.stop { actions += "stop" })
         assertTrue(bridge.seekTo(2_000L) { actions += "seek:-1:$it" })
-        assertTrue(bridge.seekTo(4, 3_000L) { index, position -> actions += "seek:$index:$position" })
+        assertTrue(
+            bridge.seekTo(4, 3_000L) { index, position ->
+                actions += "seek:$index:$position"
+            })
         assertTrue(bridge.next { actions += "next" })
         assertTrue(bridge.previous { actions += "previous" })
-        assertTrue(bridge.isCommandAvailable(Player.COMMAND_PLAY_PAUSE, delegateAvailable = true))
+        assertTrue(
+            bridge.isCommandAvailable(
+                Player.COMMAND_PLAY_PAUSE, delegateAvailable = true))
         assertEquals(
-            listOf("play", "pause", "stop", "seek:-1:2000", "seek:4:3000", "next", "previous"),
+            listOf(
+                "play",
+                "pause",
+                "stop",
+                "seek:-1:2000",
+                "seek:4:3000",
+                "next",
+                "previous"),
             actions,
         )
     }
@@ -118,11 +151,18 @@ class RhythHausTransportBridgeTest {
         assertFalse(bridge.pause { actions += "pause" })
         assertFalse(bridge.stop { actions += "stop" })
         assertFalse(bridge.seekTo(2_000L) { actions += "seek:-1:$it" })
-        assertFalse(bridge.seekTo(4, 3_000L) { index, position -> actions += "seek:$index:$position" })
+        assertFalse(
+            bridge.seekTo(4, 3_000L) { index, position ->
+                actions += "seek:$index:$position"
+            })
         assertFalse(bridge.next { actions += "next" })
         assertFalse(bridge.previous { actions += "previous" })
-        assertFalse(bridge.isCommandAvailable(Player.COMMAND_PLAY_PAUSE, delegateAvailable = true))
-        assertFalse(bridge.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT, delegateAvailable = true))
+        assertFalse(
+            bridge.isCommandAvailable(
+                Player.COMMAND_PLAY_PAUSE, delegateAvailable = true))
+        assertFalse(
+            bridge.isCommandAvailable(
+                Player.COMMAND_SEEK_TO_NEXT, delegateAvailable = true))
         assertEquals(emptyList(), actions)
     }
 }

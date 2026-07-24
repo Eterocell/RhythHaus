@@ -6,20 +6,27 @@ import java.nio.file.StandardCopyOption
 actual fun createTagLibWriter(): TagLibWriter = JvmNativeTagLibWriter()
 
 private class JvmNativeTagLibWriter : TagLibWriter {
-    override fun writePath(path: String, meta: WriteMeta): WriteResult = try {
-        val bridge = NativeWriteBridge()
-        val status = bridge.writePathNative(path, meta)
-        when (status) {
-            STATUS_SUCCESS -> WriteResult.Success
-            STATUS_UNSUPPORTED -> WriteResult.Unsupported(bridge.lastError ?: "Native write unsupported")
-            STATUS_FAILED -> WriteResult.Failed(bridge.lastError ?: "Native write failed")
-            else -> WriteResult.Failed("Unknown write status: $status")
+    override fun writePath(path: String, meta: WriteMeta): WriteResult =
+        try {
+            val bridge = NativeWriteBridge()
+            val status = bridge.writePathNative(path, meta)
+            when (status) {
+                STATUS_SUCCESS -> WriteResult.Success
+                STATUS_UNSUPPORTED ->
+                    WriteResult.Unsupported(
+                        bridge.lastError ?: "Native write unsupported")
+                STATUS_FAILED ->
+                    WriteResult.Failed(
+                        bridge.lastError ?: "Native write failed")
+                else -> WriteResult.Failed("Unknown write status: $status")
+            }
+        } catch (error: NativeTagLibUnavailableException) {
+            WriteResult.Unsupported(
+                error.message ?: "Native TagLib writer not available")
+        } catch (error: UnsatisfiedLinkError) {
+            WriteResult.Unsupported(
+                "Native TagLib writer not loaded: ${error.message ?: "unknown"}")
         }
-    } catch (error: NativeTagLibUnavailableException) {
-        WriteResult.Unsupported(error.message ?: "Native TagLib writer not available")
-    } catch (error: UnsatisfiedLinkError) {
-        WriteResult.Unsupported("Native TagLib writer not loaded: ${error.message ?: "unknown"}")
-    }
 }
 
 private class NativeWriteBridge {
@@ -42,10 +49,13 @@ private object NativeWriteLibrary {
         if (loaded) return
 
         val resourcePath = nativeResourcePath()
-        val resource = NativeWriteLibrary::class.java.getResourceAsStream(resourcePath)
-            ?: throw NativeTagLibUnavailableException("Native TagLib helper resource not found: $resourcePath")
+        val resource =
+            NativeWriteLibrary::class.java.getResourceAsStream(resourcePath)
+                ?: throw NativeTagLibUnavailableException(
+                    "Native TagLib helper resource not found: $resourcePath")
 
-        val libraryPath = Files.createTempFile("rhythhaus-taglib-writer", ".dylib")
+        val libraryPath =
+            Files.createTempFile("rhythhaus-taglib-writer", ".dylib")
         resource.use { input ->
             Files.copy(input, libraryPath, StandardCopyOption.REPLACE_EXISTING)
         }
@@ -57,15 +67,19 @@ private object NativeWriteLibrary {
     private fun nativeResourcePath(): String {
         val osName = System.getProperty("os.name")
         val architecture = System.getProperty("os.arch").lowercase()
-        val platform = when {
-            osName.contains("Mac", ignoreCase = true) && architecture in setOf("aarch64", "arm64") -> "macos-aarch64"
+        val platform =
+            when {
+                osName.contains("Mac", ignoreCase = true) &&
+                    architecture in setOf("aarch64", "arm64") -> "macos-aarch64"
 
-            osName.contains("Mac", ignoreCase = true) && architecture == "x86_64" -> "macos-x64"
+                osName.contains("Mac", ignoreCase = true) &&
+                    architecture == "x86_64" -> "macos-x64"
 
-            else -> throw NativeTagLibUnavailableException(
-                "Native TagLib helper is only packaged for macOS JVM, current os=$osName arch=${System.getProperty("os.arch")}",
-            )
-        }
+                else ->
+                    throw NativeTagLibUnavailableException(
+                        "Native TagLib helper is only packaged for macOS JVM, current os=$osName arch=${System.getProperty("os.arch")}",
+                    )
+            }
         return "/native/$platform/$LIBRARY_NAME"
     }
 }

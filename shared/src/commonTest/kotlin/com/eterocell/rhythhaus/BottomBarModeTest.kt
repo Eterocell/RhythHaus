@@ -14,13 +14,13 @@ import com.eterocell.rhythhaus.nowplaying.BottomBarMode
 import com.eterocell.rhythhaus.nowplaying.bottomBarModeFor
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class BottomBarModeTest {
     @Test
     fun emptyLibraryStillUsesBottomBarNavigationMode() {
-        assertEquals(BottomBarMode.EmptyLibraryNavigation, bottomBarModeFor(track = null))
+        assertEquals(
+            BottomBarMode.EmptyLibraryNavigation,
+            bottomBarModeFor(track = null))
     }
 
     @Test
@@ -29,10 +29,11 @@ class BottomBarModeTest {
             LibraryBottomBarContent.Selection(selectedCount = 2),
             libraryBottomBarContent(
                 route = LibraryRoute.Home,
-                selectionState = TrackSelectionState(
-                    pageKey = TrackSelectionPageKey.HomeSongs,
-                    selectedTrackIds = setOf("track-a", "track-b"),
-                ),
+                selectionState =
+                    TrackSelectionState(
+                        pageKey = TrackSelectionPageKey.HomeSongs,
+                        selectedTrackIds = setOf("track-a", "track-b"),
+                    ),
                 isNowPlayingVisible = true,
             ),
         )
@@ -44,10 +45,11 @@ class BottomBarModeTest {
             LibraryBottomBarContent.Selection(selectedCount = 1),
             libraryBottomBarContent(
                 route = LibraryRoute.AlbumDetail("Night"),
-                selectionState = TrackSelectionState(
-                    pageKey = TrackSelectionPageKey.HomeSongs,
-                    selectedTrackIds = setOf("track-a"),
-                ),
+                selectionState =
+                    TrackSelectionState(
+                        pageKey = TrackSelectionPageKey.HomeSongs,
+                        selectedTrackIds = setOf("track-a"),
+                    ),
                 isNowPlayingVisible = true,
             ),
         )
@@ -59,10 +61,11 @@ class BottomBarModeTest {
             LibraryBottomBarContent.Selection(selectedCount = 1),
             libraryBottomBarContent(
                 route = LibraryRoute.PlaylistHub,
-                selectionState = TrackSelectionState(
-                    pageKey = TrackSelectionPageKey.HomeSongs,
-                    selectedTrackIds = setOf("track-a"),
-                ),
+                selectionState =
+                    TrackSelectionState(
+                        pageKey = TrackSelectionPageKey.HomeSongs,
+                        selectedTrackIds = setOf("track-a"),
+                    ),
                 isNowPlayingVisible = true,
             ),
         )
@@ -74,10 +77,11 @@ class BottomBarModeTest {
             LibraryBottomBarContent.Hidden,
             libraryBottomBarContent(
                 route = LibraryRoute.Settings,
-                selectionState = TrackSelectionState(
-                    pageKey = TrackSelectionPageKey.HomeSongs,
-                    selectedTrackIds = setOf("track-a"),
-                ),
+                selectionState =
+                    TrackSelectionState(
+                        pageKey = TrackSelectionPageKey.HomeSongs,
+                        selectedTrackIds = setOf("track-a"),
+                    ),
                 isNowPlayingVisible = true,
             ),
         )
@@ -85,10 +89,11 @@ class BottomBarModeTest {
             LibraryBottomBarContent.NowPlaying,
             libraryBottomBarContent(
                 route = LibraryRoute.PlaylistHub,
-                selectionState = TrackSelectionState(
-                    pageKey = TrackSelectionPageKey.Album("stale"),
-                    selectedTrackIds = setOf("track-a"),
-                ),
+                selectionState =
+                    TrackSelectionState(
+                        pageKey = TrackSelectionPageKey.Album("stale"),
+                        selectedTrackIds = setOf("track-a"),
+                    ),
                 isNowPlayingVisible = true,
             ),
         )
@@ -97,24 +102,41 @@ class BottomBarModeTest {
     @Test
     fun activeBottomClearanceUsesTheMeasuredSlotAndHiddenContentUsesZero() {
         val selection = LibraryBottomBarContent.Selection(2)
-        assertEquals(286, activeBottomBarClearancePx(selection, LibraryBottomBarMeasurement(selection, 286)))
-        assertEquals(0, activeBottomBarClearancePx(LibraryBottomBarContent.Hidden, LibraryBottomBarMeasurement(selection, 286)))
+        assertEquals(
+            286,
+            activeBottomBarClearancePx(
+                selection, LibraryBottomBarMeasurement(selection, 286)))
         assertEquals(
             0,
-            activeBottomBarClearancePx(LibraryBottomBarContent.NowPlaying, LibraryBottomBarMeasurement(selection, 286)),
+            activeBottomBarClearancePx(
+                LibraryBottomBarContent.Hidden,
+                LibraryBottomBarMeasurement(selection, 286)))
+        assertEquals(
+            0,
+            activeBottomBarClearancePx(
+                LibraryBottomBarContent.NowPlaying,
+                LibraryBottomBarMeasurement(selection, 286)),
         )
     }
 
     @Test
     fun unmeasuredOrStaleBottomContentRemainsInvisibleUntilItsOwnMeasurementArrives() {
         val selection = LibraryBottomBarContent.Selection(2)
-        val staleNowPlaying = LibraryBottomBarMeasurement(LibraryBottomBarContent.NowPlaying, 286)
+        val staleNowPlaying =
+            LibraryBottomBarMeasurement(LibraryBottomBarContent.NowPlaying, 286)
 
-        assertEquals(0f, activeBottomBarAlpha(selection, null, hiddenFraction = 0f))
-        assertEquals(0f, activeBottomBarAlpha(selection, staleNowPlaying, hiddenFraction = 0f))
+        assertEquals(
+            0f, activeBottomBarAlpha(selection, null, hiddenFraction = 0f))
+        assertEquals(
+            0f,
+            activeBottomBarAlpha(
+                selection, staleNowPlaying, hiddenFraction = 0f))
         assertEquals(
             1f,
-            activeBottomBarAlpha(selection, LibraryBottomBarMeasurement(selection, 286), hiddenFraction = 0f),
+            activeBottomBarAlpha(
+                selection,
+                LibraryBottomBarMeasurement(selection, 286),
+                hiddenFraction = 0f),
         )
     }
 

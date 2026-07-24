@@ -12,24 +12,36 @@ import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.LightHausPalette
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 
 class PlaylistScreensTest {
     @Test
     fun pickerAndMutationRequestsRejectEmptyAndBlankTrackIds() {
-        assertFailsWith<IllegalArgumentException> { AddToPlaylistPickerState(emptyList()) }
-        assertFailsWith<IllegalArgumentException> { AddToPlaylistPickerState(listOf("track-a", " ")) }
-        assertFailsWith<IllegalArgumentException> { PlaylistAppendRequest("playlist-1", emptyList()) }
-        assertFailsWith<IllegalArgumentException> { PlaylistAppendRequest("playlist-1", listOf("track-a", " ")) }
-        assertFailsWith<IllegalArgumentException> { PlaylistInlineCreateRequest("New", emptyList()) }
-        assertFailsWith<IllegalArgumentException> { PlaylistInlineCreateRequest("New", listOf("track-a", " ")) }
+        assertFailsWith<IllegalArgumentException> {
+            AddToPlaylistPickerState(emptyList())
+        }
+        assertFailsWith<IllegalArgumentException> {
+            AddToPlaylistPickerState(listOf("track-a", " "))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            PlaylistAppendRequest("playlist-1", emptyList())
+        }
+        assertFailsWith<IllegalArgumentException> {
+            PlaylistAppendRequest("playlist-1", listOf("track-a", " "))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            PlaylistInlineCreateRequest("New", emptyList())
+        }
+        assertFailsWith<IllegalArgumentException> {
+            PlaylistInlineCreateRequest("New", listOf("track-a", " "))
+        }
     }
 
     @Test
@@ -41,23 +53,34 @@ class PlaylistScreensTest {
 
     @Test
     fun lightPlaylistTabsUseContrastingExplicitColors() {
-        val presentation = playlistTabPresentation(PlaylistTab.Saved, LightHausPalette)
+        val presentation =
+            playlistTabPresentation(PlaylistTab.Saved, LightHausPalette)
 
-        assertTrue(presentation.selectedContentColor != presentation.selectedContainerColor)
-        assertTrue(presentation.unselectedContentColor != presentation.unselectedContainerColor)
+        assertTrue(
+            presentation.selectedContentColor !=
+                presentation.selectedContainerColor)
+        assertTrue(
+            presentation.unselectedContentColor !=
+                presentation.unselectedContainerColor)
     }
 
     @Test
     fun darkPlaylistTabsUseContrastingExplicitColors() {
-        val presentation = playlistTabPresentation(PlaylistTab.Queue, DarkHausPalette)
+        val presentation =
+            playlistTabPresentation(PlaylistTab.Queue, DarkHausPalette)
 
-        assertTrue(presentation.selectedContentColor != presentation.selectedContainerColor)
-        assertTrue(presentation.unselectedContentColor != presentation.unselectedContainerColor)
+        assertTrue(
+            presentation.selectedContentColor !=
+                presentation.selectedContainerColor)
+        assertTrue(
+            presentation.unselectedContentColor !=
+                presentation.unselectedContainerColor)
     }
 
     @Test
     fun playlistTabsUseCompactTextSafeMetrics() {
-        val presentation = playlistTabPresentation(PlaylistTab.Saved, LightHausPalette)
+        val presentation =
+            playlistTabPresentation(PlaylistTab.Saved, LightHausPalette)
 
         assertEquals(40.dp, presentation.compactControlHeight)
         assertEquals(6.dp, presentation.insideVerticalMargin)
@@ -87,8 +110,11 @@ class PlaylistScreensTest {
     fun duplicateEntriesMoveAndRemoveByEntryId() {
         val ids = listOf("entry-a", "entry-b", "entry-c")
 
-        assertEquals(listOf("entry-b", "entry-a", "entry-c"), movedPlaylistEntryIds(ids, "entry-b", -1))
-        assertEquals(listOf("entry-a", "entry-c"), ids.filterNot { it == "entry-b" })
+        assertEquals(
+            listOf("entry-b", "entry-a", "entry-c"),
+            movedPlaylistEntryIds(ids, "entry-b", -1))
+        assertEquals(
+            listOf("entry-a", "entry-c"), ids.filterNot { it == "entry-b" })
         assertEquals(ids, movedPlaylistEntryIds(ids, "missing", 1))
     }
 
@@ -96,17 +122,31 @@ class PlaylistScreensTest {
     fun accessibleMoveAvailabilityMatchesVisibleEntryPosition() {
         val ids = listOf("entry-a", "entry-b", "entry-c")
 
-        assertEquals(PlaylistMoveAvailability(canMoveUp = false, canMoveDown = true), playlistMoveAvailability(ids, "entry-a"))
-        assertEquals(PlaylistMoveAvailability(canMoveUp = true, canMoveDown = true), playlistMoveAvailability(ids, "entry-b"))
-        assertEquals(PlaylistMoveAvailability(canMoveUp = true, canMoveDown = false), playlistMoveAvailability(ids, "entry-c"))
+        assertEquals(
+            PlaylistMoveAvailability(canMoveUp = false, canMoveDown = true),
+            playlistMoveAvailability(ids, "entry-a"))
+        assertEquals(
+            PlaylistMoveAvailability(canMoveUp = true, canMoveDown = true),
+            playlistMoveAvailability(ids, "entry-b"))
+        assertEquals(
+            PlaylistMoveAvailability(canMoveUp = true, canMoveDown = false),
+            playlistMoveAvailability(ids, "entry-c"))
     }
 
     @Test
     fun defaultPlaylistRowsHaveNoMutationActionsAndEditRowsExposeActions() {
-        assertEquals(emptySet<PlaylistDetailRowAction>(), playlistDetailRowActions(PlaylistDetailRowMode.Default, PlaylistMoveAvailability(false, true)))
         assertEquals(
-            setOf(PlaylistDetailRowAction.MoveDown, PlaylistDetailRowAction.Remove),
-            playlistDetailRowActions(PlaylistDetailRowMode.Edit, PlaylistMoveAvailability(false, true)),
+            emptySet<PlaylistDetailRowAction>(),
+            playlistDetailRowActions(
+                PlaylistDetailRowMode.Default,
+                PlaylistMoveAvailability(false, true)))
+        assertEquals(
+            setOf(
+                PlaylistDetailRowAction.MoveDown,
+                PlaylistDetailRowAction.Remove),
+            playlistDetailRowActions(
+                PlaylistDetailRowMode.Edit,
+                PlaylistMoveAvailability(false, true)),
         )
     }
 
@@ -121,39 +161,54 @@ class PlaylistScreensTest {
     @Test
     fun savedPlaybackUsesExactVisibleEntryOrderAndSelectedOccurrence() {
         val track = playableTrack("track-a")
-        val entries = listOf(
-            entry("entry-first", track.id, 0),
-            entry("entry-second", track.id, 1),
-        )
+        val entries =
+            listOf(
+                entry("entry-first", track.id, 0),
+                entry("entry-second", track.id, 1),
+            )
 
-        val request = savedPlaylistPlaybackRequest(
-            visibleEntries = entries,
-            tracksById = mapOf(track.id to track),
-            selectedEntryId = "entry-second",
-        )
+        val request =
+            savedPlaylistPlaybackRequest(
+                visibleEntries = entries,
+                tracksById = mapOf(track.id to track),
+                selectedEntryId = "entry-second",
+            )
 
-        assertEquals(listOf("entry-first", "entry-second"), request?.occurrences?.map { it.id })
+        assertEquals(
+            listOf("entry-first", "entry-second"),
+            request?.occurrences?.map { it.id })
         assertEquals("entry-second", request?.selectedOccurrenceId)
     }
 
     @Test
     fun pickerConfirmationPreservesOrderedTrackIdsEveryTime() {
-        val picker = AddToPlaylistPickerState(
-            trackIds = listOf("track-b", "track-a"),
-            selectedPlaylistId = "playlist-1",
-        )
+        val picker =
+            AddToPlaylistPickerState(
+                trackIds = listOf("track-b", "track-a"),
+                selectedPlaylistId = "playlist-1",
+            )
 
-        assertEquals(PlaylistAppendRequest("playlist-1", listOf("track-b", "track-a")), picker.confirmedAppend())
-        assertEquals(PlaylistAppendRequest("playlist-1", listOf("track-b", "track-a")), picker.confirmedAppend())
+        assertEquals(
+            PlaylistAppendRequest("playlist-1", listOf("track-b", "track-a")),
+            picker.confirmedAppend())
+        assertEquals(
+            PlaylistAppendRequest("playlist-1", listOf("track-b", "track-a")),
+            picker.confirmedAppend())
     }
 
     @Test
     fun pickerInlineCreationTrimsNameAndRetainsInvalidText() {
-        val valid = AddToPlaylistPickerState(trackIds = listOf("track-b", "track-a"), enteredName = "  New list ")
-        val blank = AddToPlaylistPickerState(trackIds = listOf("track-b", "track-a"), enteredName = "   ")
+        val valid =
+            AddToPlaylistPickerState(
+                trackIds = listOf("track-b", "track-a"),
+                enteredName = "  New list ")
+        val blank =
+            AddToPlaylistPickerState(
+                trackIds = listOf("track-b", "track-a"), enteredName = "   ")
 
         assertEquals(
-            PlaylistInlineCreateRequest("New list", listOf("track-b", "track-a")),
+            PlaylistInlineCreateRequest(
+                "New list", listOf("track-b", "track-a")),
             valid.confirmedInlineCreate(),
         )
         assertNull(blank.confirmedInlineCreate())
@@ -162,32 +217,38 @@ class PlaylistScreensTest {
 
     @Test
     fun detailBrowserAppendsSelectedTracksInVisibleOrder() {
-        val state = PlaylistTrackBrowserState(
-            playlistId = "playlist-1",
-            visibleTrackIds = listOf("b", "a", "c"),
-            selectedTrackIds = setOf("a", "b"),
-        )
+        val state =
+            PlaylistTrackBrowserState(
+                playlistId = "playlist-1",
+                visibleTrackIds = listOf("b", "a", "c"),
+                selectedTrackIds = setOf("a", "b"),
+            )
 
         assertEquals(listOf("b", "a"), state.confirmedTrackIds())
-        assertEquals(PlaylistAppendRequest("playlist-1", listOf("b", "a")), state.confirmedAppend())
+        assertEquals(
+            PlaylistAppendRequest("playlist-1", listOf("b", "a")),
+            state.confirmedAppend())
     }
 
     @Test
     fun detailBrowserEmptyConfirmationIsNoOpBeforeRequestConstruction() {
-        val state = PlaylistTrackBrowserState(
-            playlistId = "playlist-1",
-            visibleTrackIds = listOf("b", "a"),
-        )
+        val state =
+            PlaylistTrackBrowserState(
+                playlistId = "playlist-1",
+                visibleTrackIds = listOf("b", "a"),
+            )
 
         assertNull(state.confirmedAppend())
     }
 
     @Test
     fun detailBrowserSelectionIsKeyedByTrackIdAndSurvivesFiltering() {
-        val selected = PlaylistTrackBrowserState(
-            playlistId = "playlist-1",
-            visibleTrackIds = listOf("a", "b"),
-        ).toggle("b")
+        val selected =
+            PlaylistTrackBrowserState(
+                    playlistId = "playlist-1",
+                    visibleTrackIds = listOf("a", "b"),
+                )
+                .toggle("b")
         val filtered = selected.copy(visibleTrackIds = listOf("b"))
 
         assertTrue("b" in filtered.selectedTrackIds)
@@ -197,12 +258,14 @@ class PlaylistScreensTest {
 
     @Test
     fun removingFinalEntryRetainsEmptyPlaylistDetailModel() {
-        val model = playlistDetailModel(
-            playlistId = "playlist-1",
-            playlistName = "Keep me",
-            entries = listOf(entry("only", "track-a", 0)),
-            tracksById = mapOf("track-a" to playableTrack("track-a")),
-        ).withoutEntry("only")
+        val model =
+            playlistDetailModel(
+                    playlistId = "playlist-1",
+                    playlistName = "Keep me",
+                    entries = listOf(entry("only", "track-a", 0)),
+                    tracksById = mapOf("track-a" to playableTrack("track-a")),
+                )
+                .withoutEntry("only")
 
         assertEquals("playlist-1", model.playlistId)
         assertEquals("Keep me", model.playlistName)
@@ -212,41 +275,53 @@ class PlaylistScreensTest {
     @Test
     fun rowOverflowOpensPickerForExactTrackId() {
         assertEquals(
-            PlaylistStateAction.OpenPicker(PlaylistPickerState(trackIds = listOf("track-b"))),
+            PlaylistStateAction.OpenPicker(
+                PlaylistPickerState(trackIds = listOf("track-b"))),
             openAddToPlaylistPickerAction("track-b"),
         )
     }
 
     @Test
     fun pickerInlineCreationPlansAtomicInitialEntriesWithoutCollapsingDuplicates() {
-        val request = PlaylistInlineCreateRequest(name = "New", trackIds = listOf("track-b", "track-a"))
+        val request =
+            PlaylistInlineCreateRequest(
+                name = "New", trackIds = listOf("track-b", "track-a"))
 
         assertEquals(
-            PlaylistInlineMutationPlan(name = "New", trackIds = listOf("track-b", "track-a")),
+            PlaylistInlineMutationPlan(
+                name = "New", trackIds = listOf("track-b", "track-a")),
             request.mutationPlan(),
         )
     }
 
     @Test
     fun browserFilteringUsesAuthoritativeOrderAcrossTitleArtistAndAlbum() {
-        val tracks = listOf(
-            browserTrack("b", title = "Beta", artist = "二号", album = "Night"),
-            browserTrack("a", title = "Alpha", artist = "One", album = "晨光"),
-            browserTrack("c", title = "Gamma", artist = "Three", album = "Day"),
-        )
+        val tracks =
+            listOf(
+                browserTrack(
+                    "b", title = "Beta", artist = "二号", album = "Night"),
+                browserTrack(
+                    "a", title = "Alpha", artist = "One", album = "晨光"),
+                browserTrack(
+                    "c", title = "Gamma", artist = "Three", album = "Day"),
+            )
 
         assertEquals(listOf("b"), filteredPlaylistTrackIds(tracks, "二号"))
         assertEquals(listOf("a"), filteredPlaylistTrackIds(tracks, "晨光"))
-        assertEquals(listOf("b", "a", "c"), filteredPlaylistTrackIds(tracks, ""))
+        assertEquals(
+            listOf("b", "a", "c"), filteredPlaylistTrackIds(tracks, ""))
     }
 
     @Test
     fun createModalPresentationRetainsDraftAndShowsFailureAfterRevisionedOutcome() {
         val draft = PlaylistNameDraft("  同名歌单  ")
-        val presentation = playlistNameModalPresentation(
-            draft = draft,
-            outcome = PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 8L),
-        )
+        val presentation =
+            playlistNameModalPresentation(
+                draft = draft,
+                outcome =
+                    PlaylistStateAction.MutationFailed(
+                        PlaylistMutationFailedMessage, revision = 8L),
+            )
 
         assertTrue(presentation.isVisible)
         assertEquals("  同名歌单  ", presentation.enteredText)
@@ -255,11 +330,20 @@ class PlaylistScreensTest {
 
     @Test
     fun pickerAndBrowserPresentMutationFailureWithoutLosingSelection() {
-        val state = PlaylistState(
-            mutationErrorMessage = PlaylistMutationFailedMessage,
-            picker = PlaylistPickerState(listOf("track-b", "track-a"), selectedPlaylistId = "playlist-1", enteredName = "New"),
-            browser = PlaylistBrowserState("playlist-1", query = "blue", selectedTrackIds = setOf("track-a")),
-        )
+        val state =
+            PlaylistState(
+                mutationErrorMessage = PlaylistMutationFailedMessage,
+                picker =
+                    PlaylistPickerState(
+                        listOf("track-b", "track-a"),
+                        selectedPlaylistId = "playlist-1",
+                        enteredName = "New"),
+                browser =
+                    PlaylistBrowserState(
+                        "playlist-1",
+                        query = "blue",
+                        selectedTrackIds = setOf("track-a")),
+            )
 
         val picker = playlistPickerPresentation(state)
         val browser = playlistBrowserPresentation(state)
@@ -274,16 +358,20 @@ class PlaylistScreensTest {
 
     @Test
     fun retainedReadFailurePresentationKeepsHubContentAndExposesRetry() {
-        val state = PlaylistState(
-            confirmedSnapshot = PlaylistSnapshot(playlists = listOf(playlist("playlist-1"))),
-            hasConfirmedSnapshot = true,
-            readErrorMessage = PlaylistReadFailedMessage,
-        )
+        val state =
+            PlaylistState(
+                confirmedSnapshot =
+                    PlaylistSnapshot(
+                        playlists = listOf(playlist("playlist-1"))),
+                hasConfirmedSnapshot = true,
+                readErrorMessage = PlaylistReadFailedMessage,
+            )
 
         val presentation = playlistRoutePresentation(state)
 
         assertTrue(presentation.showConfirmedContent)
-        assertEquals(PlaylistRoutePresentationNotice.ReadFailed, presentation.notice)
+        assertEquals(
+            PlaylistRoutePresentationNotice.ReadFailed, presentation.notice)
         assertTrue(presentation.showRetry)
     }
 
@@ -307,10 +395,12 @@ class PlaylistScreensTest {
 
     @Test
     fun dragPresentationDispatchesOneCompleteOrderForDraggedOccurrenceAndTargetRow() {
-        val session = PlaylistDragPresentation(
-            entryIds = listOf("a", "b", "c", "d"),
-            draggedEntryId = "d",
-        ).target(index = 1)
+        val session =
+            PlaylistDragPresentation(
+                    entryIds = listOf("a", "b", "c", "d"),
+                    draggedEntryId = "d",
+                )
+                .target(index = 1)
 
         assertEquals(listOf("a", "d", "b", "c"), session.finalOrder())
         assertEquals(listOf("a", "b", "c", "d"), session.finalOrder())
@@ -319,78 +409,119 @@ class PlaylistScreensTest {
     @Test
     fun failedDeleteOutcomeRetainsConfirmationAndPlaylistSnapshot() {
         val playlist = playlist("playlist-1")
-        val state = reducePlaylistState(
-            PlaylistState(
-                confirmedSnapshot = PlaylistSnapshot(playlists = listOf(playlist)),
-                hasConfirmedSnapshot = true,
-            ),
-            PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 9L),
-        )
+        val state =
+            reducePlaylistState(
+                PlaylistState(
+                    confirmedSnapshot =
+                        PlaylistSnapshot(playlists = listOf(playlist)),
+                    hasConfirmedSnapshot = true,
+                ),
+                PlaylistStateAction.MutationFailed(
+                    PlaylistMutationFailedMessage, revision = 9L),
+            )
 
-        val decision = playlistMutationDecision(
-            workflow = PlaylistMutationWorkflow.Delete,
-            outcome = PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 9L),
-        )
+        val decision =
+            playlistMutationDecision(
+                workflow = PlaylistMutationWorkflow.Delete,
+                outcome =
+                    PlaylistStateAction.MutationFailed(
+                        PlaylistMutationFailedMessage, revision = 9L),
+            )
 
-        assertEquals(PlaylistMutationDecision.RetainConfirmationWithFailure, decision)
+        assertEquals(
+            PlaylistMutationDecision.RetainConfirmationWithFailure, decision)
         assertEquals(playlist, state.confirmedSnapshot.playlist(playlist.id))
     }
 
     @Test
     fun actualMutationWorkflowDecisionsCloseOrRetainEveryTaskFiveSurface() {
-        val success = PlaylistStateAction.SnapshotConfirmed(PlaylistSnapshot(), revision = 10L)
-        val failure = PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 10L)
+        val success =
+            PlaylistStateAction.SnapshotConfirmed(
+                PlaylistSnapshot(), revision = 10L)
+        val failure =
+            PlaylistStateAction.MutationFailed(
+                PlaylistMutationFailedMessage, revision = 10L)
 
-        val modalWorkflows = listOf(
-            PlaylistMutationWorkflow.Create,
-            PlaylistMutationWorkflow.Rename,
-            PlaylistMutationWorkflow.PickerAppend,
-            PlaylistMutationWorkflow.PickerInlineCreate,
-            PlaylistMutationWorkflow.BrowserAppend,
-        )
+        val modalWorkflows =
+            listOf(
+                PlaylistMutationWorkflow.Create,
+                PlaylistMutationWorkflow.Rename,
+                PlaylistMutationWorkflow.PickerAppend,
+                PlaylistMutationWorkflow.PickerInlineCreate,
+                PlaylistMutationWorkflow.BrowserAppend,
+            )
         modalWorkflows.forEach { workflow ->
-            assertEquals(PlaylistMutationDecision.CloseModal, playlistMutationDecision(workflow, success))
-            assertEquals(PlaylistMutationDecision.RetainModalWithFailure, playlistMutationDecision(workflow, failure))
+            assertEquals(
+                PlaylistMutationDecision.CloseModal,
+                playlistMutationDecision(workflow, success))
+            assertEquals(
+                PlaylistMutationDecision.RetainModalWithFailure,
+                playlistMutationDecision(workflow, failure))
         }
-        assertEquals(PlaylistMutationDecision.CloseConfirmationAndRoute, playlistMutationDecision(PlaylistMutationWorkflow.Delete, success))
-        assertEquals(PlaylistMutationDecision.RetainConfirmationWithFailure, playlistMutationDecision(PlaylistMutationWorkflow.Delete, failure))
-        listOf(PlaylistMutationWorkflow.Remove, PlaylistMutationWorkflow.Reorder).forEach { workflow ->
-            assertEquals(PlaylistMutationDecision.KeepRoute, playlistMutationDecision(workflow, success))
-            assertEquals(PlaylistMutationDecision.ShowRouteFailure, playlistMutationDecision(workflow, failure))
-        }
+        assertEquals(
+            PlaylistMutationDecision.CloseConfirmationAndRoute,
+            playlistMutationDecision(PlaylistMutationWorkflow.Delete, success))
+        assertEquals(
+            PlaylistMutationDecision.RetainConfirmationWithFailure,
+            playlistMutationDecision(PlaylistMutationWorkflow.Delete, failure))
+        listOf(
+                PlaylistMutationWorkflow.Remove,
+                PlaylistMutationWorkflow.Reorder)
+            .forEach { workflow ->
+                assertEquals(
+                    PlaylistMutationDecision.KeepRoute,
+                    playlistMutationDecision(workflow, success))
+                assertEquals(
+                    PlaylistMutationDecision.ShowRouteFailure,
+                    playlistMutationDecision(workflow, failure))
+            }
     }
 
     @Test
     fun pickerDismissalAndFailureRetainSelectionWhileSuccessCompletesIt() {
-        val success = PlaylistStateAction.SnapshotConfirmed(PlaylistSnapshot(), revision = 10L)
-        val failure = PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 11L)
+        val success =
+            PlaylistStateAction.SnapshotConfirmed(
+                PlaylistSnapshot(), revision = 10L)
+        val failure =
+            PlaylistStateAction.MutationFailed(
+                PlaylistMutationFailedMessage, revision = 11L)
 
         assertNull(trackSelectionActionAfterPickerOutcome(null))
         assertNull(trackSelectionActionAfterPickerOutcome(failure))
-        assertEquals(TrackSelectionAction.Completed, trackSelectionActionAfterPickerOutcome(success))
+        assertEquals(
+            TrackSelectionAction.Completed,
+            trackSelectionActionAfterPickerOutcome(success))
     }
 
     @Test
     fun failedInlineCreateCallbackRetainsPickerRetryState() {
-        val initial = PlaylistState(
-            picker = PlaylistPickerState(
-                trackIds = listOf("track-b", "track-a"),
-                selectedPlaylistId = "playlist-existing",
-                enteredName = "Retry list",
-            ),
-            hasConfirmedSnapshot = true,
-            publicationRevision = 11L,
-        )
-        val outcome = PlaylistStateAction.MutationFailed(PlaylistMutationFailedMessage, revision = 12L)
+        val initial =
+            PlaylistState(
+                picker =
+                    PlaylistPickerState(
+                        trackIds = listOf("track-b", "track-a"),
+                        selectedPlaylistId = "playlist-existing",
+                        enteredName = "Retry list",
+                    ),
+                hasConfirmedSnapshot = true,
+                publicationRevision = 11L,
+            )
+        val outcome =
+            PlaylistStateAction.MutationFailed(
+                PlaylistMutationFailedMessage, revision = 12L)
 
         val reduced = reducePlaylistState(initial, outcome)
-        val decision = playlistMutationDecision(PlaylistMutationWorkflow.PickerInlineCreate, outcome)
+        val decision =
+            playlistMutationDecision(
+                PlaylistMutationWorkflow.PickerInlineCreate, outcome)
 
         assertEquals(PlaylistMutationDecision.RetainModalWithFailure, decision)
         assertEquals(listOf("track-b", "track-a"), reduced.picker?.trackIds)
         assertEquals("playlist-existing", reduced.picker?.selectedPlaylistId)
         assertEquals("Retry list", reduced.picker?.enteredName)
-        assertEquals(PlaylistModalNotice.MutationFailed, playlistPickerPresentation(reduced)?.notice)
+        assertEquals(
+            PlaylistModalNotice.MutationFailed,
+            playlistPickerPresentation(reduced)?.notice)
     }
 
     @Test
@@ -399,15 +530,18 @@ class PlaylistScreensTest {
         val current = queueOccurrence("current", "Current")
         val upcoming = queueOccurrence("upcoming", "Upcoming")
 
-        val presentation = queueTabPresentation(
-            PlaybackState(
-                currentOccurrenceId = current.id,
-                queue = listOf(history, current, upcoming),
-            ),
-        )
+        val presentation =
+            queueTabPresentation(
+                PlaybackState(
+                    currentOccurrenceId = current.id,
+                    queue = listOf(history, current, upcoming),
+                ),
+            )
 
         assertFalse(presentation.isEmpty)
-        assertEquals(listOf("current", "upcoming"), presentation.rows.map { it.occurrence.id })
+        assertEquals(
+            listOf("current", "upcoming"),
+            presentation.rows.map { it.occurrence.id })
         assertEquals(QueueRowRole.Current, presentation.rows.first().role)
         assertFalse(presentation.rows.first().canDrag)
         assertFalse(presentation.rows.first().canMoveUp)
@@ -427,40 +561,48 @@ class PlaylistScreensTest {
     @Test
     fun duplicateUpcomingRowsStayIndependentAndExposeCorrectMoveBoundaries() {
         val duplicateTrack = playableTrack("duplicate")
-        val presentation = queueTabPresentation(
-            PlaybackState(
-                currentOccurrenceId = "current",
-                queue = listOf(
-                    queueOccurrence("current", "Current"),
-                    QueueOccurrence("duplicate-a", duplicateTrack),
-                    QueueOccurrence("duplicate-b", duplicateTrack),
+        val presentation =
+            queueTabPresentation(
+                PlaybackState(
+                    currentOccurrenceId = "current",
+                    queue =
+                        listOf(
+                            queueOccurrence("current", "Current"),
+                            QueueOccurrence("duplicate-a", duplicateTrack),
+                            QueueOccurrence("duplicate-b", duplicateTrack),
+                        ),
                 ),
-            ),
-        )
+            )
 
         val first = presentation.rows[1]
         val second = presentation.rows[2]
-        assertEquals(listOf("duplicate-a", "duplicate-b"), presentation.upcomingOccurrenceIds)
+        assertEquals(
+            listOf("duplicate-a", "duplicate-b"),
+            presentation.upcomingOccurrenceIds)
         assertFalse(first.canMoveUp)
         assertTrue(first.canMoveDown)
         assertTrue(second.canMoveUp)
         assertFalse(second.canMoveDown)
         assertTrue(first.canDrag && first.canRemove)
         assertTrue(second.canDrag && second.canRemove)
-        assertEquals(listOf("duplicate-b", "duplicate-a"), presentation.movedUpcomingIds("duplicate-b", -1))
+        assertEquals(
+            listOf("duplicate-b", "duplicate-a"),
+            presentation.movedUpcomingIds("duplicate-b", -1))
     }
 
     @Test
     fun queueRowsDriveLocalizedRoleFreeStateAndNamedActions() {
-        val presentation = queueTabPresentation(
-            PlaybackState(
-                currentOccurrenceId = "current",
-                queue = listOf(
-                    queueOccurrence("current", "当前曲目"),
-                    queueOccurrence("upcoming", "夜に駆ける"),
+        val presentation =
+            queueTabPresentation(
+                PlaybackState(
+                    currentOccurrenceId = "current",
+                    queue =
+                        listOf(
+                            queueOccurrence("current", "当前曲目"),
+                            queueOccurrence("upcoming", "夜に駆ける"),
+                        ),
                 ),
-            ),
-        )
+            )
 
         val current = presentation.rows.first()
         val upcoming = presentation.rows.last()
@@ -481,9 +623,12 @@ class PlaylistScreensTest {
 
     @Test
     fun queueRowLayoutPreservesMetadataAndMinimumTargetsAtCompactAndWideWidths() {
-        val compact = queueRowLayoutPolicy(availableWidth = 320.dp, isEditable = true)
-        val wide = queueRowLayoutPolicy(availableWidth = 720.dp, isEditable = true)
-        val current = queueRowLayoutPolicy(availableWidth = 320.dp, isEditable = false)
+        val compact =
+            queueRowLayoutPolicy(availableWidth = 320.dp, isEditable = true)
+        val wide =
+            queueRowLayoutPolicy(availableWidth = 720.dp, isEditable = true)
+        val current =
+            queueRowLayoutPolicy(availableWidth = 320.dp, isEditable = false)
 
         assertEquals(QueueActionPlacement.SecondaryRow, compact.actionPlacement)
         assertTrue(compact.reservesMetadataWidth)
@@ -499,19 +644,38 @@ class PlaylistScreensTest {
     fun queueDragTargetsNearestMeasuredUpcomingRowAtAndBeyondBoundaries() {
         val centers = mapOf(0 to 100f, 1 to 200f, 2 to 300f)
 
-        assertEquals(0, playlistDragTargetIndex(pointerY = 20f, rowCentersByIndex = centers, fallbackIndex = 1))
-        assertEquals(1, playlistDragTargetIndex(pointerY = 190f, rowCentersByIndex = centers, fallbackIndex = 0))
-        assertEquals(2, playlistDragTargetIndex(pointerY = 450f, rowCentersByIndex = centers, fallbackIndex = 1))
-        assertEquals(1, playlistDragTargetIndex(pointerY = 450f, rowCentersByIndex = emptyMap(), fallbackIndex = 1))
+        assertEquals(
+            0,
+            playlistDragTargetIndex(
+                pointerY = 20f, rowCentersByIndex = centers, fallbackIndex = 1))
+        assertEquals(
+            1,
+            playlistDragTargetIndex(
+                pointerY = 190f,
+                rowCentersByIndex = centers,
+                fallbackIndex = 0))
+        assertEquals(
+            2,
+            playlistDragTargetIndex(
+                pointerY = 450f,
+                rowCentersByIndex = centers,
+                fallbackIndex = 1))
+        assertEquals(
+            1,
+            playlistDragTargetIndex(
+                pointerY = 450f,
+                rowCentersByIndex = emptyMap(),
+                fallbackIndex = 1))
     }
 
     @Test
     fun queueDragAfterFinalOccurrenceRemovalCannotTargetStaleMeasuredIndex() {
-        val measuredCenters = mapOf(
-            "upcoming-a" to 100f,
-            "upcoming-b" to 200f,
-            "upcoming-c" to 300f,
-        )
+        val measuredCenters =
+            mapOf(
+                "upcoming-a" to 100f,
+                "upcoming-b" to 200f,
+                "upcoming-c" to 300f,
+            )
         val currentUpcomingIds = listOf("upcoming-a", "upcoming-b")
 
         assertEquals(
@@ -526,48 +690,65 @@ class PlaylistScreensTest {
     }
 
     @Test
-    fun rejectedQueueCommandRefreshesFromStateFlowAndShowsQueueChangedNotice() = runBlocking {
-        val initial = PlaybackState(
-            currentOccurrenceId = "current",
-            queue = listOf(queueOccurrence("current", "Current"), queueOccurrence("stale", "Stale")),
-        )
-        val refreshed = initial.copy(queue = listOf(initial.queue.first()))
-        val state = MutableStateFlow(initial)
+    fun rejectedQueueCommandRefreshesFromStateFlowAndShowsQueueChangedNotice() =
+        runBlocking {
+            val initial =
+                PlaybackState(
+                    currentOccurrenceId = "current",
+                    queue =
+                        listOf(
+                            queueOccurrence("current", "Current"),
+                            queueOccurrence("stale", "Stale")),
+                )
+            val refreshed = initial.copy(queue = listOf(initial.queue.first()))
+            val state = MutableStateFlow(initial)
 
-        val feedback = executeQueueMutation(state) {
-            state.value = refreshed
-            QueueMutationResult.Rejected(QueueMutationRejection.StaleOccurrence)
+            val feedback =
+                executeQueueMutation(state) {
+                    state.value = refreshed
+                    QueueMutationResult.Rejected(
+                        QueueMutationRejection.StaleOccurrence)
+                }
+
+            assertEquals(refreshed, feedback.refreshedState)
+            assertTrue(feedback.showQueueChanged)
         }
-
-        assertEquals(refreshed, feedback.refreshedState)
-        assertTrue(feedback.showQueueChanged)
-    }
 
     @Test
-    fun appliedQueueCommandTargetsExactDuplicateOccurrenceWithoutChangedNotice() = runBlocking {
-        val duplicateTrack = playableTrack("duplicate")
-        val state = MutableStateFlow(
-            PlaybackState(
-                currentOccurrenceId = "current",
-                queue = listOf(
-                    queueOccurrence("current", "Current"),
-                    QueueOccurrence("duplicate-a", duplicateTrack),
-                    QueueOccurrence("duplicate-b", duplicateTrack),
-                ),
-            ),
-        )
-        var targetedOccurrenceId: String? = null
+    fun appliedQueueCommandTargetsExactDuplicateOccurrenceWithoutChangedNotice() =
+        runBlocking {
+            val duplicateTrack = playableTrack("duplicate")
+            val state =
+                MutableStateFlow(
+                    PlaybackState(
+                        currentOccurrenceId = "current",
+                        queue =
+                            listOf(
+                                queueOccurrence("current", "Current"),
+                                QueueOccurrence("duplicate-a", duplicateTrack),
+                                QueueOccurrence("duplicate-b", duplicateTrack),
+                            ),
+                    ),
+                )
+            var targetedOccurrenceId: String? = null
 
-        val feedback = executeQueueMutation(state) {
-            targetedOccurrenceId = "duplicate-b"
-            state.value = state.value.copy(queue = listOf(state.value.queue[0], state.value.queue[2]))
-            QueueMutationResult.Applied
+            val feedback =
+                executeQueueMutation(state) {
+                    targetedOccurrenceId = "duplicate-b"
+                    state.value =
+                        state.value.copy(
+                            queue =
+                                listOf(
+                                    state.value.queue[0], state.value.queue[2]))
+                    QueueMutationResult.Applied
+                }
+
+            assertEquals("duplicate-b", targetedOccurrenceId)
+            assertEquals(
+                listOf("current", "duplicate-b"),
+                feedback.refreshedState.queue.map { it.id })
+            assertFalse(feedback.showQueueChanged)
         }
-
-        assertEquals("duplicate-b", targetedOccurrenceId)
-        assertEquals(listOf("current", "duplicate-b"), feedback.refreshedState.queue.map { it.id })
-        assertFalse(feedback.showQueueChanged)
-    }
 
     @Test
     fun clearUpcomingDispatchesOnlyAfterExplicitConfirmation() {
@@ -579,80 +760,98 @@ class PlaylistScreensTest {
     }
 
     @Test
-    fun queueMutationDispatcherWiresExactOccurrenceTargetAndClearCommands() = runBlocking {
-        val state = MutableStateFlow(
-            PlaybackState(
-                currentOccurrenceId = "current",
-                queue = listOf(queueOccurrence("current", "Current"), queueOccurrence("duplicate-b", "Duplicate")),
-            ),
+    fun queueMutationDispatcherWiresExactOccurrenceTargetAndClearCommands() =
+        runBlocking {
+            val state =
+                MutableStateFlow(
+                    PlaybackState(
+                        currentOccurrenceId = "current",
+                        queue =
+                            listOf(
+                                queueOccurrence("current", "Current"),
+                                queueOccurrence("duplicate-b", "Duplicate")),
+                    ),
+                )
+            val calls = mutableListOf<String>()
+            val dispatcher =
+                QueueMutationDispatcher(
+                    state = state,
+                    reorderCommand = { occurrenceId, targetIndex ->
+                        calls += "reorder:$occurrenceId:$targetIndex"
+                        QueueMutationResult.Applied
+                    },
+                    removeCommand = { occurrenceId ->
+                        calls += "remove:$occurrenceId"
+                        QueueMutationResult.Applied
+                    },
+                    clearCommand = {
+                        calls += "clear"
+                        QueueMutationResult.Applied
+                    },
+                )
+
+            dispatcher.reorder("duplicate-b", 0)
+            dispatcher.remove("duplicate-b")
+            dispatcher.clear()
+
+            assertEquals(
+                listOf("reorder:duplicate-b:0", "remove:duplicate-b", "clear"),
+                calls)
+        }
+
+    private fun entry(id: String, trackId: String, position: Int) =
+        PlaylistEntry(
+            id = id,
+            playlistId = "playlist-1",
+            trackId = trackId,
+            position = position,
+            createdAtEpochMillis = 1L,
         )
-        val calls = mutableListOf<String>()
-        val dispatcher = QueueMutationDispatcher(
-            state = state,
-            reorderCommand = { occurrenceId, targetIndex ->
-                calls += "reorder:$occurrenceId:$targetIndex"
-                QueueMutationResult.Applied
-            },
-            removeCommand = { occurrenceId ->
-                calls += "remove:$occurrenceId"
-                QueueMutationResult.Applied
-            },
-            clearCommand = {
-                calls += "clear"
-                QueueMutationResult.Applied
-            },
+
+    private fun playableTrack(id: String) =
+        PlayableTrack(
+            id = id,
+            source = AudioSource.FilePath("/$id.mp3"),
+            title = "Title $id",
+            artist = "Artist",
+            album = "Album",
+            durationMillis = 180_000L,
         )
 
-        dispatcher.reorder("duplicate-b", 0)
-        dispatcher.remove("duplicate-b")
-        dispatcher.clear()
+    private fun queueOccurrence(id: String, title: String) =
+        QueueOccurrence(
+            id = id,
+            track = playableTrack(id).copy(title = title),
+        )
 
-        assertEquals(listOf("reorder:duplicate-b:0", "remove:duplicate-b", "clear"), calls)
-    }
+    private fun browserTrack(
+        id: String,
+        title: String,
+        artist: String,
+        album: String
+    ) =
+        com.eterocell.rhythhaus.library.LibraryTrack(
+            id = id,
+            sourceId = "source",
+            sourceLocalKey = id,
+            audioSource = AudioSource.FilePath("/$id.mp3"),
+            displayName = title,
+            title = title,
+            artist = artist,
+            album = album,
+            durationMillis = 180_000L,
+            sizeBytes = 1L,
+            modifiedAtEpochMillis = 1L,
+            lastSeenScanId = null,
+            createdAtEpochMillis = 1L,
+            updatedAtEpochMillis = 1L,
+        )
 
-    private fun entry(id: String, trackId: String, position: Int) = PlaylistEntry(
-        id = id,
-        playlistId = "playlist-1",
-        trackId = trackId,
-        position = position,
-        createdAtEpochMillis = 1L,
-    )
-
-    private fun playableTrack(id: String) = PlayableTrack(
-        id = id,
-        source = AudioSource.FilePath("/$id.mp3"),
-        title = "Title $id",
-        artist = "Artist",
-        album = "Album",
-        durationMillis = 180_000L,
-    )
-
-    private fun queueOccurrence(id: String, title: String) = QueueOccurrence(
-        id = id,
-        track = playableTrack(id).copy(title = title),
-    )
-
-    private fun browserTrack(id: String, title: String, artist: String, album: String) = com.eterocell.rhythhaus.library.LibraryTrack(
-        id = id,
-        sourceId = "source",
-        sourceLocalKey = id,
-        audioSource = AudioSource.FilePath("/$id.mp3"),
-        displayName = title,
-        title = title,
-        artist = artist,
-        album = album,
-        durationMillis = 180_000L,
-        sizeBytes = 1L,
-        modifiedAtEpochMillis = 1L,
-        lastSeenScanId = null,
-        createdAtEpochMillis = 1L,
-        updatedAtEpochMillis = 1L,
-    )
-
-    private fun playlist(id: String) = Playlist(
-        id = id,
-        name = "Playlist $id",
-        createdAtEpochMillis = 1L,
-        updatedAtEpochMillis = 1L,
-    )
+    private fun playlist(id: String) =
+        Playlist(
+            id = id,
+            name = "Playlist $id",
+            createdAtEpochMillis = 1L,
+            updatedAtEpochMillis = 1L,
+        )
 }

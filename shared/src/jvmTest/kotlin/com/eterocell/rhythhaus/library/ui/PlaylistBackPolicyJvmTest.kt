@@ -20,7 +20,8 @@ class PlaylistBackPolicyJvmTest {
         val owner = Any()
         val second = policy.registerEdit(owner) { secondClears++ }
         first()
-        assertEquals(LibraryBackDecision.ExitPlaylistEditMode, policy.decision())
+        assertEquals(
+            LibraryBackDecision.ExitPlaylistEditMode, policy.decision())
         policy.requestBack()
         assertEquals(0, firstClears)
         assertEquals(1, secondClears)
@@ -36,7 +37,8 @@ class PlaylistBackPolicyJvmTest {
         val first = policy.registerModal(Any()) { firstDismisses++ }
         val second = policy.registerModal(Any()) { secondDismisses++ }
         first()
-        assertEquals(LibraryBackDecision.DismissPlaylistModal, policy.decision())
+        assertEquals(
+            LibraryBackDecision.DismissPlaylistModal, policy.decision())
         policy.requestBack()
         assertEquals(0, firstDismisses)
         assertEquals(1, secondDismisses)
@@ -48,9 +50,10 @@ class PlaylistBackPolicyJvmTest {
     fun shippedDeleteCompletionFactoryClearsSelectionBeforePopping() {
         val events = mutableListOf<String>()
         directPlaylistDeleteCompletion(
-            clearSelection = { events += "selection" },
-            popRoute = { events += "pop" },
-        ).invoke()
+                clearSelection = { events += "selection" },
+                popRoute = { events += "pop" },
+            )
+            .invoke()
         assertEquals(listOf("selection", "pop"), events)
     }
 
@@ -64,40 +67,45 @@ class PlaylistBackPolicyJvmTest {
 
         val clearEdit = policy.registerEdit(editOwner) {}
         assertTrue(policy.hasEditRegistration)
-        assertEquals(LibraryBackDecision.ExitPlaylistEditMode, policy.decision())
+        assertEquals(
+            LibraryBackDecision.ExitPlaylistEditMode, policy.decision())
 
         val dismissModal = policy.registerModal(modalOwner) {}
         assertTrue(policy.hasModalRegistration)
-        assertEquals(LibraryBackDecision.DismissPlaylistModal, policy.decision())
+        assertEquals(
+            LibraryBackDecision.DismissPlaylistModal, policy.decision())
 
         dismissModal()
         assertFalse(policy.hasModalRegistration)
-        assertEquals(LibraryBackDecision.ExitPlaylistEditMode, policy.decision())
+        assertEquals(
+            LibraryBackDecision.ExitPlaylistEditMode, policy.decision())
         clearEdit()
         assertFalse(policy.hasEditRegistration)
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun composeObserverRecomposesWhenProductionBackRegistrationChanges() = runComposeUiTest {
-        val policy = PlaylistBackRegistrationState()
-        var observedDecision by mutableStateOf<LibraryBackDecision?>(null)
-        var recompositions = 0
-        setContent {
-            recompositions++
-            observedDecision = policy.decision()
+    fun composeObserverRecomposesWhenProductionBackRegistrationChanges() =
+        runComposeUiTest {
+            val policy = PlaylistBackRegistrationState()
+            var observedDecision by mutableStateOf<LibraryBackDecision?>(null)
+            var recompositions = 0
+            setContent {
+                recompositions++
+                observedDecision = policy.decision()
+            }
+            waitForIdle()
+            assertEquals(LibraryBackDecision.None, observedDecision)
+            val dispose = policy.registerEdit(Any()) {}
+            waitForIdle()
+            assertEquals(
+                LibraryBackDecision.ExitPlaylistEditMode, observedDecision)
+            val afterRegister = recompositions
+            dispose()
+            waitForIdle()
+            assertEquals(LibraryBackDecision.None, observedDecision)
+            assertTrue(recompositions > afterRegister)
         }
-        waitForIdle()
-        assertEquals(LibraryBackDecision.None, observedDecision)
-        val dispose = policy.registerEdit(Any()) {}
-        waitForIdle()
-        assertEquals(LibraryBackDecision.ExitPlaylistEditMode, observedDecision)
-        val afterRegister = recompositions
-        dispose()
-        waitForIdle()
-        assertEquals(LibraryBackDecision.None, observedDecision)
-        assertTrue(recompositions > afterRegister)
-    }
 
     @Test
     fun productionBackDispatcherAdvancesPolicyAndUsesDirectPopOnlyAtRoute() {
@@ -105,54 +113,59 @@ class PlaylistBackPolicyJvmTest {
         val events = mutableListOf<String>()
         var selection by mutableStateOf(TrackSelectionState())
         var nowPlaying by mutableStateOf(false)
-        val dispatcher = PlaylistBackDispatchController(
-            registration = policy,
-            selectionState = { selection },
-            isNowPlayingExpanded = { nowPlaying },
-            canPopRoute = { true },
-            cancelSelection = {
-                events += "selection"
-                selection = TrackSelectionState()
-            },
-            hideNowPlaying = {
-                events += "now-playing"
-                nowPlaying = false
-            },
-            directPopRoute = {
-                events += "clear"
-                events += "pop"
-            },
-        )
-        val editDispose = policy.registerEdit(Any()) {
-            events += "edit"
-            editDisposeHolder?.invoke()
-        }
+        val dispatcher =
+            PlaylistBackDispatchController(
+                registration = policy,
+                selectionState = { selection },
+                isNowPlayingExpanded = { nowPlaying },
+                canPopRoute = { true },
+                cancelSelection = {
+                    events += "selection"
+                    selection = TrackSelectionState()
+                },
+                hideNowPlaying = {
+                    events += "now-playing"
+                    nowPlaying = false
+                },
+                directPopRoute = {
+                    events += "clear"
+                    events += "pop"
+                },
+            )
+        val editDispose =
+            policy.registerEdit(Any()) {
+                events += "edit"
+                editDisposeHolder?.invoke()
+            }
         editDisposeHolder = editDispose
         dispatcher.dispatch()
-        selection = TrackSelectionState(TrackSelectionPageKey.HomeSongs, setOf("track"))
+        selection =
+            TrackSelectionState(TrackSelectionPageKey.HomeSongs, setOf("track"))
         dispatcher.dispatch()
         nowPlaying = true
         dispatcher.dispatch()
         dispatcher.dispatch()
-        assertEquals(listOf("edit", "selection", "now-playing", "clear", "pop"), events)
+        assertEquals(
+            listOf("edit", "selection", "now-playing", "clear", "pop"), events)
     }
 
     @Test
     fun systemBackCallbackUsesTheSameProductionDispatchAndDirectPopPrimitive() {
         val events = mutableListOf<String>()
         val policy = PlaylistBackRegistrationState()
-        val controller = PlaylistBackDispatchController(
-            registration = policy,
-            selectionState = { TrackSelectionState() },
-            isNowPlayingExpanded = { false },
-            canPopRoute = { true },
-            cancelSelection = {},
-            hideNowPlaying = {},
-            directPopRoute = {
-                events += "clear"
-                events += "pop"
-            },
-        )
+        val controller =
+            PlaylistBackDispatchController(
+                registration = policy,
+                selectionState = { TrackSelectionState() },
+                isNowPlayingExpanded = { false },
+                canPopRoute = { true },
+                cancelSelection = {},
+                hideNowPlaying = {},
+                directPopRoute = {
+                    events += "clear"
+                    events += "pop"
+                },
+            )
         controller.onSystemBackCompleted()
         assertEquals(listOf("clear", "pop"), events)
     }
@@ -161,18 +174,19 @@ class PlaylistBackPolicyJvmTest {
     fun productionNavigationBackCallbackUsesPredictivePopOnlyForPopRoute() {
         val events = mutableListOf<String>()
         var progress: Float? = null
-        val callback = libraryBackCompletionCallback(
-            decision = { LibraryBackDecision.PopRoute },
-            transitionProgress = { 0.75f },
-            setCompletionProgress = { progress = it },
-            clearSelection = { events += "clear" },
-            dispatchOrdinaryBack = { events += "ordinary" },
-            navigationPop = {
-                events += "navigation-pop"
-                LibraryNavigationStack()
-            },
-            completePredictivePop = { events += "complete" },
-        )
+        val callback =
+            libraryBackCompletionCallback(
+                decision = { LibraryBackDecision.PopRoute },
+                transitionProgress = { 0.75f },
+                setCompletionProgress = { progress = it },
+                clearSelection = { events += "clear" },
+                dispatchOrdinaryBack = { events += "ordinary" },
+                navigationPop = {
+                    events += "navigation-pop"
+                    LibraryNavigationStack()
+                },
+                completePredictivePop = { events += "complete" },
+            )
 
         callback()
 
@@ -184,15 +198,16 @@ class PlaylistBackPolicyJvmTest {
     fun productionNavigationBackCallbackDoesNotPredictivelyPopModalOrEdit() {
         val events = mutableListOf<String>()
         var decision = LibraryBackDecision.DismissPlaylistModal
-        val callback = libraryBackCompletionCallback(
-            decision = { decision },
-            transitionProgress = { error("not predictive") },
-            setCompletionProgress = { error("not predictive") },
-            clearSelection = { events += "clear" },
-            dispatchOrdinaryBack = { events += "ordinary" },
-            navigationPop = { error("not predictive") },
-            completePredictivePop = { error("not predictive") },
-        )
+        val callback =
+            libraryBackCompletionCallback(
+                decision = { decision },
+                transitionProgress = { error("not predictive") },
+                setCompletionProgress = { error("not predictive") },
+                clearSelection = { events += "clear" },
+                dispatchOrdinaryBack = { events += "ordinary" },
+                navigationPop = { error("not predictive") },
+                completePredictivePop = { error("not predictive") },
+            )
 
         callback()
         decision = LibraryBackDecision.ExitPlaylistEditMode

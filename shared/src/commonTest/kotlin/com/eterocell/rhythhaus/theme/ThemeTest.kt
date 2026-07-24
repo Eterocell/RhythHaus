@@ -14,34 +14,54 @@ class ThemeTest {
 
     @Test
     fun missingOrInvalidSerializedValuesParseToSystem() {
-        assertEquals(RhythHausThemeMode.System, RhythHausThemeMode.fromSerialized(null))
-        assertEquals(RhythHausThemeMode.System, RhythHausThemeMode.fromSerialized(""))
-        assertEquals(RhythHausThemeMode.System, RhythHausThemeMode.fromSerialized("unknown"))
+        assertEquals(
+            RhythHausThemeMode.System, RhythHausThemeMode.fromSerialized(null))
+        assertEquals(
+            RhythHausThemeMode.System, RhythHausThemeMode.fromSerialized(""))
+        assertEquals(
+            RhythHausThemeMode.System,
+            RhythHausThemeMode.fromSerialized("unknown"))
     }
 
     @Test
     fun validSerializedValuesParseToThemeModes() {
-        assertEquals(RhythHausThemeMode.System, RhythHausThemeMode.fromSerialized("system"))
-        assertEquals(RhythHausThemeMode.Light, RhythHausThemeMode.fromSerialized("light"))
-        assertEquals(RhythHausThemeMode.Dark, RhythHausThemeMode.fromSerialized("dark"))
+        assertEquals(
+            RhythHausThemeMode.System,
+            RhythHausThemeMode.fromSerialized("system"))
+        assertEquals(
+            RhythHausThemeMode.Light,
+            RhythHausThemeMode.fromSerialized("light"))
+        assertEquals(
+            RhythHausThemeMode.Dark, RhythHausThemeMode.fromSerialized("dark"))
     }
 
     @Test
     fun systemPaletteResolvesFromSystemDarkPreference() {
-        assertSame(LightHausPalette, resolveHausPalette(RhythHausThemeMode.System, systemIsDark = false))
-        assertSame(DarkHausPalette, resolveHausPalette(RhythHausThemeMode.System, systemIsDark = true))
+        assertSame(
+            LightHausPalette,
+            resolveHausPalette(RhythHausThemeMode.System, systemIsDark = false))
+        assertSame(
+            DarkHausPalette,
+            resolveHausPalette(RhythHausThemeMode.System, systemIsDark = true))
     }
 
     @Test
     fun explicitPaletteIgnoresSystemDarkPreference() {
-        assertSame(LightHausPalette, resolveHausPalette(RhythHausThemeMode.Light, systemIsDark = true))
-        assertSame(DarkHausPalette, resolveHausPalette(RhythHausThemeMode.Dark, systemIsDark = false))
+        assertSame(
+            LightHausPalette,
+            resolveHausPalette(RhythHausThemeMode.Light, systemIsDark = true))
+        assertSame(
+            DarkHausPalette,
+            resolveHausPalette(RhythHausThemeMode.Dark, systemIsDark = false))
     }
 
     @Test
     fun settingsOptionOrderIsSystemLightDark() {
         assertEquals(
-            listOf(RhythHausThemeMode.System, RhythHausThemeMode.Light, RhythHausThemeMode.Dark),
+            listOf(
+                RhythHausThemeMode.System,
+                RhythHausThemeMode.Light,
+                RhythHausThemeMode.Dark),
             RhythHausThemeMode.settingsOptions,
         )
     }
@@ -49,10 +69,14 @@ class ThemeTest {
     @Test
     fun settingsOptionLabelsAndDescriptionsAreStable() {
         assertEquals("System", RhythHausThemeMode.System.displayLabel)
-        assertEquals("Follow system appearance", RhythHausThemeMode.System.displayDescription)
+        assertEquals(
+            "Follow system appearance",
+            RhythHausThemeMode.System.displayDescription)
         assertEquals("Light", RhythHausThemeMode.Light.displayLabel)
-        assertEquals("Use light appearance", RhythHausThemeMode.Light.displayDescription)
+        assertEquals(
+            "Use light appearance", RhythHausThemeMode.Light.displayDescription)
         assertEquals("Dark", RhythHausThemeMode.Dark.displayLabel)
-        assertEquals("Use dark appearance", RhythHausThemeMode.Dark.displayDescription)
+        assertEquals(
+            "Use dark appearance", RhythHausThemeMode.Dark.displayDescription)
     }
 }

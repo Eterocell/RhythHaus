@@ -55,9 +55,11 @@ fun PlaylistBackupPreviewDialog(
     onConfirm: () -> Unit,
 ) {
     val title = stringResource(Res.string.playlist_backup_preview_title)
-    val reportsByIndex = remember(preview.plan.reports) {
-        preview.plan.reports.associateBy(PlaylistImportPlaylistReport::sourcePlaylistIndex)
-    }
+    val reportsByIndex =
+        remember(preview.plan.reports) {
+            preview.plan.reports.associateBy(
+                PlaylistImportPlaylistReport::sourcePlaylistIndex)
+        }
     HausLazyDialog(
         title = title,
         onDismiss = onDismiss,
@@ -83,7 +85,9 @@ fun PlaylistBackupPreviewDialog(
             }
             items(
                 count = preview.plan.reports.size,
-                key = { index -> "report-${preview.plan.reports[index].sourcePlaylistIndex}" },
+                key = { index ->
+                    "report-${preview.plan.reports[index].sourcePlaylistIndex}"
+                },
             ) { index ->
                 val report = preview.plan.reports[index]
                 CountLine(
@@ -99,26 +103,37 @@ fun PlaylistBackupPreviewDialog(
             }
             items(
                 count = preview.plan.issues.size,
-                key = { index -> "issue-${preview.plan.issues[index].playlistIndex}-${preview.plan.issues[index].entryIndex}" },
+                key = { index ->
+                    "issue-${preview.plan.issues[index].playlistIndex}-${preview.plan.issues[index].entryIndex}"
+                },
             ) { index ->
                 val issue = preview.plan.issues[index]
-                val playlistName = reportsByIndex[issue.playlistIndex]?.sourceName.orEmpty()
-                val kind = when (issue.kind) {
-                    PlaylistImportIssueKind.UNMATCHED -> stringResource(Res.string.playlist_backup_unmatched)
-                    PlaylistImportIssueKind.AMBIGUOUS -> stringResource(Res.string.playlist_backup_ambiguous)
-                }
-                val accessibility = stringResource(
-                    Res.string.playlist_backup_issue_accessibility,
-                    playlistName,
-                    issue.entry.title,
-                    kind,
-                )
+                val playlistName =
+                    reportsByIndex[issue.playlistIndex]?.sourceName.orEmpty()
+                val kind =
+                    when (issue.kind) {
+                        PlaylistImportIssueKind.UNMATCHED ->
+                            stringResource(Res.string.playlist_backup_unmatched)
+                        PlaylistImportIssueKind.AMBIGUOUS ->
+                            stringResource(Res.string.playlist_backup_ambiguous)
+                    }
+                val accessibility =
+                    stringResource(
+                        Res.string.playlist_backup_issue_accessibility,
+                        playlistName,
+                        issue.entry.title,
+                        kind,
+                    )
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(HausColors.current.paper, RoundedCornerShape(12.dp))
-                        .semantics(mergeDescendants = true) { contentDescription = accessibility }
-                        .padding(12.dp),
+                    modifier =
+                        Modifier.fillMaxWidth()
+                            .background(
+                                HausColors.current.paper,
+                                RoundedCornerShape(12.dp))
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = accessibility
+                            }
+                            .padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
@@ -137,19 +152,23 @@ fun PlaylistBackupPreviewDialog(
             }
         },
         actions = {
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DialogButton(
-                    label = stringResource(Res.string.playlist_backup_confirm_import),
-                    onClick = onConfirm,
-                    enabled = preview.canConfirm && !isBusy,
-                    primary = true,
-                )
-                DialogButton(
-                    label = stringResource(Res.string.cancel),
-                    onClick = onDismiss,
-                    primary = false,
-                )
-            }
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DialogButton(
+                        label =
+                            stringResource(
+                                Res.string.playlist_backup_confirm_import),
+                        onClick = onConfirm,
+                        enabled = preview.canConfirm && !isBusy,
+                        primary = true,
+                    )
+                    DialogButton(
+                        label = stringResource(Res.string.cancel),
+                        onClick = onDismiss,
+                        primary = false,
+                    )
+                }
         },
     )
 }
@@ -197,8 +216,14 @@ fun PlaylistBackupResultDialog(
                     result.totals.entries.restorable,
                 ),
             )
-            CountLine(stringResource(Res.string.playlist_backup_result_unmatched, result.totals.entries.unmatched))
-            CountLine(stringResource(Res.string.playlist_backup_result_ambiguous, result.totals.entries.ambiguous))
+            CountLine(
+                stringResource(
+                    Res.string.playlist_backup_result_unmatched,
+                    result.totals.entries.unmatched))
+            CountLine(
+                stringResource(
+                    Res.string.playlist_backup_result_ambiguous,
+                    result.totals.entries.ambiguous))
         },
         actions = {
             DialogButton(
@@ -225,7 +250,9 @@ private fun CountLine(text: String, emphasized: Boolean = false) {
     Text(
         text = text,
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        color = if (emphasized) HausColors.current.ink else HausColors.current.muted,
+        color =
+            if (emphasized) HausColors.current.ink
+            else HausColors.current.muted,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         fontWeight = if (emphasized) FontWeight.Bold else FontWeight.Medium,
@@ -245,12 +272,17 @@ private fun DialogButton(
         modifier = Modifier.fillMaxWidth().height(44.dp),
         cornerRadius = 12.dp,
         insideMargin = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
-        colors = ButtonDefaults.buttonColors(
-            color = if (primary) HausColors.current.ink else HausColors.current.muted.copy(alpha = 0.15f),
-            contentColor = if (primary) HausColors.current.paper else HausColors.current.muted,
-            disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-            disabledContentColor = HausColors.current.muted,
-        ),
+        colors =
+            ButtonDefaults.buttonColors(
+                color =
+                    if (primary) HausColors.current.ink
+                    else HausColors.current.muted.copy(alpha = 0.15f),
+                contentColor =
+                    if (primary) HausColors.current.paper
+                    else HausColors.current.muted,
+                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
+                disabledContentColor = HausColors.current.muted,
+            ),
     ) {
         Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }

@@ -42,7 +42,8 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 
-internal fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp = systemBarTopPadding
+internal fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
+    systemBarTopPadding
 
 internal fun dispatchHomeBrowseModeChange(
     currentMode: BrowseMode,
@@ -83,158 +84,225 @@ internal fun LibraryHomeContent(
     bottomContentPadding: Dp = 0.dp,
 ) {
     val selectionPageKey = TrackSelectionPageKey.HomeSongs
-    val selectionModeActive = trackSelectionState.pageKey == selectionPageKey && trackSelectionState.selectedTrackIds.isNotEmpty()
+    val selectionModeActive =
+        trackSelectionState.pageKey == selectionPageKey &&
+            trackSelectionState.selectedTrackIds.isNotEmpty()
     Box(modifier = Modifier.fillMaxSize()) {
-        val homeTopContentPadding = libraryHomeTopContentPadding(rememberSystemBarTopPadding())
+        val homeTopContentPadding =
+            libraryHomeTopContentPadding(rememberSystemBarTopPadding())
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .recordRhythHausBackdrop(homeBackdrop),
+            modifier =
+                Modifier.fillMaxSize().recordRhythHausBackdrop(homeBackdrop),
         ) {
-            Surface(modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
-                LazyColumn(
-                    state = homeListState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp),
-                    contentPadding = PaddingValues(top = homeTopContentPadding),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                ) {
-                    item {
-                        HeaderSection(snapshot)
-                    }
-                    if (snapshot.tracks.isEmpty() && sourcePickerActionVisible) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = HausColors.current.paper) {
+                    LazyColumn(
+                        state = homeListState,
+                        modifier =
+                            Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                        contentPadding =
+                            PaddingValues(top = homeTopContentPadding),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                    ) {
                         item {
-                            ImportAudioCard(
-                                folderPickerLauncher = folderPickerLauncher,
-                                importMessage = importMessage,
-                                hasImportedTracks = false,
-                                mutationsEnabled = emptyLibrarySourceMutationsAllowed(
-                                    isProgressActive = scanProgress?.isActive == true,
-                                    isJobActive = scanJob?.isActive == true,
-                                ),
-                                onClearLibrary = onClearLibrary,
-                            )
+                            HeaderSection(snapshot)
                         }
-                    }
-                    if (scanProgress?.isActive == true) {
-                        item {
-                            val sp = scanProgress
-                            val ss = sp.session!!
-                            ScanningCard(
-                                foldersVisited = ss.foldersVisited,
-                                filesVisited = ss.filesVisited,
-                                tracksAdded = ss.tracksAdded,
-                                latestItem = sp.latestItem,
-                                onCancel = onCancelScan,
-                            )
-                        }
-                    }
-                    item {
-                        val playlistsDescription = stringResource(Res.string.playlists_accessibility)
-                        Button(
-                            onClick = onShowPlaylists,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .semantics { contentDescription = playlistsDescription },
-                            cornerRadius = 16.dp,
-                            colors = ButtonDefaults.buttonColors(
-                                color = HausColors.current.panel,
-                                contentColor = HausColors.current.ink,
-                            ),
-                        ) {
-                            top.yukonga.miuix.kmp.basic.Text(
-                                text = stringResource(Res.string.playlists),
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Black,
-                            )
-                        }
-                    }
-                    item {
-                        SectionLabel(
-                            title = stringResource(Res.string.library_queue),
-                            subtitle = null,
-                        )
-                    }
-                    item {
-                        BrowseModePicker(
-                            browseMode = browseMode,
-                            onModeChange = { nextMode ->
-                                dispatchHomeBrowseModeChange(
-                                    currentMode = browseMode,
-                                    nextMode = nextMode,
-                                    onTrackSelectionAction = onTrackSelectionAction,
-                                    onBrowseModeChange = onBrowseModeChange,
-                                )
-                            },
-                        )
-                    }
-                    when (browseMode) {
-                        BrowseMode.Albums -> {
+                        if (snapshot.tracks.isEmpty() &&
+                            sourcePickerActionVisible) {
                             item {
-                                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                                    val columns = albumGridColumnsForWidth(maxWidth.value)
-                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        albums.chunked(columns).forEach { row ->
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            ) {
-                                                row.forEach { albumGroup ->
-                                                    AlbumCard(
-                                                        album = albumGroup,
-                                                        modifier = Modifier.weight(1f),
-                                                        onClick = { onOpenDetailRoute(LibraryRoute.AlbumDetail(albumGroup.album)) },
-                                                    )
+                                ImportAudioCard(
+                                    folderPickerLauncher = folderPickerLauncher,
+                                    importMessage = importMessage,
+                                    hasImportedTracks = false,
+                                    mutationsEnabled =
+                                        emptyLibrarySourceMutationsAllowed(
+                                            isProgressActive =
+                                                scanProgress?.isActive == true,
+                                            isJobActive =
+                                                scanJob?.isActive == true,
+                                        ),
+                                    onClearLibrary = onClearLibrary,
+                                )
+                            }
+                        }
+                        if (scanProgress?.isActive == true) {
+                            item {
+                                val sp = scanProgress
+                                val ss = sp.session!!
+                                ScanningCard(
+                                    foldersVisited = ss.foldersVisited,
+                                    filesVisited = ss.filesVisited,
+                                    tracksAdded = ss.tracksAdded,
+                                    latestItem = sp.latestItem,
+                                    onCancel = onCancelScan,
+                                )
+                            }
+                        }
+                        item {
+                            val playlistsDescription =
+                                stringResource(
+                                    Res.string.playlists_accessibility)
+                            Button(
+                                onClick = onShowPlaylists,
+                                modifier =
+                                    Modifier.fillMaxWidth()
+                                        .height(48.dp)
+                                        .semantics {
+                                            contentDescription =
+                                                playlistsDescription
+                                        },
+                                cornerRadius = 16.dp,
+                                colors =
+                                    ButtonDefaults.buttonColors(
+                                        color = HausColors.current.panel,
+                                        contentColor = HausColors.current.ink,
+                                    ),
+                            ) {
+                                top.yukonga.miuix.kmp.basic.Text(
+                                    text = stringResource(Res.string.playlists),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Black,
+                                )
+                            }
+                        }
+                        item {
+                            SectionLabel(
+                                title =
+                                    stringResource(Res.string.library_queue),
+                                subtitle = null,
+                            )
+                        }
+                        item {
+                            BrowseModePicker(
+                                browseMode = browseMode,
+                                onModeChange = { nextMode ->
+                                    dispatchHomeBrowseModeChange(
+                                        currentMode = browseMode,
+                                        nextMode = nextMode,
+                                        onTrackSelectionAction =
+                                            onTrackSelectionAction,
+                                        onBrowseModeChange = onBrowseModeChange,
+                                    )
+                                },
+                            )
+                        }
+                        when (browseMode) {
+                            BrowseMode.Albums -> {
+                                item {
+                                    BoxWithConstraints(
+                                        modifier = Modifier.fillMaxWidth()) {
+                                            val columns =
+                                                albumGridColumnsForWidth(
+                                                    maxWidth.value)
+                                            Column(
+                                                verticalArrangement =
+                                                    Arrangement.spacedBy(
+                                                        10.dp)) {
+                                                    albums
+                                                        .chunked(columns)
+                                                        .forEach { row ->
+                                                            Row(
+                                                                modifier =
+                                                                    Modifier
+                                                                        .fillMaxWidth(),
+                                                                horizontalArrangement =
+                                                                    Arrangement
+                                                                        .spacedBy(
+                                                                            10
+                                                                                .dp),
+                                                            ) {
+                                                                row.forEach {
+                                                                    albumGroup
+                                                                    ->
+                                                                    AlbumCard(
+                                                                        album =
+                                                                            albumGroup,
+                                                                        modifier =
+                                                                            Modifier
+                                                                                .weight(
+                                                                                    1f),
+                                                                        onClick = {
+                                                                            onOpenDetailRoute(
+                                                                                LibraryRoute
+                                                                                    .AlbumDetail(
+                                                                                        albumGroup
+                                                                                            .album))
+                                                                        },
+                                                                    )
+                                                                }
+                                                                repeat(
+                                                                    columns -
+                                                                        row
+                                                                            .size) {
+                                                                        Spacer(
+                                                                            Modifier
+                                                                                .weight(
+                                                                                    1f))
+                                                                    }
+                                                            }
+                                                        }
                                                 }
-                                                repeat(columns - row.size) {
-                                                    Spacer(Modifier.weight(1f))
-                                                }
-                                            }
                                         }
-                                    }
+                                }
+                            }
+
+                            BrowseMode.Artists -> {
+                                items(artists, key = { it.artist }) {
+                                    artistGroup ->
+                                    ArtistRow(
+                                        artist = artistGroup,
+                                        onClick = {
+                                            onOpenDetailRoute(
+                                                LibraryRoute.ArtistDetail(
+                                                    artistGroup.artist))
+                                        },
+                                    )
+                                }
+                            }
+
+                            BrowseMode.Songs -> {
+                                items(snapshot.tracks, key = { it.id }) { track
+                                    ->
+                                    TrackRow(
+                                        track = track,
+                                        isNowPlaying =
+                                            track.id == selectedTrackId,
+                                        selectionModeActive =
+                                            selectionModeActive,
+                                        isSelected =
+                                            track.id in
+                                                trackSelectionState
+                                                    .selectedTrackIds,
+                                        onPlay = {
+                                            onTrackSelected(track.id)
+                                            selectLibraryTrackForPlayback(
+                                                playbackController =
+                                                    playbackController,
+                                                visibleQueue =
+                                                    snapshot.tracks.map {
+                                                        it.toPlayableTrack()
+                                                    },
+                                                selectedTrackId = track.id,
+                                            )
+                                        },
+                                        onToggleSelection = {
+                                            onTrackSelectionAction(
+                                                TrackSelectionAction.Toggle(
+                                                    selectionPageKey, track.id))
+                                        },
+                                        onStartSelection = {
+                                            onTrackSelectionAction(
+                                                TrackSelectionAction.Start(
+                                                    selectionPageKey, track.id))
+                                        },
+                                    )
                                 }
                             }
                         }
-
-                        BrowseMode.Artists -> {
-                            items(artists, key = { it.artist }) { artistGroup ->
-                                ArtistRow(
-                                    artist = artistGroup,
-                                    onClick = { onOpenDetailRoute(LibraryRoute.ArtistDetail(artistGroup.artist)) },
-                                )
-                            }
-                        }
-
-                        BrowseMode.Songs -> {
-                            items(snapshot.tracks, key = { it.id }) { track ->
-                                TrackRow(
-                                    track = track,
-                                    isNowPlaying = track.id == selectedTrackId,
-                                    selectionModeActive = selectionModeActive,
-                                    isSelected = track.id in trackSelectionState.selectedTrackIds,
-                                    onPlay = {
-                                        onTrackSelected(track.id)
-                                        selectLibraryTrackForPlayback(
-                                            playbackController = playbackController,
-                                            visibleQueue = snapshot.tracks.map { it.toPlayableTrack() },
-                                            selectedTrackId = track.id,
-                                        )
-                                    },
-                                    onToggleSelection = {
-                                        onTrackSelectionAction(TrackSelectionAction.Toggle(selectionPageKey, track.id))
-                                    },
-                                    onStartSelection = {
-                                        onTrackSelectionAction(TrackSelectionAction.Start(selectionPageKey, track.id))
-                                    },
-                                )
-                            }
-                        }
+                        item { Spacer(Modifier.height(bottomContentPadding)) }
                     }
-                    item { Spacer(Modifier.height(bottomContentPadding)) }
                 }
-            }
         }
     }
 }

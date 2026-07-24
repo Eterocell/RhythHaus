@@ -10,8 +10,11 @@ internal class PlaylistBackRegistrationState {
     private var modalOwner by mutableStateOf<Any?>(null)
     private var modalDismiss by mutableStateOf<(() -> Unit)?>(null)
 
-    val hasEditRegistration: Boolean get() = editClear != null
-    val hasModalRegistration: Boolean get() = modalDismiss != null
+    val hasEditRegistration: Boolean
+        get() = editClear != null
+
+    val hasModalRegistration: Boolean
+        get() = modalDismiss != null
 
     fun registerEdit(owner: Any, clear: () -> Unit): () -> Unit {
         editOwner = owner
@@ -35,7 +38,17 @@ internal class PlaylistBackRegistrationState {
         }
     }
 
-    fun decision(selectionState: TrackSelectionState = TrackSelectionState(), isNowPlayingExpanded: Boolean = false, canPopRoute: Boolean = false): LibraryBackDecision = libraryBackDecision(modalDismiss != null, editClear != null, selectionState, isNowPlayingExpanded, canPopRoute)
+    fun decision(
+        selectionState: TrackSelectionState = TrackSelectionState(),
+        isNowPlayingExpanded: Boolean = false,
+        canPopRoute: Boolean = false
+    ): LibraryBackDecision =
+        libraryBackDecision(
+            modalDismiss != null,
+            editClear != null,
+            selectionState,
+            isNowPlayingExpanded,
+            canPopRoute)
 
     fun requestBack(
         selectionState: TrackSelectionState = TrackSelectionState(),
@@ -59,19 +72,24 @@ internal class PlaylistBackDispatchController(
     private val hideNowPlaying: () -> Unit,
     private val directPopRoute: () -> Unit,
 ) {
-    fun decision(): LibraryBackDecision = registration.decision(selectionState(), isNowPlayingExpanded(), canPopRoute())
+    fun decision(): LibraryBackDecision =
+        registration.decision(
+            selectionState(), isNowPlayingExpanded(), canPopRoute())
 
     fun dispatch(popRouteOverride: (() -> Unit)? = null) {
         when (val decision = decision()) {
             LibraryBackDecision.DismissPlaylistModal,
             LibraryBackDecision.ExitPlaylistEditMode,
-            -> registration.requestBack(selectionState(), isNowPlayingExpanded(), canPopRoute())
+            ->
+                registration.requestBack(
+                    selectionState(), isNowPlayingExpanded(), canPopRoute())
 
             LibraryBackDecision.CancelSelection -> cancelSelection()
 
             LibraryBackDecision.HideNowPlaying -> hideNowPlaying()
 
-            LibraryBackDecision.PopRoute -> (popRouteOverride ?: directPopRoute).invoke()
+            LibraryBackDecision.PopRoute ->
+                (popRouteOverride ?: directPopRoute).invoke()
 
             LibraryBackDecision.None -> Unit
         }
@@ -115,19 +133,22 @@ internal fun libraryBackCallbacks(
     completePredictivePop: (LibraryNavigationStack) -> Unit,
     clearSelection: () -> Unit,
     popRoute: () -> Unit,
-): LibraryBackCallbacks = LibraryBackCallbacks(
-    ordinaryBack = ordinaryBack,
-    systemBackCompleted = libraryBackCompletionCallback(
-        decision = decision,
-        transitionProgress = transitionProgress,
-        setCompletionProgress = setCompletionProgress,
-        clearSelection = clearSelection,
-        dispatchOrdinaryBack = ordinaryBack,
-        navigationPop = navigationPop,
-        completePredictivePop = completePredictivePop,
-    ),
-    deleteCompleted = directPlaylistDeleteCompletion(clearSelection, popRoute),
-)
+): LibraryBackCallbacks =
+    LibraryBackCallbacks(
+        ordinaryBack = ordinaryBack,
+        systemBackCompleted =
+            libraryBackCompletionCallback(
+                decision = decision,
+                transitionProgress = transitionProgress,
+                setCompletionProgress = setCompletionProgress,
+                clearSelection = clearSelection,
+                dispatchOrdinaryBack = ordinaryBack,
+                navigationPop = navigationPop,
+                completePredictivePop = completePredictivePop,
+            ),
+        deleteCompleted =
+            directPlaylistDeleteCompletion(clearSelection, popRoute),
+    )
 
 internal fun directPlaylistDeleteCompletion(
     clearSelection: () -> Unit,

@@ -26,9 +26,13 @@ internal enum class ArtworkImageRole(val keySuffix: String) {
     Hero("hero"),
 }
 
-internal fun artworkMemoryCacheKey(bytes: ByteArray, role: ArtworkImageRole): String = "artwork:${role.keySuffix}:${bytes.contentHashCode()}:${bytes.size}"
+internal fun artworkMemoryCacheKey(
+    bytes: ByteArray,
+    role: ArtworkImageRole
+): String = "artwork:${role.keySuffix}:${bytes.contentHashCode()}:${bytes.size}"
 
-internal val LocalTrackArtworkLoader = staticCompositionLocalOf<suspend (String) -> TrackArtwork?> { { null } }
+internal val LocalTrackArtworkLoader =
+    staticCompositionLocalOf<suspend (String) -> TrackArtwork?> { { null } }
 
 internal sealed interface TrackArtworkLoadState {
     data object Loading : TrackArtworkLoadState
@@ -41,24 +45,26 @@ internal sealed interface TrackArtworkLoadState {
 internal fun initialTrackArtworkLoadState(
     trackId: String?,
     eagerArtworkBytes: ByteArray?,
-): TrackArtworkLoadState = when {
-    eagerArtworkBytes != null -> TrackArtworkLoadState.Available(eagerArtworkBytes)
-    trackId != null -> TrackArtworkLoadState.Loading
-    else -> TrackArtworkLoadState.Unavailable
-}
+): TrackArtworkLoadState =
+    when {
+        eagerArtworkBytes != null ->
+            TrackArtworkLoadState.Available(eagerArtworkBytes)
+        trackId != null -> TrackArtworkLoadState.Loading
+        else -> TrackArtworkLoadState.Unavailable
+    }
 
 internal suspend fun loadTrackArtworkState(
     trackId: String,
     artworkLoader: suspend (String) -> TrackArtwork?,
-): TrackArtworkLoadState = try {
-    artworkLoader(trackId)?.bytes
-        ?.let(TrackArtworkLoadState::Available)
-        ?: TrackArtworkLoadState.Unavailable
-} catch (cancellation: CancellationException) {
-    throw cancellation
-} catch (_: Exception) {
-    TrackArtworkLoadState.Unavailable
-}
+): TrackArtworkLoadState =
+    try {
+        artworkLoader(trackId)?.bytes?.let(TrackArtworkLoadState::Available)
+            ?: TrackArtworkLoadState.Unavailable
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        TrackArtworkLoadState.Unavailable
+    }
 
 @Composable
 internal fun rememberLazyTrackArtworkState(
@@ -66,14 +72,17 @@ internal fun rememberLazyTrackArtworkState(
     eagerArtworkBytes: ByteArray?,
 ): State<TrackArtworkLoadState> {
     val artworkLoader = LocalTrackArtworkLoader.current
-    val state = remember(trackId, eagerArtworkBytes, artworkLoader) {
-        mutableStateOf(initialTrackArtworkLoadState(trackId, eagerArtworkBytes))
-    }
+    val state =
+        remember(trackId, eagerArtworkBytes, artworkLoader) {
+            mutableStateOf(
+                initialTrackArtworkLoadState(trackId, eagerArtworkBytes))
+        }
     LaunchedEffect(trackId, eagerArtworkBytes, artworkLoader) {
         if (trackId != null && eagerArtworkBytes == null) {
-            state.value = withContext(Dispatchers.Default) {
-                loadTrackArtworkState(trackId, artworkLoader)
-            }
+            state.value =
+                withContext(Dispatchers.Default) {
+                    loadTrackArtworkState(trackId, artworkLoader)
+                }
         }
     }
     return state
@@ -89,10 +98,12 @@ internal fun LazyTrackArtworkImage(
     contentScale: ContentScale = ContentScale.Crop,
     fallback: @Composable () -> Unit,
 ) {
-    val artworkState = rememberLazyTrackArtworkState(
-        trackId = trackId,
-        eagerArtworkBytes = eagerArtworkBytes,
-    ).value
+    val artworkState =
+        rememberLazyTrackArtworkState(
+                trackId = trackId,
+                eagerArtworkBytes = eagerArtworkBytes,
+            )
+            .value
     val artworkBytes = (artworkState as? TrackArtworkLoadState.Available)?.bytes
     ArtworkImage(
         artworkBytes = artworkBytes,
@@ -114,28 +125,33 @@ internal fun ArtworkImage(
     fallback: @Composable () -> Unit,
 ) {
     if (artworkBytes == null) {
-        Box(modifier = modifier, contentAlignment = Alignment.Center) { fallback() }
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            fallback()
+        }
         return
     }
 
     val cacheKey = artworkMemoryCacheKey(artworkBytes, role)
     val platformContext = LocalPlatformContext.current
     SubcomposeAsyncImage(
-        model = ImageRequest.Builder(platformContext)
-            .data(artworkBytes)
-            .memoryCacheKey(cacheKey)
-            .diskCacheKey(cacheKey)
-            .memoryCachePolicy(CachePolicy.ENABLED)
-            .diskCachePolicy(CachePolicy.ENABLED)
-            .crossfade(false)
-            .build(),
+        model =
+            ImageRequest.Builder(platformContext)
+                .data(artworkBytes)
+                .memoryCacheKey(cacheKey)
+                .diskCacheKey(cacheKey)
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .crossfade(false)
+                .build(),
         contentDescription = contentDescription,
         modifier = modifier,
         contentScale = contentScale,
         error = {
-            Box(modifier = Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
-                fallback()
-            }
+            Box(
+                modifier = Modifier.matchParentSize(),
+                contentAlignment = Alignment.Center) {
+                    fallback()
+                }
         },
     )
 }

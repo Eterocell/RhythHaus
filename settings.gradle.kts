@@ -1,4 +1,5 @@
 rootProject.name = "RhythHaus"
+
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -35,6 +36,9 @@ plugins {
 }
 
 include(":androidApp")
+
 include(":desktopApp")
+
 include(":shared")
+
 include(":taglib")

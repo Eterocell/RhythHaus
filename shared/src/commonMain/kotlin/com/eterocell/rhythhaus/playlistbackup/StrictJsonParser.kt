@@ -5,7 +5,8 @@ internal data class ParsedBackupDocument(
     val canonicalPayloadEnd: Int,
 )
 
-internal class BackupParseException(val error: PlaylistBackupValidationError) : Exception()
+internal class BackupParseException(val error: PlaylistBackupValidationError) :
+    Exception()
 
 internal class StrictJsonParser(private val text: String) {
     private var index = 0
@@ -25,17 +26,19 @@ internal class StrictJsonParser(private val text: String) {
         while (true) {
             skipWhitespace()
             if (consume('}')) break
-            val separatorIndex = if (!first) {
-                val separator = index
-                expect(',')
-                separator
-            } else {
-                -1
-            }
+            val separatorIndex =
+                if (!first) {
+                    val separator = index
+                    expect(',')
+                    separator
+                } else {
+                    -1
+                }
             first = false
             skipWhitespace()
             val key = string()
-            if (!seen.add(key)) fail(PlaylistBackupValidationError.DUPLICATE_FIELD)
+            if (!seen.add(key))
+                fail(PlaylistBackupValidationError.DUPLICATE_FIELD)
             skipWhitespace()
             expect(':')
             skipWhitespace()
@@ -49,7 +52,8 @@ internal class StrictJsonParser(private val text: String) {
                 "playlists" -> playlists = playlistArray()
 
                 "checksumCrc32" -> {
-                    if (separatorIndex < 0) fail(PlaylistBackupValidationError.MALFORMED_JSON)
+                    if (separatorIndex < 0)
+                        fail(PlaylistBackupValidationError.MALFORMED_JSON)
                     payloadEnd = separatorIndex
                     checksum = string()
                 }
@@ -58,14 +62,22 @@ internal class StrictJsonParser(private val text: String) {
             }
         }
         skipWhitespace()
-        if (index != text.length) fail(PlaylistBackupValidationError.TRAILING_CONTENT)
-        if (format == null || version == null || exportedAt == null || playlists == null || checksum == null) {
+        if (index != text.length)
+            fail(PlaylistBackupValidationError.TRAILING_CONTENT)
+        if (format == null ||
+            version == null ||
+            exportedAt == null ||
+            playlists == null ||
+            checksum == null) {
             fail(PlaylistBackupValidationError.MISSING_FIELD)
         }
-        if (format != PlaylistBackupCodec.FORMAT) fail(PlaylistBackupValidationError.UNSUPPORTED_FORMAT)
-        if (version != PlaylistBackupCodec.VERSION.toLong()) fail(PlaylistBackupValidationError.UNSUPPORTED_VERSION)
+        if (format != PlaylistBackupCodec.FORMAT)
+            fail(PlaylistBackupValidationError.UNSUPPORTED_FORMAT)
+        if (version != PlaylistBackupCodec.VERSION.toLong())
+            fail(PlaylistBackupValidationError.UNSUPPORTED_VERSION)
         return ParsedBackupDocument(
-            PlaylistBackupDocument(format, version.toInt(), exportedAt, playlists, checksum),
+            PlaylistBackupDocument(
+                format, version.toInt(), exportedAt, playlists, checksum),
             payloadEnd,
         )
     }
@@ -76,7 +88,8 @@ internal class StrictJsonParser(private val text: String) {
         skipWhitespace()
         if (consume(']')) return result
         while (true) {
-            if (result.size == PlaylistBackupLimits.MAX_PLAYLISTS) fail(PlaylistBackupValidationError.PLAYLIST_LIMIT_EXCEEDED)
+            if (result.size == PlaylistBackupLimits.MAX_PLAYLISTS)
+                fail(PlaylistBackupValidationError.PLAYLIST_LIMIT_EXCEEDED)
             result += playlist()
             skipWhitespace()
             if (consume(']')) return result
@@ -98,7 +111,8 @@ internal class StrictJsonParser(private val text: String) {
             first = false
             skipWhitespace()
             val key = string()
-            if (!seen.add(key)) fail(PlaylistBackupValidationError.DUPLICATE_FIELD)
+            if (!seen.add(key))
+                fail(PlaylistBackupValidationError.DUPLICATE_FIELD)
             skipWhitespace()
             expect(':')
             skipWhitespace()
@@ -108,8 +122,10 @@ internal class StrictJsonParser(private val text: String) {
                 else -> fail(PlaylistBackupValidationError.UNKNOWN_FIELD)
             }
         }
-        if (name == null || entries == null) fail(PlaylistBackupValidationError.MISSING_FIELD)
-        if (name.isBlank()) fail(PlaylistBackupValidationError.BLANK_PLAYLIST_NAME)
+        if (name == null || entries == null)
+            fail(PlaylistBackupValidationError.MISSING_FIELD)
+        if (name.isBlank())
+            fail(PlaylistBackupValidationError.BLANK_PLAYLIST_NAME)
         return PlaylistBackupPlaylist(name, entries)
     }
 
@@ -120,7 +136,8 @@ internal class StrictJsonParser(private val text: String) {
         if (consume(']')) return result
         while (true) {
             if (result.size == PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST) {
-                fail(PlaylistBackupValidationError.PLAYLIST_ENTRY_LIMIT_EXCEEDED)
+                fail(
+                    PlaylistBackupValidationError.PLAYLIST_ENTRY_LIMIT_EXCEEDED)
             }
             if (totalEntries == PlaylistBackupLimits.MAX_TOTAL_ENTRIES) {
                 fail(PlaylistBackupValidationError.TOTAL_ENTRY_LIMIT_EXCEEDED)
@@ -149,7 +166,8 @@ internal class StrictJsonParser(private val text: String) {
             first = false
             skipWhitespace()
             val key = string()
-            if (!seen.add(key)) fail(PlaylistBackupValidationError.DUPLICATE_FIELD)
+            if (!seen.add(key))
+                fail(PlaylistBackupValidationError.DUPLICATE_FIELD)
             skipWhitespace()
             expect(':')
             skipWhitespace()
@@ -161,23 +179,29 @@ internal class StrictJsonParser(private val text: String) {
                 else -> fail(PlaylistBackupValidationError.UNKNOWN_FIELD)
             }
         }
-        if (title == null || artist == null || album == null || duration == null) fail(PlaylistBackupValidationError.MISSING_FIELD)
-        if (duration !in 0..PlaylistBackupLimits.MAX_DURATION_SECONDS.toLong()) fail(PlaylistBackupValidationError.INVALID_DURATION)
+        if (title == null ||
+            artist == null ||
+            album == null ||
+            duration == null)
+            fail(PlaylistBackupValidationError.MISSING_FIELD)
+        if (duration !in 0..PlaylistBackupLimits.MAX_DURATION_SECONDS.toLong())
+            fail(PlaylistBackupValidationError.INVALID_DURATION)
         return PlaylistBackupEntry(title, artist, album, duration.toInt())
     }
 
-    private fun boundedString(): String = string().also {
-        var codePoints = 0
-        var position = 0
-        while (position < it.length) {
-            val first = it[position].code
-            position += if (first in 0xD800..0xDBFF) 2 else 1
-            codePoints++
-            if (codePoints > PlaylistBackupLimits.MAX_STRING_CODE_POINTS) {
-                fail(PlaylistBackupValidationError.STRING_LIMIT_EXCEEDED)
+    private fun boundedString(): String =
+        string().also {
+            var codePoints = 0
+            var position = 0
+            while (position < it.length) {
+                val first = it[position].code
+                position += if (first in 0xD800..0xDBFF) 2 else 1
+                codePoints++
+                if (codePoints > PlaylistBackupLimits.MAX_STRING_CODE_POINTS) {
+                    fail(PlaylistBackupValidationError.STRING_LIMIT_EXCEEDED)
+                }
             }
         }
-    }
 
     private fun string(): String {
         expect('"')
@@ -189,14 +213,17 @@ internal class StrictJsonParser(private val text: String) {
 
                 char == '\\' -> escaped(result)
 
-                char.code < 0x20 -> fail(PlaylistBackupValidationError.MALFORMED_JSON)
+                char.code < 0x20 ->
+                    fail(PlaylistBackupValidationError.MALFORMED_JSON)
 
                 char.isHighSurrogate() -> {
-                    if (index >= text.length || !text[index].isLowSurrogate()) fail(PlaylistBackupValidationError.MALFORMED_JSON)
+                    if (index >= text.length || !text[index].isLowSurrogate())
+                        fail(PlaylistBackupValidationError.MALFORMED_JSON)
                     result.append(char).append(text[index++])
                 }
 
-                char.isLowSurrogate() -> fail(PlaylistBackupValidationError.MALFORMED_JSON)
+                char.isLowSurrogate() ->
+                    fail(PlaylistBackupValidationError.MALFORMED_JSON)
 
                 else -> result.append(char)
             }
@@ -205,9 +232,12 @@ internal class StrictJsonParser(private val text: String) {
     }
 
     private fun escaped(result: StringBuilder) {
-        if (index >= text.length) fail(PlaylistBackupValidationError.MALFORMED_JSON)
+        if (index >= text.length)
+            fail(PlaylistBackupValidationError.MALFORMED_JSON)
         when (val escape = text[index++]) {
-            '"', '\\', '/' -> result.append(escape)
+            '"',
+            '\\',
+            '/' -> result.append(escape)
 
             'b' -> result.append('\b')
 
@@ -223,16 +253,20 @@ internal class StrictJsonParser(private val text: String) {
                 val first = hexCodeUnit()
                 when {
                     first in 0xD800..0xDBFF -> {
-                        if (index + 2 > text.length || text[index] != '\\' || text[index + 1] != 'u') {
+                        if (index + 2 > text.length ||
+                            text[index] != '\\' ||
+                            text[index + 1] != 'u') {
                             fail(PlaylistBackupValidationError.MALFORMED_JSON)
                         }
                         index += 2
                         val second = hexCodeUnit()
-                        if (second !in 0xDC00..0xDFFF) fail(PlaylistBackupValidationError.MALFORMED_JSON)
+                        if (second !in 0xDC00..0xDFFF)
+                            fail(PlaylistBackupValidationError.MALFORMED_JSON)
                         result.append(first.toChar()).append(second.toChar())
                     }
 
-                    first in 0xDC00..0xDFFF -> fail(PlaylistBackupValidationError.MALFORMED_JSON)
+                    first in 0xDC00..0xDFFF ->
+                        fail(PlaylistBackupValidationError.MALFORMED_JSON)
 
                     else -> result.append(first.toChar())
                 }
@@ -243,15 +277,17 @@ internal class StrictJsonParser(private val text: String) {
     }
 
     private fun hexCodeUnit(): Int {
-        if (index + 4 > text.length) fail(PlaylistBackupValidationError.MALFORMED_JSON)
+        if (index + 4 > text.length)
+            fail(PlaylistBackupValidationError.MALFORMED_JSON)
         var value = 0
         repeat(4) {
-            val digit = when (val char = text[index++]) {
-                in '0'..'9' -> char - '0'
-                in 'a'..'f' -> char - 'a' + 10
-                in 'A'..'F' -> char - 'A' + 10
-                else -> fail(PlaylistBackupValidationError.MALFORMED_JSON)
-            }
+            val digit =
+                when (val char = text[index++]) {
+                    in '0'..'9' -> char - '0'
+                    in 'a'..'f' -> char - 'a' + 10
+                    in 'A'..'F' -> char - 'A' + 10
+                    else -> fail(PlaylistBackupValidationError.MALFORMED_JSON)
+                }
             value = value * 16 + digit
         }
         return value
@@ -260,15 +296,21 @@ internal class StrictJsonParser(private val text: String) {
     private fun integer(): Long {
         val start = index
         if (consume('-')) {
-            if (index >= text.length) fail(PlaylistBackupValidationError.INVALID_INTEGER)
+            if (index >= text.length)
+                fail(PlaylistBackupValidationError.INVALID_INTEGER)
         }
-        if (index >= text.length || text[index] !in '0'..'9') fail(PlaylistBackupValidationError.INVALID_INTEGER)
-        if (text[index] == '0' && index + 1 < text.length && text[index + 1] in '0'..'9') {
+        if (index >= text.length || text[index] !in '0'..'9')
+            fail(PlaylistBackupValidationError.INVALID_INTEGER)
+        if (text[index] == '0' &&
+            index + 1 < text.length &&
+            text[index + 1] in '0'..'9') {
             fail(PlaylistBackupValidationError.INVALID_INTEGER)
         }
         while (index < text.length && text[index] in '0'..'9') index++
-        if (index < text.length && text[index] !in " \t\r\n,]}") fail(PlaylistBackupValidationError.INVALID_INTEGER)
-        return text.substring(start, index).toLongOrNull() ?: fail(PlaylistBackupValidationError.NUMERIC_OVERFLOW)
+        if (index < text.length && text[index] !in " \t\r\n,]}")
+            fail(PlaylistBackupValidationError.INVALID_INTEGER)
+        return text.substring(start, index).toLongOrNull()
+            ?: fail(PlaylistBackupValidationError.NUMERIC_OVERFLOW)
     }
 
     private fun skipWhitespace() {
@@ -276,7 +318,8 @@ internal class StrictJsonParser(private val text: String) {
     }
 
     private fun expect(expected: Char) {
-        if (!consume(expected)) fail(PlaylistBackupValidationError.MALFORMED_JSON)
+        if (!consume(expected))
+            fail(PlaylistBackupValidationError.MALFORMED_JSON)
     }
 
     private fun consume(expected: Char): Boolean {
@@ -287,5 +330,6 @@ internal class StrictJsonParser(private val text: String) {
         return false
     }
 
-    private fun fail(error: PlaylistBackupValidationError): Nothing = throw BackupParseException(error)
+    private fun fail(error: PlaylistBackupValidationError): Nothing =
+        throw BackupParseException(error)
 }

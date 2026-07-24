@@ -22,8 +22,12 @@ allprojects {
     configureSpotless {
         if (genCopyright) {
             copyrightForKts(
-                excludeTargets = setOf("**/build/**/*.kts", "**/spotless/copyright.kts"),
-                licenseHeaderFile = rootProject.file("spotless/copyright.kt").takeIf(File::exists),
+                excludeTargets =
+                    setOf("**/build/**/*.kts", "**/spotless/copyright.kts"),
+                licenseHeaderFile =
+                    rootProject
+                        .file("spotless/copyright.kt")
+                        .takeIf(File::exists),
                 licenseHeaderConfig = {
                     updateYearWithLatest(true)
                     yearSeparator("-")
@@ -32,15 +36,15 @@ allprojects {
 
             copyrightForXml(
                 excludeTargets =
-                setOf(
-                    "**/build/**/*.xml",
-                    "**/spotless/copyright.xml",
-                    "**/.idea/**/*.xml",
-                ),
+                    setOf(
+                        "**/build/**/*.xml",
+                        "**/spotless/copyright.xml",
+                        "**/.idea/**/*.xml",
+                    ),
                 licenseHeaderFile =
-                rootProject
-                    .file("spotless/copyright.xml")
-                    .takeIf(File::exists),
+                    rootProject
+                        .file("spotless/copyright.xml")
+                        .takeIf(File::exists),
                 licenseHeaderConfig = {
                     updateYearWithLatest(true)
                     yearSeparator("-")
@@ -56,11 +60,13 @@ allprojects {
 
         kotlin(
             licenseHeaderFile =
-            if (genCopyright) {
-                rootProject.file("spotless/copyright.kt").takeIf(File::exists)
-            } else {
-                null
-            },
+                if (genCopyright) {
+                    rootProject
+                        .file("spotless/copyright.kt")
+                        .takeIf(File::exists)
+                } else {
+                    null
+                },
             excludeTargets = listOf("**/spotless/copyright.kt", "*.kts"),
             licenseHeaderConfig = {
                 updateYearWithLatest(true)

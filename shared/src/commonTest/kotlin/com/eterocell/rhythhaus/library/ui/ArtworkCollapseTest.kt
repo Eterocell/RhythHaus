@@ -5,24 +5,28 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ArtworkCollapseTest {
-    private val geometry = ArtworkCollapseGeometry(
-        expandedHeightPx = 320f,
-        collapsedHeightPx = 80f,
-    )
+    private val geometry =
+        ArtworkCollapseGeometry(
+            expandedHeightPx = 320f,
+            collapsedHeightPx = 80f,
+        )
 
     @Test
     fun listPositionDerivesExpandedPartialAndCollapsedProgress() {
         assertEquals(
             ArtworkCollapseSnapshot(240f, 80f, -240f, 0f),
-            geometry.snapshot(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 0),
+            geometry.snapshot(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 0),
         )
         assertEquals(
             ArtworkCollapseSnapshot(240f, 80f, -240f, 0.5f),
-            geometry.snapshot(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 120),
+            geometry.snapshot(
+                firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 120),
         )
         assertEquals(
             ArtworkCollapseSnapshot(240f, 80f, -240f, 1f),
-            geometry.snapshot(firstVisibleItemIndex = 1, firstVisibleItemScrollOffset = 0),
+            geometry.snapshot(
+                firstVisibleItemIndex = 1, firstVisibleItemScrollOffset = 0),
         )
     }
 
@@ -40,21 +44,24 @@ class ArtworkCollapseTest {
     @Test
     fun zeroAndInvertedRangesUseOneCollapsedSlice() {
         listOf(
-            ArtworkCollapseGeometry(80f, 80f),
-            ArtworkCollapseGeometry(60f, 80f),
-        ).forEach { invalid ->
-            assertEquals(
-                ArtworkCollapseSnapshot(0f, 80f, 0f, 1f),
-                invalid.snapshot(0, 40),
+                ArtworkCollapseGeometry(80f, 80f),
+                ArtworkCollapseGeometry(60f, 80f),
             )
-        }
+            .forEach { invalid ->
+                assertEquals(
+                    ArtworkCollapseSnapshot(0f, 80f, 0f, 1f),
+                    invalid.snapshot(0, 40),
+                )
+            }
     }
 
     @Test
     fun slicesFormOneSquareAndShareOneImagePlacement() {
         val snapshot = geometry.snapshot(0, 0)
-        assertEquals(320f, snapshot.upperSliceHeightPx + snapshot.lowerSliceHeightPx)
-        assertEquals(-snapshot.upperSliceHeightPx, snapshot.lowerSliceImageOffsetPx)
+        assertEquals(
+            320f, snapshot.upperSliceHeightPx + snapshot.lowerSliceHeightPx)
+        assertEquals(
+            -snapshot.upperSliceHeightPx, snapshot.lowerSliceImageOffsetPx)
     }
 
     @Test
@@ -128,11 +135,13 @@ class ArtworkCollapseTest {
     fun artworkTitleAvailableWidthReservesMarginsAndSafeBackRegion() {
         assertEquals(
             ArtworkTitleAvailableWidth(collapsedDp = 176f, expandedDp = 280f),
-            artworkTitleAvailableWidth(containerWidthDp = 320f, safeStartInsetDp = 8f),
+            artworkTitleAvailableWidth(
+                containerWidthDp = 320f, safeStartInsetDp = 8f),
         )
         assertEquals(
             ArtworkTitleAvailableWidth(collapsedDp = 0f, expandedDp = 0f),
-            artworkTitleAvailableWidth(containerWidthDp = 32f, safeStartInsetDp = 40f),
+            artworkTitleAvailableWidth(
+                containerWidthDp = 32f, safeStartInsetDp = 40f),
         )
     }
 
@@ -161,36 +170,38 @@ class ArtworkCollapseTest {
     @Test
     fun albumAndArtistRepresentativeIdentityDoesNotOwnScrollWithoutResolvedArtwork() {
         listOf(
-            LibraryRoute.AlbumDetail("Album") to "album-first-track",
-            LibraryRoute.ArtistDetail("Artist") to "artist-first-track",
-        ).forEach { (_, representativeTrackId) ->
-            assertEquals(
-                DrillDownScrollOwner.Miuix,
-                drillDownScrollOwner(
-                    DrillDownArtwork(
-                        representativeTrackId = representativeTrackId,
-                        state = TrackArtworkLoadState.Loading,
-                    ),
-                ),
+                LibraryRoute.AlbumDetail("Album") to "album-first-track",
+                LibraryRoute.ArtistDetail("Artist") to "artist-first-track",
             )
-            assertEquals(
-                DrillDownScrollOwner.Miuix,
-                drillDownScrollOwner(
-                    DrillDownArtwork(
-                        representativeTrackId = representativeTrackId,
-                        state = TrackArtworkLoadState.Unavailable,
+            .forEach { (_, representativeTrackId) ->
+                assertEquals(
+                    DrillDownScrollOwner.Miuix,
+                    drillDownScrollOwner(
+                        DrillDownArtwork(
+                            representativeTrackId = representativeTrackId,
+                            state = TrackArtworkLoadState.Loading,
+                        ),
                     ),
-                ),
-            )
-            assertEquals(
-                DrillDownScrollOwner.Artwork,
-                drillDownScrollOwner(
-                    DrillDownArtwork(
-                        representativeTrackId = representativeTrackId,
-                        state = TrackArtworkLoadState.Available(byteArrayOf(1)),
+                )
+                assertEquals(
+                    DrillDownScrollOwner.Miuix,
+                    drillDownScrollOwner(
+                        DrillDownArtwork(
+                            representativeTrackId = representativeTrackId,
+                            state = TrackArtworkLoadState.Unavailable,
+                        ),
                     ),
-                ),
-            )
-        }
+                )
+                assertEquals(
+                    DrillDownScrollOwner.Artwork,
+                    drillDownScrollOwner(
+                        DrillDownArtwork(
+                            representativeTrackId = representativeTrackId,
+                            state =
+                                TrackArtworkLoadState.Available(byteArrayOf(1)),
+                        ),
+                    ),
+                )
+            }
     }
 }

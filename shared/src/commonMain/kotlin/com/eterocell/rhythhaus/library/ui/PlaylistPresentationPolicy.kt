@@ -26,9 +26,10 @@ internal data class PlaylistTabPresentation(
 internal fun playlistTabPresentation(
     tab: PlaylistTab,
     palette: HausColorPalette,
-): PlaylistTabPresentation = PlaylistTabPresentation(
-    selectedContainerColor = palette.ink,
-    selectedContentColor = palette.paper,
-    unselectedContainerColor = palette.panel,
-    unselectedContentColor = palette.ink,
-)
+): PlaylistTabPresentation =
+    PlaylistTabPresentation(
+        selectedContainerColor = palette.ink,
+        selectedContentColor = palette.paper,
+        unselectedContainerColor = palette.panel,
+        unselectedContentColor = palette.ink,
+    )

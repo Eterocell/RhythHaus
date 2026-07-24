@@ -1,24 +1,37 @@
 package com.eterocell.rhythhaus.library
 
-import com.eterocell.rhythhaus.AudioSource
-
 interface LibraryRepository {
     fun upsertSource(source: LibrarySource)
+
     fun sources(): List<LibrarySource>
+
     fun upsertTrack(track: LibraryTrack): TrackUpsertResult
+
     fun tracks(): List<LibraryTrack>
+
     fun tracksForSource(sourceId: String): List<LibraryTrack>
+
     fun artworkForTrack(trackId: String): TrackArtwork?
+
     fun insertScanSession(session: ScanSession)
+
     fun updateScanSession(session: ScanSession)
+
     fun insertScanError(error: ScanError)
+
     fun scanErrors(scanId: String): List<ScanError>
+
     fun removeMissingTracks(sourceId: String, latestScanId: String): Int
+
     fun removeSource(sourceId: String)
+
     fun clearAll()
 }
 
-enum class TrackUpsertResult { Added, Updated }
+enum class TrackUpsertResult {
+    Added,
+    Updated
+}
 
 class InMemoryLibraryRepository : LibraryRepository {
     private val sources = linkedMapOf<String, LibrarySource>()
@@ -33,26 +46,34 @@ class InMemoryLibraryRepository : LibraryRepository {
     override fun sources(): List<LibrarySource> = sources.values.toList()
 
     override fun upsertTrack(track: LibraryTrack): TrackUpsertResult {
-        val existing = tracks.values.firstOrNull {
-            it.sourceId == track.sourceId && it.sourceLocalKey == track.sourceLocalKey
-        }
+        val existing =
+            tracks.values.firstOrNull {
+                it.sourceId == track.sourceId &&
+                    it.sourceLocalKey == track.sourceLocalKey
+            }
         return if (existing == null) {
             tracks[track.id] = track
             TrackUpsertResult.Added
         } else {
-            tracks[existing.id] = track.copy(
-                id = existing.id,
-                createdAtEpochMillis = existing.createdAtEpochMillis,
-            )
+            tracks[existing.id] =
+                track.copy(
+                    id = existing.id,
+                    createdAtEpochMillis = existing.createdAtEpochMillis,
+                )
             TrackUpsertResult.Updated
         }
     }
 
-    override fun tracks(): List<LibraryTrack> = tracks.values.sortedWith(
-        compareBy<LibraryTrack> { it.title.lowercase() }.thenBy { it.artist.lowercase() },
-    ).map { it.withoutArtwork() }
+    override fun tracks(): List<LibraryTrack> =
+        tracks.values
+            .sortedWith(
+                compareBy<LibraryTrack> { it.title.lowercase() }
+                    .thenBy { it.artist.lowercase() },
+            )
+            .map { it.withoutArtwork() }
 
-    override fun tracksForSource(sourceId: String): List<LibraryTrack> = tracks().filter { it.sourceId == sourceId }
+    override fun tracksForSource(sourceId: String): List<LibraryTrack> =
+        tracks().filter { it.sourceId == sourceId }
 
     override fun artworkForTrack(trackId: String): TrackArtwork? {
         val track = tracks[trackId] ?: return null
@@ -72,18 +93,30 @@ class InMemoryLibraryRepository : LibraryRepository {
         scanErrors += error
     }
 
-    override fun scanErrors(scanId: String): List<ScanError> = scanErrors.filter { it.scanId == scanId }
+    override fun scanErrors(scanId: String): List<ScanError> =
+        scanErrors.filter {
+            it.scanId == scanId
+        }
 
-    override fun removeMissingTracks(sourceId: String, latestScanId: String): Int {
-        val ids = tracks.values
-            .filter { it.sourceId == sourceId && it.lastSeenScanId != latestScanId }
-            .map { it.id }
+    override fun removeMissingTracks(
+        sourceId: String,
+        latestScanId: String
+    ): Int {
+        val ids =
+            tracks.values
+                .filter {
+                    it.sourceId == sourceId && it.lastSeenScanId != latestScanId
+                }
+                .map { it.id }
         ids.forEach { tracks.remove(it) }
         return ids.size
     }
 
     override fun removeSource(sourceId: String) {
-        val scanIds = scanSessions.values.filter { it.sourceId == sourceId }.mapTo(mutableSetOf()) { it.id }
+        val scanIds =
+            scanSessions.values
+                .filter { it.sourceId == sourceId }
+                .mapTo(mutableSetOf()) { it.id }
         scanErrors.removeAll { it.scanId in scanIds }
         scanIds.forEach { scanSessions.remove(it) }
         tracks.entries.removeAll { it.value.sourceId == sourceId }
@@ -98,7 +131,8 @@ class InMemoryLibraryRepository : LibraryRepository {
     }
 }
 
-private fun LibraryTrack.withoutArtwork(): LibraryTrack = copy(
-    artworkBytes = null,
-    artworkMimeType = null,
-)
+private fun LibraryTrack.withoutArtwork(): LibraryTrack =
+    copy(
+        artworkBytes = null,
+        artworkMimeType = null,
+    )

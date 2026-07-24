@@ -14,12 +14,22 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
-enum class PlaybackSessionPhase { NotRestored, Restoring, Ready, FailedSafe }
+enum class PlaybackSessionPhase {
+    NotRestored,
+    Restoring,
+    Ready,
+    FailedSafe
+}
 
-enum class PlaybackSessionReconcileResult { Applied, FailedSafeApplied }
+enum class PlaybackSessionReconcileResult {
+    Applied,
+    FailedSafeApplied
+}
 
 internal fun interface PlaybackSessionReconciler {
-    suspend fun reconcile(tracks: List<LibraryTrack>): PlaybackSessionReconcileResult
+    suspend fun reconcile(
+        tracks: List<LibraryTrack>
+    ): PlaybackSessionReconcileResult
 }
 
 internal class PlaybackSessionCoordinator(
@@ -39,7 +49,10 @@ internal class PlaybackSessionCoordinator(
     private val actorJob: Job
 
     init {
-        actorJob = processScope.launch(start = CoroutineStart.UNDISPATCHED) { runActor() }
+        actorJob =
+            processScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                runActor()
+            }
     }
 
     suspend fun restoreOnce(tracks: List<PlayableTrack>) {
@@ -48,7 +61,9 @@ internal class PlaybackSessionCoordinator(
         reply.await()
     }
 
-    override suspend fun reconcile(tracks: List<LibraryTrack>): PlaybackSessionReconcileResult {
+    override suspend fun reconcile(
+        tracks: List<LibraryTrack>
+    ): PlaybackSessionReconcileResult {
         val reply = CompletableDeferred<PlaybackSessionReconcileResult>()
         enqueue(Command.Reconcile(tracks, reply))
         return reply.await()
@@ -68,7 +83,9 @@ internal class PlaybackSessionCoordinator(
 
     private fun enqueue(command: Command) {
         if (commands.trySend(command).isSuccess) return
-        throw terminalFailure ?: CancellationException("Playback session coordinator is not running")
+        throw terminalFailure
+            ?: CancellationException(
+                "Playback session coordinator is not running")
     }
 
     private suspend fun runActor() {
@@ -77,7 +94,8 @@ internal class PlaybackSessionCoordinator(
         var terminal: Throwable? = null
         try {
             while (true) {
-                val command = pending ?: commands.receiveCatching().getOrNull() ?: return
+                val command =
+                    pending ?: commands.receiveCatching().getOrNull() ?: return
                 active = command
                 pending = null
                 if (command is Command.Checkpoint) {
@@ -93,13 +111,10 @@ internal class PlaybackSessionCoordinator(
                     }
                     val revision = newest.revision
                     val persistedRevision = highestPersistedCheckpointRevision
-                    if (
-                        (revision == null && persistedRevision == null) ||
-                        (
-                            revision != null &&
-                                (persistedRevision == null || revision >= persistedRevision)
-                            )
-                    ) {
+                    if ((revision == null && persistedRevision == null) ||
+                        (revision != null &&
+                            (persistedRevision == null ||
+                                revision >= persistedRevision))) {
                         if (persist(newest.snapshot) && revision != null) {
                             highestPersistedCheckpointRevision = revision
                         }
@@ -117,14 +132,20 @@ internal class PlaybackSessionCoordinator(
             throw throwable
         } finally {
             terminate(
-                terminal ?: terminalFailure ?: CancellationException("Playback session coordinator stopped"),
+                terminal
+                    ?: terminalFailure
+                    ?: CancellationException(
+                        "Playback session coordinator stopped"),
                 active,
                 pending,
             )
         }
     }
 
-    private fun newerCheckpoint(first: PlaybackCheckpoint, second: PlaybackCheckpoint): PlaybackCheckpoint {
+    private fun newerCheckpoint(
+        first: PlaybackCheckpoint,
+        second: PlaybackCheckpoint
+    ): PlaybackCheckpoint {
         val firstRevision = first.revision
         val secondRevision = second.revision
         return when {
@@ -141,26 +162,30 @@ internal class PlaybackSessionCoordinator(
             is Command.Restore -> restore(command)
             is Command.Reconcile -> reconcile(command)
             is Command.Flush -> command.reply.complete(Unit)
-            is Command.Checkpoint -> error("Checkpoint runs are handled before barriers")
+            is Command.Checkpoint ->
+                error("Checkpoint runs are handled before barriers")
         }
     }
 
     private suspend fun restore(command: Command.Restore) {
-        if (_phase.value != PlaybackSessionPhase.FailedSafe) _phase.value = PlaybackSessionPhase.Restoring
+        if (_phase.value != PlaybackSessionPhase.FailedSafe)
+            _phase.value = PlaybackSessionPhase.Restoring
         controller.setCommandsEnabled(false)
         var cancelled = false
         try {
             if (_phase.value == PlaybackSessionPhase.FailedSafe) return
-            val persisted = try {
-                store.read()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Throwable) {
-                enterFailedSafe()
-                applyEmptyPaused(command.tracks)
-                return
-            }
-            val normalized = controller.restoreSession(persisted, command.tracks)
+            val persisted =
+                try {
+                    store.read()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Throwable) {
+                    enterFailedSafe()
+                    applyEmptyPaused(command.tracks)
+                    return
+                }
+            val normalized =
+                controller.restoreSession(persisted, command.tracks)
             persistRevisioned(normalized)
         } catch (cancellation: CancellationException) {
             cancelled = true
@@ -172,51 +197,61 @@ internal class PlaybackSessionCoordinator(
         } finally {
             if (!cancelled) startCheckpointCollection()
             controller.setCommandsEnabled(true)
-            if (_phase.value != PlaybackSessionPhase.FailedSafe) _phase.value = PlaybackSessionPhase.Ready
+            if (_phase.value != PlaybackSessionPhase.FailedSafe)
+                _phase.value = PlaybackSessionPhase.Ready
             if (!command.reply.isCompleted) command.reply.complete(Unit)
         }
     }
 
     private suspend fun reconcile(command: Command.Reconcile) {
         try {
-            val reconciled = controller.reconcileSession(command.tracks.map(LibraryTrack::toPlayableTrack))
-            val result = if (_phase.value == PlaybackSessionPhase.FailedSafe) {
-                PlaybackSessionReconcileResult.FailedSafeApplied
-            } else if (persistRevisioned(reconciled)) {
-                PlaybackSessionReconcileResult.Applied
-            } else {
-                PlaybackSessionReconcileResult.FailedSafeApplied
-            }
+            val reconciled =
+                controller.reconcileSession(
+                    command.tracks.map(LibraryTrack::toPlayableTrack))
+            val result =
+                if (_phase.value == PlaybackSessionPhase.FailedSafe) {
+                    PlaybackSessionReconcileResult.FailedSafeApplied
+                } else if (persistRevisioned(reconciled)) {
+                    PlaybackSessionReconcileResult.Applied
+                } else {
+                    PlaybackSessionReconcileResult.FailedSafeApplied
+                }
             command.reply.complete(result)
         } catch (cancelled: CancellationException) {
             command.reply.completeExceptionally(cancelled)
             throw cancelled
         } catch (_: Throwable) {
             enterFailedSafe()
-            command.reply.complete(PlaybackSessionReconcileResult.FailedSafeApplied)
+            command.reply.complete(
+                PlaybackSessionReconcileResult.FailedSafeApplied)
         }
     }
 
     private fun startCheckpointCollection() {
         if (checkpointCollectionStarted) return
         checkpointCollectionStarted = true
-        checkpointCollectorJob = processScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            try {
-                controller.checkpoints.collect(::accept)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (throwable: Throwable) {
-                terminalFailure = throwable
-                commands.close(throwable)
-                actorJob.cancel(cancellation("Playback checkpoint collector failed", throwable))
+        checkpointCollectorJob =
+            processScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                try {
+                    controller.checkpoints.collect(::accept)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (throwable: Throwable) {
+                    terminalFailure = throwable
+                    commands.close(throwable)
+                    actorJob.cancel(
+                        cancellation(
+                            "Playback checkpoint collector failed", throwable))
+                }
             }
-        }
         val collector = checkpointCollectorJob
         if (collector?.isActive == true) {
             checkpointCollectorReady.complete(Unit)
         } else if (!checkpointCollectorReady.isCompleted) {
             checkpointCollectorReady.completeExceptionally(
-                terminalFailure ?: CancellationException("Playback checkpoint collector did not start"),
+                terminalFailure
+                    ?: CancellationException(
+                        "Playback checkpoint collector did not start"),
             )
         }
     }
@@ -235,13 +270,16 @@ internal class PlaybackSessionCoordinator(
         }
     }
 
-    private suspend fun persistRevisioned(publication: RevisionedPlaybackSessionSnapshot): Boolean {
+    private suspend fun persistRevisioned(
+        publication: RevisionedPlaybackSessionSnapshot
+    ): Boolean {
         if (!persist(publication.snapshot)) return false
         publication.revision?.let { revision ->
-            highestPersistedCheckpointRevision = maxOf(
-                highestPersistedCheckpointRevision ?: revision,
-                revision,
-            )
+            highestPersistedCheckpointRevision =
+                maxOf(
+                    highestPersistedCheckpointRevision ?: revision,
+                    revision,
+                )
         }
         return true
     }
@@ -251,19 +289,23 @@ internal class PlaybackSessionCoordinator(
             controller.restoreSession(PlaybackSessionSnapshot(), tracks)
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Throwable) {
-        }
+        } catch (_: Throwable) {}
     }
 
     private fun enterFailedSafe() {
         _phase.value = PlaybackSessionPhase.FailedSafe
     }
 
-    private fun terminate(failure: Throwable, active: Command?, pending: Command?) {
+    private fun terminate(
+        failure: Throwable,
+        active: Command?,
+        pending: Command?
+    ) {
         terminalFailure = failure
         commands.close(failure)
         checkpointCollectorReady.completeExceptionally(failure)
-        checkpointCollectorJob?.cancel(cancellation("Playback session coordinator stopped", failure))
+        checkpointCollectorJob?.cancel(
+            cancellation("Playback session coordinator stopped", failure))
         active?.completeExceptionally(failure)
         pending?.completeExceptionally(failure)
         while (true) {
@@ -283,13 +325,22 @@ internal class PlaybackSessionCoordinator(
 
     private sealed interface Command {
         data class Checkpoint(val checkpoint: PlaybackCheckpoint) : Command
-        data class Restore(val tracks: List<PlayableTrack>, val reply: CompletableDeferred<Unit>) : Command
+
+        data class Restore(
+            val tracks: List<PlayableTrack>,
+            val reply: CompletableDeferred<Unit>
+        ) : Command
+
         data class Reconcile(
             val tracks: List<LibraryTrack>,
             val reply: CompletableDeferred<PlaybackSessionReconcileResult>,
         ) : Command
+
         data class Flush(val reply: CompletableDeferred<Unit>) : Command
     }
 }
 
-private fun cancellation(message: String, cause: Throwable): CancellationException = CancellationException(message, cause)
+private fun cancellation(
+    message: String,
+    cause: Throwable
+): CancellationException = CancellationException(message, cause)

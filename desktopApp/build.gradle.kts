@@ -15,15 +15,22 @@ dependencies {
     implementation(libs.compose.uiToolingPreview)
 }
 
-val rhythHausVersionName = providers.gradleProperty("rhythhaus.versionName")
-    .orElse(provider { throw GradleException("Missing required Gradle property 'rhythhaus.versionName'") })
+val rhythHausVersionName =
+    providers
+        .gradleProperty("rhythhaus.versionName")
+        .orElse(
+            provider {
+                throw GradleException(
+                    "Missing required Gradle property 'rhythhaus.versionName'")
+            })
 
 compose.desktop {
     application {
         mainClass = "com.eterocell.rhythhaus.MainKt"
 
         nativeDistributions {
-            // Product scope for now: Android, iOS, and macOS. Keep Windows/Linux packaging for later.
+            // Product scope for now: Android, iOS, and macOS. Keep
+            // Windows/Linux packaging for later.
             targetFormats(TargetFormat.Dmg)
             packageName = "RhythHaus"
             packageVersion = rhythHausVersionName.get()

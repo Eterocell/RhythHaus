@@ -15,7 +15,9 @@ import androidx.core.content.ContextCompat
 class MainActivity : ComponentActivity() {
 
     private val requestNotificationPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* result ignored */ }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            /* result ignored */
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -28,18 +30,21 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * On Android 13+ the media-playback foreground notification — the surface that backs the
-     * lock-screen and notification transport controls — requires the runtime POST_NOTIFICATIONS
-     * permission. Request it once on launch if not already granted.
+     * On Android 13+ the media-playback foreground notification — the surface
+     * that backs the lock-screen and notification transport controls — requires
+     * the runtime POST_NOTIFICATIONS permission. Request it once on launch if
+     * not already granted.
      */
     private fun ensureNotificationPermission() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val granted = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.POST_NOTIFICATIONS,
-        ) == PackageManager.PERMISSION_GRANTED
+        val granted =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
         if (!granted) {
-            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            requestNotificationPermission.launch(
+                Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 }

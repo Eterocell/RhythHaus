@@ -12,7 +12,9 @@ enum class PlaylistBackupExportError {
 
 sealed interface PlaylistBackupExportResult {
     data class Success(val bytes: ByteArray) : PlaylistBackupExportResult {
-        override fun equals(other: Any?): Boolean = other is Success && bytes.contentEquals(other.bytes)
+        override fun equals(other: Any?): Boolean =
+            other is Success && bytes.contentEquals(other.bytes)
+
         override fun hashCode(): Int = bytes.contentHashCode()
     }
 
@@ -27,11 +29,12 @@ data class PlaylistImportCounts(
     val unmatched: Int,
     val ambiguous: Int,
 ) {
-    operator fun plus(other: PlaylistImportCounts) = PlaylistImportCounts(
-        restorable + other.restorable,
-        unmatched + other.unmatched,
-        ambiguous + other.ambiguous,
-    )
+    operator fun plus(other: PlaylistImportCounts) =
+        PlaylistImportCounts(
+            restorable + other.restorable,
+            unmatched + other.unmatched,
+            ambiguous + other.ambiguous,
+        )
 }
 
 data class PlaylistImportPlaylist(
@@ -47,7 +50,10 @@ data class PlaylistImportPlaylistReport(
     val counts: PlaylistImportCounts,
 )
 
-enum class PlaylistImportIssueKind { UNMATCHED, AMBIGUOUS }
+enum class PlaylistImportIssueKind {
+    UNMATCHED,
+    AMBIGUOUS
+}
 
 data class PlaylistImportIssue(
     val playlistIndex: Int,
@@ -81,35 +87,43 @@ fun exportPlaylistBackup(
     snapshot.playlists.forEach { playlist ->
         val entries = mutableListOf<PlaylistBackupEntry>()
         snapshot.entries(playlist.id).forEach { playlistEntry ->
-            val track = tracksById[playlistEntry.trackId]
-                ?: return PlaylistBackupExportResult.Failure(
-                    PlaylistBackupExportError.MISSING_TRACK,
-                    playlistEntry.trackId,
-                )
-            val durationMillis = track.durationMillis
-                ?: return PlaylistBackupExportResult.Failure(
-                    PlaylistBackupExportError.MISSING_DURATION,
-                    track.id,
-                )
+            val track =
+                tracksById[playlistEntry.trackId]
+                    ?: return PlaylistBackupExportResult.Failure(
+                        PlaylistBackupExportError.MISSING_TRACK,
+                        playlistEntry.trackId,
+                    )
+            val durationMillis =
+                track.durationMillis
+                    ?: return PlaylistBackupExportResult.Failure(
+                        PlaylistBackupExportError.MISSING_DURATION,
+                        track.id,
+                    )
             val durationSeconds = durationMillis / 1_000
-            if (durationMillis < 0 || durationSeconds !in 0..PlaylistBackupLimits.MAX_DURATION_SECONDS.toLong()) {
-                return PlaylistBackupExportResult.Failure(PlaylistBackupExportError.INVALID_DURATION, track.id)
+            if (durationMillis < 0 ||
+                durationSeconds !in
+                    0..PlaylistBackupLimits.MAX_DURATION_SECONDS.toLong()) {
+                return PlaylistBackupExportResult.Failure(
+                    PlaylistBackupExportError.INVALID_DURATION, track.id)
             }
-            entries += PlaylistBackupEntry(
-                title = track.title,
-                artist = track.artist,
-                album = track.album,
-                durationSeconds = durationSeconds.toInt(),
-            )
+            entries +=
+                PlaylistBackupEntry(
+                    title = track.title,
+                    artist = track.artist,
+                    album = track.album,
+                    durationSeconds = durationSeconds.toInt(),
+                )
         }
         playlists += PlaylistBackupPlaylist(playlist.name, entries)
     }
     return try {
         PlaylistBackupExportResult.Success(
-            PlaylistBackupCodec.encode(PlaylistBackupPayload(exportedAtEpochMillis, playlists)),
+            PlaylistBackupCodec.encode(
+                PlaylistBackupPayload(exportedAtEpochMillis, playlists)),
         )
     } catch (_: IllegalArgumentException) {
-        PlaylistBackupExportResult.Failure(PlaylistBackupExportError.CODEC_BOUNDS)
+        PlaylistBackupExportResult.Failure(
+            PlaylistBackupExportError.CODEC_BOUNDS)
     }
 }
 
@@ -122,7 +136,8 @@ fun planPlaylistImport(
 ): PlaylistImportPlan {
     require(importedSuffix.isNotBlank())
     val matcher = PlaylistBackupMatcher(destinationTracks)
-    val reservedNames = existingPlaylistNames.mapTo(mutableSetOf(), ::normalizePortableText)
+    val reservedNames =
+        existingPlaylistNames.mapTo(mutableSetOf(), ::normalizePortableText)
     val plannedPlaylists = mutableListOf<PlaylistImportPlaylist>()
     val reports = mutableListOf<PlaylistImportPlaylistReport>()
     val issues = mutableListOf<PlaylistImportIssue>()
@@ -138,53 +153,62 @@ fun planPlaylistImport(
 
                 PlaylistBackupMatch.Unmatched -> {
                     unmatched++
-                    issues += PlaylistImportIssue(
-                        playlistIndex,
-                        entryIndex,
-                        entry,
-                        PlaylistImportIssueKind.UNMATCHED,
-                        emptyList(),
-                    )
+                    issues +=
+                        PlaylistImportIssue(
+                            playlistIndex,
+                            entryIndex,
+                            entry,
+                            PlaylistImportIssueKind.UNMATCHED,
+                            emptyList(),
+                        )
                 }
 
                 is PlaylistBackupMatch.Ambiguous -> {
                     ambiguous++
-                    issues += PlaylistImportIssue(
-                        playlistIndex,
-                        entryIndex,
-                        entry,
-                        PlaylistImportIssueKind.AMBIGUOUS,
-                        match.trackIds,
-                    )
+                    issues +=
+                        PlaylistImportIssue(
+                            playlistIndex,
+                            entryIndex,
+                            entry,
+                            PlaylistImportIssueKind.AMBIGUOUS,
+                            match.trackIds,
+                        )
                 }
             }
         }
         val counts = PlaylistImportCounts(trackIds.size, unmatched, ambiguous)
         totalCounts += counts
-        val plannedName = if (trackIds.isEmpty()) {
-            null
-        } else {
-            reserveImportName(
-                playlist.name,
-                importedSuffix,
-                reservedNames,
-            )
-        }
+        val plannedName =
+            if (trackIds.isEmpty()) {
+                null
+            } else {
+                reserveImportName(
+                    playlist.name,
+                    importedSuffix,
+                    reservedNames,
+                )
+            }
         if (plannedName != null) {
-            plannedPlaylists += PlaylistImportPlaylist(playlistIndex, plannedName, trackIds.toList())
+            plannedPlaylists +=
+                PlaylistImportPlaylist(
+                    playlistIndex, plannedName, trackIds.toList())
         }
-        reports += PlaylistImportPlaylistReport(playlistIndex, playlist.name, plannedName, counts)
+        reports +=
+            PlaylistImportPlaylistReport(
+                playlistIndex, playlist.name, plannedName, counts)
     }
 
     return PlaylistImportPlan(
         libraryRevision = libraryRevision,
         playlists = plannedPlaylists.toList(),
         reports = reports.toList(),
-        totals = PlaylistImportTotals(
-            playlistsToCreate = plannedPlaylists.size,
-            playlistsSkipped = document.playlists.size - plannedPlaylists.size,
-            entries = totalCounts,
-        ),
+        totals =
+            PlaylistImportTotals(
+                playlistsToCreate = plannedPlaylists.size,
+                playlistsSkipped =
+                    document.playlists.size - plannedPlaylists.size,
+                entries = totalCounts,
+            ),
         issues = issues.toList(),
     )
 }
@@ -197,9 +221,12 @@ private fun reserveImportName(
     if (reservedNames.add(normalizePortableText(sourceName))) return sourceName
     var suffixNumber = 1
     while (true) {
-        val suffix = if (suffixNumber == 1) importedSuffix else "$importedSuffix $suffixNumber"
+        val suffix =
+            if (suffixNumber == 1) importedSuffix
+            else "$importedSuffix $suffixNumber"
         val candidate = "$sourceName ($suffix)"
-        if (reservedNames.add(normalizePortableText(candidate))) return candidate
+        if (reservedNames.add(normalizePortableText(candidate)))
+            return candidate
         suffixNumber++
     }
 }

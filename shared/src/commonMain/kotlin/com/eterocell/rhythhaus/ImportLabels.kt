@@ -11,7 +11,9 @@ import rhythhaus.shared.generated.resources.import_card_title_with_tracks
 fun importCardTitle(): String = stringResource(Res.string.import_card_title)
 
 @Composable
-fun importCardTitleWithTracks(): String = stringResource(Res.string.import_card_title_with_tracks)
+fun importCardTitleWithTracks(): String =
+    stringResource(Res.string.import_card_title_with_tracks)
 
 @Composable
-fun importCardDescription(): String = stringResource(Res.string.import_card_description)
+fun importCardDescription(): String =
+    stringResource(Res.string.import_card_description)

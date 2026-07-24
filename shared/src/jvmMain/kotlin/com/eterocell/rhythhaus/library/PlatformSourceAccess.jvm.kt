@@ -3,37 +3,44 @@ package com.eterocell.rhythhaus.library
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import com.eterocell.rhythhaus.AudioSource
+import java.awt.FileDialog
+import java.awt.Frame
+import java.io.File
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.folder_picker_error_select
 import rhythhaus.shared.generated.resources.folder_picker_no_folder_selected
-import java.awt.FileDialog
-import java.awt.Frame
-import java.io.File
 
 @Composable
 actual fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
 ): PlatformFolderPickerLauncher {
-    val noFolderSelectedMessage = stringResource(Res.string.folder_picker_no_folder_selected)
-    val couldNotSelectMessage = stringResource(Res.string.folder_picker_error_select)
+    val noFolderSelectedMessage =
+        stringResource(Res.string.folder_picker_no_folder_selected)
+    val couldNotSelectMessage =
+        stringResource(Res.string.folder_picker_error_select)
     return remember(onResult) {
         object : PlatformFolderPickerLauncher {
             override val isAvailable: Boolean = true
             override val supportsAdditionalSources: Boolean = true
 
             override fun launch() {
-                val result = runCatching { openNativeFolderDialog() }
+                val result = runCatching {
+                    openNativeFolderDialog()
+                }
                     .fold(
                         onSuccess = { folder ->
                             if (folder == null) {
-                                PlatformFolderPickResult.Unavailable(noFolderSelectedMessage)
+                                PlatformFolderPickResult.Unavailable(
+                                    noFolderSelectedMessage)
                             } else {
-                                PlatformFolderPickResult.Success(folder.toJvmFolderSource())
+                                PlatformFolderPickResult.Success(
+                                    folder.toJvmFolderSource())
                             }
                         },
                         onFailure = {
-                            PlatformFolderPickResult.Failure(message = couldNotSelectMessage)
+                            PlatformFolderPickResult.Failure(
+                                message = couldNotSelectMessage)
                         },
                     )
                 onResult(result)
@@ -44,13 +51,16 @@ actual fun rememberPlatformFolderPickerLauncher(
 
 private fun openNativeFolderDialog(initialDirectory: String? = null): File? {
     System.setProperty("apple.awt.fileDialogForDirectories", "true")
-    val dialog = FileDialog(null as Frame?, "Choose music folder", FileDialog.LOAD).apply {
-        directory = initialDirectory ?: System.getProperty("user.home")
-    }
+    val dialog =
+        FileDialog(null as Frame?, "Choose music folder", FileDialog.LOAD)
+            .apply {
+                directory = initialDirectory ?: System.getProperty("user.home")
+            }
     return try {
         dialog.isVisible = true
-        val selected = dialog.files?.firstOrNull()
-            ?: dialog.file?.let { File(dialog.directory ?: "", it) }
+        val selected =
+            dialog.files?.firstOrNull()
+                ?: dialog.file?.let { File(dialog.directory ?: "", it) }
         selected?.takeIf { it.isDirectory }
     } finally {
         System.setProperty("apple.awt.fileDialogForDirectories", "false")
@@ -58,44 +68,57 @@ private fun openNativeFolderDialog(initialDirectory: String? = null): File? {
     }
 }
 
-private fun File.toJvmFolderSource(): LibrarySource = LibrarySource(
-    id = jvmFolderSourceId(canonicalPath),
-    platformKind = LibraryPlatformKind.JvmFolder,
-    displayName = name.ifBlank { canonicalPath },
-    handle = canonicalPath,
-    createdAtEpochMillis = System.currentTimeMillis(),
-)
+private fun File.toJvmFolderSource(): LibrarySource =
+    LibrarySource(
+        id = jvmFolderSourceId(canonicalPath),
+        platformKind = LibraryPlatformKind.JvmFolder,
+        displayName = name.ifBlank { canonicalPath },
+        handle = canonicalPath,
+        createdAtEpochMillis = System.currentTimeMillis(),
+    )
 
 class JvmFolderSourceAccess : PlatformSourceAccess {
-    override fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus {
+    override fun accessStatus(
+        source: LibrarySource
+    ): LibrarySourceAccessStatus {
         val folder = File(source.handle)
-        return if (source.platformKind == LibraryPlatformKind.JvmFolder && folder.isDirectory && folder.canRead()) {
+        return if (source.platformKind == LibraryPlatformKind.JvmFolder &&
+            folder.isDirectory &&
+            folder.canRead()) {
             LibrarySourceAccessStatus.Available
         } else {
             LibrarySourceAccessStatus.LostAccess
         }
     }
 
-    override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> = scanJvmFolderSource(source)
+    override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> =
+        scanJvmFolderSource(source)
 }
 
-fun scanJvmFolderSource(source: LibrarySource): Sequence<PlatformScanEvent> = sequence {
-    require(source.platformKind == LibraryPlatformKind.JvmFolder) {
-        "JvmFolderSourceAccess can only scan JvmFolder sources"
+fun scanJvmFolderSource(source: LibrarySource): Sequence<PlatformScanEvent> =
+    sequence {
+        require(source.platformKind == LibraryPlatformKind.JvmFolder) {
+            "JvmFolderSourceAccess can only scan JvmFolder sources"
+        }
+        val root = File(source.handle)
+        require(root.isDirectory && root.canRead()) {
+            "Cannot read folder: ${source.handle}"
+        }
+        yieldAll(scanFolder(source, root, root))
     }
-    val root = File(source.handle)
-    require(root.isDirectory && root.canRead()) { "Cannot read folder: ${source.handle}" }
-    yieldAll(scanFolder(source, root, root))
-}
 
 private fun scanFolder(
     source: LibrarySource,
     root: File,
     folder: File,
 ): Sequence<PlatformScanEvent> = sequence {
-    yield(PlatformScanEvent.FolderVisited(folder.displayPath(root, source.displayName)))
-    folder.listFiles()
-        ?.sortedWith(compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase() })
+    yield(
+        PlatformScanEvent.FolderVisited(
+            folder.displayPath(root, source.displayName)))
+    folder
+        .listFiles()
+        ?.sortedWith(
+            compareBy<File> { !it.isDirectory }.thenBy { it.name.lowercase() })
         ?.forEach { child ->
             when {
                 child.isDirectory -> yieldAll(scanFolder(source, root, child))
@@ -104,7 +127,10 @@ private fun scanFolder(
         }
 }
 
-private fun File.toScanEvent(source: LibrarySource, root: File): PlatformScanEvent {
+private fun File.toScanEvent(
+    source: LibrarySource,
+    root: File
+): PlatformScanEvent {
     val key = relativeTo(root).invariantSeparatorsPath
     return audioCandidateForSourceFile(
         source = source,
@@ -122,4 +148,5 @@ private fun File.displayPath(root: File, fallback: String): String {
     return relativeTo(root).invariantSeparatorsPath.ifBlank { fallback }
 }
 
-actual fun createPlatformSourceAccess(): PlatformSourceAccess = JvmFolderSourceAccess()
+actual fun createPlatformSourceAccess(): PlatformSourceAccess =
+    JvmFolderSourceAccess()

@@ -34,8 +34,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
-import top.yukonga.miuix.kmp.basic.Text
 import kotlin.math.max
+import top.yukonga.miuix.kmp.basic.Text
 
 fun formatMillis(totalMillis: Long?): String {
     if (totalMillis == null) return "--:--"
@@ -50,9 +50,14 @@ internal fun scrubberFractionForOffset(offsetX: Float, widthPx: Float): Float {
     return (offsetX / widthPx).coerceIn(0f, 1f)
 }
 
-internal fun scrubberPositionForFraction(fraction: Float, durationMillis: Long): Long {
+internal fun scrubberPositionForFraction(
+    fraction: Float,
+    durationMillis: Long
+): Long {
     if (durationMillis <= 0L) return 0L
-    return (durationMillis * fraction.coerceIn(0f, 1f)).toLong().coerceIn(0L, durationMillis)
+    return (durationMillis * fraction.coerceIn(0f, 1f))
+        .toLong()
+        .coerceIn(0L, durationMillis)
 }
 
 internal interface ScrubFractionState {
@@ -73,7 +78,8 @@ private fun rememberComposeScrubFractionState(): ScrubFractionState = remember {
 internal class MusicScrubInteractionState(
     positionMillis: Long,
     durationMillis: Long,
-    private val scrubFractionState: ScrubFractionState = PlainScrubFractionState(),
+    private val scrubFractionState: ScrubFractionState =
+        PlainScrubFractionState(),
 ) {
     private var playbackPositionMillis: Long = positionMillis.coerceAtLeast(0L)
     private var playbackDurationMillis: Long = durationMillis.coerceAtLeast(0L)
@@ -84,14 +90,22 @@ internal class MusicScrubInteractionState(
         }
 
     val displayPositionMillis: Long
-        get() = scrubFraction?.let { scrubberPositionForFraction(it, playbackDurationMillis) }
-            ?: playbackPositionMillis.coerceIn(0L, playbackDurationMillis.takeIf { it > 0L } ?: Long.MAX_VALUE)
+        get() =
+            scrubFraction?.let {
+                scrubberPositionForFraction(it, playbackDurationMillis)
+            }
+                ?: playbackPositionMillis.coerceIn(
+                    0L,
+                    playbackDurationMillis.takeIf { it > 0L } ?: Long.MAX_VALUE)
 
     val displayFraction: Float
         get() {
             val duration = playbackDurationMillis
             if (duration <= 0L) return 0f
-            return scrubFraction ?: (playbackPositionMillis.coerceIn(0L, duration).toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+            return scrubFraction
+                ?: (playbackPositionMillis.coerceIn(0L, duration).toFloat() /
+                        duration.toFloat())
+                    .coerceIn(0f, 1f)
         }
 
     fun updatePlaybackPosition(positionMillis: Long, durationMillis: Long) {
@@ -108,7 +122,9 @@ internal class MusicScrubInteractionState(
     }
 
     fun finishScrub(): Long? {
-        val target = scrubFraction?.let { scrubberPositionForFraction(it, playbackDurationMillis) }
+        val target = scrubFraction?.let {
+            scrubberPositionForFraction(it, playbackDurationMillis)
+        }
         scrubFraction = null
         return target
     }
@@ -126,88 +142,108 @@ internal fun MusicProgressScrubber(
     modifier: Modifier = Modifier,
 ) {
     val scrubFractionState = rememberComposeScrubFractionState()
-    val interactionState = remember { MusicScrubInteractionState(positionMillis, durationMillis, scrubFractionState) }
+    val interactionState = remember {
+        MusicScrubInteractionState(
+            positionMillis, durationMillis, scrubFractionState)
+    }
     interactionState.updatePlaybackPosition(positionMillis, durationMillis)
 
     var widthPx by remember { mutableFloatStateOf(0f) }
     val displayFraction = interactionState.displayFraction
     val displayPositionMillis = interactionState.displayPositionMillis
     val density = LocalDensity.current
-    val thumbOffset = with(density) { (widthPx * displayFraction).toDp() - 7.dp }
+    val thumbOffset =
+        with(density) { (widthPx * displayFraction).toDp() - 7.dp }
 
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .onSizeChanged { widthPx = it.width.toFloat() }
-                .pointerInput(durationMillis, onSeek) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        fun fractionFor(x: Float) = scrubberFractionForOffset(x, widthPx)
-                        fun finishIfReleased(activePointerId: PointerId): Boolean {
-                            val change = currentEvent.changes.firstOrNull { it.id == activePointerId }
-                            return change?.changedToUpIgnoreConsumed() == true
-                        }
-
-                        interactionState.startScrub(fractionFor(down.position.x))
-                        val activePointerId = down.id
-                        var shouldSeekOnRelease = false
-
-                        try {
-                            var released = finishIfReleased(activePointerId)
-                            while (!released) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == activePointerId }
-                                if (change == null) {
-                                    return@awaitEachGesture
-                                }
-
-                                if (change.pressed) {
-                                    if (change.positionChanged() || change.positionChange().x != 0f) {
-                                        interactionState.updateScrub(fractionFor(change.position.x))
+            modifier =
+                Modifier.fillMaxWidth()
+                    .height(44.dp)
+                    .onSizeChanged { widthPx = it.width.toFloat() }
+                    .pointerInput(durationMillis, onSeek) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            fun fractionFor(x: Float) =
+                                scrubberFractionForOffset(x, widthPx)
+                            fun finishIfReleased(
+                                activePointerId: PointerId
+                            ): Boolean {
+                                val change =
+                                    currentEvent.changes.firstOrNull {
+                                        it.id == activePointerId
                                     }
-                                    change.consume()
+                                return change?.changedToUpIgnoreConsumed() ==
+                                    true
+                            }
+
+                            interactionState.startScrub(
+                                fractionFor(down.position.x))
+                            val activePointerId = down.id
+                            var shouldSeekOnRelease = false
+
+                            try {
+                                var released = finishIfReleased(activePointerId)
+                                while (!released) {
+                                    val event = awaitPointerEvent()
+                                    val change =
+                                        event.changes.firstOrNull {
+                                            it.id == activePointerId
+                                        }
+                                    if (change == null) {
+                                        return@awaitEachGesture
+                                    }
+
+                                    if (change.pressed) {
+                                        if (change.positionChanged() ||
+                                            change.positionChange().x != 0f) {
+                                            interactionState.updateScrub(
+                                                fractionFor(change.position.x))
+                                        }
+                                        change.consume()
+                                    } else {
+                                        released = true
+                                    }
+                                }
+                                shouldSeekOnRelease = true
+                            } finally {
+                                if (shouldSeekOnRelease) {
+                                    interactionState.finishScrub()?.let(onSeek)
                                 } else {
-                                    released = true
+                                    interactionState.cancelScrub()
                                 }
                             }
-                            shouldSeekOnRelease = true
-                        } finally {
-                            if (shouldSeekOnRelease) {
-                                interactionState.finishScrub()?.let(onSeek)
-                            } else {
-                                interactionState.cancelScrub()
-                            }
                         }
-                    }
-                },
+                    },
             contentAlignment = Alignment.CenterStart,
         ) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(HausColors.current.line),
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(HausColors.current.line),
             )
             Box(
-                modifier = Modifier
-                    .fillMaxWidth(displayFraction)
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(HausColors.current.pulse),
+                modifier =
+                    Modifier.fillMaxWidth(displayFraction)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(HausColors.current.pulse),
             )
             Box(
-                modifier = Modifier
-                    .offset(x = thumbOffset.coerceAtLeast(0.dp))
-                    .size(14.dp)
-                    .clip(CircleShape)
-                    .background(HausColors.current.pulse)
-                    .border(width = 2.dp, color = HausColors.current.paper, shape = CircleShape),
+                modifier =
+                    Modifier.offset(x = thumbOffset.coerceAtLeast(0.dp))
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(HausColors.current.pulse)
+                        .border(
+                            width = 2.dp,
+                            color = HausColors.current.paper,
+                            shape = CircleShape),
             )
         }
         Row(

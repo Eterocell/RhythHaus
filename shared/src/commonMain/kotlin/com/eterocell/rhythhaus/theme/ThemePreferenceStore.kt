@@ -19,9 +19,11 @@ interface ThemePreferenceStore {
 class DataStoreThemePreferenceStore(
     private val dataStore: DataStore<Preferences>,
 ) : ThemePreferenceStore {
-    override val selectedThemeMode: Flow<RhythHausThemeMode> = dataStore.data.map { preferences ->
-        RhythHausThemeMode.fromSerialized(preferences[ThemeModePreferenceKey])
-    }
+    override val selectedThemeMode: Flow<RhythHausThemeMode> =
+        dataStore.data.map { preferences ->
+            RhythHausThemeMode.fromSerialized(
+                preferences[ThemeModePreferenceKey])
+        }
 
     override suspend fun setSelectedThemeMode(mode: RhythHausThemeMode) {
         dataStore.edit { preferences ->
@@ -32,5 +34,4 @@ class DataStoreThemePreferenceStore(
 
 expect fun createThemePreferenceStore(): ThemePreferenceStore
 
-@Composable
-expect fun systemPrefersDarkTheme(): Boolean
+@Composable expect fun systemPrefersDarkTheme(): Boolean

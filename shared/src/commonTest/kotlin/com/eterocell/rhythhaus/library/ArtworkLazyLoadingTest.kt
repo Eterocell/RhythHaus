@@ -15,14 +15,15 @@ class ArtworkLazyLoadingTest {
         repository.upsertSource(testSource())
         repository.upsertTrack(
             testTrack(
-                id = "track-with-artwork",
-                sourceLocalKey = "track.mp3",
-                title = "Track",
-                artist = "Artist",
-            ).copy(
-                artworkBytes = artworkBytes,
-                artworkMimeType = "image/jpeg",
-            ),
+                    id = "track-with-artwork",
+                    sourceLocalKey = "track.mp3",
+                    title = "Track",
+                    artist = "Artist",
+                )
+                .copy(
+                    artworkBytes = artworkBytes,
+                    artworkMimeType = "image/jpeg",
+                ),
         )
 
         val routineTrack = repository.tracks().single()
@@ -38,32 +39,34 @@ class ArtworkLazyLoadingTest {
 
 private fun testSource(
     id: String = "source-1",
-) = LibrarySource(
-    id = id,
-    platformKind = LibraryPlatformKind.JvmFolder,
-    displayName = "Music",
-    handle = "/Music",
-    createdAtEpochMillis = 1L,
-)
+) =
+    LibrarySource(
+        id = id,
+        platformKind = LibraryPlatformKind.JvmFolder,
+        displayName = "Music",
+        handle = "/Music",
+        createdAtEpochMillis = 1L,
+    )
 
 private fun testTrack(
     id: String,
     sourceLocalKey: String,
     title: String,
     artist: String,
-) = LibraryTrack(
-    id = id,
-    sourceId = "source-1",
-    sourceLocalKey = sourceLocalKey,
-    audioSource = AudioSource.FilePath("/Music/$sourceLocalKey"),
-    displayName = sourceLocalKey,
-    title = title,
-    artist = artist,
-    album = "Imported audio",
-    durationMillis = null,
-    sizeBytes = null,
-    modifiedAtEpochMillis = null,
-    lastSeenScanId = "scan-1",
-    createdAtEpochMillis = 1L,
-    updatedAtEpochMillis = 2L,
-)
+) =
+    LibraryTrack(
+        id = id,
+        sourceId = "source-1",
+        sourceLocalKey = sourceLocalKey,
+        audioSource = AudioSource.FilePath("/Music/$sourceLocalKey"),
+        displayName = sourceLocalKey,
+        title = title,
+        artist = artist,
+        album = "Imported audio",
+        durationMillis = null,
+        sizeBytes = null,
+        modifiedAtEpochMillis = null,
+        lastSeenScanId = "scan-1",
+        createdAtEpochMillis = 1L,
+        updatedAtEpochMillis = 2L,
+    )

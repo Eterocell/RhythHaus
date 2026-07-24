@@ -24,22 +24,29 @@ private val themeDataStore by lazy {
     )
 }
 
-actual fun createThemePreferenceStore(): ThemePreferenceStore = DataStoreThemePreferenceStore(themeDataStore)
+actual fun createThemePreferenceStore(): ThemePreferenceStore =
+    DataStoreThemePreferenceStore(themeDataStore)
 
 @OptIn(ExperimentalForeignApi::class)
 private fun themePreferencePath(): String {
     val fileManager = NSFileManager.defaultManager
-    val applicationSupport = fileManager.URLForDirectory(
-        directory = NSApplicationSupportDirectory,
-        inDomain = NSUserDomainMask,
-        appropriateForURL = null,
-        create = true,
-        error = null,
-    )?.path ?: error("Could not resolve application support directory")
+    val applicationSupport =
+        fileManager
+            .URLForDirectory(
+                directory = NSApplicationSupportDirectory,
+                inDomain = NSUserDomainMask,
+                appropriateForURL = null,
+                create = true,
+                error = null,
+            )
+            ?.path ?: error("Could not resolve application support directory")
     val folder = "$applicationSupport/$ApplicationSupportFolderName"
-    fileManager.createDirectoryAtPath(folder, withIntermediateDirectories = true, attributes = null, error = null)
+    fileManager.createDirectoryAtPath(
+        folder,
+        withIntermediateDirectories = true,
+        attributes = null,
+        error = null)
     return "$folder/$ThemePreferenceFileName"
 }
 
-@Composable
-actual fun systemPrefersDarkTheme(): Boolean = isSystemInDarkTheme()
+@Composable actual fun systemPrefersDarkTheme(): Boolean = isSystemInDarkTheme()

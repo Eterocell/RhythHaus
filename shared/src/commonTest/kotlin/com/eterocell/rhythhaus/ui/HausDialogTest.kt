@@ -26,7 +26,8 @@ class HausDialogTest {
         val presentation = hausDialogPresentation(LightHausPalette)
 
         assertEquals(LightHausPalette.panel, presentation.panelColor)
-        assertEquals(LightHausPalette.ink.copy(alpha = 0.36f), presentation.scrimColor)
+        assertEquals(
+            LightHausPalette.ink.copy(alpha = 0.36f), presentation.scrimColor)
     }
 
     @Test

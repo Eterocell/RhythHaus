@@ -11,16 +11,20 @@ class LibraryDatabaseAndroidHostTest {
     fun productionAndroidCallbackRejectsInvalidPlaylistEntryForeignKeys() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         RhythHausDatabase.Schema.create(driver)
-        val supportDatabase = Proxy.newProxyInstance(
-            SupportSQLiteDatabase::class.java.classLoader,
-            arrayOf(SupportSQLiteDatabase::class.java),
-        ) { _, method, arguments ->
-            if (method.name == "setForeignKeyConstraintsEnabled") {
-                val enabled = arguments?.single() as Boolean
-                driver.execute(null, "PRAGMA foreign_keys = ${if (enabled) "ON" else "OFF"}", 0)
-            }
-            defaultValue(method.returnType)
-        } as SupportSQLiteDatabase
+        val supportDatabase =
+            Proxy.newProxyInstance(
+                SupportSQLiteDatabase::class.java.classLoader,
+                arrayOf(SupportSQLiteDatabase::class.java),
+            ) { _, method, arguments ->
+                if (method.name == "setForeignKeyConstraintsEnabled") {
+                    val enabled = arguments?.single() as Boolean
+                    driver.execute(
+                        null,
+                        "PRAGMA foreign_keys = ${if (enabled) "ON" else "OFF"}",
+                        0)
+                }
+                defaultValue(method.returnType)
+            } as SupportSQLiteDatabase
 
         try {
             libraryDatabaseCallback().onOpen(supportDatabase)
@@ -40,14 +44,15 @@ class LibraryDatabaseAndroidHostTest {
     }
 }
 
-private fun defaultValue(type: Class<*>): Any? = when (type) {
-    Boolean::class.javaPrimitiveType -> false
-    Byte::class.javaPrimitiveType -> 0.toByte()
-    Short::class.javaPrimitiveType -> 0.toShort()
-    Int::class.javaPrimitiveType -> 0
-    Long::class.javaPrimitiveType -> 0L
-    Float::class.javaPrimitiveType -> 0f
-    Double::class.javaPrimitiveType -> 0.0
-    Char::class.javaPrimitiveType -> '\u0000'
-    else -> null
-}
+private fun defaultValue(type: Class<*>): Any? =
+    when (type) {
+        Boolean::class.javaPrimitiveType -> false
+        Byte::class.javaPrimitiveType -> 0.toByte()
+        Short::class.javaPrimitiveType -> 0.toShort()
+        Int::class.javaPrimitiveType -> 0
+        Long::class.javaPrimitiveType -> 0L
+        Float::class.javaPrimitiveType -> 0f
+        Double::class.javaPrimitiveType -> 0.0
+        Char::class.javaPrimitiveType -> '\u0000'
+        else -> null
+    }

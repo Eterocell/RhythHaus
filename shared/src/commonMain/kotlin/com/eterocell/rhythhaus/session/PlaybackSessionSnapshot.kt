@@ -19,16 +19,26 @@ data class PlaybackSessionSnapshot(
         @Suppress("UNUSED_PARAMETER") legacyTrackIds: Boolean = true,
     ) : this(
         queue = normalizeLegacyQueue(queueIds),
-        currentOccurrenceId = currentTrackId?.let { current ->
-            queueIds.indexOf(current).takeIf { it >= 0 }?.let(::legacyOccurrenceId)
-        },
+        currentOccurrenceId =
+            currentTrackId?.let { current ->
+                queueIds
+                    .indexOf(current)
+                    .takeIf { it >= 0 }
+                    ?.let(::legacyOccurrenceId)
+            },
         positionMillis = positionMillis,
         repeatMode = repeatMode,
         shuffleMode = shuffleMode,
     )
 
-    val queueIds: List<String> get() = queue.map { it.trackId }
-    val currentTrackId: String? get() = queue.firstOrNull { it.occurrenceId == currentOccurrenceId }?.trackId
+    val queueIds: List<String>
+        get() = queue.map { it.trackId }
+
+    val currentTrackId: String?
+        get() =
+            queue
+                .firstOrNull { it.occurrenceId == currentOccurrenceId }
+                ?.trackId
 }
 
 data class SessionQueueEntry(
@@ -46,10 +56,13 @@ object PlaybackSessionCodec {
         require(hasValidOccurrences(snapshot.queue))
         require(
             snapshot.currentOccurrenceId == null ||
-                snapshot.queue.any { it.occurrenceId == snapshot.currentOccurrenceId },
+                snapshot.queue.any {
+                    it.occurrenceId == snapshot.currentOccurrenceId
+                },
         )
         return encodeIds(
-            listOf(snapshot.currentOccurrenceId.orEmpty()) + snapshot.queue.flatMap { listOf(it.occurrenceId, it.trackId) },
+            listOf(snapshot.currentOccurrenceId.orEmpty()) +
+                snapshot.queue.flatMap { listOf(it.occurrenceId, it.trackId) },
             requireUnique = false,
             allowEmptyFirst = true,
             maxFrames = maxIds * 2 + 1,
@@ -57,18 +70,23 @@ object PlaybackSessionCodec {
     }
 
     fun decodeSnapshot(encoded: String): PlaybackSessionSnapshot? {
-        val values = decodeIds(
-            encoded,
-            requireUnique = false,
-            allowEmptyFirst = true,
-            maxFrames = maxIds * 2 + 1,
-        ) ?: return null
+        val values =
+            decodeIds(
+                encoded,
+                requireUnique = false,
+                allowEmptyFirst = true,
+                maxFrames = maxIds * 2 + 1,
+            ) ?: return null
         if (values.isEmpty() || (values.size - 1) % 2 != 0) return null
-        val queue = values.drop(1).chunked(2).map { SessionQueueEntry(it[0], it[1]) }
+        val queue =
+            values.drop(1).chunked(2).map { SessionQueueEntry(it[0], it[1]) }
         if (!hasValidOccurrences(queue)) return null
         val currentOccurrenceId = values.first().ifEmpty { null }
-        if (currentOccurrenceId != null && queue.none { it.occurrenceId == currentOccurrenceId }) return null
-        return PlaybackSessionSnapshot(queue = queue, currentOccurrenceId = currentOccurrenceId)
+        if (currentOccurrenceId != null &&
+            queue.none { it.occurrenceId == currentOccurrenceId })
+            return null
+        return PlaybackSessionSnapshot(
+            queue = queue, currentOccurrenceId = currentOccurrenceId)
     }
 
     fun encodeQueue(queue: List<SessionQueueEntry>): String {
@@ -81,12 +99,18 @@ object PlaybackSessionCodec {
     }
 
     fun decodeQueue(encoded: String): List<SessionQueueEntry>? {
-        val values = decodeIds(encoded, requireUnique = false, maxFrames = maxIds * 2) ?: return null
+        val values =
+            decodeIds(encoded, requireUnique = false, maxFrames = maxIds * 2)
+                ?: return null
         if (values.size % 2 != 0) return null
-        return values.chunked(2).map { SessionQueueEntry(it[0], it[1]) }.takeIf(::hasValidOccurrences)
+        return values
+            .chunked(2)
+            .map { SessionQueueEntry(it[0], it[1]) }
+            .takeIf(::hasValidOccurrences)
     }
 
-    fun encodeIds(ids: List<String>): String = encodeIds(ids, requireUnique = true)
+    fun encodeIds(ids: List<String>): String =
+        encodeIds(ids, requireUnique = true)
 
     private fun encodeIds(
         ids: List<String>,
@@ -101,7 +125,9 @@ object PlaybackSessionCodec {
         return buildString {
             var encodedSize = 0
             ids.forEachIndexed { index, id ->
-                require((id.isNotEmpty() || allowEmptyFirst && index == 0) && id.length <= maxIdCharacters)
+                require(
+                    (id.isNotEmpty() || allowEmptyFirst && index == 0) &&
+                        id.length <= maxIdCharacters)
                 require(!id.hasUnpairedSurrogate())
                 val idUtf8Size = id.encodeToByteArray().size
                 require(idUtf8Size <= maxIdUtf8Bytes)
@@ -113,7 +139,8 @@ object PlaybackSessionCodec {
         }
     }
 
-    fun decodeIds(encoded: String): List<String>? = decodeIds(encoded, requireUnique = true)
+    fun decodeIds(encoded: String): List<String>? =
+        decodeIds(encoded, requireUnique = true)
 
     private fun decodeIds(
         encoded: String,
@@ -135,19 +162,26 @@ object PlaybackSessionCodec {
             while (index < encoded.length && encoded[index].isDigit()) {
                 val digit = encoded[index] - '0'
                 if (length > maxIdCharacters / 10 ||
-                    (length == maxIdCharacters / 10 && digit > maxIdCharacters % 10)
-                ) {
+                    (length == maxIdCharacters / 10 &&
+                        digit > maxIdCharacters % 10)) {
                     return null
                 }
                 length = length * 10 + digit
                 index++
             }
-            if (index == lengthStart || index >= encoded.length || encoded[index] != ':' || length == 0 && !(allowEmptyFirst && ids.isEmpty())) return null
+            if (index == lengthStart ||
+                index >= encoded.length ||
+                encoded[index] != ':' ||
+                length == 0 && !(allowEmptyFirst && ids.isEmpty()))
+                return null
             index++
             if (length > encoded.length - index) return null
 
             val id = encoded.substring(index, index + length)
-            if (id.isEmpty() && !(allowEmptyFirst && ids.isEmpty()) || id.hasUnpairedSurrogate() || id.encodeToByteArray().size > maxIdUtf8Bytes) return null
+            if (id.isEmpty() && !(allowEmptyFirst && ids.isEmpty()) ||
+                id.hasUnpairedSurrogate() ||
+                id.encodeToByteArray().size > maxIdUtf8Bytes)
+                return null
             if (requireUnique && !seen.add(id)) return null
             ids += id
             index += length
@@ -178,7 +212,11 @@ data class ProgressCheckpointKey(
     val secondBucket: Long,
 )
 
-internal fun normalizeLegacyQueue(trackIds: List<String>): List<SessionQueueEntry> = trackIds.mapIndexed { index, trackId -> SessionQueueEntry(legacyOccurrenceId(index), trackId) }
+internal fun normalizeLegacyQueue(
+    trackIds: List<String>
+): List<SessionQueueEntry> = trackIds.mapIndexed { index, trackId ->
+    SessionQueueEntry(legacyOccurrenceId(index), trackId)
+}
 
 private fun legacyOccurrenceId(index: Int): String = "legacy-$index"
 
@@ -186,7 +224,9 @@ private fun hasValidOccurrences(queue: List<SessionQueueEntry>): Boolean {
     if (queue.size > PlaybackSessionCodec.maxIds) return false
     val occurrenceIds = HashSet<String>(queue.size)
     return queue.all { entry ->
-        entry.occurrenceId.isNotEmpty() && entry.trackId.isNotEmpty() && occurrenceIds.add(entry.occurrenceId)
+        entry.occurrenceId.isNotEmpty() &&
+            entry.trackId.isNotEmpty() &&
+            occurrenceIds.add(entry.occurrenceId)
     }
 }
 
@@ -195,7 +235,8 @@ private fun String.hasUnpairedSurrogate(): Boolean {
     while (index < length) {
         val character = this[index]
         if (character.isHighSurrogate()) {
-            if (index + 1 >= length || !this[index + 1].isLowSurrogate()) return true
+            if (index + 1 >= length || !this[index + 1].isLowSurrogate())
+                return true
             index += 2
         } else if (character.isLowSurrogate()) {
             return true

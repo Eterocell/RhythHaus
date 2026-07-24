@@ -23,8 +23,11 @@ data class EmbeddedArtwork(
     val mimeType: String?,
     val bytes: ByteArray,
 ) {
-    override fun equals(other: Any?): Boolean = other is EmbeddedArtwork &&
-        mimeType == other.mimeType && bytes.contentEquals(other.bytes)
+    override fun equals(other: Any?): Boolean =
+        other is EmbeddedArtwork &&
+            mimeType == other.mimeType &&
+            bytes.contentEquals(other.bytes)
 
-    override fun hashCode(): Int = 31 * (mimeType?.hashCode() ?: 0) + bytes.contentHashCode()
+    override fun hashCode(): Int =
+        31 * (mimeType?.hashCode() ?: 0) + bytes.contentHashCode()
 }

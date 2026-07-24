@@ -17,7 +17,8 @@ import rhythhaus.shared.generated.resources.folder_picker_error_prepare
 actual fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
 ): PlatformFolderPickerLauncher {
-    val couldNotPrepareMessage = stringResource(Res.string.folder_picker_error_prepare)
+    val couldNotPrepareMessage =
+        stringResource(Res.string.folder_picker_error_prepare)
     return remember(onResult) {
         object : PlatformFolderPickerLauncher {
             override val isAvailable: Boolean = true
@@ -26,9 +27,11 @@ actual fun rememberPlatformFolderPickerLauncher(
             override fun launch() {
                 val result = runCatching {
                     PlatformFolderPickResult.Success(appLocalMusicSource())
-                }.getOrElse {
-                    PlatformFolderPickResult.Failure(message = couldNotPrepareMessage)
                 }
+                    .getOrElse {
+                        PlatformFolderPickResult.Failure(
+                            message = couldNotPrepareMessage)
+                    }
                 onResult(result)
             }
         }
@@ -36,24 +39,30 @@ actual fun rememberPlatformFolderPickerLauncher(
 }
 
 class IOSAppLocalSourceAccess : PlatformSourceAccess {
-    override fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus {
-        if (source.platformKind != LibraryPlatformKind.IosAppLocal) return LibrarySourceAccessStatus.LostAccess
-        return if (NSFileManager.defaultManager.fileExistsAtPath(source.handle)) {
+    override fun accessStatus(
+        source: LibrarySource
+    ): LibrarySourceAccessStatus {
+        if (source.platformKind != LibraryPlatformKind.IosAppLocal)
+            return LibrarySourceAccessStatus.LostAccess
+        return if (NSFileManager.defaultManager.fileExistsAtPath(
+            source.handle)) {
             LibrarySourceAccessStatus.Available
         } else {
             LibrarySourceAccessStatus.LostAccess
         }
     }
 
-    override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> = sequence {
-        require(source.platformKind == LibraryPlatformKind.IosAppLocal) {
-            "IOSAppLocalSourceAccess can only scan IosAppLocal sources"
+    override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> =
+        sequence {
+            require(source.platformKind == LibraryPlatformKind.IosAppLocal) {
+                "IOSAppLocalSourceAccess can only scan IosAppLocal sources"
+            }
+            require(
+                NSFileManager.defaultManager.fileExistsAtPath(source.handle)) {
+                    "Cannot read app-local music folder: ${source.handle}"
+                }
+            yieldAll(scanIosFolder(source, source.handle, emptyList()))
         }
-        require(NSFileManager.defaultManager.fileExistsAtPath(source.handle)) {
-            "Cannot read app-local music folder: ${source.handle}"
-        }
-        yieldAll(scanIosFolder(source, source.handle, emptyList()))
-    }
 }
 
 @OptIn(ExperimentalForeignApi::class)
@@ -80,12 +89,15 @@ private fun scanIosFolder(
     folderPath: String,
     pathSegments: List<String>,
 ): Sequence<PlatformScanEvent> = sequence {
-    val displayPath = pathSegments.joinToString("/").ifBlank { source.displayName }
+    val displayPath =
+        pathSegments.joinToString("/").ifBlank { source.displayName }
     yield(PlatformScanEvent.FolderVisited(displayPath))
-    val children = NSFileManager.defaultManager.contentsOfDirectoryAtPath(folderPath, error = null)
-        ?.filterIsInstance<String>()
-        ?.sortedBy { it.lowercase() }
-        .orEmpty()
+    val children =
+        NSFileManager.defaultManager
+            .contentsOfDirectoryAtPath(folderPath, error = null)
+            ?.filterIsInstance<String>()
+            ?.sortedBy { it.lowercase() }
+            .orEmpty()
     children.forEach { name ->
         val path = "$folderPath/$name"
         if (isDirectory(path)) {
@@ -110,25 +122,33 @@ private fun scanIosFolder(
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun appLocalMusicFolderPath(): String {
-    val urls = NSFileManager.defaultManager.URLsForDirectory(
-        directory = NSDocumentDirectory,
-        inDomains = NSUserDomainMask,
-    )
-    val documentsUrl = urls.firstOrNull() as? NSURL
-        ?: error("iOS documents directory is unavailable")
+    val urls =
+        NSFileManager.defaultManager.URLsForDirectory(
+            directory = NSDocumentDirectory,
+            inDomains = NSUserDomainMask,
+        )
+    val documentsUrl =
+        urls.firstOrNull() as? NSURL
+            ?: error("iOS documents directory is unavailable")
     return documentsUrl.path.orEmpty().trimEnd('/')
 }
 
 @OptIn(ExperimentalForeignApi::class)
 private fun isDirectory(path: String): Boolean {
-    val attributes = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null) ?: return false
-    return attributes[platform.Foundation.NSFileType] == platform.Foundation.NSFileTypeDirectory
+    val attributes =
+        NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null)
+            ?: return false
+    return attributes[platform.Foundation.NSFileType] ==
+        platform.Foundation.NSFileTypeDirectory
 }
 
 @OptIn(ExperimentalForeignApi::class)
 private fun fileSize(path: String): Long? {
-    val attributes = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null) ?: return null
+    val attributes =
+        NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null)
+            ?: return null
     return (attributes[NSFileSize] as? Number)?.toLong()?.takeIf { it >= 0L }
 }
 
-actual fun createPlatformSourceAccess(): PlatformSourceAccess = IOSAppLocalSourceAccess()
+actual fun createPlatformSourceAccess(): PlatformSourceAccess =
+    IOSAppLocalSourceAccess()

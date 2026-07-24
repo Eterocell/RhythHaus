@@ -26,8 +26,11 @@ data class PlaylistBackupEntry(
 )
 
 sealed interface PlaylistBackupDecodeResult {
-    data class Success(val document: PlaylistBackupDocument) : PlaylistBackupDecodeResult
-    data class Invalid(val error: PlaylistBackupValidationError) : PlaylistBackupDecodeResult
+    data class Success(val document: PlaylistBackupDocument) :
+        PlaylistBackupDecodeResult
+
+    data class Invalid(val error: PlaylistBackupValidationError) :
+        PlaylistBackupDecodeResult
 }
 
 enum class PlaylistBackupValidationError {

@@ -17,7 +17,9 @@ data class WriteMeta(
 
 sealed interface WriteResult {
     data object Success : WriteResult
+
     data class Unsupported(val reason: String) : WriteResult
+
     data class Failed(val reason: String) : WriteResult
 }
 

@@ -6,7 +6,9 @@ object Crc32 {
         for (byte in bytes) {
             crc = crc xor byte.toUByte().toUInt()
             repeat(8) {
-                crc = if ((crc and 1u) != 0u) (crc shr 1) xor 0xedb88320u else crc shr 1
+                crc =
+                    if ((crc and 1u) != 0u) (crc shr 1) xor 0xedb88320u
+                    else crc shr 1
             }
         }
         return (crc xor 0xffffffffu).toString(16).padStart(8, '0')
