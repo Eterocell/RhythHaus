@@ -1,3 +1,4 @@
+import com.diffplug.spotless.kotlin.KtfmtStep
 import com.eterocell.gradle.dsl.androidXml
 import com.eterocell.gradle.dsl.cAndCpp
 import com.eterocell.gradle.dsl.configureSpotless
@@ -14,7 +15,7 @@ plugins {
     id("com.diffplug.spotless")
 }
 
-val ktlintVersion: String = libs.findVersion("ktlint").get().requiredVersion
+val ktfmtVersion: String = libs.findVersion("ktfmt").get().requiredVersion
 val genCopyright = false
 
 allprojects {
@@ -54,20 +55,6 @@ allprojects {
         gradleVersionCatalogs()
 
         kotlin(
-            editorConfigPath = "${rootProject.rootDir}/.editorconfig",
-            editorConfigOverride =
-            mapOf(
-                "ktlint_standard_argument-list-wrapping" to "disabled",
-                "ktlint_standard_filename" to "disabled",
-                "ktlint_standard_no-wildcard-imports" to "disabled",
-                "ktlint_function_naming_ignore_when_annotated_with" to "Composable",
-                "ij_kotlin_allow_trailing_comma" to "true",
-                "ij_kotlin_allow_trailing_comma_on_call_site" to "true",
-                "ktlint_standard_argument-list-wrapping" to "disabled",
-                "ktlint_standard_filename" to "disabled",
-                "ktlint_standard_property-naming" to "disabled",
-                "ktlint_standard_mixed-condition-operators" to "disabled",
-            ),
             licenseHeaderFile =
             if (genCopyright) {
                 rootProject.file("spotless/copyright.kt").takeIf(File::exists)
@@ -79,23 +66,23 @@ allprojects {
                 updateYearWithLatest(true)
                 yearSeparator("-")
             },
-            ktlintVersion = ktlintVersion,
+            ktfmtVersion = ktfmtVersion,
+            ktfmtConfig = {
+                setMaxWidth(80)
+                setBlockIndent(4)
+                setContinuationIndent(4)
+                setTrailingCommaManagementStrategy(
+                    KtfmtStep.TrailingCommaManagementStrategy.NONE)
+            },
         )
         kotlinGradle(
-            editorConfigPath = "${rootProject.rootDir}/.editorconfig",
-            editorConfigOverride =
-            mapOf(
-                "ktlint_standard_argument-list-wrapping" to "disabled",
-                "ktlint_standard_filename" to "disabled",
-                "ktlint_standard_no-wildcard-imports" to "disabled",
-                "ij_kotlin_allow_trailing_comma" to "true",
-                "ij_kotlin_allow_trailing_comma_on_call_site" to "true",
-                "ktlint_standard_argument-list-wrapping" to "disabled",
-                "ktlint_standard_filename" to "disabled",
-                "ktlint_standard_property-naming" to "disabled",
-                "ktlint_standard_mixed-condition-operators" to "disabled",
-            ),
-            ktlintVersion = ktlintVersion,
-        )
+            ktfmtVersion = ktfmtVersion,
+            ktfmtConfig = {
+                setMaxWidth(80)
+                setBlockIndent(4)
+                setContinuationIndent(4)
+                setTrailingCommaManagementStrategy(
+                    KtfmtStep.TrailingCommaManagementStrategy.NONE)
+            })
     }
 }

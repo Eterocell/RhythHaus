@@ -4,6 +4,7 @@ import com.diffplug.gradle.spotless.FormatExtension
 import com.diffplug.gradle.spotless.SpotlessExtension
 import com.diffplug.gradle.spotless.SpotlessPlugin
 import com.diffplug.spotless.kotlin.KtLintStep
+import com.diffplug.spotless.kotlin.KtfmtStep
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.apply
 import org.gradle.kotlin.dsl.configure
@@ -52,21 +53,17 @@ fun SpotlessExtension.intelliJIDEARunConfiguration(
 fun SpotlessExtension.kotlin(
     targets: List<String> = listOf("src/**/*.kt"),
     excludeTargets: List<String> = listOf(),
-    ktlintVersion: String = KtLintStep.defaultVersion(),
+    ktfmtVersion: String = KtfmtStep.defaultVersion(),
+    ktfmtConfig: KtfmtStep.KtfmtFormattingOptions.() -> Unit = {},
     licenseHeaderFile: File? = null,
     licenseHeaderConfig: FormatExtension.LicenseHeaderConfig.() -> Unit = {},
-    editorConfigPath: String,
-    editorConfigOverride: Map<String, String> = mapOf(),
-    customKtlintRuleSets: List<String> = listOf(),
 ) = kotlin {
     target(targets)
     targetExclude(excludeTargets)
     leadingTabsToSpaces()
     trimTrailingWhitespace()
     endWithNewline()
-    ktlint(ktlintVersion).customRuleSets(customKtlintRuleSets)
-        .setEditorConfigPath(editorConfigPath.takeIf { File(it).exists() })
-        .editorConfigOverride(editorConfigOverride)
+    ktfmt(ktfmtVersion).googleStyle().configure(ktfmtConfig)
     licenseHeaderFile?.let(::licenseHeaderFile)?.apply(licenseHeaderConfig)
 }
 
@@ -78,10 +75,8 @@ fun SpotlessExtension.kotlinGradle(
     targets: List<String> = listOf("**/*.gradle.kts"),
     overrideExcludeTargets: Set<String> = setOf(),
     additionalExcludeTargets: Set<String> = setOf(),
-    ktlintVersion: String = KtLintStep.defaultVersion(),
-    editorConfigPath: String,
-    editorConfigOverride: Map<String, String> = mapOf(),
-    customKtlintRuleSets: List<String> = listOf(),
+    ktfmtVersion: String = KtfmtStep.defaultVersion(),
+    ktfmtConfig: KtfmtStep.KtfmtFormattingOptions.() -> Unit = {},
 ) = kotlinGradle {
     target(targets)
     targetExclude(
@@ -92,9 +87,7 @@ fun SpotlessExtension.kotlinGradle(
     leadingTabsToSpaces()
     trimTrailingWhitespace()
     endWithNewline()
-    ktlint(ktlintVersion).customRuleSets(customKtlintRuleSets)
-        .setEditorConfigPath(editorConfigPath.takeIf { File(it).exists() })
-        .editorConfigOverride(editorConfigOverride)
+    ktfmt(ktfmtVersion).googleStyle().configure(ktfmtConfig)
 }
 
 fun SpotlessExtension.cAndCpp(

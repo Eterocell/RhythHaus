@@ -1,6 +1,6 @@
 [versions]
 aboutlibraries = "15.0.4"
-agp = "9.3.0"
+agp = "9.3.1"
 android-compileSdk = "37"
 android-minSdk = "29"
 android-targetSdk = "37"
@@ -22,7 +22,7 @@ koin = "4.2.2"
 kotlin = "2.4.10"
 kotlinx-coroutines = "1.11.0"
 ksp = "2.3.10"
-ktlint = "1.8.0"
+ktfmt = "0.64"
 material3 = "1.11.0-alpha07"
 media3 = "1.10.1"
 miuix = "0.9.3"
@@ -69,7 +69,7 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 kotlinx-coroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutinesSwing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
-ktlint-cli = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint" }
+ktfmt = { module = "com.facebook:ktfmt", version.ref = "ktfmt" }
 miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur", version.ref = "miuix" }
 miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference", version.ref = "miuix" }
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuix" }
