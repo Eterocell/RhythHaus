@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1332,7 +1333,7 @@ private fun PlaylistTabs(selected: PlaylistTab, onSelect: (PlaylistTab) -> Unit)
 @Composable
 private fun PlaylistHubRow(playlist: Playlist, entryCount: Int, onClick: () -> Unit) {
     val label = stringResource(Res.string.playlist_row_accessibility_format, playlist.name, entryCount)
-    Card(modifier = Modifier.fillMaxWidth().hausClickable(onClick).semantics { contentDescription = label }, cornerRadius = 20.dp, colors = CardDefaults.defaultColors(HausColors.current.panel)) {
+    Card(modifier = Modifier.clip(RoundedCornerShape(20.dp)).fillMaxWidth().hausClickable(onClick).semantics { contentDescription = label }, cornerRadius = 20.dp, colors = CardDefaults.defaultColors(HausColors.current.panel)) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(playlist.name, color = HausColors.current.ink, fontWeight = FontWeight.Black)
@@ -1365,7 +1366,7 @@ private fun PlaylistEntryRow(
     val duration = formatDuration(((row.track.durationMillis ?: 0L) / 1_000L).toInt())
     val rowDescription = "${row.track.title}, ${row.track.artist}, ${row.track.album}, $duration"
     BoxWithConstraints(
-        Modifier.fillMaxWidth().onGloballyPositioned { coordinates -> rowCenters[rowIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f }.border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp)).background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(20.dp)).hausCombinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = rowDescription).semantics { contentDescription = rowDescription }.padding(12.dp),
+        Modifier.clip(RoundedCornerShape(20.dp)).fillMaxWidth().onGloballyPositioned { coordinates -> rowCenters[rowIndex] = coordinates.positionInRoot().y + coordinates.size.height / 2f }.border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp)).background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(20.dp)).hausCombinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = rowDescription).semantics { contentDescription = rowDescription }.padding(12.dp),
     ) {
         val layoutPolicy = playlistDetailRowLayoutPolicy(maxWidth, mode == PlaylistDetailRowMode.Edit)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
