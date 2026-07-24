@@ -2,11 +2,11 @@ package com.eterocell.rhythhaus.ui
 
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
-import kotlin.math.min
-import kotlin.math.roundToInt
 import org.jetbrains.skia.Rect
 import org.jetbrains.skia.SamplingMode
 import org.jetbrains.skia.Surface
+import kotlin.math.min
+import kotlin.math.roundToInt
 import org.jetbrains.skia.Image as SkiaImage
 
 actual fun ByteArray.decodeArtwork(): ImageBitmap? = try {

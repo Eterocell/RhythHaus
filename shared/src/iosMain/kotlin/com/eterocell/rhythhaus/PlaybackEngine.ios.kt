@@ -24,8 +24,8 @@ import platform.MediaPlayer.MPNowPlayingInfoPropertyElapsedPlaybackTime
 import platform.MediaPlayer.MPNowPlayingInfoPropertyIsLiveStream
 import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
-import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusCommandFailed
+import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 
 actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine = IOSPlaybackEngine()
 
@@ -232,9 +232,9 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             remoteTransportGate.play {
                 val provider = audioProvider ?: return@play
                 if (provider.play()) {
-                updateNowPlayingInfo(positionMillis = provider.currentPositionMillis(), playbackRate = 1.0)
-                listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
-                startProgressLoop()
+                    updateNowPlayingInfo(positionMillis = provider.currentPositionMillis(), playbackRate = 1.0)
+                    listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
+                    startProgressLoop()
                 }
             }
         }
@@ -294,8 +294,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         }
     }
 
-    private fun isCurrentSource(generation: Long, version: Long): Boolean =
-        generation == activeGeneration && version == sourceVersion
+    private fun isCurrentSource(generation: Long, version: Long): Boolean = generation == activeGeneration && version == sourceVersion
 
     private fun updateNowPlayingInfo(positionMillis: Long, playbackRate: Double = 1.0) {
         val track = loadedTrack ?: return
@@ -412,5 +411,6 @@ private fun AudioSource.iosFilePath(): String = when (this) {
     }
 
     is AudioSource.Uri -> NSURL.URLWithString(value)?.path ?: error("Invalid iOS audio URL: $value")
+
     is AudioSource.FileDescriptor -> error("File descriptor audio sources are metadata-only and cannot be played")
 }

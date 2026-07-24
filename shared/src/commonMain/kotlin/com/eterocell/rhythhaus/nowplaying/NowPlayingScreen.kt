@@ -28,20 +28,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.ui.ArtworkImageRole
-import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
-import com.eterocell.rhythhaus.ui.MusicProgressScrubber
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
 import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.ui.NowPlayingAdaptiveLayoutMode
+import com.eterocell.rhythhaus.library.ui.nowPlayingAdaptiveLayoutModeFor
+import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
+import com.eterocell.rhythhaus.ui.MusicProgressScrubber
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
-import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.taglib.TagLibReader
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.album_artwork
@@ -68,8 +70,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
-import com.eterocell.rhythhaus.library.ui.NowPlayingAdaptiveLayoutMode
-import com.eterocell.rhythhaus.library.ui.nowPlayingAdaptiveLayoutModeFor
 
 private data class NowPlayingUiState(
     val durationMillis: Long,
@@ -138,6 +138,7 @@ fun NowPlayingScreen(
                     uiState = uiState,
                     brush = brush,
                 )
+
                 NowPlayingAdaptiveLayoutMode.Split -> WideNowPlayingLayout(
                     track = track,
                     playbackState = playbackState,

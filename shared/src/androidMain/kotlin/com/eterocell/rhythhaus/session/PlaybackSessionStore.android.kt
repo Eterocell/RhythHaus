@@ -4,11 +4,11 @@ import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.emptyPreferences
 import com.eterocell.rhythhaus.library.LibraryDatabaseContext
-import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import okio.Path.Companion.toOkioPath
+import java.io.File
 
 private const val PlaybackSessionPreferenceFileName = "playback_session.preferences_pb"
 
@@ -22,5 +22,4 @@ private val playbackSessionDataStore by lazy {
     )
 }
 
-actual fun createPlaybackSessionStore(): PlaybackSessionStore =
-    DataStorePlaybackSessionStore(playbackSessionDataStore)
+actual fun createPlaybackSessionStore(): PlaybackSessionStore = DataStorePlaybackSessionStore(playbackSessionDataStore)

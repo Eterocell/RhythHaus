@@ -314,23 +314,21 @@ class PlaylistBackupCodecTest {
         rootPrefix: String = "",
         playlistPrefix: String = "",
         entryPrefix: String = "",
-    ): ByteArray {
-        return checksummed(
-            documentText(
-                format = format,
-                version = version,
-                exportedAt = exportedAt,
-                playlists = playlists,
-                playlistName = playlistName,
-                entries = entries,
-                duration = duration,
-                entryTitle = entryTitle,
-                rootPrefix = rootPrefix,
-                playlistPrefix = playlistPrefix,
-                entryPrefix = entryPrefix,
-            ),
-        )
-    }
+    ): ByteArray = checksummed(
+        documentText(
+            format = format,
+            version = version,
+            exportedAt = exportedAt,
+            playlists = playlists,
+            playlistName = playlistName,
+            entries = entries,
+            duration = duration,
+            entryTitle = entryTitle,
+            rootPrefix = rootPrefix,
+            playlistPrefix = playlistPrefix,
+            entryPrefix = entryPrefix,
+        ),
+    )
 
     private fun documentText(
         format: String = "rhythhaus-playlist-backup",
@@ -370,8 +368,7 @@ class PlaylistBackupCodecTest {
         return (payload.dropLast(1) + ",\"checksumCrc32\":\"$checksum\"}").encodeToByteArray()
     }
 
-    private fun entry(title: String = "T", duration: Int = 1): PlaylistBackupEntry =
-        PlaylistBackupEntry(title, "A", "B", duration)
+    private fun entry(title: String = "T", duration: Int = 1): PlaylistBackupEntry = PlaylistBackupEntry(title, "A", "B", duration)
 
     private fun playlist(
         name: String = "P",

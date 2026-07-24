@@ -1,8 +1,8 @@
 package com.eterocell.rhythhaus.library.ui
 
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -12,9 +12,9 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.v2.runComposeUiTest
+import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.AudioSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

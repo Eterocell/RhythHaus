@@ -1,8 +1,8 @@
 package com.eterocell.rhythhaus.session
 
 import com.eterocell.rhythhaus.AudioSource
-import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.FakePlaybackEngine
+import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.QueueMutationResult
@@ -11,11 +11,6 @@ import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryTrack
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFails
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -33,6 +28,11 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFails
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class PlaybackSessionCoordinatorTest {
     @Test
@@ -158,7 +158,9 @@ class PlaybackSessionCoordinatorTest {
                         runBlocking { allowMutationShuffle.await() }
                         ids
                     }
+
                     currentId == "current-b" -> listOf("current-b", "upcoming-b-2", "upcoming-b-1")
+
                     else -> ids
                 }
             },
@@ -842,11 +844,9 @@ private class GatedCheckpointSessionController(
     override suspend fun restoreSession(
         snapshot: PlaybackSessionSnapshot,
         tracks: List<PlayableTrack>,
-    ): RevisionedPlaybackSessionSnapshot =
-        delegate.restoreSession(snapshot, tracks)
+    ): RevisionedPlaybackSessionSnapshot = delegate.restoreSession(snapshot, tracks)
 
-    override suspend fun reconcileSession(tracks: List<PlayableTrack>): RevisionedPlaybackSessionSnapshot =
-        delegate.reconcileSession(tracks)
+    override suspend fun reconcileSession(tracks: List<PlayableTrack>): RevisionedPlaybackSessionSnapshot = delegate.reconcileSession(tracks)
 
     override suspend fun awaitCheckpointFence() {
         if (!gated) delegate.awaitCheckpointFence()
@@ -1035,5 +1035,4 @@ private fun libraryTracks(vararg ids: String): List<LibraryTrack> = ids.map { id
     )
 }
 
-private fun detachedScope(context: kotlin.coroutines.CoroutineContext): CoroutineScope =
-    CoroutineScope(context.minusKey(Job) + SupervisorJob())
+private fun detachedScope(context: kotlin.coroutines.CoroutineContext): CoroutineScope = CoroutineScope(context.minusKey(Job) + SupervisorJob())

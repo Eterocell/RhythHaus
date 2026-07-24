@@ -30,8 +30,11 @@ object PlaylistBackupCodec {
                         PlaylistBackupPayload(parsed.document.exportedAtEpochMillis, parsed.document.playlists),
                         checksum,
                     )
-                    if (text != canonical) invalid(PlaylistBackupValidationError.NON_CANONICAL_JSON)
-                    else PlaylistBackupDecodeResult.Success(parsed.document)
+                    if (text != canonical) {
+                        invalid(PlaylistBackupValidationError.NON_CANONICAL_JSON)
+                    } else {
+                        PlaylistBackupDecodeResult.Success(parsed.document)
+                    }
                 }
             }
         } catch (exception: BackupParseException) {
@@ -64,8 +67,7 @@ object PlaylistBackupCodec {
         append("]}")
     }.toString()
 
-    private fun completeDocument(payload: PlaylistBackupPayload, checksum: String): String =
-        canonicalPayload(payload).dropLast(1) + ",\"checksumCrc32\":\"$checksum\"}"
+    private fun completeDocument(payload: PlaylistBackupPayload, checksum: String): String = canonicalPayload(payload).dropLast(1) + ",\"checksumCrc32\":\"$checksum\"}"
 
     private fun BoundedJsonWriter.appendJsonString(value: String) {
         append('"')
@@ -74,18 +76,27 @@ object PlaylistBackupCodec {
             val char = value[index]
             when (char) {
                 '"' -> append("\\\"")
+
                 '\\' -> append("\\\\")
+
                 '\b' -> append("\\b")
+
                 '\u000c' -> append("\\f")
+
                 '\n' -> append("\\n")
+
                 '\r' -> append("\\r")
+
                 '\t' -> append("\\t")
+
                 else -> when {
                     char.code < 0x20 -> append("\\u").append(char.code.toString(16).padStart(4, '0'))
+
                     char.isHighSurrogate() -> {
                         append(value.substring(index, index + 2))
                         index++
                     }
+
                     else -> append(char)
                 }
             }
@@ -138,12 +149,14 @@ object PlaylistBackupCodec {
                     result.append(first.toChar())
                     index++
                 }
+
                 first in 0xc2..0xdf -> {
                     if (index + 1 >= bytes.size) return null
                     val second = continuation(bytes[index + 1]) ?: return null
                     result.append(((first and 0x1f) shl 6 or second).toChar())
                     index += 2
                 }
+
                 first in 0xe0..0xef -> {
                     if (index + 2 >= bytes.size) return null
                     val secondByte = bytes[index + 1].toInt() and 0xff
@@ -153,6 +166,7 @@ object PlaylistBackupCodec {
                     result.append(((first and 0x0f) shl 12 or (second shl 6) or third).toChar())
                     index += 3
                 }
+
                 first in 0xf0..0xf4 -> {
                     if (index + 3 >= bytes.size) return null
                     val secondByte = bytes[index + 1].toInt() and 0xff
@@ -166,6 +180,7 @@ object PlaylistBackupCodec {
                     result.append((0xdc00 + (adjusted and 0x3ff)).toChar())
                     index += 4
                 }
+
                 else -> return null
             }
         }
@@ -189,12 +204,15 @@ object PlaylistBackupCodec {
                 val char = value[index]
                 val byteCount = when {
                     char.code <= 0x7f -> 1
+
                     char.code <= 0x7ff -> 2
+
                     char.isHighSurrogate() -> {
                         require(index + 1 < value.length && value[index + 1].isLowSurrogate())
                         index++
                         4
                     }
+
                     else -> 3
                 }
                 require(utf8Bytes <= PlaylistBackupLimits.MAX_BYTES - byteCount) {

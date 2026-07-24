@@ -1,9 +1,9 @@
 package com.eterocell.rhythhaus.di
 
 import com.eterocell.rhythhaus.AudioMetadataReader
+import com.eterocell.rhythhaus.PlatformPlaybackEngine
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackProcessLifecycle
-import com.eterocell.rhythhaus.PlatformPlaybackEngine
 import com.eterocell.rhythhaus.createPlatformPlaybackEngine
 import com.eterocell.rhythhaus.library.LibraryDatabase
 import com.eterocell.rhythhaus.library.LibraryRepository
@@ -16,15 +16,15 @@ import com.eterocell.rhythhaus.library.createLibraryDatabase
 import com.eterocell.rhythhaus.library.createPlatformSourceAccess
 import com.eterocell.rhythhaus.library.currentTimeMillis
 import com.eterocell.rhythhaus.library.uuid4
-import com.eterocell.rhythhaus.taglib.TagLibReader
-import com.eterocell.rhythhaus.taglib.createTagLibReader
-import com.eterocell.rhythhaus.theme.ThemePreferenceStore
-import com.eterocell.rhythhaus.theme.createThemePreferenceStore
 import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionCoordinator
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import com.eterocell.rhythhaus.session.PlaybackSessionStore
 import com.eterocell.rhythhaus.session.createPlaybackSessionStore
+import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.taglib.createTagLibReader
+import com.eterocell.rhythhaus.theme.ThemePreferenceStore
+import com.eterocell.rhythhaus.theme.createThemePreferenceStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

@@ -72,11 +72,16 @@ fun libraryBottomBarContent(
     isNowPlayingVisible: Boolean,
 ): LibraryBottomBarContent {
     val selectionMatchesVisibleSurface = when (val pageKey = selectionState.pageKey) {
-        TrackSelectionPageKey.HomeSongs -> route == LibraryRoute.Home || route is LibraryRoute.AlbumDetail ||
-            route is LibraryRoute.ArtistDetail || route == LibraryRoute.PlaylistHub || route is LibraryRoute.PlaylistDetail
+        TrackSelectionPageKey.HomeSongs ->
+            route == LibraryRoute.Home || route is LibraryRoute.AlbumDetail ||
+                route is LibraryRoute.ArtistDetail || route == LibraryRoute.PlaylistHub || route is LibraryRoute.PlaylistDetail
+
         is TrackSelectionPageKey.Album -> route == LibraryRoute.AlbumDetail(pageKey.album)
+
         is TrackSelectionPageKey.Artist -> route == LibraryRoute.ArtistDetail(pageKey.artist)
+
         TrackSelectionPageKey.Search -> route == LibraryRoute.Search
+
         null -> false
     }
     return when {
@@ -84,7 +89,9 @@ fun libraryBottomBarContent(
             selectionState.selectedTrackIds.isNotEmpty() &&
             routePermitsNowPlayingBar(route) ->
             LibraryBottomBarContent.Selection(selectionState.selectedTrackIds.size)
+
         shouldShowNowPlayingBar(route, isNowPlayingVisible) -> LibraryBottomBarContent.NowPlaying
+
         else -> LibraryBottomBarContent.Hidden
     }
 }
@@ -165,8 +172,7 @@ fun trackSelectionPageKeyFor(route: LibraryRoute, browseMode: BrowseMode): Track
     else -> null
 }
 
-fun nowPlayingBarOffsetPx(hiddenFraction: Float, measuredHeightPx: Int): Int =
-    (hiddenFraction.coerceIn(0f, 1f) * measuredHeightPx).roundToInt()
+fun nowPlayingBarOffsetPx(hiddenFraction: Float, measuredHeightPx: Int): Int = (hiddenFraction.coerceIn(0f, 1f) * measuredHeightPx).roundToInt()
 
 enum class LibraryAdaptiveLayoutMode {
     Compact,
@@ -288,8 +294,7 @@ fun shouldReplaceWideDetailRoute(
     current.isDetailRoute() &&
     next.isDetailRoute()
 
-private fun LibraryRoute.isDetailRoute(): Boolean =
-    this is LibraryRoute.AlbumDetail || this is LibraryRoute.ArtistDetail || this is LibraryRoute.PlaylistDetail
+private fun LibraryRoute.isDetailRoute(): Boolean = this is LibraryRoute.AlbumDetail || this is LibraryRoute.ArtistDetail || this is LibraryRoute.PlaylistDetail
 
 fun applyNavigationAction(
     stack: LibraryNavigationStack,
@@ -311,7 +316,9 @@ fun transitionForNavigationAction(
         is LibraryNavigationAction.Push,
         is LibraryNavigationAction.ReplaceTop,
         -> classifyNavigationTransition(from = from, to = to)
+
         LibraryNavigationAction.Pop -> LibraryNavigationTransition.Pop
+
         LibraryNavigationAction.PopToRoot -> LibraryNavigationTransition.Root
     }
 }

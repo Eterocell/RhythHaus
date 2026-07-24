@@ -1,30 +1,30 @@
 package com.eterocell.rhythhaus.library.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.click
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarPlayPauseTestTag
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarRootTestTag
@@ -343,5 +343,4 @@ class Task3ReviewSemanticsJvmTest {
         createdAtEpochMillis = 1L,
         updatedAtEpochMillis = 1L,
     )
-
 }

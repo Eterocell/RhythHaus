@@ -10,12 +10,12 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import com.eterocell.rhythhaus.library.TrackArtwork
 import coil3.compose.LocalPlatformContext
 import coil3.compose.SubcomposeAsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.eterocell.rhythhaus.library.TrackArtwork
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -26,8 +26,7 @@ internal enum class ArtworkImageRole(val keySuffix: String) {
     Hero("hero"),
 }
 
-internal fun artworkMemoryCacheKey(bytes: ByteArray, role: ArtworkImageRole): String =
-    "artwork:${role.keySuffix}:${bytes.contentHashCode()}:${bytes.size}"
+internal fun artworkMemoryCacheKey(bytes: ByteArray, role: ArtworkImageRole): String = "artwork:${role.keySuffix}:${bytes.contentHashCode()}:${bytes.size}"
 
 internal val LocalTrackArtworkLoader = staticCompositionLocalOf<suspend (String) -> TrackArtwork?> { { null } }
 

@@ -65,6 +65,8 @@ allprojects {
                 "ij_kotlin_allow_trailing_comma_on_call_site" to "true",
                 "ktlint_standard_argument-list-wrapping" to "disabled",
                 "ktlint_standard_filename" to "disabled",
+                "ktlint_standard_property-naming" to "disabled",
+                "ktlint_standard_mixed-condition-operators" to "disabled",
             ),
             licenseHeaderFile =
             if (genCopyright) {
@@ -90,6 +92,8 @@ allprojects {
                 "ij_kotlin_allow_trailing_comma_on_call_site" to "true",
                 "ktlint_standard_argument-list-wrapping" to "disabled",
                 "ktlint_standard_filename" to "disabled",
+                "ktlint_standard_property-naming" to "disabled",
+                "ktlint_standard_mixed-condition-operators" to "disabled",
             ),
             ktlintVersion = ktlintVersion,
         )

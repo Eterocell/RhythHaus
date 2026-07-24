@@ -4,16 +4,8 @@ import com.eterocell.rhythhaus.session.PlaybackCheckpoint
 import com.eterocell.rhythhaus.session.PlaybackSessionCodec
 import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
 import com.eterocell.rhythhaus.session.SessionQueueEntry
-import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -24,6 +16,14 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class PlaybackControllerTest {
     @Test
@@ -1400,21 +1400,19 @@ class PlaybackControllerTest {
         private var firstGeneration: Long = 0L
         private var secondGeneration: Long = 0L
 
-        override suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback {
-            return if (firstGeneration == 0L) {
-                firstGeneration = generation
-                firstStarted.complete(Unit)
-                try {
-                    firstResult.await()
-                } catch (cancelled: CancellationException) {
-                    firstCancelled = true
-                    throw cancelled
-                }
-            } else {
-                secondGeneration = generation
-                secondStarted.complete(Unit)
-                secondResult.await()
+        override suspend fun loadPaused(track: PlayableTrack, generation: Long): LoadedPlayback = if (firstGeneration == 0L) {
+            firstGeneration = generation
+            firstStarted.complete(Unit)
+            try {
+                firstResult.await()
+            } catch (cancelled: CancellationException) {
+                firstCancelled = true
+                throw cancelled
             }
+        } else {
+            secondGeneration = generation
+            secondStarted.complete(Unit)
+            secondResult.await()
         }
 
         fun completeFirst(): Boolean = firstResult.complete(LoadedPlayback(firstGeneration, 1_000L)).also {

@@ -1,8 +1,8 @@
 package com.eterocell.rhythhaus.library.ui
 
-import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.library.LibraryTrack
 
 enum class BrowseMode { Albums, Artists, Songs }
 

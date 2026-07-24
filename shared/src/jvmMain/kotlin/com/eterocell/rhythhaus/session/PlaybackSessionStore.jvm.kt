@@ -3,11 +3,11 @@ package com.eterocell.rhythhaus.session
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.emptyPreferences
-import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import okio.Path.Companion.toOkioPath
+import java.io.File
 
 private const val PlaybackSessionPreferenceFileName = "playback_session.preferences_pb"
 
@@ -37,5 +37,4 @@ private val playbackSessionStoreFactory = JvmPlaybackSessionStoreFactory(
     scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
 )
 
-actual fun createPlaybackSessionStore(): PlaybackSessionStore =
-    playbackSessionStoreFactory.createStore()
+actual fun createPlaybackSessionStore(): PlaybackSessionStore = playbackSessionStoreFactory.createStore()

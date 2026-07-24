@@ -85,8 +85,7 @@ internal val AboutScreenLayoutPolicy = AboutLayoutPolicy(
  * Reads the common attribution catalog resource. Shared by [OpenSourceLibrariesScreen] and by
  * regression tests so both consume the exact same resource path and encoding.
  */
-internal suspend fun readAboutLibrariesCatalogJson(): String =
-    Res.readBytes("files/aboutlibraries.json").decodeToString()
+internal suspend fun readAboutLibrariesCatalogJson(): String = Res.readBytes("files/aboutlibraries.json").decodeToString()
 
 /**
  * Explicit, Compose-independent loading state for the AboutLibraries catalog. Kept as a plain
@@ -105,24 +104,23 @@ internal sealed interface AboutLibrariesLoadState {
  */
 internal suspend fun loadAboutLibraries(
     readJson: suspend () -> String = ::readAboutLibrariesCatalogJson,
-): AboutLibrariesLoadState =
-    try {
-        val json = readJson()
-        val libraries = Libs.Builder().withJson(json).build()
-        if (libraries.libraries.isEmpty()) {
-            AboutLibrariesLoadState.Failed(
-                IllegalStateException(
-                    "AboutLibraries catalog parsed to zero libraries; the source JSON is likely malformed or empty.",
-                ),
-            )
-        } else {
-            AboutLibrariesLoadState.Loaded(libraries)
-        }
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (failure: Exception) {
-        AboutLibrariesLoadState.Failed(failure)
+): AboutLibrariesLoadState = try {
+    val json = readJson()
+    val libraries = Libs.Builder().withJson(json).build()
+    if (libraries.libraries.isEmpty()) {
+        AboutLibrariesLoadState.Failed(
+            IllegalStateException(
+                "AboutLibraries catalog parsed to zero libraries; the source JSON is likely malformed or empty.",
+            ),
+        )
+    } else {
+        AboutLibrariesLoadState.Loaded(libraries)
     }
+} catch (cancellation: CancellationException) {
+    throw cancellation
+} catch (failure: Exception) {
+    AboutLibrariesLoadState.Failed(failure)
+}
 
 @Composable
 fun SettingsAboutScreen(
@@ -312,67 +310,67 @@ fun OpenSourceLibrariesScreen(
 
                     Box(modifier = Modifier.fillMaxSize().weight(1f)) {
                         when (val currentState = loadState) {
-                        is AboutLibrariesLoadState.Loading -> {
-                            Text(
-                                text = stringResource(Res.string.open_source_libraries_loading),
-                                modifier = Modifier.align(Alignment.Center),
-                                color = HausColors.current.muted,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
-                        }
-
-                        is AboutLibrariesLoadState.Failed -> {
-                            Column(
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .padding(horizontal = layoutPolicy.horizontalPagePadding),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
-                            ) {
+                            is AboutLibrariesLoadState.Loading -> {
                                 Text(
-                                    text = stringResource(Res.string.open_source_libraries_error),
+                                    text = stringResource(Res.string.open_source_libraries_loading),
+                                    modifier = Modifier.align(Alignment.Center),
                                     color = HausColors.current.muted,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
-                                    textAlign = TextAlign.Center,
                                 )
-                                Button(
-                                    onClick = { retryGeneration++ },
+                            }
+
+                            is AboutLibrariesLoadState.Failed -> {
+                                Column(
                                     modifier = Modifier
-                                        .heightIn(min = 48.dp)
-                                        .semantics { role = Role.Button },
-                                    cornerRadius = 16.dp,
-                                    colors = ButtonDefaults.buttonColors(
-                                        color = HausColors.current.ink,
-                                        contentColor = HausColors.current.paper,
-                                    ),
+                                        .align(Alignment.Center)
+                                        .padding(horizontal = layoutPolicy.horizontalPagePadding),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
                                     Text(
-                                        text = stringResource(Res.string.open_source_libraries_retry),
-                                        fontWeight = FontWeight.Bold,
+                                        text = stringResource(Res.string.open_source_libraries_error),
+                                        color = HausColors.current.muted,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.Center,
                                     )
+                                    Button(
+                                        onClick = { retryGeneration++ },
+                                        modifier = Modifier
+                                            .heightIn(min = 48.dp)
+                                            .semantics { role = Role.Button },
+                                        cornerRadius = 16.dp,
+                                        colors = ButtonDefaults.buttonColors(
+                                            color = HausColors.current.ink,
+                                            contentColor = HausColors.current.paper,
+                                        ),
+                                    ) {
+                                        Text(
+                                            text = stringResource(Res.string.open_source_libraries_retry),
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
                                 }
                             }
-                        }
 
-                        is AboutLibrariesLoadState.Loaded -> {
-                            LibrariesContainer(
-                                libraries = currentState.libraries,
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(
-                                    top = layoutPolicy.itemSpacing,
-                                    bottom = layoutPolicy.bottomContentPadding,
-                                ),
-                                colors = LibraryDefaults.libraryColors(
-                                    libraryBackgroundColor = HausColors.current.paper,
-                                    libraryContentColor = HausColors.current.ink,
-                                    dialogBackgroundColor = HausColors.current.panel,
-                                    dialogContentColor = HausColors.current.ink,
-                                    dialogConfirmButtonColor = HausColors.current.pulse,
-                                ),
-                            )
-                        }
+                            is AboutLibrariesLoadState.Loaded -> {
+                                LibrariesContainer(
+                                    libraries = currentState.libraries,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(
+                                        top = layoutPolicy.itemSpacing,
+                                        bottom = layoutPolicy.bottomContentPadding,
+                                    ),
+                                    colors = LibraryDefaults.libraryColors(
+                                        libraryBackgroundColor = HausColors.current.paper,
+                                        libraryContentColor = HausColors.current.ink,
+                                        dialogBackgroundColor = HausColors.current.panel,
+                                        dialogContentColor = HausColors.current.ink,
+                                        dialogConfirmButtonColor = HausColors.current.pulse,
+                                    ),
+                                )
+                            }
                         }
                     }
                 }

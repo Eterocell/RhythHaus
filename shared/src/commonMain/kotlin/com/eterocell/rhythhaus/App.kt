@@ -11,25 +11,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
 import com.eterocell.rhythhaus.library.LibraryRepository
+import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.PlatformFolderPickResult
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
-import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.normalizePickedSource
-import com.eterocell.rhythhaus.library.sourcePickerActionVisible
+import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.sourceMutationsAllowed
+import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
+import com.eterocell.rhythhaus.library.ui.PlaylistMutationFailedMessage
+import com.eterocell.rhythhaus.library.ui.PlaylistReadFailedMessage
 import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
-import com.eterocell.rhythhaus.library.ui.PlaylistReadFailedMessage
-import com.eterocell.rhythhaus.library.ui.PlaylistMutationFailedMessage
 import com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.mutatePlaylistAndRefresh
 import com.eterocell.rhythhaus.library.ui.reducePlaylistState
@@ -47,32 +47,32 @@ import com.eterocell.rhythhaus.playlistbackup.preparePlaylistBackupExport
 import com.eterocell.rhythhaus.playlistbackup.preparePlaylistBackupImport
 import com.eterocell.rhythhaus.playlistbackup.reducePlaylistBackupUiState
 import com.eterocell.rhythhaus.playlistbackup.rememberPlatformPlaylistBackupDocumentLauncher
+import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.LocalHausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.theme.ThemePreferenceStore
-import com.eterocell.rhythhaus.ui.LocalTrackArtworkLoader
 import com.eterocell.rhythhaus.theme.resolveHausPalette
 import com.eterocell.rhythhaus.theme.systemPrefersDarkTheme
-import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
+import com.eterocell.rhythhaus.ui.LocalTrackArtworkLoader
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import rhythhaus.shared.generated.resources.Res
-import rhythhaus.shared.generated.resources.scan_complete_format
 import rhythhaus.shared.generated.resources.playlist_backup_imported_suffix
+import rhythhaus.shared.generated.resources.scan_complete_format
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
@@ -148,7 +148,9 @@ fun App() {
                 isProgressActive = scanProgress?.isActive == true,
                 isJobActive = scanJob?.isActive == true,
             )
-        ) return
+        ) {
+            return
+        }
         scanCancellationRequested.value = false
         scanJob = scope.launch(Dispatchers.Default) {
             val progress = ScanProgress(
@@ -222,10 +224,12 @@ fun App() {
                 PlaylistBackupDocumentSaveResult.Success,
                 PlaylistBackupDocumentSaveResult.Cancelled,
                 -> reducePlaylistBackupUiState(playlistBackupState, PlaylistBackupUiAction.PanelCancelled)
+
                 is PlaylistBackupDocumentSaveResult.Unavailable -> reducePlaylistBackupUiState(
                     playlistBackupState,
                     PlaylistBackupUiAction.Failed(PlaylistBackupUiError.Unavailable),
                 )
+
                 is PlaylistBackupDocumentSaveResult.Failure -> reducePlaylistBackupUiState(
                     playlistBackupState,
                     PlaylistBackupUiAction.Failed(PlaylistBackupUiError.WriteFailed),
@@ -240,24 +244,28 @@ fun App() {
                         PlaylistBackupUiAction.PanelCancelled,
                     )
                 }
+
                 is PlaylistBackupDocumentOpenResult.Unavailable -> {
                     playlistBackupState = reducePlaylistBackupUiState(
                         playlistBackupState,
                         PlaylistBackupUiAction.Failed(PlaylistBackupUiError.Unavailable),
                     )
                 }
+
                 is PlaylistBackupDocumentOpenResult.TooLarge -> {
                     playlistBackupState = reducePlaylistBackupUiState(
                         playlistBackupState,
                         PlaylistBackupUiAction.Failed(PlaylistBackupUiError.Oversized),
                     )
                 }
+
                 is PlaylistBackupDocumentOpenResult.Failure -> {
                     playlistBackupState = reducePlaylistBackupUiState(
                         playlistBackupState,
                         PlaylistBackupUiAction.Failed(PlaylistBackupUiError.ReadFailed),
                     )
                 }
+
                 is PlaylistBackupDocumentOpenResult.Success -> scope.launch {
                     runPlaylistBackupOperation(
                         currentState = { playlistBackupState },
@@ -267,18 +275,21 @@ fun App() {
                             playlistBackupState,
                             PlaylistBackupUiAction.OperationStarted(PlaylistBackupOperation.Planning),
                         )
-                        when (val prepared = preparePlaylistBackupImport(
-                            bytes = result.bytes,
-                            destinationTracks = libraryTracks,
-                            existingPlaylistNames = playlistState.confirmedSnapshot.playlists.map { it.name },
-                            importedSuffix = importedSuffix,
-                            libraryRevision = libraryRevision,
-                            dispatcher = Dispatchers.Default,
-                        )) {
+                        when (
+                            val prepared = preparePlaylistBackupImport(
+                                bytes = result.bytes,
+                                destinationTracks = libraryTracks,
+                                existingPlaylistNames = playlistState.confirmedSnapshot.playlists.map { it.name },
+                                importedSuffix = importedSuffix,
+                                libraryRevision = libraryRevision,
+                                dispatcher = Dispatchers.Default,
+                            )
+                        ) {
                             is PlaylistBackupImportPreparation.Ready -> playlistBackupState = reducePlaylistBackupUiState(
                                 playlistBackupState,
                                 PlaylistBackupUiAction.PreviewReady(prepared.plan),
                             )
+
                             is PlaylistBackupImportPreparation.Failed -> playlistBackupState = reducePlaylistBackupUiState(
                                 playlistBackupState,
                                 PlaylistBackupUiAction.Failed(prepared.error),
@@ -301,12 +312,14 @@ fun App() {
                 currentState = { playlistBackupState },
                 publishState = { state -> playlistBackupState = state },
             ) {
-                when (val prepared = preparePlaylistBackupExport(
-                    snapshot = playlistState.confirmedSnapshot,
-                    authoritativeTracks = libraryTracks,
-                    exportedAtEpochMillis = com.eterocell.rhythhaus.library.currentTimeMillis(),
-                    dispatcher = Dispatchers.Default,
-                )) {
+                when (
+                    val prepared = preparePlaylistBackupExport(
+                        snapshot = playlistState.confirmedSnapshot,
+                        authoritativeTracks = libraryTracks,
+                        exportedAtEpochMillis = com.eterocell.rhythhaus.library.currentTimeMillis(),
+                        dispatcher = Dispatchers.Default,
+                    )
+                ) {
                     is PlaylistBackupExportPreparation.Ready -> {
                         playlistBackupState = reducePlaylistBackupUiState(
                             playlistBackupState,
@@ -314,6 +327,7 @@ fun App() {
                         )
                         backupDocumentLauncher.save(playlistBackupFileName("rhythhaus-playlists"), prepared.bytes)
                     }
+
                     is PlaylistBackupExportPreparation.Failed -> playlistBackupState = reducePlaylistBackupUiState(
                         playlistBackupState,
                         PlaylistBackupUiAction.Failed(prepared.error),
@@ -350,9 +364,11 @@ fun App() {
                     currentLibraryRevision = libraryRevision,
                     lastConfirmedSnapshot = playlistState.confirmedSnapshot,
                     mutateAndRefresh = { mutations ->
-                        when (val guarded = libraryPublicationOwner.withCurrentRevision(expectedLibraryRevision) {
-                            playlistStateOwner.importPlaylists(mutations)
-                        }) {
+                        when (
+                            val guarded = libraryPublicationOwner.withCurrentRevision(expectedLibraryRevision) {
+                                playlistStateOwner.importPlaylists(mutations)
+                            }
+                        ) {
                             is AuthoritativeRevisionResult.Current -> guarded.value
                             AuthoritativeRevisionResult.Stale -> com.eterocell.rhythhaus.library.ui.PlaylistImportOwnerResult.Stale
                         }
@@ -519,8 +535,11 @@ internal class AuthoritativeLibraryPublicationOwner {
         expectedRevision: Long,
         block: suspend () -> T,
     ): AuthoritativeRevisionResult<T> = mutex.withLock {
-        if (revision != expectedRevision) AuthoritativeRevisionResult.Stale
-        else AuthoritativeRevisionResult.Current(block())
+        if (revision != expectedRevision) {
+            AuthoritativeRevisionResult.Stale
+        } else {
+            AuthoritativeRevisionResult.Current(block())
+        }
     }
 }
 
@@ -726,23 +745,19 @@ internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
     return copy(session = session.copy(status = ScanStatus.Cancelling))
 }
 
-private fun Throwable.appFailureMessage(): String =
-    message?.takeIf(String::isNotBlank) ?: "Playback session unavailable"
+private fun Throwable.appFailureMessage(): String = message?.takeIf(String::isNotBlank) ?: "Playback session unavailable"
 
+private fun ScanSession.terminalAfterCancellation(): ScanSession = if (status == ScanStatus.Scanning || status == ScanStatus.Cancelling) {
+    copy(status = ScanStatus.Cancelled, terminalMessage = "Scan cancelled")
+} else {
+    this
+}
 
-private fun ScanSession.terminalAfterCancellation(): ScanSession =
-    if (status == ScanStatus.Scanning || status == ScanStatus.Cancelling) {
-        copy(status = ScanStatus.Cancelled, terminalMessage = "Scan cancelled")
-    } else {
-        this
-    }
-
-private fun ScanSession.terminalAfterFailure(failure: Throwable): ScanSession =
-    if (status == ScanStatus.Scanning || status == ScanStatus.Cancelling) {
-        copy(status = ScanStatus.Failed, terminalMessage = failure.appFailureMessage())
-    } else {
-        this
-    }
+private fun ScanSession.terminalAfterFailure(failure: Throwable): ScanSession = if (status == ScanStatus.Scanning || status == ScanStatus.Cancelling) {
+    copy(status = ScanStatus.Failed, terminalMessage = failure.appFailureMessage())
+} else {
+    this
+}
 
 @Composable
 private fun RhythHausTheme(

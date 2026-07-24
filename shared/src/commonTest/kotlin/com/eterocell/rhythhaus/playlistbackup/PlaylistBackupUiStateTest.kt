@@ -5,8 +5,8 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
-import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.PlaylistImportOwnerResult
+import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -351,9 +351,13 @@ class PlaylistBackupUiStateTest {
         unmatched: Int = 0,
         ambiguous: Int = 0,
         revision: Long = 7,
-        playlists: List<PlaylistImportPlaylist> = if (restorable == 0) emptyList() else listOf(
-            PlaylistImportPlaylist(0, "Mix", List(restorable) { "track-$it" }),
-        ),
+        playlists: List<PlaylistImportPlaylist> = if (restorable == 0) {
+            emptyList()
+        } else {
+            listOf(
+                PlaylistImportPlaylist(0, "Mix", List(restorable) { "track-$it" }),
+            )
+        },
     ) = PlaylistImportPlan(
         libraryRevision = revision,
         playlists = playlists,

@@ -1,11 +1,11 @@
 package com.eterocell.rhythhaus
 
+import androidx.media3.common.Player
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import androidx.media3.common.Player
 
 class RhythHausTransportBridgeTest {
 

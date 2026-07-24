@@ -95,8 +95,10 @@ internal class PlaybackSessionCoordinator(
                     val persistedRevision = highestPersistedCheckpointRevision
                     if (
                         (revision == null && persistedRevision == null) ||
-                        (revision != null &&
-                            (persistedRevision == null || revision >= persistedRevision))
+                        (
+                            revision != null &&
+                                (persistedRevision == null || revision >= persistedRevision)
+                            )
                     ) {
                         if (persist(newest.snapshot) && revision != null) {
                             highestPersistedCheckpointRevision = revision
@@ -290,5 +292,4 @@ internal class PlaybackSessionCoordinator(
     }
 }
 
-private fun cancellation(message: String, cause: Throwable): CancellationException =
-    CancellationException(message, cause)
+private fun cancellation(message: String, cause: Throwable): CancellationException = CancellationException(message, cause)

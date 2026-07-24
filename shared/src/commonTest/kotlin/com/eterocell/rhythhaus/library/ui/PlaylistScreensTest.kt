@@ -1,25 +1,25 @@
 package com.eterocell.rhythhaus.library.ui
 
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.QueueMutationRejection
 import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.QueueOccurrence
-import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.Playlist
+import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.LightHausPalette
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class PlaylistScreensTest {
     @Test
@@ -632,23 +632,22 @@ class PlaylistScreensTest {
         track = playableTrack(id).copy(title = title),
     )
 
-    private fun browserTrack(id: String, title: String, artist: String, album: String) =
-        com.eterocell.rhythhaus.library.LibraryTrack(
-            id = id,
-            sourceId = "source",
-            sourceLocalKey = id,
-            audioSource = AudioSource.FilePath("/$id.mp3"),
-            displayName = title,
-            title = title,
-            artist = artist,
-            album = album,
-            durationMillis = 180_000L,
-            sizeBytes = 1L,
-            modifiedAtEpochMillis = 1L,
-            lastSeenScanId = null,
-            createdAtEpochMillis = 1L,
-            updatedAtEpochMillis = 1L,
-        )
+    private fun browserTrack(id: String, title: String, artist: String, album: String) = com.eterocell.rhythhaus.library.LibraryTrack(
+        id = id,
+        sourceId = "source",
+        sourceLocalKey = id,
+        audioSource = AudioSource.FilePath("/$id.mp3"),
+        displayName = title,
+        title = title,
+        artist = artist,
+        album = album,
+        durationMillis = 180_000L,
+        sizeBytes = 1L,
+        modifiedAtEpochMillis = 1L,
+        lastSeenScanId = null,
+        createdAtEpochMillis = 1L,
+        updatedAtEpochMillis = 1L,
+    )
 
     private fun playlist(id: String) = Playlist(
         id = id,

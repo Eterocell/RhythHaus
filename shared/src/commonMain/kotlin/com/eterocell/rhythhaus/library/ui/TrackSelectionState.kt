@@ -75,6 +75,7 @@ fun reduceTrackSelection(state: TrackSelectionState, action: TrackSelectionActio
         }
 
         is TrackSelectionAction.RouteChanged -> TrackSelectionState()
+
         TrackSelectionAction.Cancel,
         TrackSelectionAction.Completed,
         -> TrackSelectionState()
@@ -100,5 +101,4 @@ fun orderedSelectedTrackIds(
     }
 }
 
-private fun TrackSelectionState.normalized(): TrackSelectionState =
-    if (selectedTrackIds.isEmpty()) TrackSelectionState() else this
+private fun TrackSelectionState.normalized(): TrackSelectionState = if (selectedTrackIds.isEmpty()) TrackSelectionState() else this

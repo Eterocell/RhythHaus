@@ -1,7 +1,7 @@
 package com.eterocell.rhythhaus.ui
 
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectVerticalDragGestures

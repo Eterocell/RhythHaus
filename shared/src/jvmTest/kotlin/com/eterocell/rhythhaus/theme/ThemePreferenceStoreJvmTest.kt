@@ -3,15 +3,15 @@ package com.eterocell.rhythhaus.theme
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import java.io.File
-import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okio.Path.Companion.toOkioPath
+import java.io.File
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class ThemePreferenceStoreJvmTest {
     @Test

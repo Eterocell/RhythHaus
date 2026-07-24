@@ -1,9 +1,11 @@
 package com.eterocell.rhythhaus
 
+import kotlinx.coroutines.runBlocking
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -11,12 +13,10 @@ import kotlin.io.path.createTempFile
 import kotlin.io.path.deleteIfExists
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlinx.coroutines.runBlocking
-import java.util.concurrent.CyclicBarrier
 
 class JvmPlaybackEngineTest {
     @Test
@@ -212,17 +212,19 @@ class JvmPlaybackEngineTest {
         }
 
         try {
-            runBlocking { engine.loadPaused(
-                PlayableTrack(
-                    id = "generated-wav",
-                    title = "Generated WAV",
-                    artist = "Test",
-                    album = null,
-                    durationMillis = null,
-                    source = AudioSource.FilePath(wavPath.toString()),
-                ),
-                generation = 1L,
-            ) }
+            runBlocking {
+                engine.loadPaused(
+                    PlayableTrack(
+                        id = "generated-wav",
+                        title = "Generated WAV",
+                        artist = "Test",
+                        album = null,
+                        durationMillis = null,
+                        source = AudioSource.FilePath(wavPath.toString()),
+                    ),
+                    generation = 1L,
+                )
+            }
             engine.setUserTransportEnabled(true)
             engine.play()
             engine.pause()
@@ -271,17 +273,19 @@ class JvmPlaybackEngineTest {
         }
 
         try {
-            runBlocking { engine.loadPaused(
-                PlayableTrack(
-                    id = "generated-wav-progress",
-                    title = "Generated WAV Progress",
-                    artist = "Test",
-                    album = null,
-                    durationMillis = null,
-                    source = AudioSource.FilePath(wavPath.toString()),
-                ),
-                generation = 2L,
-            ) }
+            runBlocking {
+                engine.loadPaused(
+                    PlayableTrack(
+                        id = "generated-wav-progress",
+                        title = "Generated WAV Progress",
+                        artist = "Test",
+                        album = null,
+                        durationMillis = null,
+                        source = AudioSource.FilePath(wavPath.toString()),
+                    ),
+                    generation = 2L,
+                )
+            }
             engine.setUserTransportEnabled(true)
             engine.play()
             engine.seekTo(100L)

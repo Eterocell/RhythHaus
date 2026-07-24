@@ -14,12 +14,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.theme.HausColors
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.back
 import rhythhaus.shared.generated.resources.back_button
 import top.yukonga.miuix.kmp.basic.Text
-import com.eterocell.rhythhaus.theme.HausColors
 
 @Composable
 fun BackChip(

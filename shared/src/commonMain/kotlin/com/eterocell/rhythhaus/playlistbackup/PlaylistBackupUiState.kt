@@ -2,8 +2,8 @@ package com.eterocell.rhythhaus.playlistbackup
 
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
-import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.PlaylistImportOwnerResult
+import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
@@ -66,23 +66,31 @@ fun reducePlaylistBackupUiState(
     action: PlaylistBackupUiAction,
 ): PlaylistBackupUiState = when (action) {
     is PlaylistBackupUiAction.OperationStarted -> state.copy(operation = action.operation, error = null)
+
     PlaylistBackupUiAction.PanelCancelled -> state.copy(operation = PlaylistBackupOperation.Idle, error = null)
+
     PlaylistBackupUiAction.OperationCancelled -> state.copy(operation = PlaylistBackupOperation.Idle, error = null)
+
     is PlaylistBackupUiAction.PreviewReady -> state.copy(
         operation = PlaylistBackupOperation.Idle,
         preview = PlaylistBackupPreview(action.plan),
         result = null,
         error = null,
     )
+
     PlaylistBackupUiAction.DismissPreview -> state.copy(preview = null, error = null)
+
     PlaylistBackupUiAction.DismissResult -> state.copy(result = null, error = null)
+
     is PlaylistBackupUiAction.ImportSucceeded -> state.copy(
         operation = PlaylistBackupOperation.Idle,
         preview = null,
         result = PlaylistBackupImportResult(action.totals),
         error = null,
     )
+
     is PlaylistBackupUiAction.Failed -> state.copy(operation = PlaylistBackupOperation.Idle, error = action.error)
+
     PlaylistBackupUiAction.ClearError -> state.copy(error = null)
 }
 
@@ -107,6 +115,7 @@ suspend fun preparePlaylistBackupExport(
                 PlaylistBackupExportError.CODEC_BOUNDS -> PlaylistBackupUiError.ExportInvalidData
             },
         )
+
         is PlaylistBackupExportResult.Success -> when (val decoded = validate(exported.bytes)) {
             is PlaylistBackupDecodeResult.Success -> PlaylistBackupExportPreparation.Ready(exported.bytes)
             is PlaylistBackupDecodeResult.Invalid -> PlaylistBackupExportPreparation.Failed(playlistBackupUiError(decoded.error))
@@ -129,6 +138,7 @@ suspend fun preparePlaylistBackupImport(
 ): PlaylistBackupImportPreparation = withContext(dispatcher) {
     when (val decoded = PlaylistBackupCodec.decode(bytes)) {
         is PlaylistBackupDecodeResult.Invalid -> PlaylistBackupImportPreparation.Failed(playlistBackupUiError(decoded.error))
+
         is PlaylistBackupDecodeResult.Success -> PlaylistBackupImportPreparation.Ready(
             planPlaylistImport(
                 document = decoded.document,
@@ -143,10 +153,13 @@ suspend fun preparePlaylistBackupImport(
 
 fun playlistBackupUiError(error: PlaylistBackupValidationError): PlaylistBackupUiError = when (error) {
     PlaylistBackupValidationError.INPUT_TOO_LARGE -> PlaylistBackupUiError.Oversized
+
     PlaylistBackupValidationError.INVALID_CHECKSUM -> PlaylistBackupUiError.Checksum
+
     PlaylistBackupValidationError.UNSUPPORTED_FORMAT,
     PlaylistBackupValidationError.UNSUPPORTED_VERSION,
     -> PlaylistBackupUiError.UnsupportedVersion
+
     PlaylistBackupValidationError.PLAYLIST_LIMIT_EXCEEDED,
     PlaylistBackupValidationError.PLAYLIST_ENTRY_LIMIT_EXCEEDED,
     PlaylistBackupValidationError.TOTAL_ENTRY_LIMIT_EXCEEDED,
@@ -154,6 +167,7 @@ fun playlistBackupUiError(error: PlaylistBackupValidationError): PlaylistBackupU
     PlaylistBackupValidationError.BLANK_PLAYLIST_NAME,
     PlaylistBackupValidationError.INVALID_DURATION,
     -> PlaylistBackupUiError.InvalidData
+
     else -> PlaylistBackupUiError.Malformed
 }
 
@@ -187,10 +201,12 @@ suspend fun confirmPlaylistBackupImportSerialized(
                 result.snapshot,
                 result.revision,
             )
+
             PlaylistImportOwnerResult.Stale -> PlaylistBackupImportConfirmation(
                 state.copy(operation = PlaylistBackupOperation.Idle, error = PlaylistBackupUiError.StalePreview),
                 lastConfirmedSnapshot,
             )
+
             is PlaylistImportOwnerResult.Failure -> PlaylistBackupImportConfirmation(
                 state.copy(operation = PlaylistBackupOperation.Idle, error = PlaylistBackupUiError.RepositoryFailed),
                 lastConfirmedSnapshot,

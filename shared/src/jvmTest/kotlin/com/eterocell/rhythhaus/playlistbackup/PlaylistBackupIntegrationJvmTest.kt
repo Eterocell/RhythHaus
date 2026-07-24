@@ -20,10 +20,10 @@ import com.eterocell.rhythhaus.library.ui.TrackSelectionState
 import com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.orderedSelectedTrackIds
 import com.eterocell.rhythhaus.library.ui.reduceTrackSelection
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.nio.file.Files
 import java.util.Base64
-import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -24,22 +23,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.taglib.TagLibReader
-import top.yukonga.miuix.kmp.basic.Surface
-import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.TrackArtworkLoadState
 import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.ui.rememberLazyTrackArtworkState
 import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
+import top.yukonga.miuix.kmp.basic.Surface
 
 internal sealed interface DrillDownAction {
     data class SelectTrack(val track: Track) : DrillDownAction
@@ -237,7 +237,6 @@ internal fun DrillDownView(
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
-
     }
 }
 

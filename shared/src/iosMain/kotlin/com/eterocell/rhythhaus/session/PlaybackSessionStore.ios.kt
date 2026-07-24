@@ -24,8 +24,7 @@ private val playbackSessionDataStore by lazy {
     )
 }
 
-actual fun createPlaybackSessionStore(): PlaybackSessionStore =
-    DataStorePlaybackSessionStore(playbackSessionDataStore)
+actual fun createPlaybackSessionStore(): PlaybackSessionStore = DataStorePlaybackSessionStore(playbackSessionDataStore)
 
 @OptIn(ExperimentalForeignApi::class)
 private fun playbackSessionPreferencePath(): String {

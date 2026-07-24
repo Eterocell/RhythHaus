@@ -1,13 +1,13 @@
 package com.eterocell.rhythhaus.settings
 
 import com.mikepenz.aboutlibraries.Libs
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
+import rhythhaus.shared.generated.resources.Res
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.runBlocking
-import rhythhaus.shared.generated.resources.Res
 
 class AboutLibrariesCatalogTest {
     @Test

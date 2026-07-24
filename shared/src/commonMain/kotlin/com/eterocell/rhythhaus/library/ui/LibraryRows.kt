@@ -29,8 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontFamily
@@ -38,7 +38,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.LibrarySnapshot
+import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.formatDuration
+import com.eterocell.rhythhaus.importCardDescription
+import com.eterocell.rhythhaus.importCardTitle
+import com.eterocell.rhythhaus.importCardTitleWithTracks
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
+import com.eterocell.rhythhaus.ui.hausClickable
+import com.eterocell.rhythhaus.ui.hausCombinedClickable
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.add_music_folder
@@ -49,6 +60,9 @@ import rhythhaus.shared.generated.resources.album_track_count_format
 import rhythhaus.shared.generated.resources.artist_accessibility_format
 import rhythhaus.shared.generated.resources.artist_album_tracks_format
 import rhythhaus.shared.generated.resources.artist_artwork
+import rhythhaus.shared.generated.resources.browse_mode_albums
+import rhythhaus.shared.generated.resources.browse_mode_artists
+import rhythhaus.shared.generated.resources.browse_mode_songs
 import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.clear_library
 import rhythhaus.shared.generated.resources.folder_picker_unavailable
@@ -62,23 +76,9 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
-import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.LibrarySnapshot
-import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.ui.ArtworkImageRole
-import com.eterocell.rhythhaus.ui.LazyTrackArtworkImage
-import com.eterocell.rhythhaus.formatDuration
-import com.eterocell.rhythhaus.ui.hausClickable
-import com.eterocell.rhythhaus.ui.hausCombinedClickable
-import com.eterocell.rhythhaus.importCardDescription
-import com.eterocell.rhythhaus.importCardTitle
-import com.eterocell.rhythhaus.importCardTitleWithTracks
-import rhythhaus.shared.generated.resources.browse_mode_albums
-import rhythhaus.shared.generated.resources.browse_mode_artists
-import rhythhaus.shared.generated.resources.browse_mode_songs
-import top.yukonga.miuix.kmp.basic.Checkbox
 
 enum class TrackRowGesture { Click, LongClick }
 

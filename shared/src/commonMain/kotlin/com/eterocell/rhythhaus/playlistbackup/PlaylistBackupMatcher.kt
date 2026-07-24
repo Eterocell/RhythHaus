@@ -45,8 +45,7 @@ class PlaylistBackupMatcher(destinationTracks: List<LibraryTrack>) {
         val candidates = candidatesByText[textKey(entry.title, entry.artist, entry.album)]
             .orEmpty()
             .filter { candidate ->
-                candidate.durationSeconds in (entry.durationSeconds.toLong() - DURATION_TOLERANCE_SECONDS)..
-                    (entry.durationSeconds.toLong() + DURATION_TOLERANCE_SECONDS)
+                candidate.durationSeconds in (entry.durationSeconds.toLong() - DURATION_TOLERANCE_SECONDS)..(entry.durationSeconds.toLong() + DURATION_TOLERANCE_SECONDS)
             }
         return when (candidates.size) {
             0 -> PlaylistBackupMatch.Unmatched

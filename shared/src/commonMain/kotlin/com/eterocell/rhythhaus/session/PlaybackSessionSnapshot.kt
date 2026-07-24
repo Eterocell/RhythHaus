@@ -178,8 +178,7 @@ data class ProgressCheckpointKey(
     val secondBucket: Long,
 )
 
-internal fun normalizeLegacyQueue(trackIds: List<String>): List<SessionQueueEntry> =
-    trackIds.mapIndexed { index, trackId -> SessionQueueEntry(legacyOccurrenceId(index), trackId) }
+internal fun normalizeLegacyQueue(trackIds: List<String>): List<SessionQueueEntry> = trackIds.mapIndexed { index, trackId -> SessionQueueEntry(legacyOccurrenceId(index), trackId) }
 
 private fun legacyOccurrenceId(index: Int): String = "legacy-$index"
 

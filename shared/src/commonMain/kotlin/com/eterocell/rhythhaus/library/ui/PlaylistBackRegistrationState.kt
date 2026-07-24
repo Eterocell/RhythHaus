@@ -16,17 +16,26 @@ internal class PlaylistBackRegistrationState {
     fun registerEdit(owner: Any, clear: () -> Unit): () -> Unit {
         editOwner = owner
         editClear = clear
-        return { if (editOwner === owner && editClear === clear) { editOwner = null; editClear = null } }
+        return {
+            if (editOwner === owner && editClear === clear) {
+                editOwner = null
+                editClear = null
+            }
+        }
     }
 
     fun registerModal(owner: Any, dismiss: () -> Unit): () -> Unit {
         modalOwner = owner
         modalDismiss = dismiss
-        return { if (modalOwner === owner && modalDismiss === dismiss) { modalOwner = null; modalDismiss = null } }
+        return {
+            if (modalOwner === owner && modalDismiss === dismiss) {
+                modalOwner = null
+                modalDismiss = null
+            }
+        }
     }
 
-    fun decision(selectionState: TrackSelectionState = TrackSelectionState(), isNowPlayingExpanded: Boolean = false, canPopRoute: Boolean = false): LibraryBackDecision =
-        libraryBackDecision(modalDismiss != null, editClear != null, selectionState, isNowPlayingExpanded, canPopRoute)
+    fun decision(selectionState: TrackSelectionState = TrackSelectionState(), isNowPlayingExpanded: Boolean = false, canPopRoute: Boolean = false): LibraryBackDecision = libraryBackDecision(modalDismiss != null, editClear != null, selectionState, isNowPlayingExpanded, canPopRoute)
 
     fun requestBack(
         selectionState: TrackSelectionState = TrackSelectionState(),
@@ -57,9 +66,13 @@ internal class PlaylistBackDispatchController(
             LibraryBackDecision.DismissPlaylistModal,
             LibraryBackDecision.ExitPlaylistEditMode,
             -> registration.requestBack(selectionState(), isNowPlayingExpanded(), canPopRoute())
+
             LibraryBackDecision.CancelSelection -> cancelSelection()
+
             LibraryBackDecision.HideNowPlaying -> hideNowPlaying()
+
             LibraryBackDecision.PopRoute -> (popRouteOverride ?: directPopRoute).invoke()
+
             LibraryBackDecision.None -> Unit
         }
     }

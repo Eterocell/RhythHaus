@@ -1,14 +1,14 @@
 package com.eterocell.rhythhaus.library.ui
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class PlaylistBackPolicyJvmTest {
     @Test
@@ -110,11 +110,23 @@ class PlaylistBackPolicyJvmTest {
             selectionState = { selection },
             isNowPlayingExpanded = { nowPlaying },
             canPopRoute = { true },
-            cancelSelection = { events += "selection"; selection = TrackSelectionState() },
-            hideNowPlaying = { events += "now-playing"; nowPlaying = false },
-            directPopRoute = { events += "clear"; events += "pop" },
+            cancelSelection = {
+                events += "selection"
+                selection = TrackSelectionState()
+            },
+            hideNowPlaying = {
+                events += "now-playing"
+                nowPlaying = false
+            },
+            directPopRoute = {
+                events += "clear"
+                events += "pop"
+            },
         )
-        val editDispose = policy.registerEdit(Any()) { events += "edit"; editDisposeHolder?.invoke() }
+        val editDispose = policy.registerEdit(Any()) {
+            events += "edit"
+            editDisposeHolder?.invoke()
+        }
         editDisposeHolder = editDispose
         dispatcher.dispatch()
         selection = TrackSelectionState(TrackSelectionPageKey.HomeSongs, setOf("track"))
@@ -136,7 +148,10 @@ class PlaylistBackPolicyJvmTest {
             canPopRoute = { true },
             cancelSelection = {},
             hideNowPlaying = {},
-            directPopRoute = { events += "clear"; events += "pop" },
+            directPopRoute = {
+                events += "clear"
+                events += "pop"
+            },
         )
         controller.onSystemBackCompleted()
         assertEquals(listOf("clear", "pop"), events)
@@ -152,7 +167,10 @@ class PlaylistBackPolicyJvmTest {
             setCompletionProgress = { progress = it },
             clearSelection = { events += "clear" },
             dispatchOrdinaryBack = { events += "ordinary" },
-            navigationPop = { events += "navigation-pop"; LibraryNavigationStack() },
+            navigationPop = {
+                events += "navigation-pop"
+                LibraryNavigationStack()
+            },
             completePredictivePop = { events += "complete" },
         )
 

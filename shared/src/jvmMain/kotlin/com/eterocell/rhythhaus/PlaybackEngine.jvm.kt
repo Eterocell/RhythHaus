@@ -138,8 +138,7 @@ internal class MacProgressPublicationGate {
     }
 
     @Synchronized
-    fun isCurrent(generation: Long, sourceVersion: Long): Boolean =
-        generation == activeGeneration && sourceVersion == activeSourceVersion
+    fun isCurrent(generation: Long, sourceVersion: Long): Boolean = generation == activeGeneration && sourceVersion == activeSourceVersion
 
     fun publish(
         generation: Long,
@@ -189,10 +188,8 @@ internal class MacAudioPlayerBridge {
         durationMillis: Long?,
         positionMillis: Long,
     ) = withHandle { nativeUpdateNowPlayingInfo(it, title, artist, album, durationMillis ?: 0L, positionMillis) }
-    fun updateNowPlayingPosition(positionMillis: Long, durationMillis: Long?) =
-        withHandle { nativeUpdateNowPlayingPosition(it, positionMillis, durationMillis ?: 0L) }
-    fun updateNowPlayingPlaybackState(status: PlaybackStatus) =
-        withHandle { nativeUpdateNowPlayingPlaybackState(it, status.macosPlaybackStateCode()) }
+    fun updateNowPlayingPosition(positionMillis: Long, durationMillis: Long?) = withHandle { nativeUpdateNowPlayingPosition(it, positionMillis, durationMillis ?: 0L) }
+    fun updateNowPlayingPlaybackState(status: PlaybackStatus) = withHandle { nativeUpdateNowPlayingPlaybackState(it, status.macosPlaybackStateCode()) }
     fun registerNowPlayingRemoteCommands() = withHandle(::nativeRegisterNowPlayingRemoteCommands)
     fun clearNowPlayingInfo() = withHandle(::nativeClearNowPlayingInfo)
     fun setArtwork(artworkBytes: ByteArray?) = withHandle { nativeSetArtwork(it, artworkBytes) }

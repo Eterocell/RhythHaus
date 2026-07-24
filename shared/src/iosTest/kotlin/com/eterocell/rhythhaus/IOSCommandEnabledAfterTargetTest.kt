@@ -4,8 +4,8 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Tests that isEnabled remains true AFTER addTargetWithHandler is called.

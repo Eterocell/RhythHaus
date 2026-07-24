@@ -1,12 +1,12 @@
 package com.eterocell.rhythhaus.ui
 
 import com.eterocell.rhythhaus.library.TrackArtwork
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
-import kotlinx.coroutines.runBlocking
 
 class ArtworkImageTest {
     @Test

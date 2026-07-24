@@ -16,11 +16,21 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.LibrarySnapshot
+import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
+import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
+import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.toPlayableTrack
+import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
@@ -29,21 +39,10 @@ import rhythhaus.shared.generated.resources.playlists
 import rhythhaus.shared.generated.resources.playlists_accessibility
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.LibrarySnapshot
-import com.eterocell.rhythhaus.PlaybackController
-import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
-import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
-import com.eterocell.rhythhaus.toPlayableTrack
 
-internal fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
-    systemBarTopPadding
+internal fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp = systemBarTopPadding
 
 internal fun dispatchHomeBrowseModeChange(
     currentMode: BrowseMode,

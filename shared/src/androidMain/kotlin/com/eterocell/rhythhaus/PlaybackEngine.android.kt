@@ -12,6 +12,8 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -19,8 +21,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CancellationException
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -357,8 +357,7 @@ internal class Media3RequestTokenTracker {
 
     fun begin(generation: Long): Media3RequestToken = Media3RequestToken(generation, ++nonce).also { active = it }
 
-    fun accepts(requestToken: Media3RequestToken, observedCurrentToken: Media3RequestToken?): Boolean =
-        active == requestToken && observedCurrentToken == requestToken
+    fun accepts(requestToken: Media3RequestToken, observedCurrentToken: Media3RequestToken?): Boolean = active == requestToken && observedCurrentToken == requestToken
 }
 
 internal data class AndroidPlaybackRequest(
@@ -444,20 +443,16 @@ internal class AndroidPlaybackRequestState {
     fun activeTokenForTest(): Media3RequestToken? = pending?.token
 
     @Synchronized
-    fun observableGeneration(observedCurrentToken: Media3RequestToken?): Long? =
-        observable?.takeIf { it.token == observedCurrentToken }?.generation
+    fun observableGeneration(observedCurrentToken: Media3RequestToken?): Long? = observable?.takeIf { it.token == observedCurrentToken }?.generation
 
     @Synchronized
-    fun captureObservable(observedCurrentToken: Media3RequestToken?): AndroidObservablePlayback? =
-        observable?.takeIf { it.token == observedCurrentToken }
+    fun captureObservable(observedCurrentToken: Media3RequestToken?): AndroidObservablePlayback? = observable?.takeIf { it.token == observedCurrentToken }
 
     @Synchronized
-    fun revalidate(captured: AndroidObservablePlayback, observedCurrentToken: Media3RequestToken?): Boolean =
-        observable == captured && captured.token == observedCurrentToken
+    fun revalidate(captured: AndroidObservablePlayback, observedCurrentToken: Media3RequestToken?): Boolean = observable == captured && captured.token == observedCurrentToken
 }
 
-private fun currentRequestToken(controller: MediaController): Media3RequestToken? =
-    Media3RequestToken.decode(controller.currentMediaItem?.mediaId.orEmpty())
+private fun currentRequestToken(controller: MediaController): Media3RequestToken? = Media3RequestToken.decode(controller.currentMediaItem?.mediaId.orEmpty())
 
 internal fun buildAndroidPlaybackMediaItem(track: PlayableTrack, requestToken: Media3RequestToken): MediaItem = MediaItem.Builder()
     .setMediaId(requestToken.encode())

@@ -1,30 +1,30 @@
 package com.eterocell.rhythhaus.library.ui
 
-import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertHeightIsAtLeast
-import androidx.compose.ui.test.assertHeightIsEqualTo
-import androidx.compose.ui.test.assertWidthIsAtLeast
-import androidx.compose.ui.test.click
-import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onLast
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performSemanticsAction
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.v2.runComposeUiTest
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onLast
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.Playlist
@@ -94,7 +94,10 @@ class PlaylistEditModeSemanticsJvmTest {
                 libraryTracks = listOf(libraryTrack("track-a", title = "Song A", artist = "Artist A", album = "Album A")),
                 state = PlaylistState(),
                 onBack = {}, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
-                onPlayEntry = { playCount++; selectedOccurrence = it.selectedOccurrenceId },
+                onPlayEntry = {
+                    playCount++
+                    selectedOccurrence = it.selectedOccurrenceId
+                },
                 onRemoveEntry = {}, onReorder = {}, bottomContentPadding = 0.dp,
             )
         }
@@ -120,7 +123,10 @@ class PlaylistEditModeSemanticsJvmTest {
                 state = PlaylistState(),
                 onBack = {}, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
                 onPlayEntry = {}, onRemoveEntry = {}, onReorder = {}, rowMode = PlaylistDetailRowMode.Edit,
-                registerPlaylistEditMode = { _, callback -> clear = callback; { unregisterCount++ } },
+                registerPlaylistEditMode = { _, callback ->
+                    clear = callback;
+                    { unregisterCount++ }
+                },
             )
         }
         onNode(hasContentDescription("Song A, Artist A, Album A, 3:12"), useUnmergedTree = true).assertExists()
@@ -145,7 +151,10 @@ class PlaylistEditModeSemanticsJvmTest {
                 state = PlaylistState(),
                 onBack = { backCount++ }, onRetry = {}, onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {},
                 onPlayEntry = { playCount++ }, onRemoveEntry = {}, onReorder = {},
-                registerPlaylistModalDismiss = { _, callback -> registeredDismiss = callback; {} },
+                registerPlaylistModalDismiss = { _, callback ->
+                    registeredDismiss = callback;
+                    {}
+                },
             )
         }
         waitForIdle()
@@ -180,7 +189,10 @@ class PlaylistEditModeSemanticsJvmTest {
                 onPlayEntry = { playCount++ }, onRemoveEntry = {}, onReorder = {},
                 registerPlaylistModalDismiss = { owner, callback ->
                     dismiss = callback
-                    registration.registerModal(owner) { callback?.invoke(); dismiss = null }
+                    registration.registerModal(owner) {
+                        callback?.invoke()
+                        dismiss = null
+                    }
                 },
             )
         }
@@ -302,7 +314,12 @@ class PlaylistEditModeSemanticsJvmTest {
                 rowMode = PlaylistDetailRowMode.Edit,
                 registerPlaylistEditMode = { owner, clear -> registration.registerEdit(owner, clear) },
                 registerPlaylistModalDismiss = { owner, callback ->
-                    callback?.let { registration.registerModal(owner) { dismissals++; it() } } ?: {}
+                    callback?.let {
+                        registration.registerModal(owner) {
+                            dismissals++
+                            it()
+                        }
+                    } ?: {}
                 },
             )
         }
@@ -484,7 +501,6 @@ class PlaylistEditModeSemanticsJvmTest {
         onNode(hasContentDescription("从播放列表中移除 A deliberately long song title"), useUnmergedTree = true)
             .assertWidthIsAtLeast(44.dp)
             .assertHeightIsAtLeast(44.dp)
-
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -539,8 +555,14 @@ class PlaylistEditModeSemanticsJvmTest {
                 libraryTracks = listOf(libraryTrack("track-a", "Song A", "Artist A", "Album A")),
                 state = PlaylistState(),
                 onBack = callbacks.ordinaryBack, onRetry = {}, onRename = { _, _ -> },
-                onDelete = { callback -> deleteCount++; callback(PlaylistStateAction.SnapshotConfirmed(PlaylistSnapshot())) },
-                onDeleteCompleted = { completionCount++; callbacks.deleteCompleted() },
+                onDelete = { callback ->
+                    deleteCount++
+                    callback(PlaylistStateAction.SnapshotConfirmed(PlaylistSnapshot()))
+                },
+                onDeleteCompleted = {
+                    completionCount++
+                    callbacks.deleteCompleted()
+                },
                 onOpenBrowser = {}, onPlayEntry = {}, onRemoveEntry = {}, onReorder = {},
                 registerPlaylistModalDismiss = { owner, dismiss -> dismiss?.let { registration.registerModal(owner, it) } ?: {} },
             )

@@ -12,9 +12,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -169,22 +169,31 @@ fun PlaylistBackupResultDialog(
             Spacer(Modifier.height(12.dp))
             CountLine(
                 stringResource(
-                    if (result.totals.playlistsToCreate == 1) Res.string.playlist_backup_result_created_one
-                    else Res.string.playlist_backup_result_created,
+                    if (result.totals.playlistsToCreate == 1) {
+                        Res.string.playlist_backup_result_created_one
+                    } else {
+                        Res.string.playlist_backup_result_created
+                    },
                     result.totals.playlistsToCreate,
                 ),
             )
             CountLine(
                 stringResource(
-                    if (result.totals.playlistsSkipped == 1) Res.string.playlist_backup_result_skipped_one
-                    else Res.string.playlist_backup_result_skipped,
+                    if (result.totals.playlistsSkipped == 1) {
+                        Res.string.playlist_backup_result_skipped_one
+                    } else {
+                        Res.string.playlist_backup_result_skipped
+                    },
                     result.totals.playlistsSkipped,
                 ),
             )
             CountLine(
                 stringResource(
-                    if (result.totals.entries.restorable == 1) Res.string.playlist_backup_result_restored_one
-                    else Res.string.playlist_backup_result_restored,
+                    if (result.totals.entries.restorable == 1) {
+                        Res.string.playlist_backup_result_restored_one
+                    } else {
+                        Res.string.playlist_backup_result_restored
+                    },
                     result.totals.entries.restorable,
                 ),
             )

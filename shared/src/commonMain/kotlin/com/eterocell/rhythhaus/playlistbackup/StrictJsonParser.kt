@@ -41,14 +41,19 @@ internal class StrictJsonParser(private val text: String) {
             skipWhitespace()
             when (key) {
                 "format" -> format = string()
+
                 "version" -> version = integer()
+
                 "exportedAtEpochMillis" -> exportedAt = integer()
+
                 "playlists" -> playlists = playlistArray()
+
                 "checksumCrc32" -> {
                     if (separatorIndex < 0) fail(PlaylistBackupValidationError.MALFORMED_JSON)
                     payloadEnd = separatorIndex
                     checksum = string()
                 }
+
                 else -> fail(PlaylistBackupValidationError.UNKNOWN_FIELD)
             }
         }
@@ -181,13 +186,18 @@ internal class StrictJsonParser(private val text: String) {
             val char = text[index++]
             when {
                 char == '"' -> return result.toString()
+
                 char == '\\' -> escaped(result)
+
                 char.code < 0x20 -> fail(PlaylistBackupValidationError.MALFORMED_JSON)
+
                 char.isHighSurrogate() -> {
                     if (index >= text.length || !text[index].isLowSurrogate()) fail(PlaylistBackupValidationError.MALFORMED_JSON)
                     result.append(char).append(text[index++])
                 }
+
                 char.isLowSurrogate() -> fail(PlaylistBackupValidationError.MALFORMED_JSON)
+
                 else -> result.append(char)
             }
         }
@@ -198,11 +208,17 @@ internal class StrictJsonParser(private val text: String) {
         if (index >= text.length) fail(PlaylistBackupValidationError.MALFORMED_JSON)
         when (val escape = text[index++]) {
             '"', '\\', '/' -> result.append(escape)
+
             'b' -> result.append('\b')
+
             'f' -> result.append('\u000c')
+
             'n' -> result.append('\n')
+
             'r' -> result.append('\r')
+
             't' -> result.append('\t')
+
             'u' -> {
                 val first = hexCodeUnit()
                 when {
@@ -215,10 +231,13 @@ internal class StrictJsonParser(private val text: String) {
                         if (second !in 0xDC00..0xDFFF) fail(PlaylistBackupValidationError.MALFORMED_JSON)
                         result.append(first.toChar()).append(second.toChar())
                     }
+
                     first in 0xDC00..0xDFFF -> fail(PlaylistBackupValidationError.MALFORMED_JSON)
+
                     else -> result.append(first.toChar())
                 }
             }
+
             else -> fail(PlaylistBackupValidationError.MALFORMED_JSON)
         }
     }

@@ -135,6 +135,7 @@ fun planPlaylistImport(
         playlist.entries.forEachIndexed { entryIndex, entry ->
             when (val match = matcher.match(entry)) {
                 is PlaylistBackupMatch.Unique -> trackIds += match.trackId
+
                 PlaylistBackupMatch.Unmatched -> {
                     unmatched++
                     issues += PlaylistImportIssue(
@@ -145,6 +146,7 @@ fun planPlaylistImport(
                         emptyList(),
                     )
                 }
+
                 is PlaylistBackupMatch.Ambiguous -> {
                     ambiguous++
                     issues += PlaylistImportIssue(
@@ -159,11 +161,15 @@ fun planPlaylistImport(
         }
         val counts = PlaylistImportCounts(trackIds.size, unmatched, ambiguous)
         totalCounts += counts
-        val plannedName = if (trackIds.isEmpty()) null else reserveImportName(
-            playlist.name,
-            importedSuffix,
-            reservedNames,
-        )
+        val plannedName = if (trackIds.isEmpty()) {
+            null
+        } else {
+            reserveImportName(
+                playlist.name,
+                importedSuffix,
+                reservedNames,
+            )
+        }
         if (plannedName != null) {
             plannedPlaylists += PlaylistImportPlaylist(playlistIndex, plannedName, trackIds.toList())
         }

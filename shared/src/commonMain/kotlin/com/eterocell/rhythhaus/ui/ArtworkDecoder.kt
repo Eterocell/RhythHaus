@@ -45,8 +45,7 @@ fun ByteArray.decodeArtworkCached(): ImageBitmap? = ArtworkCache.get(this) ?: de
 /**
  * Decodes a thumbnail-sized artwork image with caching for compact list/bar surfaces.
  */
-fun ByteArray.decodeArtworkThumbnailCached(maxPixelSize: Int = 128): ImageBitmap? =
-    ArtworkCache.get(this, maxPixelSize) ?: decodeArtworkThumbnail(maxPixelSize)?.also { ArtworkCache.put(this, it, maxPixelSize) }
+fun ByteArray.decodeArtworkThumbnailCached(maxPixelSize: Int = 128): ImageBitmap? = ArtworkCache.get(this, maxPixelSize) ?: decodeArtworkThumbnail(maxPixelSize)?.also { ArtworkCache.put(this, it, maxPixelSize) }
 
 internal fun scaledThumbnailDimension(width: Int, height: Int, target: Int): Pair<Int, Int> {
     val safeTarget = target.coerceAtLeast(1)

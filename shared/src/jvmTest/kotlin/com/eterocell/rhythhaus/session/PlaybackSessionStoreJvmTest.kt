@@ -14,20 +14,20 @@ import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import okio.Path.Companion.toOkioPath
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.first
-import okio.Path.Companion.toOkioPath
 
 class PlaybackSessionStoreJvmTest {
     @Test
@@ -411,16 +411,14 @@ class PlaybackSessionStoreJvmTest {
         }
     }
 
-    private fun testPreferencesDataStore(file: File, job: Job): DataStore<Preferences> =
-        PreferenceDataStoreFactory.createWithPath(
-            corruptionHandler = null,
-            migrations = emptyList(),
-            scope = CoroutineScope(Dispatchers.IO + job),
-            produceFile = { file.toOkioPath() },
-        )
+    private fun testPreferencesDataStore(file: File, job: Job): DataStore<Preferences> = PreferenceDataStoreFactory.createWithPath(
+        corruptionHandler = null,
+        migrations = emptyList(),
+        scope = CoroutineScope(Dispatchers.IO + job),
+        produceFile = { file.toOkioPath() },
+    )
 
-    private fun newPreferencesFile(prefix: String): File =
-        File.createTempFile(prefix, ".preferences_pb").apply { delete() }
+    private fun newPreferencesFile(prefix: String): File = File.createTempFile(prefix, ".preferences_pb").apply { delete() }
 
     private fun track(id: String): PlayableTrack = PlayableTrack(
         id = id,

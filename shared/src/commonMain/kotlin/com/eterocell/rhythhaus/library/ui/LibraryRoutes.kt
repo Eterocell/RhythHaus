@@ -1,59 +1,59 @@
 package com.eterocell.rhythhaus.library.ui
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
-import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.library.LibrarySource
-import com.eterocell.rhythhaus.library.PlaylistRepository
-import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
-import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
-import com.eterocell.rhythhaus.library.ScanProgress
-import com.eterocell.rhythhaus.taglib.TagLibReader
-import kotlinx.coroutines.Job
-import org.jetbrains.compose.resources.stringResource
-import rhythhaus.shared.generated.resources.Res
-import rhythhaus.shared.generated.resources.album_detail_subtitle_format
-import rhythhaus.shared.generated.resources.artist_detail_subtitle_format
-import rhythhaus.shared.generated.resources.playlists
-import rhythhaus.shared.generated.resources.playlist_load_failed
-import rhythhaus.shared.generated.resources.playlist_loading
-import rhythhaus.shared.generated.resources.playlist_retry
-import rhythhaus.shared.generated.resources.playlist_changed
-import rhythhaus.shared.generated.resources.playlist_mutation_failed
-import rhythhaus.shared.generated.resources.unknown_artist
+import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.QueueMutationResult
-import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.library.LibrarySource
+import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.search.SearchScreen
 import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
 import com.eterocell.rhythhaus.settings.SettingsAboutScreen
 import com.eterocell.rhythhaus.settings.SettingsScreen
-import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.StateFlow
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.album_detail_subtitle_format
+import rhythhaus.shared.generated.resources.artist_detail_subtitle_format
+import rhythhaus.shared.generated.resources.playlist_changed
+import rhythhaus.shared.generated.resources.playlist_load_failed
+import rhythhaus.shared.generated.resources.playlist_loading
+import rhythhaus.shared.generated.resources.playlist_mutation_failed
+import rhythhaus.shared.generated.resources.playlist_retry
+import rhythhaus.shared.generated.resources.playlists
+import rhythhaus.shared.generated.resources.unknown_artist
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import kotlinx.coroutines.flow.StateFlow
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 
 internal class QueueMutationDispatcher(
     private val state: StateFlow<PlaybackState>,
@@ -61,11 +61,9 @@ internal class QueueMutationDispatcher(
     private val removeCommand: suspend (String) -> QueueMutationResult,
     private val clearCommand: suspend () -> QueueMutationResult,
 ) {
-    suspend fun reorder(occurrenceId: String, targetIndex: Int): QueueMutationFeedback =
-        executeQueueMutation(state) { reorderCommand(occurrenceId, targetIndex) }
+    suspend fun reorder(occurrenceId: String, targetIndex: Int): QueueMutationFeedback = executeQueueMutation(state) { reorderCommand(occurrenceId, targetIndex) }
 
-    suspend fun remove(occurrenceId: String): QueueMutationFeedback =
-        executeQueueMutation(state) { removeCommand(occurrenceId) }
+    suspend fun remove(occurrenceId: String): QueueMutationFeedback = executeQueueMutation(state) { removeCommand(occurrenceId) }
 
     suspend fun clear(): QueueMutationFeedback = executeQueueMutation(state, clearCommand)
 }
@@ -150,9 +148,11 @@ internal fun LibraryRouteOverlays(
             onOpenLibraries = onShowOpenSourceLibraries,
             onDismiss = onDismiss,
         )
+
         LibraryRoute.OpenSourceLibraries -> OpenSourceLibrariesScreen(
             onDismiss = onDismiss,
         )
+
         LibraryRoute.Home,
         is LibraryRoute.AlbumDetail,
         is LibraryRoute.ArtistDetail,
@@ -303,6 +303,7 @@ internal fun LibraryRouteContent(
                     onBack = onBack,
                     onRetry = onRefreshPlaylists,
                 )
+
                 is PlaylistDetailResolution.Show -> PlaylistDetailScreen(
                     playlist = resolution.playlist,
                     entries = playlistState.confirmedSnapshot.entries(resolution.playlist.id),
@@ -351,6 +352,7 @@ internal fun LibraryRouteContent(
                     registerPlaylistEditMode = registerPlaylistEditMode,
                     registerPlaylistModalDismiss = registerPlaylistModalDismiss,
                 )
+
                 is PlaylistDetailResolution.ReturnToHub -> LaunchedEffect(route) {
                     onRecoverStalePlaylistDetail(resolution.message)
                 }
@@ -401,6 +403,7 @@ private fun PlaylistRoutePlaceholder(
                     text = stringResource(Res.string.playlist_loading),
                     color = HausColors.current.muted,
                 )
+
                 state.readErrorMessage != null -> {
                     Text(
                         text = stringResource(Res.string.playlist_load_failed),
@@ -429,11 +432,13 @@ private fun PlaylistRoutePlaceholder(
                     color = HausColors.current.muted,
                     modifier = Modifier.padding(top = 12.dp),
                 )
+
                 PlaylistRouteNotice.MutationFailed -> Text(
                     text = stringResource(Res.string.playlist_mutation_failed),
                     color = HausColors.current.muted,
                     modifier = Modifier.padding(top = 12.dp),
                 )
+
                 null -> Unit
             }
         }

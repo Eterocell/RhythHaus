@@ -32,12 +32,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -45,35 +45,53 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
+import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.ui.AnimatedClearLibraryDialogRoute
 import com.eterocell.rhythhaus.library.ui.ScanningCard
-import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.theme.RhythHausThemeMode
-import com.eterocell.rhythhaus.ui.HausDialog
-import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupPreviewDialog
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupResultDialog
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiError
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
+import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.ui.HausDialog
+import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.about
 import rhythhaus.shared.generated.resources.add_music_folder
 import rhythhaus.shared.generated.resources.appearance
+import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.clear_library
 import rhythhaus.shared.generated.resources.configured_folders
-import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.folder_picker_unavailable
 import rhythhaus.shared.generated.resources.manage_music
-import rhythhaus.shared.generated.resources.unnamed_folder
+import rhythhaus.shared.generated.resources.playlist_backup_checksum_error
+import rhythhaus.shared.generated.resources.playlist_backup_export
+import rhythhaus.shared.generated.resources.playlist_backup_exporting
+import rhythhaus.shared.generated.resources.playlist_backup_import
+import rhythhaus.shared.generated.resources.playlist_backup_import_invalid_data_error
+import rhythhaus.shared.generated.resources.playlist_backup_importing
+import rhythhaus.shared.generated.resources.playlist_backup_invalid_data_error
+import rhythhaus.shared.generated.resources.playlist_backup_invalid_duration_error
+import rhythhaus.shared.generated.resources.playlist_backup_malformed_error
+import rhythhaus.shared.generated.resources.playlist_backup_missing_duration_error
+import rhythhaus.shared.generated.resources.playlist_backup_missing_track_error
+import rhythhaus.shared.generated.resources.playlist_backup_oversized_error
+import rhythhaus.shared.generated.resources.playlist_backup_read_error
+import rhythhaus.shared.generated.resources.playlist_backup_repository_error
+import rhythhaus.shared.generated.resources.playlist_backup_section
+import rhythhaus.shared.generated.resources.playlist_backup_stale_error
+import rhythhaus.shared.generated.resources.playlist_backup_unavailable_error
+import rhythhaus.shared.generated.resources.playlist_backup_version_error
+import rhythhaus.shared.generated.resources.playlist_backup_write_error
 import rhythhaus.shared.generated.resources.remove
 import rhythhaus.shared.generated.resources.remove_folder
 import rhythhaus.shared.generated.resources.remove_folder_message
@@ -91,25 +109,7 @@ import rhythhaus.shared.generated.resources.theme_light_description
 import rhythhaus.shared.generated.resources.theme_light_label
 import rhythhaus.shared.generated.resources.theme_system_description
 import rhythhaus.shared.generated.resources.theme_system_label
-import rhythhaus.shared.generated.resources.playlist_backup_section
-import rhythhaus.shared.generated.resources.playlist_backup_export
-import rhythhaus.shared.generated.resources.playlist_backup_exporting
-import rhythhaus.shared.generated.resources.playlist_backup_import
-import rhythhaus.shared.generated.resources.playlist_backup_importing
-import rhythhaus.shared.generated.resources.playlist_backup_unavailable_error
-import rhythhaus.shared.generated.resources.playlist_backup_read_error
-import rhythhaus.shared.generated.resources.playlist_backup_write_error
-import rhythhaus.shared.generated.resources.playlist_backup_oversized_error
-import rhythhaus.shared.generated.resources.playlist_backup_malformed_error
-import rhythhaus.shared.generated.resources.playlist_backup_checksum_error
-import rhythhaus.shared.generated.resources.playlist_backup_version_error
-import rhythhaus.shared.generated.resources.playlist_backup_stale_error
-import rhythhaus.shared.generated.resources.playlist_backup_missing_track_error
-import rhythhaus.shared.generated.resources.playlist_backup_missing_duration_error
-import rhythhaus.shared.generated.resources.playlist_backup_invalid_duration_error
-import rhythhaus.shared.generated.resources.playlist_backup_invalid_data_error
-import rhythhaus.shared.generated.resources.playlist_backup_import_invalid_data_error
-import rhythhaus.shared.generated.resources.playlist_backup_repository_error
+import rhythhaus.shared.generated.resources.unnamed_folder
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -304,9 +304,13 @@ fun SettingsScreen(
                                 ),
                             ) {
                                 Text(
-                                    text = if (folderPickerLauncher.isAvailable) stringResource(Res.string.add_music_folder) else stringResource(
-                                        Res.string.folder_picker_unavailable
-                                    ),
+                                    text = if (folderPickerLauncher.isAvailable) {
+                                        stringResource(Res.string.add_music_folder)
+                                    } else {
+                                        stringResource(
+                                            Res.string.folder_picker_unavailable,
+                                        )
+                                    },
                                     fontWeight = FontWeight.Black,
                                 )
                             }
@@ -339,7 +343,7 @@ fun SettingsScreen(
                             ) {
                                 Text(
                                     text = stringResource(Res.string.clear_library),
-                                    fontWeight = FontWeight.Black
+                                    fontWeight = FontWeight.Black,
                                 )
                             }
                         }
@@ -506,9 +510,8 @@ internal enum class SourceAccessLabel { Available, LostAccess }
 
 internal enum class SourceScanLabel { NeverScanned, LastScanned }
 
-internal fun sourceManagementLabels(source: LibrarySource): Pair<SourceAccessLabel, SourceScanLabel> =
-    (if (source.accessStatus == LibrarySourceAccessStatus.Available) SourceAccessLabel.Available else SourceAccessLabel.LostAccess) to
-        (if (source.lastScanAtEpochMillis == null) SourceScanLabel.NeverScanned else SourceScanLabel.LastScanned)
+internal fun sourceManagementLabels(source: LibrarySource): Pair<SourceAccessLabel, SourceScanLabel> = (if (source.accessStatus == LibrarySourceAccessStatus.Available) SourceAccessLabel.Available else SourceAccessLabel.LostAccess) to
+    (if (source.lastScanAtEpochMillis == null) SourceScanLabel.NeverScanned else SourceScanLabel.LastScanned)
 
 internal data class SourceDialogName(
     val visual: String,

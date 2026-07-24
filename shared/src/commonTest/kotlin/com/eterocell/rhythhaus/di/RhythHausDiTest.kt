@@ -1,10 +1,10 @@
 package com.eterocell.rhythhaus.di
 
 import com.eterocell.rhythhaus.AudioMetadataReader
+import com.eterocell.rhythhaus.PlatformPlaybackEngine
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackProcessLifecycle
-import com.eterocell.rhythhaus.PlatformPlaybackEngine
 import com.eterocell.rhythhaus.library.InMemoryLibraryRepository
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryRepository
@@ -13,17 +13,17 @@ import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlatformScanEvent
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.ScanStatus
-import com.eterocell.rhythhaus.taglib.TagLibReader
-import com.eterocell.rhythhaus.taglib.TagReadResult
 import com.eterocell.rhythhaus.session.PlaybackCheckpoint
 import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionCoordinator
-import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
-import com.eterocell.rhythhaus.session.RevisionedPlaybackSessionSnapshot
-import com.eterocell.rhythhaus.session.PlaybackSessionStore
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
-import kotlinx.coroutines.CompletableDeferred
+import com.eterocell.rhythhaus.session.PlaybackSessionSnapshot
+import com.eterocell.rhythhaus.session.PlaybackSessionStore
+import com.eterocell.rhythhaus.session.RevisionedPlaybackSessionSnapshot
+import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.taglib.TagReadResult
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -35,14 +35,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.koin.core.context.startKoin
+import org.koin.core.context.stopKoin
+import org.koin.dsl.module
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertSame
-import org.koin.core.context.startKoin
-import org.koin.core.context.stopKoin
-import org.koin.dsl.module
 
 class RhythHausDiTest {
     @Test
@@ -217,8 +217,7 @@ private class CountingRestoreController(
         return RevisionedPlaybackSessionSnapshot(PlaybackSessionSnapshot(), null)
     }
 
-    override suspend fun reconcileSession(tracks: List<PlayableTrack>): RevisionedPlaybackSessionSnapshot =
-        RevisionedPlaybackSessionSnapshot(PlaybackSessionSnapshot(), null)
+    override suspend fun reconcileSession(tracks: List<PlayableTrack>): RevisionedPlaybackSessionSnapshot = RevisionedPlaybackSessionSnapshot(PlaybackSessionSnapshot(), null)
 
     override suspend fun awaitCheckpointFence() = Unit
 
@@ -231,8 +230,7 @@ private object EmptySessionStore : PlaybackSessionStore {
     override suspend fun save(snapshot: PlaybackSessionSnapshot) = Unit
 }
 
-private fun detachedScope(context: kotlin.coroutines.CoroutineContext): CoroutineScope =
-    CoroutineScope(context.minusKey(Job) + SupervisorJob())
+private fun detachedScope(context: kotlin.coroutines.CoroutineContext): CoroutineScope = CoroutineScope(context.minusKey(Job) + SupervisorJob())
 
 private object FakePlatformSourceAccess : PlatformSourceAccess {
     override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> = emptySequence()

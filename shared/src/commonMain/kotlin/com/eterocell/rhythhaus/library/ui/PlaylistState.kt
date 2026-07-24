@@ -4,8 +4,8 @@ import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
-import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
+import com.eterocell.rhythhaus.library.PlaylistRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -84,6 +84,7 @@ sealed interface PlaylistStateAction {
 
 fun reducePlaylistState(state: PlaylistState, action: PlaylistStateAction): PlaylistState = when (action) {
     PlaylistStateAction.LoadStarted -> state.copy(isLoading = true, readErrorMessage = null)
+
     is PlaylistStateAction.SnapshotConfirmed -> if (
         action.revision < state.publicationRevision
     ) {
@@ -99,6 +100,7 @@ fun reducePlaylistState(state: PlaylistState, action: PlaylistStateAction): Play
             publicationRevision = action.revision,
         )
     }
+
     is PlaylistStateAction.ReadFailed -> if (action.revision < state.publicationRevision) {
         state
     } else {
@@ -108,6 +110,7 @@ fun reducePlaylistState(state: PlaylistState, action: PlaylistStateAction): Play
             publicationRevision = action.revision,
         )
     }
+
     is PlaylistStateAction.MutationFailed -> if (action.revision < state.publicationRevision) {
         state
     } else {
@@ -116,18 +119,25 @@ fun reducePlaylistState(state: PlaylistState, action: PlaylistStateAction): Play
             publicationRevision = action.revision,
         )
     }
+
     is PlaylistStateAction.SelectTab -> state.copy(selectedTab = action.tab)
+
     is PlaylistStateAction.ShowRecoverableMessage -> state.copy(recoverableMessage = action.message)
+
     is PlaylistStateAction.OpenPicker -> state.copy(
         picker = action.picker,
         mutationErrorMessage = null,
     )
+
     PlaylistStateAction.ClosePicker -> state.copy(picker = null)
+
     is PlaylistStateAction.OpenBrowser -> state.copy(
         browser = action.browser,
         mutationErrorMessage = null,
     )
+
     PlaylistStateAction.CloseBrowser -> state.copy(browser = null)
+
     PlaylistStateAction.ClearMessages -> state.copy(
         readErrorMessage = null,
         mutationErrorMessage = null,

@@ -11,24 +11,24 @@ import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
-import com.eterocell.rhythhaus.library.sourcePickerActionVisible
-import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.androidSafSourceId
 import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
 import com.eterocell.rhythhaus.library.jvmFolderSourceId
 import com.eterocell.rhythhaus.library.normalizePickedSource
-import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
-import com.eterocell.rhythhaus.library.ui.PlaylistState
-import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
+import com.eterocell.rhythhaus.library.sourceMutationsAllowed
+import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
+import com.eterocell.rhythhaus.library.ui.PlaylistState
+import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
+import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.library.ui.reducePlaylistState
+import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
+import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import com.eterocell.rhythhaus.settings.SourceAccessLabel
 import com.eterocell.rhythhaus.settings.SourceDialogName
 import com.eterocell.rhythhaus.settings.SourceScanLabel
 import com.eterocell.rhythhaus.settings.sourceDialogName
 import com.eterocell.rhythhaus.settings.sourceManagementLabels
-import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
-import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -912,8 +912,7 @@ private class RecordingPlaylistRepository(
     override fun entries(playlistId: String) = delegate.entries(playlistId)
     override fun create(name: String) = delegate.create(name)
     override fun createWithEntries(name: String, trackIds: List<String>) = delegate.createWithEntries(name, trackIds)
-    override fun importPlaylists(playlists: List<com.eterocell.rhythhaus.library.PlaylistImportMutation>) =
-        delegate.importPlaylists(playlists)
+    override fun importPlaylists(playlists: List<com.eterocell.rhythhaus.library.PlaylistImportMutation>) = delegate.importPlaylists(playlists)
     override fun rename(id: String, name: String) = delegate.rename(id, name)
     override fun delete(id: String) = delegate.delete(id)
     override fun append(playlistId: String, trackIds: List<String>) = delegate.append(playlistId, trackIds)
@@ -929,8 +928,7 @@ private class FakePlatformSourceAccess(
     var sourceWasPresentWhenReleased = false
         private set
 
-    override fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus =
-        if (source.id == lostSourceId) LibrarySourceAccessStatus.LostAccess else LibrarySourceAccessStatus.Available
+    override fun accessStatus(source: LibrarySource): LibrarySourceAccessStatus = if (source.id == lostSourceId) LibrarySourceAccessStatus.LostAccess else LibrarySourceAccessStatus.Available
 
     override fun releaseAccess(source: LibrarySource) {
         sourceWasPresentWhenReleased = sourceWasPresentWhenReleased || repository?.sources()?.any { it.id == source.id } == true

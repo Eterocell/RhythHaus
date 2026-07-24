@@ -91,8 +91,7 @@ internal class SkipRoutingPlayer(player: Player) : androidx.media3.common.Forwar
 
     override fun getAvailableCommands(): Player.Commands = transportAvailableCommands(super.getAvailableCommands())
 
-    override fun isCommandAvailable(command: Int): Boolean =
-        transportRouter.isCommandAvailable(command, super.isCommandAvailable(command))
+    override fun isCommandAvailable(command: Int): Boolean = transportRouter.isCommandAvailable(command, super.isCommandAvailable(command))
 
     override fun play() {
         transportRouter.play { super.play() }

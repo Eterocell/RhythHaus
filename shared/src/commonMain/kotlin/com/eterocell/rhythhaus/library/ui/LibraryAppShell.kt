@@ -30,53 +30,53 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.LibrarySnapshot
+import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.LibrarySource
-import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
+import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
+import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.toPlayableTrack
+import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
+import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
+import com.eterocell.rhythhaus.ui.verticalSheetGesture
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.adaptive_detail_placeholder
 import rhythhaus.shared.generated.resources.library
 import top.yukonga.miuix.kmp.basic.Surface
-import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.LibrarySnapshot
-import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
-import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
-import com.eterocell.rhythhaus.PlaybackController
-import com.eterocell.rhythhaus.PlaybackState
-import com.eterocell.rhythhaus.theme.RhythHausThemeMode
-import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
-import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
-import com.eterocell.rhythhaus.toPlayableTrack
-import com.eterocell.rhythhaus.ui.verticalSheetGesture
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalAnimationApi::class)
@@ -168,8 +168,11 @@ fun LibraryHomeScreen(
         if (orderedIds.isNotEmpty()) onPlaylistStateAction(openAddToPlaylistPickerAction(orderedIds))
     }
     fun registerPlaylistEditMode(owner: Any, clear: () -> Unit): () -> Unit = playlistBackRegistration.registerEdit(owner, clear)
-    fun registerPlaylistModalDismiss(owner: Any, dismiss: (() -> Unit)?): () -> Unit =
-        if (dismiss == null) { {} } else playlistBackRegistration.registerModal(owner, dismiss)
+    fun registerPlaylistModalDismiss(owner: Any, dismiss: (() -> Unit)?): () -> Unit = if (dismiss == null) {
+        {}
+    } else {
+        playlistBackRegistration.registerModal(owner, dismiss)
+    }
     val libraryBackDecision = libraryBackDecision(
         hasPlaylistModal = playlistBackRegistration.decision() == LibraryBackDecision.DismissPlaylistModal,
         isPlaylistEditModeActive = playlistBackRegistration.decision() == LibraryBackDecision.ExitPlaylistEditMode,
@@ -212,9 +215,13 @@ fun LibraryHomeScreen(
     )
     val predictiveBackProgress = when (val ts = navState.transitionState) {
         is NavigationEventTransitionState.InProgress -> {
-            if (libraryBackDecision == LibraryBackDecision.PopRoute && ts.direction == NavigationEventTransitionState.TRANSITIONING_BACK) ts.latestEvent.progress
-            else 0f
+            if (libraryBackDecision == LibraryBackDecision.PopRoute && ts.direction == NavigationEventTransitionState.TRANSITIONING_BACK) {
+                ts.latestEvent.progress
+            } else {
+                0f
+            }
         }
+
         else -> 0f
     }
     val predictiveBackOffset = remember { Animatable(0f) }
@@ -488,12 +495,12 @@ fun LibraryHomeScreen(
                         .offset {
                             IntOffset(
                                 x = 0,
-                            y = nowPlayingBarOffsetPx(
-                                hiddenFraction = bottomBarOffset,
-                                measuredHeightPx = bottomBarPresentation.clearancePx,
-                            ),
-                        )
-                    }
+                                y = nowPlayingBarOffsetPx(
+                                    hiddenFraction = bottomBarOffset,
+                                    measuredHeightPx = bottomBarPresentation.clearancePx,
+                                ),
+                            )
+                        }
                         .alpha(bottomBarPresentation.alpha),
                 ) {
                     when (val content = bottomBarContent) {
@@ -503,6 +510,7 @@ fun LibraryHomeScreen(
                             onAddToPlaylist = ::openSelectedTracksPicker,
                             interactive = bottomBarPresentation.isInteractive,
                         )
+
                         LibraryBottomBarContent.NowPlaying -> NowPlayingBar(
                             track = selectedTrack,
                             playbackState = playbackState,
@@ -516,6 +524,7 @@ fun LibraryHomeScreen(
                             screenHeightPx = screenHeightPx,
                             backdrop = rootBackdrop,
                         )
+
                         LibraryBottomBarContent.Hidden -> Unit
                     }
                 }
@@ -537,50 +546,50 @@ fun LibraryHomeScreen(
 
         playlistState.picker?.let { picker ->
             AddToPlaylistPicker(
-                    playlists = playlistState.confirmedSnapshot.playlists,
-                    state = AddToPlaylistPickerState(
-                        trackIds = picker.trackIds,
-                        selectedPlaylistId = picker.selectedPlaylistId,
-                        enteredName = picker.enteredName,
-                    ),
-                    onStateChange = { updated ->
-                        onPlaylistStateAction(
-                            PlaylistStateAction.OpenPicker(
-                                PlaylistPickerState(
-                                    trackIds = updated.trackIds,
-                                    selectedPlaylistId = updated.selectedPlaylistId,
-                                    enteredName = updated.enteredName,
-                                ),
+                playlists = playlistState.confirmedSnapshot.playlists,
+                state = AddToPlaylistPickerState(
+                    trackIds = picker.trackIds,
+                    selectedPlaylistId = picker.selectedPlaylistId,
+                    enteredName = picker.enteredName,
+                ),
+                onStateChange = { updated ->
+                    onPlaylistStateAction(
+                        PlaylistStateAction.OpenPicker(
+                            PlaylistPickerState(
+                                trackIds = updated.trackIds,
+                                selectedPlaylistId = updated.selectedPlaylistId,
+                                enteredName = updated.enteredName,
                             ),
-                        )
-                    },
-                    onDismiss = { onPlaylistStateAction(PlaylistStateAction.ClosePicker) },
-                    notice = playlistPickerPresentation(playlistState)?.notice,
-                    onAppend = { request ->
-                        onPlaylistMutation(
-                            { append(request.playlistId, request.trackIds) },
-                            { outcome ->
-                                if (playlistMutationDecision(PlaylistMutationWorkflow.PickerAppend, outcome) == PlaylistMutationDecision.CloseModal) {
-                                    onPlaylistStateAction(PlaylistStateAction.ClosePicker)
-                                    trackSelectionActionAfterPickerOutcome(outcome)?.let(::dispatchTrackSelection)
-                                }
-                            },
-                        )
-                    },
-                    onInlineCreate = { request ->
-                        onPlaylistMutation(
-                            {
-                                createWithEntries(request.name, request.trackIds)
-                            },
-                            { outcome ->
-                                if (playlistMutationDecision(PlaylistMutationWorkflow.PickerInlineCreate, outcome) == PlaylistMutationDecision.CloseModal) {
-                                    onPlaylistStateAction(PlaylistStateAction.ClosePicker)
-                                    trackSelectionActionAfterPickerOutcome(outcome)?.let(::dispatchTrackSelection)
-                                }
-                            },
-                        )
-                    },
-                )
+                        ),
+                    )
+                },
+                onDismiss = { onPlaylistStateAction(PlaylistStateAction.ClosePicker) },
+                notice = playlistPickerPresentation(playlistState)?.notice,
+                onAppend = { request ->
+                    onPlaylistMutation(
+                        { append(request.playlistId, request.trackIds) },
+                        { outcome ->
+                            if (playlistMutationDecision(PlaylistMutationWorkflow.PickerAppend, outcome) == PlaylistMutationDecision.CloseModal) {
+                                onPlaylistStateAction(PlaylistStateAction.ClosePicker)
+                                trackSelectionActionAfterPickerOutcome(outcome)?.let(::dispatchTrackSelection)
+                            }
+                        },
+                    )
+                },
+                onInlineCreate = { request ->
+                    onPlaylistMutation(
+                        {
+                            createWithEntries(request.name, request.trackIds)
+                        },
+                        { outcome ->
+                            if (playlistMutationDecision(PlaylistMutationWorkflow.PickerInlineCreate, outcome) == PlaylistMutationDecision.CloseModal) {
+                                onPlaylistStateAction(PlaylistStateAction.ClosePicker)
+                                trackSelectionActionAfterPickerOutcome(outcome)?.let(::dispatchTrackSelection)
+                            }
+                        },
+                    )
+                },
+            )
         }
 
         playlistState.browser?.let { browser ->
@@ -708,10 +717,13 @@ private const val NavigationSlideDistancePx = 90
 
 private fun routeContentTransform(transition: LibraryNavigationTransition): ContentTransform = when (transition) {
     LibraryNavigationTransition.Push -> routeSlideContentTransform(forward = true)
+
     LibraryNavigationTransition.Pop,
     LibraryNavigationTransition.Root,
     -> routeSlideContentTransform(forward = false)
+
     LibraryNavigationTransition.Replace -> routeFadeContentTransform()
+
     LibraryNavigationTransition.None -> routeFadeContentTransform()
 }
 

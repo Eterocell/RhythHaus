@@ -129,10 +129,9 @@ internal fun requireName(name: String): String = name.trim().also {
     require(it.isNotEmpty()) { "Playlist name must not be blank" }
 }
 
-internal fun validatePlaylistImports(playlists: List<PlaylistImportMutation>): List<PlaylistImportMutation> =
-    playlists.map { mutation ->
-        val name = requireName(mutation.name)
-        require(mutation.trackIds.isNotEmpty()) { "Imported playlist track IDs must not be empty" }
-        require(mutation.trackIds.all { it.isNotBlank() }) { "Imported playlist track IDs must not be blank" }
-        mutation.copy(name = name, trackIds = mutation.trackIds.toList())
-    }
+internal fun validatePlaylistImports(playlists: List<PlaylistImportMutation>): List<PlaylistImportMutation> = playlists.map { mutation ->
+    val name = requireName(mutation.name)
+    require(mutation.trackIds.isNotEmpty()) { "Imported playlist track IDs must not be empty" }
+    require(mutation.trackIds.all { it.isNotBlank() }) { "Imported playlist track IDs must not be blank" }
+    mutation.copy(name = name, trackIds = mutation.trackIds.toList())
+}

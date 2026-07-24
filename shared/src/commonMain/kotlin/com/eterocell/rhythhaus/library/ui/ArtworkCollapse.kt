@@ -13,12 +13,11 @@ internal enum class DrillDownScrollOwner { Artwork, Miuix }
 
 internal enum class ArtworkHeaderItemPolicy { UpperAndStickyLower, StickyLowerOnly }
 
-internal fun artworkHeaderItemPolicy(geometry: ArtworkCollapseGeometry): ArtworkHeaderItemPolicy =
-    if (geometry.collapseRangePx > 0f) {
-        ArtworkHeaderItemPolicy.UpperAndStickyLower
-    } else {
-        ArtworkHeaderItemPolicy.StickyLowerOnly
-    }
+internal fun artworkHeaderItemPolicy(geometry: ArtworkCollapseGeometry): ArtworkHeaderItemPolicy = if (geometry.collapseRangePx > 0f) {
+    ArtworkHeaderItemPolicy.UpperAndStickyLower
+} else {
+    ArtworkHeaderItemPolicy.StickyLowerOnly
+}
 
 internal data class DrillDownListSpacing(
     val horizontalPaddingDp: Float,
@@ -67,8 +66,7 @@ internal data class DrillDownArtwork(
     val state: TrackArtworkLoadState,
 )
 
-internal fun drillDownScrollOwner(artwork: DrillDownArtwork): DrillDownScrollOwner =
-    if (artwork.state is TrackArtworkLoadState.Available) DrillDownScrollOwner.Artwork else DrillDownScrollOwner.Miuix
+internal fun drillDownScrollOwner(artwork: DrillDownArtwork): DrillDownScrollOwner = if (artwork.state is TrackArtworkLoadState.Available) DrillDownScrollOwner.Artwork else DrillDownScrollOwner.Miuix
 
 internal data class ArtworkCollapseGeometry(
     val expandedHeightPx: Float,

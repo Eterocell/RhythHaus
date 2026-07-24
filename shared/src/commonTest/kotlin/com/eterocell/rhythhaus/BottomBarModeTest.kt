@@ -1,17 +1,17 @@
 package com.eterocell.rhythhaus
 
-import com.eterocell.rhythhaus.nowplaying.BottomBarMode
-import com.eterocell.rhythhaus.nowplaying.bottomBarModeFor
 import com.eterocell.rhythhaus.library.ui.LibraryBottomBarContent
+import com.eterocell.rhythhaus.library.ui.LibraryBottomBarMeasurement
 import com.eterocell.rhythhaus.library.ui.LibraryRoute
+import com.eterocell.rhythhaus.library.ui.TrackSelectionBarSemantics
 import com.eterocell.rhythhaus.library.ui.TrackSelectionPageKey
 import com.eterocell.rhythhaus.library.ui.TrackSelectionState
-import com.eterocell.rhythhaus.library.ui.TrackSelectionBarSemantics
-import com.eterocell.rhythhaus.library.ui.activeBottomBarClearancePx
 import com.eterocell.rhythhaus.library.ui.activeBottomBarAlpha
-import com.eterocell.rhythhaus.library.ui.LibraryBottomBarMeasurement
+import com.eterocell.rhythhaus.library.ui.activeBottomBarClearancePx
 import com.eterocell.rhythhaus.library.ui.libraryBottomBarContent
 import com.eterocell.rhythhaus.library.ui.trackSelectionBarSemantics
+import com.eterocell.rhythhaus.nowplaying.BottomBarMode
+import com.eterocell.rhythhaus.nowplaying.bottomBarModeFor
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

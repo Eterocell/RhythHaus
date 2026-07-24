@@ -89,5 +89,4 @@ class DataStorePlaybackSessionStore(
 
 expect fun createPlaybackSessionStore(): PlaybackSessionStore
 
-private inline fun <reified T : Enum<T>> enumValueOrNull(name: String): T? =
-    enumValues<T>().firstOrNull { value -> value.name == name }
+private inline fun <reified T : Enum<T>> enumValueOrNull(name: String): T? = enumValues<T>().firstOrNull { value -> value.name == name }

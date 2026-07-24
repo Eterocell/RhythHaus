@@ -69,16 +69,13 @@ internal class ServiceTransportRouter {
     fun pause(action: () -> Unit): Boolean = routeTransport(action)
     fun stop(action: () -> Unit): Boolean = routeTransport(action)
     fun seekTo(positionMillis: Long, action: (Long) -> Unit): Boolean = routeTransport { action(positionMillis) }
-    fun seekTo(mediaItemIndex: Int, positionMillis: Long, action: (Int, Long) -> Unit): Boolean =
-        routeTransport { action(mediaItemIndex, positionMillis) }
+    fun seekTo(mediaItemIndex: Int, positionMillis: Long, action: (Int, Long) -> Unit): Boolean = routeTransport { action(mediaItemIndex, positionMillis) }
     fun next(action: () -> Unit): Boolean = routeTransport(action)
     fun previous(action: () -> Unit): Boolean = routeTransport(action)
-    fun isCommandAvailable(command: Int, delegateAvailable: Boolean): Boolean =
-        transportCommandAllowed(command) && (command in skipTransportCommands || delegateAvailable)
+    fun isCommandAvailable(command: Int, delegateAvailable: Boolean): Boolean = transportCommandAllowed(command) && (command in skipTransportCommands || delegateAvailable)
 }
 
-internal fun transportCommandAllowed(command: Int): Boolean =
-    RhythHausTransportBridge.isTransportEnabled() || command !in gatedTransportCommands
+internal fun transportCommandAllowed(command: Int): Boolean = RhythHausTransportBridge.isTransportEnabled() || command !in gatedTransportCommands
 
 private val skipTransportCommands = setOf(
     androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT,

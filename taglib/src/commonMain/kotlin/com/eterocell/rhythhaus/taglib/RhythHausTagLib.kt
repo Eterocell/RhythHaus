@@ -2,8 +2,7 @@ package com.eterocell.rhythhaus.taglib
 
 interface TagLibReader {
     fun readPath(path: String): TagReadResult
-    fun readFd(fd: Int, displayName: String): TagReadResult =
-        TagReadResult.Unsupported("Native TagLib reader does not support file descriptors")
+    fun readFd(fd: Int, displayName: String): TagReadResult = TagReadResult.Unsupported("Native TagLib reader does not support file descriptors")
 
     fun readProperties(path: String): Map<String, String>
 }

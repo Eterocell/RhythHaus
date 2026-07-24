@@ -1,4 +1,5 @@
 import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.eterocell.gradle.android.RhythHausAndroidAbiContractExtension
 import com.eterocell.gradle.android.VerifyReleaseAabTask
@@ -7,7 +8,6 @@ import com.eterocell.gradle.android.resolveAapt2
 import com.eterocell.gradle.android.resolveApkAnalyzer
 import com.eterocell.gradle.android.resolveApkSigner
 import com.eterocell.gradle.android.shouldConfigureSplitApks
-import com.android.build.api.dsl.ApplicationExtension
 import org.gradle.kotlin.dsl.getByType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 

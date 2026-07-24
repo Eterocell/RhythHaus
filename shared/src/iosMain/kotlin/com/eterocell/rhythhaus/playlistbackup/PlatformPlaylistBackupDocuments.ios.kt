@@ -73,18 +73,19 @@ actual fun rememberPlatformPlaylistBackupDocumentLauncher(
     }
 }
 
-internal fun iosPlaylistBackupUnavailableSaveResult() =
-    PlaylistBackupDocumentSaveResult.Unavailable("iOS document provider is unavailable")
+internal fun iosPlaylistBackupUnavailableSaveResult() = PlaylistBackupDocumentSaveResult.Unavailable("iOS document provider is unavailable")
 
-internal fun iosPlaylistBackupUnavailableOpenResult() =
-    PlaylistBackupDocumentOpenResult.Unavailable("iOS document provider is unavailable")
+internal fun iosPlaylistBackupUnavailableOpenResult() = PlaylistBackupDocumentOpenResult.Unavailable("iOS document provider is unavailable")
 
 internal fun iosPlaylistBackupSaveResult(status: Int, message: String?): PlaylistBackupDocumentSaveResult = when (status) {
     IOSPlaylistBackupDocumentStatus.SUCCESS -> PlaylistBackupDocumentSaveResult.Success
+
     IOSPlaylistBackupDocumentStatus.CANCELLED -> PlaylistBackupDocumentSaveResult.Cancelled
+
     IOSPlaylistBackupDocumentStatus.UNAVAILABLE -> PlaylistBackupDocumentSaveResult.Unavailable(
         message ?: "iOS document provider is unavailable",
     )
+
     else -> PlaylistBackupDocumentSaveResult.Failure(message ?: "Could not save playlist backup")
 }
 
@@ -95,10 +96,14 @@ internal fun iosPlaylistBackupOpenResult(
 ): PlaylistBackupDocumentOpenResult = when (status) {
     IOSPlaylistBackupDocumentStatus.SUCCESS -> bytes?.let(PlaylistBackupDocumentOpenResult::Success)
         ?: PlaylistBackupDocumentOpenResult.Failure(message ?: "Document provider returned no bytes")
+
     IOSPlaylistBackupDocumentStatus.CANCELLED -> PlaylistBackupDocumentOpenResult.Cancelled
+
     IOSPlaylistBackupDocumentStatus.TOO_LARGE -> PlaylistBackupDocumentOpenResult.TooLarge(PlaylistBackupMaxBytes)
+
     IOSPlaylistBackupDocumentStatus.UNAVAILABLE -> PlaylistBackupDocumentOpenResult.Unavailable(
         message ?: "iOS document provider is unavailable",
     )
+
     else -> PlaylistBackupDocumentOpenResult.Failure(message ?: "Could not open playlist backup")
 }
