@@ -3,6 +3,7 @@ import java.net.URI
 plugins {
     id("build-logic.root-project.base")
     id("build-logic.spotless")
+    id("build-logic.detekt")
 }
 
 val wrapper: Wrapper by

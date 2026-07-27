@@ -21,6 +21,7 @@ gradlePlugin {
 
 dependencies {
     implementation(libs.gradle.plugin.android)
+    implementation(libs.gradle.plugin.detekt)
     implementation(libs.gradle.plugin.ksp)
     implementation(libs.gradle.plugin.spotless)
     implementation(libs.gradle.plugin.kotlin)
