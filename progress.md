@@ -3388,3 +3388,58 @@ Next owner: user/manual visual acceptance for partial and pinned solid-backgroun
 Blockers: Orca could not drive the final custom detail scrollbar/wheel path; iOS tests remain blocked by unchanged `AppScanCancellationTest.kt` JVM-only `Thread` references at lines 64 and 340. Kotlin LSP remains unavailable by prior user choice.
 
 Acceptance update: user manually confirmed progressive solid fade at partial/pinned artwork states and unchanged bottom-bar rendering. Final spec PASS, quality APPROVED, and Oracle PASS were collected. OpenSpec Tasks 5.3 and 5.4 are complete. Remaining blocker applies only to iOS test compilation, not this requested implementation.
+
+## Handoff - 2026-07-27 Library Back orchestration continuation verification
+
+Route: openspec+superpowers
+Owner: implementation
+Input: accepted `architecture-refactor` continuation Tasks 7–11; Task 12 verification/evidence only.
+Output:
+- Destination-scoped Library Back orchestration and exact displayed-playlist invalidation are implemented in:
+  - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppState.kt`
+  - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigation.kt`
+  - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`
+  - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt`
+  - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistScreens.kt`
+  - deleted `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistBackRegistrationState.kt`
+- Contract coverage is in `LibraryNavigationTest.kt`, `PlaylistBackPolicyJvmTest.kt`, and `PlaylistEditModeSemanticsJvmTest.kt` under the corresponding common/JVM library UI source sets. Fresh XML reports: 73 + 5 + 10 tests, 0 failures, 0 errors, 0 skips.
+- Strict validation: `openspec validate architecture-refactor --strict` -> pass (`Change 'architecture-refactor' is valid`).
+- Focused matrix: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistBackPolicyJvmTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistEditModeSemanticsJvmTest' --configuration-cache --rerun-tasks` -> pass (`BUILD SUCCESSFUL in 19s`; 26 actionable tasks executed; configuration cache reused).
+- Xcode: `/usr/bin/xcrun xcodebuild -version` -> pass (`Xcode 26.6`, `Build version 17F113`).
+- iOS: `./gradlew :shared:iosSimulatorArm64Test --configuration-cache` -> pass (`BUILD SUCCESSFUL in 50s`; 44 actionable tasks: 16 executed, 28 up-to-date; configuration cache stored). Existing compiler warnings only in `IOSNowPlayingBridgingTest.kt` for unnecessary `!!`/casts.
+- Diff hygiene: `git diff --check` -> pass (no output). Removed-symbol audit found no references to `PlaylistBackDispatchController`, `libraryBackCompletionCallback`, `LibraryBackCallbacks`, `libraryBackCallbacks`, `directPlaylistDeleteCompletion`, `libraryBackDecision`, or `PlaylistBackRegistrationState`. Review found no dependency, SQLDelight schema/migration, toolchain, or platform-scope changes.
+- Supported-platform aggregate: `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache` -> blocked/failed at `:desktopApp:compileKotlin`: `desktopApp/src/main/kotlin/com/eterocell/rhythhaus/main.kt` cannot resolve `com.eterocell.rhythhaus.di`, `startRhythHausKoin`, or `App`. An earlier concurrent run also had 11 unrelated JVM `NoClassDefFoundError` failures in `ArtworkCacheTest` and `MusicProgressScrubberTest`; the isolated rerun reached the desktop compile blocker. No out-of-scope production/build fix was attempted.
+- Historical evidence caveat: Task 10’s complete standalone RED transcript for both focused JVM classes was unavailable and was not reconstructed; later correction RED/GREEN evidence is preserved in session history.
+- Runtime/manual uncertainty: automated tests do not substitute for live Android/iOS/desktop visual/predictive-gesture/manual Back behavior verification.
+Next owner: resolve the desktop entry-point/DI compilation regression, rerun the blocked aggregate command, then complete Task 12 and consider manual device/desktop Back and deletion smoke tests.
+Blockers: `:desktopApp:compileKotlin` unresolved DI/App symbols as above; no blocker for strict OpenSpec, focused Back/invalidation, iOS simulator, or diff hygiene verification.
+Commit status: no commit created.
+
+## Final verification - 2026-07-27 Library Back orchestration continuation
+
+Route: openspec+superpowers
+Owner: harness verification and durable-evidence reconciliation complete
+Input: completed `architecture-refactor` continuation Tasks 7–11 and the provisional Task 12 handoff.
+Output:
+- Supersedes the provisional desktop `App`/Koin DI compilation blocker recorded in the preceding handoff: the current aggregate JVM/desktop/Android command is successful.
+- Marked OpenSpec Task 12 and its required automated verification subtasks complete. The plan's final acceptance evidence now reflects the fresh passing gates; no production, test, dependency, build-configuration, schema, toolchain, or platform-scope file was changed in this verification closure.
+- Final source/evidence review found no legacy `PlaylistBackDispatchController`, `libraryBackCompletionCallback`, `LibraryBackCallbacks`, `libraryBackCallbacks`, `directPlaylistDeleteCompletion`, `libraryBackDecision`, or `PlaylistBackRegistrationState` reference under `shared/src`; no old `NavigationBackHandler` adapter remains. `LaunchedEffect` occurrences are limited to normal playback/scroll/route-recovery/predictive-presentation work and do not use the removed completion-time adapter plumbing. All Library Back orchestration declarations are `internal`, so no public orchestration API expansion was introduced.
+Verification:
+- `openspec validate architecture-refactor --strict`: pass (`Change 'architecture-refactor' is valid`).
+- `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryNavigationTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistBackPolicyJvmTest' --tests 'com.eterocell.rhythhaus.library.ui.PlaylistEditModeSemanticsJvmTest' --configuration-cache --rerun-tasks`: pass (`BUILD SUCCESSFUL in 12s`; 26 actionable tasks executed; configuration cache reused). Fresh XML: `LibraryNavigationTest[jvm]` 73, `PlaylistBackPolicyJvmTest[jvm]` 6, and `PlaylistEditModeSemanticsJvmTest[jvm]` 12; total 91 tests, 0 failures, 0 errors, 0 skipped.
+- `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: pass (`BUILD SUCCESSFUL in 573ms`; 101 actionable tasks: 4 executed, 1 from cache, 96 up-to-date; configuration cache reused).
+- `/usr/bin/xcrun xcodebuild -version`: pass (`Xcode 26.6`, `Build version 17F113`).
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: pass (`BUILD SUCCESSFUL in 940ms`; 35 actionable tasks: 4 executed, 31 up-to-date; configuration cache reused). Existing warnings only: unnecessary non-null assertion/no-cast warnings in `IOSNowPlayingBridgingTest.kt`.
+- Final `openspec validate architecture-refactor --strict`: pass (`Change 'architecture-refactor' is valid`). Final `git diff --check`: pass (no output).
+Acceptance:
+- Automated Task 12/OpenSpec acceptance: complete. Final diff review is within the approved Library Back orchestration scope; it adds no dependency, SQLDelight schema/migration, build-configuration, toolchain, or Windows/Linux/platform expansion.
+- Historical evidence caveat retained: Task 10's complete standalone RED transcript for both focused JVM classes was unavailable and was not reconstructed; later correction RED/GREEN evidence remains preserved in session history. This is historical evidence incompleteness, not a failure of the fresh final automated gates.
+- Manual uncertainty remains: live Android/iOS/desktop Back, predictive gesture, displayed-playlist deletion, rendered visual state, accessibility, and physical interaction behavior were not exercised in this closure and are not claimed as passes.
+Changed evidence files:
+- `openspec/changes/architecture-refactor/tasks.md`
+- `docs/superpowers/plans/2026-07-27-library-back-orchestration.md`
+- `progress.md`
+- `roadmap.md`
+Next owner: repository owner/OpenSpec for an explicit semantic commit decision, then archive only when explicitly authorized.
+Blockers: none for the required automated gates. Manual runtime/visual/accessibility interaction evidence remains outstanding but is not a Task 12 automated-completion blocker.
+Commit status: no commit created; this verification owner was explicitly instructed not to commit or archive. The worktree is ready for the repository-mandated semantic commit decision.

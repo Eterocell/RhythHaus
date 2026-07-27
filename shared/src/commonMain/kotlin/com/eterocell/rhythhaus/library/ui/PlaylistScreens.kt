@@ -1206,7 +1206,9 @@ internal fun PlaylistDetailScreen(
     onRetry: () -> Unit,
     onRename: (String, (PlaylistStateAction) -> Unit) -> Unit,
     onDelete: ((PlaylistStateAction) -> Unit) -> Unit,
-    onDeleteCompleted: () -> Unit = {},
+    onDeleteConfirmed: (PlaylistSnapshot) -> Unit = {},
+    destinationId: LibraryDestinationId? = null,
+    registerBackSurface: (LibraryBackSurfacePort) -> () -> Unit = { {} },
     onOpenBrowser: () -> Unit,
     onPlayEntry: (SavedPlaylistPlaybackRequest) -> Unit,
     onRemoveEntry: (String) -> Unit,
@@ -1215,10 +1217,6 @@ internal fun PlaylistDetailScreen(
     listState: LazyListState = rememberLazyListState(),
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
     rowMode: PlaylistDetailRowMode = PlaylistDetailRowMode.Default,
-    registerPlaylistEditMode: (Any, () -> Unit) -> () -> Unit = { _, _ -> {} },
-    registerPlaylistModalDismiss: (Any, (() -> Unit)?) -> () -> Unit = { _, _ ->
-        {}
-    },
 ) {
     val tracksById =
         remember(libraryTracks) {
@@ -1230,6 +1228,7 @@ internal fun PlaylistDetailScreen(
     var renameOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
     var deleteConfirmation by remember { mutableStateOf(false) }
     var deleteOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
+    var nextBackAppearanceToken by remember(destinationId) { mutableStateOf(0L) }
     var removeConfirmation by remember {
         mutableStateOf<PlaylistDetailRow?>(null)
     }
@@ -1242,7 +1241,6 @@ internal fun PlaylistDetailScreen(
         }
     val rowCenters = remember { mutableStateMapOf<Int, Float>() }
     val routePresentation = playlistRoutePresentation(state)
-    val editOwner = remember(playlist.id) { Any() }
     val modalDismiss: (() -> Unit)? =
         when {
             renameDraft != null -> ({
@@ -1262,26 +1260,45 @@ internal fun PlaylistDetailScreen(
 
             else -> null
         }
-    val currentEditClear = rememberUpdatedState<() -> Unit> { editMode = false }
-    DisposableEffect(editMode, editOwner) {
-        val unregister =
-            if (editMode) {
-                registerPlaylistEditMode(editOwner) { currentEditClear.value() }
-            } else {
-                null
+    val editTarget =
+        remember(destinationId, editMode) {
+            destinationId?.let {
+                LibraryBackTarget.FeatureEdit(
+                    LibraryBackTargetId(it, "playlist-edit-${++nextBackAppearanceToken}"))
             }
-        onDispose { unregister?.invoke() }
+        }
+    val modalTarget =
+        remember(destinationId, modalDismiss != null) {
+            destinationId?.let {
+                LibraryBackTarget.FeatureModal(
+                    LibraryBackTargetId(it, "playlist-modal-${++nextBackAppearanceToken}"))
+            }
+        }
+    val foremostTarget = when {
+        modalDismiss != null -> modalTarget
+        editMode -> editTarget
+        else -> null
     }
-    val modalOwner = remember(playlist.id) { Any() }
-    val currentModalDismiss = rememberUpdatedState(modalDismiss)
-    DisposableEffect(modalDismiss != null, modalOwner) {
+    val currentEditClearForBack = rememberUpdatedState<() -> Unit> { editMode = false }
+    val currentModalDismissForBack = rememberUpdatedState(modalDismiss)
+    DisposableEffect(destinationId, foremostTarget) {
         val unregister =
-            if (modalDismiss != null) {
-                registerPlaylistModalDismiss(modalOwner) {
-                    currentModalDismiss.value?.invoke()
-                }
-            } else {
-                null
+            destinationId?.let { destination ->
+                registerBackSurface(
+                    LibraryBackSurfacePort(destination, foremostTarget) { target ->
+                        when (target) {
+                            modalTarget -> {
+                                currentModalDismissForBack.value?.invoke()
+                                LibraryBackFeatureRequestResult.Started
+                            }
+                            editTarget -> {
+                                currentEditClearForBack.value()
+                                LibraryBackFeatureRequestResult.Started
+                            }
+                            else -> LibraryBackFeatureRequestResult.Rejected
+                        }
+                    },
+                )
             }
         onDispose { unregister?.invoke() }
     }
@@ -1433,7 +1450,8 @@ internal fun PlaylistDetailScreen(
                         PlaylistMutationDecision.CloseConfirmationAndRoute) {
                         deleteConfirmation = false
                         deleteOutcome = null
-                        onDeleteCompleted()
+                        onDeleteConfirmed(
+                            (outcome as PlaylistStateAction.SnapshotConfirmed).snapshot)
                     }
                 }
             },

@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
@@ -148,331 +151,6 @@ class PlaylistEditModeSemanticsJvmTest {
             onNode(hasContentDescription("Move down Song A"))
                 .assertDoesNotExist()
             onNode(hasContentDescription("Remove Song A")).assertDoesNotExist()
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun registeredEditClearChangesProductionRowsAndUnregisters() =
-        runComposeUiTest {
-            var clear: (() -> Unit)? = null
-            var unregisterCount = 0
-            setContent {
-                PlaylistDetailScreen(
-                    playlist = playlist("playlist-1", "Saved"),
-                    entries = listOf(entry("entry-a", "track-a", 0)),
-                    libraryTracks =
-                        listOf(
-                            libraryTrack(
-                                "track-a", "Song A", "Artist A", "Album A")),
-                    state = PlaylistState(),
-                    onBack = {},
-                    onRetry = {},
-                    onRename = { _, _ -> },
-                    onDelete = {},
-                    onOpenBrowser = {},
-                    onPlayEntry = {},
-                    onRemoveEntry = {},
-                    onReorder = {},
-                    rowMode = PlaylistDetailRowMode.Edit,
-                    registerPlaylistEditMode = { _, callback ->
-                        clear = callback;
-                        { unregisterCount++ }
-                    },
-                )
-            }
-            onNode(
-                    hasContentDescription("Song A, Artist A, Album A, 3:12"),
-                    useUnmergedTree = true)
-                .assertExists()
-            onAllNodes(hasText("×"), useUnmergedTree = true)
-                .onFirst()
-                .assertExists()
-            assertNotNull(clear).invoke()
-            waitForIdle()
-            onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
-            assertEquals(1, unregisterCount)
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun registeredModalDismissDoesNotTriggerPlaybackOrRouteCallbackWhenNoModalIsOwned() =
-        runComposeUiTest {
-            var registeredDismiss: (() -> Unit)? = null
-            var playCount = 0
-            var backCount = 0
-            setContent {
-                PlaylistDetailScreen(
-                    playlist = playlist("playlist-1", "Saved"),
-                    entries = listOf(entry("entry-a", "track-a", 0)),
-                    libraryTracks =
-                        listOf(
-                            libraryTrack(
-                                "track-a", "Song A", "Artist A", "Album A")),
-                    state = PlaylistState(),
-                    onBack = { backCount++ },
-                    onRetry = {},
-                    onRename = { _, _ -> },
-                    onDelete = {},
-                    onOpenBrowser = {},
-                    onPlayEntry = { playCount++ },
-                    onRemoveEntry = {},
-                    onReorder = {},
-                    registerPlaylistModalDismiss = { _, callback ->
-                        registeredDismiss = callback;
-                        {}
-                    },
-                )
-            }
-            waitForIdle()
-            assertEquals(null, registeredDismiss)
-            assertEquals(0, playCount)
-            assertEquals(0, backCount)
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun realRenameModalDismissesThroughRegisteredToolbarBackWithoutSideEffects() =
-        runComposeUiTest {
-            var dismiss: (() -> Unit)? = null
-            var playCount = 0
-            var routeBackCount = 0
-            val registration = PlaylistBackRegistrationState()
-            val dispatcher =
-                PlaylistBackDispatchController(
-                    registration = registration,
-                    selectionState = { TrackSelectionState() },
-                    isNowPlayingExpanded = { false },
-                    canPopRoute = { true },
-                    cancelSelection = {},
-                    hideNowPlaying = {},
-                    directPopRoute = { routeBackCount++ },
-                )
-            setContent {
-                PlaylistDetailScreen(
-                    playlist = playlist("playlist-1", "Saved"),
-                    entries = listOf(entry("entry-a", "track-a", 0)),
-                    libraryTracks =
-                        listOf(
-                            libraryTrack(
-                                "track-a", "Song A", "Artist A", "Album A")),
-                    state = PlaylistState(),
-                    onBack = dispatcher::dispatch,
-                    onRetry = {},
-                    onRename = { _, _ -> },
-                    onDelete = {},
-                    onOpenBrowser = {},
-                    onPlayEntry = { playCount++ },
-                    onRemoveEntry = {},
-                    onReorder = {},
-                    registerPlaylistModalDismiss = { owner, callback ->
-                        dismiss = callback
-                        registration.registerModal(owner) {
-                            callback?.invoke()
-                            dismiss = null
-                        }
-                    },
-                )
-            }
-            onAllNodes(hasContentDescription("重命名播放列表"), useUnmergedTree = true)
-                .onFirst()
-                .performClick()
-            waitForIdle()
-            assertNotNull(dismiss)
-            onNode(hasTestTag("playlist-back"), useUnmergedTree = true)
-                .performClick()
-            waitForIdle()
-            onNode(hasText("Saved"), useUnmergedTree = true).assertExists()
-            assertEquals(0, playCount)
-            assertEquals(0, routeBackCount)
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun realToolbarBackDismissesModalThenLeavesEditModeAndLaterBranchesUseShippingCallbacks() =
-        runComposeUiTest {
-            val registration = PlaylistBackRegistrationState()
-            var selection = TrackSelectionState()
-            var nowPlaying = false
-            var playCount = 0
-            var routePops = 0
-            var ordinaryBackCalls = 0
-            val callbacks =
-                libraryBackCallbacks(
-                    ordinaryBack = {
-                        ordinaryBackCalls++
-                        PlaylistBackDispatchController(
-                                registration = registration,
-                                selectionState = { selection },
-                                isNowPlayingExpanded = { nowPlaying },
-                                canPopRoute = { true },
-                                cancelSelection = {
-                                    selection = TrackSelectionState()
-                                },
-                                hideNowPlaying = { nowPlaying = false },
-                                directPopRoute = { routePops++ },
-                            )
-                            .dispatch()
-                    },
-                    decision = {
-                        registration.decision(selection, nowPlaying, true)
-                    },
-                    transitionProgress = { null },
-                    setCompletionProgress = {},
-                    navigationPop = { LibraryNavigationStack() },
-                    completePredictivePop = {},
-                    clearSelection = { selection = TrackSelectionState() },
-                    popRoute = { routePops++ },
-                )
-            setContent {
-                PlaylistDetailScreen(
-                    playlist = playlist("playlist-1", "Saved"),
-                    entries = listOf(entry("entry-a", "track-a", 0)),
-                    libraryTracks =
-                        listOf(
-                            libraryTrack(
-                                "track-a", "Song A", "Artist A", "Album A")),
-                    state = PlaylistState(),
-                    onBack = callbacks.ordinaryBack,
-                    onRetry = {},
-                    onRename = { _, _ -> },
-                    onDelete = {},
-                    onOpenBrowser = {},
-                    onPlayEntry = { playCount++ },
-                    onRemoveEntry = {},
-                    onReorder = {},
-                    rowMode = PlaylistDetailRowMode.Edit,
-                    registerPlaylistEditMode = { owner, clear ->
-                        registration.registerEdit(owner, clear)
-                    },
-                    registerPlaylistModalDismiss = { owner, dismiss ->
-                        dismiss?.let { registration.registerModal(owner, it) }
-                            ?: {}
-                    },
-                )
-            }
-            onNode(hasText("×"), useUnmergedTree = true).assertExists()
-            onNode(
-                    hasContentDescription("从播放列表中移除 Song A"),
-                    useUnmergedTree = true)
-                .performClick()
-            waitForIdle()
-            onNode(hasTestTag("playlist-back"), useUnmergedTree = true)
-                .performClick()
-            waitForIdle()
-            onNode(hasText("×"), useUnmergedTree = true).assertExists()
-            onNode(hasTestTag("playlist-back"), useUnmergedTree = true)
-                .performClick()
-            waitForIdle()
-            onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
-
-            selection =
-                TrackSelectionState(
-                    TrackSelectionPageKey.HomeSongs, setOf("track-a"))
-            val ordinaryBackBeforeBranches = ordinaryBackCalls
-            onNode(hasTestTag("playlist-back"), useUnmergedTree = true)
-                .performClick()
-            waitForIdle()
-            assertEquals(0, playCount)
-            assertEquals(0, routePops)
-            nowPlaying = true
-            onNode(hasTestTag("playlist-back"), useUnmergedTree = true)
-                .performClick()
-            waitForIdle()
-            assertEquals(0, routePops)
-            onNode(hasTestTag("playlist-back"), useUnmergedTree = true)
-                .performClick()
-            waitForIdle()
-            assertEquals(1, routePops)
-            assertEquals(3, ordinaryBackCalls - ordinaryBackBeforeBranches)
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun productionSystemBackCallbackDismissesRealModalBeforeRoutePop() =
-        runComposeUiTest {
-            var routePops = 0
-            var dismissals = 0
-            val registration = PlaylistBackRegistrationState()
-            var ordinaryBackCalls = 0
-            val callbacks =
-                libraryBackCallbacks(
-                    ordinaryBack = {
-                        ordinaryBackCalls++
-                        PlaylistBackDispatchController(
-                                registration = registration,
-                                selectionState = { TrackSelectionState() },
-                                isNowPlayingExpanded = { false },
-                                canPopRoute = { true },
-                                cancelSelection = {},
-                                hideNowPlaying = {},
-                                directPopRoute = { routePops++ },
-                            )
-                            .dispatch()
-                    },
-                    decision = {
-                        registration.decision(
-                            TrackSelectionState(), false, true)
-                    },
-                    transitionProgress = {
-                        error("modal/edit back must not be predictive")
-                    },
-                    setCompletionProgress = {
-                        error("modal/edit back must not be predictive")
-                    },
-                    navigationPop = {
-                        error("modal/edit back must not pop predictively")
-                    },
-                    completePredictivePop = {
-                        error("modal/edit back must not complete predictively")
-                    },
-                    clearSelection = {},
-                    popRoute = { routePops++ },
-                )
-            setContent {
-                PlaylistDetailScreen(
-                    playlist = playlist("playlist-1", "Saved"),
-                    entries = listOf(entry("entry-a", "track-a", 0)),
-                    libraryTracks =
-                        listOf(
-                            libraryTrack(
-                                "track-a", "Song A", "Artist A", "Album A")),
-                    state = PlaylistState(),
-                    onBack = callbacks.ordinaryBack,
-                    onRetry = {},
-                    onRename = { _, _ -> },
-                    onDelete = {},
-                    onOpenBrowser = {},
-                    onPlayEntry = {},
-                    onRemoveEntry = {},
-                    onReorder = {},
-                    rowMode = PlaylistDetailRowMode.Edit,
-                    registerPlaylistEditMode = { owner, clear ->
-                        registration.registerEdit(owner, clear)
-                    },
-                    registerPlaylistModalDismiss = { owner, callback ->
-                        callback?.let {
-                            registration.registerModal(owner) {
-                                dismissals++
-                                it()
-                            }
-                        } ?: {}
-                    },
-                )
-            }
-            onNode(
-                    hasContentDescription("从播放列表中移除 Song A"),
-                    useUnmergedTree = true)
-                .performClick()
-            waitForIdle()
-            callbacks.systemBackCompleted()
-            waitForIdle()
-            assertEquals(1, dismissals)
-            assertEquals(0, routePops)
-            onNode(hasText("×"), useUnmergedTree = true).assertExists()
-            callbacks.systemBackCompleted()
-            waitForIdle()
-            onNode(hasText("×"), useUnmergedTree = true).assertDoesNotExist()
-            assertEquals(2, ordinaryBackCalls)
         }
 
     @OptIn(ExperimentalTestApi::class)
@@ -777,73 +455,217 @@ class PlaylistEditModeSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun successfulDeleteUsesShippingCompletionWithModalPrecedenceAndDirectPop() =
+    fun successfulDeleteUsesExactDisplayedDestinationInvalidationWithoutStaleRecovery() =
         runComposeUiTest {
-            var completionCount = 0
+            val appState = LibraryAppState(null)
+            appState.pushRoute(LibraryRoute.PlaylistHub)
+            val originalHubEntry = appState.navigation.currentEntry
+            appState.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
+            val entry = appState.navigation.currentEntry
             var deleteCount = 0
-            var clearCount = 0
-            var popCount = 0
-            var ordinaryBackCount = 0
-            val registration = PlaylistBackRegistrationState()
-            val callbacks =
-                libraryBackCallbacks(
-                    ordinaryBack = { ordinaryBackCount++ },
-                    decision = { registration.decision() },
-                    transitionProgress = { null },
-                    setCompletionProgress = {},
-                    navigationPop = { LibraryNavigationStack() },
-                    completePredictivePop = {},
-                    clearSelection = { clearCount++ },
-                    popRoute = { popCount++ },
+            var recoverableMessages = 0
+            var clearSelectionCalls = 0
+            val orchestrator =
+                PlaylistDetailRouteOrchestrator(
+                    appState = appState,
+                    clearSelection = { clearSelectionCalls++ },
+                    onPlaylistStateAction = { action ->
+                        if (action is PlaylistStateAction.ShowRecoverableMessage) {
+                            recoverableMessages++
+                        }
+                    },
                 )
             setContent {
-                PlaylistDetailScreen(
+                PlaylistDetailRouteContent(
                     playlist = playlist("playlist-1", "Saved"),
-                    entries = listOf(entry("entry-a", "track-a", 0)),
-                    libraryTracks =
-                        listOf(
-                            libraryTrack(
-                                "track-a", "Song A", "Artist A", "Album A")),
+                    entries = emptyList(),
+                    libraryTracks = emptyList(),
                     state = PlaylistState(),
-                    onBack = callbacks.ordinaryBack,
+                    onBack = {},
                     onRetry = {},
                     onRename = { _, _ -> },
-                    onDelete = { callback ->
+                    onDeleteMutation = { completion ->
                         deleteCount++
-                        callback(
-                            PlaylistStateAction.SnapshotConfirmed(
-                                PlaylistSnapshot()))
+                        completion(PlaylistStateAction.SnapshotConfirmed(PlaylistSnapshot()))
                     },
-                    onDeleteCompleted = {
-                        completionCount++
-                        callbacks.deleteCompleted()
-                    },
+                    onDisplayedPlaylistDeleteConfirmed =
+                        orchestrator.displayedPlaylistDeleteCompletion(entry),
+                    destinationId = entry.destinationId,
+                    registerBackSurface = appState::registerBackSurface,
                     onOpenBrowser = {},
                     onPlayEntry = {},
                     onRemoveEntry = {},
                     onReorder = {},
-                    registerPlaylistModalDismiss = { owner, dismiss ->
-                        dismiss?.let { registration.registerModal(owner, it) }
-                            ?: {}
-                    },
                 )
             }
+
             onNode(hasText("删除播放列表"), useUnmergedTree = true).performClick()
             waitForIdle()
             onAllNodes(hasText("删除播放列表"), useUnmergedTree = true)
                 .onLast()
                 .performClick()
             waitForIdle()
+
             assertEquals(1, deleteCount)
-            assertEquals(1, completionCount)
-            assertEquals(1, clearCount)
-            assertEquals(1, popCount)
-            assertEquals(0, ordinaryBackCount)
-            onNode(
-                    hasText("Delete Saved? This cannot be undone."),
-                    useUnmergedTree = true)
-                .assertDoesNotExist()
+            assertEquals(0, recoverableMessages)
+            assertEquals(0, clearSelectionCalls)
+            assertEquals(LibraryRoute.PlaylistHub, appState.navigation.current)
+            assertEquals(
+                listOf(LibraryRoute.Home, LibraryRoute.PlaylistHub),
+                appState.navigation.routes,
+            )
+            assertEquals(originalHubEntry, appState.navigation.currentEntry)
+            assertEquals(LibraryNavigationTransition.Pop, appState.lastNavigationTransition)
+            // Replaying the finished route callback cannot create a second departure.
+            orchestrator.displayedPlaylistDeleteCompletion(entry)(PlaylistSnapshot())
+            assertEquals(
+                listOf(LibraryRoute.Home, LibraryRoute.PlaylistHub),
+                appState.navigation.routes,
+            )
         }
+
+    @Test
+    fun displayedDeletionPreservesSelectionWhileStaleRecoveryClearsTheSameSelection() {
+        val appState = LibraryAppState(null)
+        appState.pushRoute(LibraryRoute.PlaylistHub)
+        appState.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
+        val deletedEntry = appState.navigation.currentEntry
+        var selection =
+            TrackSelectionState(
+                pageKey = TrackSelectionPageKey.HomeSongs,
+                selectedTrackIds = setOf("unrelated-track"),
+            )
+        var recoverableMessages = 0
+        val orchestrator =
+            PlaylistDetailRouteOrchestrator(
+                appState = appState,
+                clearSelection = { selection = TrackSelectionState() },
+                onPlaylistStateAction = { action ->
+                    if (action is PlaylistStateAction.ShowRecoverableMessage) {
+                        recoverableMessages++
+                    }
+                },
+            )
+
+        orchestrator.completeDisplayedPlaylistDeletion(
+            entry = deletedEntry,
+            confirmedSnapshot = PlaylistSnapshot(),
+        )
+
+        assertEquals(
+            TrackSelectionState(
+                pageKey = TrackSelectionPageKey.HomeSongs,
+                selectedTrackIds = setOf("unrelated-track"),
+            ),
+            selection,
+        )
+        assertEquals(LibraryRoute.PlaylistHub, appState.navigation.current)
+
+        appState.pushRoute(LibraryRoute.PlaylistDetail("missing-playlist"))
+        orchestrator.recoverStalePlaylistDetail("Playlist is no longer available")
+
+        assertEquals(TrackSelectionState(), selection)
+        assertEquals(1, recoverableMessages)
+        assertEquals(LibraryRoute.PlaylistHub, appState.navigation.current)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun confirmedDisplayedDeletionLeavesTheActualRouteResolutionSeamBeforeStaleRecovery() =
+        runComposeUiTest {
+            val appState = LibraryAppState(null)
+            appState.pushRoute(LibraryRoute.PlaylistHub)
+            appState.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
+            val entry = appState.navigation.currentEntry
+            var recoveries = 0
+            var messages = 0
+            var hubEntries = 0
+            val orchestrator =
+                PlaylistDetailRouteOrchestrator(
+                    appState = appState,
+                    clearSelection = { error("exact invalidation must preserve unrelated selection") },
+                    onPlaylistStateAction = { action ->
+                        if (action is PlaylistStateAction.ShowRecoverableMessage) messages++
+                    },
+                )
+            var publishedState by mutableStateOf(
+                PlaylistState(
+                    confirmedSnapshot = PlaylistSnapshot(playlists = listOf(playlist("playlist-1", "Saved"))),
+                    hasConfirmedSnapshot = true,
+                ),
+            )
+            setContent {
+                when (val route = appState.navigation.current) {
+                    is LibraryRoute.PlaylistDetail ->
+                        PlaylistDetailRouteResolutionEffect(
+                            route = route,
+                            state = publishedState,
+                            onRecoverStalePlaylistDetail = {
+                                recoveries++
+                                orchestrator.recoverStalePlaylistDetail(it)
+                            },
+                        )
+
+                    LibraryRoute.PlaylistHub -> hubEntries++
+                    else -> Unit
+                }
+            }
+            waitForIdle()
+
+            publishedState = publishedState.copy(confirmedSnapshot = PlaylistSnapshot())
+            orchestrator.completeDisplayedPlaylistDeletion(entry, publishedState.confirmedSnapshot)
+            waitForIdle()
+
+            assertEquals(LibraryRoute.PlaylistHub, appState.navigation.current)
+            assertEquals(1, hubEntries)
+            assertEquals(0, recoveries)
+            assertEquals(0, messages)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun failedDeleteRetainsTheDisplayedDetailAndItsConfirmation() = runComposeUiTest {
+        val appState = LibraryAppState(null)
+        appState.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
+        var deleteCount = 0
+        setContent {
+            PlaylistDetailScreen(
+                playlist = playlist("playlist-1", "Saved"),
+                entries = emptyList(),
+                libraryTracks = emptyList(),
+                state = PlaylistState(),
+                onBack = {},
+                onRetry = {},
+                onRename = { _, _ -> },
+                onDelete = { completion ->
+                    deleteCount++
+                    completion(PlaylistStateAction.MutationFailed("failure"))
+                },
+                onDeleteConfirmed = {
+                    error("failed deletion must not invalidate the displayed route")
+                },
+                destinationId = appState.activeDestinationId,
+                registerBackSurface = appState::registerBackSurface,
+                onOpenBrowser = {},
+                onPlayEntry = {},
+                onRemoveEntry = {},
+                onReorder = {},
+            )
+        }
+
+        onNode(hasText("删除播放列表"), useUnmergedTree = true).performClick()
+        waitForIdle()
+        onAllNodes(hasText("删除播放列表"), useUnmergedTree = true)
+            .onLast()
+            .performClick()
+        waitForIdle()
+
+        assertEquals(1, deleteCount)
+        assertEquals(LibraryRoute.PlaylistDetail("playlist-1"), appState.navigation.current)
+        onAllNodes(hasText("删除播放列表"), useUnmergedTree = true)
+            .onLast()
+            .assertExists()
+    }
 
     private fun playlist(id: String, name: String) = Playlist(id, name, 1L, 1L)
 

@@ -26,6 +26,8 @@ import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.library.Playlist
+import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
@@ -192,14 +194,12 @@ internal fun LibraryRouteContent(
     onRefreshPlaylists: () -> Unit,
     onPlaylistMutation: PlaylistMutationLauncher,
     onRecoverStalePlaylistDetail: (String) -> Unit,
+    onDisplayedPlaylistDeleteConfirmed: (PlaylistSnapshot) -> Unit = {},
     selectedTrackId: String?,
     isNowPlayingBarVisible: Boolean,
     onBack: () -> Unit,
-    onDeleteCompleted: () -> Unit = {},
-    registerPlaylistEditMode: (Any, () -> Unit) -> () -> Unit = { _, _ -> {} },
-    registerPlaylistModalDismiss: (Any, (() -> Unit)?) -> () -> Unit = { _, _ ->
-        {}
-    },
+    destinationId: LibraryDestinationId? = null,
+    registerBackSurface: (LibraryBackSurfacePort) -> () -> Unit = { {} },
     onOpenDetailRoute: (LibraryRoute) -> Unit,
     onTrackSelected: (String) -> Unit,
     onTrackClickFromTracks: (List<Track>, Track) -> Unit,
@@ -346,7 +346,7 @@ internal fun LibraryRouteContent(
                     )
 
                 is PlaylistDetailResolution.Show ->
-                    PlaylistDetailScreen(
+                    PlaylistDetailRouteContent(
                         playlist = resolution.playlist,
                         entries =
                             playlistState.confirmedSnapshot.entries(
@@ -360,7 +360,7 @@ internal fun LibraryRouteContent(
                                 { rename(resolution.playlist.id, name) },
                                 onSuccess)
                         },
-                        onDelete = { onOutcome ->
+                        onDeleteMutation = { onOutcome ->
                             onPlaylistMutation(
                                 { delete(resolution.playlist.id) },
                                 { outcome ->
@@ -368,7 +368,10 @@ internal fun LibraryRouteContent(
                                 },
                             )
                         },
-                        onDeleteCompleted = onDeleteCompleted,
+                        onDisplayedPlaylistDeleteConfirmed =
+                            onDisplayedPlaylistDeleteConfirmed,
+                        destinationId = destinationId,
+                        registerBackSurface = registerBackSurface,
                         onOpenBrowser = {
                             onPlaylistStateAction(
                                 PlaylistStateAction.OpenBrowser(
@@ -401,15 +404,14 @@ internal fun LibraryRouteContent(
                         },
                         bottomContentPadding = bottomContentPadding,
                         onScrollPositionChanged = onScrollPositionChanged,
-                        registerPlaylistEditMode = registerPlaylistEditMode,
-                        registerPlaylistModalDismiss =
-                            registerPlaylistModalDismiss,
                     )
 
                 is PlaylistDetailResolution.ReturnToHub ->
-                    LaunchedEffect(route) {
-                        onRecoverStalePlaylistDetail(resolution.message)
-                    }
+                    PlaylistDetailRouteResolutionEffect(
+                        route = route,
+                        state = playlistState,
+                        onRecoverStalePlaylistDetail = onRecoverStalePlaylistDetail,
+                    )
             }
         }
 
@@ -427,6 +429,67 @@ internal fun LibraryRouteContent(
             Box(modifier = Modifier.fillMaxSize())
         }
     }
+}
+
+/** The actual stale-route recovery seam used by [LibraryRouteContent]. */
+@Composable
+internal fun PlaylistDetailRouteResolutionEffect(
+    route: LibraryRoute.PlaylistDetail,
+    state: PlaylistState,
+    onRecoverStalePlaylistDetail: (String) -> Unit,
+) {
+    val resolution = playlistDetailResolution(route.playlistId, state)
+    if (resolution is PlaylistDetailResolution.ReturnToHub) {
+        LaunchedEffect(route, state.publicationRevision) {
+            onRecoverStalePlaylistDetail(resolution.message)
+        }
+    }
+}
+
+/**
+ * Production seam for the displayed playlist-detail route. A confirmed deletion is routed only
+ * through [onDisplayedPlaylistDeleteConfirmed]; stale-detail recovery remains a separate route
+ * resolution path in [LibraryRouteContent].
+ */
+@Composable
+internal fun PlaylistDetailRouteContent(
+    playlist: Playlist,
+    entries: List<PlaylistEntry>,
+    libraryTracks: List<LibraryTrack>,
+    state: PlaylistState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onRename: (String, (PlaylistStateAction) -> Unit) -> Unit,
+    onDeleteMutation: ((PlaylistStateAction) -> Unit) -> Unit,
+    onDisplayedPlaylistDeleteConfirmed: (PlaylistSnapshot) -> Unit,
+    destinationId: LibraryDestinationId?,
+    registerBackSurface: (LibraryBackSurfacePort) -> () -> Unit,
+    onOpenBrowser: () -> Unit,
+    onPlayEntry: (SavedPlaylistPlaybackRequest) -> Unit,
+    onRemoveEntry: (String) -> Unit,
+    onReorder: (List<String>) -> Unit,
+    bottomContentPadding: Dp = 0.dp,
+    onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
+) {
+    PlaylistDetailScreen(
+        playlist = playlist,
+        entries = entries,
+        libraryTracks = libraryTracks,
+        state = state,
+        onBack = onBack,
+        onRetry = onRetry,
+        onRename = onRename,
+        onDelete = onDeleteMutation,
+        onDeleteConfirmed = onDisplayedPlaylistDeleteConfirmed,
+        destinationId = destinationId,
+        registerBackSurface = registerBackSurface,
+        onOpenBrowser = onOpenBrowser,
+        onPlayEntry = onPlayEntry,
+        onRemoveEntry = onRemoveEntry,
+        onReorder = onReorder,
+        bottomContentPadding = bottomContentPadding,
+        onScrollPositionChanged = onScrollPositionChanged,
+    )
 }
 
 @Composable

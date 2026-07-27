@@ -26,3 +26,17 @@ This makes future work risky because small behavior changes require editing a fi
 - No platform-native navigation migration.
 - No dependency/toolchain changes.
 - No Windows/Linux scope.
+
+## Continuation: Library Back orchestration
+
+The completed architecture refactor is extended with a separate, minimal session-hybrid continuation for Library Back orchestration. `LibraryAppState` will own one destination-scoped Back module while feature destinations retain their own modal and edit state. An active feature publishes only its foremost dismissal or edit-exit capability; it does not contribute to a global modal stack.
+
+The continuation establishes stable destination and target identities, an explicit begin/complete/cancel session lifecycle, and one authoritative precedence: modal, edit, active-page selection, Now Playing, then route. The module resolves only the active destination. Equivalent system, desktop, and predictive adapters must invoke the same resolution contract. Predictive gestures latch one target when they begin, never retarget or fall through during completion, and act only if that same target remains foremost and valid.
+
+Repeated Back input remains suppressed after dispatch until authoritative state observes settlement or explicitly rejects the transition. A root-level request with no eligible transition is unhandled so its invoking adapter retains platform/default responsibility. Displayed-playlist deletion remains a separate exact active-destination invalidation, not a Back action: it leaves only the deleted displayed playlist destination and discards only state owned by that destination, preserving unrelated Library state.
+
+### Continuation non-goals
+
+- No global modal stack, app-wide selection ownership, platform-native navigation migration, or UI redesign.
+- No change to feature ownership of modal ordering, edit state, playback, scanner, repository, database, or platform adapters beyond the Back contract.
+- No treatment of deletion completion or route invalidation as a Back intent.

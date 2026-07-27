@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -46,10 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigationevent.NavigationEventInfo
-import androidx.navigationevent.NavigationEventTransitionState
-import androidx.navigationevent.compose.NavigationBackHandler
-import androidx.navigationevent.compose.rememberNavigationEventState
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
@@ -77,6 +75,41 @@ import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.adaptive_detail_placeholder
 import rhythhaus.shared.generated.resources.library
 import top.yukonga.miuix.kmp.basic.Surface
+
+/** The shell-owned callbacks for one rendered playlist detail navigation entry. */
+internal class PlaylistDetailRouteOrchestrator(
+    private val appState: LibraryAppState,
+    private val clearSelection: () -> Unit,
+    private val onPlaylistStateAction: (PlaylistStateAction) -> Unit,
+) {
+    fun recoverStalePlaylistDetail(message: String) {
+        clearSelection()
+        appState.recoverStalePlaylistDetail(message) { recoverableMessage ->
+            onPlaylistStateAction(
+                PlaylistStateAction.ShowRecoverableMessage(recoverableMessage),
+            )
+        }
+    }
+
+    fun completeDisplayedPlaylistDeletion(
+        entry: LibraryNavigationEntry,
+        confirmedSnapshot: PlaylistSnapshot,
+    ) {
+        (entry.route as? LibraryRoute.PlaylistDetail)?.let { route ->
+            appState.completeDisplayedPlaylistDeletion(
+                confirmedSnapshot,
+                route.playlistId,
+                entry,
+            )
+        }
+    }
+
+    fun displayedPlaylistDeleteCompletion(
+        entry: LibraryNavigationEntry,
+    ): (PlaylistSnapshot) -> Unit = { confirmedSnapshot ->
+        completeDisplayedPlaylistDeletion(entry, confirmedSnapshot)
+    }
+}
 
 @Composable
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalAnimationApi::class)
@@ -129,13 +162,9 @@ fun LibraryHomeScreen(
         remember(snapshot.tracks) { groupTracksByAlbum(snapshot.tracks) }
     val artists =
         remember(snapshot.tracks) { groupTracksByArtist(snapshot.tracks) }
-    var backGestureProgressAtCompletion by remember {
-        mutableStateOf<Float?>(null)
-    }
     var trackSelectionState by remember {
         mutableStateOf(TrackSelectionState())
     }
-    val playlistBackRegistration = remember { PlaylistBackRegistrationState() }
     var searchVisibleTrackIds by remember {
         mutableStateOf(emptyList<String>())
     }
@@ -164,13 +193,35 @@ fun LibraryHomeScreen(
     fun clearSelection() {
         dispatchTrackSelection(TrackSelectionAction.RouteChanged(null))
     }
+    val playlistDetailRouteOrchestrator =
+        PlaylistDetailRouteOrchestrator(
+            appState = appState,
+            clearSelection = ::clearSelection,
+            onPlaylistStateAction = onPlaylistStateAction,
+        )
+    var nextSelectionAppearanceToken by remember { mutableStateOf(0L) }
+    val selectionPort =
+        trackSelectionState.pageKey
+            ?.takeIf {
+                trackSelectionState.selectedTrackIds.isNotEmpty() &&
+                    it == trackSelectionPageKeyFor(appState.navigation.current, appState.browseMode)
+            }
+            ?.let { pageKey ->
+                val token = remember(appState.activeDestinationId, pageKey) {
+                    "selection-${++nextSelectionAppearanceToken}"
+                }
+                LibraryBackSelectionPort(
+                    destinationId = appState.activeDestinationId,
+                    target = LibraryBackTarget.PageSelection(
+                        LibraryBackTargetId(appState.activeDestinationId, token),
+                        pageKey,
+                    ),
+                    cancel = { dispatchTrackSelection(TrackSelectionAction.Cancel) },
+                )
+            }
     fun pushRoute(route: LibraryRoute) {
         clearSelection()
         appState.pushRoute(route)
-    }
-    fun directPopRoute() {
-        clearSelection()
-        appState.popRoute()
     }
     fun openSelectedTracksPicker() {
         val pageKey = trackSelectionState.pageKey ?: return
@@ -198,81 +249,28 @@ fun LibraryHomeScreen(
         if (orderedIds.isNotEmpty())
             onPlaylistStateAction(openAddToPlaylistPickerAction(orderedIds))
     }
-    fun registerPlaylistEditMode(owner: Any, clear: () -> Unit): () -> Unit =
-        playlistBackRegistration.registerEdit(owner, clear)
-    fun registerPlaylistModalDismiss(
-        owner: Any,
-        dismiss: (() -> Unit)?
-    ): () -> Unit =
-        if (dismiss == null) {
-            {}
-        } else {
-            playlistBackRegistration.registerModal(owner, dismiss)
-        }
-    val libraryBackDecision =
-        libraryBackDecision(
-            hasPlaylistModal =
-                playlistBackRegistration.decision() ==
-                    LibraryBackDecision.DismissPlaylistModal,
-            isPlaylistEditModeActive =
-                playlistBackRegistration.decision() ==
-                    LibraryBackDecision.ExitPlaylistEditMode,
-            selectionState = trackSelectionState,
-            isNowPlayingExpanded = appState.showNowPlaying,
-            canPopRoute = appState.navigation.canPop,
-        )
-    val navState = rememberNavigationEventState(NavigationEventInfo.None)
-    val requestLibraryBack: () -> Unit = {
-        PlaylistBackDispatchController(
-                registration = playlistBackRegistration,
-                selectionState = { trackSelectionState },
-                isNowPlayingExpanded = { appState.showNowPlaying },
-                canPopRoute = { appState.navigation.canPop },
-                cancelSelection = {
-                    dispatchTrackSelection(TrackSelectionAction.Cancel)
-                },
-                hideNowPlaying = appState::hideNowPlaying,
-                directPopRoute = ::directPopRoute,
-            )
-            .dispatch()
+    SideEffect {
+        appState.publishSelectionPort(selectionPort)
+        appState.reconcileBackSession(selectionPort)
     }
-    val backCallbacks =
-        libraryBackCallbacks(
-            ordinaryBack = requestLibraryBack,
-            decision = { libraryBackDecision },
-            transitionProgress = {
-                when (val ts = navState.transitionState) {
-                    is NavigationEventTransitionState.InProgress ->
-                        ts.latestEvent.progress
-                    else -> null
-                }
-            },
-            setCompletionProgress = { backGestureProgressAtCompletion = it },
-            navigationPop = appState.navigation::pop,
-            completePredictivePop = appState::completePredictivePop,
-            clearSelection = ::clearSelection,
-            popRoute = appState::popRoute,
+    val requestLibraryBack: () -> Unit = {
+        performLibraryBack(
+            appState,
+            selectionPort,
+            {},
         )
-    NavigationBackHandler(
-        state = navState,
-        isBackEnabled = libraryBackDecision != LibraryBackDecision.None,
-        onBackCancelled = {},
-        onBackCompleted = backCallbacks.systemBackCompleted,
-    )
-    val predictiveBackProgress =
-        when (val ts = navState.transitionState) {
-            is NavigationEventTransitionState.InProgress -> {
-                if (libraryBackDecision == LibraryBackDecision.PopRoute &&
-                    ts.direction ==
-                        NavigationEventTransitionState.TRANSITIONING_BACK) {
-                    ts.latestEvent.progress
-                } else {
-                    0f
-                }
-            }
-
-            else -> 0f
-        }
+    }
+    val navigationEventDispatcher =
+        checkNotNull(LocalNavigationEventDispatcherOwner.current) {
+            "LibraryHomeScreen requires a NavigationEventDispatcher owner"
+        }.navigationEventDispatcher
+    val navigationEventBackHandler =
+        rememberLibraryNavigationEventBackHandler(
+            dispatcher = navigationEventDispatcher,
+            beginBack = { appState.beginBack(selectionPort) },
+            enabled = appState.canBeginBack(selectionPort),
+        )
+    val predictiveBackProgress = navigationEventBackHandler.predictiveProgress
     val predictiveBackOffset = remember { Animatable(0f) }
     LaunchedEffect(predictiveBackProgress) {
         if (predictiveBackProgress > 0f) {
@@ -282,10 +280,7 @@ fun LibraryHomeScreen(
         }
     }
 
-    val previousRoute =
-        if (appState.navigation.routes.size >= 2)
-            appState.navigation.routes[appState.navigation.routes.size - 2]
-        else null
+    val previousEntry = navigationEventBackHandler.routePreview()?.incomingEntry
 
     LaunchedEffect(
         homeListState.firstVisibleItemIndex,
@@ -352,7 +347,8 @@ fun LibraryHomeScreen(
     }
 
     @Composable
-    fun RouteContent(route: LibraryRoute) {
+    fun RouteContent(entry: LibraryNavigationEntry) {
+        val route = entry.route
         LibraryRouteContent(
             route = route,
             albums = albums,
@@ -368,20 +364,15 @@ fun LibraryHomeScreen(
             onRefreshPlaylists = onRefreshPlaylists,
             onPlaylistMutation = onPlaylistMutation,
             onRecoverStalePlaylistDetail = { message ->
-                clearSelection()
-                appState.recoverStalePlaylistDetail(message) {
-                    recoverableMessage ->
-                    onPlaylistStateAction(
-                        PlaylistStateAction.ShowRecoverableMessage(
-                            recoverableMessage))
-                }
+                playlistDetailRouteOrchestrator.recoverStalePlaylistDetail(message)
             },
+            onDisplayedPlaylistDeleteConfirmed =
+                playlistDetailRouteOrchestrator.displayedPlaylistDeleteCompletion(entry),
             selectedTrackId = appState.selectedTrackId,
             isNowPlayingBarVisible = appState.isNowPlayingBarVisible,
-            onBack = backCallbacks.ordinaryBack,
-            onDeleteCompleted = backCallbacks.deleteCompleted,
-            registerPlaylistEditMode = ::registerPlaylistEditMode,
-            registerPlaylistModalDismiss = ::registerPlaylistModalDismiss,
+            onBack = requestLibraryBack,
+            destinationId = entry.destinationId.takeIf { entry == appState.navigation.currentEntry },
+            registerBackSurface = appState::registerBackSurface,
             onOpenDetailRoute = ::pushRoute,
             onTrackSelected = appState::setSelectedTrackId,
             onTrackClickFromTracks = ::selectTrackFromTracks,
@@ -502,7 +493,7 @@ fun LibraryHomeScreen(
                             is LibraryRoute.PlaylistDetail,
                             LibraryRoute.PlaylistHub,
                             -> {
-                                RouteContent(route = route)
+                                RouteContent(entry = appState.navigation.currentEntry)
                             }
 
                             else -> AdaptiveDetailPlaceholder()
@@ -517,11 +508,11 @@ fun LibraryHomeScreen(
                 }
             }
         } else {
-            if (predictiveBackProgress > 0f && previousRoute != null) {
-                RouteContent(route = previousRoute)
+            if (predictiveBackProgress > 0f && previousEntry != null) {
+                RouteContent(entry = previousEntry)
             }
             AnimatedContent(
-                targetState = appState.navigation.current,
+                targetState = appState.navigation.currentEntry,
                 transitionSpec = {
                     routeContentTransform(appState.lastNavigationTransition)
                 },
@@ -530,8 +521,8 @@ fun LibraryHomeScreen(
                     Modifier.fillMaxSize()
                         .recordRhythHausBackdrop(rootBackdrop)
                         .offset(x = predictiveBackOffset.value.dp),
-            ) { currentRoute ->
-                RouteContent(route = currentRoute)
+            ) { currentEntry ->
+                RouteContent(entry = currentEntry)
             }
         }
 
@@ -629,7 +620,7 @@ fun LibraryHomeScreen(
                 libraryTracks.firstOrNull { it.id == selectedTrack?.id },
             isVisible = appState.showNowPlaying,
             expandProgress = expandProgress,
-            onBack = { appState.hideNowPlaying() },
+            onBack = requestLibraryBack,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -799,7 +790,8 @@ private fun NowPlayingExpandOverlay(
                             isActive = true,
                             scope = gestureScope,
                             onSwipeExpand = {},
-                            onSwipeCollapse = onBack,
+                            // The threshold collapse is the screen's Back affordance.
+                            onSwipeCollapse = nowPlayingSwipeCollapseAction(onBack),
                         ),
                 shape =
                     RoundedCornerShape(
@@ -822,6 +814,9 @@ private fun NowPlayingExpandOverlay(
         }
     }
 }
+
+/** Kept as a named seam so threshold-swipe and screen Back share the same callback. */
+internal fun nowPlayingSwipeCollapseAction(onBack: () -> Unit): () -> Unit = onBack
 
 private const val NavigationAnimationMillis = 240
 private const val NavigationSlideDistancePx = 90
