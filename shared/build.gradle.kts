@@ -1,3 +1,4 @@
+import com.eterocell.gradle.architecture.ControlledComposeResourcesExtension
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
@@ -119,12 +120,17 @@ val buildMacosAudioHelper by
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.multiplatform.library)
-    alias(libs.plugins.compose.multiplatform)
+    id("build-logic.android.kmp.library")
+    id("build-logic.compose-resources")
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.aboutlibraries)
-    alias(libs.plugins.sqldelight)
+    id("build-logic.sqldelight")
 }
+
+extensions.configure<ControlledComposeResourcesExtension>(
+    "architectureComposeResources") {
+        namespace("com.eterocell.rhythhaus.generated.resources")
+    }
 
 aboutLibraries {
     collect {
@@ -136,18 +142,6 @@ aboutLibraries {
                 "src/commonMain/composeResources/files/aboutlibraries.json"))
         includeMetaData.set(false)
         prettyPrint.set(true)
-    }
-}
-
-sqldelight {
-    databases {
-        create("RhythHausDatabase") {
-            packageName.set("com.eterocell.rhythhaus.library")
-            dialect(
-                "app.cash.sqldelight:sqlite-3-38-dialect:${libs.versions.sqldelight.get()}")
-            schemaOutputDirectory.set(
-                file("src/commonMain/sqldelight/databases"))
-        }
     }
 }
 

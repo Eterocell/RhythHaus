@@ -16,7 +16,8 @@ import kotlin.test.assertTrue
 class LibraryNavigationTest {
     @Test
     fun pushingTheCurrentRouteIsANoOpAndPreservesItsEntryIdentity() {
-        val stack = LibraryNavigationStack().push(LibraryRoute.AlbumDetail("Night"))
+        val stack =
+            LibraryNavigationStack().push(LibraryRoute.AlbumDetail("Night"))
 
         assertEquals(stack, stack.push(LibraryRoute.AlbumDetail("Night")))
         assertEquals(stack.currentEntry, stack.push(stack.current).currentEntry)
@@ -40,7 +41,9 @@ class LibraryNavigationTest {
         state.publishSelectionPort(mismatched)
 
         assertIs<LibraryBackTarget.Route>(
-            assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session.target,
+            assertIs<LibraryBackBeginResult.Started>(state.beginBack())
+                .session
+                .target,
         )
     }
 
@@ -77,10 +80,12 @@ class LibraryNavigationTest {
         val pending =
             assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
 
-        state.completeDisplayedPlaylistDeletion(PlaylistSnapshot(), "playlist-1", deletedEntry)
+        state.completeDisplayedPlaylistDeletion(
+            PlaylistSnapshot(), "playlist-1", deletedEntry)
 
         assertEquals(LibraryRoute.PlaylistHub, state.navigation.current)
-        assertEquals(LibraryNavigationTransition.Replace, state.lastNavigationTransition)
+        assertEquals(
+            LibraryNavigationTransition.Replace, state.lastNavigationTransition)
         assertTrue(state.showNowPlaying)
         assertEquals("playing-track", state.selectedTrackId)
         assertNull(state.pendingBackSession)
@@ -88,7 +93,9 @@ class LibraryNavigationTest {
         assertEquals(0, modalDispatches)
         assertEquals(0, selectionCancels)
         assertIs<LibraryBackTarget.NowPlaying>(
-            assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session.target,
+            assertIs<LibraryBackBeginResult.Started>(state.beginBack())
+                .session
+                .target,
         )
     }
 
@@ -111,7 +118,8 @@ class LibraryNavigationTest {
             state.navigation.routes,
         )
         assertEquals(originalHubEntry, state.navigation.currentEntry)
-        assertEquals(LibraryNavigationTransition.Pop, state.lastNavigationTransition)
+        assertEquals(
+            LibraryNavigationTransition.Pop, state.lastNavigationTransition)
     }
 
     @Test
@@ -122,17 +130,21 @@ class LibraryNavigationTest {
 
         state.replaceTopRoute(LibraryRoute.PlaylistDetail("playlist-a"))
         val replacementEntry = state.navigation.currentEntry
-        state.completeDisplayedPlaylistDeletion(PlaylistSnapshot(), "playlist-a", originalEntry)
+        state.completeDisplayedPlaylistDeletion(
+            PlaylistSnapshot(), "playlist-a", originalEntry)
 
         assertEquals(replacementEntry, state.navigation.currentEntry)
-        assertEquals(LibraryRoute.PlaylistDetail("playlist-a"), state.navigation.current)
+        assertEquals(
+            LibraryRoute.PlaylistDetail("playlist-a"), state.navigation.current)
 
-        state.completeDisplayedPlaylistDeletion(PlaylistSnapshot(), "playlist-b", replacementEntry)
+        state.completeDisplayedPlaylistDeletion(
+            PlaylistSnapshot(), "playlist-b", replacementEntry)
         assertEquals(replacementEntry, state.navigation.currentEntry)
 
         state.replaceTopRoute(LibraryRoute.PlaylistDetail("playlist-b"))
         val otherPlaylistEntry = state.navigation.currentEntry
-        state.completeDisplayedPlaylistDeletion(PlaylistSnapshot(), "playlist-a", originalEntry)
+        state.completeDisplayedPlaylistDeletion(
+            PlaylistSnapshot(), "playlist-a", originalEntry)
 
         assertEquals(otherPlaylistEntry, state.navigation.currentEntry)
         assertEquals("playing-track", state.selectedTrackId)
@@ -144,14 +156,20 @@ class LibraryNavigationTest {
         state.pushRoute(LibraryRoute.PlaylistDetail("playlist-a"))
         val entry = state.navigation.currentEntry
         val destination = state.activeDestinationId
-        val target = LibraryBackTarget.FeatureEdit(LibraryBackTargetId(destination, "edit"))
+        val target =
+            LibraryBackTarget.FeatureEdit(
+                LibraryBackTargetId(destination, "edit"))
         state.registerBackSurface(
-            LibraryBackSurfacePort(destination, target) { LibraryBackFeatureRequestResult.Started },
+            LibraryBackSurfacePort(destination, target) {
+                LibraryBackFeatureRequestResult.Started
+            },
         )
-        val pending = assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
+        val pending =
+            assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
 
         state.completeDisplayedPlaylistDeletion(
-            PlaylistSnapshot(playlists = listOf(Playlist("playlist-a", "Saved", 1L, 1L))),
+            PlaylistSnapshot(
+                playlists = listOf(Playlist("playlist-a", "Saved", 1L, 1L))),
             "playlist-a",
             entry,
         )
@@ -164,13 +182,29 @@ class LibraryNavigationTest {
     fun predictiveLifecycleLatchesUnhandledAndSystemCompletionWithoutGestureBeginsOnce() {
         val lifecycle = LibraryBackGestureLifecycle()
         var begins = 0
-        assertEquals(LibraryBackBeginResult.Unhandled, lifecycle.beginPredictive { begins++; LibraryBackBeginResult.Unhandled })
-        assertEquals(LibraryBackBeginResult.Unhandled, lifecycle.beginPredictive { begins++; LibraryBackBeginResult.Started(error("must not begin twice")) })
-        lifecycle.completeSystemBack { begins++; LibraryBackBeginResult.Unhandled }
+        assertEquals(
+            LibraryBackBeginResult.Unhandled,
+            lifecycle.beginPredictive {
+                begins++
+                LibraryBackBeginResult.Unhandled
+            })
+        assertEquals(
+            LibraryBackBeginResult.Unhandled,
+            lifecycle.beginPredictive {
+                begins++
+                LibraryBackBeginResult.Started(error("must not begin twice"))
+            })
+        lifecycle.completeSystemBack {
+            begins++
+            LibraryBackBeginResult.Unhandled
+        }
         assertEquals(1, begins)
 
         var ordinaryBegins = 0
-        lifecycle.completeSystemBack { ordinaryBegins++; LibraryBackBeginResult.Unhandled }
+        lifecycle.completeSystemBack {
+            ordinaryBegins++
+            LibraryBackBeginResult.Unhandled
+        }
         assertEquals(1, ordinaryBegins)
     }
 
@@ -181,9 +215,18 @@ class LibraryNavigationTest {
         val lifecycle = LibraryBackGestureLifecycle()
         var begins = 0
 
-        val started = lifecycle.beginPredictive { begins++; state.beginBack() }
-        lifecycle.beginPredictive { begins++; LibraryBackBeginResult.Unhandled }
-        lifecycle.completeSystemBack { begins++; LibraryBackBeginResult.Unhandled }
+        val started = lifecycle.beginPredictive {
+            begins++
+            state.beginBack()
+        }
+        lifecycle.beginPredictive {
+            begins++
+            LibraryBackBeginResult.Unhandled
+        }
+        lifecycle.completeSystemBack {
+            begins++
+            LibraryBackBeginResult.Unhandled
+        }
 
         assertEquals(1, begins)
         assertEquals(LibraryRoute.Home, state.navigation.current)
@@ -192,12 +235,16 @@ class LibraryNavigationTest {
         val suppressedLifecycle = LibraryBackGestureLifecycle()
         val pendingState = LibraryAppState(initialSelectedTrackId = null)
         pendingState.pushRoute(LibraryRoute.AlbumDetail("Night"))
-        val pending = assertIs<LibraryBackBeginResult.Started>(pendingState.beginBack()).session
+        val pending =
+            assertIs<LibraryBackBeginResult.Started>(pendingState.beginBack())
+                .session
         assertEquals(
             LibraryBackBeginResult.Suppressed,
             suppressedLifecycle.beginPredictive { pendingState.beginBack() },
         )
-        suppressedLifecycle.completeSystemBack { error("latched suppressed result must not re-begin") }
+        suppressedLifecycle.completeSystemBack {
+            error("latched suppressed result must not re-begin")
+        }
         assertEquals(pending, pendingState.pendingBackSession)
         pending.cancel()
     }
@@ -211,15 +258,21 @@ class LibraryNavigationTest {
 
         assertEquals(1, calls)
     }
+
     @Test
     fun navigationEntriesGiveEqualRouteReplacementANewIdentityAndPopRestoresPredecessor() {
-        val first = LibraryNavigationStack().push(LibraryRoute.PlaylistDetail("playlist-a"))
+        val first =
+            LibraryNavigationStack()
+                .push(LibraryRoute.PlaylistDetail("playlist-a"))
         val firstEntry = first.currentEntry
-        val replacement = first.replaceTop(LibraryRoute.PlaylistDetail("playlist-a"))
+        val replacement =
+            first.replaceTop(LibraryRoute.PlaylistDetail("playlist-a"))
 
-        assertNotEquals(firstEntry.destinationId, replacement.currentEntry.destinationId)
+        assertNotEquals(
+            firstEntry.destinationId, replacement.currentEntry.destinationId)
         assertEquals(first.entries.first(), replacement.pop().currentEntry)
     }
+
     @Test
     fun drillDownRowDispatchesOnlyTrackSelectionWithSelectedTrack() {
         val selectedTrack = testTrack(id = "selected")
@@ -275,7 +328,8 @@ class LibraryNavigationTest {
                 .push(LibraryRoute.Search)
                 .push(LibraryRoute.Search)
 
-        assertEquals(listOf(LibraryRoute.Home, LibraryRoute.Search), stack.routes)
+        assertEquals(
+            listOf(LibraryRoute.Home, LibraryRoute.Search), stack.routes)
     }
 
     @Test
@@ -955,8 +1009,10 @@ class LibraryNavigationTest {
     @Test
     fun backResolverUsesOneExactTargetInModalEditSelectionNowPlayingRouteOrder() {
         val route = LibraryRoute.AlbumDetail("Night")
-        val destination = LibraryDestinationId(route, instanceToken = "destination-a")
-        val modalId = LibraryBackTargetId(destination, instanceToken = "modal-a")
+        val destination =
+            LibraryDestinationId(route, instanceToken = "destination-a")
+        val modalId =
+            LibraryBackTargetId(destination, instanceToken = "modal-a")
         val editId = LibraryBackTargetId(destination, instanceToken = "edit-a")
         val selectionTarget =
             LibraryBackTarget.PageSelection(
@@ -977,54 +1033,61 @@ class LibraryNavigationTest {
                 browseMode = BrowseMode.Songs,
                 isNowPlayingExpanded = true,
                 navigation = LibraryNavigationStack().push(route),
-                selectionPort = LibraryBackSelectionPort(destination, selectionTarget, {}),
+                selectionPort =
+                    LibraryBackSelectionPort(destination, selectionTarget, {}),
             )
 
         assertEquals(
             LibraryBackTarget.FeatureModal(modalId),
-            assertIs<LibraryBackResolution.Started>(
-                resolveLibraryBack(input)).target,
+            assertIs<LibraryBackResolution.Started>(resolveLibraryBack(input))
+                .target,
         )
         assertEquals(
             LibraryBackTarget.FeatureEdit(editId),
             assertIs<LibraryBackResolution.Started>(
-                resolveLibraryBack(
-                    input.copy(
-                        backSurfacePorts =
-                            listOf(
-                                LibraryBackSurfacePort(
-                                    destination,
-                                    LibraryBackTarget.FeatureEdit(editId),
+                    resolveLibraryBack(
+                        input.copy(
+                            backSurfacePorts =
+                                listOf(
+                                    LibraryBackSurfacePort(
+                                        destination,
+                                        LibraryBackTarget.FeatureEdit(editId),
+                                    ),
                                 ),
-                            ),
-                    ),
-                )).target,
+                        ),
+                    ))
+                .target,
         )
         assertIs<LibraryBackTarget.PageSelection>(
             assertIs<LibraryBackResolution.Started>(
-                resolveLibraryBack(input.copy(backSurfacePorts = emptyList()))).target,
+                    resolveLibraryBack(
+                        input.copy(backSurfacePorts = emptyList())))
+                .target,
         )
         assertIs<LibraryBackTarget.NowPlaying>(
             assertIs<LibraryBackResolution.Started>(
-                resolveLibraryBack(
-                    input.copy(
-                        backSurfacePorts = emptyList(),
-                        selectionPort = null,
-                    ),
-                )).target,
-        )
-        val routeTarget =
-            assertIs<LibraryBackTarget.Route>(
-                assertIs<LibraryBackResolution.Started>(
                     resolveLibraryBack(
                         input.copy(
                             backSurfacePorts = emptyList(),
                             selectionPort = null,
-                            isNowPlayingExpanded = false,
                         ),
-                    )).target,
+                    ))
+                .target,
+        )
+        val routeTarget =
+            assertIs<LibraryBackTarget.Route>(
+                assertIs<LibraryBackResolution.Started>(
+                        resolveLibraryBack(
+                            input.copy(
+                                backSurfacePorts = emptyList(),
+                                selectionPort = null,
+                                isNowPlayingExpanded = false,
+                            ),
+                        ))
+                    .target,
             )
-        assertEquals(LibraryRoute.Home, routeTarget.routePreview.nextNavigation.current)
+        assertEquals(
+            LibraryRoute.Home, routeTarget.routePreview.nextNavigation.current)
         assertEquals(
             LibraryBackResolution.Unhandled,
             resolveLibraryBack(
@@ -1052,15 +1115,18 @@ class LibraryNavigationTest {
                 activeDestinationId = activeDestination,
                 backSurfacePorts =
                     listOf(
-                        LibraryBackSurfacePort(inactiveDestination, inactiveModal),
+                        LibraryBackSurfacePort(
+                            inactiveDestination, inactiveModal),
                     ),
                 browseMode = BrowseMode.Songs,
                 isNowPlayingExpanded = true,
-                navigation = LibraryNavigationStack().push(activeDestination.route),
+                navigation =
+                    LibraryNavigationStack().push(activeDestination.route),
             )
 
         assertIs<LibraryBackTarget.NowPlaying>(
-            assertIs<LibraryBackResolution.Started>(resolveLibraryBack(input)).target,
+            assertIs<LibraryBackResolution.Started>(resolveLibraryBack(input))
+                .target,
         )
 
         val selectedForemostTarget =
@@ -1069,17 +1135,18 @@ class LibraryNavigationTest {
         assertEquals(
             selectedForemostTarget,
             assertIs<LibraryBackResolution.Started>(
-                resolveLibraryBack(
-                    input.copy(
-                        backSurfacePorts =
-                            listOf(
-                                LibraryBackSurfacePort(
-                                    activeDestination,
-                                    selectedForemostTarget,
+                    resolveLibraryBack(
+                        input.copy(
+                            backSurfacePorts =
+                                listOf(
+                                    LibraryBackSurfacePort(
+                                        activeDestination,
+                                        selectedForemostTarget,
+                                    ),
                                 ),
-                            ),
-                    ),
-                )).target,
+                        ),
+                    ))
+                .target,
         )
     }
 
@@ -1089,32 +1156,42 @@ class LibraryNavigationTest {
         val destinationA = LibraryDestinationId(route, "destination-a")
         val destinationB = LibraryDestinationId(route, "destination-b")
         val modalA =
-            LibraryBackTarget.FeatureModal(LibraryBackTargetId(destinationA, "modal-a"))
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(destinationA, "modal-a"))
         val modalB =
-            LibraryBackTarget.FeatureModal(LibraryBackTargetId(destinationB, "modal-b"))
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(destinationB, "modal-b"))
 
         val targetA =
             assertIs<LibraryBackResolution.Started>(
-                resolveLibraryBack(
-                    LibraryBackResolutionInput(
-                        activeDestinationId = destinationA,
-                        backSurfacePorts = listOf(LibraryBackSurfacePort(destinationA, modalA)),
-                        browseMode = BrowseMode.Songs,
-                        isNowPlayingExpanded = false,
-                        navigation = LibraryNavigationStack().push(route),
-                    ),
-                )).target
+                    resolveLibraryBack(
+                        LibraryBackResolutionInput(
+                            activeDestinationId = destinationA,
+                            backSurfacePorts =
+                                listOf(
+                                    LibraryBackSurfacePort(
+                                        destinationA, modalA)),
+                            browseMode = BrowseMode.Songs,
+                            isNowPlayingExpanded = false,
+                            navigation = LibraryNavigationStack().push(route),
+                        ),
+                    ))
+                .target
         val targetB =
             assertIs<LibraryBackResolution.Started>(
-                resolveLibraryBack(
-                    LibraryBackResolutionInput(
-                        activeDestinationId = destinationB,
-                        backSurfacePorts = listOf(LibraryBackSurfacePort(destinationB, modalB)),
-                        browseMode = BrowseMode.Songs,
-                        isNowPlayingExpanded = false,
-                        navigation = LibraryNavigationStack().push(route),
-                    ),
-                )).target
+                    resolveLibraryBack(
+                        LibraryBackResolutionInput(
+                            activeDestinationId = destinationB,
+                            backSurfacePorts =
+                                listOf(
+                                    LibraryBackSurfacePort(
+                                        destinationB, modalB)),
+                            browseMode = BrowseMode.Songs,
+                            isNowPlayingExpanded = false,
+                            navigation = LibraryNavigationStack().push(route),
+                        ),
+                    ))
+                .target
 
         assertNotEquals(destinationA, destinationB)
         assertNotEquals(targetA, targetB)
@@ -1129,15 +1206,20 @@ class LibraryNavigationTest {
         val state = LibraryAppState(initialSelectedTrackId = null)
         state.pushRoute(LibraryRoute.AlbumDetail("Night"))
         val destination = state.activeDestinationId
-        val target = LibraryBackTarget.FeatureModal(LibraryBackTargetId(destination, "modal-a"))
+        val target =
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(destination, "modal-a"))
         var selectionCancels = 0
-        val selection = LibraryBackSelectionPort(
-            destination,
-            LibraryBackTarget.PageSelection(
-                LibraryBackTargetId(destination, "selection"),
-                TrackSelectionPageKey.Album("Night"),
-            ),
-        ) { selectionCancels += 1 }
+        val selection =
+            LibraryBackSelectionPort(
+                destination,
+                LibraryBackTarget.PageSelection(
+                    LibraryBackTargetId(destination, "selection"),
+                    TrackSelectionPageKey.Album("Night"),
+                ),
+            ) {
+                selectionCancels += 1
+            }
         var dispatches = 0
         state.showNowPlaying()
         state.registerBackSurface(
@@ -1148,9 +1230,11 @@ class LibraryNavigationTest {
             },
         )
 
-        val session = assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(selection),
-        ).session
+        val session =
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(selection),
+                )
+                .session
         assertEquals(target, session.target)
         assertEquals(LibraryBackBeginResult.Suppressed, state.beginBack())
 
@@ -1169,16 +1253,30 @@ class LibraryNavigationTest {
         val state = LibraryAppState(initialSelectedTrackId = null)
         state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
         val destinationA = state.activeDestinationId
-        val modalA = LibraryBackTarget.FeatureModal(LibraryBackTargetId(destinationA, "modal-a"))
-        val modalB = LibraryBackTarget.FeatureModal(LibraryBackTargetId(destinationA, "modal-b"))
+        val modalA =
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(destinationA, "modal-a"))
+        val modalB =
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(destinationA, "modal-b"))
         var modalADispatches = 0
         var modalBDispatches = 0
-        state.registerBackSurface(LibraryBackSurfacePort(destinationA, modalA) { modalADispatches += 1; LibraryBackFeatureRequestResult.Started })
+        state.registerBackSurface(
+            LibraryBackSurfacePort(destinationA, modalA) {
+                modalADispatches += 1
+                LibraryBackFeatureRequestResult.Started
+            })
 
-        val oldSession = assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session
-        state.registerBackSurface(LibraryBackSurfacePort(destinationA, modalB) { modalBDispatches += 1; LibraryBackFeatureRequestResult.Started })
+        val oldSession =
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
+        state.registerBackSurface(
+            LibraryBackSurfacePort(destinationA, modalB) {
+                modalBDispatches += 1
+                LibraryBackFeatureRequestResult.Started
+            })
         state.reconcileBackSession()
 
         assertNull(state.pendingBackSession)
@@ -1186,14 +1284,20 @@ class LibraryNavigationTest {
         assertEquals(0, modalADispatches)
         assertEquals(0, modalBDispatches)
 
-        val rejected = assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session
+        val rejected =
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
         rejected.reject()
         assertNull(state.pendingBackSession)
-        assertEquals(modalB, assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session.target)
+        assertEquals(
+            modalB,
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
+                .target)
 
         state.popRoute()
         assertNull(state.pendingBackSession)
@@ -1204,24 +1308,49 @@ class LibraryNavigationTest {
         val state = LibraryAppState(initialSelectedTrackId = null)
         state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
         val destinationA = state.activeDestinationId
-        val targetA = LibraryBackTarget.FeatureEdit(LibraryBackTargetId(destinationA, "edit-a"))
-        val targetA2 = LibraryBackTarget.FeatureModal(LibraryBackTargetId(destinationA, "modal-a2"))
-        val disposeA = state.registerBackSurface(LibraryBackSurfacePort(destinationA, targetA) { LibraryBackFeatureRequestResult.Started })
-        val disposeA2 = state.registerBackSurface(LibraryBackSurfacePort(destinationA, targetA2) { LibraryBackFeatureRequestResult.Started })
+        val targetA =
+            LibraryBackTarget.FeatureEdit(
+                LibraryBackTargetId(destinationA, "edit-a"))
+        val targetA2 =
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(destinationA, "modal-a2"))
+        val disposeA =
+            state.registerBackSurface(
+                LibraryBackSurfacePort(destinationA, targetA) {
+                    LibraryBackFeatureRequestResult.Started
+                })
+        val disposeA2 =
+            state.registerBackSurface(
+                LibraryBackSurfacePort(destinationA, targetA2) {
+                    LibraryBackFeatureRequestResult.Started
+                })
         state.replaceTopRoute(LibraryRoute.PlaylistDetail("playlist-1"))
         val destinationB = state.activeDestinationId
-        val targetB = LibraryBackTarget.FeatureModal(LibraryBackTargetId(destinationB, "modal-b"))
-        state.registerBackSurface(LibraryBackSurfacePort(destinationB, targetB) { LibraryBackFeatureRequestResult.Started })
+        val targetB =
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(destinationB, "modal-b"))
+        state.registerBackSurface(
+            LibraryBackSurfacePort(destinationB, targetB) {
+                LibraryBackFeatureRequestResult.Started
+            })
         disposeA()
 
-        assertEquals(targetB, assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session.target)
+        assertEquals(
+            targetB,
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
+                .target)
         state.pendingBackSession!!.cancel()
         disposeA2()
-        assertEquals(targetB, assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session.target)
+        assertEquals(
+            targetB,
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
+                .target)
     }
 
     @Test
@@ -1230,15 +1359,19 @@ class LibraryNavigationTest {
         val route = LibraryRoute.AlbumDetail("Night")
         state.pushRoute(route)
 
-        val cancelled = assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session
+        val cancelled =
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
         cancelled.cancel()
         assertEquals(route, state.navigation.current)
 
-        val invalid = assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session
+        val invalid =
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
         state.replaceTopRoute(route)
         invalid.complete()
         assertEquals(route, state.navigation.current)
@@ -1250,16 +1383,24 @@ class LibraryNavigationTest {
         val state = LibraryAppState(initialSelectedTrackId = null)
         val route = LibraryRoute.AlbumDetail("Night")
         val destination = LibraryDestinationId(route, "a")
-        val modal = LibraryBackTarget.FeatureModal(LibraryBackTargetId(destination, "modal"))
+        val modal =
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(destination, "modal"))
         var modalDispatches = 0
         state.pushRoute(destination.route)
         state.showNowPlaying()
 
-        val session = assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session
+        val session =
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
         assertIs<LibraryBackTarget.NowPlaying>(session.target)
-        state.registerBackSurface(LibraryBackSurfacePort(destination, modal) { modalDispatches += 1; LibraryBackFeatureRequestResult.Started })
+        state.registerBackSurface(
+            LibraryBackSurfacePort(destination, modal) {
+                modalDispatches += 1
+                LibraryBackFeatureRequestResult.Started
+            })
         state.reconcileBackSession()
 
         assertEquals(session, state.pendingBackSession)
@@ -1271,20 +1412,23 @@ class LibraryNavigationTest {
     @Test
     fun ordinaryAndSystemBackAdaptersBeginAndCompleteTheSameTarget() {
         listOf(
-            AdapterBackCase.Modal,
-            AdapterBackCase.Edit,
-            AdapterBackCase.Selection,
-            AdapterBackCase.NowPlaying,
-            AdapterBackCase.Route,
-        ).forEach { case ->
-            val ordinary = adapterBackOutcome(case, useSystemAdapter = false)
-            val system = adapterBackOutcome(case, useSystemAdapter = true)
+                AdapterBackCase.Modal,
+                AdapterBackCase.Edit,
+                AdapterBackCase.Selection,
+                AdapterBackCase.NowPlaying,
+                AdapterBackCase.Route,
+            )
+            .forEach { case ->
+                val ordinary =
+                    adapterBackOutcome(case, useSystemAdapter = false)
+                val system = adapterBackOutcome(case, useSystemAdapter = true)
 
-            assertEquals(ordinary, system, "Expected matching result for $case")
-            assertEquals(LibraryBackAdapterResult.Handled, ordinary.result)
-            assertEquals(1, ordinary.targetExecutions)
-            assertEquals(0, ordinary.unhandledDefaults)
-        }
+                assertEquals(
+                    ordinary, system, "Expected matching result for $case")
+                assertEquals(LibraryBackAdapterResult.Handled, ordinary.result)
+                assertEquals(1, ordinary.targetExecutions)
+                assertEquals(0, ordinary.unhandledDefaults)
+            }
     }
 
     @Test
@@ -1295,8 +1439,14 @@ class LibraryNavigationTest {
         var systemDefault = 0
         state.pushRoute(LibraryRoute.AlbumDetail("Night"))
         val destination = state.activeDestinationId
-        val target = LibraryBackTarget.FeatureModal(LibraryBackTargetId(destination, "modal"))
-        state.registerBackSurface(LibraryBackSurfacePort(destination, target) { dispatches += 1; LibraryBackFeatureRequestResult.Started })
+        val target =
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(destination, "modal"))
+        state.registerBackSurface(
+            LibraryBackSurfacePort(destination, target) {
+                dispatches += 1
+                LibraryBackFeatureRequestResult.Started
+            })
 
         assertEquals(
             LibraryBackAdapterResult.Handled,
@@ -1331,9 +1481,11 @@ class LibraryNavigationTest {
 
         state.pushRoute(route)
 
-        val session = assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session
+        val session =
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
         val preview = assertIs<LibraryRoutePreview>(session.routePreview)
         state.showNowPlaying()
 
@@ -1350,16 +1502,20 @@ class LibraryNavigationTest {
         val route = LibraryRoute.AlbumDetail("Night")
         state.pushRoute(route)
 
-        val cancelled = assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session
+        val cancelled =
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
         cancelled.cancel()
         assertEquals(route, state.navigation.current)
         assertNull(state.pendingBackSession)
 
-        val valid = assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session
+        val valid =
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
         valid.complete()
         valid.complete()
         assertEquals(LibraryRoute.Home, state.navigation.current)
@@ -1368,9 +1524,11 @@ class LibraryNavigationTest {
         valid.reject()
         assertNull(state.pendingBackSession)
         state.pushRoute(route)
-        val invalid = assertIs<LibraryBackBeginResult.Started>(
-            state.beginBack(),
-        ).session
+        val invalid =
+            assertIs<LibraryBackBeginResult.Started>(
+                    state.beginBack(),
+                )
+                .session
         state.replaceTopRoute(route)
         invalid.complete()
         assertEquals(route, state.navigation.current)
@@ -1409,7 +1567,10 @@ private fun adapterBackOutcome(
                     destination,
                     LibraryBackTarget.FeatureModal(
                         LibraryBackTargetId(destination, "modal")),
-                ) { targetExecutions += 1; LibraryBackFeatureRequestResult.Started },
+                ) {
+                    targetExecutions += 1
+                    LibraryBackFeatureRequestResult.Started
+                },
             )
 
         AdapterBackCase.Edit ->
@@ -1418,7 +1579,10 @@ private fun adapterBackOutcome(
                     destination,
                     LibraryBackTarget.FeatureEdit(
                         LibraryBackTargetId(destination, "edit")),
-                ) { targetExecutions += 1; LibraryBackFeatureRequestResult.Started },
+                ) {
+                    targetExecutions += 1
+                    LibraryBackFeatureRequestResult.Started
+                },
             )
 
         AdapterBackCase.Selection -> Unit
@@ -1432,17 +1596,22 @@ private fun adapterBackOutcome(
                 LibraryBackTargetId(destination, "selection"),
                 TrackSelectionPageKey.Album("Night"),
             ),
-        ) { targetExecutions += 1 }
-    val adapter = if (useSystemAdapter) ::systemAdapterBack else ::ordinaryAdapterBack
-    val result = adapter(
-        state,
-        if (case == AdapterBackCase.Selection) selection else null,
-        { unhandledDefaults += 1 },
-    )
+        ) {
+            targetExecutions += 1
+        }
+    val adapter =
+        if (useSystemAdapter) ::systemAdapterBack else ::ordinaryAdapterBack
+    val result =
+        adapter(
+            state,
+            if (case == AdapterBackCase.Selection) selection else null,
+            { unhandledDefaults += 1 },
+        )
     if (case == AdapterBackCase.NowPlaying && !state.showNowPlaying) {
         targetExecutions += 1
     }
-    if (case == AdapterBackCase.Route && state.navigation.current == LibraryRoute.Home) {
+    if (case == AdapterBackCase.Route &&
+        state.navigation.current == LibraryRoute.Home) {
         targetExecutions += 1
     }
     return AdapterBackOutcome(result, targetExecutions, unhandledDefaults)

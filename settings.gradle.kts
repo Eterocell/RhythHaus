@@ -42,3 +42,5 @@ include(":desktopApp")
 include(":shared")
 
 include(":taglib")
+
+include(":architecture-processor")

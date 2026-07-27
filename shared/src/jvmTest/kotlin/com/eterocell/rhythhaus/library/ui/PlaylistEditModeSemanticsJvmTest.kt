@@ -4,9 +4,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -35,7 +35,6 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarRootTestTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -470,7 +469,8 @@ class PlaylistEditModeSemanticsJvmTest {
                     appState = appState,
                     clearSelection = { clearSelectionCalls++ },
                     onPlaylistStateAction = { action ->
-                        if (action is PlaylistStateAction.ShowRecoverableMessage) {
+                        if (action
+                            is PlaylistStateAction.ShowRecoverableMessage) {
                             recoverableMessages++
                         }
                     },
@@ -486,7 +486,9 @@ class PlaylistEditModeSemanticsJvmTest {
                     onRename = { _, _ -> },
                     onDeleteMutation = { completion ->
                         deleteCount++
-                        completion(PlaylistStateAction.SnapshotConfirmed(PlaylistSnapshot()))
+                        completion(
+                            PlaylistStateAction.SnapshotConfirmed(
+                                PlaylistSnapshot()))
                     },
                     onDisplayedPlaylistDeleteConfirmed =
                         orchestrator.displayedPlaylistDeleteCompletion(entry),
@@ -515,9 +517,13 @@ class PlaylistEditModeSemanticsJvmTest {
                 appState.navigation.routes,
             )
             assertEquals(originalHubEntry, appState.navigation.currentEntry)
-            assertEquals(LibraryNavigationTransition.Pop, appState.lastNavigationTransition)
-            // Replaying the finished route callback cannot create a second departure.
-            orchestrator.displayedPlaylistDeleteCompletion(entry)(PlaylistSnapshot())
+            assertEquals(
+                LibraryNavigationTransition.Pop,
+                appState.lastNavigationTransition)
+            // Replaying the finished route callback cannot create a second
+            // departure.
+            orchestrator.displayedPlaylistDeleteCompletion(entry)(
+                PlaylistSnapshot())
             assertEquals(
                 listOf(LibraryRoute.Home, LibraryRoute.PlaylistHub),
                 appState.navigation.routes,
@@ -562,7 +568,8 @@ class PlaylistEditModeSemanticsJvmTest {
         assertEquals(LibraryRoute.PlaylistHub, appState.navigation.current)
 
         appState.pushRoute(LibraryRoute.PlaylistDetail("missing-playlist"))
-        orchestrator.recoverStalePlaylistDetail("Playlist is no longer available")
+        orchestrator.recoverStalePlaylistDetail(
+            "Playlist is no longer available")
 
         assertEquals(TrackSelectionState(), selection)
         assertEquals(1, recoverableMessages)
@@ -583,17 +590,26 @@ class PlaylistEditModeSemanticsJvmTest {
             val orchestrator =
                 PlaylistDetailRouteOrchestrator(
                     appState = appState,
-                    clearSelection = { error("exact invalidation must preserve unrelated selection") },
+                    clearSelection = {
+                        error(
+                            "exact invalidation must preserve unrelated selection")
+                    },
                     onPlaylistStateAction = { action ->
-                        if (action is PlaylistStateAction.ShowRecoverableMessage) messages++
+                        if (action
+                            is PlaylistStateAction.ShowRecoverableMessage)
+                            messages++
                     },
                 )
-            var publishedState by mutableStateOf(
-                PlaylistState(
-                    confirmedSnapshot = PlaylistSnapshot(playlists = listOf(playlist("playlist-1", "Saved"))),
-                    hasConfirmedSnapshot = true,
-                ),
-            )
+            var publishedState by
+                mutableStateOf(
+                    PlaylistState(
+                        confirmedSnapshot =
+                            PlaylistSnapshot(
+                                playlists =
+                                    listOf(playlist("playlist-1", "Saved"))),
+                        hasConfirmedSnapshot = true,
+                    ),
+                )
             setContent {
                 when (val route = appState.navigation.current) {
                     is LibraryRoute.PlaylistDetail ->
@@ -612,8 +628,10 @@ class PlaylistEditModeSemanticsJvmTest {
             }
             waitForIdle()
 
-            publishedState = publishedState.copy(confirmedSnapshot = PlaylistSnapshot())
-            orchestrator.completeDisplayedPlaylistDeletion(entry, publishedState.confirmedSnapshot)
+            publishedState =
+                publishedState.copy(confirmedSnapshot = PlaylistSnapshot())
+            orchestrator.completeDisplayedPlaylistDeletion(
+                entry, publishedState.confirmedSnapshot)
             waitForIdle()
 
             assertEquals(LibraryRoute.PlaylistHub, appState.navigation.current)
@@ -624,48 +642,53 @@ class PlaylistEditModeSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun failedDeleteRetainsTheDisplayedDetailAndItsConfirmation() = runComposeUiTest {
-        val appState = LibraryAppState(null)
-        appState.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
-        var deleteCount = 0
-        setContent {
-            PlaylistDetailScreen(
-                playlist = playlist("playlist-1", "Saved"),
-                entries = emptyList(),
-                libraryTracks = emptyList(),
-                state = PlaylistState(),
-                onBack = {},
-                onRetry = {},
-                onRename = { _, _ -> },
-                onDelete = { completion ->
-                    deleteCount++
-                    completion(PlaylistStateAction.MutationFailed("failure"))
-                },
-                onDeleteConfirmed = {
-                    error("failed deletion must not invalidate the displayed route")
-                },
-                destinationId = appState.activeDestinationId,
-                registerBackSurface = appState::registerBackSurface,
-                onOpenBrowser = {},
-                onPlayEntry = {},
-                onRemoveEntry = {},
-                onReorder = {},
-            )
+    fun failedDeleteRetainsTheDisplayedDetailAndItsConfirmation() =
+        runComposeUiTest {
+            val appState = LibraryAppState(null)
+            appState.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
+            var deleteCount = 0
+            setContent {
+                PlaylistDetailScreen(
+                    playlist = playlist("playlist-1", "Saved"),
+                    entries = emptyList(),
+                    libraryTracks = emptyList(),
+                    state = PlaylistState(),
+                    onBack = {},
+                    onRetry = {},
+                    onRename = { _, _ -> },
+                    onDelete = { completion ->
+                        deleteCount++
+                        completion(
+                            PlaylistStateAction.MutationFailed("failure"))
+                    },
+                    onDeleteConfirmed = {
+                        error(
+                            "failed deletion must not invalidate the displayed route")
+                    },
+                    destinationId = appState.activeDestinationId,
+                    registerBackSurface = appState::registerBackSurface,
+                    onOpenBrowser = {},
+                    onPlayEntry = {},
+                    onRemoveEntry = {},
+                    onReorder = {},
+                )
+            }
+
+            onNode(hasText("删除播放列表"), useUnmergedTree = true).performClick()
+            waitForIdle()
+            onAllNodes(hasText("删除播放列表"), useUnmergedTree = true)
+                .onLast()
+                .performClick()
+            waitForIdle()
+
+            assertEquals(1, deleteCount)
+            assertEquals(
+                LibraryRoute.PlaylistDetail("playlist-1"),
+                appState.navigation.current)
+            onAllNodes(hasText("删除播放列表"), useUnmergedTree = true)
+                .onLast()
+                .assertExists()
         }
-
-        onNode(hasText("删除播放列表"), useUnmergedTree = true).performClick()
-        waitForIdle()
-        onAllNodes(hasText("删除播放列表"), useUnmergedTree = true)
-            .onLast()
-            .performClick()
-        waitForIdle()
-
-        assertEquals(1, deleteCount)
-        assertEquals(LibraryRoute.PlaylistDetail("playlist-1"), appState.navigation.current)
-        onAllNodes(hasText("删除播放列表"), useUnmergedTree = true)
-            .onLast()
-            .assertExists()
-    }
 
     private fun playlist(id: String, name: String) = Playlist(id, name, 1L, 1L)
 

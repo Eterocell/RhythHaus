@@ -410,7 +410,8 @@ internal fun LibraryRouteContent(
                     PlaylistDetailRouteResolutionEffect(
                         route = route,
                         state = playlistState,
-                        onRecoverStalePlaylistDetail = onRecoverStalePlaylistDetail,
+                        onRecoverStalePlaylistDetail =
+                            onRecoverStalePlaylistDetail,
                     )
             }
         }
@@ -447,9 +448,9 @@ internal fun PlaylistDetailRouteResolutionEffect(
 }
 
 /**
- * Production seam for the displayed playlist-detail route. A confirmed deletion is routed only
- * through [onDisplayedPlaylistDeleteConfirmed]; stale-detail recovery remains a separate route
- * resolution path in [LibraryRouteContent].
+ * Production seam for the displayed playlist-detail route. A confirmed deletion
+ * is routed only through [onDisplayedPlaylistDeleteConfirmed]; stale-detail
+ * recovery remains a separate route resolution path in [LibraryRouteContent].
  */
 @Composable
 internal fun PlaylistDetailRouteContent(

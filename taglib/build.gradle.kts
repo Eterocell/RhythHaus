@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     id("build-logic.android.abi-contract")
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.multiplatform.library)
+    id("build-logic.android.kmp.library")
 }
 
 val nativeTagLibResourceRoot =

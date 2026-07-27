@@ -1228,7 +1228,8 @@ internal fun PlaylistDetailScreen(
     var renameOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
     var deleteConfirmation by remember { mutableStateOf(false) }
     var deleteOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
-    var nextBackAppearanceToken by remember(destinationId) { mutableStateOf(0L) }
+    var nextBackAppearanceToken by
+        remember(destinationId) { mutableStateOf(0L) }
     var removeConfirmation by remember {
         mutableStateOf<PlaylistDetailRow?>(null)
     }
@@ -1264,42 +1265,45 @@ internal fun PlaylistDetailScreen(
         remember(destinationId, editMode) {
             destinationId?.let {
                 LibraryBackTarget.FeatureEdit(
-                    LibraryBackTargetId(it, "playlist-edit-${++nextBackAppearanceToken}"))
+                    LibraryBackTargetId(
+                        it, "playlist-edit-${++nextBackAppearanceToken}"))
             }
         }
     val modalTarget =
         remember(destinationId, modalDismiss != null) {
             destinationId?.let {
                 LibraryBackTarget.FeatureModal(
-                    LibraryBackTargetId(it, "playlist-modal-${++nextBackAppearanceToken}"))
+                    LibraryBackTargetId(
+                        it, "playlist-modal-${++nextBackAppearanceToken}"))
             }
         }
-    val foremostTarget = when {
-        modalDismiss != null -> modalTarget
-        editMode -> editTarget
-        else -> null
-    }
-    val currentEditClearForBack = rememberUpdatedState<() -> Unit> { editMode = false }
+    val foremostTarget =
+        when {
+            modalDismiss != null -> modalTarget
+            editMode -> editTarget
+            else -> null
+        }
+    val currentEditClearForBack =
+        rememberUpdatedState<() -> Unit> { editMode = false }
     val currentModalDismissForBack = rememberUpdatedState(modalDismiss)
     DisposableEffect(destinationId, foremostTarget) {
-        val unregister =
-            destinationId?.let { destination ->
-                registerBackSurface(
-                    LibraryBackSurfacePort(destination, foremostTarget) { target ->
-                        when (target) {
-                            modalTarget -> {
-                                currentModalDismissForBack.value?.invoke()
-                                LibraryBackFeatureRequestResult.Started
-                            }
-                            editTarget -> {
-                                currentEditClearForBack.value()
-                                LibraryBackFeatureRequestResult.Started
-                            }
-                            else -> LibraryBackFeatureRequestResult.Rejected
+        val unregister = destinationId?.let { destination ->
+            registerBackSurface(
+                LibraryBackSurfacePort(destination, foremostTarget) { target ->
+                    when (target) {
+                        modalTarget -> {
+                            currentModalDismissForBack.value?.invoke()
+                            LibraryBackFeatureRequestResult.Started
                         }
-                    },
-                )
-            }
+                        editTarget -> {
+                            currentEditClearForBack.value()
+                            LibraryBackFeatureRequestResult.Started
+                        }
+                        else -> LibraryBackFeatureRequestResult.Rejected
+                    }
+                },
+            )
+        }
         onDispose { unregister?.invoke() }
     }
     LaunchedEffect(
@@ -1451,7 +1455,8 @@ internal fun PlaylistDetailScreen(
                         deleteConfirmation = false
                         deleteOutcome = null
                         onDeleteConfirmed(
-                            (outcome as PlaylistStateAction.SnapshotConfirmed).snapshot)
+                            (outcome as PlaylistStateAction.SnapshotConfirmed)
+                                .snapshot)
                     }
                 }
             },

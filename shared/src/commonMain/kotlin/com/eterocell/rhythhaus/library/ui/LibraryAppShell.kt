@@ -76,7 +76,9 @@ import rhythhaus.shared.generated.resources.adaptive_detail_placeholder
 import rhythhaus.shared.generated.resources.library
 import top.yukonga.miuix.kmp.basic.Surface
 
-/** The shell-owned callbacks for one rendered playlist detail navigation entry. */
+/**
+ * The shell-owned callbacks for one rendered playlist detail navigation entry.
+ */
 internal class PlaylistDetailRouteOrchestrator(
     private val appState: LibraryAppState,
     private val clearSelection: () -> Unit,
@@ -204,19 +206,26 @@ fun LibraryHomeScreen(
         trackSelectionState.pageKey
             ?.takeIf {
                 trackSelectionState.selectedTrackIds.isNotEmpty() &&
-                    it == trackSelectionPageKeyFor(appState.navigation.current, appState.browseMode)
+                    it ==
+                        trackSelectionPageKeyFor(
+                            appState.navigation.current, appState.browseMode)
             }
             ?.let { pageKey ->
-                val token = remember(appState.activeDestinationId, pageKey) {
-                    "selection-${++nextSelectionAppearanceToken}"
-                }
+                val token =
+                    remember(appState.activeDestinationId, pageKey) {
+                        "selection-${++nextSelectionAppearanceToken}"
+                    }
                 LibraryBackSelectionPort(
                     destinationId = appState.activeDestinationId,
-                    target = LibraryBackTarget.PageSelection(
-                        LibraryBackTargetId(appState.activeDestinationId, token),
-                        pageKey,
-                    ),
-                    cancel = { dispatchTrackSelection(TrackSelectionAction.Cancel) },
+                    target =
+                        LibraryBackTarget.PageSelection(
+                            LibraryBackTargetId(
+                                appState.activeDestinationId, token),
+                            pageKey,
+                        ),
+                    cancel = {
+                        dispatchTrackSelection(TrackSelectionAction.Cancel)
+                    },
                 )
             }
     fun pushRoute(route: LibraryRoute) {
@@ -262,8 +271,9 @@ fun LibraryHomeScreen(
     }
     val navigationEventDispatcher =
         checkNotNull(LocalNavigationEventDispatcherOwner.current) {
-            "LibraryHomeScreen requires a NavigationEventDispatcher owner"
-        }.navigationEventDispatcher
+                "LibraryHomeScreen requires a NavigationEventDispatcher owner"
+            }
+            .navigationEventDispatcher
     val navigationEventBackHandler =
         rememberLibraryNavigationEventBackHandler(
             dispatcher = navigationEventDispatcher,
@@ -364,14 +374,19 @@ fun LibraryHomeScreen(
             onRefreshPlaylists = onRefreshPlaylists,
             onPlaylistMutation = onPlaylistMutation,
             onRecoverStalePlaylistDetail = { message ->
-                playlistDetailRouteOrchestrator.recoverStalePlaylistDetail(message)
+                playlistDetailRouteOrchestrator.recoverStalePlaylistDetail(
+                    message)
             },
             onDisplayedPlaylistDeleteConfirmed =
-                playlistDetailRouteOrchestrator.displayedPlaylistDeleteCompletion(entry),
+                playlistDetailRouteOrchestrator
+                    .displayedPlaylistDeleteCompletion(entry),
             selectedTrackId = appState.selectedTrackId,
             isNowPlayingBarVisible = appState.isNowPlayingBarVisible,
             onBack = requestLibraryBack,
-            destinationId = entry.destinationId.takeIf { entry == appState.navigation.currentEntry },
+            destinationId =
+                entry.destinationId.takeIf {
+                    entry == appState.navigation.currentEntry
+                },
             registerBackSurface = appState::registerBackSurface,
             onOpenDetailRoute = ::pushRoute,
             onTrackSelected = appState::setSelectedTrackId,
@@ -493,7 +508,8 @@ fun LibraryHomeScreen(
                             is LibraryRoute.PlaylistDetail,
                             LibraryRoute.PlaylistHub,
                             -> {
-                                RouteContent(entry = appState.navigation.currentEntry)
+                                RouteContent(
+                                    entry = appState.navigation.currentEntry)
                             }
 
                             else -> AdaptiveDetailPlaceholder()
@@ -790,8 +806,10 @@ private fun NowPlayingExpandOverlay(
                             isActive = true,
                             scope = gestureScope,
                             onSwipeExpand = {},
-                            // The threshold collapse is the screen's Back affordance.
-                            onSwipeCollapse = nowPlayingSwipeCollapseAction(onBack),
+                            // The threshold collapse is the screen's Back
+                            // affordance.
+                            onSwipeCollapse =
+                                nowPlayingSwipeCollapseAction(onBack),
                         ),
                 shape =
                     RoundedCornerShape(
@@ -815,8 +833,12 @@ private fun NowPlayingExpandOverlay(
     }
 }
 
-/** Kept as a named seam so threshold-swipe and screen Back share the same callback. */
-internal fun nowPlayingSwipeCollapseAction(onBack: () -> Unit): () -> Unit = onBack
+/**
+ * Kept as a named seam so threshold-swipe and screen Back share the same
+ * callback.
+ */
+internal fun nowPlayingSwipeCollapseAction(onBack: () -> Unit): () -> Unit =
+    onBack
 
 private const val NavigationAnimationMillis = 240
 private const val NavigationSlideDistancePx = 90

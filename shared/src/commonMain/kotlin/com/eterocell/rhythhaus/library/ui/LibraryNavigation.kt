@@ -183,8 +183,9 @@ fun trackSelectionPageKeyFor(
     }
 
 /**
- * The presented route plus its shell-created instance token. Route equality alone is not
- * sufficient because an equal route can replace an outgoing destination.
+ * The presented route plus its shell-created instance token. Route equality
+ * alone is not sufficient because an equal route can replace an outgoing
+ * destination.
  */
 internal data class LibraryDestinationId(
     val route: LibraryRoute,
@@ -231,8 +232,8 @@ internal sealed interface LibraryBackTarget {
 }
 
 /**
- * A feature publishes only its own already-chosen foremost action. The state module does not
- * inspect or order feature modal internals.
+ * A feature publishes only its own already-chosen foremost action. The state
+ * module does not inspect or order feature modal internals.
  */
 internal data class LibraryBackSurfacePort(
     val destinationId: LibraryDestinationId,
@@ -242,10 +243,19 @@ internal data class LibraryBackSurfacePort(
     },
 )
 
-/** The feature, rather than a Back adapter, authoritatively accepts or rejects its request. */
-internal enum class LibraryBackFeatureRequestResult { Started, Rejected }
+/**
+ * The feature, rather than a Back adapter, authoritatively accepts or rejects
+ * its request.
+ */
+internal enum class LibraryBackFeatureRequestResult {
+    Started,
+    Rejected
+}
 
-/** Shell-owned selection state is published as a capability; the state module never owns it. */
+/**
+ * Shell-owned selection state is published as a capability; the state module
+ * never owns it.
+ */
 internal data class LibraryBackSelectionPort(
     val destinationId: LibraryDestinationId,
     val target: LibraryBackTarget.PageSelection,
@@ -276,8 +286,13 @@ internal sealed interface LibraryBackResolution {
     ) : LibraryBackResolution
 }
 
-/** Resolves only the active destination from authoritative inputs; it performs no mutation. */
-internal fun resolveLibraryBack(input: LibraryBackResolutionInput): LibraryBackResolution {
+/**
+ * Resolves only the active destination from authoritative inputs; it performs
+ * no mutation.
+ */
+internal fun resolveLibraryBack(
+    input: LibraryBackResolutionInput
+): LibraryBackResolution {
     if (input.isBackSessionPending) return LibraryBackResolution.Suppressed
 
     val activeDestination = input.activeDestinationId
@@ -292,9 +307,12 @@ internal fun resolveLibraryBack(input: LibraryBackResolutionInput): LibraryBackR
     }
 
     val selectionTarget = input.selectionPort?.target
-    if (selectionTarget != null && input.selectionPort.destinationId == activeDestination &&
+    if (selectionTarget != null &&
+        input.selectionPort.destinationId == activeDestination &&
         selectionTarget.id.destinationId == activeDestination &&
-        selectionTarget.pageKey == trackSelectionPageKeyFor(activeDestination.route, input.browseMode)) {
+        selectionTarget.pageKey ==
+            trackSelectionPageKeyFor(
+                activeDestination.route, input.browseMode)) {
         return LibraryBackResolution.Started(
             selectionTarget,
         )
@@ -306,11 +324,14 @@ internal fun resolveLibraryBack(input: LibraryBackResolutionInput): LibraryBackR
             LibraryBackTarget.NowPlaying(input.nowPlayingTargetId))
     }
 
-    if (input.navigation.canPop && input.routeTargetId.destinationId == activeDestination) {
+    if (input.navigation.canPop &&
+        input.routeTargetId.destinationId == activeDestination) {
         val routePreview =
             LibraryRoutePreview(
                 outgoingEntry = input.navigation.currentEntry,
-                incomingEntry = input.navigation.entries[input.navigation.entries.lastIndex - 1],
+                incomingEntry =
+                    input.navigation.entries[
+                            input.navigation.entries.lastIndex - 1],
                 nextNavigation = input.navigation.pop(),
                 transition =
                     transitionForNavigationAction(
@@ -420,29 +441,45 @@ internal data class LibraryNavigationEntry(
 )
 
 private var navigationEntryToken = 0L
+
 private fun nextNavigationEntryToken(): Long = ++navigationEntryToken
 
 internal data class LibraryNavigationStack(
-    val entries: List<LibraryNavigationEntry> = listOf(LibraryNavigationEntry(LibraryRoute.Home)),
+    val entries: List<LibraryNavigationEntry> =
+        listOf(LibraryNavigationEntry(LibraryRoute.Home)),
 ) {
-    val routes: List<LibraryRoute> get() = entries.map(LibraryNavigationEntry::route)
+    val routes: List<LibraryRoute>
+        get() = entries.map(LibraryNavigationEntry::route)
+
     val currentEntry: LibraryNavigationEntry =
         entries.lastOrNull() ?: LibraryNavigationEntry(LibraryRoute.Home)
-    val current: LibraryRoute get() = currentEntry.route
-    val canPop: Boolean get() = entries.size > 1
+    val current: LibraryRoute
+        get() = currentEntry.route
+
+    val canPop: Boolean
+        get() = entries.size > 1
 
     fun push(route: LibraryRoute): LibraryNavigationStack =
         when {
             route == LibraryRoute.Home -> popToRoot()
             route == current -> this
-            else -> copy(entries = normalizedEntries(entries + LibraryNavigationEntry(route)))
+            else ->
+                copy(
+                    entries =
+                        normalizedEntries(
+                            entries + LibraryNavigationEntry(route)))
         }
 
     fun replaceTop(route: LibraryRoute): LibraryNavigationStack =
         when {
             route == LibraryRoute.Home -> popToRoot()
             entries.size <= 1 -> push(route)
-            else -> copy(entries = normalizedEntries(entries.dropLast(1) + LibraryNavigationEntry(route)))
+            else ->
+                copy(
+                    entries =
+                        normalizedEntries(
+                            entries.dropLast(1) +
+                                LibraryNavigationEntry(route)))
         }
 
     fun pop(): LibraryNavigationStack =
@@ -453,14 +490,19 @@ internal data class LibraryNavigationStack(
         }
 
     fun popToRoot(): LibraryNavigationStack =
-        copy(entries = listOf(entries.firstOrNull()?.takeIf { it.route == LibraryRoute.Home }
-            ?: LibraryNavigationEntry(LibraryRoute.Home)))
+        copy(
+            entries =
+                listOf(
+                    entries.firstOrNull()?.takeIf {
+                        it.route == LibraryRoute.Home
+                    } ?: LibraryNavigationEntry(LibraryRoute.Home)))
 
     private fun normalizedEntries(
         candidate: List<LibraryNavigationEntry>
     ): List<LibraryNavigationEntry> =
         when {
-            candidate.isEmpty() -> listOf(LibraryNavigationEntry(LibraryRoute.Home))
+            candidate.isEmpty() ->
+                listOf(LibraryNavigationEntry(LibraryRoute.Home))
             candidate.first().route != LibraryRoute.Home ->
                 listOf(LibraryNavigationEntry(LibraryRoute.Home)) +
                     candidate.filterNot { it.route == LibraryRoute.Home }

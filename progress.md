@@ -1,5 +1,362 @@
     # Session Progress
 
+## Handoff - 2026-07-31 Task 1.4 final acceptance
+
+Route: openspec+superpowers final acceptance bookkeeping
+Owner: implementation
+Input: accepted Task 1.4 root quality integration, independent Oracle review, and verification ledger.
+Output: Task 1.4 and OpenSpec 2.4 accepted. Root `check` and `qualityCheck` depend on
+`architectureCheck`; `qualityCheck` provider-aggregates Detekt/Spotless checks from every
+project. Valid/illegal TestKit entrypoints preserve exact `ARCH-*` diagnostics, while a real
+child fixture's built-in `Copy` sentinels prove child quality gates and second-run inner
+configuration-cache reuse. The dedicated unfiltered `quality.yml` invokes only
+`./gradlew qualityCheck --configuration-cache --configuration-cache-problems=fail --no-parallel`
+for pull requests and `main` pushes. Oracle review PASSed with no Critical/Important/Minor
+findings. Serial processor JAR/full convention tests passed with canonical-JAR cache reuse;
+functional XML is 50 tests, 0 skipped/failures/errors. Production `qualityCheck` passed with 85
+tasks; standalone `spotlessCheck`, `detekt`, `spotlessApply`, strict OpenSpec validation, and diff
+hygiene passed. The accepted Task 1.4 file set is committed conventionally.
+Next owner: implementation for Task 1.5 or later approved work.
+Blockers: repeated root `qualityCheck` cache reuse is not claimed: unchanged
+Spotless/precompiled-script input invalidation stores valid entries but does not reuse them. This
+is an accepted nonblocking performance baseline; the new child fixture proves serializable,
+reusable wiring. `./init.sh` was not rerun after its user-requested stop beyond 9000 seconds, so
+the full JVM/Android/desktop/iOS platform matrix remains uncertain. Task 1.3 is unchanged; Task
+1.5+ and OpenSpec 8.4 remain pending.
+
+## Handoff - 2026-07-31 Task 1.3 final acceptance
+
+Route: openspec+superpowers final acceptance bookkeeping
+Owner: implementation
+Input: independent Oracle final re-review PASS after the Android-KMP aggregate identity and
+documentation/evidence corrections.
+Output: Task 1.3 accepted; OpenSpec 2.1 and 2.3 marked complete, while 2.4 remains unchecked
+for Task 1.4. `ArchitectureCheckPluginFunctionalTest` XML records 46 tests, 0 skipped, 0
+failures, and 0 errors, including external canonical repository-built `:architecture-processor`
+JAR/SPI/KSP proof and real Android-KMP host/device aggregate identity positive, authored-self,
+and fail-closed cardinality cases. Android-KMP identities use public
+`KotlinMultiplatformAndroidLibraryTarget.compilations` host/device APIs, distinct from Android
+application public `ApplicationVariant` test `Component.compileConfiguration`/
+`Component.runtimeConfiguration` identities. Root `architectureCheck` passed twice with
+configuration-cache reuse. Strict feature OpenSpec validation, `spotlessCheck`, `detekt`, and
+`git diff --check` passed.
+Next owner: implementation for Task 1.4.
+Blockers: `./init.sh` was manually stopped after more than 9000 seconds at the user's explicit
+request and was not rerun; the full JVM/Android/desktop/iOS platform matrix remains uncertain
+and is not claimed. Task 1.4 root `check`, CI, and `qualityCheck` wiring remains out of scope.
+
+## Handoff - 2026-07-31 Task 1.3 AGP declarable-status correction
+
+Route: openspec+superpowers documentation-only correction
+Owner: implementation
+Input: approved public AGP 9.3.1 evidence: all controlled `ApplicationVariant` test-component
+compile/runtime configurations report `Configuration.isCanBeDeclared == true`.
+Output: synchronized canonical Task 1.3 governance documents. Controlled Android conventions
+publish only exact project/configuration identities from public test-component
+`Component.compileConfiguration`/`runtimeConfiguration`; root suppression requires that exact
+identity plus exactly one distinguishable direct self `ProjectDependency` in the configuration,
+otherwise it suppresses none. The false non-declarable premise and `isCanBeDeclared` governing
+fact are removed because declarable status supplies no dependency provenance. Authored supported
+declarable-bucket dependencies remain checked; explicit self edges retain `ARCH-EDGE` plus
+one-node `ARCH-CYCLE`. Equal authored mutation on the exact AGP-owned configuration remains
+unsupported/outside the guarantee because it can collapse without public provenance.
+Evidence: real Android RED captures the exact three synthetic self edges/cycle; GREEN removes
+only those records while retaining canonical main resource records; authored negative and
+cardinality fail-closed controls remain required.
+Verification: `openspec validate feature-first-modularization --strict`: pass (`Change
+'feature-first-modularization' is valid`); `git diff --check`: pass (no output).
+Status: Task 1.3 and OpenSpec 2.1/2.3 remain unchecked; no implementation, test pass, review, or
+commit is claimed.
+Next owner: implementation via SDD.
+Blockers: Task 1.3 implementation remains pending.
+
+## Handoff - 2026-07-30 Task 1.3 AGP synthetic-self-edge contract amendment
+
+Route: openspec+superpowers documentation-only correction
+Owner: implementation
+Input: approved Task 1.3 public AGP 9.3.1 test-component identity contract.
+Output: synchronized canonical Task 1.3 documents. Controlled Android conventions must publish
+exact `Component.compileConfiguration`/`runtimeConfiguration` identities for `ApplicationVariant`
+`androidTest`, `unitTest`, `deviceTests`, and `hostTests`; root collection excludes only matching
+self records. Authored test dependencies and explicit authored self-dependencies remain checked.
+Required failing-first evidence is the real Android app's exact three AGP synthetic self edges and
+cycle; GREEN retains canonical main resource records, and the authored self-edge fixture remains
+the negative control. Configuration-name inference, blanket test filtering, attribute guessing,
+reflection, AGP internals, and task/artifact/output/resolved-classpath inspection are forbidden.
+Verification: `openspec validate feature-first-modularization --strict`: pass (`Change
+'feature-first-modularization' is valid`); `git diff --check`: pass (no output).
+Status: Task 1.3 and OpenSpec 2.1/2.3 remain unchecked; no implementation, test pass, review, or
+commit is claimed.
+Next owner: implementation via SDD.
+Blockers: Task 1.3 implementation remains pending.
+
+## Handoff - 2026-07-29 Task 1.3 contract correction after rejected review
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved Task 1.3 boundary corrections after independent rejection
+Output: documentation-only contract amendment. SQLDelight artifacts are declared task inputs
+derived during execution, with direct documented production driver dependencies; Compose
+publishes only convention-declared `customDirectory` roots; a separate public Android-KMP
+convention publishes main-only enabled resource roots; self project edges remain observable;
+KSP uses initial-round `getNewFiles()` and same-round overload-safe path/position/name
+diagnostics. The matrix requires former SQLDelight classloader RED/GREEN, cache-invalidated
+artifacts, production-driver placement, Compose/Android-KMP boundaries, self edges, real KMP
+JVM processor SPI execution, Android/native registration only, and generated/KDoc boundaries.
+Task 1.4 scope remains unchanged.
+Verification: `openspec validate feature-first-modularization --strict` and `git diff --check`
+pending this documentation amendment.
+Next owner: user review, then separately authorized Task 1.3 implementation.
+Blockers: Task 1.3 remains rejected/in progress; no architecture-gate acceptance.
+
+## Handoff - 2026-07-29 Task 1.3 normalized registry boundary amendment
+
+Route: openspec+superpowers documentation-only correction
+Owner: implementation
+Input: user-approved controlled module-local registry boundary after API research invalidated root-plugin Compose/KSP type assumptions.
+Output: canonical Task 1.3 artifacts now require a shared-build-logic-owned immutable normalized `ArchitectureModelRegistry`; plugin-owning Android, Compose, SQLDelight, and KMP conventions publish public-model facts, and root `architectureCheck` consumes only records plus existing inputs. Android Components callbacks provide main-production static roots, while module namespace comes from concrete public Android DSL `CommonExtension.namespace` through `ApplicationExtension`/`LibraryExtension`, never AGP 9.3 `Variant`; test components, casts, reflection, task/artifact internals, and per-variant namespace claims are excluded. Compose publishes standard/custom roots and namespace; KSP tooling exists only through registered real consumers with compilation-local incremental limits. SQLDelight physical ownership and Task 1.4 exclusion remain unchanged.
+Verification: `openspec validate feature-first-modularization --strict`: pass (`Change 'feature-first-modularization' is valid`); `git diff --check`: pass (no output).
+Status: documentation-only; preserve all existing implementation/build/test changes. Task 1.3/OpenSpec 2.1/2.3 remain pending independent review; 2.4 remains Task 1.4.
+Next owner: user review, then separately authorized Task 1.3 implementation.
+Blockers: none for documentation synchronization.
+
+## Handoff - 2026-07-28 Task 1.3 SQLDelight convention boundary amendment
+
+Route: openspec+superpowers documentation-only correction
+Owner: implementation
+Input: user-selected convention-ownership option for type-safe public SQLDelight model inspection.
+Output: canonical stable-checker design, architecture/ADR guidance, Superpowers design/plan, OpenSpec design/tasks/spec, task evidence, and roadmap now require a dedicated `build-logic.sqldelight` convention. Its build file uses `implementation("app.cash.sqldelight:gradle-plugin:2.3.2")`; `:shared` applies the convention rather than independently applying SQLDelight. The same build-logic implementation classpath supports only public typed `SqlDelightExtension`/database inspection by the root checker. One physical `:shared` database and its configuration/schema/migrations/package/name/platform drivers remain unchanged. The contract explicitly excludes reflection, internals, classloader probing, build-script parsing, KSP-output consumption, Task 1.4 wiring, and automatic product-module migration.
+Verification: `openspec validate feature-first-modularization --strict`: pass (`Change 'feature-first-modularization' is valid`); `git diff --check`: pass (no output).
+Status: Task 1.3 remains rejected/in progress; OpenSpec 2.1, 2.3, and 2.4 remain unchecked. No implementation/build/test file was changed by this documentation lane.
+Next owner: user review, then separately authorized Task 1.3 implementation.
+Blockers: none for documentation synchronization; implementation remains gated.
+
+## Handoff - 2026-07-28 Task 1.3 execution-plan synchronization
+
+Route: openspec+superpowers documentation-only correction
+Owner: implementation
+Input: canonical design amendment `4732db9`, specifically stable checker design lines 74-208.
+Output: synchronized the Task 1.3 executable plan, Superpowers feature spec, OpenSpec design/tasks, and a new task-specific correction report. The plan now names the tooling-only public production-KSP exemption; model/database dual diagnostics; public resource discovery; Compose registry; SQLDelight root behavior; KSP target-model/initial-input/exact-diagnostic/real-fixture requirements; and the combined complete fixture matrix.
+Verification: `openspec validate feature-first-modularization --strict`: pass (`Change 'feature-first-modularization' is valid`); `git diff --check`: pass (no output).
+Status: Task 1.3 remains rejected/in progress. OpenSpec 2.1, 2.3, and 2.4 remain unchecked. Explicit user review remains required before implementation.
+Next owner: user review, then separately authorized Task 1.3 implementation.
+Blockers: none for documentation synchronization; implementation remains gated.
+
+## Handoff - 2026-07-28 Task 1.3 stable checker implementation submitted
+
+Route: openspec+superpowers
+Owner: implementation
+Input: user-approved `docs/superpowers/specs/2026-07-28-stable-architecture-checker-design.md` and Task 1.3 brief.
+Output: replaced rejected lexical/import-provider behavior with public Gradle/KGP/AGP model checks and normal JVM `:architecture-processor` KSP package-root/public-KDoc diagnostics. Core/API conventions receive production-only KSP consumer wiring only when the root includes the processor; transitional `:shared` is unchanged. Root `architectureCheck` remains manually invokable and is not wired to root `check`, `qualityCheck`, or CI.
+Verification: focused TestKit/KSP and full convention tests, processor compilation/JAR, `architectureCheck` with configuration-cache reuse, Spotless apply/check, Detekt, strict OpenSpec validation, and diff hygiene passed. Initial focused KSP RED failed as expected because package-root and KDoc invalid fixtures succeeded before processor/wiring existed.
+Acceptance: submitted for independent review only. OpenSpec 2.1 and 2.3 remain unchecked; 2.4 remains untouched for Task 1.4.
+Next owner: independent reviewer
+Blockers: none for implementation; acceptance is intentionally pending review.
+
+## Historical Handoff - 2026-07-28 Task 1.3 RED contract correction
+
+Route: documentation-only user-approved plan correction
+Owner: implementation
+Input: rejected legacy checker remains in branch, making the prior missing-checker RED precondition false.
+Output: Task 1.3 RED starts from focused TestKit/KSP regressions for absent architecture processor/core-API wiring; model RED is limited to approved public-model violations.
+Status: Task 1.3 remains rejected/in progress. No architecture gate acceptance claim; OpenSpec 2.1/2.3/2.4 remain unchecked.
+Next owner: user review, then separately authorized Task 1.3 implementation.
+Blockers: implementation still requires the corrected written-spec approval gate.
+
+## Historical Handoff - 2026-07-28 Task 1.3 plan-scope correction
+
+Route: OpenSpec/Superpowers documentation-only correction
+Owner: implementation
+Input: final spec inspection identified post-`dd772ed` Task 1.3 plan contradictions.
+Output: corrected only the Task 1.3 plan scope, existing/target inventories, and commit staging instruction; added task-specific SDD evidence and ledger entry. OpenSpec tasks/specs already matched the approved processor boundary, so they remain unchanged.
+Status: Task 1.3 remains rejected/in progress. Explicit user review of the corrected written specification remains required. OpenSpec 2.1, 2.3, and 2.4 remain unchecked.
+Next owner: user review, then separately authorized Task 1.3 implementation.
+Blockers: implementation remains unauthorized pending explicit user approval; no Gradle, source, or test file changed.
+
+## Handoff - 2026-07-28 Task 1.3 policy amendment
+
+Route: OpenSpec/Superpowers documentation-only policy amendment
+Owner: implementation
+Input: independent review rejected Task 1.3 source-ownership model after `747d5cc`.
+Output: canonical decision, plan, design, and OpenSpec task wording now require package-preserving per-module ownership, declaration-index imports with actual dependencies, real resource/SQLDelight layouts, metadata-based explicit API, and exact diagnostic/cache fixtures.
+Status: Task 1.3 is rejected/in progress; OpenSpec 2.1 and 2.3 are unchecked pending a third repair. OpenSpec 2.4 remains unchecked.
+Next owner: implementation for separately approved third Task 1.3 repair.
+Blockers: implementation must replace the rejected checker policy; no Gradle/Kotlin code changed here.
+
+## Historical Handoff - 2026-07-28 Task 1.3 review repair
+
+Route: systematic-debugging / TDD repair
+Owner: implementation
+Input: independently reviewed gaps in `bada6d6`.
+Output: repaired Task 1.3 ownership policy, SQLDelight detection, fixture precision, Kotlin scanner/explicit API validation, and TestKit configuration-cache coverage.
+Verification: groups A-E each recorded RED then GREEN; focused/full convention tests, root architectureCheck twice with configuration-cache problems fatal, Spotless, Detekt, strict OpenSpec validation, and diff check passed.
+Next owner: OpenSpec/implementation for separately approved Task 1.4.
+Blockers: none.
+
+## Handoff - 2026-07-28 feature-first-modularization Task 1.3
+
+Route: openspec+superpowers / subagent-driven-development
+Owner: implementation
+Input: corrected approved Task 1.3 plan reconciled in `afe7774`.
+Output:
+- Added binary architecture-check registration, code-owned allow-list, normalized immutable task inputs, and a manually invokable root `architectureCheck` applied only through the root convention.
+- Added TestKit valid-graph coverage plus isolated cycle, edge, package, import, resource, explicit API, KDoc, SQLDelight, and iOS export fixtures.
+Verification:
+- Focused TestKit RED: missing `build-logic.architecture-check` caused the valid fixture to fail; each invalid `buildAndFail()` assertion rejected its absent expected diagnostic.
+- Focused TestKit GREEN: `./gradlew :build-logic:convention:test --tests '*ArchitectureCheckPluginFunctionalTest' --configuration-cache`: pass.
+- `./gradlew :build-logic:convention:test --configuration-cache`: pass.
+- `./gradlew architectureCheck --configuration-cache`: pass.
+- `./gradlew spotlessApply --configuration-cache`: pass; no files outside Task 1.3 source/test scope changed.
+- `./gradlew spotlessCheck --configuration-cache`: pass.
+- `./gradlew detekt --configuration-cache`: pass.
+- `openspec validate feature-first-modularization --strict`: pass.
+- `git diff --check`: pass.
+Acceptance:
+- Requirement matched: yes; root check, qualityCheck, CI, .github, and root build entrypoints were not changed.
+- OpenSpec 2.1 and 2.3 complete; 2.4 remains unchecked for Task 1.4.
+Next owner: OpenSpec/implementation for separately approved Task 1.4.
+Blockers: none.
+
+## Handoff - 2026-07-28 feature-first-modularization Task 1.2
+
+Route: openspec+superpowers / subagent-driven-development
+Owner: implementation
+Input: approved Task 1.2 plan lines 74-91.
+Output:
+- Added only `build-logic.kmp.core`, `build-logic.kmp.feature.api`, and `build-logic.kmp.feature.impl` precompiled KMP convention plugins.
+- Added TestKit fixture coverage resolving all three IDs through `help`, proving strict explicit API only for core and feature API.
+Verification:
+- Focused TestKit RED: expected failure before scripts existed; all three IDs reported `UnknownPluginException`.
+- Focused TestKit GREEN: `./gradlew :build-logic:convention:test --tests '*KmpConventionPluginsFunctionalTest' --configuration-cache`: pass.
+- `./gradlew :build-logic:convention:test --configuration-cache`: pass.
+- `./gradlew spotlessApply --configuration-cache`: pass; no files outside Task 1.2 source/test scope changed.
+- `./gradlew spotlessCheck --configuration-cache`: pass.
+- `./gradlew detekt --configuration-cache`: pass.
+- `openspec validate feature-first-modularization --strict`: pass.
+- `git diff --check`: pass.
+Acceptance:
+- Requirement matched: yes.
+- Scope controlled: yes; no modules, graph changes, architecture checker/allow-list, or shared/app sources changed.
+- OpenSpec Task 2.1 remains unchecked; Task 1.3 was not started.
+Next owner: OpenSpec/implementation for a separately approved Task 1.3.
+Blockers: none.
+
+## Handoff - 2026-07-28 feature-first-modularization Task 1.1a
+
+Route: openspec+superpowers / subagent-driven-development / bounded documentation closure
+Owner: implementation
+Input: approved Task 1.1a plan lines 60-72 and canonical governance documents from Task 1.1.
+Output:
+- Added one concise `AGENTS.md` canonical architecture guidance section linking the Task 1.1 skill, architecture document, and both ADRs without duplicating policy.
+- Confirmed OpenSpec Task 2.2 remains complete: all canonical documents and the deferred AGENTS link exist; feature README conventions are documented for future feature-module migration tasks, and no feature modules or README files exist yet.
+Verification:
+- `test -s skills/kmp-architecture/SKILL.md && test -s docs/architecture.md && test -s docs/adr/0001-feature-first-module-boundaries.md && test -s docs/adr/0002-shared-ios-export-policy.md`: pass.
+- `rg -n 'kmp-architecture|docs/architecture\.md|0001-feature-first-module-boundaries|0002-shared-ios-export-policy' AGENTS.md`: pass; four links in one section.
+- `git diff --word-diff=plain -- AGENTS.md`: pass; only the concise link section changed.
+- `./gradlew spotlessApply --configuration-cache`: pass; no files outside allowed scope changed.
+- `./gradlew spotlessCheck --configuration-cache`: pass.
+- `./gradlew detekt --configuration-cache`: pass; shared/taglib Detekt tasks report `NO-SOURCE`.
+- `openspec validate feature-first-modularization --strict`: pass.
+- `git diff --check`: pass.
+Acceptance:
+- Requirement matched: yes.
+- Scope controlled: yes; no source, Gradle, or canonical architecture documents changed.
+Next owner: OpenSpec for the next approved task.
+Blockers: none.
+
+## Handoff - 2026-07-28 feature-first-modularization Task 1.1 governance closeout
+
+Route: openspec+superpowers / documentation and tracker reconciliation
+Owner: implementation
+Input: already-implemented Task 1.1 governance documents and approved formatting remediation evidence.
+Output:
+- Canonical Task 1.1 documents were committed as `55a4f72 docs: define feature-first architecture governance`.
+- The original combined `./gradlew spotlessCheck detekt --configuration-cache` stopped at pre-existing `:shared:spotlessKotlinCheck` and did not establish Detekt execution.
+- User-approved `./gradlew spotlessApply --configuration-cache` succeeded, changed only eight expected shared Kotlin/test files, was independently reviewed formatting-only/exact-scope/safe, and was committed as `61ec5b7 style(shared): apply Spotless formatting`.
+Verification:
+- `./gradlew spotlessCheck --configuration-cache`: pass (`BUILD SUCCESSFUL in 2s`).
+- `./gradlew detekt --configuration-cache`: pass (`BUILD SUCCESSFUL in 10s`; `:shared:detekt NO-SOURCE`).
+- `./gradlew :shared:jvmTest --configuration-cache`: pass (`BUILD SUCCESSFUL in 29s`).
+Acceptance:
+- Task 1.1 is complete; OpenSpec 2.2 is checked. No waiver remains.
+- Future quality verification order: `spotlessApply`, then separate `spotlessCheck` and `detekt`.
+Next owner: implementation for the later dedicated AGENTS link task or remaining Slice 1 work.
+Blockers: none.
+
+## Handoff - 2026-07-28 feature-first-modularization Task 0.1
+
+Route: openspec+superpowers / subagent-driven-development / documentation and tracker reconciliation
+Owner: implementation
+Input: approved `feature-first-modularization` design, implementation plan, OpenSpec artifacts, and Task 0.1 brief.
+Output:
+- Reconciled prior implementation without moving any source or changing `openspec/changes/package-organization/tasks.md`.
+- `openspec status --change architecture-refactor --json` reports all four planning artifacts done; `architecture-refactor/tasks.md` has 12 completed top-level tasks (12/12).
+- `package-organization/tasks.md` remains stale at 0/5 top-level tasks. This is historical tracking drift: the package work already landed in `f0310e506f7fea62991dced8fce6734217860c50` (`refactor: move library ui into package`), `06f8a16c5287b8e278a0a7914aa033606d058be1` (`refactor: move feature screen packages`), and `adb1e3daea621acdba2075256cfeab6ff43e41bf` (`refactor: move ui and theme helpers into packages`). Repeating the moves would duplicate already-landed paths and create unnecessary package churn.
+- `git show --stat --oneline f0310e5 06f8a16 adb1e3d` recorded 16, 9, and 33 affected files respectively. The concrete historical acceptance inventory is the exact output of `git diff --name-only f0310e5^..adb1e3d -- shared/src`:
+```text
+shared/src/androidMain/kotlin/com/eterocell/rhythhaus/theme/ThemePreferenceStore.android.kt
+shared/src/androidMain/kotlin/com/eterocell/rhythhaus/ui/ArtworkDecoder.android.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Playback.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppState.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryBrowser.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDialogs.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContent.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigation.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRows.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/nowplaying/NowPlayingBar.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/nowplaying/NowPlayingScreen.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/search/SearchScreen.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/settings/SettingsScreen.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/theme/HausColors.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/theme/Theme.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/theme/ThemePreferenceStore.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/ArtworkDecoder.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/BackChip.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/HausClickable.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/LiquidGlassChrome.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/MusicProgressScrubber.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/SwipeBackGesture.kt
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/VerticalSheetGesture.kt
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/BottomBarModeTest.kt
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryBrowserTest.kt
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigationTest.kt
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/theme/ThemeTest.kt
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/ui/ArtworkCacheTest.kt
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/ui/MusicProgressScrubberTest.kt
+shared/src/iosMain/kotlin/com/eterocell/rhythhaus/theme/ThemePreferenceStore.ios.kt
+shared/src/iosMain/kotlin/com/eterocell/rhythhaus/ui/ArtworkDecoder.ios.kt
+shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/theme/ThemePreferenceStore.jvm.kt
+shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/ui/ArtworkDecoder.jvm.kt
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/theme/ThemePreferenceStoreJvmTest.kt
+```
+Verification:
+- `git show --stat --oneline f0310e5 06f8a16 adb1e3d`: pass (exit 0).
+- `openspec status --change architecture-refactor --json`: pass (exit 0; complete artifacts; 12/12 task file inventory).
+- `git diff --name-only f0310e5^..adb1e3d -- shared/src`: pass (exit 0; exact inventory above).
+- `bash openspec/changes/feature-first-modularization/evidence/check-no-duplicate-package-moves.sh f0310e5^ adb1e3d`: expected RED, exit 1. The guard reported duplicate package-move paths from the historical implementation range, proving it rejects a replay of the accepted inventory.
+- `bash openspec/changes/feature-first-modularization/evidence/check-no-duplicate-package-moves.sh 8b8c8cf HEAD`: GREEN, exit 0; output: `no duplicate package-move paths detected between 8b8c8cf and HEAD`.
+- `openspec status --change package-organization --json`: pass (exit 0; planning artifacts complete; task checklist intentionally remains stale).
+- `openspec validate feature-first-modularization --strict`: pass (exit 0; `Change 'feature-first-modularization' is valid`).
+- `git diff --check`: pass (exit 0; no output).
+Acceptance:
+- Requirement matched: yes; Task 0.1 reconciles prior evidence and does not modify source, Gradle, or historical package-organization task state.
+- Scope controlled: yes; the approved design, plan, and complete new OpenSpec artifact set were committed in `8b8c8cfad756e25d2bec07919949b60d44fbe8fd docs: reconcile modularization prerequisites`.
+- Edge cases/risk reviewed: historical package task status is deliberately retained as stale evidence; its commits and exact affected path inventory prevent accidental duplicate moves.
+Changed files:
+- `progress.md`: reconciliation evidence and Task 0.1 handoff.
+- `roadmap.md`: concise completed prerequisite record.
+- `openspec/changes/feature-first-modularization/`: approved implementation contract and completed Slice 0 state.
+- `docs/superpowers/specs/2026-07-27-feature-first-modularization-design.md`: approved design included in initial commit.
+- `docs/superpowers/plans/2026-07-27-feature-first-modularization.md`: approved plan included in initial commit.
+Next owner: implementation for Task 1.1 governance documentation after this committed prerequisite.
+Blockers: none.
+Commit: `8b8c8cfad756e25d2bec07919949b60d44fbe8fd docs: reconcile modularization prerequisites`.
+
 ## Archive follow-up - 2026-07-20 playlist-edit-mode-bottom-bar-dialog-theme
 
 Route: openspec+superpowers / spec sync and archive
@@ -3443,3 +3800,53 @@ Changed evidence files:
 Next owner: repository owner/OpenSpec for an explicit semantic commit decision, then archive only when explicitly authorized.
 Blockers: none for the required automated gates. Manual runtime/visual/accessibility interaction evidence remains outstanding but is not a Task 12 automated-completion blocker.
 Commit status: no commit created; this verification owner was explicitly instructed not to commit or archive. The worktree is ready for the repository-mandated semantic commit decision.
+
+## Handoff - 2026-07-28 Task 1.3 architecture-processor boundary
+
+Route: documentation-only design correction
+Owner: implementation
+Input: explicit approval to permit the supported KSP processor artifact boundary.
+Output: `:architecture-processor` is the planned root JVM processor artifact; it is distinct from the convention-plugin JAR and only core/API production consumers receive KSP wiring.
+Status: Task 1.3 remains rejected/in progress pending review of this written correction. OpenSpec 2.1/2.3 and 2.4 remain unchecked.
+Next owner: user review, then separately authorized Task 1.3 implementation.
+Blockers: no implementation authorization follows this documentation amendment.
+
+## Historical Handoff - 2026-07-28 Task 1.3 supported-API correction
+
+Route: documentation-only supported-API correction
+Owner: implementation
+Input: approved split lifecycle correction for the stable checker design.
+Output: corrected stable design and synchronized governance records; standalone architectureCheck uses only public Gradle-model facts, while KSP reports package/KDoc errors in production compilation.
+Status: Task 1.3 remains rejected/in progress and requires separate explicit user review of the corrected written spec. OpenSpec 2.1/2.3 and 2.4 remain unchecked.
+Next owner: user review, then separately authorized Task 1.3 implementation.
+Blockers: no implementation authorization following this correction.
+
+## Historical Handoff - 2026-07-28 Task 1.3 stable checker design
+
+Route: documentation-only approved design
+Owner: implementation
+Input: approved stable Gradle-model plus KSP architecture-checker design.
+Output: `docs/superpowers/specs/2026-07-28-stable-architecture-checker-design.md` and synchronized governance documents; preserved historical rejection evidence.
+Status: Task 1.3 remains rejected/in progress. Implementation requires a separate explicit user review/approval; OpenSpec 2.1/2.3 and 2.4 remain unchecked.
+Next owner: user review, then separately authorized Task 1.3 implementation.
+Blockers: no implementation authorization following this design document.
+
+## Historical Handoff - 2026-07-28 Task 1.3 independent rejection
+
+Route: documentation/evidence-only independent-review correction
+Owner: implementation
+Input: independent rejection of Task 1.3 implementation commit `b2e2700`.
+Output: recorded six checker findings in `.superpowers/sdd/2026-07-27-feature-first-modularization/task-1.3-independent-rejection-report.md`; no architecture-gate acceptance is claimed.
+Status: Task 1.3 is rejected/in progress. OpenSpec 2.1 and 2.3 are explicitly unchecked; 2.4 remains unchecked. Task 1.4 has not started.
+Next owner: separately approved Task 1.3 implementation repair.
+Blockers: the six findings must be corrected with new regression evidence before any Task 1.3 completion claim.
+
+## Historical Handoff - 2026-07-28 Task 1.3 policy-amendment repair
+
+Route: openspec+superpowers
+Owner: implementation
+Input: bounded Task 1.3 repair against policy amendment commit `68154d7`.
+Output: package-preserving exact root ownership, declaration-indexed actual-dependency imports, real KMP/Compose resource and SQLDelight ownership, typed strict explicit API, and bounded scanner/KDoc diagnostics. Evidence: `.superpowers/sdd/2026-07-27-feature-first-modularization/task-1.3-final-repair-report.md`.
+Verification: focused TestKit 18-case RED/GREEN, full `:build-logic:convention:test`, `architectureCheck --configuration-cache --configuration-cache-problems=fail` twice with second-run reuse, `spotlessApply`, independent `spotlessCheck`, independent `detekt`, and `openspec validate feature-first-modularization --strict` passed.
+Next owner: Task 1.4 only, for explicitly scoped root/CI `architectureCheck` wiring.
+Blockers: none. Residual limitation: lexical declaration scanning deliberately avoids compiler internals; generated SQLDelight and Native cinterop handling is limited to their physical build artifacts.

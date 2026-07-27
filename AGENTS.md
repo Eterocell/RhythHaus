@@ -23,6 +23,13 @@ RhythHaus is a Kotlin Multiplatform + Compose Multiplatform local music applicat
 
 OpenSpec is initialized in this repository via `openspec/`. Use the OpenSpec + Superpowers flow for durable product or architecture work: Superpowers owns human-facing clarification, brainstorming, task execution discipline, and TDD-style implementation loops; OpenSpec owns durable specs, changes, tasks, task status, and archival; this harness owns startup, scope control, verification, acceptance, lifecycle, and handoff evidence.
 
+## Canonical Architecture Guidance
+
+- `skills/kmp-architecture/SKILL.md`
+- `docs/architecture.md`
+- `docs/adr/0001-feature-first-module-boundaries.md`
+- `docs/adr/0002-shared-ios-export-policy.md`
+
 ## Startup workflow
 
 Before changing code:

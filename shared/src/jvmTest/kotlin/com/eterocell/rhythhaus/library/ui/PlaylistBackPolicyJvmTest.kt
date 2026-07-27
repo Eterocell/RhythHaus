@@ -33,7 +33,8 @@ class PlaylistBackPolicyJvmTest {
             state.registerBackSurface(
                 LibraryBackSurfacePort(
                     destination,
-                    LibraryBackTarget.FeatureModal(LibraryBackTargetId(destination, "first")),
+                    LibraryBackTarget.FeatureModal(
+                        LibraryBackTargetId(destination, "first")),
                 ) {
                     firstDispatches++
                     LibraryBackFeatureRequestResult.Started
@@ -52,13 +53,15 @@ class PlaylistBackPolicyJvmTest {
             state.registerBackSurface(
                 LibraryBackSurfacePort(
                     destination,
-                    LibraryBackTarget.FeatureModal(LibraryBackTargetId(destination, "replacement")),
+                    LibraryBackTarget.FeatureModal(
+                        LibraryBackTargetId(destination, "replacement")),
                 ) {
                     replacementDispatches++
                     LibraryBackFeatureRequestResult.Started
                 },
             )
-        // Direct input completion without an explicit predictive start is one ordinary begin/complete.
+        // Direct input completion without an explicit predictive start is one
+        // ordinary begin/complete.
         input.backCompleted()
         assertEquals(2, begins)
         assertEquals(1, replacementDispatches)
@@ -70,7 +73,8 @@ class PlaylistBackPolicyJvmTest {
             state.registerBackSurface(
                 LibraryBackSurfacePort(
                     destination,
-                    LibraryBackTarget.FeatureModal(LibraryBackTargetId(destination, "cancelled")),
+                    LibraryBackTarget.FeatureModal(
+                        LibraryBackTargetId(destination, "cancelled")),
                 ) {
                     cancelledDispatches++
                     LibraryBackFeatureRequestResult.Started
@@ -87,7 +91,8 @@ class PlaylistBackPolicyJvmTest {
         state.registerBackSurface(
             LibraryBackSurfacePort(
                 destination,
-                LibraryBackTarget.FeatureModal(LibraryBackTargetId(destination, "second")),
+                LibraryBackTarget.FeatureModal(
+                    LibraryBackTargetId(destination, "second")),
             ) {
                 secondGestureDispatches++
                 LibraryBackFeatureRequestResult.Started
@@ -103,24 +108,37 @@ class PlaylistBackPolicyJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun presentedDestinationPublishesEditAndAFeatureModalPrecedesIt() = runComposeUiTest {
-        val state = LibraryAppState(null)
-        state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
-        val destination = state.activeDestinationId
-        setContent {
-            PlaylistDetailScreen(
-                playlist = Playlist("playlist-1", "Saved", 1L, 1L), entries = emptyList(),
-                libraryTracks = emptyList(), state = PlaylistState(), onBack = {}, onRetry = {},
-                onRename = { _, _ -> }, onDelete = {}, onOpenBrowser = {}, onPlayEntry = {},
-                onRemoveEntry = {}, onReorder = {}, rowMode = PlaylistDetailRowMode.Edit,
-                destinationId = destination, registerBackSurface = state::registerBackSurface,
-            )
+    fun presentedDestinationPublishesEditAndAFeatureModalPrecedesIt() =
+        runComposeUiTest {
+            val state = LibraryAppState(null)
+            state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
+            val destination = state.activeDestinationId
+            setContent {
+                PlaylistDetailScreen(
+                    playlist = Playlist("playlist-1", "Saved", 1L, 1L),
+                    entries = emptyList(),
+                    libraryTracks = emptyList(),
+                    state = PlaylistState(),
+                    onBack = {},
+                    onRetry = {},
+                    onRename = { _, _ -> },
+                    onDelete = {},
+                    onOpenBrowser = {},
+                    onPlayEntry = {},
+                    onRemoveEntry = {},
+                    onReorder = {},
+                    rowMode = PlaylistDetailRowMode.Edit,
+                    destinationId = destination,
+                    registerBackSurface = state::registerBackSurface,
+                )
+            }
+            waitForIdle()
+            val edit =
+                assertIs<LibraryBackBeginResult.Started>(state.beginBack())
+                    .session
+            assertIs<LibraryBackTarget.FeatureEdit>(edit.target)
+            edit.reject()
         }
-        waitForIdle()
-        val edit = assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
-        assertIs<LibraryBackTarget.FeatureEdit>(edit.target)
-        edit.reject()
-    }
 
     @Test
     fun inactiveHiddenAndOutgoingPortsAreRejectedAndStaleDisposersAreSafe() {
@@ -131,13 +149,26 @@ class PlaylistBackPolicyJvmTest {
         val b = state.activeDestinationId
         state.replaceTopRoute(route)
         val activeA = state.activeDestinationId
-        val first = LibraryBackTarget.FeatureModal(LibraryBackTargetId(activeA, "first"))
-        val replacement = LibraryBackTarget.FeatureModal(LibraryBackTargetId(activeA, "replacement"))
-        val disposeFirst = state.registerBackSurface(LibraryBackSurfacePort(activeA, first))
+        val first =
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(activeA, "first"))
+        val replacement =
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(activeA, "replacement"))
+        val disposeFirst =
+            state.registerBackSurface(LibraryBackSurfacePort(activeA, first))
         state.registerBackSurface(LibraryBackSurfacePort(activeA, replacement))
-        state.registerBackSurface(LibraryBackSurfacePort(b, LibraryBackTarget.FeatureModal(LibraryBackTargetId(b, "hidden"))))
+        state.registerBackSurface(
+            LibraryBackSurfacePort(
+                b,
+                LibraryBackTarget.FeatureModal(
+                    LibraryBackTargetId(b, "hidden"))))
         disposeFirst()
-        assertEquals(replacement, assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session.target)
+        assertEquals(
+            replacement,
+            assertIs<LibraryBackBeginResult.Started>(state.beginBack())
+                .session
+                .target)
         state.pendingBackSession!!.cancel()
         state.popToRoot()
         assertEquals(LibraryBackBeginResult.Unhandled, state.beginBack())
@@ -149,12 +180,23 @@ class PlaylistBackPolicyJvmTest {
         state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
         val destination = state.activeDestinationId
         var dispatched = 0
-        val dispose = state.registerBackSurface(
-            LibraryBackSurfacePort(destination, LibraryBackTarget.FeatureModal(LibraryBackTargetId(destination, "modal"))) { dispatched++; LibraryBackFeatureRequestResult.Started },
-        )
-        assertEquals(LibraryBackAdapterResult.Handled, performLibraryBack(state, null, {}))
+        val dispose =
+            state.registerBackSurface(
+                LibraryBackSurfacePort(
+                    destination,
+                    LibraryBackTarget.FeatureModal(
+                        LibraryBackTargetId(destination, "modal"))) {
+                        dispatched++
+                        LibraryBackFeatureRequestResult.Started
+                    },
+            )
+        assertEquals(
+            LibraryBackAdapterResult.Handled,
+            performLibraryBack(state, null, {}))
         assertEquals(1, dispatched)
-        assertEquals(LibraryBackAdapterResult.Suppressed, performLibraryBack(state, null, {}))
+        assertEquals(
+            LibraryBackAdapterResult.Suppressed,
+            performLibraryBack(state, null, {}))
         dispose()
         state.reconcileBackSession()
         assertEquals(null, state.pendingBackSession)
@@ -167,10 +209,20 @@ class PlaylistBackPolicyJvmTest {
         val destination = state.activeDestinationId
         var dismisses = 0
         state.registerBackSurface(
-            LibraryBackSurfacePort(destination, LibraryBackTarget.FeatureModal(LibraryBackTargetId(destination, "modal"))) { dismisses++; LibraryBackFeatureRequestResult.Started },
+            LibraryBackSurfacePort(
+                destination,
+                LibraryBackTarget.FeatureModal(
+                    LibraryBackTargetId(destination, "modal"))) {
+                    dismisses++
+                    LibraryBackFeatureRequestResult.Started
+                },
         )
-        assertEquals(LibraryBackAdapterResult.Handled, performLibraryBack(state, null, {}))
-        assertEquals(LibraryBackAdapterResult.Suppressed, performLibraryBack(state, null, {}))
+        assertEquals(
+            LibraryBackAdapterResult.Handled,
+            performLibraryBack(state, null, {}))
+        assertEquals(
+            LibraryBackAdapterResult.Suppressed,
+            performLibraryBack(state, null, {}))
         assertEquals(1, dismisses)
     }
 
@@ -180,7 +232,8 @@ class PlaylistBackPolicyJvmTest {
         state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
         val destination = state.activeDestinationId
         val target =
-            LibraryBackTarget.FeatureModal(LibraryBackTargetId(destination, "rejecting-modal"))
+            LibraryBackTarget.FeatureModal(
+                LibraryBackTargetId(destination, "rejecting-modal"))
         state.registerBackSurface(
             LibraryBackSurfacePort(destination, target) {
                 LibraryBackFeatureRequestResult.Rejected
@@ -192,6 +245,7 @@ class PlaylistBackPolicyJvmTest {
             performLibraryBack(state, null, {}),
         )
         assertNull(state.pendingBackSession)
-        assertEquals(LibraryRoute.PlaylistDetail("playlist-1"), state.navigation.current)
+        assertEquals(
+            LibraryRoute.PlaylistDetail("playlist-1"), state.navigation.current)
     }
 }

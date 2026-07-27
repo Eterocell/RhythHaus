@@ -3,15 +3,15 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.eterocell.rhythhaus.LibrarySnapshot
 import androidx.navigationevent.NavigationEvent
 import androidx.navigationevent.NavigationEventDispatcher
 import androidx.navigationevent.NavigationEventHandler
 import androidx.navigationevent.NavigationEventInfo
+import com.eterocell.rhythhaus.LibrarySnapshot
 
 internal class LibraryAppState(
     initialSelectedTrackId: String?,
@@ -26,6 +26,7 @@ internal class LibraryAppState(
 
     var showNowPlaying by mutableStateOf(false)
         private set
+
     private var nowPlayingAppearanceToken by mutableStateOf(0L)
 
     var isNowPlayingBarVisible by mutableStateOf(true)
@@ -44,16 +45,19 @@ internal class LibraryAppState(
     val activeDestinationId: LibraryDestinationId
         get() = navigation.currentEntry.destinationId
 
-    private var acceptedBackSurface: RegisteredBackSurface? by mutableStateOf(null)
+    private var acceptedBackSurface: RegisteredBackSurface? by
+        mutableStateOf(null)
     private var nextBackSurfaceRegistrationToken = 0L
-    private var activeSelectionPort: LibraryBackSelectionPort? by mutableStateOf(null)
+    private var activeSelectionPort: LibraryBackSelectionPort? by
+        mutableStateOf(null)
 
     var pendingBackSession: LibraryBackSession? by mutableStateOf(null)
         private set
 
     /**
-     * Accepts one feature-owned foremost action for the currently presented destination only.
-     * A disposer may clear only the registration that created it.
+     * Accepts one feature-owned foremost action for the currently presented
+     * destination only. A disposer may clear only the registration that created
+     * it.
      */
     internal fun registerBackSurface(port: LibraryBackSurfacePort): () -> Unit {
         if (port.destinationId != activeDestinationId) return {}
@@ -73,8 +77,9 @@ internal class LibraryAppState(
     }
 
     /**
-     * The shell publishes the current page's selection capability. The state object never owns
-     * selection data or captures a historical cancellation callback in a Back session.
+     * The shell publishes the current page's selection capability. The state
+     * object never owns selection data or captures a historical cancellation
+     * callback in a Back session.
      */
     internal fun publishSelectionPort(port: LibraryBackSelectionPort?) {
         val authoritativePort = port?.takeIf(::isSelectionPortAuthoritative)
@@ -84,13 +89,18 @@ internal class LibraryAppState(
         }
     }
 
-    internal fun beginBack(selectionPort: LibraryBackSelectionPort? = null): LibraryBackBeginResult {
+    internal fun beginBack(
+        selectionPort: LibraryBackSelectionPort? = null
+    ): LibraryBackBeginResult {
         if (selectionPort != null) publishSelectionPort(selectionPort)
         if (pendingBackSession != null) return LibraryBackBeginResult.Suppressed
         val destination = activeDestinationId
-        val surface = acceptedBackSurface?.takeIf {
-            it.port.destinationId == destination
-        }?.port
+        val surface =
+            acceptedBackSurface
+                ?.takeIf {
+                    it.port.destinationId == destination
+                }
+                ?.port
         val resolution =
             resolveLibraryBack(
                 LibraryBackResolutionInput(
@@ -100,15 +110,20 @@ internal class LibraryAppState(
                     isNowPlayingExpanded = showNowPlaying,
                     navigation = navigation,
                     selectionPort = selectionPort ?: activeSelectionPort,
-                    nowPlayingTargetId = LibraryBackTargetId(destination, "now-playing-$nowPlayingAppearanceToken"),
+                    nowPlayingTargetId =
+                        LibraryBackTargetId(
+                            destination,
+                            "now-playing-$nowPlayingAppearanceToken"),
                 ),
             )
-        val target = (resolution as? LibraryBackResolution.Started)?.target
-            ?: return LibraryBackBeginResult.Unhandled
+        val target =
+            (resolution as? LibraryBackResolution.Started)?.target
+                ?: return LibraryBackBeginResult.Unhandled
         val session =
             LibraryBackSession(
                 target = target,
-                routePreview = (target as? LibraryBackTarget.Route)?.routePreview,
+                routePreview =
+                    (target as? LibraryBackTarget.Route)?.routePreview,
                 completeAction = { completeBackSession(it) },
                 cancelAction = { cancelBackSession(it) },
                 rejectAction = { rejectBackSession(it) },
@@ -117,9 +132,14 @@ internal class LibraryAppState(
         return LibraryBackBeginResult.Started(session)
     }
 
-    internal fun canBeginBack(selectionPort: LibraryBackSelectionPort? = null): Boolean {
+    internal fun canBeginBack(
+        selectionPort: LibraryBackSelectionPort? = null
+    ): Boolean {
         val destination = activeDestinationId
-        val surface = acceptedBackSurface?.takeIf { it.port.destinationId == destination }?.port
+        val surface =
+            acceptedBackSurface
+                ?.takeIf { it.port.destinationId == destination }
+                ?.port
         return resolveLibraryBack(
             LibraryBackResolutionInput(
                 activeDestinationId = destination,
@@ -128,15 +148,24 @@ internal class LibraryAppState(
                 isNowPlayingExpanded = showNowPlaying,
                 navigation = navigation,
                 selectionPort = selectionPort ?: activeSelectionPort,
-                nowPlayingTargetId = LibraryBackTargetId(destination, "now-playing-$nowPlayingAppearanceToken"),
+                nowPlayingTargetId =
+                    LibraryBackTargetId(
+                        destination, "now-playing-$nowPlayingAppearanceToken"),
             ),
-        ) is LibraryBackResolution.Started
+        ) is
+            LibraryBackResolution.Started
     }
 
-    /** Clears suppression only when the exact latched target is no longer authoritative. */
-    internal fun reconcileBackSession(selectionPort: LibraryBackSelectionPort? = null) {
+    /**
+     * Clears suppression only when the exact latched target is no longer
+     * authoritative.
+     */
+    internal fun reconcileBackSession(
+        selectionPort: LibraryBackSelectionPort? = null
+    ) {
         val session = pendingBackSession ?: return
-        if (!isTargetAuthoritative(session.target, selectionPort ?: activeSelectionPort)) {
+        if (!isTargetAuthoritative(
+            session.target, selectionPort ?: activeSelectionPort)) {
             pendingBackSession = null
         }
     }
@@ -192,8 +221,9 @@ internal class LibraryAppState(
     }
 
     /**
-     * Applies an authoritative successful deletion only to the exact playlist-detail entry that
-     * initiated it. This is destination invalidation, never a Back request or session dispatch.
+     * Applies an authoritative successful deletion only to the exact
+     * playlist-detail entry that initiated it. This is destination
+     * invalidation, never a Back request or session dispatch.
      */
     internal fun completeDisplayedPlaylistDeletion(
         confirmedSnapshot: PlaylistSnapshot,
@@ -206,16 +236,19 @@ internal class LibraryAppState(
             return
         }
         val invalidatedDestination = origin.destinationId
-        if (acceptedBackSurface?.port?.destinationId == invalidatedDestination) {
+        if (acceptedBackSurface?.port?.destinationId ==
+            invalidatedDestination) {
             acceptedBackSurface = null
         }
         if (activeSelectionPort?.destinationId == invalidatedDestination) {
             activeSelectionPort = null
         }
-        if (pendingBackSession?.target?.id?.destinationId == invalidatedDestination) {
+        if (pendingBackSession?.target?.id?.destinationId ==
+            invalidatedDestination) {
             pendingBackSession = null
         }
-        val predecessor = navigation.entries.getOrNull(navigation.entries.lastIndex - 1)
+        val predecessor =
+            navigation.entries.getOrNull(navigation.entries.lastIndex - 1)
         applyNavigation(
             if (predecessor?.route == LibraryRoute.PlaylistHub) {
                 LibraryNavigationAction.Pop
@@ -269,18 +302,21 @@ internal class LibraryAppState(
         when (val target = session.target) {
             is LibraryBackTarget.FeatureModal,
             is LibraryBackTarget.FeatureEdit,
-            -> when (acceptedBackSurface?.port?.dispatch?.invoke(target)) {
-                LibraryBackFeatureRequestResult.Started -> Unit
-                else -> rejectBackSession(session)
-            }
+            ->
+                when (acceptedBackSurface?.port?.dispatch?.invoke(target)) {
+                    LibraryBackFeatureRequestResult.Started -> Unit
+                    else -> rejectBackSession(session)
+                }
 
-            is LibraryBackTarget.PageSelection -> selectionPort?.cancel?.invoke()
+            is LibraryBackTarget.PageSelection ->
+                selectionPort?.cancel?.invoke()
             is LibraryBackTarget.NowPlaying -> {
                 hideNowPlaying()
                 reconcileBackSession()
             }
             is LibraryBackTarget.Route -> {
-                if (navigation.currentEntry == target.routePreview.outgoingEntry) {
+                if (navigation.currentEntry ==
+                    target.routePreview.outgoingEntry) {
                     completePredictivePop(target.routePreview.nextNavigation)
                 } else {
                     pendingBackSession = null
@@ -308,26 +344,35 @@ internal class LibraryAppState(
         return when (target) {
             is LibraryBackTarget.FeatureModal,
             is LibraryBackTarget.FeatureEdit,
-            -> acceptedBackSurface?.port?.let { port ->
-                port.destinationId == destination && port.foremostFeatureTarget == target
-            } == true
+            ->
+                acceptedBackSurface?.port?.let { port ->
+                    port.destinationId == destination &&
+                        port.foremostFeatureTarget == target
+                } == true
 
             is LibraryBackTarget.PageSelection ->
                 selectionPort?.destinationId == destination &&
                     selectionPort.target == target &&
-                    target.pageKey == trackSelectionPageKeyFor(navigation.current, browseMode)
+                    target.pageKey ==
+                        trackSelectionPageKeyFor(navigation.current, browseMode)
 
             is LibraryBackTarget.NowPlaying ->
-                showNowPlaying && target.id.instanceToken == "now-playing-$nowPlayingAppearanceToken"
+                showNowPlaying &&
+                    target.id.instanceToken ==
+                        "now-playing-$nowPlayingAppearanceToken"
             is LibraryBackTarget.Route ->
-                navigation.canPop && target.routePreview.outgoingEntry == navigation.currentEntry
+                navigation.canPop &&
+                    target.routePreview.outgoingEntry == navigation.currentEntry
         }
     }
 
-    private fun isSelectionPortAuthoritative(port: LibraryBackSelectionPort): Boolean =
+    private fun isSelectionPortAuthoritative(
+        port: LibraryBackSelectionPort
+    ): Boolean =
         port.destinationId == activeDestinationId &&
             port.target.id.destinationId == activeDestinationId &&
-            port.target.pageKey == trackSelectionPageKeyFor(navigation.current, browseMode)
+            port.target.pageKey ==
+                trackSelectionPageKeyFor(navigation.current, browseMode)
 
     private data class RegisteredBackSurface(
         val token: Long,
@@ -336,13 +381,16 @@ internal class LibraryAppState(
 }
 
 /**
- * Keeps one begin result for an actual predictive gesture. A system completion without a
- * preceding predictive begin is an ordinary Back request, not a fallback for a latched gesture.
+ * Keeps one begin result for an actual predictive gesture. A system completion
+ * without a preceding predictive begin is an ordinary Back request, not a
+ * fallback for a latched gesture.
  */
 internal class LibraryBackGestureLifecycle {
     private var predictiveBeginResult: LibraryBackBeginResult? = null
 
-    fun beginPredictive(begin: () -> LibraryBackBeginResult): LibraryBackBeginResult {
+    fun beginPredictive(
+        begin: () -> LibraryBackBeginResult
+    ): LibraryBackBeginResult {
         if (predictiveBeginResult == null) predictiveBeginResult = begin()
         return checkNotNull(predictiveBeginResult)
     }
@@ -350,7 +398,9 @@ internal class LibraryBackGestureLifecycle {
     fun latchedResult(): LibraryBackBeginResult? = predictiveBeginResult
 
     fun cancelPredictive() {
-        (predictiveBeginResult as? LibraryBackBeginResult.Started)?.session?.cancel()
+        (predictiveBeginResult as? LibraryBackBeginResult.Started)
+            ?.session
+            ?.cancel()
         predictiveBeginResult = null
     }
 
@@ -362,13 +412,16 @@ internal class LibraryBackGestureLifecycle {
 }
 
 /**
- * The one core navigation-event handler for the Library subtree. It latches synchronously in the
- * dispatcher callback, before any Compose effect can observe transition state.
+ * The one core navigation-event handler for the Library subtree. It latches
+ * synchronously in the dispatcher callback, before any Compose effect can
+ * observe transition state.
  */
 internal class LibraryNavigationEventBackHandler(
     private val dispatcher: NavigationEventDispatcher,
     private var beginBack: () -> LibraryBackBeginResult,
-) : NavigationEventHandler<NavigationEventInfo>(NavigationEventInfo.None, isBackEnabled = true) {
+) :
+    NavigationEventHandler<NavigationEventInfo>(
+        NavigationEventInfo.None, isBackEnabled = true) {
     private val lifecycle = LibraryBackGestureLifecycle()
 
     var predictiveProgress by mutableFloatStateOf(0f)
@@ -403,7 +456,9 @@ internal class LibraryNavigationEventBackHandler(
     }
 
     fun routePreview(): LibraryRoutePreview? =
-        (lifecycle.latchedResult() as? LibraryBackBeginResult.Started)?.session?.routePreview
+        (lifecycle.latchedResult() as? LibraryBackBeginResult.Started)
+            ?.session
+            ?.routePreview
 
     fun dispose() = remove()
 
@@ -417,7 +472,10 @@ internal fun rememberLibraryNavigationEventBackHandler(
     beginBack: () -> LibraryBackBeginResult,
     enabled: Boolean,
 ): LibraryNavigationEventBackHandler {
-    val handler = remember(dispatcher) { LibraryNavigationEventBackHandler(dispatcher, beginBack) }
+    val handler =
+        remember(dispatcher) {
+            LibraryNavigationEventBackHandler(dispatcher, beginBack)
+        }
     handler.update(beginBack, enabled)
     DisposableEffect(handler) { onDispose(handler::dispose) }
     return handler
@@ -425,7 +483,9 @@ internal fun rememberLibraryNavigationEventBackHandler(
 
 internal sealed interface LibraryBackBeginResult {
     data object Unhandled : LibraryBackBeginResult
+
     data object Suppressed : LibraryBackBeginResult
+
     data class Started(val session: LibraryBackSession) : LibraryBackBeginResult
 }
 
@@ -436,8 +496,9 @@ internal enum class LibraryBackAdapterResult {
 }
 
 /**
- * Thin common protocol for ordinary and system Back adapters. A platform adapter retains its
- * own unhandled default while every handled request begins and completes the same latched session.
+ * Thin common protocol for ordinary and system Back adapters. A platform
+ * adapter retains its own unhandled default while every handled request begins
+ * and completes the same latched session.
  */
 internal fun performLibraryBack(
     state: LibraryAppState,
@@ -457,7 +518,8 @@ internal fun performLibraryBack(
         }
     }
 
-internal class LibraryBackSession internal constructor(
+internal class LibraryBackSession
+internal constructor(
     val target: LibraryBackTarget,
     val routePreview: LibraryRoutePreview?,
     private val completeAction: (LibraryBackSession) -> Unit,
@@ -467,7 +529,8 @@ internal class LibraryBackSession internal constructor(
     internal var isCompleted: Boolean = false
         private set
 
-    internal fun markCompleted(): Boolean = !isCompleted.also { isCompleted = true }
+    internal fun markCompleted(): Boolean =
+        !isCompleted.also { isCompleted = true }
 
     fun complete() = completeAction(this)
 
