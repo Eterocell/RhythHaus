@@ -129,7 +129,7 @@ plugins {
 
 extensions.configure<ControlledComposeResourcesExtension>(
     "architectureComposeResources") {
-        namespace("com.eterocell.rhythhaus.generated.resources")
+        namespace("rhythhaus.shared.generated.resources")
     }
 
 aboutLibraries {
@@ -201,6 +201,7 @@ kotlin {
             }
         }
         commonMain.dependencies {
+            api(projects.core.model)
             implementation(projects.taglib)
             implementation(libs.aboutlibraries.compose.m3)
             implementation(libs.coil.compose)

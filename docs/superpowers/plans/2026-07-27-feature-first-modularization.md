@@ -155,15 +155,15 @@ root `build.gradle.kts`/entrypoint, `qualityCheck`, CI, or Task 1.4 file is a ta
 
 **Target files:** `core/model/build.gradle.kts`; `core/model/src/commonMain/kotlin/com/eterocell/rhythhaus/model/` only if package preservation permits the current package path; `core/model/src/commonTest/kotlin/com/eterocell/rhythhaus/model/ModelContractTest.kt`; updated `settings.gradle.kts`, `shared/build.gradle.kts`, and allow-list.
 
-- [ ] Create `ModelContractTest.kt` first by relocating/copying only existing assertions for `Track`/`PlayableTrack` byte-array equality, hash code, and `AudioSource.stableKey`; run `./gradlew :core:model:allTests --configuration-cache`; expected RED: module/task does not exist.
-- [ ] Add `include(":core:model")` and apply the core convention. Move only immutable cross-feature values. Do not move `librarySnapshot` (`MusicModels.kt:L83-L104`) until it no longer imports `LibraryTrack`, and do not move controller behavior from `Playback.kt:L209-L1114`.
-- [ ] New cross-feature contracts retain packages and are explicit, for example:
+- [x] Create `ModelContractTest.kt` first by relocating/copying only existing assertions for `Track`/`PlayableTrack` byte-array equality, hash code, and `AudioSource.stableKey`; the initial `./gradlew :core:model:allTests --configuration-cache` RED failed because the module was absent, and the later focused equality RED failed at both equal-content assertions before the historical equality/hash-code overrides were restored.
+- [x] Add `include(":core:model")` and apply the core convention. Move only immutable cross-feature values. `librarySnapshot` (`MusicModels.kt:L83-L104`) remains in `:shared` because it imports `LibraryTrack`, and controller behavior remains in `Playback.kt:L209-L1114`.
+- [x] New cross-feature contracts retain packages and are explicit, for example:
   ```kotlin
   public sealed interface AudioSource { public val stableKey: String }
   ```
-- [ ] Run `./gradlew :core:model:allTests --configuration-cache`; expected GREEN: model test passes. Then run `./gradlew architectureCheck :shared:jvmTest --configuration-cache` and quality checks.
-- [ ] Acceptance inventory: only model sources/tests move; no repository, scanner, UI state, engine, `:shared` dependency, package rename, or behavior change.
-- [ ] Commit with `git add settings.gradle.kts shared core/model build-logic && git commit -m "refactor: extract core model"`.
+- [x] Run `./gradlew :core:model:allTests --configuration-cache`; GREEN passed twice, with the repeat reporting `Reusing configuration cache`. JVM, Android host, and iOS simulator arm64 XMLs each record 6 tests, 0 skipped, 0 failures, and 0 errors. `./gradlew architectureCheck :shared:jvmTest --configuration-cache --configuration-cache-problems=fail --no-parallel` and separate quality checks passed.
+- [x] Acceptance inventory: only model sources/tests move; no repository, scanner, UI state, engine, `:shared` dependency, package rename, or behavior change. `:shared` uses `api(projects.core.model)`; controller behavior, mapping/formatting helpers, repositories, scanners, UI state, engines, and feature-owned types remain in `:shared`.
+- [x] Commit atomically: the accepted file set is committed by `refactor: extract core model` in the commit containing this ledger/report; no SHA is asserted before that commit exists.
 
 ## Task 2.2: Extract Core UI
 

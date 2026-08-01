@@ -228,11 +228,12 @@ private fun NowPlayingControlsPane(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (track.trackNumber != null) {
+            val trackNumber = track.trackNumber
+            if (trackNumber != null) {
                 Text(
                     text =
                         stringResource(
-                            Res.string.track_number_format, track.trackNumber),
+                            Res.string.track_number_format, trackNumber),
                     color = HausColors.current.muted,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,

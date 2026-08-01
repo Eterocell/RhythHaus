@@ -484,6 +484,35 @@ class ArchitectureCheckPluginFunctionalTest {
         )
 
     @Test
+    fun kspReportsOnlyAuthoredUndocumentedMembersFromDocumentedDataClasses() {
+        val result =
+            runner(
+                kspFixture(
+                    """
+                    package com.eterocell.rhythhaus
+
+                    /** A documented data class. */
+                    public data class DocumentedData(
+                        /** A documented constructor property. */
+                        public val name: String,
+                    ) {
+                        public fun undocumentedMember(): String = name
+                    }
+                    """.trimIndent(),
+                ),
+                "compileKotlinJvm",
+            ).buildAndFail()
+
+        assertEquals(
+            listOf(
+                "ARCH-KDOC :core:model:Fixture.kt:8 (com.eterocell.rhythhaus.DocumentedData.undocumentedMember)",
+            ),
+            kspDiagnostics(result.output),
+            result.output,
+        )
+    }
+
+    @Test
     fun kspReportsOverloadsWithDistinctLocationsAndQualifiedNames() {
         val result =
             runner(
@@ -730,6 +759,21 @@ class ArchitectureCheckPluginFunctionalTest {
             kspDiagnostics(result.output),
             result.output,
         )
+    }
+
+    @Test
+    fun kmpTaskGeneratedStandardResourcesAreExcludedWithoutProducerDependencies() {
+        val projectDir = kmpTaskGeneratedResourceFixture()
+
+        val firstRun = runner(projectDir, "architectureCheck", ":core:model:copyGeneratedResources").build()
+        assertEquals(TaskOutcome.SUCCESS, firstRun.task(":core:model:copyGeneratedResources")?.outcome, firstRun.output)
+        val records = firstRun.output.resourceRecords()
+        assertTrue(!records.contains("build/generated/fixtureResources/commonMain"), firstRun.output)
+        assertTrue(!firstRun.output.resourceInputs().contains("build/generated/fixtureResources/commonMain"), firstRun.output)
+        assertTrue(records.contains(":core:model|commonMain|KOTLIN|core/model/src/commonMain/customResources|"), firstRun.output)
+
+        val secondRun = runner(projectDir, "architectureCheck", ":core:model:copyGeneratedResources").build()
+        assertTrue(secondRun.output.contains("Reusing configuration cache."), secondRun.output)
     }
 
     @Test
@@ -1039,6 +1083,44 @@ class ArchitectureCheckPluginFunctionalTest {
                 "dependencies { add(\"kspJvm\", project(\":later-round-generator\")) }",
             )
         }
+        return projectDir
+    }
+
+    private fun kmpTaskGeneratedResourceFixture(): File {
+        val projectDir = fixture()
+        projectDir.resolve("build.gradle.kts").appendText(
+            """
+
+            tasks.named("architectureCheck") {
+                doLast {
+                    logger.lifecycle("TEST_RESOURCE_RECORDS=" + inputs.properties["resourceRecords"])
+                    logger.lifecycle(
+                        "TEST_RESOURCE_INPUTS=" + inputs.files.files.joinToString(",") { it.invariantSeparatorsPath },
+                    )
+                }
+            }
+            """.trimIndent(),
+        )
+        append(
+            projectDir,
+            ":core:model",
+            """
+            val generatedResources = layout.buildDirectory.dir("generated/fixtureResources/commonMain")
+            val copyGeneratedResources = tasks.register<org.gradle.api.tasks.Copy>("copyGeneratedResources") {
+                from(layout.projectDirectory.dir("fixture-resources"))
+                into(generatedResources)
+            }
+
+            kotlin {
+                sourceSets.named("commonMain") {
+                    resources.srcDir(generatedResources)
+                    resources.srcDir("src/commonMain/customResources")
+                }
+            }
+            """.trimIndent(),
+        )
+        resource(projectDir, ":core:model", "fixture-resources/generated.txt")
+        resource(projectDir, ":core:model", "src/commonMain/customResources/authored.txt")
         return projectDir
     }
 
@@ -1750,14 +1832,24 @@ class ArchitectureCheckPluginFunctionalTest {
 
     private fun moduleDir(projectDir: File, module: String): File = projectDir.resolve(module.removePrefix(":").replace(':', '/'))
 
-    private fun runner(projectDir: File, task: String = "architectureCheck"): GradleRunner =
-        GradleRunner.create().withProjectDir(projectDir).withPluginClasspath().withArguments(task, "--stacktrace", "--configuration-cache", "--configuration-cache-problems=fail")
+    private fun runner(projectDir: File, vararg tasks: String): GradleRunner =
+        GradleRunner.create()
+            .withProjectDir(projectDir)
+            .withPluginClasspath()
+            .withArguments(
+                *(if (tasks.isEmpty()) listOf("architectureCheck") else tasks.toList()).plus(
+                    listOf("--stacktrace", "--configuration-cache", "--configuration-cache-problems=fail"),
+                ).toTypedArray(),
+            )
 
     private fun qualityAggregationRunner(projectDir: File): GradleRunner =
         GradleRunner.create().withProjectDir(projectDir).withPluginClasspath().withArguments("qualityCheck", "--stacktrace", "--configuration-cache", "--configuration-cache-problems=fail")
 
     private fun String.resourceRecords(): String =
         lineSequence().single { it.startsWith("TEST_RESOURCE_RECORDS=") }.removePrefix("TEST_RESOURCE_RECORDS=")
+
+    private fun String.resourceInputs(): String =
+        lineSequence().single { it.startsWith("TEST_RESOURCE_INPUTS=") }.removePrefix("TEST_RESOURCE_INPUTS=")
 
     private fun String.composeResourceRecords(): List<String> =
         resourceRecords().removeSurrounding("[", "]").split(", ").filter { "|COMPOSE|" in it }

@@ -97,14 +97,19 @@ public class ArchitectureCheckPlugin : Plugin<Project> {
         project.extensions.findByType(KotlinBaseExtension::class.java)?.explicitApi == ExplicitApiMode.Strict
 
     private fun Project.standardResourceRoots(): List<ResourceRoot> {
+        val normalizedBuildDirectory = layout.buildDirectory.get().asFile.toPath().toAbsolutePath().normalize()
         val multiplatform = extensions.findByType(KotlinMultiplatformExtension::class.java)
         if (multiplatform != null) {
             return multiplatform.sourceSets
                 .filter { it.name.endsWith("Main") }
                 .flatMap { sourceSet ->
-                    val standard = sourceSet.resources.srcDirs.map { root ->
-                        ResourceRoot(sourceSet.name, "KOTLIN", root, "")
-                    }
+                    val standard = sourceSet.resources.srcDirs
+                        .filterNot { root ->
+                            root.toPath().toAbsolutePath().normalize().startsWith(normalizedBuildDirectory)
+                        }
+                        .map { root ->
+                            ResourceRoot(sourceSet.name, "KOTLIN", root, "")
+                        }
                     standard
                 }
         }

@@ -16,6 +16,8 @@
 - [ ] 3.2 Create and migrate the demanded `:core:model` and `:core:ui` contracts/implementations while preserving Kotlin packages; make focused tests, architectureCheck, Detekt, and Spotless GREEN.
 - [ ] 3.3 Verify Android, desktop, and iOS compilation/resource behavior for the core extraction and update architecture/ADR/tracker evidence.
 
+Checkpoint: Task 2.1 accepts the `:core:model` half only. Its focused model RED/GREEN and architecture/shared JVM evidence are accepted; OpenSpec 3.1, 3.2, and 3.3 remain pending for Task 2.2 and the broader platform verification required by 3.3.
+
 ## 4. Slice 3 - Database And Platform
 
 - [ ] 4.1 Add RED SQLDelight integration/characterization coverage for existing database name, old database opening, migrations, generated package, and cross-feature foreign keys.

@@ -25,55 +25,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-data class PlayableTrack(
-    val id: String,
-    val title: String,
-    val artist: String,
-    val album: String?,
-    val durationMillis: Long?,
-    val source: AudioSource,
-    val artworkBytes: ByteArray? = null,
-) {
-    override fun equals(other: Any?): Boolean =
-        other is PlayableTrack &&
-            id == other.id &&
-            title == other.title &&
-            artist == other.artist &&
-            album == other.album &&
-            durationMillis == other.durationMillis &&
-            source == other.source &&
-            artworkBytes.contentEquals(other.artworkBytes)
-
-    override fun hashCode(): Int {
-        var result = id.hashCode()
-        result = 31 * result + title.hashCode()
-        result = 31 * result + artist.hashCode()
-        result = 31 * result + (album?.hashCode() ?: 0)
-        result = 31 * result + (durationMillis?.hashCode() ?: 0)
-        result = 31 * result + source.hashCode()
-        result = 31 * result + (artworkBytes?.contentHashCode() ?: 0)
-        return result
-    }
-}
-
-sealed interface AudioSource {
-    val stableKey: String
-
-    data class FilePath(val path: String) : AudioSource {
-        override val stableKey: String = path
-    }
-
-    data class Uri(val value: String) : AudioSource {
-        override val stableKey: String = value
-    }
-
-    data class FileDescriptor(
-        val fd: Int,
-        val displayName: String,
-        override val stableKey: String = displayName,
-    ) : AudioSource
-}
-
 enum class PlaybackStatus {
     Idle,
     Loading,

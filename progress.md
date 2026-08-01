@@ -1,4 +1,14 @@
-    # Session Progress
+## Handoff - 2026-08-01 Task 2.1 final acceptance
+
+Route: openspec+superpowers
+Owner: implementation
+Input: Task 2.1 `:core:model` extraction, prerequisite checker repairs, and independent final Oracle re-review.
+Output: Task 2.1 is accepted: package-stable immutable model contracts moved to `:core:model`; `:shared` exposes them through `api(projects.core.model)` while retaining controller behavior, helpers, repositories, scanners, UI state, engines, and feature-owned types. Independent Oracle PASS: no Critical, Important, or Minor findings; prior equality/API/evidence findings are resolved. Authoritative evidence: `.superpowers/sdd/2026-07-27-feature-first-modularization/task-2.1-final-acceptance-report.md`.
+Verification: `./gradlew :core:model:allTests --configuration-cache` passed twice (repeat: `Reusing configuration cache`; JVM, Android host, and iOS simulator arm64 XMLs each 6/0/0/0); `./gradlew architectureCheck :shared:jvmTest --configuration-cache --configuration-cache-problems=fail --no-parallel`, `spotlessApply`, separate `spotlessCheck`, separate `detekt`, `openspec validate feature-first-modularization --strict`, and `git diff --check` passed.
+Next owner: implementation for Task 2.2.
+Blockers: Task 2.2+, OpenSpec 3.1/3.2/3.3, and broader platform verification remain pending. Earlier desktop compile and Android assemble passed, but are not broader acceptance. A separate shared iOS simulator verification was not completed after the user terminated the stuck agent lane; only `:core:model` iOS simulator tests passed. `./init.sh` remains intentionally not rerun after the prior user-directed stop beyond 9000 seconds; the full platform matrix is unclaimed.
+
+# Session Progress
 
 ## Handoff - 2026-07-31 Task 1.4 final acceptance
 

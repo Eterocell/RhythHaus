@@ -83,6 +83,7 @@ private class ArchitectureProcessor(
         declaration: KSDeclaration,
         diagnostics: MutableMap<String, KSNode>
     ) {
+        if (declaration.origin == Origin.SYNTHETIC) return
         if (Modifier.PUBLIC in declaration.modifiers &&
             declaration.qualifiedName != null &&
             declaration.docString.isNullOrBlank()) {
