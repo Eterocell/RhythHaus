@@ -22,7 +22,7 @@ public object ArchitectureAllowList {
             ":taglib" to ModulePolicy(setOf("com.eterocell.rhythhaus.taglib")),
             ":core:model" to ModulePolicy(setOf("com.eterocell.rhythhaus")),
             ":core:database" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
-            ":core:platform" to ModulePolicy(setOf("com.eterocell.rhythhaus.platform")),
+            ":core:platform" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
             ":core:playback" to ModulePolicy(setOf("com.eterocell.rhythhaus.playback")),
             ":core:ui" to ModulePolicy(setOf("com.eterocell.rhythhaus.ui", "com.eterocell.rhythhaus.theme")),
             ":feature:library:api" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),

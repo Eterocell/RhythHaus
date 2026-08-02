@@ -22,10 +22,10 @@ Checkpoint: Task 2.1 accepted the `:core:model` half and Task 2.2 accepted `:cor
 
 - [x] 4.1 RED characterization passed: absent module, absent generated/seam compilation, and owner-fixture REDs preceded the atomic move. Core v1/legacy migration coverage proves versions, preserved rows, FK rejection/cascade, generated identity, and filename without `:shared`/model dependencies; repository behavior remains shared. Final architecture fixture XML is 52 tests, 0 failures/errors, 1 expected skip.
 - [x] 4.2 Accepted atomic ownership move: `:core:database` owns six `.sq`, `1.sqm`, v1 `1.db`, generated/runtime surface, seam/actual drivers, and database tests unchanged. Shared retains repositories, DI, `LibraryDatabaseContext`, and `-lsqlite3`, exposes core through `api`, has no app direct edge/iOS export, and checker policy is core-owned. Reviewer re-review PASS found no Critical/Important/Minor findings.
-- [ ] 4.3 Add only platform capabilities reused by two or more domains to narrow `:core:platform`; preserve expect/actual seams and verify actual dependency/resource ownership.
+- [x] 4.3 Task 3.2 accepted: only the package-stable `currentTimeMillis()` / `uuid4()` expect/actual family moved to narrow `:core:platform` in `07da78e`, serving Library scanning + Playlist backup and Library scanning + Playback respectively. `:shared` uses `api(projects.core.platform)`; no iOS export or core production dependency exists, and feature-specific platform seams remain out. Independent reviewer PASS/APPROVED with no Critical/Important/Minor findings.
 - [ ] 4.4 Run affected Android packaging, desktop runtime, iOS linking/tests, architecture/quality gates, and `./init.sh`; record migration and platform evidence.
 
-Checkpoint: 4.1 and 4.2 are accepted. 4.3 remains Task 3.2 conditional `:core:platform` inventory. 4.4 remains unchecked for later runtime/full-init evidence; `./init.sh` was intentionally not rerun after the prior user-directed stop beyond 9000 seconds.
+Checkpoint: 4.1, 4.2, and 4.3 are accepted. 4.4 remains unchecked for later Android packaging, desktop runtime, iOS linking/runtime, and full-init evidence; `./init.sh` was intentionally not rerun after the prior user-directed stop beyond 9000 seconds.
 
 ## 5. Slice 4 - Feature APIs And Playback Contracts
 

@@ -1,3 +1,13 @@
+## Handoff - 2026-08-02 Task 3.2 final acceptance
+
+Route: openspec+superpowers
+Owner: implementation
+Input: Task 3.2 conditional `:core:platform` inventory and implementation commit `07da78e` based on `ba500c3`.
+Output: Task 3.2 and OpenSpec 4.3 are accepted. Only the package-stable `currentTimeMillis()` / `uuid4()` expect/actual family moved: time serves Library scanning + Playlist backup, and UUID serves Library scanning + Playback. `:shared` uses `api(projects.core.platform)`; no iOS export exists; core platform has no production dependencies; feature-specific platform seams remain feature/shared-owned. Independent reviewer PASS/APPROVED found no Critical/Important/Minor findings. Authoritative evidence: `.superpowers/sdd/2026-07-27-feature-first-modularization/task-3.2-final-acceptance-report.md`.
+Verification: controller `spotlessApply` succeeded with no accepted-source changes. The integration command `./gradlew :core:platform:allTests :core:platform:testAndroidHostTest :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 architectureCheck --configuration-cache --configuration-cache-problems=fail` passed first in 47s (226 tasks, cache stored) and identically in 1s (cache reused). XML: core platform JVM/Android host/iOS simulator 2/2/2 and shared JVM 559, all zero failures/errors/skips. Separate `spotlessCheck` passed (141 tasks, 2m52s) and `detekt` passed (12 tasks, 2s). Final staged strict OpenSpec validation and `git diff --cached --check` passed after closure, including the force-added Task 3.2 brief, implementation report, and final acceptance report.
+Next owner: implementation for Task 4.1 API publication.
+Blockers: OpenSpec 4.4 remains unchecked. `./init.sh`, UI/runtime launches, linked iOS app/resource lookup, and desktop runtime were not run or claimed.
+
 ## Handoff - 2026-08-02 Task 3.1 final acceptance
 
 Route: openspec+superpowers

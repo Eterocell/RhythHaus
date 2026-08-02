@@ -210,11 +210,11 @@ root `build.gradle.kts`/entrypoint, `qualityCheck`, CI, or Task 1.4 file is a ta
 
 **Target files:** only if justified, `core/platform/build.gradle.kts`, complete matching source sets, and `core/platform/src/commonTest/kotlin/.../PlatformCapabilityBoundaryTest.kt`; otherwise `docs/adr/` decision added in its tracker task.
 
-- [ ] Run `rg -n '^expect |^actual ' shared/src/{commonMain,androidMain,jvmMain,iosMain}/kotlin/com/eterocell/rhythhaus/{Platform.kt,AudioMetadata.kt,library/PlatformSourceAccess.kt}`. Acceptance inventory must name a candidate and two consuming domains; scanner/source access and backup document access do not count as core candidates.
-- [ ] If no candidate meets the two-domain threshold, write the ADR decision and run `test ! -d core/platform`; expected GREEN: no speculative module. Commit `docs: defer core platform extraction`.
-- [ ] If a candidate qualifies, first create `PlatformCapabilityBoundaryTest.kt`, run `./gradlew :core:platform:allTests --configuration-cache`; expected RED: absent module/task.
-- [ ] Move the complete expect/actual family with the core convention, then run the same command; expected GREEN. Run Android/JVM/iOS compilation and architectureCheck.
-- [ ] Commit conditional implementation with `git add core/platform shared settings.gradle.kts build-logic && git commit -m "refactor: extract core platform capability"`.
+- [x] Inventory qualified the package-stable `currentTimeMillis()` / `uuid4()` expect/actual family: time serves Library scanning and Playlist backup, while UUID serves Library scanning and Playback. Scanner/source access and backup document access did not qualify.
+- [x] Not applicable: the no-candidate branch was not taken because the qualifying family meets the two-domain threshold; no ADR deferral or `docs: defer core platform extraction` commit was created.
+- [x] Created `PlatformCapabilityBoundaryTest.kt` before module registration; `./gradlew :core:platform:allTests --configuration-cache` recorded the expected absent-project RED, then passed GREEN after the move.
+- [x] Moved only the complete `currentTimeMillis()` / `uuid4()` expect/actual family to the core convention, preserving `com.eterocell.rhythhaus.library`; Android/JVM/iOS tests and compilation plus architectureCheck passed.
+- [x] Committed the conditional implementation as `07da78e refactor: extract core platform capability`. `:shared` uses `api(projects.core.platform)`; there is no iOS export and core platform has no production dependencies.
 
 ## Task 4.1: Publish Library And Playlist APIs
 

@@ -199,6 +199,7 @@ kotlin {
             api(projects.core.model)
             api(projects.core.ui)
             api(projects.core.database)
+            api(projects.core.platform)
             implementation(projects.taglib)
             implementation(libs.aboutlibraries.compose.m3)
             implementation(libs.coil.compose)
