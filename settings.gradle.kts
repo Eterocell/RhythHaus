@@ -45,6 +45,8 @@ include(":core:model")
 
 include(":core:ui")
 
+include(":core:database")
+
 include(":taglib")
 
 include(":architecture-processor")

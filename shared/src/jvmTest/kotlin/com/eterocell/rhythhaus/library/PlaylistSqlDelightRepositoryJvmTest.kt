@@ -3,8 +3,6 @@ package com.eterocell.rhythhaus.library
 import com.eterocell.rhythhaus.AudioSource
 import java.io.File
 import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
@@ -150,20 +148,6 @@ class PlaylistSqlDelightRepositoryJvmTest {
     }
 
     @Test
-    fun versionOneDatabaseMigratesWithoutLosingLibraryRows() {
-        val databaseFile = copyVersionOneDatabase()
-        seedVersionOneLibrary(databaseFile)
-
-        openRepositories(databaseFile).use { open ->
-            assertEquals(
-                listOf("legacy-track"),
-                open.library.tracks().map(LibraryTrack::id))
-            assertEquals(emptyList(), open.playlists.playlists())
-            assertNotNull(open.playlists.create("Migrated"))
-        }
-    }
-
-    @Test
     fun playlistDeletionCascadesEntries() {
         openRepositories().use { open ->
             open.seedTrack("track-a", "scan-1")
@@ -246,21 +230,6 @@ class PlaylistSqlDelightRepositoryJvmTest {
             }
 
             assertEquals(before, open.playlists.entries(playlist.id))
-        }
-    }
-
-    @Test
-    fun productionJvmFactoryRejectsInvalidPlaylistEntryForeignKeys() {
-        openRepositories().use { open ->
-            assertFails {
-                open.database.playlistQueries.insertEntry(
-                    id = "invalid-entry",
-                    playlistId = "missing-playlist",
-                    trackId = "missing-track",
-                    position = 0,
-                    createdAtEpochMillis = 1,
-                )
-            }
         }
     }
 
@@ -412,30 +381,6 @@ private fun tempDatabase(): File =
         delete()
         deleteOnExit()
     }
-
-private fun copyVersionOneDatabase(): File {
-    val target = tempDatabase()
-    val baseline = File("src/commonMain/sqldelight/databases/1.db")
-    check(baseline.isFile) {
-        "Missing SQLDelight version-1 baseline: ${baseline.absolutePath}"
-    }
-    Files.copy(
-        baseline.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
-    return target
-}
-
-private fun seedVersionOneLibrary(databaseFile: File) {
-    DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
-        .use { connection ->
-            connection.createStatement().use { statement ->
-                statement.execute("PRAGMA foreign_keys = ON")
-                statement.execute(
-                    "INSERT INTO library_source(id, platformKind, displayName, handle, createdAtEpochMillis, accessStatus) VALUES ('source-1', 'JvmFolder', 'Music', '/Music', 1, 'Available')")
-                statement.execute(
-                    "INSERT INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, createdAtEpochMillis, updatedAtEpochMillis) VALUES ('legacy-track', 'source-1', 'legacy.mp3', 'FilePath', '/Music/legacy.mp3', 'legacy.mp3', 'Legacy', 'Artist', 'Album', 1, 2)")
-            }
-        }
-}
 
 private fun testSource() =
     LibrarySource(

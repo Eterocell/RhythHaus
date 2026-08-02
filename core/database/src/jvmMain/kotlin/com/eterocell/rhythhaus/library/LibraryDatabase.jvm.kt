@@ -6,7 +6,8 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import java.io.File
 import java.util.Properties
 
-actual class LibraryDatabase(
+/** JVM SQLDelight database backed by a local SQLite file. */
+public actual class LibraryDatabase(
     private val databaseFile: File = defaultDatabaseFile()
 ) {
     private val jdbcDriver: JdbcSqliteDriver by lazy {
@@ -21,10 +22,14 @@ actual class LibraryDatabase(
         )
     }
 
-    actual val driver: SqlDriver
+    /** JVM SQLite driver for this library database. */
+    public actual val driver: SqlDriver
         get() = jdbcDriver
 
-    actual val database: RhythHausDatabase by lazy { RhythHausDatabase(driver) }
+    /** Generated query facade backed by the JVM SQLite driver. */
+    public actual val database: RhythHausDatabase by lazy {
+        RhythHausDatabase(driver)
+    }
 }
 
 private val libraryTables =
@@ -86,7 +91,8 @@ private fun JdbcSqliteDriver.userTables(): Set<String> =
 private fun defaultDatabaseFile(): File =
     File(
         System.getProperty("user.home"),
-        "Library/Application Support/RhythHaus/rhythhaus.db",
+        "Library/Application Support/RhythHaus/$libraryDatabaseFileName",
     )
 
-actual fun createLibraryDatabase(): LibraryDatabase = LibraryDatabase()
+/** Creates the JVM database in the default application-support location. */
+public actual fun createLibraryDatabase(): LibraryDatabase = LibraryDatabase()

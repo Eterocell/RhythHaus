@@ -184,19 +184,23 @@ root `build.gradle.kts`/entrypoint, `qualityCheck`, CI, or Task 1.4 file is a ta
 
 **Scope:** Slice 3 database. No schema/name/history/FK changes.
 
-**Existing files:** `shared/build.gradle.kts:L142-L152,L195-L207,L246-L248`; `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryDatabase.kt:L5-L10`; `shared/src/commonMain/sqldelight/com/eterocell/rhythhaus/library/{RhythHausDatabase,LibrarySource,LibraryTrack,Playlist,ScanSession,ScanError}.sq`; `shared/src/commonMain/sqldelight/migrations/1.sqm`; `shared/src/commonMain/sqldelight/databases/1.db`; platform `LibraryDatabase.{android,jvm,ios}.kt`; existing tests `LibraryDatabaseIosTest.kt`, `SqlDelightLibraryRepositoryJvmTest.kt`, `PlaylistSqlDelightRepositoryJvmTest.kt`.
+**Existing files:** `shared/build.gradle.kts:L142-L152,L195-L207,L246-L248`; `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryDatabase.kt:L5-L10`; `shared/src/commonMain/sqldelight/com/eterocell/rhythhaus/library/{RhythHausDatabase,LibrarySource,LibraryTrack,Playlist,ScanSession,ScanError}.sq`; `shared/src/commonMain/sqldelight/migrations/1.sqm`; `shared/src/commonMain/sqldelight/databases/1.db`; platform `LibraryDatabase.{android,jvm,ios}.kt`; database tests `LibraryDatabaseAndroidHostTest.kt` and `LibraryDatabaseIosTest.kt`; and shared repository behavior tests `SqlDelightLibraryRepositoryJvmTest.kt` and `PlaylistSqlDelightRepositoryJvmTest.kt`.
 
-**Target files:** `core/database/build.gradle.kts`; matching common/platform database sources; moved SQLDelight inputs under `core/database/src/commonMain/sqldelight/`; `core/database/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ExistingDatabaseMigrationTest.kt`; updated settings/shared/feature build files and allow-list.
+**Target files:** `core/database/build.gradle.kts`; matching common/platform database sources and database-owned tests; moved SQLDelight inputs under `core/database/src/commonMain/sqldelight/`; `core/database/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ExistingDatabaseMigrationTest.kt`; updated settings/shared build files and allow-list. Repository mapping, mutation, and persistence behavior tests remain in `:shared`.
 
-- [ ] Create the integration test first using the existing schema fixture and repositories, then run `./gradlew :core:database:jvmTest --tests '*ExistingDatabaseMigrationTest' --configuration-cache`; expected RED: module/test task absent.
-- [ ] Move `.sq`, `1.sqm`, `1.db`, SQLDelight package config, `LibraryDatabase` expect/actuals, and driver dependencies in one change. Keep `SqlDelightLibraryRepository.kt` and `SqlDelightPlaylistRepository.kt` outside core database.
-- [ ] The database seam remains explicit and package-stable:
+- [x] RED ran in both required stages: absent `:core:database`, then absent seam/generated API compilation; owner fixtures were inverted while `:shared` remained owner. Core tests do not import `:shared` repositories.
+- [x] The core migration suite uses v1 fixture/JDBC seeding and production/generated APIs to cover rows, versions, valid and invalid FK behavior, cascade, generated identity, and filename; legacy-v0, Android callback, and iOS FK coverage moved while repository behavior remains shared.
+- [x] The six SQL files, `1.sqm`, v1 `1.db`, package config, seam, and drivers moved atomically to `:core:database`; package/name/dialect/schema/FK/history/filename bytes and shared `-lsqlite3` are preserved, and shared's unused coroutine extension is removed.
+- [x] Public shared `LibraryDatabaseContext` forwards Android application context to the documented public core initializer with private core storage; Task 3.2 was not implemented.
+- [x] `:shared` exposes core database via `api(projects.core.database)`; no app-to-core edge or shared iOS framework export exists.
+- [x] Owner policy/TestKit baseline is `:core:database`; policy-derived checker expectations retain one/missing/two/arbitrary/spoofed and cache-reuse coverage.
+- [x] The database seam remains explicit and package-stable:
   ```kotlin
   public expect class LibraryDatabase { public val driver: SqlDriver; public val database: RhythHausDatabase }
   ```
-- [ ] Run `./gradlew :core:database:jvmTest :core:database:generateCommonMainRhythHausDatabaseInterface --configuration-cache`; expected GREEN. Then run iOS database test, architectureCheck, and `./init.sh`.
-- [ ] Acceptance inventory: the six `.sq` files, migration, schema DB, package config, expect/actual drivers move together; SQL statements, database name, generated package, FKs, and migration history are unchanged.
-- [ ] Commit with `git add core/database shared settings.gradle.kts build-logic && git commit -m "refactor: extract core database"`.
+- [x] Core JVM/generation, Android-host, iOS simulator, architecture/quality, shared JVM, and consuming desktop/Android/iOS compilation gates passed; retained database XML is JVM 3, Android host 1, iOS simulator 1, and shared JVM 559, all zero failure/error/skip. Task 3.2 and later modules remain out of scope.
+- [x] Acceptance inventory confirms the SQL inputs, fixture, generated/runtime surface, seam/actuals, and database tests are core-owned unchanged; reviewer re-review accepted the production boundary and byte compatibility.
+- [x] Planned atomic commit boundary: the accepted set will be committed as `refactor: extract core database` in the commit containing this ledger; no SHA is asserted before that commit exists.
 
 ## Task 3.2: Conditional Core Platform
 

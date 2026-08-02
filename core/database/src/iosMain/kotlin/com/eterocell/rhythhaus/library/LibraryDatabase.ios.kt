@@ -4,11 +4,12 @@ import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import co.touchlab.sqliter.DatabaseConfiguration
 
-actual class LibraryDatabase {
+/** iOS SQLDelight database backed by the platform-native SQLite driver. */
+public actual class LibraryDatabase {
     private val nativeDriver: NativeSqliteDriver by lazy {
         NativeSqliteDriver(
             schema = RhythHausDatabase.Schema,
-            name = "rhythhaus.db",
+            name = libraryDatabaseFileName,
             onConfiguration = { configuration ->
                 configuration.copy(
                     extendedConfig =
@@ -19,10 +20,15 @@ actual class LibraryDatabase {
         )
     }
 
-    actual val driver: SqlDriver
+    /** Native SQLite driver for this library database. */
+    public actual val driver: SqlDriver
         get() = nativeDriver
 
-    actual val database: RhythHausDatabase by lazy { RhythHausDatabase(driver) }
+    /** Generated query facade backed by the native SQLite driver. */
+    public actual val database: RhythHausDatabase by lazy {
+        RhythHausDatabase(driver)
+    }
 }
 
-actual fun createLibraryDatabase(): LibraryDatabase = LibraryDatabase()
+/** Creates the iOS database using its platform-default storage location. */
+public actual fun createLibraryDatabase(): LibraryDatabase = LibraryDatabase()

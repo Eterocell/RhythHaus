@@ -221,6 +221,8 @@ class ArchitectureCheckPluginFunctionalTest {
         assertEquals(
             listOf(
                 ":androidApp|main|ANDROID|androidApp/src/main/res|com.example.androidfixture",
+                ":core:database|commonMain|KOTLIN|core/database/src/commonMain/resources|",
+                ":core:database|jvmMain|KOTLIN|core/database/src/jvmMain/resources|",
                 ":shared|commonMain|KOTLIN|shared/src/commonMain/resources|",
                 ":shared|jvmMain|KOTLIN|shared/src/jvmMain/resources|",
             ),
@@ -400,14 +402,14 @@ class ArchitectureCheckPluginFunctionalTest {
         externalRoot.resolve("rogue.sq").writeText("fixture")
         append(
             projectDir,
-            ":shared",
+            ":core:database",
             "sqldelight { databases.named(\"RhythHausDatabase\") { srcDirs.from(file(\"${externalRoot.invariantSeparatorsPath}\")) } }",
         )
 
         assertExactFailure(
             projectDir,
             listOf(
-                "ARCH-SQLDELIGHT :shared [RhythHausDatabase] root=${externalRoot.invariantSeparatorsPath} unsupported",
+                "ARCH-SQLDELIGHT :core:database [RhythHausDatabase] root=${externalRoot.invariantSeparatorsPath} unsupported",
             ),
         )
     }
@@ -419,13 +421,13 @@ class ArchitectureCheckPluginFunctionalTest {
     @Test
     fun sqlDelightArtifactsAreDerivedAtExecutionAcrossConfigurationCacheReuse() {
         val projectDir = fixture()
-        val artifact = moduleDir(projectDir, ":shared").resolve("src/commonMain/sqldelight/fixture.sq")
+        val artifact = moduleDir(projectDir, ":core:database").resolve("src/commonMain/sqldelight/fixture.sq")
 
         runner(projectDir).build()
         artifact.delete()
         val missing = runner(projectDir).buildAndFail()
         assertTrue(missing.output.contains("Reusing configuration cache"), missing.output)
-        assertTrue(missing.output.contains("ARCH-SQLDELIGHT expected=:shared owners=<none>"), missing.output)
+        assertTrue(missing.output.contains("ARCH-SQLDELIGHT expected=:core:database owners=<none>"), missing.output)
 
         artifact.writeText("fixture")
         val restored = runner(projectDir).build()
@@ -436,21 +438,21 @@ class ArchitectureCheckPluginFunctionalTest {
     fun sqlDelightDriverInSpoofedConfigurationIsNotAnOwnerSignal() =
         assertExactFailure(
             fixture(Mutation.SpoofedSqlDelightDriver),
-            listOf("ARCH-SQLDELIGHT expected=:shared owners=<none>"),
+            listOf("ARCH-SQLDELIGHT expected=:core:database owners=<none>"),
         )
 
     @Test fun sqlDelightOwnershipViolationsFail() {
         assertExactFailure(
             fixture(Mutation.MissingSqlDelightOwner),
-            listOf("ARCH-SQLDELIGHT expected=:shared owners=<none>"),
+            listOf("ARCH-SQLDELIGHT expected=:core:database owners=<none>"),
         )
         assertExactFailure(
             fixture(Mutation.TwoSqlDelightOwners),
-            listOf("ARCH-SQLDELIGHT expected=:shared owners=:core:database,:shared"),
+            listOf("ARCH-SQLDELIGHT expected=:core:database owners=:core:database,:shared"),
         )
         assertExactFailure(
             fixture(Mutation.ArbitrarySqlDelightOwner),
-            listOf("ARCH-SQLDELIGHT expected=:shared owners=<none>"),
+            listOf("ARCH-SQLDELIGHT expected=:core:database owners=:shared"),
         )
     }
 
@@ -866,6 +868,8 @@ class ArchitectureCheckPluginFunctionalTest {
         projectDir.resolve("build.gradle.kts").writeText("plugins { id(\"build-logic.architecture-check\") }")
         modules.forEach { module(projectDir, it) }
         kmpModule(projectDir, ":core:model", strict = true)
+        kmpModule(projectDir, ":core:database", strict = true)
+        kmpModule(projectDir, ":shared", strict = false)
         kmpModule(projectDir, ":feature:library:api", strict = true)
         dependency(projectDir, ":androidApp", ":shared")
         dependency(projectDir, ":desktopApp", ":shared")
@@ -879,9 +883,10 @@ class ArchitectureCheckPluginFunctionalTest {
         source(projectDir, ":feature:library:api", "Playlist.kt", "package com.eterocell.rhythhaus.library\n/** A playlist. */\npublic class Playlist")
         source(projectDir, ":shared", "UsesPlaylist.kt", "package com.eterocell.rhythhaus\nimport com.eterocell.rhythhaus.library.Playlist\ninternal fun use(playlist: Playlist) = playlist")
         resource(projectDir, ":core:model", "src/commonMain/resources/model.txt")
-        sqlDelightPluginModule(projectDir, ":shared")
-        driver(projectDir, ":shared")
-        sqlArtifact(projectDir, ":shared", "src/commonMain/sqldelight/fixture.sq")
+        sqlDelightPluginModule(projectDir, ":core:database")
+        driver(projectDir, ":core:database")
+        sqlArtifact(projectDir, ":core:database", "src/commonMain/sqldelight/fixture.sq")
+        append(projectDir, ":core:database", "kotlin { explicitApi() }")
 
         when (mutation) {
             Mutation.DependencyCycle -> {
@@ -897,30 +902,31 @@ class ArchitectureCheckPluginFunctionalTest {
                 dependencyNotation(projectDir, ":core:database", "app.cash.sqldelight:coroutines-extensions:2.3.2")
                 resource(projectDir, ":core:database", "src/commonMain/sqldelight/README.md")
             }
-            Mutation.MissingSqlDelightOwner -> removeDriver(projectDir, ":shared")
+            Mutation.MissingSqlDelightOwner -> removeDriver(projectDir, ":core:database")
             Mutation.TwoSqlDelightOwners -> {
-                sqlDelightPluginModule(projectDir, ":core:database")
-                driver(projectDir, ":core:database")
-                sqlArtifact(projectDir, ":core:database", "fixture.sq")
-                append(projectDir, ":core:database", "kotlin { explicitApi() }")
+                sqlDelightPluginModule(projectDir, ":shared")
+                driver(projectDir, ":shared")
+                sqlArtifact(projectDir, ":shared", "fixture.sq")
             }
             Mutation.ArbitrarySqlDelightOwner -> {
-                removeDriver(projectDir, ":shared")
-                sqlArtifact(projectDir, ":core:database", "database.sq")
+                removeDriver(projectDir, ":core:database")
+                sqlDelightPluginModule(projectDir, ":shared")
+                driver(projectDir, ":shared")
+                sqlArtifact(projectDir, ":shared", "database.sq")
             }
             Mutation.SpoofedSqlDelightDriver -> {
-                removeDriver(projectDir, ":shared")
+                removeDriver(projectDir, ":core:database")
                 append(
                     projectDir,
-                    ":shared",
+                    ":core:database",
                     "configurations.create(\"spoofedDriver\"); dependencies.add(\"spoofedDriver\", \"app.cash.sqldelight:sqlite-driver:2.3.2\")",
                 )
             }
             Mutation.ExplicitSupportedSqlDelightRoot -> {
-                sqlArtifact(projectDir, ":shared", "src/jvmMain/sqldelight/configured.sqm")
+                sqlArtifact(projectDir, ":core:database", "src/jvmMain/sqldelight/configured.sqm")
                 append(
                     projectDir,
-                    ":shared",
+                    ":core:database",
                     "sqldelight { databases.named(\"RhythHausDatabase\") { srcDirs.from(file(\"src/jvmMain/sqldelight\")) } }",
                 )
             }
@@ -976,7 +982,7 @@ class ArchitectureCheckPluginFunctionalTest {
                 }
             }
             rootProject.name = "quality-aggregation"
-            include(":shared")
+            include(":core:database", ":shared")
             """.trimIndent(),
         )
         projectDir.resolve("build.gradle.kts").writeText(
@@ -1000,6 +1006,7 @@ class ArchitectureCheckPluginFunctionalTest {
             writeText("detekt sentinel input")
         }
         projectDir.resolve("shared/child-spotless-check.marker").writeText("spotless sentinel input")
+        module(projectDir, ":core:database")
         projectDir.resolve("shared/build.gradle.kts").apply {
             parentFile.mkdirs()
             writeText(
@@ -1008,12 +1015,10 @@ class ArchitectureCheckPluginFunctionalTest {
 
                 plugins {
                     id("org.jetbrains.kotlin.multiplatform")
-                    id("build-logic.sqldelight")
                 }
 
                 configurations.maybeCreate("architecture")
                 kotlin { jvm() }
-                dependencies.add("jvmMainImplementation", "app.cash.sqldelight:sqlite-driver:2.3.2")
 
                 val sharedDetektSentinel = tasks.register<Copy>("sharedDetektSentinel") {
                     from(layout.projectDirectory.file("child-detekt.marker"))
@@ -1029,7 +1034,10 @@ class ArchitectureCheckPluginFunctionalTest {
                 """.trimIndent(),
             )
         }
-        sqlArtifact(projectDir, ":shared", "fixture.sq")
+        sqlDelightPluginModule(projectDir, ":core:database")
+        driver(projectDir, ":core:database")
+        sqlArtifact(projectDir, ":core:database", "fixture.sq")
+        append(projectDir, ":core:database", "kotlin { explicitApi() }")
         return QualityAggregationFixture(projectDir, markerDirectory)
     }
 
@@ -1289,9 +1297,11 @@ class ArchitectureCheckPluginFunctionalTest {
         )
         module(projectDir, ":core:database")
         module(projectDir, ":shared")
-        sqlDelightPluginModule(projectDir, ":shared")
-        driver(projectDir, ":shared")
-        sqlArtifact(projectDir, ":shared", "fixture.sq")
+        kmpModule(projectDir, ":shared", strict = false)
+        sqlDelightPluginModule(projectDir, ":core:database")
+        driver(projectDir, ":core:database")
+        sqlArtifact(projectDir, ":core:database", "fixture.sq")
+        append(projectDir, ":core:database", "kotlin { explicitApi() }")
         append(
             projectDir,
             ":shared",
@@ -1364,7 +1374,7 @@ class ArchitectureCheckPluginFunctionalTest {
             pluginManagement { repositories { gradlePluginPortal(); mavenCentral(); google() } }
             dependencyResolutionManagement { repositories { mavenCentral(); google() } }
             rootProject.name = "architecture-android-consumer"
-            include(":androidApp", ":shared")
+            include(":androidApp", ":shared", ":core:database")
             """.trimIndent(),
         )
         projectDir.resolve("build.gradle.kts").writeText(
@@ -1402,9 +1412,12 @@ class ArchitectureCheckPluginFunctionalTest {
             androidProject.resolve(path).mkdirs()
         }
         module(projectDir, ":shared")
-        sqlDelightPluginModule(projectDir, ":shared")
-        driver(projectDir, ":shared")
-        sqlArtifact(projectDir, ":shared", "fixture.sq")
+        kmpModule(projectDir, ":shared", strict = false)
+        module(projectDir, ":core:database")
+        sqlDelightPluginModule(projectDir, ":core:database")
+        driver(projectDir, ":core:database")
+        sqlArtifact(projectDir, ":core:database", "fixture.sq")
+        append(projectDir, ":core:database", "kotlin { explicitApi() }")
         return projectDir
     }
 
@@ -1679,9 +1692,8 @@ class ArchitectureCheckPluginFunctionalTest {
     }
 
     private fun iosExport(projectDir: File) {
-        sqlDelightPluginModule(projectDir, ":shared")
+        kmpModule(projectDir, ":shared", strict = false)
         dependency(projectDir, ":shared", ":feature:library:api")
-        driver(projectDir, ":shared")
         append(projectDir, ":shared", "kotlin { iosArm64().binaries.framework { export(project(\":core:model\")) } }")
     }
 

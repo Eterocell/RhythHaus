@@ -124,7 +124,6 @@ plugins {
     id("build-logic.compose-resources")
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.aboutlibraries)
-    id("build-logic.sqldelight")
 }
 
 extensions.configure<ControlledComposeResourcesExtension>(
@@ -192,17 +191,14 @@ kotlin {
             implementation(libs.androidx.documentfile)
             implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.media3.session)
-            implementation(libs.sqldelight.android.driver)
         }
         jvmMain {
             resources.srcDir(nativeAudioResourceRoot)
-            dependencies {
-                implementation(libs.sqldelight.sqlite.driver)
-            }
         }
         commonMain.dependencies {
             api(projects.core.model)
             api(projects.core.ui)
+            api(projects.core.database)
             implementation(projects.taglib)
             implementation(libs.aboutlibraries.compose.m3)
             implementation(libs.coil.compose)
@@ -226,8 +222,6 @@ kotlin {
             implementation(libs.kotlinx.coroutinesCore)
             implementation(libs.androidx.datastore.core)
             implementation(libs.androidx.datastore.preferences.core)
-            implementation(libs.sqldelight.runtime)
-            implementation(libs.sqldelight.coroutines)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -235,12 +229,6 @@ kotlin {
         jvmTest.dependencies {
             implementation("org.jetbrains.compose.ui:ui-test:1.11.1")
             implementation(compose.desktop.currentOs)
-        }
-        named("androidHostTest").dependencies {
-            implementation(libs.sqldelight.sqlite.driver)
-        }
-        iosMain.dependencies {
-            implementation(libs.sqldelight.native.driver)
         }
     }
 }

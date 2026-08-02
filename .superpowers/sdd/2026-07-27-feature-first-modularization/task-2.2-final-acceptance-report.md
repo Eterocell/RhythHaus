@@ -50,4 +50,4 @@ Chinese resource rendering and Android/iOS interaction were not runtime-tested. 
 
 The Task 2.2 base commit was `53cc75c`. No Task 2.2 commit exists yet; no SHA is asserted. Planned commit boundary: `refactor: extract core ui`.
 
-Next safe action: Task 2.3 inventory.
+Next safe action: Task 3.1 core database inventory.

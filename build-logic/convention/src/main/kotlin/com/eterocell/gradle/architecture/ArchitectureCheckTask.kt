@@ -65,8 +65,9 @@ public abstract class ArchitectureCheckTask : DefaultTask() {
             .map { it.module }
             .toSet()
         val owners = sqlDelightOwners.get().filter(physicalOwners::contains).sorted()
-        if (owners != listOf(":shared")) {
-            violations += "ARCH-SQLDELIGHT expected=:shared owners=${owners.joinToString(",").ifBlank { "<none>" }}"
+        val expectedOwner = ArchitectureAllowList.sqlDelightOwner()
+        if (owners != listOf(expectedOwner)) {
+            violations += "ARCH-SQLDELIGHT expected=$expectedOwner owners=${owners.joinToString(",").ifBlank { "<none>" }}"
         }
         iosExports.get().sorted().forEach { export ->
             val (module, target) = export.split("|", limit = 2)

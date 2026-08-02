@@ -42,7 +42,9 @@ public object ArchitectureAllowList {
 
     public fun allowsIosExport(modulePath: String, exportedProjectPath: String): Boolean = false
 
-    public fun isSqlDelightOwner(modulePath: String): Boolean = modulePath == ":shared"
+    public fun sqlDelightOwner(): String = ":core:database"
+
+    public fun isSqlDelightOwner(modulePath: String): Boolean = modulePath == sqlDelightOwner()
 
     /** Compose custom roots are intentionally code-owned rather than inferred from task internals. */
     public fun composeResourceRoots(modulePath: String, sourceSet: String): Set<String> =

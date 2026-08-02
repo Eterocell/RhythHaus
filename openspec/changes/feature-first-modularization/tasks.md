@@ -20,10 +20,12 @@ Checkpoint: Task 2.1 accepted the `:core:model` half and Task 2.2 accepted `:cor
 
 ## 4. Slice 3 - Database And Platform
 
-- [ ] 4.1 Add RED SQLDelight integration/characterization coverage for existing database name, old database opening, migrations, generated package, and cross-feature foreign keys.
-- [ ] 4.2 Atomically move `.sq`, existing migrations, drivers, and generated database ownership to `:core:database` without schema/name/history changes; prove the RED cases GREEN and run SQLDelight generation/migration checks.
+- [x] 4.1 RED characterization passed: absent module, absent generated/seam compilation, and owner-fixture REDs preceded the atomic move. Core v1/legacy migration coverage proves versions, preserved rows, FK rejection/cascade, generated identity, and filename without `:shared`/model dependencies; repository behavior remains shared. Final architecture fixture XML is 52 tests, 0 failures/errors, 1 expected skip.
+- [x] 4.2 Accepted atomic ownership move: `:core:database` owns six `.sq`, `1.sqm`, v1 `1.db`, generated/runtime surface, seam/actual drivers, and database tests unchanged. Shared retains repositories, DI, `LibraryDatabaseContext`, and `-lsqlite3`, exposes core through `api`, has no app direct edge/iOS export, and checker policy is core-owned. Reviewer re-review PASS found no Critical/Important/Minor findings.
 - [ ] 4.3 Add only platform capabilities reused by two or more domains to narrow `:core:platform`; preserve expect/actual seams and verify actual dependency/resource ownership.
 - [ ] 4.4 Run affected Android packaging, desktop runtime, iOS linking/tests, architecture/quality gates, and `./init.sh`; record migration and platform evidence.
+
+Checkpoint: 4.1 and 4.2 are accepted. 4.3 remains Task 3.2 conditional `:core:platform` inventory. 4.4 remains unchecked for later runtime/full-init evidence; `./init.sh` was intentionally not rerun after the prior user-directed stop beyond 9000 seconds.
 
 ## 5. Slice 4 - Feature APIs And Playback Contracts
 

@@ -61,9 +61,9 @@ Provider<Directory>)` and does not claim an effective-custom-root getter;
 the root never reads nested extensions/internal maps. Compose records only a
 convention-declared configured namespace; a blank declaration remains an invalid registry fact
 for deterministic `ARCH-RESOURCE` diagnostics and is not passed to Compose Resources.
-SQLDelight retains the approved
-`implementation` convention and publishes public database facts while `:shared` remains the
-physical owner. Core/API conventions record KSP only after applying it and registering the
+The SQLDelight convention retains the approved `implementation` convention and publishes public
+database facts. During Task 1.3, `:shared` remained the transitional physical owner; after Task
+3.1, `:core:database` is the sole physical owner. Core/API conventions record KSP only after applying it and registering the
 actual production consumer; generic `ksp` is tooling only for single-platform JVM/Android,
 not arbitrary names. The processor uses normalized module/root args, supported compilation
 inputs only, and sorted deduplicated relative-path diagnostics; it does not aggregate whole
