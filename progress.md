@@ -1,3 +1,13 @@
+## Handoff - 2026-08-03 Task 4.1 final acceptance
+
+Route: openspec+superpowers
+Owner: documentation-only closeout
+Input: approved Task 4.1 plan, implementation commit `9bd972f` (`refactor: publish library and playlist APIs`) based on `066e592`, implementation report, and corrected-snapshot independent review package `review-066e592..58937c7.diff`.
+Output: Task 4.1 and OpenSpec 5.1/5.2 are accepted and implementation commit `9bd972f` (`refactor: publish library and playlist APIs`) is verified. Package-stable Library API publishes the complete 13-method repository/model contract and depends only on `:core:model`; package-stable Playlist API publishes the complete 11-method contract returning `PlaylistSummary` and has no production project dependency. Shared retains implementations and Koin factories; no physical implementation modules or iOS framework exports were added. Architecture negative/positive controls are complete. Independent review reports SPEC PASS and QUALITY APPROVED, with no Critical/Important/Minor findings and all prior findings resolved. Authoritative evidence: `.superpowers/sdd/2026-07-27-feature-first-modularization/task-4.1-final-acceptance-report.md`.
+Verification: implementer RED/GREEN evidence, including the unavailable `ktlintFormat` result, is retained in `task-4.1-report.md`. Controller `spotlessApply` passed in 3m09s; the comprehensive API/shared/Android/desktop/iOS compilation matrix passed (276 tasks, 4s); Xcode 26.6 and `:shared:iosSimulatorArm64Test` passed with cache reuse; strict `architectureCheck` passed twice with reuse (348ms/330ms); standalone `spotlessCheck` passed in 3m; standalone `detekt` passed in 418ms with cache reuse; strict OpenSpec validation and final `git diff --check` passed. Retained XML: Library API JVM/Android-host/iOS-simulator 5/5/5, Playlist API 1/1/1, shared JVM 562, and architecture functional class 57; all zero failures/errors. Shared iOS passed; no aggregate total is asserted.
+Next owner: implementation for approved Task 4.2 core playback contracts.
+Blockers: none for Task 4.1. `./init.sh` was not invoked as a script; Android/desktop/iOS runtime UI launches remain unverified; OpenSpec 4.4 and later implementation-module/facade slices remain open.
+
 ## Handoff - 2026-08-02 Task 3.2 final acceptance
 
 Route: openspec+superpowers

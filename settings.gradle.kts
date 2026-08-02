@@ -49,6 +49,10 @@ include(":core:database")
 
 include(":core:platform")
 
+include(":feature:library:api")
+
+include(":feature:playlists:api")
+
 include(":taglib")
 
 include(":architecture-processor")

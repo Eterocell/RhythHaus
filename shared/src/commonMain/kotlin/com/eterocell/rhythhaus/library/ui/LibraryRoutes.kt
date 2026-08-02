@@ -26,9 +26,9 @@ import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
-import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
@@ -454,7 +454,7 @@ internal fun PlaylistDetailRouteResolutionEffect(
  */
 @Composable
 internal fun PlaylistDetailRouteContent(
-    playlist: Playlist,
+    playlist: PlaylistSummary,
     entries: List<PlaylistEntry>,
     libraryTracks: List<LibraryTrack>,
     state: PlaylistState,

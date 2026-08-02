@@ -132,6 +132,46 @@ class ArchitectureCheckPluginFunctionalTest {
 
     @Test fun forbiddenEdgeFails() = assertFailure(Mutation.ForbiddenEdge, listOf("ARCH-EDGE"), ":feature:library:impl")
 
+    @Test
+    fun playlistsApiCannotDependOnCoreModel() =
+        assertFailure(
+            Mutation.PlaylistsApiDependsOnCoreModel,
+            listOf("ARCH-EDGE"),
+            ":feature:playlists:api",
+        )
+
+    @Test
+    fun apiCannotDependOnCoreDatabase() =
+        assertFailure(
+            Mutation.LibraryApiDependsOnCoreDatabase,
+            listOf("ARCH-EDGE"),
+            ":feature:library:api",
+        )
+
+    @Test
+    fun apiCannotDependOnShared() =
+        assertFailure(
+            Mutation.LibraryApiDependsOnShared,
+            listOf("ARCH-CYCLE", "ARCH-CYCLE", "ARCH-EDGE"),
+            ":feature:library:api",
+        )
+
+    @Test
+    fun apiCannotDependOnImplementation() =
+        assertFailure(
+            Mutation.LibraryApiDependsOnImplementation,
+            listOf("ARCH-CYCLE", "ARCH-EDGE"),
+            ":feature:library:api",
+        )
+
+    @Test
+    fun implementationCannotDependOnShared() =
+        assertFailure(
+            Mutation.LibraryImplementationDependsOnShared,
+            listOf("ARCH-CYCLE", "ARCH-EDGE"),
+            ":feature:library:impl",
+        )
+
     @Test fun modelDiscoveredKmpResourcesAreAccepted() {
         runner(fixture()).build()
     }
@@ -875,13 +915,16 @@ class ArchitectureCheckPluginFunctionalTest {
         dependency(projectDir, ":desktopApp", ":shared")
         dependency(projectDir, ":shared", ":taglib")
         dependency(projectDir, ":shared", ":feature:library:api")
+        dependency(projectDir, ":shared", ":feature:playlists:api")
+        dependency(projectDir, ":shared", ":feature:library:impl")
+        dependency(projectDir, ":shared", ":feature:playlists:impl")
         dependency(projectDir, ":feature:library:impl", ":feature:library:api")
         dependency(projectDir, ":feature:playlists:impl", ":feature:playlists:api")
         dependency(projectDir, ":feature:library:api", ":core:model")
-        dependency(projectDir, ":feature:playlists:api", ":core:model")
         source(projectDir, ":core:model", "DocumentedModel.kt", documentedModelSource)
-        source(projectDir, ":feature:library:api", "Playlist.kt", "package com.eterocell.rhythhaus.library\n/** A playlist. */\npublic class Playlist")
-        source(projectDir, ":shared", "UsesPlaylist.kt", "package com.eterocell.rhythhaus\nimport com.eterocell.rhythhaus.library.Playlist\ninternal fun use(playlist: Playlist) = playlist")
+        source(projectDir, ":feature:library:api", "LibraryRepository.kt", "package com.eterocell.rhythhaus.library\n/** A library repository. */\npublic interface LibraryRepository")
+        source(projectDir, ":feature:playlists:api", "PlaylistSummary.kt", "package com.eterocell.rhythhaus.library\n/** A playlist summary. */\npublic data class PlaylistSummary(public val id: String)")
+        source(projectDir, ":shared", "UsesLibraryRepository.kt", "package com.eterocell.rhythhaus\nimport com.eterocell.rhythhaus.library.LibraryRepository\ninternal fun use(repository: LibraryRepository) = repository")
         resource(projectDir, ":core:model", "src/commonMain/resources/model.txt")
         sqlDelightPluginModule(projectDir, ":core:database")
         driver(projectDir, ":core:database")
@@ -897,6 +940,11 @@ class ArchitectureCheckPluginFunctionalTest {
             Mutation.ProductionKspProcessor -> processorDependency(projectDir, "kspJvm")
             Mutation.ImplementationProcessor -> processorDependency(projectDir, "implementation")
             Mutation.ForbiddenEdge -> dependency(projectDir, ":feature:library:impl", ":feature:playlists:impl")
+            Mutation.PlaylistsApiDependsOnCoreModel -> dependency(projectDir, ":feature:playlists:api", ":core:model")
+            Mutation.LibraryApiDependsOnCoreDatabase -> dependency(projectDir, ":feature:library:api", ":core:database")
+            Mutation.LibraryApiDependsOnShared -> dependency(projectDir, ":feature:library:api", ":shared")
+            Mutation.LibraryApiDependsOnImplementation -> dependency(projectDir, ":feature:library:api", ":feature:library:impl")
+            Mutation.LibraryImplementationDependsOnShared -> dependency(projectDir, ":feature:library:impl", ":shared")
             Mutation.SqlDelightRuntimeAndReadme -> {
                 dependencyNotation(projectDir, ":core:database", "app.cash.sqldelight:runtime:2.3.2")
                 dependencyNotation(projectDir, ":core:database", "app.cash.sqldelight:coroutines-extensions:2.3.2")
@@ -1877,7 +1925,7 @@ class ArchitectureCheckPluginFunctionalTest {
         lineSequence().single { it.startsWith("TEST_DEPENDENCY_EDGES=") }.removePrefix("TEST_DEPENDENCY_EDGES=")
 
     private enum class Mutation {
-        DependencyCycle, SelfDependency, ProductionKspProcessor, ImplementationProcessor, ForbiddenEdge, SqlDelightRuntimeAndReadme, MissingSqlDelightOwner, TwoSqlDelightOwners, ArbitrarySqlDelightOwner, SpoofedSqlDelightDriver, ExplicitSupportedSqlDelightRoot, ExplicitApiWarningWithStrictCompilerArgs, UnapprovedIosExport,
+        DependencyCycle, SelfDependency, ProductionKspProcessor, ImplementationProcessor, ForbiddenEdge, PlaylistsApiDependsOnCoreModel, LibraryApiDependsOnCoreDatabase, LibraryApiDependsOnShared, LibraryApiDependsOnImplementation, LibraryImplementationDependsOnShared, SqlDelightRuntimeAndReadme, MissingSqlDelightOwner, TwoSqlDelightOwners, ArbitrarySqlDelightOwner, SpoofedSqlDelightDriver, ExplicitSupportedSqlDelightRoot, ExplicitApiWarningWithStrictCompilerArgs, UnapprovedIosExport,
     }
 
     private data class QualityAggregationFixture(

@@ -8,8 +8,8 @@ import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.QueueMutationRejection
 import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.QueueOccurrence
-import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.LightHausPalette
 import kotlin.test.Test
@@ -848,7 +848,7 @@ class PlaylistScreensTest {
         )
 
     private fun playlist(id: String) =
-        Playlist(
+        PlaylistSummary(
             id = id,
             name = "Playlist $id",
             createdAtEpochMillis = 1L,

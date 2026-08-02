@@ -1,38 +1,5 @@
 package com.eterocell.rhythhaus.library
 
-interface LibraryRepository {
-    fun upsertSource(source: LibrarySource)
-
-    fun sources(): List<LibrarySource>
-
-    fun upsertTrack(track: LibraryTrack): TrackUpsertResult
-
-    fun tracks(): List<LibraryTrack>
-
-    fun tracksForSource(sourceId: String): List<LibraryTrack>
-
-    fun artworkForTrack(trackId: String): TrackArtwork?
-
-    fun insertScanSession(session: ScanSession)
-
-    fun updateScanSession(session: ScanSession)
-
-    fun insertScanError(error: ScanError)
-
-    fun scanErrors(scanId: String): List<ScanError>
-
-    fun removeMissingTracks(sourceId: String, latestScanId: String): Int
-
-    fun removeSource(sourceId: String)
-
-    fun clearAll()
-}
-
-enum class TrackUpsertResult {
-    Added,
-    Updated
-}
-
 class InMemoryLibraryRepository : LibraryRepository {
     private val sources = linkedMapOf<String, LibrarySource>()
     private val tracks = linkedMapOf<String, LibraryTrack>()

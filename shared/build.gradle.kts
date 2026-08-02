@@ -200,6 +200,8 @@ kotlin {
             api(projects.core.ui)
             api(projects.core.database)
             api(projects.core.platform)
+            api(projects.feature.library.api)
+            api(projects.feature.playlists.api)
             implementation(projects.taglib)
             implementation(libs.aboutlibraries.compose.m3)
             implementation(libs.coil.compose)

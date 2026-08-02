@@ -6,13 +6,18 @@ import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackProcessLifecycle
 import com.eterocell.rhythhaus.library.InMemoryLibraryRepository
+import com.eterocell.rhythhaus.library.LibraryDatabase
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlatformScanEvent
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
+import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
+import com.eterocell.rhythhaus.library.SqlDelightPlaylistRepository
+import com.eterocell.rhythhaus.library.libraryImplementationModule
 import com.eterocell.rhythhaus.session.PlaybackCheckpoint
 import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionCoordinator
@@ -27,6 +32,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -45,6 +51,60 @@ import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 
 class RhythHausDiTest {
+    @Test
+    fun sharedCompositionResolvesSqlDelightRepositoriesAsSingletons() {
+        stopKoin()
+        val application = startKoin { modules(rhythHausModule()) }
+
+        try {
+            val koin = application.koin
+            assertTrue(
+                koin.get<LibraryRepository>() is SqlDelightLibraryRepository)
+            assertTrue(
+                koin.get<PlaylistRepository>() is SqlDelightPlaylistRepository)
+            assertSame(
+                koin.get<LibraryRepository>(), koin.get<LibraryRepository>())
+            assertSame(
+                koin.get<PlaylistRepository>(), koin.get<PlaylistRepository>())
+        } finally {
+            stopKoin()
+        }
+    }
+
+    @Test
+    fun libraryFactoryOwnsLibraryBindingsAndExcludesPlaylistRepository() {
+        stopKoin()
+        val application = startKoin { modules(libraryImplementationModule()) }
+
+        try {
+            val koin = application.koin
+            assertNotNull(koin.get<TagLibReader>())
+            assertNotNull(koin.get<AudioMetadataReader>())
+            assertNotNull(koin.get<LibraryDatabase>())
+            assertTrue(
+                koin.get<LibraryRepository>() is SqlDelightLibraryRepository)
+            assertNotNull(koin.get<PlatformSourceAccess>())
+            assertNotNull(koin.get<LibraryScanner>())
+            assertEquals(null, koin.getOrNull<PlaylistRepository>())
+        } finally {
+            stopKoin()
+        }
+    }
+
+    @Test
+    fun sharedCompositionContainsExactlyOneDefinitionForEachRepositoryInterface() {
+        stopKoin()
+        val application = startKoin { modules(rhythHausModule()) }
+
+        try {
+            val koin = application.koin
+            assertEquals(1, koin.getAll<LibraryRepository>().size)
+            assertEquals(1, koin.getAll<PlaylistRepository>().size)
+        } finally {
+            stopKoin()
+        }
+    }
+
     @Test
     fun concurrentAndRepeatedRestoreOnceInvocationsRunOneCoordinatorRestore() =
         runBlocking {

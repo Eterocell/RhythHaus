@@ -6,9 +6,50 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 
 class PlaylistSqlDelightRepositoryJvmTest {
+    @Test
+    fun sqlRepositoryUsesLegacyMissingPlaylistAndEntryMessages() {
+        openRepositories().use { open ->
+            assertEquals(
+                "Playlist not found: missing-rename",
+                assertFailsWith<IllegalArgumentException> {
+                        open.playlists.rename("missing-rename", "Renamed")
+                    }
+                    .message,
+            )
+            assertEquals(
+                "Playlist not found: missing-append",
+                assertFailsWith<IllegalArgumentException> {
+                        open.playlists.append(
+                            "missing-append", listOf("track-a"))
+                    }
+                    .message,
+            )
+            assertEquals(
+                "Playlist entry not found: missing-entry",
+                assertFailsWith<IllegalArgumentException> {
+                        open.playlists.removeEntry("missing-entry")
+                    }
+                    .message,
+            )
+
+            open.seedTrack("track-a", "scan-1")
+            val playlist = open.playlists.create("Road trip")
+            open.playlists.append(playlist.id, listOf("track-a"))
+            assertEquals(
+                "Playlist entry not found: missing-reorder-entry",
+                assertFailsWith<IllegalArgumentException> {
+                        open.playlists.reorder(
+                            playlist.id, listOf("missing-reorder-entry"))
+                    }
+                    .message,
+            )
+        }
+    }
+
     @Test
     fun concurrentAppendsCannotOverwriteFromAStaleSnapshot() {
         openRepositories().use { open ->
@@ -260,7 +301,7 @@ class PlaylistSqlDelightRepositoryJvmTest {
 
             assertEquals(
                 listOf("Same", "Same"),
-                open.playlists.playlists().map(Playlist::name))
+                open.playlists.playlists().map(PlaylistSummary::name))
             assertEquals(
                 listOf("track-a", "track-a"),
                 open.playlists.entries(first.id).map(PlaylistEntry::trackId))
@@ -311,10 +352,10 @@ class PlaylistSqlDelightRepositoryJvmTest {
             val imported = open.playlists.importPlaylists(request)
 
             assertEquals(
-                listOf("First", "Second"), imported.map(Playlist::name))
+                listOf("First", "Second"), imported.map(PlaylistSummary::name))
             assertEquals(
                 setOf("Existing", "First", "Second"),
-                open.playlists.playlists().map(Playlist::name).toSet())
+                open.playlists.playlists().map(PlaylistSummary::name).toSet())
             assertEquals(3, open.playlists.playlists().size)
             assertEquals(
                 listOf("track-a", "track-a"),

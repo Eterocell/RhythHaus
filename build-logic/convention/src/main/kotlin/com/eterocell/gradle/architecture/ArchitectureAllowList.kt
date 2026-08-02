@@ -11,7 +11,6 @@ public object ArchitectureAllowList {
             ":feature:library:impl" to setOf(":feature:library:api"),
             ":feature:playlists:impl" to setOf(":feature:playlists:api"),
             ":feature:library:api" to setOf(":core:model"),
-            ":feature:playlists:api" to setOf(":core:model"),
         )
 
     private val policies: Map<String, ModulePolicy> =

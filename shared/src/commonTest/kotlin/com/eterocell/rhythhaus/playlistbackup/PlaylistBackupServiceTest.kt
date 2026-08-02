@@ -2,8 +2,8 @@ package com.eterocell.rhythhaus.playlistbackup
 
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -297,7 +297,8 @@ class PlaylistBackupServiceTest {
             updatedAtEpochMillis = 1,
         )
 
-    private fun playlist(id: String, name: String) = Playlist(id, name, 1, 1)
+    private fun playlist(id: String, name: String) =
+        PlaylistSummary(id, name, 1, 1)
 
     private fun entry(playlistId: String, trackId: String, position: Int) =
         PlaylistEntry(
@@ -309,7 +310,7 @@ class PlaylistBackupServiceTest {
         )
 
     private fun snapshot(
-        vararg playlists: Pair<Playlist, List<PlaylistEntry>>
+        vararg playlists: Pair<PlaylistSummary, List<PlaylistEntry>>
     ) =
         PlaylistSnapshot(
             playlists = playlists.map { it.first },

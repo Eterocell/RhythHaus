@@ -8,12 +8,12 @@ class SqlDelightPlaylistRepository(
     private val database = libraryDatabase.database
     internal var mutationReadObserver: () -> Unit = {}
 
-    override fun playlists(): List<Playlist> =
+    override fun playlists(): List<PlaylistSummary> =
         database.playlistQueries
             .selectAllPlaylists(::playlistFrom)
             .executeAsList()
 
-    override fun playlist(id: String): Playlist? =
+    override fun playlist(id: String): PlaylistSummary? =
         database.playlistQueries
             .selectPlaylist(id, ::playlistFrom)
             .executeAsOneOrNull()
@@ -35,10 +35,11 @@ class SqlDelightPlaylistRepository(
             }
             .executeAsList()
 
-    override fun create(name: String): Playlist {
+    override fun create(name: String): PlaylistSummary {
         val timestamp = now()
         val playlist =
-            Playlist(idFactory(), requireName(name), timestamp, timestamp)
+            PlaylistSummary(
+                idFactory(), requireName(name), timestamp, timestamp)
         database.playlistQueries.insertPlaylist(
             playlist.id, playlist.name, timestamp, timestamp)
         return playlist
@@ -47,10 +48,11 @@ class SqlDelightPlaylistRepository(
     override fun createWithEntries(
         name: String,
         trackIds: List<String>
-    ): Playlist {
+    ): PlaylistSummary {
         val timestamp = now()
         val playlist =
-            Playlist(idFactory(), requireName(name), timestamp, timestamp)
+            PlaylistSummary(
+                idFactory(), requireName(name), timestamp, timestamp)
         database.transaction {
             database.playlistQueries.insertPlaylist(
                 playlist.id, playlist.name, timestamp, timestamp)
@@ -69,16 +71,17 @@ class SqlDelightPlaylistRepository(
 
     override fun importPlaylists(
         playlists: List<PlaylistImportMutation>
-    ): List<Playlist> {
+    ): List<PlaylistSummary> {
         val validated = validatePlaylistImports(playlists)
         if (validated.isEmpty()) return emptyList()
 
-        val imported = mutableListOf<Playlist>()
+        val imported = mutableListOf<PlaylistSummary>()
         database.transaction {
             validated.forEach { mutation ->
                 val timestamp = now()
                 val playlist =
-                    Playlist(idFactory(), mutation.name, timestamp, timestamp)
+                    PlaylistSummary(
+                        idFactory(), mutation.name, timestamp, timestamp)
                 database.playlistQueries.insertPlaylist(
                     playlist.id, playlist.name, timestamp, timestamp)
                 mutation.trackIds.forEachIndexed { position, trackId ->
@@ -153,7 +156,9 @@ class SqlDelightPlaylistRepository(
             replaceEntries(
                 playlistId,
                 entryIds.map { id ->
-                    requireNotNull(byId[id]) { "Playlist entry not found: $id" }
+                    requireNotNull(byId[id]) {
+                        "Playlist entry not found: $id"
+                    }
                 },
             )
         }
@@ -181,4 +186,4 @@ private fun playlistFrom(
     name: String,
     createdAtEpochMillis: Long,
     updatedAtEpochMillis: Long,
-) = Playlist(id, name, createdAtEpochMillis, updatedAtEpochMillis)
+) = PlaylistSummary(id, name, createdAtEpochMillis, updatedAtEpochMillis)

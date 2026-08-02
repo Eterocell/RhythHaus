@@ -30,8 +30,8 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarRootTestTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -690,7 +690,8 @@ class PlaylistEditModeSemanticsJvmTest {
                 .assertExists()
         }
 
-    private fun playlist(id: String, name: String) = Playlist(id, name, 1L, 1L)
+    private fun playlist(id: String, name: String) =
+        PlaylistSummary(id, name, 1L, 1L)
 
     private fun entry(id: String, trackId: String, position: Int) =
         PlaylistEntry(id, "playlist-1", trackId, position, 1L)

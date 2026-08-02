@@ -2,9 +2,9 @@ package com.eterocell.rhythhaus.playlistbackup
 
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.ui.PlaylistImportOwnerResult
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import kotlin.test.Test
@@ -456,7 +456,7 @@ class PlaylistBackupUiStateTest {
 
     private fun snapshot() =
         PlaylistSnapshot(
-            playlists = listOf(Playlist("playlist", "Mix", 1, 1)),
+            playlists = listOf(PlaylistSummary("playlist", "Mix", 1, 1)),
             entriesByPlaylistId =
                 mapOf(
                     "playlist" to

@@ -60,8 +60,8 @@ import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.formatDuration
 import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.HausDialog
@@ -759,7 +759,7 @@ internal fun PlaylistHubScreen(
                 } else {
                     items(
                         state.confirmedSnapshot.playlists,
-                        key = Playlist::id) { playlist ->
+                        key = PlaylistSummary::id) { playlist ->
                             PlaylistHubRow(
                                 playlist = playlist,
                                 entryCount =
@@ -1198,7 +1198,7 @@ private fun QueueMutationActions(
 
 @Composable
 internal fun PlaylistDetailScreen(
-    playlist: Playlist,
+    playlist: PlaylistSummary,
     entries: List<PlaylistEntry>,
     libraryTracks: List<LibraryTrack>,
     state: PlaylistState,
@@ -1485,7 +1485,7 @@ internal fun PlaylistDetailScreen(
 
 @Composable
 internal fun AddToPlaylistPicker(
-    playlists: List<Playlist>,
+    playlists: List<PlaylistSummary>,
     state: AddToPlaylistPickerState,
     onStateChange: (AddToPlaylistPickerState) -> Unit,
     onDismiss: () -> Unit,
@@ -1788,7 +1788,7 @@ private fun PlaylistTabs(
 
 @Composable
 private fun PlaylistHubRow(
-    playlist: Playlist,
+    playlist: PlaylistSummary,
     entryCount: Int,
     onClick: () -> Unit
 ) {

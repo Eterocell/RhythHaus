@@ -1,66 +1,30 @@
 package com.eterocell.rhythhaus.library
 
-data class PlaylistEntry(
-    val id: String,
-    val playlistId: String,
-    val trackId: String,
-    val position: Int,
-    val createdAtEpochMillis: Long,
-)
-
-data class PlaylistImportMutation(
-    val name: String,
-    val trackIds: List<String>,
-)
-
-interface PlaylistRepository {
-    fun playlists(): List<Playlist>
-
-    fun playlist(id: String): Playlist?
-
-    fun entries(playlistId: String): List<PlaylistEntry>
-
-    fun create(name: String): Playlist
-
-    fun createWithEntries(name: String, trackIds: List<String>): Playlist
-
-    fun importPlaylists(playlists: List<PlaylistImportMutation>): List<Playlist>
-
-    fun rename(id: String, name: String)
-
-    fun delete(id: String)
-
-    fun append(playlistId: String, trackIds: List<String>)
-
-    fun removeEntry(entryId: String)
-
-    fun reorder(playlistId: String, entryIds: List<String>)
-}
-
 class InMemoryPlaylistRepository(
     private val now: () -> Long = ::currentTimeMillis,
     private val idFactory: () -> String = ::uuid4,
 ) : PlaylistRepository {
-    private var playlists = linkedMapOf<String, Playlist>()
+    private var playlists = linkedMapOf<String, PlaylistSummary>()
     private var entries = linkedMapOf<String, PlaylistEntry>()
 
-    override fun playlists(): List<Playlist> =
+    override fun playlists(): List<PlaylistSummary> =
         playlists.values.sortedWith(
-            compareBy<Playlist> { it.createdAtEpochMillis }
-                .thenBy(Playlist::id),
+            compareBy<PlaylistSummary> { it.createdAtEpochMillis }
+                .thenBy(PlaylistSummary::id),
         )
 
-    override fun playlist(id: String): Playlist? = playlists[id]
+    override fun playlist(id: String): PlaylistSummary? = playlists[id]
 
     override fun entries(playlistId: String): List<PlaylistEntry> =
         entries.values
             .filter { it.playlistId == playlistId }
             .sortedBy(PlaylistEntry::position)
 
-    override fun create(name: String): Playlist {
+    override fun create(name: String): PlaylistSummary {
         val timestamp = now()
         val playlist =
-            Playlist(idFactory(), requireName(name), timestamp, timestamp)
+            PlaylistSummary(
+                idFactory(), requireName(name), timestamp, timestamp)
         playlists[playlist.id] = playlist
         return playlist
     }
@@ -68,10 +32,11 @@ class InMemoryPlaylistRepository(
     override fun createWithEntries(
         name: String,
         trackIds: List<String>
-    ): Playlist {
+    ): PlaylistSummary {
         val timestamp = now()
         val playlist =
-            Playlist(idFactory(), requireName(name), timestamp, timestamp)
+            PlaylistSummary(
+                idFactory(), requireName(name), timestamp, timestamp)
         val initialEntries = trackIds.mapIndexed { position, trackId ->
             PlaylistEntry(idFactory(), playlist.id, trackId, position, now())
         }
@@ -82,7 +47,7 @@ class InMemoryPlaylistRepository(
 
     override fun importPlaylists(
         playlists: List<PlaylistImportMutation>
-    ): List<Playlist> {
+    ): List<PlaylistSummary> {
         val validated = validatePlaylistImports(playlists)
         if (validated.isEmpty()) return emptyList()
 
@@ -91,7 +56,8 @@ class InMemoryPlaylistRepository(
         val imported = validated.map { mutation ->
             val timestamp = now()
             val playlist =
-                Playlist(idFactory(), mutation.name, timestamp, timestamp)
+                PlaylistSummary(
+                    idFactory(), mutation.name, timestamp, timestamp)
             stagedPlaylists[playlist.id] = playlist
             mutation.trackIds.forEachIndexed { position, trackId ->
                 val entry =

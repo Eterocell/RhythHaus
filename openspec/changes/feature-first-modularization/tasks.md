@@ -29,8 +29,8 @@ Checkpoint: 4.1, 4.2, and 4.3 are accepted. 4.4 remains unchecked for later Andr
 
 ## 5. Slice 4 - Feature APIs And Playback Contracts
 
-- [ ] 5.1 Add RED contract tests for library and playlists API boundaries, Koin implementation modules, and the absence of feature-to-feature implementation/shared bridges.
-- [ ] 5.2 Introduce `:feature:library:api` and `:feature:playlists:api` while implementations remain in shared; ensure repositories/mappers remain implementation-owned and shared alone assembles implementations.
+- [x] 5.1 Add RED API boundary/value tests before settings registration, expecting `:feature:library:api`/`:feature:playlists:api` absent-project failure; cover Library's complete 13-method repository/model contract and Playlist's complete 11-method contract with `PlaylistSummary` rather than generated persistence `Playlist`. Add RED architecture controls for API -> database/shared/implementation, implementation -> shared/other implementation, and the currently wrong Playlist API -> core:model edge; add RED shared DI tests for the internal transitional factories/composition while preserving override behavior.
+- [x] 5.2 Introduce `:feature:library:api` with only `:core:model` as its production project dependency and `:feature:playlists:api` with no production project dependencies. Keep both APIs package-stable and explicit/KDoc-complete; keep Playlist persistence isolated behind `PlaylistSummary`. No physical implementation modules are created: repositories, mappers, scanner, backup, UI state, and Koin remain shared, where `libraryImplementationModule()` and `playlistsImplementationModule()` are composed only by public `rhythHausModule()`.
 - [ ] 5.3 Extract real playback engine/contracts into `:core:playback` with characterization coverage; do not create core navigation unless common destination-scoped Back contracts are required.
 - [ ] 5.4 Verify Back precedence, predictive target latching, foremost feature dismissal, playlist destination invalidation, DI, architecture/quality checks, and supported-platform focused tests.
 

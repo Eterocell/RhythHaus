@@ -53,6 +53,47 @@ There is no `:core:network` until a real cross-feature network concern exists. F
 
 Library owns scanner/source access, indexing, repositories, library UI, and its transient UI state. Playlists owns playlist repository/edit/backup/UI, including backup/document behavior. Playback engine and its contracts belong in `:core:playback`. Leaf feature-internal state remains local. Repository/mapping logic stays in feature implementations even though `:core:database` owns the physical SQLDelight database.
 
+### Task 4.1 Library And Playlist API Contracts
+
+Task 4.1 is contract-only: publish the full existing Library and Playlist repository
+interfaces while their implementations remain in `:shared`. `:feature:library:api`
+owns `LibraryRepository` and every immutable signature type required by its existing
+methods. It depends only on `:core:model`; scanner/source access implementations,
+transient `ScanProgress`, in-memory and SQLDelight adapters, mappers, UI, and
+playback-selection helpers remain implementation-owned in `:shared`.
+The published contract retains the complete source, track, artwork, scan-session,
+scan-error, and cleanup surface rather than reducing `LibraryRepository` to
+`tracks()`. `LibraryTrack` and `TrackArtwork` preserve their existing content-based
+`ByteArray` equality and hash semantics.
+
+`:feature:playlists:api` owns `PlaylistRepository`, `PlaylistSummary`, `PlaylistEntry`,
+and `PlaylistImportMutation`, with no production project dependency. The handwritten
+API type is `PlaylistSummary` because `:core:database` already generates
+`com.eterocell.rhythhaus.library.Playlist`; generated `Playlist` remains a
+persistence representation owned by the database and `:shared` adapters map it to
+`PlaylistSummary`. Every moved declaration preserves the existing
+`com.eterocell.rhythhaus.library` Kotlin package. No SQL schema, table name, database
+identity, migration history, or physical database ownership changes.
+Every `PlaylistRepository` method that currently returns the generated `Playlist`
+row returns `PlaylistSummary` at the feature API boundary; ordering, timestamps,
+validation, rollback, entry, and import behavior remain unchanged.
+
+Task 4.1 adds shared-owned internal transitional `libraryImplementationModule()` and
+`playlistsImplementationModule()` Koin factories. They are included and composed only
+by `rhythHausModule()` in `:shared`; API modules have no Koin dependency, and no
+physical feature implementation modules are created in this slice. The factories move
+with their implementations in later extraction tasks.
+
+API-local tests cover interfaces, values, explicit API, and KDoc using private fakes;
+existing implementation behavior tests remain in `:shared`. Shared DI tests prove both
+abstractions resolve to the existing SQLDelight adapters and that only `:shared`
+composes the factories. Architecture fixtures reject API-to-database/shared/
+implementation and implementation-to-shared/other-implementation bridges.
+
+Rejected alternatives are exposing generated database `Playlist` through the feature
+API, renaming the SQLDelight table-generated row without a schema change, and deferring
+Playlist API publication.
+
 Stateful screens use immutable `UiState`, `UiEvent`, and `UiEffect`, coordinated by a Presenter or ViewModel. Stateless UI does not receive empty pattern types. The data flow is:
 
 ```text
@@ -69,7 +110,7 @@ The existing Back contract is preserved exactly. One intent performs one transit
 
 ## Database, Resources, And iOS
 
-`:shared` is the one transitional physical SQLDelight owner. Task 1.3 moves only Gradle application/configuration into a dedicated build-logic convention; Task 3.1 later transfers the configured database/plugin ownership, true-layout `.sq`/`.sqm`/schema artifacts, drivers, and generated package atomically to `:core:database`. The Task 1.3 convention change preserves the existing database configuration, schema, migrations, package, database name, and platform driver behavior. Runtime/coroutine consumers, README text, and arbitrary filenames do not identify an owner.
+During Task 1.3, `:shared` was the transitional physical SQLDelight owner while only Gradle application/configuration moved into a dedicated build-logic convention. Accepted Task 3.1 transferred the configured database/plugin ownership, true-layout `.sq`/`.sqm`/schema artifacts, drivers, and generated package atomically to `:core:database`, which is now the sole physical SQLDelight owner. The Task 1.3 convention change preserved the existing database configuration, schema, migrations, package, database name, and platform driver behavior. Runtime/coroutine consumers, README text, and arbitrary filenames do not identify an owner.
 
 Resources move with their feature through recognized KMP/Compose source-set locations; a namespace is enforced only when exposed by the public module model. Each migration verifies Android packaging, desktop runtime resolution, and iOS linking. iOS exports only modules whose declarations enter the Swift/Objective-C public API; broad exports are forbidden. The existing shared framework entry remains stable.
 
@@ -103,7 +144,8 @@ convention-declared configured namespace, so the root never reads nested
 deterministic `ARCH-RESOURCE` diagnostics and is not passed to Compose Resources. The
 SQLDelight convention retains `app.cash.sqldelight:gradle-plugin:2.3.2` on build-logic
 `implementation`, applies/configures SQLDelight, and publishes typed public model facts while
-preserving `:shared` physical ownership. The root JVM `:architecture-processor` is not the
+preserving the accepted `:core:database` physical ownership (with `:shared` only the
+historical transitional owner during Task 1.3). The root JVM `:architecture-processor` is not the
 convention-plugin JAR. Core/API conventions record KSP only after applying it and registering
 the real production consumer; generic `ksp` is tooling only for single-platform JVM/Android,
 never an inferred/spoofed name. The processor receives normalized module/root arguments,

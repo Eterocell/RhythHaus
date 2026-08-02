@@ -3,8 +3,8 @@ package com.eterocell.rhythhaus.library.ui
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.library.InMemoryPlaylistRepository
-import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -256,12 +256,12 @@ class PlaylistStateTest {
                         idFactory = { "playlist-1" },
                     )
 
-                override fun playlists(): List<Playlist> {
+                override fun playlists(): List<PlaylistSummary> {
                     events += "read"
                     return delegate.playlists()
                 }
 
-                override fun create(name: String): Playlist {
+                override fun create(name: String): PlaylistSummary {
                     events += "write"
                     return delegate.create(name)
                 }
@@ -322,7 +322,7 @@ class PlaylistStateTest {
             val repository =
                 object :
                     com.eterocell.rhythhaus.library.PlaylistRepository by delegate {
-                    override fun playlists(): List<Playlist> =
+                    override fun playlists(): List<PlaylistSummary> =
                         if (failReads) error("old read failed")
                         else delegate.playlists()
                 }
@@ -355,7 +355,7 @@ class PlaylistStateTest {
         val repository =
             object :
                 com.eterocell.rhythhaus.library.PlaylistRepository by delegate {
-                override fun create(name: String): Playlist =
+                override fun create(name: String): PlaylistSummary =
                     if (failMutation) error("old mutation failed")
                     else delegate.create(name)
             }
@@ -377,7 +377,7 @@ class PlaylistStateTest {
     }
 
     private fun playlist(id: String) =
-        Playlist(
+        PlaylistSummary(
             id = id,
             name = "Playlist $id",
             createdAtEpochMillis = 1L,

@@ -102,7 +102,8 @@ class PlaylistRepositoryContractTest {
         val second = repository.createWithEntries("Same", listOf("track-b"))
 
         assertEquals(
-            listOf("Same", "Same"), repository.playlists().map(Playlist::name))
+            listOf("Same", "Same"),
+            repository.playlists().map(PlaylistSummary::name))
         assertEquals(
             listOf("track-a", "track-a"),
             repository.entries(first.id).map(PlaylistEntry::trackId))
@@ -208,11 +209,13 @@ class PlaylistRepositoryContractTest {
             )
 
         assertEquals(
-            listOf("playlist-1", "playlist-2"), imported.map(Playlist::id))
-        assertEquals(listOf("First", "Second"), imported.map(Playlist::name))
+            listOf("playlist-1", "playlist-2"),
+            imported.map(PlaylistSummary::id))
+        assertEquals(
+            listOf("First", "Second"), imported.map(PlaylistSummary::name))
         assertEquals(
             listOf("playlist-1", "playlist-2"),
-            repository.playlists().map(Playlist::id))
+            repository.playlists().map(PlaylistSummary::id))
         assertEquals(
             listOf("track-b", "track-a", "track-b"),
             repository.entries(imported[0].id).map(PlaylistEntry::trackId))
@@ -265,10 +268,11 @@ class PlaylistRepositoryContractTest {
         failSecondPlaylistEntry = false
         val imported = repository.importPlaylists(request)
 
-        assertEquals(listOf("First", "Second"), imported.map(Playlist::name))
+        assertEquals(
+            listOf("First", "Second"), imported.map(PlaylistSummary::name))
         assertEquals(
             setOf("Existing", "First", "Second"),
-            repository.playlists().map(Playlist::name).toSet())
+            repository.playlists().map(PlaylistSummary::name).toSet())
         assertEquals(3, repository.playlists().size)
         assertEquals(
             listOf("track-a", "track-a"),

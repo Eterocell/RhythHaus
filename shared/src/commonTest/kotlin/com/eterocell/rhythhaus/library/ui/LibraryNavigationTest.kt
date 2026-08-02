@@ -4,7 +4,7 @@ import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.library.Playlist
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -169,7 +169,8 @@ class LibraryNavigationTest {
 
         state.completeDisplayedPlaylistDeletion(
             PlaylistSnapshot(
-                playlists = listOf(Playlist("playlist-a", "Saved", 1L, 1L))),
+                playlists =
+                    listOf(PlaylistSummary("playlist-a", "Saved", 1L, 1L))),
             "playlist-a",
             entry,
         )

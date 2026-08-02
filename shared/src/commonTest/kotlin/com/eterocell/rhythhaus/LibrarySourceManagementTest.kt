@@ -1117,7 +1117,7 @@ private fun cancellingReconciler(events: MutableList<String>) =
 private class FailingPlaylistReadHarness {
     private var reads = 0
     private val confirmedPlaylist =
-        com.eterocell.rhythhaus.library.Playlist(
+        com.eterocell.rhythhaus.library.PlaylistSummary(
             id = "playlist-1",
             name = "Saved",
             createdAtEpochMillis = 1L,
@@ -1127,7 +1127,7 @@ private class FailingPlaylistReadHarness {
         object :
             com.eterocell.rhythhaus.library.PlaylistRepository by InMemoryPlaylistRepository() {
             override fun playlists():
-                List<com.eterocell.rhythhaus.library.Playlist> {
+                List<com.eterocell.rhythhaus.library.PlaylistSummary> {
                 reads += 1
                 error("playlist read failed")
             }
@@ -1157,7 +1157,8 @@ private class RecordingPlaylistRepository(
                     .iterator()::next,
         )
 
-    override fun playlists(): List<com.eterocell.rhythhaus.library.Playlist> {
+    override fun playlists():
+        List<com.eterocell.rhythhaus.library.PlaylistSummary> {
         events += "read_playlists"
         return delegate.playlists()
     }

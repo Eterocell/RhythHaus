@@ -24,7 +24,7 @@ import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.library.Playlist
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarPlayPauseTestTag
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarRootTestTag
@@ -366,7 +366,7 @@ class Task3ReviewSemanticsJvmTest {
         }
 
     private fun playlist() =
-        Playlist(
+        PlaylistSummary(
             id = "playlist-1",
             name = "Saved",
             createdAtEpochMillis = 1L,

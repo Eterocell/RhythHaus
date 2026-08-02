@@ -5,7 +5,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.navigationevent.DirectNavigationEventInput
 import androidx.navigationevent.NavigationEvent
 import androidx.navigationevent.NavigationEventDispatcher
-import com.eterocell.rhythhaus.library.Playlist
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -115,7 +115,7 @@ class PlaylistBackPolicyJvmTest {
             val destination = state.activeDestinationId
             setContent {
                 PlaylistDetailScreen(
-                    playlist = Playlist("playlist-1", "Saved", 1L, 1L),
+                    playlist = PlaylistSummary("playlist-1", "Saved", 1L, 1L),
                     entries = emptyList(),
                     libraryTracks = emptyList(),
                     state = PlaylistState(),

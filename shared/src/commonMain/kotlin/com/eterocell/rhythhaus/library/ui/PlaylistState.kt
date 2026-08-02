@@ -2,10 +2,10 @@ package com.eterocell.rhythhaus.library.ui
 
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.QueueOccurrence
-import com.eterocell.rhythhaus.library.Playlist
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -17,10 +17,12 @@ enum class PlaylistTab {
 }
 
 data class PlaylistSnapshot(
-    val playlists: List<Playlist> = emptyList(),
+    val playlists: List<PlaylistSummary> = emptyList(),
     val entriesByPlaylistId: Map<String, List<PlaylistEntry>> = emptyMap(),
 ) {
-    fun playlist(id: String): Playlist? = playlists.firstOrNull { it.id == id }
+    fun playlist(id: String): PlaylistSummary? = playlists.firstOrNull {
+        it.id == id
+    }
 
     fun entries(id: String): List<PlaylistEntry> =
         entriesByPlaylistId[id].orEmpty()
@@ -184,7 +186,7 @@ fun playlistRouteNotice(state: PlaylistState): PlaylistRouteNotice? =
 sealed interface PlaylistDetailResolution {
     data object AwaitConfirmation : PlaylistDetailResolution
 
-    data class Show(val playlist: Playlist) : PlaylistDetailResolution
+    data class Show(val playlist: PlaylistSummary) : PlaylistDetailResolution
 
     data class ReturnToHub(val message: String) : PlaylistDetailResolution
 }
