@@ -202,6 +202,7 @@ kotlin {
         }
         commonMain.dependencies {
             api(projects.core.model)
+            api(projects.core.ui)
             implementation(projects.taglib)
             implementation(libs.aboutlibraries.compose.m3)
             implementation(libs.coil.compose)

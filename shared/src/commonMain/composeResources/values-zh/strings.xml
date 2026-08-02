@@ -1,6 +1,4 @@
 <resources>
-    <string name="back">返回</string>
-    <string name="back_button">‹ 返回</string>
     <string name="library">资料库</string>
     <string name="library_queue">资料库队列</string>
     <string name="search">搜索</string>

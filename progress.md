@@ -1,3 +1,13 @@
+## Handoff - 2026-08-02 Task 2.2 final acceptance
+
+Route: openspec+superpowers
+Owner: implementation
+Input: Task 2.2 `:core:ui` extraction and final acceptance review.
+Output: Task 2.2 and OpenSpec 3.1/3.2/3.3 are accepted. `:core:ui` owns generic artwork rendering/decoder/cache, reusable UI primitives, theme mode and palette policy/locals, dialogs, localized Back resources, and public generated resources; the private `RhythHausTheme` composition remains in `:shared` with track-artwork loading and feature-owned UI/state/routes/gestures/scrubber/glass chrome. `:shared` uses `api(projects.core.ui)`; the iOS framework does not export core UI. Existing `docs/architecture.md` and ADR 0001 already describe this boundary, requiring no speculative churn. Authoritative evidence: `.superpowers/sdd/2026-07-27-feature-first-modularization/task-2.2-final-acceptance-report.md`.
+Verification: specification re-review and initial final quality review passed with no Critical/Important source findings; cleanup verification accepted both source fixes and required the corrected theme-ownership wording recorded here; final cleanup-ledger re-review PASS found no Critical, Important, or Minor findings. Earlier acceptance gates passed `spotlessApply`; strict-cache `:core:ui:allTests :shared:jvmTest architectureCheck`; desktop and Android compilation/resource checks; iOS simulator compilation; Xcode 26.6 availability; standalone Spotless/Detekt; strict OpenSpec validation; and diff checks. Retained XML aggregates: core UI 51 and shared JVM 562 tests, all zero failure/error/skip. After two minor cleanup corrections, the focused JVM/architecture gate passed with 31 tasks, then the all-target core UI/shared JVM/architecture gate passed with 93 tasks and stored configuration cache.
+Next owner: implementation for Task 2.3 inventory.
+Blockers: no Task 2.2 blocker. Chinese resource rendering and Android/iOS interaction were not runtime-tested; platform artwork decoders compile without platform decode-correctness tests; iOS evidence does not prove linked-app runtime resource lookup. `./init.sh` remains intentionally not rerun after the prior user-directed stop beyond 9000 seconds. Base commit was `53cc75c`; no Task 2.2 commit exists. Planned commit boundary: `refactor: extract core ui`.
+
 ## Handoff - 2026-08-01 Task 2.1 final acceptance
 
 Route: openspec+superpowers

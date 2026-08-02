@@ -1,6 +1,4 @@
 <resources>
-    <string name="back">Back</string>
-    <string name="back_button">‹ Back</string>
     <string name="library">Library</string>
     <string name="library_queue">Library queue</string>
     <string name="search">Search</string>

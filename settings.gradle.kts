@@ -43,6 +43,8 @@ include(":shared")
 
 include(":core:model")
 
+include(":core:ui")
+
 include(":taglib")
 
 include(":architecture-processor")

@@ -54,9 +54,10 @@ import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import kotlin.math.max
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import rhythhaus.core.ui.generated.resources.Res as CoreUiRes
+import rhythhaus.core.ui.generated.resources.back
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.album_artwork
-import rhythhaus.shared.generated.resources.back
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
@@ -142,7 +143,7 @@ internal fun DrillDownMiuixScrollChrome(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription =
-                                stringResource(Res.string.back),
+                                stringResource(CoreUiRes.string.back),
                             tint = HausColors.current.ink,
                         )
                     }
@@ -309,7 +310,7 @@ internal fun DrillDownArtworkBackButton(
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = stringResource(Res.string.back),
+            contentDescription = stringResource(CoreUiRes.string.back),
             tint = HausColors.current.ink,
         )
     }

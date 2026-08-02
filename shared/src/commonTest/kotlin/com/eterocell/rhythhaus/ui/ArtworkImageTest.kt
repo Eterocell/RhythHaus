@@ -4,25 +4,12 @@ import com.eterocell.rhythhaus.library.TrackArtwork
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
-import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
+import kotlin.test.assertSame
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 
 class ArtworkImageTest {
-    @Test
-    fun artworkMemoryCacheKeyIncludesRoleAndSize() {
-        val bytes = byteArrayOf(1, 2, 3, 4)
-
-        val thumbnailKey =
-            artworkMemoryCacheKey(bytes, ArtworkImageRole.Thumbnail)
-        val heroKey = artworkMemoryCacheKey(bytes, ArtworkImageRole.Hero)
-
-        assertNotEquals(thumbnailKey, heroKey)
-        assertTrue(thumbnailKey.contains("thumbnail"))
-        assertTrue(heroKey.contains("hero"))
-        assertTrue(thumbnailKey.endsWith(":4"))
-    }
-
     @Test
     fun trackIdentityStartsLoadingWithoutClaimingArtworkAvailability() {
         assertEquals(
@@ -65,5 +52,17 @@ class ArtworkImageTest {
             TrackArtworkLoadState.Unavailable,
             loadTrackArtworkState("failed") { error("decode failed") },
         )
+    }
+
+    @Test
+    fun cancellationRethrowsTheExactLoaderException() = runBlocking {
+        val cancellation = CancellationException("cancelled")
+
+        val thrown =
+            assertFailsWith<CancellationException> {
+                loadTrackArtworkState("cancelled") { throw cancellation }
+            }
+
+        assertSame(cancellation, thrown)
     }
 }

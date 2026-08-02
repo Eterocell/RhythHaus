@@ -12,11 +12,11 @@
 
 ## 3. Slice 2 - Core Model And UI
 
-- [ ] 3.1 Add RED characterization and dependency tests for cross-feature immutable projections and reusable UI/theme/artwork abstractions, including proof that feature UI state does not enter core UI.
-- [ ] 3.2 Create and migrate the demanded `:core:model` and `:core:ui` contracts/implementations while preserving Kotlin packages; make focused tests, architectureCheck, Detekt, and Spotless GREEN.
-- [ ] 3.3 Verify Android, desktop, and iOS compilation/resource behavior for the core extraction and update architecture/ADR/tracker evidence.
+- [x] 3.1 Task 2.1 and Task 2.2 provide the required RED characterization/dependency coverage for immutable projections and reusable UI/theme/generic-artwork boundaries; Task 2.2 retains feature UI state and track-artwork loading in `:shared`.
+- [x] 3.2 Task 2.1 created `:core:model`; Task 2.2 created `:core:ui` with package preservation. Focused tests, architectureCheck, Detekt, Spotless, and strict configuration-cache acceptance gates are GREEN. Initial final quality review PASS found no Critical/Important findings; cleanup verification confirmed the two source corrections and required the ledger to distinguish core theme policy/palettes from the private shared `RhythHausTheme` composition. The corrected source internalizes `ArtworkImageRole.keySuffix` and derives the core UI JVM ui-test version from `libs.versions.compose.multiplatform`; final cleanup-ledger re-review PASS found no findings.
+- [x] 3.3 Task 2.2 passed explicit Android packaging/resource, desktop compilation, and iOS simulator compilation checks; Xcode 26.6 was available. Existing `docs/architecture.md` and ADR 0001 already describe the exact accepted boundary, so no speculative canonical-document churn was needed. Runtime Chinese rendering, Android/iOS interaction, platform decoder correctness, and linked iOS-app resource lookup remain unverified limits.
 
-Checkpoint: Task 2.1 accepts the `:core:model` half only. Its focused model RED/GREEN and architecture/shared JVM evidence are accepted; OpenSpec 3.1, 3.2, and 3.3 remain pending for Task 2.2 and the broader platform verification required by 3.3.
+Checkpoint: Task 2.1 accepted the `:core:model` half and Task 2.2 accepted `:core:ui`; OpenSpec 3.1, 3.2, and 3.3 are complete. `./init.sh` remains intentionally not rerun after the prior user-directed stop beyond 9000 seconds, so the full init matrix is not claimed.
 
 ## 4. Slice 3 - Database And Platform
 
