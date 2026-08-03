@@ -1,6 +1,5 @@
 package com.eterocell.rhythhaus
 
-import com.eterocell.rhythhaus.library.appLocalMusicFolderPath
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,8 +26,10 @@ import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusCommandFailed
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 
-actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine =
-    IOSPlaybackEngine()
+/** Creates the iOS platform playback engine. */
+public fun createIOSPlaybackEngine(
+    resolver: IOSRelativeFilePathResolver,
+): PlatformPlaybackEngine = IOSPlaybackEngine(resolver)
 
 internal enum class IOSTrackSwitchTeardown {
     SoftFade,
@@ -40,7 +41,9 @@ internal const val IOS_TRACK_SWITCH_FADE_SECONDS: Double = 0.05
 internal const val IOS_TRACK_SWITCH_SILENT_VOLUME: Float = 0.0f
 
 @OptIn(ExperimentalForeignApi::class)
-private class IOSPlaybackEngine : PlatformPlaybackEngine {
+private class IOSPlaybackEngine(
+    private val relativeFilePathResolver: IOSRelativeFilePathResolver,
+) : PlatformPlaybackEngine {
     override var listener: PlaybackEngineListener? = null
     private var audioProvider: IOSAudioPlayerProvider? = null
     private var loadedTrack: PlayableTrack? = null
@@ -86,26 +89,26 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         releaseForTrackSwitch()
         activeGeneration = generation
         val version = ++sourceVersion
-        log.d { "Loading track: ${track.title}" }
+        playbackLog.d { "Loading track: ${track.title}" }
         listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
         configureAudioSession()
         val path =
             try {
-                track.source.iosFilePath()
+                track.source.iosFilePath(relativeFilePathResolver)
             } catch (t: Throwable) {
                 val errorMsg =
                     "Could not resolve player path: ${track.title} (${t.message})"
-                log.e { errorMsg }
+                playbackLog.e { errorMsg }
                 listener?.onPlaybackError(
                     generation, PlaybackError(errorMsg, cause = null))
                 throw t
             }
-        log.d { "Player path: $path" }
+        playbackLog.d { "Player path: $path" }
 
         val provider = IOSAudioPlayerBridge.provider
         if (provider == null) {
             val errorMsg = "iOS audio player provider is unavailable"
-            log.e { errorMsg }
+            playbackLog.e { errorMsg }
             val error = PlaybackError(errorMsg, cause = null)
             listener?.onPlaybackError(generation, error)
             error(errorMsg)
@@ -114,7 +117,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
 
         if (!provider.load(path)) {
             val errorMsg = "Cannot play: ${track.title}"
-            log.e { errorMsg }
+            playbackLog.e { errorMsg }
             val error = PlaybackError(errorMsg, cause = path)
             listener?.onPlaybackError(generation, error)
             error(errorMsg)
@@ -128,7 +131,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
         updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         provider.pause()
         listener?.onPlaybackProgress(generation, 0L, durationMillis)
-        log.d { "Loaded OK: duration=${durationMillis}ms" }
+        playbackLog.d { "Loaded OK: duration=${durationMillis}ms" }
         listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
         return LoadedPlayback(generation, durationMillis)
     }
@@ -146,10 +149,10 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
 
     override fun play() {
         val provider = requireNotNull(audioProvider) { "No player loaded" }
-        log.d { "Playing: ${loadedTrack?.title}" }
+        playbackLog.d { "Playing: ${loadedTrack?.title}" }
         if (!provider.play()) {
             val errorMsg = "Could not start playback: ${loadedTrack?.title}"
-            log.e { errorMsg }
+            playbackLog.e { errorMsg }
             listener?.onPlaybackError(
                 activeGeneration, PlaybackError(errorMsg, cause = null))
             return
@@ -158,7 +161,7 @@ private class IOSPlaybackEngine : PlatformPlaybackEngine {
             val probedDuration = provider.currentDurationMillis()
             if (probedDuration != null) {
                 durationMillis = probedDuration
-                log.d {
+                playbackLog.d {
                     "Re-probed duration after play(): ${probedDuration}ms (was null at load time)"
                 }
             }
@@ -481,13 +484,15 @@ internal fun buildIOSNowPlayingDictionary(
     put(MPNowPlayingInfoPropertyPlaybackRate, playbackRate)
 }
 
-private fun AudioSource.iosFilePath(): String =
+private fun AudioSource.iosFilePath(
+    relativeFilePathResolver: IOSRelativeFilePathResolver,
+): String =
     when (this) {
         is AudioSource.FilePath -> {
             // Container UUID changes on every Xcode install — resolve relative
             // paths.
             if (path.startsWith("/")) path
-            else "${appLocalMusicFolderPath()}/$path"
+            else relativeFilePathResolver.resolve(path)
         }
 
         is AudioSource.Uri ->

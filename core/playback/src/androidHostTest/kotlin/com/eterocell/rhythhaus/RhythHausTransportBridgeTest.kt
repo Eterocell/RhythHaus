@@ -83,7 +83,7 @@ class RhythHausTransportBridgeTest {
                 }
             }
 
-        val engine = createPlatformPlaybackEngine()
+        val engine = createAndroidPlaybackEngine()
         engine.listener = listener
 
         RhythHausTransportBridge.skipToNext()

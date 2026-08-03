@@ -26,11 +26,12 @@ import androidx.media3.session.MediaSessionService
  * instead of advancing an internal playlist. This keeps queue state in exactly
  * one place.
  */
-class RhythHausPlaybackService : MediaSessionService() {
+public class RhythHausPlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
 
-    override fun onCreate() {
+    /** Creates the process-owned Media3 session and player. */
+    public override fun onCreate(): Unit {
         super.onCreate()
         val exoPlayer =
             ExoPlayer.Builder(this)
@@ -61,11 +62,13 @@ class RhythHausPlaybackService : MediaSessionService() {
                 .build()
     }
 
-    override fun onGetSession(
+    /** Returns the session exposed to Media3 controllers. */
+    public override fun onGetSession(
         controllerInfo: MediaSession.ControllerInfo
     ): MediaSession? = mediaSession
 
-    override fun onTaskRemoved(rootIntent: Intent?) {
+    /** Stops the service after task removal only when playback is inactive. */
+    public override fun onTaskRemoved(rootIntent: Intent?): Unit {
         // Intentionally does not call super: when media is actively playing we
         // keep the foreground
         // service alive after the task is swiped away (the canonical media3
@@ -80,7 +83,8 @@ class RhythHausPlaybackService : MediaSessionService() {
         }
     }
 
-    override fun onDestroy() {
+    /** Releases the Media3 session and player during service teardown. */
+    public override fun onDestroy(): Unit {
         mediaSession?.run {
             player.release()
             release()

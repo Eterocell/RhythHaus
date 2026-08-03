@@ -1,3 +1,14 @@
+## Handoff - 2026-08-04 Task 4.2 final acceptance
+
+Route: openspec+superpowers
+Owner: documentation-only closeout
+Input: approved Task 4.2 implementation, delegated implementation evidence, controller final-snapshot verification, and independent re-review.
+Output: Task 4.2 and OpenSpec 5.3/5.4 accepted. `:core:playback` atomically owns package-stable playback contracts/controller/session value+codec, platform engines/service/bridges/native helper/factories, and moved tests; it depends only on approved core model/platform edges. Shared retains session coordinator/store/DataStore/process lifecycle/Koin/App orchestration and the package-stable platform-factory facade; Shared remains the sole Xcode-facing framework and narrowly exports core playback. Independent re-review found no findings, SPEC PASS, and QUALITY APPROVED; the prior behavioral-KDoc finding remains resolved. Authoritative evidence: `.superpowers/sdd/2026-07-27-feature-first-modularization/task-4.2-final-acceptance-report.md`.
+Verification: controller consumer matrix passed with configuration-cache reuse (289 actionable: 15 executed, 4 from cache, 270 up-to-date); fresh core/shared tests passed with 122 executed tasks; rebuilt external-JAR architecture functional suite passed (XML 60/0/0/0); strict root architectureCheck passed twice with second-run reuse; Xcode 26.6 generic iOS Simulator consumer build and iOS simulator tests passed; standalone Spotless/Detekt, strict OpenSpec, native-helper, zero-placeholder, and diff checks passed. Acceptance-time deterministic test-race repair was test-only: readiness synchronization, no production behavior/assertion/expected value change; PlaybackController XML is JVM/Android-host/iOS-simulator 53/53/53, zero skipped/failures/errors.
+Durability: implementation-only commit `ab1768c` (`refactor: extract playback contracts`) exists. The accompanying evidence-closeout commit is the remaining current action represented by this ledger package; it carries the tracked ledgers and force-added ignored evidence files, and no docs SHA is claimed.
+Next owner: Task 5.1 after the accompanying evidence-closeout commit.
+Blockers: OpenSpec 4.4 remains open because `./init.sh`, desktop runtime, and Android/iOS runtime/device media validation were not run or claimed.
+
 ## Handoff - 2026-08-03 Task 4.1 final acceptance
 
 Route: openspec+superpowers

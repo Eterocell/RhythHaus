@@ -1,0 +1,87 @@
+import org.gradle.api.tasks.Exec
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+val nativeAudioResourceRoot =
+    layout.buildDirectory.dir("generated/nativeAudioResources/jvmMain")
+val macosAudioResourceArch =
+    when (System.getProperty("os.arch").lowercase()) {
+        "aarch64",
+        "arm64" -> "macos-aarch64"
+        else -> "macos-x64"
+    }
+val macosAudioHelperOutputFile =
+    layout.buildDirectory
+        .file(
+            "generated/nativeAudioResources/jvmMain/native/$macosAudioResourceArch/librhythhaus_audio.dylib",
+        )
+        .get()
+        .asFile
+val macosAudioHelperSourceFile =
+    layout.projectDirectory
+        .file("src/nativeInterop/macos/rhythhaus_audio.mm")
+        .asFile
+val javaHomePath = providers.systemProperty("java.home").get()
+val buildMacosAudioHelper by
+    tasks.registering(Exec::class) {
+        inputs.file(macosAudioHelperSourceFile)
+        outputs.file(macosAudioHelperOutputFile)
+        macosAudioHelperOutputFile.parentFile.mkdirs()
+        executable = "clang++"
+        args(
+            "-dynamiclib",
+            "-std=c++17",
+            "-fobjc-arc",
+            "-framework",
+            "Foundation",
+            "-framework",
+            "AVFoundation",
+            "-framework",
+            "MediaPlayer",
+            "-framework",
+            "AppKit",
+            "-I$javaHomePath/include",
+            "-I$javaHomePath/include/darwin",
+            macosAudioHelperSourceFile.absolutePath,
+            "-o",
+            macosAudioHelperOutputFile.absolutePath)
+    }
+
+plugins {
+    id("build-logic.kmp.core")
+    id("build-logic.android.kmp.library")
+}
+
+kotlin {
+    jvm()
+    iosArm64()
+    iosSimulatorArm64()
+    android {
+        namespace = "com.eterocell.rhythhaus.playback"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
+        compilerOptions { jvmTarget = JvmTarget.JVM_11 }
+        withHostTest {}
+    }
+    sourceSets {
+        jvmMain { resources.srcDir(nativeAudioResourceRoot) }
+        commonMain.dependencies {
+            api(projects.core.model)
+            api(libs.kotlinx.coroutinesCore)
+            implementation(projects.core.platform)
+            implementation(libs.kermit)
+        }
+        androidMain.dependencies {
+            implementation(libs.androidx.media3.exoplayer)
+            implementation(libs.androidx.media3.session)
+        }
+        commonTest.dependencies { implementation(libs.kotlin.test) }
+    }
+}
+
+tasks
+    .matching {
+        it.name in setOf("jvmProcessResources", "processJvmMainResources")
+    }
+    .configureEach {
+        dependsOn(buildMacosAudioHelper)
+    }

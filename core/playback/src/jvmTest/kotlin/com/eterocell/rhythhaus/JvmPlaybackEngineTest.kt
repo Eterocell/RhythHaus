@@ -198,7 +198,7 @@ class JvmPlaybackEngineTest {
     @Test
     fun nativeMacPlaybackEngineLoadsGeneratedWavFile() {
         val wavPath = createSilentWavFile()
-        val engine = createPlatformPlaybackEngine()
+        val engine = createJvmPlaybackEngine()
         val events = mutableListOf<PlaybackStatus>()
         var latestDuration: Long? = null
         var latestError: PlaybackError? = null
@@ -269,7 +269,7 @@ class JvmPlaybackEngineTest {
     @Test
     fun nativeMacPlaybackEnginePublishesProgressWhilePlaying() {
         val wavPath = createSilentWavFile(durationMillis = 800)
-        val engine = createPlatformPlaybackEngine()
+        val engine = createJvmPlaybackEngine()
         val progressPositions = mutableListOf<Long>()
         val progressLatch = CountDownLatch(1)
         var latestError: PlaybackError? = null

@@ -8,7 +8,8 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
-actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine =
+/** Creates the JVM platform playback engine. */
+public fun createJvmPlaybackEngine(): PlatformPlaybackEngine =
     MacOSNativePlaybackEngine()
 
 private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {

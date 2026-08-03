@@ -11,6 +11,7 @@ public object ArchitectureAllowList {
             ":feature:library:impl" to setOf(":feature:library:api"),
             ":feature:playlists:impl" to setOf(":feature:playlists:api"),
             ":feature:library:api" to setOf(":core:model"),
+            ":core:playback" to setOf(":core:model", ":core:platform"),
         )
 
     private val policies: Map<String, ModulePolicy> =
@@ -22,7 +23,7 @@ public object ArchitectureAllowList {
             ":core:model" to ModulePolicy(setOf("com.eterocell.rhythhaus")),
             ":core:database" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
             ":core:platform" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
-            ":core:playback" to ModulePolicy(setOf("com.eterocell.rhythhaus.playback")),
+            ":core:playback" to ModulePolicy(setOf("com.eterocell.rhythhaus")),
             ":core:ui" to ModulePolicy(setOf("com.eterocell.rhythhaus.ui", "com.eterocell.rhythhaus.theme")),
             ":feature:library:api" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
             ":feature:library:impl" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
@@ -39,7 +40,8 @@ public object ArchitectureAllowList {
 
     public fun requiresExplicitApi(modulePath: String): Boolean = modulePath.startsWith(":core:") || modulePath.endsWith(":api")
 
-    public fun allowsIosExport(modulePath: String, exportedProjectPath: String): Boolean = false
+    public fun allowsIosExport(modulePath: String, exportedProjectPath: String): Boolean =
+        modulePath == ":shared" && exportedProjectPath == ":core:playback"
 
     public fun sqlDelightOwner(): String = ":core:database"
 

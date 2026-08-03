@@ -225,6 +225,9 @@ class RhythHausDiTest {
                 koin.get<PlaybackController>(), koin.get<PlaybackController>())
             assertSame(
                 koin.get<PlaybackController>(),
+                koin.get<PlatformPlaybackEngine>().listener)
+            assertSame(
+                koin.get<PlaybackController>(),
                 koin.get<PlaybackSessionController>())
             assertSame(EmptySessionStore, koin.get<PlaybackSessionStore>())
             assertSame(

@@ -3,7 +3,6 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
-import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.OutputFile
@@ -59,25 +58,6 @@ abstract class VerifyRhythHausVersionOverrideTask : DefaultTask() {
     }
 }
 
-val nativeAudioResourceRoot =
-    layout.buildDirectory.dir("generated/nativeAudioResources/jvmMain")
-val macosAudioResourceArch =
-    when (System.getProperty("os.arch").lowercase()) {
-        "aarch64",
-        "arm64" -> "macos-aarch64"
-        else -> "macos-x64"
-    }
-val macosAudioHelperOutputFile =
-    layout.buildDirectory
-        .file(
-            "generated/nativeAudioResources/jvmMain/native/$macosAudioResourceArch/librhythhaus_audio.dylib")
-        .get()
-        .asFile
-val macosAudioHelperSourceFile =
-    layout.projectDirectory
-        .file("src/nativeInterop/macos/rhythhaus_audio.mm")
-        .asFile
-val javaHomePath = providers.systemProperty("java.home").get()
 val rhythHausVersionName = providers.gradleProperty("rhythhaus.versionName")
 val generatedBuildInfoRoot =
     layout.buildDirectory.dir("generated/rhythHausBuildInfo/commonMain/kotlin")
@@ -92,31 +72,6 @@ val generateRhythHausBuildInfo =
                 },
             )
         }
-val buildMacosAudioHelper by
-    tasks.registering(Exec::class) {
-        inputs.file(macosAudioHelperSourceFile)
-        outputs.file(macosAudioHelperOutputFile)
-        macosAudioHelperOutputFile.parentFile.mkdirs()
-        executable = "clang++"
-        args(
-            "-dynamiclib",
-            "-std=c++17",
-            "-fobjc-arc",
-            "-framework",
-            "Foundation",
-            "-framework",
-            "AVFoundation",
-            "-framework",
-            "MediaPlayer",
-            "-framework",
-            "AppKit",
-            "-I$javaHomePath/include",
-            "-I$javaHomePath/include/darwin",
-            macosAudioHelperSourceFile.absolutePath,
-            "-o",
-            macosAudioHelperOutputFile.absolutePath,
-        )
-    }
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -157,6 +112,7 @@ kotlin {
             iosTarget.binaries.framework {
                 baseName = "Shared"
                 isStatic = true
+                export(projects.core.playback)
             }
             iosTarget.binaries.all {
                 linkerOpts("-lsqlite3")
@@ -189,17 +145,13 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.documentfile)
-            implementation(libs.androidx.media3.exoplayer)
-            implementation(libs.androidx.media3.session)
-        }
-        jvmMain {
-            resources.srcDir(nativeAudioResourceRoot)
         }
         commonMain.dependencies {
             api(projects.core.model)
             api(projects.core.ui)
             api(projects.core.database)
             api(projects.core.platform)
+            api(projects.core.playback)
             api(projects.feature.library.api)
             api(projects.feature.playlists.api)
             implementation(projects.taglib)
@@ -250,11 +202,3 @@ tasks.register<VerifyRhythHausVersionOverrideTask>(
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }
-
-tasks
-    .matching {
-        it.name in setOf("jvmProcessResources", "processJvmMainResources")
-    }
-    .configureEach {
-        dependsOn(buildMacosAudioHelper)
-    }

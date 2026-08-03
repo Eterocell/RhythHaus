@@ -74,11 +74,13 @@ internal class AndroidControllerLifecycle(
 
 private var rhythHausAndroidContext: Context? = null
 
-fun setRhythHausAndroidContext(context: Context) {
+/** Sets the application context used by Android playback integration. */
+public fun setRhythHausAndroidContext(context: Context) {
     rhythHausAndroidContext = context.applicationContext
 }
 
-actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine =
+/** Creates the Android platform playback engine. */
+public fun createAndroidPlaybackEngine(): PlatformPlaybackEngine =
     AndroidPlaybackEngine()
 
 /**

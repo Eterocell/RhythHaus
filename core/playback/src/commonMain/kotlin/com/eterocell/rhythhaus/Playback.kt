@@ -25,75 +25,121 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class PlaybackStatus {
+/** Represents the current lifecycle state of a playback request. */
+public enum class PlaybackStatus {
+    /** No media is selected for playback. */
     Idle,
+    /** The selected media is being prepared by the engine. */
     Loading,
+    /** The engine is waiting for playable media data. */
     Buffering,
+    /** Media is advancing at the current playback position. */
     Playing,
+    /** Media is loaded but not advancing. */
     Paused,
+    /** Playback was stopped and its position reset. */
     Stopped,
+    /** The most recent engine operation failed. */
     Error,
 }
 
-enum class RepeatMode {
+/** Selects how playback advances when a track completes. */
+public enum class RepeatMode {
+    /** Restarts the selected occurrence after it completes. */
     RepeatOne,
+    /** Continues from the first occurrence after the queue ends. */
     RepeatPlaylist,
+    /** Stops when the selected occurrence completes. */
     StopAfterCurrent,
+    /** Continues through upcoming occurrences, then stops. */
     StopAfterQueue,
 }
 
-enum class ShuffleMode {
+/** Selects whether queue traversal preserves insertion order. */
+public enum class ShuffleMode {
+    /** Traverses occurrences in their queue order. */
     Off,
+    /** Traverses occurrences using the generated shuffled order. */
     On,
 }
 
-data class PlaybackError(
-    val message: String,
-    val cause: String? = null,
+/** Describes an error reported while loading or playing audio. */
+public data class PlaybackError(
+    /** User-visible summary of the playback failure. */
+    public val message: String,
+    /** Optional underlying failure detail. */
+    public val cause: String? = null,
 )
 
-data class QueueOccurrence(
-    val id: String,
-    val track: PlayableTrack,
+/** Identifies one queue occurrence and its track, including duplicates. */
+public data class QueueOccurrence(
+    /** Stable identifier for this queue occurrence. */
+    public val id: String,
+    /** Track assigned to this queue occurrence. */
+    public val track: PlayableTrack,
 )
 
-sealed interface QueueMutationResult {
-    data object Applied : QueueMutationResult
+/** Result of a queue mutation. */
+public sealed interface QueueMutationResult {
+    /** Indicates that the mutation was applied. */
+    public data object Applied : QueueMutationResult
 
-    data class Rejected(val reason: QueueMutationRejection) :
-        QueueMutationResult
+    /** Indicates that the mutation was rejected. */
+    public data class Rejected(
+        /** Rejection reason. */
+        public val reason: QueueMutationRejection,
+    ) : QueueMutationResult
 }
 
-enum class QueueMutationRejection {
+/** Explains why a requested queue mutation could not be applied. */
+public enum class QueueMutationRejection {
+    /** The selected occurrence cannot be moved or removed. */
     CurrentOccurrence,
+    /** The requested occurrence is no longer in the upcoming queue. */
     StaleOccurrence,
+    /** The requested destination is outside the upcoming queue. */
     InvalidTargetIndex,
+    /** Session coordination has temporarily disabled mutations. */
     CommandsDisabled,
 }
 
-data class PlaybackState(
-    val currentOccurrenceId: String? = null,
-    val queue: List<QueueOccurrence> = emptyList(),
-    val status: PlaybackStatus = PlaybackStatus.Idle,
-    val positionMillis: Long = 0L,
-    val durationMillis: Long? = null,
-    val repeatMode: RepeatMode = RepeatMode.StopAfterQueue,
-    val shuffleMode: ShuffleMode = ShuffleMode.Off,
-    val error: PlaybackError? = null,
+/** Immutable state published by [PlaybackController]. */
+public data class PlaybackState(
+    /** Identifier of the selected queue occurrence, when any. */
+    public val currentOccurrenceId: String? = null,
+    /** Ordered queue including duplicate track occurrences. */
+    public val queue: List<QueueOccurrence> = emptyList(),
+    /** Lifecycle state reported by the platform engine. */
+    public val status: PlaybackStatus = PlaybackStatus.Idle,
+    /** Current playback position in milliseconds. */
+    public val positionMillis: Long = 0L,
+    /** Known media duration in milliseconds, when available. */
+    public val durationMillis: Long? = null,
+    /** Completion behavior selected for the active queue. */
+    public val repeatMode: RepeatMode = RepeatMode.StopAfterQueue,
+    /** Queue traversal behavior selected for the active queue. */
+    public val shuffleMode: ShuffleMode = ShuffleMode.Off,
+    /** Most recent playback error, cleared after a successful state change. */
+    public val error: PlaybackError? = null,
     internal val checkpointRevision: Long = 0L,
 ) {
-    val currentOccurrence: QueueOccurrence?
+    /** Selected queue occurrence, when its identifier resolves in [queue]. */
+    public val currentOccurrence: QueueOccurrence?
         get() = queue.firstOrNull { it.id == currentOccurrenceId }
 
-    val currentTrack: PlayableTrack?
+    /** Track for [currentOccurrence], when one is selected. */
+    public val currentTrack: PlayableTrack?
         get() = currentOccurrence?.track
 
-    val canPlay: Boolean =
+    /** Whether the selected state can accept a play request. */
+    public val canPlay: Boolean =
         currentTrack != null &&
             status != PlaybackStatus.Loading &&
             status != PlaybackStatus.Buffering
-    val isPlaying: Boolean = status == PlaybackStatus.Playing
-    val progressFraction: Float
+    /** Whether the engine has reported active playback. */
+    public val isPlaying: Boolean = status == PlaybackStatus.Playing
+    /** Normalized progress from zero to one when a duration is known. */
+    public val progressFraction: Float
         get() {
             val duration = durationMillis ?: return 0f
             if (duration <= 0L) return 0f
@@ -104,61 +150,90 @@ data class PlaybackState(
 }
 
 private data class RevisionedShuffleOrder(
-    val revision: Long = 0L,
-    val sourceQueueIds: List<String> = emptyList(),
-    val shuffleMode: ShuffleMode = ShuffleMode.Off,
-    val occurrenceIds: List<String> = emptyList(),
+    internal val revision: Long = 0L,
+    internal val sourceQueueIds: List<String> = emptyList(),
+    internal val shuffleMode: ShuffleMode = ShuffleMode.Off,
+    internal val occurrenceIds: List<String> = emptyList(),
 )
 
-interface PlaybackEngineListener {
-    fun onPlaybackStatus(generation: Long, status: PlaybackStatus)
+/**
+ * Receives lifecycle and transport callbacks from a platform playback engine.
+ */
+public interface PlaybackEngineListener {
+    /** Reports a lifecycle [status] for the specified load [generation]. */
+    public fun onPlaybackStatus(generation: Long, status: PlaybackStatus)
 
-    fun onPlaybackProgress(
+    /**
+     * Reports position and optional duration for the specified load
+     * [generation].
+     */
+    public fun onPlaybackProgress(
         generation: Long,
         positionMillis: Long,
         durationMillis: Long?
     )
 
-    fun onPlaybackCompleted(generation: Long)
+    /** Reports completion of the media associated with [generation]. */
+    public fun onPlaybackCompleted(generation: Long)
 
-    fun onPlaybackError(generation: Long, error: PlaybackError)
+    /** Reports a playback [error] associated with [generation]. */
+    public fun onPlaybackError(generation: Long, error: PlaybackError)
 
-    fun onSkipToNext(generation: Long)
+    /** Requests navigation to the next occurrence for [generation]. */
+    public fun onSkipToNext(generation: Long)
 
-    fun onSkipToPrevious(generation: Long)
+    /** Requests navigation to the previous occurrence for [generation]. */
+    public fun onSkipToPrevious(generation: Long)
 }
 
-data class LoadedPlayback(val generation: Long, val durationMillis: Long?)
+/** Captures the generation and duration produced by a paused load. */
+public data class LoadedPlayback(
+    /** Generation that owns the loaded media. */
+    public val generation: Long,
+    /** Duration reported by the engine, when known. */
+    public val durationMillis: Long?,
+)
 
-interface PlatformPlaybackEngine {
-    var listener: PlaybackEngineListener?
+/** Platform-specific engine controlled by [PlaybackController]. */
+public interface PlatformPlaybackEngine {
+    /** Listener that receives engine lifecycle and transport callbacks. */
+    public var listener: PlaybackEngineListener?
 
-    suspend fun loadPaused(
+    /**
+     * Loads [track] without starting it and associates it with [generation].
+     */
+    public suspend fun loadPaused(
         track: PlayableTrack,
         generation: Long
     ): LoadedPlayback
 
-    fun clear(generation: Long)
+    /** Clears media and invalidates callbacks from [generation]. */
+    public fun clear(generation: Long)
 
-    fun setUserTransportEnabled(enabled: Boolean)
+    /** Enables or disables user-initiated transport controls. */
+    public fun setUserTransportEnabled(enabled: Boolean)
 
-    fun play()
+    /** Starts the currently loaded media. */
+    public fun play()
 
-    fun pause()
+    /** Pauses the currently loaded media. */
+    public fun pause()
 
-    fun stop()
+    /** Stops the currently loaded media. */
+    public fun stop()
 
-    fun seekTo(positionMillis: Long)
+    /** Moves the current media position to [positionMillis]. */
+    public fun seekTo(positionMillis: Long)
 
-    fun release()
+    /** Releases engine resources and stops future callbacks. */
+    public fun release()
 }
-
-expect fun createPlatformPlaybackEngine(): PlatformPlaybackEngine
 
 internal expect val playbackEngineDispatcher: CoroutineDispatcher
 
-class PlaybackController(
-    private val engine: PlatformPlaybackEngine = createPlatformPlaybackEngine(),
+/** Coordinates queue state with one explicitly supplied playback engine. */
+public class PlaybackController(
+    private val engine: PlatformPlaybackEngine,
     private val shuffleOrderFactory: (List<String>, String?) -> List<String> =
         ::defaultShuffleOrder,
     private val artworkLoader: (String) -> ByteArray? = { null },
@@ -177,7 +252,8 @@ class PlaybackController(
     private val occurrenceNamespace: String = uuid4()
     private var nextOccurrenceNumber: Long = 0L
     private val _state = MutableStateFlow(PlaybackState())
-    val state: StateFlow<PlaybackState> = _state.asStateFlow()
+    /** Publishes immutable playback state to observers. */
+    public val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
     // One process-owned persistence coordinator is the sole consumer. Unlimited
     // buffering keeps
@@ -188,7 +264,8 @@ class PlaybackController(
     private val checkpointTransportMutex = Mutex()
     private var checkpointCollectorActive = false
     private var checkpointTransportFailure: Throwable? = null
-    override val checkpoints: Flow<PlaybackCheckpoint> = flow {
+    /** Emits ordered persistence checkpoints to the session owner. */
+    public override val checkpoints: Flow<PlaybackCheckpoint> = flow {
         checkpointTransportMutex.withLock {
             check(!checkpointCollectorActive)
             checkpointTransportFailure?.let { throw it }
@@ -222,7 +299,8 @@ class PlaybackController(
         engine.listener = this
     }
 
-    fun setQueue(
+    /** Replaces the queue and selects the first matching [selectedTrackId]. */
+    public fun setQueue(
         tracks: List<PlayableTrack>,
         selectedTrackId: String? = tracks.firstOrNull()?.id
     ) {
@@ -234,7 +312,8 @@ class PlaybackController(
         setOccurrenceQueue(occurrences, selectedOccurrenceId)
     }
 
-    fun setOccurrenceQueue(
+    /** Replaces occurrences and begins loading the selected occurrence. */
+    public fun setOccurrenceQueue(
         occurrences: List<QueueOccurrence>,
         selectedOccurrenceId: String? = occurrences.firstOrNull()?.id,
     ) {
@@ -275,14 +354,19 @@ class PlaybackController(
         }
     }
 
-    fun selectTrack(trackId: String, autoPlay: Boolean = false) {
+    /** Selects the first queue occurrence for [trackId]. */
+    public fun selectTrack(trackId: String, autoPlay: Boolean = false) {
         val occurrenceId =
             _state.value.queue.firstOrNull { it.track.id == trackId }?.id
                 ?: return
         selectOccurrence(occurrenceId, autoPlay)
     }
 
-    fun selectOccurrence(occurrenceId: String, autoPlay: Boolean = false) {
+    /** Loads [occurrenceId] and optionally starts playback when ready. */
+    public fun selectOccurrence(
+        occurrenceId: String,
+        autoPlay: Boolean = false
+    ) {
         if (!commandsEnabled.value) return
         val occurrence = occurrenceById(occurrenceId) ?: return
         resetProgressCheckpointKey()
@@ -290,17 +374,19 @@ class PlaybackController(
         emitImmediateCheckpoint()
     }
 
-    fun setRepeatMode(mode: RepeatMode) {
+    /** Changes the completion behavior and persists the updated session. */
+    public fun setRepeatMode(mode: RepeatMode) {
         if (!commandsEnabled.value) return
         val previous = _state.value.repeatMode
         if (previous == mode) return
         val published = publishState { it.copy(repeatMode = mode) }
         emitImmediateCheckpoint(
             published.toSessionSnapshot(), published.checkpointRevision)
-        log.d { "RepeatMode changed: $previous -> $mode" }
+        playbackLog.d { "RepeatMode changed: $previous -> $mode" }
     }
 
-    fun cycleRepeatMode() {
+    /** Advances to the next supported repeat mode. */
+    public fun cycleRepeatMode() {
         if (!commandsEnabled.value) return
         val previous = _state.value.repeatMode
         val next =
@@ -310,25 +396,27 @@ class PlaybackController(
                 RepeatMode.RepeatOne -> RepeatMode.StopAfterCurrent
                 RepeatMode.StopAfterCurrent -> RepeatMode.StopAfterQueue
             }
-        log.d { "Cycle repeat mode: $previous -> $next" }
+        playbackLog.d { "Cycle repeat mode: $previous -> $next" }
         setRepeatMode(next)
     }
 
-    fun setShuffleMode(mode: ShuffleMode) {
+    /** Changes queue traversal behavior and persists the updated session. */
+    public fun setShuffleMode(mode: ShuffleMode) {
         if (!commandsEnabled.value) return
         val previous = _state.value.shuffleMode
         if (previous == mode) return
         val published = publishState { it.copy(shuffleMode = mode) }
-        log.d { "ShuffleMode changed: $previous -> $mode" }
+        playbackLog.d { "ShuffleMode changed: $previous -> $mode" }
         publishRuntimeShuffleOrder(published)
-        log.d {
+        playbackLog.d {
             "Shuffle mode applied, effective order: ${effectiveOrder(published)}"
         }
         emitImmediateCheckpoint(
             published.toSessionSnapshot(), published.checkpointRevision)
     }
 
-    fun toggleShuffleMode() {
+    /** Switches between ordered and shuffled queue traversal. */
+    public fun toggleShuffleMode() {
         if (!commandsEnabled.value) return
         val previous = _state.value.shuffleMode
         val next =
@@ -336,11 +424,12 @@ class PlaybackController(
                 ShuffleMode.Off -> ShuffleMode.On
                 ShuffleMode.On -> ShuffleMode.Off
             }
-        log.d { "Toggle shuffle: $previous -> $next" }
+        playbackLog.d { "Toggle shuffle: $previous -> $next" }
         setShuffleMode(next)
     }
 
-    fun play() {
+    /** Starts selected media, or requests playback after an active load. */
+    public fun play() {
         if (!commandsEnabled.value) return
         val current = _state.value.currentOccurrence ?: return
         if (_state.value.status == PlaybackStatus.Loading) {
@@ -355,14 +444,16 @@ class PlaybackController(
         launchEngineAction { engine.play() }
     }
 
-    fun pause() {
+    /** Pauses media and emits a persistence checkpoint. */
+    public fun pause() {
         if (!commandsEnabled.value) return
         playWhenLoaded = false
         launchEngineAction { engine.pause() }
         emitImmediateCheckpoint()
     }
 
-    fun stop() {
+    /** Stops media and emits a persistence checkpoint. */
+    public fun stop() {
         if (!commandsEnabled.value) return
         playWhenLoaded = false
         resetProgressCheckpointKey()
@@ -370,7 +461,8 @@ class PlaybackController(
         emitImmediateCheckpoint()
     }
 
-    fun seekTo(positionMillis: Long) {
+    /** Clamps and applies a new playback position. */
+    public fun seekTo(positionMillis: Long) {
         if (!commandsEnabled.value) return
         val duration = _state.value.durationMillis
         val safePosition =
@@ -385,12 +477,14 @@ class PlaybackController(
             published.toSessionSnapshot(), published.checkpointRevision)
     }
 
-    fun togglePlayPause() {
+    /** Pauses active playback or starts the selected occurrence. */
+    public fun togglePlayPause() {
         if (!commandsEnabled.value) return
         if (_state.value.isPlaying) pause() else play()
     }
 
-    fun restartCurrentTrack() {
+    /** Restarts the selected occurrence from position zero. */
+    public fun restartCurrentTrack() {
         if (!commandsEnabled.value) return
         val current = _state.value.currentOccurrence ?: return
         val published = publishState {
@@ -414,7 +508,8 @@ class PlaybackController(
             published.toSessionSnapshot(), published.checkpointRevision)
     }
 
-    fun skipToNext() {
+    /** Loads the next occurrence, wrapping only for playlist repeat. */
+    public fun skipToNext() {
         if (!commandsEnabled.value) return
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
         nextTrack(wrap)?.let {
@@ -423,7 +518,8 @@ class PlaybackController(
         }
     }
 
-    fun skipToPrevious() {
+    /** Loads the previous occurrence, wrapping only for playlist repeat. */
+    public fun skipToPrevious() {
         if (!commandsEnabled.value) return
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
         previousTrack(wrap)?.let {
@@ -432,7 +528,8 @@ class PlaybackController(
         }
     }
 
-    suspend fun reorderUpcoming(
+    /** Moves an upcoming occurrence to [targetUpcomingIndex]. */
+    public suspend fun reorderUpcoming(
         occurrenceId: String,
         targetUpcomingIndex: Int
     ): QueueMutationResult = sessionOperationMutex.withLock {
@@ -466,35 +563,38 @@ class PlaybackController(
         error("Unreachable queue mutation loop")
     }
 
-    suspend fun removeUpcoming(occurrenceId: String): QueueMutationResult =
-        sessionOperationMutex.withLock {
-            while (true) {
-                if (!commandsEnabled.value)
-                    return@withLock QueueMutationResult.Rejected(
-                        QueueMutationRejection.CommandsDisabled)
-                val currentState = _state.value
-                if (occurrenceId == currentState.currentOccurrenceId) {
-                    return@withLock QueueMutationResult.Rejected(
-                        QueueMutationRejection.CurrentOccurrence)
-                }
-                val upcoming = currentState.upcomingOccurrences()
-                val sourceIndex = upcoming.indexOfFirst {
-                    it.id == occurrenceId
-                }
-                if (sourceIndex < 0) {
-                    return@withLock QueueMutationResult.Rejected(
-                        QueueMutationRejection.StaleOccurrence)
-                }
-                val updated =
-                    upcoming.toMutableList().apply { removeAt(sourceIndex) }
-                if (applyUpcomingQueueMutation(currentState, updated)) {
-                    return@withLock QueueMutationResult.Applied
-                }
+    /** Removes an upcoming occurrence when it is still present. */
+    public suspend fun removeUpcoming(
+        occurrenceId: String
+    ): QueueMutationResult = sessionOperationMutex.withLock {
+        while (true) {
+            if (!commandsEnabled.value)
+                return@withLock QueueMutationResult.Rejected(
+                    QueueMutationRejection.CommandsDisabled)
+            val currentState = _state.value
+            if (occurrenceId == currentState.currentOccurrenceId) {
+                return@withLock QueueMutationResult.Rejected(
+                    QueueMutationRejection.CurrentOccurrence)
             }
-            error("Unreachable queue mutation loop")
+            val upcoming = currentState.upcomingOccurrences()
+            val sourceIndex = upcoming.indexOfFirst {
+                it.id == occurrenceId
+            }
+            if (sourceIndex < 0) {
+                return@withLock QueueMutationResult.Rejected(
+                    QueueMutationRejection.StaleOccurrence)
+            }
+            val updated =
+                upcoming.toMutableList().apply { removeAt(sourceIndex) }
+            if (applyUpcomingQueueMutation(currentState, updated)) {
+                return@withLock QueueMutationResult.Applied
+            }
         }
+        error("Unreachable queue mutation loop")
+    }
 
-    suspend fun clearUpcoming(): QueueMutationResult =
+    /** Removes every occurrence after the selected occurrence. */
+    public suspend fun clearUpcoming(): QueueMutationResult =
         sessionOperationMutex.withLock {
             while (true) {
                 if (!commandsEnabled.value)
@@ -507,7 +607,8 @@ class PlaybackController(
             error("Unreachable queue mutation loop")
         }
 
-    fun release() {
+    /** Releases controller resources and stops checkpoint delivery. */
+    public fun release() {
         scope.cancel()
         engine.listener = null
         engine.release()
@@ -515,15 +616,18 @@ class PlaybackController(
         _state.value = _state.value.copy(status = PlaybackStatus.Stopped)
     }
 
-    override fun setCommandsEnabled(enabled: Boolean) {
+    /** Enables or disables externally issued playback commands. */
+    public override fun setCommandsEnabled(enabled: Boolean) {
         commandsEnabled.value = enabled
         engine.setUserTransportEnabled(enabled)
     }
 
-    override fun sessionSnapshot(): PlaybackSessionSnapshot =
+    /** Returns the current queue and transport state for persistence. */
+    public override fun sessionSnapshot(): PlaybackSessionSnapshot =
         _state.value.toSessionSnapshot()
 
-    override suspend fun awaitCheckpointFence() {
+    /** Waits until all previously emitted checkpoints are observed. */
+    public override suspend fun awaitCheckpointFence() {
         val reply = CompletableDeferred<Unit>()
         checkpointTransportMutex.withLock {
             checkpointTransportFailure?.let { throw it }
@@ -538,7 +642,10 @@ class PlaybackController(
         reply.await()
     }
 
-    override suspend fun restoreSession(
+    /**
+     * Restores persisted session state using the currently available [tracks].
+     */
+    public override suspend fun restoreSession(
         snapshot: PlaybackSessionSnapshot,
         tracks: List<PlayableTrack>,
     ): RevisionedPlaybackSessionSnapshot = sessionOperationMutex.withLock {
@@ -598,14 +705,17 @@ class PlaybackController(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (throwable: Throwable) {
-            log.e { throwable.stackTraceToString() }
+            playbackLog.e { throwable.stackTraceToString() }
             clearPausedState(snapshot.repeatMode, snapshot.shuffleMode)
         }
         emitImmediateCheckpoint()
         revisionedSessionSnapshot()
     }
 
-    override suspend fun reconcileSession(
+    /**
+     * Removes unavailable tracks and reconciles the active persisted session.
+     */
+    public override suspend fun reconcileSession(
         tracks: List<PlayableTrack>,
     ): RevisionedPlaybackSessionSnapshot = sessionOperationMutex.withLock {
         loadJob?.cancel()
@@ -668,7 +778,7 @@ class PlaybackController(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (throwable: Throwable) {
-            log.e { throwable.stackTraceToString() }
+            playbackLog.e { throwable.stackTraceToString() }
             clearPausedState(previous.repeatMode, previous.shuffleMode)
             throw throwable
         }
@@ -895,7 +1005,7 @@ class PlaybackController(
             }
         } catch (throwable: Throwable) {
             if (throwable is CancellationException) throw throwable
-            log.e { throwable.stackTraceToString() }
+            playbackLog.e { throwable.stackTraceToString() }
             onPlaybackError(
                 activeGeneration,
                 PlaybackError(
@@ -970,12 +1080,19 @@ class PlaybackController(
             published.toSessionSnapshot(), published.checkpointRevision)
     }
 
-    override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) {
+    /** Applies a status callback when it belongs to the active generation. */
+    public override fun onPlaybackStatus(
+        generation: Long,
+        status: PlaybackStatus
+    ) {
         if (generation != activeGeneration) return
         _state.value = _state.value.copy(status = status, error = null)
     }
 
-    override fun onPlaybackProgress(
+    /**
+     * Applies progress and emits at most one checkpoint per playback second.
+     */
+    public override fun onPlaybackProgress(
         generation: Long,
         positionMillis: Long,
         durationMillis: Long?
@@ -1009,7 +1126,8 @@ class PlaybackController(
         )
     }
 
-    override fun onPlaybackCompleted(generation: Long) {
+    /** Advances or stops the queue according to the selected repeat mode. */
+    public override fun onPlaybackCompleted(generation: Long) {
         if (generation != activeGeneration) return
         when (_state.value.repeatMode) {
             RepeatMode.RepeatOne -> {
@@ -1044,18 +1162,24 @@ class PlaybackController(
         }
     }
 
-    override fun onPlaybackError(generation: Long, error: PlaybackError) {
+    /** Publishes an engine error for the active generation. */
+    public override fun onPlaybackError(
+        generation: Long,
+        error: PlaybackError
+    ) {
         if (generation != activeGeneration) return
         _state.value =
             _state.value.copy(status = PlaybackStatus.Error, error = error)
     }
 
-    override fun onSkipToNext(generation: Long) {
+    /** Handles an engine request to advance the active queue. */
+    public override fun onSkipToNext(generation: Long) {
         if (generation != activeGeneration) return
         skipToNext()
     }
 
-    override fun onSkipToPrevious(generation: Long) {
+    /** Handles an engine request to return to the previous occurrence. */
+    public override fun onSkipToPrevious(generation: Long) {
         if (generation != activeGeneration) return
         skipToPrevious()
     }
@@ -1080,16 +1204,20 @@ private fun defaultShuffleOrder(
     return listOf(currentId) + shuffled.filterNot { it == currentId }
 }
 
-class FakePlaybackEngine : PlatformPlaybackEngine {
-    override var listener: PlaybackEngineListener? = null
+/** In-memory engine for tests and compatibility callers. */
+public class FakePlaybackEngine : PlatformPlaybackEngine {
+    /** Listener notified by this in-memory engine. */
+    public override var listener: PlaybackEngineListener? = null
     private var loaded: PlayableTrack? = null
     private var positionMillis: Long = 0L
     private var durationMillis: Long? = null
     private var generation: Long = 0L
-    var released: Boolean = false
+    /** Whether [release] has been invoked. */
+    public var released: Boolean = false
         private set
 
-    override suspend fun loadPaused(
+    /** Records a paused load and reports its initial engine state. */
+    public override suspend fun loadPaused(
         track: PlayableTrack,
         generation: Long
     ): LoadedPlayback {
@@ -1102,46 +1230,56 @@ class FakePlaybackEngine : PlatformPlaybackEngine {
         return LoadedPlayback(generation, durationMillis)
     }
 
-    override fun clear(generation: Long) {
+    /** Clears the loaded track for [generation]. */
+    public override fun clear(generation: Long) {
         this.generation = generation
         loaded = null
         positionMillis = 0L
         durationMillis = null
     }
 
-    override fun setUserTransportEnabled(enabled: Boolean) = Unit
+    /** Ignores user-transport availability in the in-memory engine. */
+    public override fun setUserTransportEnabled(enabled: Boolean): Unit = Unit
 
-    override fun play() {
+    /** Reports that the loaded media is playing. */
+    public override fun play() {
         requireNotNull(loaded) { "No track loaded" }
         listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
     }
 
-    override fun pause() {
+    /** Reports that the loaded media is paused. */
+    public override fun pause() {
         listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
     }
 
-    override fun stop() {
+    /** Resets position and reports that the loaded media stopped. */
+    public override fun stop() {
         positionMillis = 0L
         listener?.onPlaybackProgress(generation, positionMillis, durationMillis)
         listener?.onPlaybackStatus(generation, PlaybackStatus.Stopped)
     }
 
-    override fun seekTo(positionMillis: Long) {
+    /** Updates position and reports it to the listener. */
+    public override fun seekTo(positionMillis: Long) {
         this.positionMillis = positionMillis
         listener?.onPlaybackProgress(generation, positionMillis, durationMillis)
     }
 
-    fun fail(message: String) {
+    /** Reports a synthetic playback failure to the listener. */
+    public fun fail(message: String) {
         listener?.onPlaybackError(generation, PlaybackError(message))
     }
 
-    fun complete() {
+    /** Reports synthetic completion to the listener. */
+    public fun complete() {
         listener?.onPlaybackCompleted(generation)
     }
 
-    fun activeGenerationForTest(): Long = generation
+    /** Returns the generation currently owned by this fake engine. */
+    public fun activeGenerationForTest(): Long = generation
 
-    override fun release() {
+    /** Marks this engine released and clears its loaded media. */
+    public override fun release() {
         released = true
         loaded = null
     }

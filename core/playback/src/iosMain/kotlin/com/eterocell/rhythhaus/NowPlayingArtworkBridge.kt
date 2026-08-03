@@ -5,19 +5,21 @@ package com.eterocell.rhythhaus
  * cinterop doesn't expose NSData(bytes:length:) so the ByteArray → NSData →
  * UIImage → MPMediaItemArtwork chain must be built natively.
  */
-interface NowPlayingArtworkProvider {
-    fun setArtwork(
+public interface NowPlayingArtworkProvider {
+    /** Updates lock-screen artwork metadata. */
+    public fun setArtwork(
         trackTitle: String,
         artist: String,
         album: String?,
         artworkBytes: ByteArray?
-    )
+    ): Unit
 }
 
 /**
  * Bridge object — the Swift app sets its provider in App.init().
  * IOSPlaybackEngine calls this from updateNowPlayingInfo().
  */
-object NowPlayingArtworkBridge {
-    var provider: NowPlayingArtworkProvider? = null
+public object NowPlayingArtworkBridge {
+    /** Swift-owned artwork backend used by playback. */
+    public var provider: NowPlayingArtworkProvider? = null
 }

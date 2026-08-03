@@ -125,7 +125,7 @@ Gradle TestKit illegal fixtures begin RED before gate implementation. The reject
 1. Add governance baseline: TestKit RED fixtures, convention plugins, documentation/ADRs, and `architectureCheck`/`qualityCheck`.
 2. Extract core model/UI contracts and implementations.
 3. Atomically move SQLDelight and extract narrow platform capabilities.
-4. Introduce library/playlists APIs and playback contracts while implementations remain in shared.
+4. Introduce library/playlists APIs while their implementations remain in `:shared`; Task 4.2 atomically extracts playback contracts, controller, and session value contracts plus Android/iOS/JVM/native playback engines, service, bridges, and native helper into `:core:playback`, while `:shared` retains playback session coordination/store/process lifecycle, Koin/App orchestration, and the package-stable platform-factory facade.
 5. Extract leaf implementations: Now Playing, playlists/backup, Search, Settings.
 6. Extract Library last, splitting shell from feature ownership.
 7. Clean shared to its thin final role; add a real-structure-only scaffold after successful migrations; schedule package renames separately.

@@ -836,6 +836,28 @@ class ArchitectureCheckPluginFunctionalTest {
     @Test fun unapprovedIosFrameworkExportFails() =
         assertFailure(Mutation.UnapprovedIosExport, listOf("ARCH-IOS-EXPORT"), ":core:model")
 
+    @Test
+    fun corePlaybackPositivePolicyAcceptsPreservedPackagesAndIosExport() {
+        runner(corePlaybackFixture(), ":core:playback:compileKotlinJvm", "architectureCheck").build()
+    }
+
+    @Test
+    fun corePlaybackCannotDependOnShared() =
+        assertExactFailure(
+            corePlaybackFixture(dependsOnShared = true),
+            listOf(
+                "ARCH-CYCLE :core:playback -> :shared -> :core:playback",
+                "ARCH-EDGE :core:playback [architecture] -> :shared",
+            ),
+        )
+
+    @Test
+    fun corePlaybackIsTheOnlyNewAllowedIosExport() =
+        assertExactFailure(
+            corePlaybackFixture(exportModel = true),
+            listOf("ARCH-IOS-EXPORT :shared -> :core:model"),
+        )
+
     private fun assertFailure(mutation: Mutation, expectedRules: List<String>, relevantText: String) =
         assertFailure(fixture(mutation), expectedRules, relevantText)
 
@@ -982,6 +1004,68 @@ class ArchitectureCheckPluginFunctionalTest {
             Mutation.UnapprovedIosExport -> iosExport(projectDir)
             null -> Unit
         }
+        return projectDir
+    }
+
+    private fun corePlaybackFixture(
+        dependsOnShared: Boolean = false,
+        exportModel: Boolean = false,
+    ): File {
+        val projectDir = fixture()
+        val settings = projectDir.resolve("settings.gradle.kts")
+        settings.writeText(
+            settings.readText().replace(
+                ":core:ui\", \":feature",
+                ":core:ui\", \":core:platform\", \":core:playback\", \":architecture-processor\", \":feature",
+            ),
+        )
+        val processorDir = moduleDir(projectDir, ":architecture-processor")
+        processorProject().resolve("src").copyRecursively(processorDir.resolve("src"), overwrite = true)
+        processorDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins { id("org.jetbrains.kotlin.jvm") }
+            repositories { mavenCentral() }
+            dependencies { implementation("com.google.devtools.ksp:symbol-processing-api:2.3.10") }
+            """.trimIndent(),
+        )
+        module(projectDir, ":core:platform")
+        kmpModule(projectDir, ":core:platform", strict = true)
+        module(projectDir, ":core:playback")
+        buildFile(projectDir, ":core:playback").writeText(
+            "plugins { id(\"build-logic.kmp.core\") }\nconfigurations.maybeCreate(\"architecture\")\nkotlin { jvm() }",
+        )
+        dependency(projectDir, ":core:playback", ":core:model")
+        dependency(projectDir, ":core:playback", ":core:platform")
+        dependency(projectDir, ":shared", ":core:playback")
+        source(
+            projectDir,
+            ":core:playback",
+            "PlaybackContract.kt",
+            """
+            package com.eterocell.rhythhaus
+
+            /** Package-stable playback contract fixture. */
+            public class PlaybackContract
+            """.trimIndent(),
+        )
+        source(
+            projectDir,
+            ":core:playback",
+            "session/PlaybackSessionController.kt",
+            """
+            package com.eterocell.rhythhaus.session
+
+            /** A package-stable playback session port. */
+            public interface PlaybackSessionController
+            """.trimIndent(),
+        )
+        val exports =
+            buildString {
+                append("export(project(\":core:playback\"))")
+                if (exportModel) append("; export(project(\":core:model\"))")
+            }
+        append(projectDir, ":shared", "kotlin { iosArm64().binaries.framework { $exports } }")
+        if (dependsOnShared) dependency(projectDir, ":core:playback", ":shared")
         return projectDir
     }
 

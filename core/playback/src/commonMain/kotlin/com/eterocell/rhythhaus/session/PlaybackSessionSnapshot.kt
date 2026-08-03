@@ -3,14 +3,31 @@ package com.eterocell.rhythhaus.session
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
 
-data class PlaybackSessionSnapshot(
-    val queue: List<SessionQueueEntry> = emptyList(),
-    val currentOccurrenceId: String? = null,
-    val positionMillis: Long = 0L,
-    val repeatMode: RepeatMode = RepeatMode.StopAfterQueue,
-    val shuffleMode: ShuffleMode = ShuffleMode.Off,
+/** Persistable queue selection and transport settings. */
+public data class PlaybackSessionSnapshot(
+    /** Ordered persisted queue occurrences. */
+    public val queue: List<SessionQueueEntry> = emptyList(),
+    /** Selected queue occurrence, when any. */
+    public val currentOccurrenceId: String? = null,
+    /** Non-negative playback position for the selected occurrence. */
+    public val positionMillis: Long = 0L,
+    /** Completion behavior restored with this session. */
+    public val repeatMode: RepeatMode = RepeatMode.StopAfterQueue,
+    /** Queue traversal behavior restored with this session. */
+    public val shuffleMode: ShuffleMode = ShuffleMode.Off,
 ) {
-    constructor(
+    /**
+     * Converts the legacy track-ID queue into distinct persisted occurrences.
+     *
+     * @param queueIds Legacy ordered track IDs.
+     * @param currentTrackId Legacy selected track ID.
+     * @param positionMillis Legacy position for the selected track.
+     * @param repeatMode Legacy completion behavior.
+     * @param shuffleMode Legacy queue traversal behavior.
+     * @param legacyTrackIds Retained source-compatibility marker for legacy
+     *   callers.
+     */
+    public constructor(
         queueIds: List<String>,
         currentTrackId: String?,
         positionMillis: Long = 0L,
@@ -31,28 +48,39 @@ data class PlaybackSessionSnapshot(
         shuffleMode = shuffleMode,
     )
 
-    val queueIds: List<String>
+    /** Track IDs in queue order for legacy callers. */
+    public val queueIds: List<String>
         get() = queue.map { it.trackId }
 
-    val currentTrackId: String?
+    /** Selected track ID resolved from [currentOccurrenceId]. */
+    public val currentTrackId: String?
         get() =
             queue
                 .firstOrNull { it.occurrenceId == currentOccurrenceId }
                 ?.trackId
 }
 
-data class SessionQueueEntry(
-    val occurrenceId: String,
-    val trackId: String,
+/** Identifies one persisted occurrence and the track it references. */
+public data class SessionQueueEntry(
+    /** Stable persisted occurrence identifier. */
+    public val occurrenceId: String,
+    /** Identifier of the occurrence's track. */
+    public val trackId: String,
 )
 
-object PlaybackSessionCodec {
-    const val maxIds = 10_000
-    const val maxIdCharacters = 4_096
-    const val maxIdUtf8Bytes = 16_384
-    const val maxEncodedUtf8Bytes = 1_048_576
+/** Encodes and validates persisted playback-session values. */
+public object PlaybackSessionCodec {
+    /** Maximum supported IDs. */
+    public const val maxIds: Int = 10_000
+    /** Maximum ID characters. */
+    public const val maxIdCharacters: Int = 4_096
+    /** Maximum UTF-8 bytes per ID. */
+    public const val maxIdUtf8Bytes: Int = 16_384
+    /** Maximum encoded UTF-8 bytes. */
+    public const val maxEncodedUtf8Bytes: Int = 1_048_576
 
-    fun encodeSnapshot(snapshot: PlaybackSessionSnapshot): String {
+    /** Encodes a validated session snapshot. */
+    public fun encodeSnapshot(snapshot: PlaybackSessionSnapshot): String {
         require(hasValidOccurrences(snapshot.queue))
         require(
             snapshot.currentOccurrenceId == null ||
@@ -69,7 +97,8 @@ object PlaybackSessionCodec {
         )
     }
 
-    fun decodeSnapshot(encoded: String): PlaybackSessionSnapshot? {
+    /** Decodes a valid session snapshot or returns null for invalid input. */
+    public fun decodeSnapshot(encoded: String): PlaybackSessionSnapshot? {
         val values =
             decodeIds(
                 encoded,
@@ -89,7 +118,8 @@ object PlaybackSessionCodec {
             queue = queue, currentOccurrenceId = currentOccurrenceId)
     }
 
-    fun encodeQueue(queue: List<SessionQueueEntry>): String {
+    /** Encodes a validated persisted occurrence queue. */
+    public fun encodeQueue(queue: List<SessionQueueEntry>): String {
         require(hasValidOccurrences(queue))
         return encodeIds(
             queue.flatMap { listOf(it.occurrenceId, it.trackId) },
@@ -98,7 +128,8 @@ object PlaybackSessionCodec {
         )
     }
 
-    fun decodeQueue(encoded: String): List<SessionQueueEntry>? {
+    /** Decodes a valid persisted occurrence queue or returns null. */
+    public fun decodeQueue(encoded: String): List<SessionQueueEntry>? {
         val values =
             decodeIds(encoded, requireUnique = false, maxFrames = maxIds * 2)
                 ?: return null
@@ -109,7 +140,8 @@ object PlaybackSessionCodec {
             .takeIf(::hasValidOccurrences)
     }
 
-    fun encodeIds(ids: List<String>): String =
+    /** Encodes distinct non-empty identifiers. */
+    public fun encodeIds(ids: List<String>): String =
         encodeIds(ids, requireUnique = true)
 
     private fun encodeIds(
@@ -139,7 +171,8 @@ object PlaybackSessionCodec {
         }
     }
 
-    fun decodeIds(encoded: String): List<String>? =
+    /** Decodes distinct non-empty identifiers or returns null. */
+    public fun decodeIds(encoded: String): List<String>? =
         decodeIds(encoded, requireUnique = true)
 
     private fun decodeIds(
@@ -190,28 +223,43 @@ object PlaybackSessionCodec {
     }
 }
 
-sealed interface PlaybackCheckpoint {
-    val snapshot: PlaybackSessionSnapshot
-    val revision: Long?
+/** A persisted playback checkpoint. */
+public sealed interface PlaybackCheckpoint {
+    /** Session snapshot carried by every checkpoint. */
+    public val snapshot: PlaybackSessionSnapshot
+    /** Persisted revision associated with [snapshot], when available. */
+    public val revision: Long?
 
-    data class Immediate(
-        override val snapshot: PlaybackSessionSnapshot,
-        override val revision: Long? = null,
+    /** A checkpoint taken immediately. */
+    public data class Immediate(
+        /** Captured session. */
+        public override val snapshot: PlaybackSessionSnapshot,
+        /** Persisted revision. */
+        public override val revision: Long? = null,
     ) : PlaybackCheckpoint
 
-    data class PlayingProgress(
-        val key: ProgressCheckpointKey,
-        override val snapshot: PlaybackSessionSnapshot,
-        override val revision: Long? = null,
+    /** A checkpoint taken while playing. */
+    public data class PlayingProgress(
+        /** Checkpoint identity. */
+        public val key: ProgressCheckpointKey,
+        /** Captured session. */
+        public override val snapshot: PlaybackSessionSnapshot,
+        /** Persisted revision. */
+        public override val revision: Long? = null,
     ) : PlaybackCheckpoint
 }
 
-data class ProgressCheckpointKey(
-    val generation: Long,
-    val currentOccurrenceId: String,
-    val secondBucket: Long,
+/** Identifies a progress checkpoint within one active playback generation. */
+public data class ProgressCheckpointKey(
+    /** Engine generation that produced the progress checkpoint. */
+    public val generation: Long,
+    /** Occurrence selected when the checkpoint was emitted. */
+    public val currentOccurrenceId: String,
+    /** Whole-second position bucket used to coalesce progress updates. */
+    public val secondBucket: Long,
 )
 
+/** Converts legacy track IDs into session queue entries. */
 internal fun normalizeLegacyQueue(
     trackIds: List<String>
 ): List<SessionQueueEntry> = trackIds.mapIndexed { index, trackId ->

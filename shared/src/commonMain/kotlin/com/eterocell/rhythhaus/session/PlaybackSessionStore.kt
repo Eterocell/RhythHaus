@@ -74,7 +74,7 @@ class DataStorePlaybackSessionStore(
                     PlaybackSessionCodec.decodeIds(
                         preferences[QueueIdsPreferenceKey] ?: "")
                         ?: return PlaybackSessionSnapshot()
-                normalizeLegacyQueue(legacyIds)
+                legacyQueueEntries(legacyIds)
             }
         val currentIds =
             PlaybackSessionCodec.decodeIds(
@@ -115,3 +115,9 @@ expect fun createPlaybackSessionStore(): PlaybackSessionStore
 
 private inline fun <reified T : Enum<T>> enumValueOrNull(name: String): T? =
     enumValues<T>().firstOrNull { value -> value.name == name }
+
+private fun legacyQueueEntries(
+    trackIds: List<String>
+): List<SessionQueueEntry> = trackIds.mapIndexed { index, trackId ->
+    SessionQueueEntry("legacy-$index", trackId)
+}

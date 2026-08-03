@@ -439,11 +439,12 @@ class PlaybackControllerTest {
         }
 
     @Test
-    fun stopAfterCurrentStopsAtCurrentTrackEndWithoutAdvancing() {
+    fun stopAfterCurrentStopsAtCurrentTrackEndWithoutAdvancing() = runBlocking {
         val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(engine)
         val tracks = testTracks(2)
         controller.setQueue(tracks, selectedTrackId = "track-1")
+        engine.awaitLoadCount(1)
         controller.setRepeatMode(RepeatMode.StopAfterCurrent)
         controller.play()
 
@@ -455,43 +456,51 @@ class PlaybackControllerTest {
     }
 
     @Test
-    fun repeatPlaylistWrapsCompletionAndManualTransport() {
+    fun repeatPlaylistWrapsCompletionAndManualTransport() = runBlocking {
         val engine = DelayedStatusPlaybackEngine()
         val controller = PlaybackController(engine)
         val tracks = testTracks(2)
         controller.setQueue(tracks, selectedTrackId = "track-2")
+        engine.awaitLoadCount(1)
         controller.setRepeatMode(RepeatMode.RepeatPlaylist)
         controller.play()
 
         engine.complete()
+        engine.awaitLoadCount(2)
         assertEquals("track-1", controller.state.value.currentTrack?.id)
 
         controller.skipToPrevious()
+        engine.awaitLoadCount(3)
         assertEquals("track-2", controller.state.value.currentTrack?.id)
         controller.skipToNext()
+        engine.awaitLoadCount(4)
         assertEquals("track-1", controller.state.value.currentTrack?.id)
     }
 
     @Test
-    fun repeatOneReplaysCurrentTrackButManualTransportCanMoveWithoutWrapping() {
-        val engine = DelayedStatusPlaybackEngine()
-        val controller = PlaybackController(engine)
-        val tracks = testTracks(2)
-        controller.setQueue(tracks, selectedTrackId = "track-1")
-        controller.setRepeatMode(RepeatMode.RepeatOne)
-        controller.play()
+    fun repeatOneReplaysCurrentTrackButManualTransportCanMoveWithoutWrapping() =
+        runBlocking {
+            val engine = DelayedStatusPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val tracks = testTracks(2)
+            controller.setQueue(tracks, selectedTrackId = "track-1")
+            engine.awaitLoadCount(1)
+            controller.setRepeatMode(RepeatMode.RepeatOne)
+            controller.play()
 
-        engine.complete()
-        assertEquals("track-1", controller.state.value.currentTrack?.id)
+            engine.complete()
+            engine.awaitLoadCount(2)
+            assertEquals("track-1", controller.state.value.currentTrack?.id)
 
-        controller.skipToPrevious()
-        assertEquals("track-1", controller.state.value.currentTrack?.id)
-        controller.skipToNext()
-        assertEquals("track-2", controller.state.value.currentTrack?.id)
-    }
+            controller.skipToPrevious()
+            assertEquals("track-1", controller.state.value.currentTrack?.id)
+            controller.skipToNext()
+            engine.awaitLoadCount(3)
+            assertEquals("track-2", controller.state.value.currentTrack?.id)
+        }
 
     @Test
-    fun shuffleUsesGeneratedOrderAndKeepsCurrentTrackActive() {
+    fun shuffleUsesGeneratedOrderAndKeepsCurrentTrackActive() = runBlocking {
         val engine = DelayedStatusPlaybackEngine()
         val controller =
             PlaybackController(
@@ -503,76 +512,86 @@ class PlaybackControllerTest {
             )
         val tracks = testTracks(3)
         controller.setQueue(tracks, selectedTrackId = "track-2")
+        engine.awaitLoadCount(1)
 
         controller.setShuffleMode(ShuffleMode.On)
         controller.skipToNext()
+        engine.awaitLoadCount(2)
         assertEquals("track-3", controller.state.value.currentTrack?.id)
         controller.skipToNext()
+        engine.awaitLoadCount(3)
         assertEquals("track-1", controller.state.value.currentTrack?.id)
         controller.skipToNext()
         assertEquals("track-1", controller.state.value.currentTrack?.id)
     }
 
     @Test
-    fun disablingShuffleReturnsToOriginalQueueOrderFromCurrentTrack() {
-        val engine = DelayedStatusPlaybackEngine()
-        val controller =
-            PlaybackController(
-                engine = engine,
-                shuffleOrderFactory = { ids, currentId ->
-                    listOf(currentId!!) +
-                        ids.filterNot { it == currentId }.reversed()
-                },
-            )
-        val tracks = testTracks(3)
-        controller.setQueue(tracks, selectedTrackId = "track-2")
-        controller.setShuffleMode(ShuffleMode.On)
-        controller.skipToNext()
-        assertEquals("track-3", controller.state.value.currentTrack?.id)
-
-        controller.setShuffleMode(ShuffleMode.Off)
-        controller.skipToPrevious()
-        assertEquals("track-2", controller.state.value.currentTrack?.id)
-    }
-
-    @Test
-    fun shuffledQueueReplacementRegeneratesOrderAndPreservesSelectedTrack() {
-        val generatedOrders = mutableListOf<List<String>>()
-        val engine = DelayedStatusPlaybackEngine()
-        val controller =
-            PlaybackController(
-                engine = engine,
-                shuffleOrderFactory = { ids, currentId ->
-                    val order =
+    fun disablingShuffleReturnsToOriginalQueueOrderFromCurrentTrack() =
+        runBlocking {
+            val engine = DelayedStatusPlaybackEngine()
+            val controller =
+                PlaybackController(
+                    engine = engine,
+                    shuffleOrderFactory = { ids, currentId ->
                         listOf(currentId!!) +
                             ids.filterNot { it == currentId }.reversed()
-                    generatedOrders += order
-                    order
+                    },
+                )
+            val tracks = testTracks(3)
+            controller.setQueue(tracks, selectedTrackId = "track-2")
+            engine.awaitLoadCount(1)
+            controller.setShuffleMode(ShuffleMode.On)
+            controller.skipToNext()
+            engine.awaitLoadCount(2)
+            assertEquals("track-3", controller.state.value.currentTrack?.id)
+
+            controller.setShuffleMode(ShuffleMode.Off)
+            controller.skipToPrevious()
+            engine.awaitLoadCount(3)
+            assertEquals("track-2", controller.state.value.currentTrack?.id)
+        }
+
+    @Test
+    fun shuffledQueueReplacementRegeneratesOrderAndPreservesSelectedTrack() =
+        runBlocking {
+            val generatedOrders = mutableListOf<List<String>>()
+            val engine = DelayedStatusPlaybackEngine()
+            val controller =
+                PlaybackController(
+                    engine = engine,
+                    shuffleOrderFactory = { ids, currentId ->
+                        val order =
+                            listOf(currentId!!) +
+                                ids.filterNot { it == currentId }.reversed()
+                        generatedOrders += order
+                        order
+                    },
+                )
+            controller.setQueue(testTracks(3), selectedTrackId = "track-2")
+            engine.awaitLoadCount(1)
+            controller.setShuffleMode(ShuffleMode.On)
+
+            controller.setQueue(testTracks(4), selectedTrackId = "track-3")
+            engine.awaitLoadCount(2)
+
+            assertEquals("track-3", controller.state.value.currentTrack?.id)
+            assertEquals(
+                listOf("track-3", "track-4", "track-2", "track-1"),
+                generatedOrders.last().map { occurrenceId ->
+                    controller.state.value.queue
+                        .single { it.id == occurrenceId }
+                        .track
+                        .id
                 },
             )
-        controller.setQueue(testTracks(3), selectedTrackId = "track-2")
-        controller.setShuffleMode(ShuffleMode.On)
-
-        controller.setQueue(testTracks(4), selectedTrackId = "track-3")
-
-        assertEquals("track-3", controller.state.value.currentTrack?.id)
-        assertEquals(
-            listOf("track-3", "track-4", "track-2", "track-1"),
-            generatedOrders.last().map { occurrenceId ->
-                controller.state.value.queue
-                    .single { it.id == occurrenceId }
-                    .track
-                    .id
-            },
-        )
-        assertEquals(
-            controller.state.value.queue.size,
-            controller.state.value.queue.map { it.id }.distinct().size)
-        assertTrue(
-            controller.state.value.queue.all {
-                it.id.length <= PlaybackSessionCodec.maxIdCharacters
-            })
-    }
+            assertEquals(
+                controller.state.value.queue.size,
+                controller.state.value.queue.map { it.id }.distinct().size)
+            assertTrue(
+                controller.state.value.queue.all {
+                    it.id.length <= PlaybackSessionCodec.maxIdCharacters
+                })
+        }
 
     @Test
     fun autoAdvanceRemainsLoadingUntilEngineReportsPlaying() = runBlocking {
@@ -1465,6 +1484,7 @@ class PlaybackControllerTest {
             private set
 
         private var loadCount: Int = 0
+        private val loadSignals = Channel<Int>(Channel.UNLIMITED)
 
         override suspend fun loadPaused(
             track: PlayableTrack,
@@ -1472,6 +1492,7 @@ class PlaybackControllerTest {
         ): LoadedPlayback {
             activeGeneration = generation
             loadCount++
+            check(loadSignals.trySend(loadCount).isSuccess)
             return LoadedPlayback(generation, track.durationMillis)
         }
 
@@ -1491,7 +1512,7 @@ class PlaybackControllerTest {
 
         suspend fun awaitLoadCount(count: Int) =
             withTimeout(5_000) {
-                while (loadCount < count) kotlinx.coroutines.yield()
+                while (loadSignals.receive() < count) {}
             }
 
         override fun play() = Unit
@@ -1537,6 +1558,7 @@ class PlaybackControllerTest {
         private val events = Channel<EngineEvent>(Channel.UNLIMITED)
         private val loadStarted = CompletableDeferred<Unit>()
         private val loadSignal = CompletableDeferred<Unit>()
+        private val loadCountSignals = Channel<Int>(Channel.UNLIMITED)
         private val seekStarted = CompletableDeferred<Unit>()
 
         override suspend fun loadPaused(
@@ -1547,6 +1569,7 @@ class PlaybackControllerTest {
             record(EngineEvent.Load(track.id))
             loadedTracks += track
             loadedGenerations += generation
+            check(loadCountSignals.trySend(loadedGenerations.size).isSuccess)
             loadStarted.complete(Unit)
             loadGate?.await()
             loadFailure?.let { throw it }
@@ -1564,8 +1587,7 @@ class PlaybackControllerTest {
 
         suspend fun awaitLoadCount(count: Int) =
             withTimeout(5_000) {
-                while (loadedGenerations.size < count) kotlinx.coroutines
-                    .yield()
+                while (loadCountSignals.receive() < count) {}
             }
 
         fun releaseLoad() {

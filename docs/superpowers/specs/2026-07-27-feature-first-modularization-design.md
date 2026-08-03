@@ -47,7 +47,7 @@ Core modules are introduced only when they have real ownership:
 
 There is no `:core:network` until a real cross-feature network concern exists. Features become `:feature:library:api/impl` and `:feature:playlists:api/impl`; Now Playing, Search, and Settings remain single feature modules at first. API/implementation splits happen only for a real stable contract.
 
-` :shared` becomes a thin KMP composition and iOS framework facade. It owns `App()`, the root shell, cross-feature route and Back arbitration, lifecycle, Koin assembly, and the stable `MainViewController` entry. Applications depend on `:shared`. No core or feature module may depend on `:shared` or an app module; a feature may not depend on another feature implementation; cross-feature access is only through API modules; and `:shared` alone composes implementations.
+`:shared` becomes a thin KMP composition and iOS framework facade. It owns `App()`, the root shell, cross-feature route and Back arbitration, lifecycle, Koin assembly, and the stable `MainViewController` entry. Applications depend on `:shared`. No core or feature module may depend on `:shared` or an app module; a feature may not depend on another feature implementation; cross-feature access is only through API modules; and `:shared` alone composes implementations.
 
 ## Ownership And Contracts
 
@@ -94,6 +94,86 @@ Rejected alternatives are exposing generated database `Playlist` through the fea
 API, renaming the SQLDelight table-generated row without a schema change, and deferring
 Playlist API publication.
 
+### Task 4.2 Core Playback Extraction
+
+Task 4.2 atomically moves full playback ownership to `:core:playback`: `PlaybackController`;
+playback state and engine contracts; dispatchers; Android engine, service, and transport
+bridge; iOS engine, audio, artwork, and Now Playing bridges; JVM/macOS engine and native
+bridge; and `rhythhaus_audio.mm`. `FakePlaybackEngine` moves unchanged with `Playback.kt`
+into `core/playback/commonMain` production source for compatibility and whole-file/test
+consumption. Only a later relocation from core production into test fixtures, visibility
+demotion, or package rename is separate work. Core owns both complete session files:
+`session/PlaybackSessionController.kt`, containing the
+`PlaybackSessionController` behavioral port and `RevisionedPlaybackSessionSnapshot`, and
+`session/PlaybackSessionSnapshot.kt`, containing `PlaybackSessionSnapshot`,
+`SessionQueueEntry`, `PlaybackSessionCodec`, `PlaybackCheckpoint`,
+`ProgressCheckpointKey`, and their normalization/value invariants. Shared consumes that
+behavioral port and the required public value/codec contracts. `PlaybackSessionController`
+is the only cross-module session behavioral port. Every Kotlin package declaration remains
+unchanged. The Android manifest-relative service name remains
+`.RhythHausPlaybackService`, and its unchanged FQCN remains
+`com.eterocell.rhythhaus.RhythHausPlaybackService`. Objective-C/Swift-visible bridge names
+and signatures; the preserved `MacAudioPlayerBridge` class; JNI exports
+`Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_*`; dylib
+`librhythhaus_audio.dylib`; and native resource roots `/native/macos-aarch64/...` and
+`/native/macos-x64/...` remain unchanged.
+
+`:core:playback` uses `api(:core:model)` and `api` coroutine dependencies required by its
+public `Flow`/`StateFlow` signatures. It uses implementation dependencies on
+`:core:platform` for package-stable `uuid4`, Kermit, and platform libraries only. It does not depend on
+`:shared`, features, apps, DataStore, or Koin. Core owns an internal/private playback logger
+(for example, `PlaybackLogger.kt` / `playbackLog`) backed by
+`Logger.withTag("RhythHaus")`, preserving the tag and log behavior of the moved controller
+and iOS engine code. `shared/Logger.kt` remains shared-owned for compatibility; core does not
+import shared `log`. The architecture policy permits only
+`:core:playback -> :core:model`/`:core:platform`, `:shared -> :core:playback`, and the
+narrow shared iOS export described below; preserved root packages are accepted.
+
+`:shared` retains `PlaybackSessionCoordinator`, `PlaybackSessionReconciler`, and the
+`LibraryTrack` adapter; `PlaybackSessionStore`, DataStore actuals and factories;
+`PlaybackProcessLifecycle`; App/root orchestration; artwork-loader composition;
+Koin/process scope; and a thin package-stable `createPlatformPlaybackEngine()`
+expect/actual composition family. The moved `PlaybackController` deliberately changes its
+constructor/API: it no longer defaults its engine by calling shared-owned
+`createPlatformPlaybackEngine()` and instead requires an explicit `PlatformPlaybackEngine`.
+Shared Koin calls the retained `createPlatformPlaybackEngine()` factory and injects that
+singleton into `PlaybackController`; core never calls shared. Public declarations are public
+because shared consumes them; no larger coordinator or store API moves. Koin continues to provide
+exactly one `PlatformPlaybackEngine`, exactly one `PlaybackController`, and a
+`PlaybackSessionController` that resolves to that same controller.
+
+`:core:playback` exposes public platform-specific factories returning
+`PlatformPlaybackEngine`: `createAndroidPlaybackEngine()`, `createJvmPlaybackEngine()`, and
+the existing `createIOSPlaybackEngine(relativeFilePathResolver)`. Engine implementation
+classes may remain private/internal behind these factories. `:shared` retains its
+package-stable `expect`/`actual createPlatformPlaybackEngine()` family solely as a
+composition facade: the Android actual delegates to `createAndroidPlaybackEngine()`, the JVM
+actual delegates to `createJvmPlaybackEngine()`, and the iOS actual delegates to
+`createIOSPlaybackEngine(IOSRelativeFilePathResolver { ... appLocalMusicFolderPath ... })`.
+
+iOS core defines exactly an iOS-only
+`IOSRelativeFilePathResolver.resolve(relativePath: String): String` and the
+`createIOSPlaybackEngine(relativeFilePathResolver)` port. Shared iOS supplies the resolver
+with the library-owned `appLocalMusicFolderPath`; core handles absolute paths, URIs, and unsupported
+descriptors itself and invokes the resolver only for relative `AudioSource.FilePath`.
+`:shared` exposes `:core:playback` with `api` and exports exactly it from the sole Shared
+iOS framework because existing Swift consumes the moved audio/artwork bridge symbols; no
+separate framework is created. The Android app manifest keeps its unchanged service
+declaration, while native helper build and resource ownership move unchanged to core
+playback.
+
+Task 4.2 begins with characterization and architecture RED tests before relocation. The
+characterization/API tests cover the explicit `PlaybackController(PlatformPlaybackEngine)`
+constructor shape, and existing `RhythHausDiTest` identity proof continues to show that
+`PlaybackSessionController` resolves to the same controller. Core owns
+`PlaybackControllerTest`, `PlaybackSessionSnapshotTest`, `AndroidPlaybackMediaSessionTest`,
+`RhythHausTransportBridgeTest`, `JvmPlaybackEngineTest`, `IOSAudioPlayerBridgeTest`,
+`IOSNowPlayingBridgingTest`, `IOSNowPlayingDiagnosticTest`, `IOSNowPlayingInfoTest`, and
+`IOSCommandEnabledAfterTargetTest`; moved core platform tests call their corresponding core
+factory rather than shared `createPlatformPlaybackEngine()`. Shared retains coordinator,
+store, process, DI, app, library, and playlist integration tests. This extraction does not
+broaden later feature implementation tasks.
+
 Stateful screens use immutable `UiState`, `UiEvent`, and `UiEffect`, coordinated by a Presenter or ViewModel. Stateless UI does not receive empty pattern types. The data flow is:
 
 ```text
@@ -120,7 +200,7 @@ Resources move with their feature through recognized KMP/Compose source-set loca
 1. Establish the governance baseline using failing Gradle TestKit architecture tests before convention plugins and executable gates.
 2. Extract core model and core UI.
 3. Atomically extract the database and narrow platform capabilities.
-4. Create library/playlists APIs and core playback contracts while their implementations remain in shared.
+4. Create library/playlists APIs and atomically extract core playback ownership as Task 4.2.
 5. Extract leaf implementations in order: Now Playing, playlists/backup, Search, then Settings.
 6. Extract Library last, separating app shell composition from feature ownership.
 7. Finish thin shared cleanup and add a feature scaffold only after successful feature migrations. The scaffold generates real structure only, never empty pattern classes. Package renames remain separate.

@@ -49,6 +49,8 @@ include(":core:database")
 
 include(":core:platform")
 
+include(":core:playback")
+
 include(":feature:library:api")
 
 include(":feature:playlists:api")
