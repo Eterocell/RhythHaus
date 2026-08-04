@@ -7,7 +7,8 @@ public object ArchitectureAllowList {
         mapOf(
             ":androidApp" to setOf(":shared"),
             ":desktopApp" to setOf(":shared"),
-            ":shared" to setOf(":taglib", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl"),
+            ":shared" to setOf(":taglib", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl", ":feature:nowplaying"),
+            ":feature:nowplaying" to setOf(":core:playback", ":core:ui"),
             ":feature:library:impl" to setOf(":feature:library:api"),
             ":feature:playlists:impl" to setOf(":feature:playlists:api"),
             ":feature:library:api" to setOf(":core:model"),
@@ -29,6 +30,7 @@ public object ArchitectureAllowList {
             ":feature:library:impl" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
             ":feature:playlists:api" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
             ":feature:playlists:impl" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
+            ":feature:nowplaying" to ModulePolicy(setOf("com.eterocell.rhythhaus.nowplaying", "com.eterocell.rhythhaus.ui")),
         )
 
     public fun isAllowed(from: String, to: String): Boolean = to in allowList[from].orEmpty()

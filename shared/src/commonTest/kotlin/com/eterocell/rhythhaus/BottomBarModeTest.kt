@@ -10,19 +10,10 @@ import com.eterocell.rhythhaus.library.ui.activeBottomBarAlpha
 import com.eterocell.rhythhaus.library.ui.activeBottomBarClearancePx
 import com.eterocell.rhythhaus.library.ui.libraryBottomBarContent
 import com.eterocell.rhythhaus.library.ui.trackSelectionBarSemantics
-import com.eterocell.rhythhaus.nowplaying.BottomBarMode
-import com.eterocell.rhythhaus.nowplaying.bottomBarModeFor
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class BottomBarModeTest {
-    @Test
-    fun emptyLibraryStillUsesBottomBarNavigationMode() {
-        assertEquals(
-            BottomBarMode.EmptyLibraryNavigation,
-            bottomBarModeFor(track = null))
-    }
-
     @Test
     fun selectionTakesPrecedenceOverNowPlayingInTheSingleBottomSlot() {
         assertEquals(

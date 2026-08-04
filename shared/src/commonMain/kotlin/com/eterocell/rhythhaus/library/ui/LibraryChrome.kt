@@ -49,6 +49,7 @@ import androidx.compose.ui.zIndex
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.RhythHausBackdrop
 import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import kotlin.math.max
@@ -63,7 +64,6 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 
 internal fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition =
     LibraryScrollPosition(
@@ -98,7 +98,7 @@ internal fun DrillDownMiuixScrollChrome(
     scrollBehavior: ScrollBehavior,
     title: String,
     onBack: () -> Unit,
-    backdrop: LayerBackdrop?,
+    backdrop: RhythHausBackdrop?,
     modifier: Modifier = Modifier,
 ) {
     Box(

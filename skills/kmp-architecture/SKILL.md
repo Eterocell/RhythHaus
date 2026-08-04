@@ -33,8 +33,10 @@ do not change `AGENTS.md` while creating or revising this guidance.
 - Core and feature modules never depend on `:shared` or app modules.
 - A feature implementation never depends on another feature implementation.
   Cross-feature access is only through an explicit feature API.
-- Each implementation publishes a Koin `Module`; only `:shared` assembles and
-  starts Koin. No module may use a service-locator back-reference to `:shared`.
+- A feature implementation publishes a Koin `Module` only when it owns injectable
+  bindings. UI-only modules use composable/function entry points and do not create
+  empty modules. Only `:shared` assembles and starts Koin. No module may use a
+  service-locator back-reference to `:shared`.
 
 ## Ownership And Migration Rules
 

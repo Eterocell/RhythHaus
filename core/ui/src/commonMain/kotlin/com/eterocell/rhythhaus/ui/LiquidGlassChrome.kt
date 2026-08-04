@@ -16,26 +16,43 @@ import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.shader.isRenderEffectSupported
 import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
 
-@Composable
-internal fun rememberRhythHausBackdrop(): LayerBackdrop? =
-    if (isRenderEffectSupported()) rememberLayerBackdrop() else null
+/**
+ * Opaque handle for a supported Miuix backdrop; Miuix storage remains internal.
+ */
+public class RhythHausBackdrop
+internal constructor(internal val layerBackdrop: LayerBackdrop)
 
-internal fun Modifier.recordRhythHausBackdrop(
-    backdrop: LayerBackdrop?
+/** Returns a backdrop handle, or null when render effects are unavailable. */
+@Composable
+public fun rememberRhythHausBackdrop(): RhythHausBackdrop? =
+    if (isRenderEffectSupported()) RhythHausBackdrop(rememberLayerBackdrop())
+    else null
+
+/**
+ * Records [backdrop] for later glass drawing and returns this modifier
+ * unchanged without one.
+ */
+public fun Modifier.recordRhythHausBackdrop(
+    backdrop: RhythHausBackdrop?
 ): Modifier =
     if (backdrop != null && isRenderEffectSupported()) {
-        layerBackdrop(backdrop)
+        layerBackdrop(backdrop.layerBackdrop)
     } else {
         this
     }
 
-internal const val RhythHausGlassSurfaceAlpha = 0.72f
+/** Alpha applied to the public glass fallback surface. */
+public const val RhythHausGlassSurfaceAlpha: Float = 0.72f
 internal val RhythHausGlassBlurRadius = 10.dp
 internal val RhythHausGlassRefractionHeight = 16.dp
 internal val RhythHausGlassRefractionAmount = 24.dp
 
-internal fun Modifier.rhythHausLiquidGlass(
-    backdrop: LayerBackdrop?,
+/**
+ * Draws glass from [backdrop] or the fallback surface while preserving existing
+ * visual values.
+ */
+public fun Modifier.rhythHausLiquidGlass(
+    backdrop: RhythHausBackdrop?,
     shape: Shape,
     fallbackColor: Color,
     blurRadius: Dp = RhythHausGlassBlurRadius,
@@ -44,7 +61,7 @@ internal fun Modifier.rhythHausLiquidGlass(
 ): Modifier =
     if (backdrop != null && isRuntimeShaderSupported()) {
         drawBackdrop(
-            backdrop = backdrop,
+            backdrop = backdrop.layerBackdrop,
             shape = { shape },
             effects = {
                 blur(blurRadius.toPx())

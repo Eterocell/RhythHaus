@@ -1,3 +1,13 @@
+## Handoff - 2026-08-05 Task 5.1 final acceptance
+
+Route: openspec+superpowers
+Owner: documentation-only closeout
+Input: approved Task 5.1 plan, implementation commit `28dd2e1` (`refactor: extract now playing feature`), retained implementation evidence, and final independent scope/behavior approval. The Gradle 9.6.1 absent-module RED was semantically accepted because task selection failed while the feature was absent and no requested feature task or compilation executed; its planned exact diagnostic is not claimed.
+Output: Task 5.1 and OpenSpec 6.1 are accepted. `:feature:nowplaying` owns the UI-only Now Playing extraction; shared retains route/Back/shell/composition ownership, while `:core:ui` owns the approved generic gesture and glass moves. The prior nondeterministic shuffle/Previous control-test finding is closed by deterministic transport assertions with shuffle Off; no production behavior changed. The approved gesture cancellation contract is direction-specific: terminal-side cancellation may callback and settle terminal, while nonterminal-side cancellation settles opposite without a callback; drag/rubber-band/threshold/spring math remains unchanged. Scope session `ses_032e868eeffei1GpxKbH327EB1` PASS against `96cb487` and behavioral session `ses_0328e9e86ffeRFAqPeTnpxV5pX` `Findings: None. PASS / APPROVED` reviewed the pre-commit 38-path worktree that became `28dd2e1`, not a post-commit SHA. Authoritative evidence: `.superpowers/sdd/2026-07-27-feature-first-modularization/task-5.1-final-acceptance-report.md`.
+Verification: retained focused Now Playing JVM XML is 18/18: Content 3, Artwork Rendering 12, Bar Semantics 3, all zero skipped/failures/errors; gesture XML is 11/11 and final architecture fixture XML 65/65, also zero skipped/failures/errors. Feature Android-host and iOS-simulator tests and feature/core Android+iOS consumer compilation passed (141 actionable: 13 executed, 128 up-to-date). Xcode 26.6 (17F113), twice-reused strict `architectureCheck`, `spotlessApply`, standalone `spotlessCheck`, standalone `detekt`, named strict OpenSpec validation, and diff hygiene passed. `openspec validate --all --strict` is explicitly not claimed because retained output records unrelated pre-existing `spec/ios-now-playing-info` failure (44 passed, 1 failed).
+Next owner: implementation for approved Task 5.2 playlists and backup extraction.
+Blockers: OpenSpec 4.4 remains open. `./init.sh`, runtime UI/playback, desktop launch, and Android/iOS device/runtime validation were not run and are not claimed.
+
 ## Handoff - 2026-08-04 Task 4.2 final acceptance
 
 Route: openspec+superpowers

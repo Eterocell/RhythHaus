@@ -858,6 +858,126 @@ class ArchitectureCheckPluginFunctionalTest {
             listOf("ARCH-IOS-EXPORT :shared -> :core:model"),
         )
 
+    @Test
+    fun nowPlayingProductionRootAcceptsApprovedEdgesAndResourceNamespace() {
+        val result = nowPlayingRunner(
+            nowPlayingFixture(),
+            ":feature:nowplaying:compileKotlinJvm",
+            "architectureCheck",
+        ).build()
+
+        assertTrue(
+            result.output.contains(
+                ":feature:nowplaying|commonMain|COMPOSE|feature/nowplaying/src/commonMain/composeResources|rhythhaus.feature.nowplaying.generated.resources",
+            ),
+            result.output,
+        )
+        assertTrue(result.output.contains(":feature:nowplaying:kspKotlinJvm"), result.output)
+        assertEquals(
+            TaskOutcome.SUCCESS,
+            result.task(":feature:nowplaying:kspKotlinJvm")?.outcome,
+            result.output,
+        )
+        assertTrue(
+            result.output.contains(":feature:nowplaying:compileKotlinJvm"),
+            result.output,
+        )
+    }
+
+    @Test
+    fun nowPlayingProductionRootRejectsForbiddenEdgesNamespacesAndExports() {
+        assertRequiredDiagnostics(
+            nowPlayingFixture(NowPlayingMutation.DependsOnShared),
+            listOf("ARCH-EDGE :feature:nowplaying [architecture] -> :shared"),
+        )
+        assertRequiredDiagnostics(
+            nowPlayingFixture(NowPlayingMutation.DependsOnTagLib),
+            listOf("ARCH-EDGE :feature:nowplaying [architecture] -> :taglib"),
+        )
+        assertRequiredDiagnostics(
+            nowPlayingFixture(NowPlayingMutation.DependsOnLibraryApi),
+            listOf("ARCH-EDGE :feature:nowplaying [architecture] -> :feature:library:api"),
+        )
+        assertRequiredDiagnostics(
+            nowPlayingFixture(NowPlayingMutation.DependsOnLibraryImplementation),
+            listOf("ARCH-EDGE :feature:nowplaying [architecture] -> :feature:library:impl"),
+        )
+        assertRequiredDiagnostics(
+            nowPlayingFixture(NowPlayingMutation.DependsOnApp),
+            listOf("ARCH-EDGE :feature:nowplaying [architecture] -> :androidApp"),
+        )
+        assertRequiredDiagnostics(
+            nowPlayingFixture(NowPlayingMutation.DependsOnCoreModel),
+            listOf("ARCH-EDGE :feature:nowplaying [architecture] -> :core:model"),
+        )
+        assertRequiredDiagnostics(
+            nowPlayingFixture(NowPlayingMutation.DependsOnPlaylistsImplementation),
+            listOf("ARCH-EDGE :feature:nowplaying [architecture] -> :feature:playlists:impl"),
+        )
+        assertRequiredDiagnostics(
+            nowPlayingFixture(NowPlayingMutation.InvalidResourceNamespace),
+            listOf(
+                "ARCH-RESOURCE :feature:nowplaying [commonMain] root=feature/nowplaying/src/commonMain/composeResources namespace=<invalid>",
+            ),
+        )
+        assertExactFailure(
+            nowPlayingFixture(NowPlayingMutation.IosExport),
+            listOf("ARCH-IOS-EXPORT :shared -> :feature:nowplaying"),
+        )
+    }
+
+    @Test
+    fun nowPlayingProductionRootRejectsMissingPackageRootThroughTheRealProcessor() {
+        val projectDir = nowPlayingFixture()
+        writeKotlinSource(
+            projectDir,
+            ":feature:nowplaying",
+            "src/commonMain/kotlin/InvalidFeature.kt",
+            "package outside.fixture\n/** Invalid package. */\npublic class InvalidFeature",
+        )
+        assertKspCompilationFailure(
+            projectDir,
+            ":feature:nowplaying:compileKotlinJvm",
+            "ARCH-PACKAGE :feature:nowplaying:InvalidFeature.kt (outside.fixture)",
+        )
+    }
+
+    @Test
+    fun nowPlayingProductionRootRejectsEmptyConfiguredPackageRootsThroughTheRealProcessor() {
+        val projectDir = nowPlayingFixture()
+        append(
+            projectDir,
+            ":feature:nowplaying",
+            """
+            extensions.configure<com.google.devtools.ksp.gradle.KspExtension> {
+                arg("architecture.packageRoots", "")
+            }
+            """.trimIndent(),
+        )
+
+        assertKspCompilationFailure(
+            projectDir,
+            ":feature:nowplaying:compileKotlinJvm",
+            "ARCH-PACKAGE :feature:nowplaying:NowPlaying.kt (com.eterocell.rhythhaus.nowplaying)",
+        )
+    }
+
+    @Test
+    fun nowPlayingProductionRootRejectsMissingPublicKDocThroughTheRealProcessor() {
+        val projectDir = nowPlayingFixture()
+        writeKotlinSource(
+            projectDir,
+            ":feature:nowplaying",
+            "src/commonMain/kotlin/MissingFeatureKDoc.kt",
+            "package com.eterocell.rhythhaus.nowplaying\npublic class MissingFeatureKDoc",
+        )
+        assertKspCompilationFailure(
+            projectDir,
+            ":feature:nowplaying:compileKotlinJvm",
+            "ARCH-KDOC :feature:nowplaying:MissingFeatureKDoc.kt:2 (com.eterocell.rhythhaus.nowplaying.MissingFeatureKDoc)",
+        )
+    }
+
     private fun assertFailure(mutation: Mutation, expectedRules: List<String>, relevantText: String) =
         assertFailure(fixture(mutation), expectedRules, relevantText)
 
@@ -882,7 +1002,7 @@ class ArchitectureCheckPluginFunctionalTest {
         task: String,
         expectedDiagnostics: List<String>,
     ) {
-        val result = runner(projectDir, task).buildAndFail()
+        val result = nowPlayingRunner(projectDir, task).buildAndFail()
         assertExactDiagnostics(result.output, expectedDiagnostics)
     }
 
@@ -897,10 +1017,38 @@ class ArchitectureCheckPluginFunctionalTest {
         assertEquals(diagnostics.distinct(), diagnostics, output)
     }
 
+    private fun assertRequiredDiagnostics(
+        projectDir: File,
+        requiredDiagnostics: List<String>,
+    ) {
+        val result = runner(projectDir).buildAndFail()
+        assertTrue(result.output.contains("Execution failed for task ':architectureCheck'"), result.output)
+        requiredDiagnostics.forEach { diagnostic ->
+            assertTrue(result.output.contains(diagnostic), result.output)
+        }
+    }
+
     private fun assertKspCompilationFailure(source: String, expectedDiagnostic: String) {
         val projectDir = kspFixture(source)
         val result = runner(projectDir, "compileKotlinJvm").buildAndFail()
         assertTrue(result.output.contains(expectedDiagnostic), result.output)
+    }
+
+    private fun assertKspCompilationFailure(projectDir: File, task: String, expectedDiagnostic: String) {
+        val processorJar = externallyProvidedProcessorJarOrSkip()
+        append(
+            projectDir,
+            ":feature:nowplaying",
+            "dependencies.add(\"kspJvm\", files(\"${processorJar.invariantSeparatorsPath}\"))",
+        )
+        val result = nowPlayingRunner(projectDir, task).buildAndFail()
+        assertTrue(result.output.contains(expectedDiagnostic), result.output)
+        assertTrue(result.output.contains(":feature:nowplaying:kspKotlinJvm"), result.output)
+        assertEquals(
+            TaskOutcome.FAILED,
+            result.task(":feature:nowplaying:kspKotlinJvm")?.outcome,
+            result.output,
+        )
     }
 
     private fun assertKspTaskRan(output: String) {
@@ -1066,6 +1214,101 @@ class ArchitectureCheckPluginFunctionalTest {
             }
         append(projectDir, ":shared", "kotlin { iosArm64().binaries.framework { $exports } }")
         if (dependsOnShared) dependency(projectDir, ":core:playback", ":shared")
+        return projectDir
+    }
+
+    private fun nowPlayingFixture(mutation: NowPlayingMutation? = null): File {
+        val projectDir = fixture()
+        val settings = projectDir.resolve("settings.gradle.kts")
+        settings.writeText(
+            settings.readText().replace(
+                ":feature:playlists:impl\")",
+                ":feature:playlists:impl\", \":core:playback\", \":architecture-processor\", \":feature:nowplaying\")",
+            ),
+        )
+        val processorJar = externallyProvidedProcessorJarOrSkip()
+        module(projectDir, ":architecture-processor")
+        buildFile(projectDir, ":architecture-processor").writeText(
+            "configurations.create(\"default\")\nartifacts { add(\"default\", file(\"${processorJar.invariantSeparatorsPath}\")) }",
+        )
+        module(projectDir, ":core:playback")
+        kmpModule(projectDir, ":core:playback", strict = true)
+        module(projectDir, ":core:ui")
+        kmpModule(projectDir, ":core:ui", strict = true)
+        module(projectDir, ":feature:nowplaying")
+        val resourceNamespace =
+            if (mutation == NowPlayingMutation.InvalidResourceNamespace) "<invalid>"
+            else "rhythhaus.feature.nowplaying.generated.resources"
+        buildFile(projectDir, ":feature:nowplaying").writeText(
+            """
+            import com.eterocell.gradle.architecture.ControlledComposeResourcesExtension
+            import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+            plugins {
+                id("build-logic.kmp.feature.impl")
+                id("build-logic.android.kmp.library")
+                id("build-logic.compose-resources")
+                id("org.jetbrains.kotlin.plugin.compose")
+            }
+            configurations.maybeCreate("architecture")
+            extensions.configure<ControlledComposeResourcesExtension>("architectureComposeResources") {
+                namespace("$resourceNamespace")
+            }
+            kotlin {
+                android {
+                    namespace = "com.eterocell.rhythhaus.nowplaying"
+                    compileSdk = 37
+                    minSdk = 29
+                    compilerOptions.jvmTarget.set(JvmTarget.JVM_11)
+                    withHostTest {}
+                    androidResources { enable = true }
+                }
+                jvm()
+                iosArm64()
+                iosSimulatorArm64()
+            }
+            dependencies {
+                add("architecture", project(":core:playback"))
+                add("architecture", project(":core:ui"))
+                add("commonMainImplementation", "org.jetbrains.compose.runtime:runtime:1.11.1")
+            }
+            """.trimIndent(),
+        )
+        source(projectDir, ":feature:nowplaying", "NowPlaying.kt", "package com.eterocell.rhythhaus.nowplaying\n/** A documented feature declaration. */\npublic class NowPlaying")
+        writeKotlinSource(projectDir, ":feature:nowplaying", "src/commonMain/kotlin/com/eterocell/rhythhaus/ui/NowPlayingUi.kt", "package com.eterocell.rhythhaus.ui\n/** A documented feature UI declaration. */\npublic class NowPlayingUi")
+        val featureStrings = moduleDir(projectDir, ":feature:nowplaying")
+            .resolve("src/commonMain/composeResources/values/strings.xml")
+        featureStrings.parentFile.mkdirs()
+        featureStrings.writeText("<resources><string name=\"fixture\">fixture</string></resources>")
+        dependency(projectDir, ":shared", ":feature:nowplaying")
+        dependency(projectDir, ":feature:nowplaying", ":core:playback")
+        dependency(projectDir, ":feature:nowplaying", ":core:ui")
+        projectDir.resolve("build.gradle.kts").appendText(
+            """
+
+            tasks.named("architectureCheck") {
+                doFirst {
+                    logger.lifecycle("TEST-NOWPLAYING-RESOURCES=" + inputs.properties["resourceRecords"])
+                }
+            }
+            """.trimIndent(),
+        )
+        when (mutation) {
+            NowPlayingMutation.DependsOnShared -> dependency(projectDir, ":feature:nowplaying", ":shared")
+            NowPlayingMutation.DependsOnTagLib -> dependency(projectDir, ":feature:nowplaying", ":taglib")
+            NowPlayingMutation.DependsOnLibraryApi -> dependency(projectDir, ":feature:nowplaying", ":feature:library:api")
+            NowPlayingMutation.DependsOnLibraryImplementation -> dependency(projectDir, ":feature:nowplaying", ":feature:library:impl")
+            NowPlayingMutation.DependsOnApp -> dependency(projectDir, ":feature:nowplaying", ":androidApp")
+            NowPlayingMutation.DependsOnCoreModel -> dependency(projectDir, ":feature:nowplaying", ":core:model")
+            NowPlayingMutation.DependsOnPlaylistsImplementation -> dependency(projectDir, ":feature:nowplaying", ":feature:playlists:impl")
+            NowPlayingMutation.IosExport -> append(
+                projectDir,
+                ":shared",
+                "kotlin { iosArm64().binaries.framework { export(project(\":feature:nowplaying\")) } }",
+            )
+            NowPlayingMutation.InvalidResourceNamespace,
+            null,
+            -> Unit
+        }
         return projectDir
     }
 
@@ -1986,6 +2229,21 @@ class ArchitectureCheckPluginFunctionalTest {
                 ).toTypedArray(),
             )
 
+    private fun nowPlayingRunner(projectDir: File, vararg tasks: String): GradleRunner =
+        GradleRunner.create()
+            .withProjectDir(projectDir)
+            .withPluginClasspath()
+            .withArguments(
+                *(if (tasks.isEmpty()) listOf("architectureCheck") else tasks.toList()).plus(
+                    listOf(
+                        "--rerun-tasks",
+                        "--stacktrace",
+                        "--configuration-cache",
+                        "--configuration-cache-problems=fail",
+                    ),
+                ).toTypedArray(),
+            )
+
     private fun qualityAggregationRunner(projectDir: File): GradleRunner =
         GradleRunner.create().withProjectDir(projectDir).withPluginClasspath().withArguments("qualityCheck", "--stacktrace", "--configuration-cache", "--configuration-cache-problems=fail")
 
@@ -2010,6 +2268,18 @@ class ArchitectureCheckPluginFunctionalTest {
 
     private enum class Mutation {
         DependencyCycle, SelfDependency, ProductionKspProcessor, ImplementationProcessor, ForbiddenEdge, PlaylistsApiDependsOnCoreModel, LibraryApiDependsOnCoreDatabase, LibraryApiDependsOnShared, LibraryApiDependsOnImplementation, LibraryImplementationDependsOnShared, SqlDelightRuntimeAndReadme, MissingSqlDelightOwner, TwoSqlDelightOwners, ArbitrarySqlDelightOwner, SpoofedSqlDelightDriver, ExplicitSupportedSqlDelightRoot, ExplicitApiWarningWithStrictCompilerArgs, UnapprovedIosExport,
+    }
+
+    private enum class NowPlayingMutation {
+        DependsOnShared,
+        DependsOnTagLib,
+        DependsOnLibraryApi,
+        DependsOnLibraryImplementation,
+        DependsOnApp,
+        DependsOnCoreModel,
+        DependsOnPlaylistsImplementation,
+        InvalidResourceNamespace,
+        IosExport,
     }
 
     private data class QualityAggregationFixture(

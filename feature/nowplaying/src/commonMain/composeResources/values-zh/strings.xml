@@ -1,0 +1,19 @@
+<resources>
+    <string name="mini_player_empty_subtitle">在设置中添加音乐即可开始聆听</string>
+    <string name="next_track">下一首</string>
+    <string name="previous_track">上一首</string>
+    <string name="playback_status_buffering">缓冲中</string>
+    <string name="playback_status_error">需要本地文件</string>
+    <string name="playback_status_loading">加载中</string>
+    <string name="playback_status_paused">已暂停</string>
+    <string name="playback_status_playing">播放中</string>
+    <string name="playback_status_ready">就绪</string>
+    <string name="playback_status_stopped">已停止</string>
+    <string name="repeat_mode_repeat_one">重复模式：单曲循环</string>
+    <string name="repeat_mode_repeat_playlist">重复模式：列表循环</string>
+    <string name="repeat_mode_stop_after_current">重复模式：播放当前歌曲后停止</string>
+    <string name="repeat_mode_stop_after_queue">重复模式：播放列表后停止</string>
+    <string name="shuffle_off">随机播放已关闭</string>
+    <string name="shuffle_on">随机播放已开启</string>
+    <string name="track_number_format">第 %1$d 轨</string>
+</resources>

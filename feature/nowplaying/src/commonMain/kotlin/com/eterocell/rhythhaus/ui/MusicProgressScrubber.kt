@@ -37,7 +37,7 @@ import com.eterocell.rhythhaus.theme.HausColors
 import kotlin.math.max
 import top.yukonga.miuix.kmp.basic.Text
 
-fun formatMillis(totalMillis: Long?): String {
+internal fun formatMillis(totalMillis: Long?): String {
     if (totalMillis == null) return "--:--"
     val totalSeconds = max(0L, totalMillis / 1_000L)
     val minutes = totalSeconds / 60L

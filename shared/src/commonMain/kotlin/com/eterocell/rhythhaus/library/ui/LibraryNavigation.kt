@@ -358,11 +358,6 @@ enum class LibraryAdaptiveLayoutMode {
     ListDetail,
 }
 
-enum class NowPlayingAdaptiveLayoutMode {
-    Compact,
-    Split,
-}
-
 fun libraryAdaptiveLayoutModeFor(
     widthDp: Float,
     heightDp: Float,
@@ -372,17 +367,6 @@ fun libraryAdaptiveLayoutModeFor(
         return LibraryAdaptiveLayoutMode.ListDetail
     return LibraryAdaptiveLayoutMode.Compact
 }
-
-fun nowPlayingAdaptiveLayoutModeFor(
-    widthDp: Float,
-    heightDp: Float,
-): NowPlayingAdaptiveLayoutMode =
-    when (libraryAdaptiveLayoutModeFor(widthDp, heightDp)) {
-        LibraryAdaptiveLayoutMode.Compact ->
-            NowPlayingAdaptiveLayoutMode.Compact
-        LibraryAdaptiveLayoutMode.ListDetail ->
-            NowPlayingAdaptiveLayoutMode.Split
-    }
 
 internal fun libraryRouteRendersAsActiveOverlay(
     route: LibraryRoute,

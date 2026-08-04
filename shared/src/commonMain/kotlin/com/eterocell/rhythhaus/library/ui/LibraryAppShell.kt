@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -59,6 +60,7 @@ import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
+import com.eterocell.rhythhaus.nowplaying.NowPlayingBarLabels
 import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
@@ -66,6 +68,7 @@ import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.toPlayableTrack
+import com.eterocell.rhythhaus.ui.RhythHausBackdrop
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
 import com.eterocell.rhythhaus.ui.verticalSheetGesture
@@ -73,8 +76,17 @@ import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.adaptive_detail_placeholder
+import rhythhaus.shared.generated.resources.album_art
 import rhythhaus.shared.generated.resources.library
+import rhythhaus.shared.generated.resources.pause
+import rhythhaus.shared.generated.resources.play
+import rhythhaus.shared.generated.resources.search
+import rhythhaus.shared.generated.resources.settings
+import rhythhaus.shared.generated.resources.track_artist_album_format
 import top.yukonga.miuix.kmp.basic.Surface
+
+internal const val NowPlayingShellPlacementTestTag = "NowPlayingShellPlacement"
+internal const val SelectionShellPlacementTestTag = "SelectionShellPlacement"
 
 /**
  * The shell-owned callbacks for one rendered playlist detail navigation entry.
@@ -446,6 +458,8 @@ fun LibraryHomeScreen(
                 .onSizeChanged { screenHeightPx = it.height.toFloat() },
     ) {
         val rootBackdrop = rememberRhythHausBackdrop()
+        val artworkLoader =
+            com.eterocell.rhythhaus.ui.LocalTrackArtworkLoader.current
         val adaptiveLayoutMode =
             libraryAdaptiveLayoutModeFor(
                 widthDp = maxWidth.value,
@@ -585,43 +599,29 @@ fun LibraryHomeScreen(
                             }
                             .alpha(bottomBarPresentation.alpha),
                 ) {
-                    when (val content = bottomBarContent) {
-                        is LibraryBottomBarContent.Selection ->
-                            TrackSelectionBar(
-                                selectedCount = content.selectedCount,
-                                onCancel = {
-                                    dispatchTrackSelection(
-                                        TrackSelectionAction.Cancel)
-                                },
-                                onAddToPlaylist = ::openSelectedTracksPicker,
-                                interactive =
-                                    bottomBarPresentation.isInteractive,
-                            )
-
-                        LibraryBottomBarContent.NowPlaying ->
-                            NowPlayingBar(
-                                track = selectedTrack,
-                                playbackState = playbackState,
-                                onPlayPause =
-                                    playbackController::togglePlayPause,
-                                onExpand = {
-                                    if (selectedTrack != null)
-                                        appState.showNowPlaying()
-                                },
-                                onSettings = {
-                                    pushRoute(LibraryRoute.Settings)
-                                },
-                                onSearch = { pushRoute(LibraryRoute.Search) },
-                                expandProgress = expandProgress,
-                                isExpanded = appState.showNowPlaying,
-                                interactive =
-                                    bottomBarPresentation.isInteractive,
-                                screenHeightPx = screenHeightPx,
-                                backdrop = rootBackdrop,
-                            )
-
-                        LibraryBottomBarContent.Hidden -> Unit
-                    }
+                    LibraryShellBottomBar(
+                        content = bottomBarContent,
+                        presentation = bottomBarPresentation,
+                        selectedTrack = selectedTrack,
+                        playbackState = playbackState,
+                        artworkLoader = { trackId ->
+                            artworkLoader(trackId)?.bytes
+                        },
+                        onCancelSelection = {
+                            dispatchTrackSelection(TrackSelectionAction.Cancel)
+                        },
+                        onAddToPlaylist = ::openSelectedTracksPicker,
+                        onPlayPause = playbackController::togglePlayPause,
+                        onExpand = {
+                            if (selectedTrack != null) appState.showNowPlaying()
+                        },
+                        onSettings = { pushRoute(LibraryRoute.Settings) },
+                        onSearch = { pushRoute(LibraryRoute.Search) },
+                        expandProgress = expandProgress,
+                        isExpanded = appState.showNowPlaying,
+                        screenHeightPx = screenHeightPx,
+                        backdrop = rootBackdrop,
+                    )
                 }
             }
         }
@@ -752,6 +752,71 @@ fun LibraryHomeScreen(
 }
 
 @Composable
+internal fun LibraryShellBottomBar(
+    content: LibraryBottomBarContent,
+    presentation: LibraryBottomBarPresentation,
+    selectedTrack: Track?,
+    playbackState: PlaybackState,
+    artworkLoader: suspend (String) -> ByteArray?,
+    onCancelSelection: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onPlayPause: () -> Unit,
+    onExpand: () -> Unit,
+    onSettings: () -> Unit,
+    onSearch: () -> Unit,
+    expandProgress: Animatable<Float, AnimationVector1D>,
+    isExpanded: Boolean,
+    screenHeightPx: Float = 0f,
+    backdrop: RhythHausBackdrop? = null,
+) {
+    when (content) {
+        is LibraryBottomBarContent.Selection ->
+            TrackSelectionBar(
+                selectedCount = content.selectedCount,
+                onCancel = onCancelSelection,
+                onAddToPlaylist = onAddToPlaylist,
+                interactive = presentation.isInteractive,
+                modifier = Modifier.testTag(SelectionShellPlacementTestTag),
+            )
+
+        LibraryBottomBarContent.NowPlaying ->
+            NowPlayingBar(
+                modifier = Modifier.testTag(NowPlayingShellPlacementTestTag),
+                track = selectedTrack,
+                playbackState = playbackState,
+                labels =
+                    NowPlayingBarLabels(
+                        play = stringResource(Res.string.play),
+                        pause = stringResource(Res.string.pause),
+                        search = stringResource(Res.string.search),
+                        settings = stringResource(Res.string.settings),
+                        albumArt = stringResource(Res.string.album_art),
+                        currentTrackArtistAlbum =
+                            selectedTrack?.let {
+                                stringResource(
+                                    Res.string.track_artist_album_format,
+                                    it.artist,
+                                    it.album,
+                                )
+                            } ?: "",
+                    ),
+                artworkLoader = artworkLoader,
+                onPlayPause = onPlayPause,
+                onExpand = onExpand,
+                onSettings = onSettings,
+                onSearch = onSearch,
+                expandProgress = expandProgress,
+                isExpanded = isExpanded,
+                interactive = presentation.isInteractive,
+                screenHeightPx = screenHeightPx,
+                backdrop = backdrop,
+            )
+
+        LibraryBottomBarContent.Hidden -> Unit
+    }
+}
+
+@Composable
 private fun AdaptiveDetailPlaceholder() {
     Box(
         modifier =
@@ -805,11 +870,11 @@ private fun NowPlayingExpandOverlay(
                             expandProgress = expandProgress,
                             isActive = true,
                             scope = gestureScope,
-                            onSwipeExpand = {},
-                            // The threshold collapse is the screen's Back
-                            // affordance.
-                            onSwipeCollapse =
-                                nowPlayingSwipeCollapseAction(onBack),
+                            direction =
+                                com.eterocell.rhythhaus.ui
+                                    .VerticalSheetGestureDirection
+                                    .Downward,
+                            onTerminal = nowPlayingSwipeCollapseAction(onBack),
                         ),
                 shape =
                     RoundedCornerShape(

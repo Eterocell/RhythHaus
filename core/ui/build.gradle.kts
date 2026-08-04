@@ -36,6 +36,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            api(libs.compose.animation)
             api(libs.compose.runtime)
             api(libs.compose.ui)
             implementation(libs.coil.compose)
@@ -45,6 +46,8 @@ kotlin {
             implementation(libs.compose.material3)
             api(libs.compose.components.resources)
             implementation(libs.miuix.ui)
+            implementation(libs.miuix.blur)
+            api(libs.kotlinx.coroutinesCore)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

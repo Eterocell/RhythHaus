@@ -7,7 +7,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 private const val SwipeBackEdgeWidthPx = 56f
 private const val SwipeBackTriggerDistancePx = 96f
 
-fun Modifier.leftEdgeSwipeBack(onBack: () -> Unit): Modifier =
+/** Invokes [onBack] after the preserved generic left-edge swipe threshold. */
+public fun Modifier.leftEdgeSwipeBack(onBack: () -> Unit): Modifier =
     pointerInput(onBack) {
         var startedAtLeftEdge = false
         var accumulatedDrag = 0f

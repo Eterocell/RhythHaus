@@ -52,9 +52,11 @@ Package renames are separate work. Do not introduce a temporary
 `feature -> shared -> feature` bridge; an incomplete atomic slice stays incomplete
 until its boundary is correct.
 
-Each feature implementation exposes a Koin `Module`. Only `:shared` assembles and
-starts Koin. Features receive required contracts through entry points and must not
-reach `:shared` through a service locator or dependency-reversing callback.
+Each feature implementation that owns injectable bindings exposes a Koin `Module`.
+UI-only modules use composable/function entry points and do not create empty modules.
+Only `:shared` assembles and starts Koin. Features receive required contracts through
+entry points and must not reach `:shared` through a service locator or dependency-
+reversing callback.
 
 API/implementation splits are demand-driven and require a real stable contract.
 Do not create `:core:network`, speculative modules, or empty state/event/effect/

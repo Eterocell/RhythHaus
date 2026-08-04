@@ -40,8 +40,9 @@ another feature implementation. Cross-feature coupling uses explicit feature API
 
 Library owns scanner, source access, indexing, repositories, UI, and transient
 state. Playlists owns repository, edit, backup, and UI. Feature repositories and
-mappings stay feature-owned. Each implementation exposes a Koin `Module`; only
-`:shared` assembles and starts Koin.
+mappings stay feature-owned. A feature implementation exposes a Koin `Module` only
+when it owns injectable bindings; UI-only modules use composable/function entry
+points and do not create empty modules. Only `:shared` assembles and starts Koin.
 
 Contract-first migration preserves Kotlin packages. Move a stable contract before
 its implementation. A failed atomic slice must not acquire a

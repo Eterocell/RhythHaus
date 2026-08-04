@@ -29,7 +29,7 @@ This avoids a big-bang move and avoids speculative module/pattern scaffolding. T
 
 ### Dependency direction and composition
 
-Apps depend on `:shared`; `:shared` alone composes feature implementations and starts Koin. Core/feature modules cannot depend on `:shared` or apps. Features cannot depend on another feature implementation; cross-feature calls use API modules only. Each implementation publishes a Koin `Module`; it cannot use a service locator back-reference.
+Apps depend on `:shared`; `:shared` alone composes feature implementations and starts Koin. Core/feature modules cannot depend on `:shared` or apps. Features cannot depend on another feature implementation; cross-feature calls use API modules only. A feature implementation publishes a Koin `Module` only when it owns injectable bindings; UI-only modules use composable/function entry points and do not create empty modules. No module may use a service-locator back-reference.
 
 This retains a stable app/iOS entry while preventing the monolith from surviving as a dependency hub. The rejected alternative, feature-to-shared-to-feature bridges, masks ownership and would make every move non-atomic.
 

@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus.library.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
@@ -29,10 +30,10 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
+import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistSummary
-import com.eterocell.rhythhaus.nowplaying.NowPlayingBarRootTestTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.CoroutineScope
@@ -102,8 +103,76 @@ class PlaylistEditModeSemanticsJvmTest {
                     hasTestTag("playlist-bottom-clearance"),
                     useUnmergedTree = true)
                 .assertHeightIsEqualTo(expectedClearance)
-            onNode(hasTestTag(NowPlayingBarRootTestTag), useUnmergedTree = true)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun shellPlacementReplacesNowPlayingWithSelectionDuringPlaylistEditMode() =
+        runComposeUiTest {
+            val content =
+                mutableStateOf<LibraryBottomBarContent>(
+                    LibraryBottomBarContent.NowPlaying)
+            val presentation =
+                LibraryBottomBarPresentation(
+                    clearancePx = 72,
+                    alpha = 1f,
+                    isInteractive = true,
+                )
+            setContent {
+                LibraryShellBottomBar(
+                    content = content.value,
+                    presentation = presentation,
+                    selectedTrack =
+                        Track(
+                            id = "playing",
+                            title = "Playing",
+                            artist = "Artist",
+                            album = "Album",
+                            durationSeconds = 1,
+                            accent =
+                                com.eterocell.rhythhaus.TrackAccent(
+                                    0xFF123456, 0xFF654321),
+                            source = AudioSource.FilePath("playing.mp3"),
+                        ),
+                    playbackState = com.eterocell.rhythhaus.PlaybackState(),
+                    artworkLoader = { null },
+                    onCancelSelection = {},
+                    onAddToPlaylist = {},
+                    onPlayPause = {},
+                    onExpand = {},
+                    onSettings = {},
+                    onSearch = {},
+                    expandProgress = Animatable(0f),
+                    isExpanded = false,
+                )
+            }
+            onNode(
+                    hasTestTag(NowPlayingShellPlacementTestTag),
+                    useUnmergedTree = true)
+                .assertExists()
+            onNode(
+                    hasTestTag(SelectionShellPlacementTestTag),
+                    useUnmergedTree = true)
                 .assertDoesNotExist()
+
+            content.value = LibraryBottomBarContent.Selection(selectedCount = 2)
+            waitForIdle()
+
+            onNode(
+                    hasTestTag(SelectionShellPlacementTestTag),
+                    useUnmergedTree = true)
+                .assertExists()
+            onNode(
+                    hasTestTag(NowPlayingShellPlacementTestTag),
+                    useUnmergedTree = true)
+                .assertDoesNotExist()
+            assertEquals(
+                72,
+                activeBottomBarClearancePx(
+                    content.value,
+                    LibraryBottomBarMeasurement(content.value, 72),
+                ),
+            )
         }
 
     @OptIn(ExperimentalTestApi::class)

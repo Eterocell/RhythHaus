@@ -174,6 +174,131 @@ factory rather than shared `createPlatformPlaybackEngine()`. Shared retains coor
 store, process, DI, app, library, and playlist integration tests. This extraction does not
 broaden later feature implementation tasks.
 
+### Task 5.1 Now Playing Feature Extraction
+
+Task 5.1 creates one implementation module, `:feature:nowplaying`; it creates no API
+module, presenter, state/event/effect scaffolding, or Koin module: it owns no injectable
+bindings and is composed directly through callable/composable entry points. The actual Compose
+implementation moves from shared `nowplaying/NowPlayingScreen.kt`, `NowPlayingBar.kt`, and
+`shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/MusicProgressScrubber.kt` to
+`feature/nowplaying/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/MusicProgressScrubber.kt`,
+and moves `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/ui/MusicProgressScrubberTest.kt`
+to `feature/nowplaying/src/commonTest/kotlin/com/eterocell/rhythhaus/ui/MusicProgressScrubberTest.kt`.
+The scrubber declarations remain package-stable as `com.eterocell.rhythhaus.ui` despite feature
+module ownership; the `com.eterocell.rhythhaus.nowplaying` declarations also remain package-
+stable. All observable UI and interaction behavior is preserved. `:shared` retains the public
+compatibility facade
+`NowPlayingScreen(track, playbackState, playbackController, tagLibReader, currentLibraryTrack, onBack, modifier)`.
+Its currently unused `TagLibReader` and `LibraryTrack?` parameters remain compatibility-only;
+the facade delegates to distinctly named feature-owned `NowPlayingContent` with only real
+dependencies. The feature does not depend on `:shared`, `:taglib`, or Library
+implementation/API solely for those unused parameters.
+
+`NowPlayingAdaptiveLayoutMode` and `nowPlayingAdaptiveLayoutModeFor` move from shared Library
+navigation into the feature. Shared retains all route state, `LibraryBackTarget.NowPlaying`,
+Back precedence/arbitration, predictive Back, expansion state and animation, shell
+measurement/visibility, route dispatch, Search/Settings navigation callbacks, and the shell
+overlay. Shared owns the `Animatable`, collapse callback/Back, and navigation effects.
+`NowPlayingExpandOverlay` remains shared-owned for shell orchestration. `LibraryAppShell.kt`
+remains the composition boundary and consumes feature entry points. The feature receives the
+shared-owned progress object only for display and gesture mutation. Feature-local `NowPlayingBar`
+uses an upward-only adapter and emits only `onExpand`; it cannot invoke collapse, Back, or
+navigation. Shared-local `NowPlayingExpandOverlay` uses a downward-only adapter and emits only
+the existing shared collapse/Back callback; it cannot route expansion. The feature owns the
+expanded content's left-edge swipe and emits only `onBack`.
+
+The stateless drag, rubber-band, spring, and threshold mechanism moves package-stably to
+`:core:ui` rather than being duplicated. It accepts direction and terminal callback from these
+local adapters, preserves exact existing threshold/rubber-band/spring behavior, and exposes no
+domain-navigation API. `verticalSheetGesture` does not remain shared-only. `SwipeBackGesture.kt`
+(`leftEdgeSwipeBack`) also moves package-stably to `:core:ui` because Library and Now Playing
+use it; its behavior remains generic and callbacks remain caller-owned. `LiquidGlassChrome.kt`
+moves package-stably to `:core:ui` for the same shared use. Core UI exposes the opaque public
+`RhythHausBackdrop` handle, behavioral-KDoc public `rememberRhythHausBackdrop`,
+`recordRhythHausBackdrop`, and `rhythHausLiquidGlass`, plus public
+`RhythHausGlassSurfaceAlpha`.
+Miuix `LayerBackdrop` storage remains internal to core UI; neither feature nor shared public
+signatures expose it. Miuix remains an implementation dependency of core UI. This Task 5.1 slice
+atomically includes these reusable core UI moves because the feature otherwise cannot obey
+dependency direction; it does not move feature-specific state into core.
+
+Under explicit API, every declaration has explicit visibility and every public declaration below
+has declaration-specific behavioral KDoc. The feature's public surface is public composables
+`NowPlayingContent` and `NowPlayingBar`; public `BottomBarMode` and `bottomBarModeFor`; public
+immutable `NowPlayingScreenLabels` and `NowPlayingBarLabels`; and public
+`NowPlayingAdaptiveLayoutMode` and `nowPlayingAdaptiveLayoutModeFor`. Test tags, padding
+constants, `UiState`, helper functions, lazy artwork state, gesture adapters, and implementation
+details are internal or private as applicable. `MusicProgressScrubber` and its support helpers
+remain internal in the package-stable `com.eterocell.rhythhaus.ui` package.
+
+The complete public Task 5.1 `:core:ui` surface has explicit public visibility and
+declaration-specific behavioral KDoc: `ArtworkImageRole`; `ArtworkImage`; opaque
+`RhythHausBackdrop`; `rememberRhythHausBackdrop(): RhythHausBackdrop?`; functions accepting a
+backdrop accept `RhythHausBackdrop?`, so unavailable render effects are represented by `null`;
+`recordRhythHausBackdrop`; `rhythHausLiquidGlass`; generic `leftEdgeSwipeBack`; the stateless
+vertical-drag mechanism entry point `verticalSheetGesture`; and its public
+`VerticalSheetGestureDirection` direction type. The only public visual constant is
+`RhythHausGlassSurfaceAlpha` for existing shared/feature callers; blur and refraction
+implementation constants remain internal throughout Task 5.1. Miuix
+`LayerBackdrop` remains internal and absent from every public signature.
+
+`NowPlayingArtworkBridge`, `PlaybackEngine.ios.kt`, all iOS Now Playing metadata/bridge tests,
+and Swift artwork-provider/bootstrap registration remain in `:core:playback` and `iosApp`.
+Task 5.1 does not move, duplicate, rename, or alter them. There is no
+`:feature:nowplaying` iOS framework export: Swift continues to use the sole Shared framework,
+`MainViewController`, and playback bridge exports. No feature-specific `iosMain` source is
+created in Task 5.1; the feature remains unexported.
+
+The module uses the feature implementation KMP convention with controlled Android-KMP and
+Compose compiler/resources conventions, targeting exactly Android-KMP, JVM, `iosArm64`, and
+`iosSimulatorArm64`. Its direct project dependencies are exactly `api(:core:playback)` and
+`api(:core:ui)` because their public types appear in the feature surface. `Track` is available
+through the approved playback public surface. The feature has no direct `:core:model`, `:shared`,
+`:taglib`, Library API, or Library implementation dependency. Its Android namespace is exactly
+`com.eterocell.rhythhaus.nowplaying`, and its Compose resource package is exactly
+`rhythhaus.feature.nowplaying.generated.resources`. It exposes a narrow public feature entry
+surface. Feature-owned lazy artwork loading state calls an injected
+`suspend (String) -> ByteArray?` contract. Shared adapts the Library repository's
+`TrackArtwork?` result to bytes and passes that loader through the shared facade/composition.
+The feature uses public `:core:ui` `ArtworkImage` and `ArtworkImageRole`; it imports neither
+`TrackArtwork`, Library API/implementation, shared `LocalTrackArtworkLoader`, nor shared
+`LazyTrackArtworkImage`. Shared retains shared-owned/reused resource keys and resolves them
+composably in the shared composition for the current track, passing plain immutable `String`
+values, never `Res` handles or resource types, to two narrow feature value objects:
+`NowPlayingScreenLabels(play, pause, albumArtwork, currentTrackArtistAlbum)` and
+`NowPlayingBarLabels(play, pause, search, settings, albumArt, currentTrackArtistAlbum)`.
+`track_artist_album_format` remains shared-owned and shared passes its formatted output;
+`album_artwork` also remains shared-owned because Library uses it. Feature-owned EN/ZH keys move
+to feature Compose resources and namespace: `mini_player_empty_subtitle`, `next_track`,
+`previous_track`, `playback_status_buffering`, `playback_status_error`,
+`playback_status_loading`, `playback_status_paused`, `playback_status_playing`,
+`playback_status_ready`, `playback_status_stopped`, `repeat_mode_repeat_one`,
+`repeat_mode_repeat_playlist`, `repeat_mode_stop_after_current`,
+`repeat_mode_stop_after_queue`, `shuffle_off`, `shuffle_on`, and `track_number_format`.
+Existing shared keys remain for other consumers without duplication or removal. Resource
+behavior, Android packaging, desktop resolution, and iOS linking are verified.
+
+Mixed tests split by ownership. Feature tests move or recreate Now Playing-specific
+`bottomBarModeFor` and `NowPlayingBar` semantics/interaction coverage; shared retains Library
+route/Back, playlist edit-mode integration, and shell composition assertions. Characterization
+preserves empty and loaded modes; disabled or unmeasured interaction; play/pause, expand,
+Search, and Settings actions; progress, status, repeat, and shuffle presentation; Back/swipe
+callback identity; artwork behavior; and the adaptive-layout policy tests currently embedded in
+`LibraryNavigationTest`, which move or are recreated under feature ownership without weakening
+existing assertions. Architecture
+policy adds `:shared -> :feature:nowplaying`, the approved feature-to-core edges, package and
+resource ownership, and fixtures rejecting feature-to-shared or feature-implementation edges
+and iOS export. Package ownership explicitly permits `:feature:nowplaying` declarations in both
+`com.eterocell.rhythhaus.nowplaying` and the package-stable
+`com.eterocell.rhythhaus.ui` scrubber declarations moved in this slice; no package is renamed.
+It adds no broad export or dependency allow-list. This is an ownership extraction with unchanged
+runtime behavior; platform compile/link/resource and Swift-consumer evidence do not claim runtime
+UI or playback validation.
+
+Rejected alternatives are moving the exact unused parameters or dependencies into the feature,
+introducing speculative adapter contracts, moving the iOS lock-screen bridge, giving the feature
+root Back/navigation ownership, and exporting the feature to iOS.
+
 Stateful screens use immutable `UiState`, `UiEvent`, and `UiEffect`, coordinated by a Presenter or ViewModel. Stateless UI does not receive empty pattern types. The data flow is:
 
 ```text
@@ -182,7 +307,9 @@ UI -> Event -> Presenter -> UseCase -> Repository -> DataSource
 
 DTOs, database entities, and domain types remain distinct, with mapping close to the boundary that introduces the representation.
 
-Each implementation module publishes a Koin `Module`. Only `:shared` assembles and starts DI; no service locator back-reference is permitted.
+A feature implementation publishes a Koin `Module` only when it owns injectable bindings.
+UI-only modules are composed through callable/composable entry points and do not create empty
+modules. Only `:shared` assembles and starts DI; no service locator back-reference is permitted.
 
 ## Back And Navigation Invariants
 

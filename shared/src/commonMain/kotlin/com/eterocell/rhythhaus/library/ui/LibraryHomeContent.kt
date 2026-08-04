@@ -30,6 +30,7 @@ import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.toPlayableTrack
+import com.eterocell.rhythhaus.ui.RhythHausBackdrop
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
@@ -40,7 +41,6 @@ import rhythhaus.shared.generated.resources.playlists_accessibility
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Surface
-import top.yukonga.miuix.kmp.blur.LayerBackdrop
 
 internal fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
     systemBarTopPadding
@@ -71,7 +71,7 @@ internal fun LibraryHomeContent(
     scanJob: Job?,
     selectedTrackId: String?,
     playbackController: PlaybackController,
-    homeBackdrop: LayerBackdrop?,
+    homeBackdrop: RhythHausBackdrop?,
     onBrowseModeChange: (BrowseMode) -> Unit,
     onClearLibrary: () -> Unit,
     onCancelScan: () -> Unit,
