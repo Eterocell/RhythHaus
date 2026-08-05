@@ -25,25 +25,17 @@ import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
-import com.eterocell.rhythhaus.library.ui.PlaylistMutationFailedMessage
-import com.eterocell.rhythhaus.library.ui.PlaylistReadFailedMessage
 import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.library.ui.reducePlaylistState
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDocumentOpenResult
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDocumentSaveResult
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupExportPreparation
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupImportPreparation
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupController
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupRevisionGuard
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupRevisionGuardResult
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiError
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
-import com.eterocell.rhythhaus.playlistbackup.confirmPlaylistBackupImportSerialized
-import com.eterocell.rhythhaus.playlistbackup.playlistBackupFileName
-import com.eterocell.rhythhaus.playlistbackup.preparePlaylistBackupExport
-import com.eterocell.rhythhaus.playlistbackup.preparePlaylistBackupImport
-import com.eterocell.rhythhaus.playlistbackup.reducePlaylistBackupUiState
+import com.eterocell.rhythhaus.playlistbackup.createPlaylistBackupController
 import com.eterocell.rhythhaus.playlistbackup.rememberPlatformPlaylistBackupDocumentLauncher
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import com.eterocell.rhythhaus.taglib.TagLibReader
@@ -90,9 +82,7 @@ fun App() {
     val initialLibraryContent = remember {
         loadLibraryContent(repository, platformAccess)
     }
-    val playlistStateOwner = remember {
-        PlaylistStateOwner(playlistRepository, Dispatchers.Default)
-    }
+    val playlistStateOwner = koinInject<PlaylistStateOwner>()
     val libraryPublicationOwner = remember {
         AuthoritativeLibraryPublicationOwner()
     }
@@ -151,7 +141,7 @@ fun App() {
             playlistState =
                 reducePlaylistState(
                     playlistState,
-                    playlistStateOwner.refresh(PlaylistReadFailedMessage),
+                    playlistStateOwner.refresh(),
                 )
         }
     }
@@ -244,188 +234,96 @@ fun App() {
         onOutcome: (PlaylistStateAction) -> Unit,
     ) {
         scope.launch {
-            val outcome =
-                playlistStateOwner.mutate(
-                    PlaylistMutationFailedMessage, mutation)
+            val outcome = playlistStateOwner.mutate(mutation = mutation)
             playlistState = reducePlaylistState(playlistState, outcome)
             onOutcome(outcome)
         }
     }
 
+    val backupControllerHolder = remember {
+        arrayOfNulls<PlaylistBackupController>(1)
+    }
     val backupDocumentLauncher =
         rememberPlatformPlaylistBackupDocumentLauncher(
             onSaveResult = { result ->
-                playlistBackupState =
-                    when (result) {
-                        PlaylistBackupDocumentSaveResult.Success,
-                        PlaylistBackupDocumentSaveResult.Cancelled,
-                        ->
-                            reducePlaylistBackupUiState(
-                                playlistBackupState,
-                                PlaylistBackupUiAction.PanelCancelled)
-
-                        is PlaylistBackupDocumentSaveResult.Unavailable ->
-                            reducePlaylistBackupUiState(
-                                playlistBackupState,
-                                PlaylistBackupUiAction.Failed(
-                                    PlaylistBackupUiError.Unavailable),
-                            )
-
-                        is PlaylistBackupDocumentSaveResult.Failure ->
-                            reducePlaylistBackupUiState(
-                                playlistBackupState,
-                                PlaylistBackupUiAction.Failed(
-                                    PlaylistBackupUiError.WriteFailed),
-                            )
-                    }
+                backupControllerHolder[0]?.let { controller ->
+                    playlistBackupState =
+                        controller.receiveSave(playlistBackupState, result)
+                }
             },
             onOpenResult = { result ->
-                when (result) {
-                    PlaylistBackupDocumentOpenResult.Cancelled -> {
+                scope.launch {
+                    backupControllerHolder[0]?.let { controller ->
                         playlistBackupState =
-                            reducePlaylistBackupUiState(
-                                playlistBackupState,
-                                PlaylistBackupUiAction.PanelCancelled,
-                            )
-                    }
-
-                    is PlaylistBackupDocumentOpenResult.Unavailable -> {
-                        playlistBackupState =
-                            reducePlaylistBackupUiState(
-                                playlistBackupState,
-                                PlaylistBackupUiAction.Failed(
-                                    PlaylistBackupUiError.Unavailable),
-                            )
-                    }
-
-                    is PlaylistBackupDocumentOpenResult.TooLarge -> {
-                        playlistBackupState =
-                            reducePlaylistBackupUiState(
-                                playlistBackupState,
-                                PlaylistBackupUiAction.Failed(
-                                    PlaylistBackupUiError.Oversized),
-                            )
-                    }
-
-                    is PlaylistBackupDocumentOpenResult.Failure -> {
-                        playlistBackupState =
-                            reducePlaylistBackupUiState(
-                                playlistBackupState,
-                                PlaylistBackupUiAction.Failed(
-                                    PlaylistBackupUiError.ReadFailed),
-                            )
-                    }
-
-                    is PlaylistBackupDocumentOpenResult.Success ->
-                        scope.launch {
                             runPlaylistBackupOperation(
                                 currentState = { playlistBackupState },
                                 publishState = { state ->
                                     playlistBackupState = state
                                 },
+                                reduce = controller::reduce,
                             ) {
-                                playlistBackupState =
-                                    reducePlaylistBackupUiState(
-                                        playlistBackupState,
-                                        PlaylistBackupUiAction.OperationStarted(
-                                            PlaylistBackupOperation.Planning),
-                                    )
-                                when (val prepared =
-                                    preparePlaylistBackupImport(
-                                        bytes = result.bytes,
-                                        destinationTracks = libraryTracks,
-                                        existingPlaylistNames =
-                                            playlistState.confirmedSnapshot
-                                                .playlists
-                                                .map { it.name },
-                                        importedSuffix = importedSuffix,
-                                        libraryRevision = libraryRevision,
-                                        dispatcher = Dispatchers.Default,
-                                    )) {
-                                    is PlaylistBackupImportPreparation.Ready ->
-                                        playlistBackupState =
-                                            reducePlaylistBackupUiState(
-                                                playlistBackupState,
-                                                PlaylistBackupUiAction
-                                                    .PreviewReady(
-                                                        prepared.plan),
-                                            )
-
-                                    is PlaylistBackupImportPreparation.Failed ->
-                                        playlistBackupState =
-                                            reducePlaylistBackupUiState(
-                                                playlistBackupState,
-                                                PlaylistBackupUiAction.Failed(
-                                                    prepared.error),
-                                            )
-                                }
+                                controller.receiveOpen(
+                                    state = playlistBackupState,
+                                    result = result,
+                                    destinationTracks = libraryTracks,
+                                    existingPlaylistNames =
+                                        playlistState.confirmedSnapshot
+                                            .playlists
+                                            .map { it.name },
+                                    importedSuffix = importedSuffix,
+                                    libraryRevision = libraryRevision,
+                                )
                             }
-                        }
+                    }
                 }
             },
         )
+    val backupController =
+        remember(
+            playlistStateOwner,
+            backupDocumentLauncher,
+            libraryPublicationOwner) {
+                createPlaylistBackupController(
+                    owner = playlistStateOwner,
+                    dispatcher = Dispatchers.Default,
+                    launcher = backupDocumentLauncher,
+                    revisionGuard =
+                        authoritativePlaylistBackupRevisionGuard(
+                            libraryPublicationOwner),
+                )
+            }
+    backupControllerHolder[0] = backupController
 
     fun exportPlaylists() {
         if (playlistBackupState.isBusy) return
-        playlistBackupState =
-            reducePlaylistBackupUiState(
-                playlistBackupState,
-                PlaylistBackupUiAction.OperationStarted(
-                    PlaylistBackupOperation.Exporting),
-            )
         scope.launch {
-            runPlaylistBackupOperation(
-                currentState = { playlistBackupState },
-                publishState = { state -> playlistBackupState = state },
-            ) {
-                when (val prepared =
-                    preparePlaylistBackupExport(
+            playlistBackupState =
+                runPlaylistBackupOperation(
+                    currentState = { playlistBackupState },
+                    publishState = { state -> playlistBackupState = state },
+                    reduce = backupController::reduce,
+                ) {
+                    backupController.beginExport(
+                        state = playlistBackupState,
                         snapshot = playlistState.confirmedSnapshot,
                         authoritativeTracks = libraryTracks,
                         exportedAtEpochMillis =
                             com.eterocell.rhythhaus.library.currentTimeMillis(),
-                        dispatcher = Dispatchers.Default,
-                    )) {
-                    is PlaylistBackupExportPreparation.Ready -> {
-                        playlistBackupState =
-                            reducePlaylistBackupUiState(
-                                playlistBackupState,
-                                PlaylistBackupUiAction.OperationStarted(
-                                    PlaylistBackupOperation.Saving),
-                            )
-                        backupDocumentLauncher.save(
-                            playlistBackupFileName("rhythhaus-playlists"),
-                            prepared.bytes)
-                    }
-
-                    is PlaylistBackupExportPreparation.Failed ->
-                        playlistBackupState =
-                            reducePlaylistBackupUiState(
-                                playlistBackupState,
-                                PlaylistBackupUiAction.Failed(prepared.error),
-                            )
+                    )
                 }
-            }
         }
     }
 
     fun openPlaylistBackup() {
         if (playlistBackupState.isBusy) return
-        playlistBackupState =
-            reducePlaylistBackupUiState(
-                playlistBackupState,
-                PlaylistBackupUiAction.OperationStarted(
-                    PlaylistBackupOperation.Opening),
-            )
-        backupDocumentLauncher.open()
+        playlistBackupState = backupController.beginOpen(playlistBackupState)
     }
 
     fun confirmPlaylistBackup() {
         if (playlistBackupState.isBusy) return
-        val preview = playlistBackupState.preview ?: return
-        val expectedLibraryRevision = preview.plan.libraryRevision
+        playlistBackupState.preview ?: return
         playlistBackupState =
-            reducePlaylistBackupUiState(
+            backupController.reduce(
                 playlistBackupState,
                 PlaylistBackupUiAction.OperationStarted(
                     PlaylistBackupOperation.Importing),
@@ -434,27 +332,12 @@ fun App() {
             runPlaylistBackupOperation(
                 currentState = { playlistBackupState },
                 publishState = { state -> playlistBackupState = state },
+                reduce = backupController::reduce,
             ) {
                 val confirmation =
-                    confirmPlaylistBackupImportSerialized(
+                    backupController.confirm(
                         state = playlistBackupState,
-                        currentLibraryRevision = libraryRevision,
                         lastConfirmedSnapshot = playlistState.confirmedSnapshot,
-                        mutateAndRefresh = { mutations ->
-                            when (val guarded =
-                                libraryPublicationOwner.withCurrentRevision(
-                                    expectedLibraryRevision) {
-                                        playlistStateOwner.importPlaylists(
-                                            mutations)
-                                    }) {
-                                is AuthoritativeRevisionResult.Current ->
-                                    guarded.value
-                                AuthoritativeRevisionResult.Stale ->
-                                    com.eterocell.rhythhaus.library.ui
-                                        .PlaylistImportOwnerResult
-                                        .Stale
-                            }
-                        },
                     )
                 playlistBackupState = confirmation.state
                 confirmation.confirmedSnapshot
@@ -517,7 +400,7 @@ fun App() {
                 onConfirmPlaylistBackup = ::confirmPlaylistBackup,
                 onPlaylistBackupAction = { action ->
                     playlistBackupState =
-                        reducePlaylistBackupUiState(playlistBackupState, action)
+                        backupController.reduce(playlistBackupState, action)
                 },
                 sources = librarySources,
                 folderPickerLauncher = folderPickerLauncher,
@@ -604,13 +487,17 @@ fun App() {
 internal suspend fun <T> runPlaylistBackupOperation(
     currentState: () -> PlaylistBackupUiState,
     publishState: (PlaylistBackupUiState) -> Unit,
+    reduce:
+        (
+            PlaylistBackupUiState,
+            PlaylistBackupUiAction) -> PlaylistBackupUiState,
     block: suspend () -> T,
 ): T =
     try {
         block()
     } catch (cancelled: CancellationException) {
         publishState(
-            reducePlaylistBackupUiState(
+            reduce(
                 currentState(),
                 PlaylistBackupUiAction.OperationCancelled,
             ),
@@ -657,6 +544,24 @@ internal sealed interface AuthoritativeRevisionResult<out T> {
 
     data object Stale : AuthoritativeRevisionResult<Nothing>
 }
+
+internal fun authoritativePlaylistBackupRevisionGuard(
+    owner: AuthoritativeLibraryPublicationOwner,
+): PlaylistBackupRevisionGuard =
+    object : PlaylistBackupRevisionGuard {
+        override suspend fun <T> withCurrentRevision(
+            expectedRevision: Long,
+            block: suspend () -> T,
+        ): PlaylistBackupRevisionGuardResult<T> =
+            when (val result =
+                owner.withCurrentRevision(expectedRevision, block)) {
+                is AuthoritativeRevisionResult.Current ->
+                    PlaylistBackupRevisionGuardResult.Current(result.value)
+
+                AuthoritativeRevisionResult.Stale ->
+                    PlaylistBackupRevisionGuardResult.Stale
+            }
+    }
 
 internal data class InitialLibraryPublicationState(
     val content: LibraryContentState? = null,

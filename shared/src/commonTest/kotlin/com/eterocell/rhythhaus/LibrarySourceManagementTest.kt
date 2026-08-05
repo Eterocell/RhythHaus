@@ -1,7 +1,6 @@
 package com.eterocell.rhythhaus
 
 import com.eterocell.rhythhaus.library.InMemoryLibraryRepository
-import com.eterocell.rhythhaus.library.InMemoryPlaylistRepository
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
@@ -324,9 +323,7 @@ class LibrarySourceManagementTest {
                 sourceId = "remove",
                 repository = repository,
                 loadPlaylists = {
-                    PlaylistStateAction.SnapshotConfirmed(
-                        com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot(
-                            playlists))
+                    PlaylistStateOwner(playlists, Dispatchers.Default).refresh()
                 },
                 platformAccess = FakePlatformSourceAccess(),
                 reconciler =
@@ -363,9 +360,7 @@ class LibrarySourceManagementTest {
             clearLibraryInBackground(
                 repository = repository,
                 loadPlaylists = {
-                    PlaylistStateAction.SnapshotConfirmed(
-                        com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot(
-                            playlists))
+                    PlaylistStateOwner(playlists, Dispatchers.Default).refresh()
                 },
                 platformAccess = FakePlatformSourceAccess(),
                 reconciler =
@@ -409,9 +404,7 @@ class LibrarySourceManagementTest {
                         PlaybackSessionReconcileResult.Applied
                     },
                 loadPlaylists = {
-                    PlaylistStateAction.SnapshotConfirmed(
-                        com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot(
-                            playlists))
+                    PlaylistStateOwner(playlists, Dispatchers.Default).refresh()
                 },
                 content = content,
                 session = session,
@@ -953,9 +946,7 @@ class LibrarySourceManagementTest {
             clearLibraryInBackground(
                 repository = repository,
                 loadPlaylists = {
-                    PlaylistStateAction.SnapshotConfirmed(
-                        com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot(
-                            playlists))
+                    PlaylistStateOwner(playlists, Dispatchers.Default).refresh()
                 },
                 platformAccess =
                     FakePlatformSourceAccess(repository = repository),
@@ -1124,8 +1115,7 @@ private class FailingPlaylistReadHarness {
             updatedAtEpochMillis = 1L,
         )
     private val repository =
-        object :
-            com.eterocell.rhythhaus.library.PlaylistRepository by InMemoryPlaylistRepository() {
+        object : TestPlaylistRepository() {
             override fun playlists():
                 List<com.eterocell.rhythhaus.library.PlaylistSummary> {
                 reads += 1
@@ -1148,14 +1138,7 @@ private fun failingPlaylistReadHarness() = FailingPlaylistReadHarness()
 private class RecordingPlaylistRepository(
     private val events: MutableList<String>,
 ) : com.eterocell.rhythhaus.library.PlaylistRepository {
-    private val delegate =
-        InMemoryPlaylistRepository(
-            now = { 1L },
-            idFactory =
-                generateSequence(1) { it + 1 }
-                    .map { "playlist-entry-$it" }
-                    .iterator()::next,
-        )
+    private val delegate = TestPlaylistRepository()
 
     override fun playlists():
         List<com.eterocell.rhythhaus.library.PlaylistSummary> {
@@ -1187,6 +1170,90 @@ private class RecordingPlaylistRepository(
 
     override fun reorder(playlistId: String, entryIds: List<String>) =
         delegate.reorder(playlistId, entryIds)
+}
+
+private open class TestPlaylistRepository :
+    com.eterocell.rhythhaus.library.PlaylistRepository {
+    private val playlists =
+        linkedMapOf<String, com.eterocell.rhythhaus.library.PlaylistSummary>()
+    private val entries =
+        linkedMapOf<
+            String,
+            MutableList<com.eterocell.rhythhaus.library.PlaylistEntry>>()
+    private var nextId = 1
+
+    override fun playlists() = playlists.values.toList()
+
+    override fun playlist(id: String) = playlists[id]
+
+    override fun entries(playlistId: String) =
+        entries[playlistId].orEmpty().toList()
+
+    override fun create(name: String) = createWithEntries(name, emptyList())
+
+    override fun createWithEntries(
+        name: String,
+        trackIds: List<String>
+    ): com.eterocell.rhythhaus.library.PlaylistSummary {
+        val id = "playlist-entry-${nextId++}"
+        val playlist =
+            com.eterocell.rhythhaus.library.PlaylistSummary(id, name, 1L, 1L)
+        playlists[id] = playlist
+        entries[id] =
+            trackIds
+                .mapIndexed { index, trackId ->
+                    com.eterocell.rhythhaus.library.PlaylistEntry(
+                        "playlist-entry-${nextId++}", id, trackId, index, 1L)
+                }
+                .toMutableList()
+        return playlist
+    }
+
+    override fun importPlaylists(
+        playlists: List<com.eterocell.rhythhaus.library.PlaylistImportMutation>
+    ) = playlists.map { createWithEntries(it.name, it.trackIds) }
+
+    override fun rename(id: String, name: String) {
+        playlists[id]?.let {
+            playlists[id] = it.copy(name = name, updatedAtEpochMillis = 1L)
+        }
+    }
+
+    override fun delete(id: String) {
+        playlists.remove(id)
+        entries.remove(id)
+    }
+
+    override fun append(playlistId: String, trackIds: List<String>) {
+        val list = entries.getOrPut(playlistId) { mutableListOf() }
+        trackIds.forEach { trackId ->
+            list +=
+                com.eterocell.rhythhaus.library.PlaylistEntry(
+                    "playlist-entry-${nextId++}",
+                    playlistId,
+                    trackId,
+                    list.size,
+                    1L)
+        }
+    }
+
+    override fun removeEntry(entryId: String) {
+        entries.values.forEach { list ->
+            list.removeAll { it.id == entryId }
+            list.indices.forEach { index ->
+                list[index] = list[index].copy(position = index)
+            }
+        }
+    }
+
+    override fun reorder(playlistId: String, entryIds: List<String>) {
+        val list = entries[playlistId] ?: return
+        val byId = list.associateBy { it.id }
+        list.clear()
+        entryIds.mapNotNull(byId::get).forEachIndexed { index, entry ->
+            list += entry.copy(position = index)
+        }
+    }
 }
 
 private class FakePlatformSourceAccess(

@@ -5,12 +5,12 @@ import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
+import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
-import com.eterocell.rhythhaus.library.SqlDelightPlaylistRepository
+import com.eterocell.rhythhaus.library.playlistsImplementationModule
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
-import com.eterocell.rhythhaus.library.ui.loadPlaylistSnapshot
-import com.eterocell.rhythhaus.library.uuid4
+import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import java.io.File
@@ -20,6 +20,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.koin.core.context.startKoin
+import org.koin.core.context.stopKoin
+import org.koin.dsl.module
 
 class PlaylistLifecycleIntegrationJvmTest {
     @Test
@@ -48,8 +51,7 @@ class PlaylistLifecycleIntegrationJvmTest {
                     repository = harness.library,
                     loadPlaylists = {
                         events += "read_playlists"
-                        PlaylistStateAction.SnapshotConfirmed(
-                            loadPlaylistSnapshot(harness.playlists))
+                        harness.playlistStateOwner.refresh()
                     },
                     platformAccess = NoOpPlatformSourceAccess,
                     reconciler =
@@ -110,8 +112,7 @@ class PlaylistLifecycleIntegrationJvmTest {
                     repository = harness.library,
                     loadPlaylists = {
                         events += "read_playlists"
-                        PlaylistStateAction.SnapshotConfirmed(
-                            loadPlaylistSnapshot(harness.playlists))
+                        harness.playlistStateOwner.refresh()
                     },
                     platformAccess = NoOpPlatformSourceAccess,
                     reconciler =
@@ -145,11 +146,10 @@ class PlaylistLifecycleIntegrationJvmTest {
 
 private class PlaylistLifecycleHarness(
     val database: LibraryDatabase,
+    val playlists: PlaylistRepository,
 ) : AutoCloseable {
     val library = SqlDelightLibraryRepository(database)
-    val playlists =
-        SqlDelightPlaylistRepository(
-            database, now = { 1L }, idFactory = ::uuid4)
+    val playlistStateOwner = PlaylistStateOwner(playlists, Dispatchers.Default)
     val controller = PlaybackController(FakePlaybackEngine())
 
     fun seedSourceAndTrack(sourceId: String, trackId: String) {
@@ -202,6 +202,7 @@ private class PlaylistLifecycleHarness(
 
     override fun close() {
         controller.release()
+        stopKoin()
         database.driver.close()
     }
 }
@@ -222,5 +223,12 @@ private fun openHarness(): PlaylistLifecycleHarness {
                 delete()
                 deleteOnExit()
             }
-    return PlaylistLifecycleHarness(LibraryDatabase(databaseFile))
+    val database = LibraryDatabase(databaseFile)
+    val application = startKoin {
+        modules(
+            module { single<LibraryDatabase> { database } },
+            playlistsImplementationModule(),
+        )
+    }
+    return PlaylistLifecycleHarness(database, application.koin.get())
 }

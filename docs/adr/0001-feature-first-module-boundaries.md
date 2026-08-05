@@ -44,6 +44,19 @@ mappings stay feature-owned. A feature implementation exposes a Koin `Module` on
 when it owns injectable bindings; UI-only modules use composable/function entry
 points and do not create empty modules. Only `:shared` assembles and starts Koin.
 
+The approved playlists implementation is unexported `:feature:playlists:impl`, targeting
+Android-KMP, JVM, `iosArm64`, and `iosSimulatorArm64`. It owns saved-playlist/playback-queue UI,
+immutable Playlist state/action/reducer/owner equivalents, repository implementations/Koin binding,
+backup codec/service/state/UI, a neutral common document-launcher contract, public Android/JVM
+launcher factories, and feature
+resources. Direct project edges are playlists API, Library API, core model/playback/ui/platform,
+and implementation-only core database; other Gradle scopes follow exhaustive public signatures.
+Generated DB/SQLDelight/generated Res/shared navigation or shell types are excluded from public
+signatures. Koin is excluded except for the public binding-module factory returning
+`org.koin.core.module.Module` for shared assembly; shared alone assembles and starts Koin. Both
+`com.eterocell.rhythhaus.library` and
+`com.eterocell.rhythhaus.playlistbackup` remain governed and package-stable.
+
 Contract-first migration preserves Kotlin packages. Move a stable contract before
 its implementation. A failed atomic slice must not acquire a
 `feature -> shared -> feature` bridge. Resources move with their feature and have a
@@ -68,7 +81,43 @@ arbitrary filenames, and runtime/coroutine driver consumers do not establish own
 
 Back arbitration stays in `:shared`: modal, edit, active-page selection, Now
 Playing, then route. Features own modal/edit state and publish only their foremost
-dismissal. Displayed-playlist deletion remains destination invalidation, not Back.
+dismissal: exactly one already-resolved immutable surface, modal before edit, with stable
+identity per appearance and new identity per re-presentation. Shared accepts only the active
+destination and identity-guards registration/disposal. Predictive Back latches exact destination
+and appearance; cancellation does not dismiss; completion revalidates and dispatches at most once;
+rejection/staleness clears the pending session without fallthrough. Displayed-playlist deletion
+remains authoritative exact-destination invalidation after confirmed absence, never Back;
+failed/stale/replayed deletion does not invalidate and unrelated state is preserved.
+
+A dispatched non-predictive transition stays in flight until authoritative state reports its exact
+latched target inactive or the target explicitly rejects completion. Repeated Back is suppressed
+while in flight, and callback return never settles or releases suppression. Rejection releases the
+intent without treating the target as settled; any later Back is a new intent. Predictive latch,
+cancellation, and no-fallthrough semantics remain unchanged.
+
+Task 5.2 moves adapters only: `:core:database` remains sole physical owner with no `.sq`, `.sqm`,
+schema, migration, generated DB, driver, database-name, or FK changes. Serialization/revision/
+cancellation, backup exclusivity, exact 4 MiB limits, mappings, stale-library rejection,
+transactional import, exactly-once native completion, and playback engine/session/lifecycle/root
+playback ownership remain unchanged. Shared retains composition, shell/routes/Back, lifecycle,
+Koin assembly, Settings layout, generic injected `cancel`, and selection-bar composition. The
+feature owns embeddable backup sections/dialogs and all playlist/queue/backup EN/ZH text once.
+
+The public implementation surface is limited to the binding-module Koin factory and shared-needed
+state/action/result, owner, composable, dismissal, backup orchestration, and launcher contracts,
+all with declaration-specific behavioral KDoc; other helpers are internal/private. The Shared iOS
+facade retains the exact executable ABI ledger in the canonical Task 5.2 Superpowers design: package
+`com.eterocell.rhythhaus.playlistbackup`, framework `Shared`, status values, Completion/Provider
+names/signatures/nullability, Bridge singleton access, MIME/max-size constant exports, and Swift
+`Int32` interop; feature owns no iOS actual/source or Shared edge. Shared owns the common `expect`,
+Android/JVM delegates, and retained iOS actual/ABI adapter; the feature is not exported, and Swift
+files remain app-owned. The already-characterized immutable `PlaylistState`,
+`PlaylistStateAction`, reducer, `PlaylistStateOwner`, and backup immutable state/reducer are a
+Task 5.2-only equivalent and do not alter the general Presenter/ViewModel rule. No visual/
+product redesign, state-framework rewrite, navigation/core-navigation or generic document module,
+package rename, database/playback ownership change, illegal bridge/service-locator/implementation
+coupling, Swift redesign, resource duplication, or runtime/device claim from compile/link/tests is
+authorized. ADR 0002 remains untouched.
 
 ## Consequences
 

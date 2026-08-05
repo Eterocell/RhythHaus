@@ -60,16 +60,22 @@ internal class LibraryAppState(
      * it.
      */
     internal fun registerBackSurface(port: LibraryBackSurfacePort): () -> Unit {
-        if (port.destinationId != activeDestinationId) return {}
+        val target = port.foremostFeatureTarget
+        if (port.destinationId != activeDestinationId ||
+            target?.id?.destinationId != null &&
+                target.id.destinationId != port.destinationId) {
+            return {}
+        }
         val registration =
             RegisteredBackSurface(
                 token = ++nextBackSurfaceRegistrationToken,
                 port = port,
+                target = target,
             )
         acceptedBackSurface = registration
         reconcileBackSession()
         return {
-            if (acceptedBackSurface?.token == registration.token) {
+            if (acceptedBackSurface === registration) {
                 acceptedBackSurface = null
                 reconcileBackSession()
             }
@@ -345,9 +351,9 @@ internal class LibraryAppState(
             is LibraryBackTarget.FeatureModal,
             is LibraryBackTarget.FeatureEdit,
             ->
-                acceptedBackSurface?.port?.let { port ->
-                    port.destinationId == destination &&
-                        port.foremostFeatureTarget == target
+                acceptedBackSurface?.let { registration ->
+                    registration.port.destinationId == destination &&
+                        registration.target == target
                 } == true
 
             is LibraryBackTarget.PageSelection ->
@@ -377,6 +383,10 @@ internal class LibraryAppState(
     private data class RegisteredBackSurface(
         val token: Long,
         val port: LibraryBackSurfacePort,
+        /**
+         * The exact destination-scoped presentation identity this effect owns.
+         */
+        val target: LibraryBackTarget?,
     )
 }
 

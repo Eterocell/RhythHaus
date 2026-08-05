@@ -252,6 +252,41 @@ internal enum class LibraryBackFeatureRequestResult {
     Rejected
 }
 
+internal fun featureDismissalPublisher(
+    destinationId: LibraryDestinationId,
+    registerBackSurface: (LibraryBackSurfacePort) -> () -> Unit,
+): PlaylistFeatureDismissalPublisher =
+    object : PlaylistFeatureDismissalPublisher {
+        override fun publish(
+            dismissal: PlaylistFeatureDismissal?,
+            dispatch:
+                (PlaylistFeatureDismissal) -> PlaylistFeatureDismissalDispatch,
+        ): () -> Unit {
+            val target = dismissal?.let {
+                val id = LibraryBackTargetId(destinationId, it.appearance.value)
+                when (it) {
+                    is PlaylistFeatureDismissal.Modal ->
+                        LibraryBackTarget.FeatureModal(id)
+                    is PlaylistFeatureDismissal.Edit ->
+                        LibraryBackTarget.FeatureEdit(id)
+                }
+            }
+            return registerBackSurface(
+                LibraryBackSurfacePort(destinationId, target) { requested ->
+                    val current = dismissal
+                    if (current != null &&
+                        requested.id == target?.id &&
+                        dispatch(current) ==
+                            PlaylistFeatureDismissalDispatch.Started) {
+                        LibraryBackFeatureRequestResult.Started
+                    } else {
+                        LibraryBackFeatureRequestResult.Rejected
+                    }
+                },
+            )
+        }
+    }
+
 /**
  * Shell-owned selection state is published as a capability; the state module
  * never owns it.

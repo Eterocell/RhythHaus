@@ -55,6 +55,8 @@ include(":feature:library:api")
 
 include(":feature:playlists:api")
 
+include(":feature:playlists:impl")
+
 include(":feature:nowplaying")
 
 include(":taglib")

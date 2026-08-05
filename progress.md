@@ -1,3 +1,14 @@
+## Handoff - 2026-08-07 Task 5.2 closeout
+
+Route: openspec+superpowers
+Owner: documentation/evidence closeout
+Input: approved Task 5.2 implementation commit `fc1b96f858408c8dfd07221d5fe85ae3e20ced63` (`refactor: extract playlists feature`), based on planning commit `c0e1e7b9d07679d7beecd530d1958e50b58b1e3`, final evidence, and combined independent review `PASS / APPROVED`.
+Output: Task 5.2 implementation and OpenSpec 6.2 accepted. Feature playlists implementation owns playlist/queue UI/state, repositories/binding, backup codec/service/state/UI, neutral document seam, Android/JVM launchers, resources, and tests. Shared retains composition, shell/routes/Back, lifecycle, Koin assembly, and the iOS ABI facade/adapter. The platform-facade correction is included in the approved commit and resolves the historical D8 duplicate and missing Swift facade owner findings.
+Verification: feature JVM/Android-host/iOS XML `115/93/83`, Shared JVM/iOS `307/236`, core database JVM `3`, Settings `5`, Xcode `8/0`, architecture functional `71` tests with `6` expected skips; all stated zero failures/errors and relevant zero skips. Convention rebuild/suite, focused and unfiltered platform matrix, Android assemble, desktop/Shared/feature iOS compile, architecture processor, twice-reused `architectureCheck`, Spotless, Detekt, strict named OpenSpec, exact 95-path parser, diff check, generic unsigned Xcode Simulator build, exact iPhone 17 test, and `./init.sh` passed.
+Limits: no Android/iOS physical-device runtime, desktop UI launch, rendered visual QA, live picker/document interaction, or playback runtime claim. Evidence closeout commit is pending.
+Next owner: implementation/planning for Task 5.3 Search discovery and planning.
+Blockers: evidence closeout commit only; OpenSpec 6.3, 6.4, 7.*, and 8.* remain open.
+
 ## Handoff - 2026-08-05 Task 5.1 final acceptance
 
 Route: openspec+superpowers

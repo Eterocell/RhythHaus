@@ -138,7 +138,8 @@ fun LibraryHomeScreen(
     backupDocumentAvailable: Boolean,
     onPlaylistStateAction: (PlaylistStateAction) -> Unit,
     onRefreshPlaylists: () -> Unit,
-    onPlaylistMutation: PlaylistMutationLauncher,
+    onPlaylistMutation:
+        (PlaylistRepository.() -> Unit, (PlaylistStateAction) -> Unit) -> Unit,
     onExportPlaylists: () -> Unit,
     onOpenPlaylistBackup: () -> Unit,
     onConfirmPlaylistBackup: () -> Unit,
@@ -159,6 +160,13 @@ fun LibraryHomeScreen(
 ) {
     val playbackState by playbackController.state.collectAsState()
     val appState = rememberLibraryAppState(snapshot = snapshot)
+    val activePlaylistDestination =
+        remember(appState.activeDestinationId) {
+            PlaylistFeatureDestination(
+                appState.activeDestinationId.instanceToken)
+        }
+    val activePlaylistAppearanceSource =
+        rememberPlaylistFeatureAppearanceSource(activePlaylistDestination)
     LaunchedEffect(playbackState.currentTrack?.id) {
         appState.syncSelectedTrackWithPlayback(playbackState.currentTrack?.id)
     }
@@ -268,7 +276,8 @@ fun LibraryHomeScreen(
             orderedSelectedTrackIds(
                 trackSelectionState, pageKey, visibleTrackIds)
         if (orderedIds.isNotEmpty())
-            onPlaylistStateAction(openAddToPlaylistPickerAction(orderedIds))
+            onPlaylistStateAction(
+                PlaylistStateAction.OpenPicker(PlaylistPickerState(orderedIds)))
     }
     SideEffect {
         appState.publishSelectionPort(selectionPort)
@@ -336,6 +345,9 @@ fun LibraryHomeScreen(
             playlistState = playlistState,
             playlistBackupState = playlistBackupState,
             backupDocumentAvailable = backupDocumentAvailable,
+            destinationId = appState.activeDestinationId,
+            playlistAppearanceSource = activePlaylistAppearanceSource,
+            registerBackSurface = appState::registerBackSurface,
             onPlaylistStateAction = onPlaylistStateAction,
             onRefreshPlaylists = onRefreshPlaylists,
             onPlaylistMutation = onPlaylistMutation,
@@ -399,6 +411,7 @@ fun LibraryHomeScreen(
                 entry.destinationId.takeIf {
                     entry == appState.navigation.currentEntry
                 },
+            playlistAppearanceSource = activePlaylistAppearanceSource,
             registerBackSurface = appState::registerBackSurface,
             onOpenDetailRoute = ::pushRoute,
             onTrackSelected = appState::setSelectedTrackId,
@@ -433,7 +446,8 @@ fun LibraryHomeScreen(
                     onShowPlaylists = { pushRoute(LibraryRoute.PlaylistHub) },
                     onAddToPlaylist = { trackId ->
                         onPlaylistStateAction(
-                            openAddToPlaylistPickerAction(trackId))
+                            PlaylistStateAction.OpenPicker(
+                                PlaylistPickerState(listOf(trackId))))
                     },
                     onTrackSelected = appState::setSelectedTrackId,
                     trackSelectionState = trackSelectionState,
@@ -505,7 +519,8 @@ fun LibraryHomeScreen(
                             },
                             onAddToPlaylist = { trackId ->
                                 onPlaylistStateAction(
-                                    openAddToPlaylistPickerAction(trackId))
+                                    PlaylistStateAction.OpenPicker(
+                                        PlaylistPickerState(listOf(trackId))))
                             },
                             onTrackSelected = appState::setSelectedTrackId,
                             trackSelectionState = trackSelectionState,
@@ -641,14 +656,15 @@ fun LibraryHomeScreen(
         )
 
         playlistState.picker?.let { picker ->
-            AddToPlaylistPicker(
+            AddToPlaylistPickerOverlay(
                 playlists = playlistState.confirmedSnapshot.playlists,
-                state =
-                    AddToPlaylistPickerState(
-                        trackIds = picker.trackIds,
-                        selectedPlaylistId = picker.selectedPlaylistId,
-                        enteredName = picker.enteredName,
-                    ),
+                state = picker,
+                destination = activePlaylistDestination,
+                appearanceSource = activePlaylistAppearanceSource,
+                dismissalPublisher =
+                    featureDismissalPublisher(
+                        appState.activeDestinationId,
+                        appState::registerBackSurface),
                 onStateChange = { updated ->
                     onPlaylistStateAction(
                         PlaylistStateAction.OpenPicker(
@@ -663,37 +679,34 @@ fun LibraryHomeScreen(
                 onDismiss = {
                     onPlaylistStateAction(PlaylistStateAction.ClosePicker)
                 },
-                notice = playlistPickerPresentation(playlistState)?.notice,
-                onAppend = { request ->
+                onAppend = { playlistId, trackIds, onOutcome ->
                     onPlaylistMutation(
-                        { append(request.playlistId, request.trackIds) },
+                        { append(playlistId, trackIds) },
                         { outcome ->
-                            if (playlistMutationDecision(
-                                PlaylistMutationWorkflow.PickerAppend,
-                                outcome) ==
-                                PlaylistMutationDecision.CloseModal) {
+                            onOutcome(outcome)
+                            if (outcome
+                                is PlaylistStateAction.SnapshotConfirmed) {
                                 onPlaylistStateAction(
                                     PlaylistStateAction.ClosePicker)
-                                trackSelectionActionAfterPickerOutcome(outcome)
-                                    ?.let(::dispatchTrackSelection)
+                                dispatchTrackSelection(
+                                    TrackSelectionAction.Cancel)
                             }
                         },
                     )
                 },
-                onInlineCreate = { request ->
+                onInlineCreate = { name, trackIds, onOutcome ->
                     onPlaylistMutation(
                         {
-                            createWithEntries(request.name, request.trackIds)
+                            createWithEntries(name, trackIds)
                         },
                         { outcome ->
-                            if (playlistMutationDecision(
-                                PlaylistMutationWorkflow.PickerInlineCreate,
-                                outcome) ==
-                                PlaylistMutationDecision.CloseModal) {
+                            onOutcome(outcome)
+                            if (outcome
+                                is PlaylistStateAction.SnapshotConfirmed) {
                                 onPlaylistStateAction(
                                     PlaylistStateAction.ClosePicker)
-                                trackSelectionActionAfterPickerOutcome(outcome)
-                                    ?.let(::dispatchTrackSelection)
+                                dispatchTrackSelection(
+                                    TrackSelectionAction.Cancel)
                             }
                         },
                     )
@@ -705,16 +718,16 @@ fun LibraryHomeScreen(
             val playlist =
                 playlistState.confirmedSnapshot.playlist(browser.playlistId)
             if (playlist != null) {
-                PlaylistTrackBrowser(
+                PlaylistTrackBrowserOverlay(
                     playlistName = playlist.name,
                     libraryTracks = libraryTracks,
-                    state =
-                        PlaylistTrackBrowserState(
-                            playlistId = browser.playlistId,
-                            query = browser.query,
-                            visibleTrackIds = browser.visibleTrackIds,
-                            selectedTrackIds = browser.selectedTrackIds,
-                        ),
+                    state = browser,
+                    destination = activePlaylistDestination,
+                    appearanceSource = activePlaylistAppearanceSource,
+                    dismissalPublisher =
+                        featureDismissalPublisher(
+                            appState.activeDestinationId,
+                            appState::registerBackSurface),
                     onStateChange = { updated ->
                         onPlaylistStateAction(
                             PlaylistStateAction.OpenBrowser(
@@ -730,15 +743,13 @@ fun LibraryHomeScreen(
                     onDismiss = {
                         onPlaylistStateAction(PlaylistStateAction.CloseBrowser)
                     },
-                    notice = playlistBrowserPresentation(playlistState)?.notice,
-                    onConfirm = { request ->
+                    onConfirm = { playlistId, trackIds, onOutcome ->
                         onPlaylistMutation(
-                            { append(request.playlistId, request.trackIds) },
+                            { append(playlistId, trackIds) },
                             { outcome ->
-                                if (playlistMutationDecision(
-                                    PlaylistMutationWorkflow.BrowserAppend,
-                                    outcome) ==
-                                    PlaylistMutationDecision.CloseModal) {
+                                onOutcome(outcome)
+                                if (outcome
+                                    is PlaylistStateAction.SnapshotConfirmed) {
                                     onPlaylistStateAction(
                                         PlaylistStateAction.CloseBrowser)
                                 }

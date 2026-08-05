@@ -1,251 +1,380 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.navigationevent.DirectNavigationEventInput
 import androidx.navigationevent.NavigationEvent
 import androidx.navigationevent.NavigationEventDispatcher
+import com.eterocell.rhythhaus.FakePlaybackEngine
+import com.eterocell.rhythhaus.LibrarySnapshot
+import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.library.PlaylistEntry
+import com.eterocell.rhythhaus.library.PlaylistImportMutation
+import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.taglib.TagReadResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 
 class PlaylistBackPolicyJvmTest {
     @Test
     fun coreNavigationEventHandlerLatchesStartBeforeImmediateCompletionAndNeverRetargets() {
-        val state = LibraryAppState(null)
-        state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
+        val state = playlistState()
         val dispatcher = NavigationEventDispatcher()
         val input = DirectNavigationEventInput()
         dispatcher.addInput(input)
-        var begins = 0
         var firstDispatches = 0
         var replacementDispatches = 0
-        val handler =
-            LibraryNavigationEventBackHandler(dispatcher) {
-                begins++
-                state.beginBack()
+        val first =
+            publish(state, "a") {
+                firstDispatches++
+                PlaylistFeatureDismissalDispatch.Started
             }
-        val destination = state.activeDestinationId
-
-        val disposeFirst =
-            state.registerBackSurface(
-                LibraryBackSurfacePort(
-                    destination,
-                    LibraryBackTarget.FeatureModal(
-                        LibraryBackTargetId(destination, "first")),
-                ) {
-                    firstDispatches++
-                    LibraryBackFeatureRequestResult.Started
-                },
-            )
+        val handler =
+            LibraryNavigationEventBackHandler(dispatcher) { state.beginBack() }
         input.backStarted(NavigationEvent())
+        assertEquals(
+            "a",
+            assertIs<LibraryBackTarget.FeatureModal>(
+                    state.pendingBackSession!!.target)
+                .id
+                .instanceToken)
+        first()
+        val replacement =
+            publish(state, "b") {
+                replacementDispatches++
+                PlaylistFeatureDismissalDispatch.Started
+            }
         input.backCompleted()
-
-        assertEquals(1, begins)
-        assertEquals(1, firstDispatches)
+        assertEquals(0, firstDispatches)
         assertEquals(0, replacementDispatches)
-        disposeFirst()
-        state.reconcileBackSession()
-
-        val disposeReplacement =
-            state.registerBackSurface(
-                LibraryBackSurfacePort(
-                    destination,
-                    LibraryBackTarget.FeatureModal(
-                        LibraryBackTargetId(destination, "replacement")),
-                ) {
-                    replacementDispatches++
-                    LibraryBackFeatureRequestResult.Started
-                },
-            )
-        // Direct input completion without an explicit predictive start is one
-        // ordinary begin/complete.
-        input.backCompleted()
-        assertEquals(2, begins)
-        assertEquals(1, replacementDispatches)
-        disposeReplacement()
-        state.reconcileBackSession()
-
-        var cancelledDispatches = 0
-        val disposeCancelled =
-            state.registerBackSurface(
-                LibraryBackSurfacePort(
-                    destination,
-                    LibraryBackTarget.FeatureModal(
-                        LibraryBackTargetId(destination, "cancelled")),
-                ) {
-                    cancelledDispatches++
-                    LibraryBackFeatureRequestResult.Started
-                },
-            )
-        input.backStarted(NavigationEvent())
-        input.backCancelled()
-        assertEquals(3, begins)
-        assertEquals(0, cancelledDispatches)
         assertNull(state.pendingBackSession)
-        disposeCancelled()
+        assertEquals(
+            LibraryRoute.PlaylistDetail("playlist-1"), state.navigation.current)
 
-        var secondGestureDispatches = 0
-        state.registerBackSurface(
-            LibraryBackSurfacePort(
-                destination,
-                LibraryBackTarget.FeatureModal(
-                    LibraryBackTargetId(destination, "second")),
-            ) {
-                secondGestureDispatches++
-                LibraryBackFeatureRequestResult.Started
-            },
-        )
         input.backStarted(NavigationEvent())
         input.backCompleted()
-        assertEquals(4, begins)
-        assertEquals(1, secondGestureDispatches)
+        assertEquals(1, replacementDispatches)
+        replacement()
+        assertNull(state.pendingBackSession)
+
+        val cancelled = publish(state, "cancelled")
+        input.backStarted(NavigationEvent())
+        assertEquals(
+            "cancelled",
+            assertIs<LibraryBackTarget.FeatureModal>(
+                    state.pendingBackSession!!.target)
+                .id
+                .instanceToken)
+        input.backCancelled()
+        assertNull(state.pendingBackSession)
+        cancelled()
         handler.dispose()
         dispatcher.removeInput(input)
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun presentedDestinationPublishesEditAndAFeatureModalPrecedesIt() =
+    fun playlistHubRoutePublishesCreateToTheActiveDestinationAndRejectsStalePublishers() =
         runComposeUiTest {
             val state = LibraryAppState(null)
-            state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
+            state.pushRoute(LibraryRoute.PlaylistHub)
             val destination = state.activeDestinationId
+            val dispatcher = NavigationEventDispatcher()
+            val input = DirectNavigationEventInput()
+            dispatcher.addInput(input)
+            val handler =
+                LibraryNavigationEventBackHandler(dispatcher) {
+                    state.beginBack()
+                }
+            val playbackController = PlaybackController(FakePlaybackEngine())
             setContent {
-                PlaylistDetailScreen(
-                    playlist = PlaylistSummary("playlist-1", "Saved", 1L, 1L),
-                    entries = emptyList(),
+                val appearanceSource =
+                    rememberPlaylistFeatureAppearanceSource(
+                        PlaylistFeatureDestination(destination.instanceToken))
+                LibraryRouteContent(
+                    route = LibraryRoute.PlaylistHub,
+                    albums = emptyList(),
+                    artists = emptyList(),
+                    snapshot =
+                        LibrarySnapshot(
+                            "Library", "", emptyList<Track>(), null),
                     libraryTracks = emptyList(),
-                    state = PlaylistState(),
+                    tagLibReader = UnsupportedTagReader,
+                    playbackController = playbackController,
+                    playbackState = PlaybackState(),
+                    playlistRepository = EmptyPlaylistRepository,
+                    playlistState =
+                        PlaylistState(
+                            confirmedSnapshot = PlaylistSnapshot(),
+                            hasConfirmedSnapshot = true),
+                    onPlaylistStateAction = {},
+                    onRefreshPlaylists = {},
+                    onPlaylistMutation = { _, _ -> },
+                    onRecoverStalePlaylistDetail = {},
+                    selectedTrackId = null,
+                    isNowPlayingBarVisible = false,
                     onBack = {},
-                    onRetry = {},
-                    onRename = { _, _ -> },
-                    onDelete = {},
-                    onOpenBrowser = {},
-                    onPlayEntry = {},
-                    onRemoveEntry = {},
-                    onReorder = {},
-                    rowMode = PlaylistDetailRowMode.Edit,
                     destinationId = destination,
+                    playlistAppearanceSource = appearanceSource,
                     registerBackSurface = state::registerBackSurface,
+                    onOpenDetailRoute = {},
+                    onTrackSelected = {},
+                    onTrackClickFromTracks = { _, _ -> },
+                    onExpandNowPlaying = {},
+                    onShowSettings = {},
+                    onShowSearch = {},
+                    onScrollPositionChanged = {},
+                    homeContent = {},
                 )
             }
             waitForIdle()
-            val edit =
+            assertIs<LibraryBackTarget.Route>(
                 assertIs<LibraryBackBeginResult.Started>(state.beginBack())
                     .session
-            assertIs<LibraryBackTarget.FeatureEdit>(edit.target)
-            edit.reject()
+                    .target)
+            state.pendingBackSession!!.reject()
+
+            onNode(hasText("Create playlist")).performClick()
+            waitForIdle()
+            val first =
+                assertIs<LibraryBackBeginResult.Started>(state.beginBack())
+                    .session
+            val firstTarget =
+                assertIs<LibraryBackTarget.FeatureModal>(first.target)
+            assertEquals(destination, firstTarget.id.destinationId)
+            assertEquals(
+                "create", firstTarget.id.instanceToken.substringBefore('-'))
+            first.reject()
+
+            val staleDestination =
+                LibraryDestinationId(LibraryRoute.PlaylistHub, "outgoing")
+            featureDismissalPublisher(
+                    staleDestination, state::registerBackSurface)
+                .publish(
+                    PlaylistFeatureDismissal.Modal(
+                        PlaylistFeatureDestination("outgoing"),
+                        PlaylistDismissalAppearance("stale")),
+                ) {
+                    error("outgoing publisher must not dispatch")
+                }
+            val retained =
+                assertIs<LibraryBackBeginResult.Started>(state.beginBack())
+                    .session
+            assertEquals(firstTarget, retained.target)
+            retained.reject()
+
+            input.backStarted(NavigationEvent())
+            input.backCompleted()
+            waitForIdle()
+            assertNull(state.pendingBackSession)
+            assertEquals(LibraryRoute.PlaylistHub, state.navigation.current)
+            assertIs<LibraryBackTarget.Route>(
+                assertIs<LibraryBackBeginResult.Started>(state.beginBack())
+                    .session
+                    .target)
+            state.pendingBackSession!!.reject()
+
+            onNode(hasText("Create playlist")).performClick()
+            waitForIdle()
+            val reopened =
+                assertIs<LibraryBackBeginResult.Started>(state.beginBack())
+                    .session
+            val reopenedTarget =
+                assertIs<LibraryBackTarget.FeatureModal>(reopened.target)
+            assertNotEquals(
+                firstTarget.id.instanceToken, reopenedTarget.id.instanceToken)
+            reopened.reject()
+            handler.dispose()
+            dispatcher.removeInput(input)
+            playbackController.release()
         }
 
     @Test
+    fun presentedDestinationPublishesEditAndAFeatureModalPrecedesIt() {
+        val state = playlistState()
+        val edit = publish(state, "edit", PlaylistFeatureDismissal::Edit)
+        val modal = publish(state, "modal", PlaylistFeatureDismissal::Modal)
+        val session =
+            assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
+        assertIs<LibraryBackTarget.FeatureModal>(session.target)
+        session.reject()
+        modal()
+        val restoredEdit =
+            publish(state, "edit", PlaylistFeatureDismissal::Edit)
+        val editSession =
+            assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
+        assertIs<LibraryBackTarget.FeatureEdit>(editSession.target)
+        editSession.reject()
+        restoredEdit()
+        edit()
+    }
+
+    @Test
     fun inactiveHiddenAndOutgoingPortsAreRejectedAndStaleDisposersAreSafe() {
-        val state = LibraryAppState(null)
-        val route = LibraryRoute.PlaylistDetail("playlist-1")
-        state.pushRoute(route)
-        state.replaceTopRoute(route)
-        val b = state.activeDestinationId
-        state.replaceTopRoute(route)
-        val activeA = state.activeDestinationId
-        val first =
-            LibraryBackTarget.FeatureModal(
-                LibraryBackTargetId(activeA, "first"))
-        val replacement =
-            LibraryBackTarget.FeatureModal(
-                LibraryBackTargetId(activeA, "replacement"))
-        val disposeFirst =
-            state.registerBackSurface(LibraryBackSurfacePort(activeA, first))
-        state.registerBackSurface(LibraryBackSurfacePort(activeA, replacement))
-        state.registerBackSurface(
-            LibraryBackSurfacePort(
-                b,
-                LibraryBackTarget.FeatureModal(
-                    LibraryBackTargetId(b, "hidden"))))
-        disposeFirst()
-        assertEquals(
-            replacement,
-            assertIs<LibraryBackBeginResult.Started>(state.beginBack())
-                .session
-                .target)
-        state.pendingBackSession!!.cancel()
-        state.popToRoot()
-        assertEquals(LibraryBackBeginResult.Unhandled, state.beginBack())
+        val state = playlistState()
+        val oldDestination = state.activeDestinationId
+        state.replaceTopRoute(LibraryRoute.PlaylistDetail("playlist-1"))
+        val active = state.activeDestinationId
+        val stale =
+            featureDismissalPublisher(
+                    oldDestination, state::registerBackSurface)
+                .publish(
+                    PlaylistFeatureDismissal.Modal(
+                        PlaylistFeatureDestination("old"),
+                        PlaylistDismissalAppearance("old"))) {
+                        PlaylistFeatureDismissalDispatch.Started
+                    }
+        val first = publish(state, "first")
+        val replacement = publish(state, "replacement")
+        first()
+        assertEquals("replacement", featureTarget(state).id.instanceToken)
+        stale()
+        assertEquals(active, featureTarget(state).id.destinationId)
+        replacement()
+        assertIs<LibraryBackBeginResult.Started>(state.beginBack())
+            .session
+            .reject()
     }
 
     @Test
     fun featureCallbackReturnKeepsTheExactSessionPendingUntilItsPortDisappears() {
-        val state = LibraryAppState(null)
-        state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
-        val destination = state.activeDestinationId
-        var dispatched = 0
-        val dispose =
-            state.registerBackSurface(
-                LibraryBackSurfacePort(
-                    destination,
-                    LibraryBackTarget.FeatureModal(
-                        LibraryBackTargetId(destination, "modal"))) {
-                        dispatched++
-                        LibraryBackFeatureRequestResult.Started
-                    },
-            )
+        val state = playlistState()
+        val dispose = publish(state, "modal")
         assertEquals(
             LibraryBackAdapterResult.Handled,
             performLibraryBack(state, null, {}))
-        assertEquals(1, dispatched)
         assertEquals(
             LibraryBackAdapterResult.Suppressed,
             performLibraryBack(state, null, {}))
         dispose()
-        state.reconcileBackSession()
-        assertEquals(null, state.pendingBackSession)
-    }
-
-    @Test
-    fun ordinaryAndSystemAdaptersUseTheSameStateProtocol() {
-        val state = LibraryAppState(null)
-        state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
-        val destination = state.activeDestinationId
-        var dismisses = 0
-        state.registerBackSurface(
-            LibraryBackSurfacePort(
-                destination,
-                LibraryBackTarget.FeatureModal(
-                    LibraryBackTargetId(destination, "modal"))) {
-                    dismisses++
-                    LibraryBackFeatureRequestResult.Started
-                },
-        )
-        assertEquals(
-            LibraryBackAdapterResult.Handled,
-            performLibraryBack(state, null, {}))
-        assertEquals(
-            LibraryBackAdapterResult.Suppressed,
-            performLibraryBack(state, null, {}))
-        assertEquals(1, dismisses)
+        assertNull(state.pendingBackSession)
     }
 
     @Test
     fun explicitFeatureRejectionImmediatelyReleasesSuppressionWithoutRouteFallThrough() {
-        val state = LibraryAppState(null)
-        state.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
-        val destination = state.activeDestinationId
-        val target =
-            LibraryBackTarget.FeatureModal(
-                LibraryBackTargetId(destination, "rejecting-modal"))
-        state.registerBackSurface(
-            LibraryBackSurfacePort(destination, target) {
-                LibraryBackFeatureRequestResult.Rejected
-            },
-        )
-
+        val state = playlistState()
+        publish(state, "rejecting") {
+            PlaylistFeatureDismissalDispatch.Rejected
+        }
         assertEquals(
             LibraryBackAdapterResult.Handled,
-            performLibraryBack(state, null, {}),
-        )
+            performLibraryBack(state, null, {}))
         assertNull(state.pendingBackSession)
         assertEquals(
             LibraryRoute.PlaylistDetail("playlist-1"), state.navigation.current)
+    }
+
+    @Test
+    fun predictiveCancellationReleasesTheLatchedFeatureTarget() {
+        val state = playlistState()
+        publish(state, "modal")
+        val dispatcher = NavigationEventDispatcher()
+        val input = DirectNavigationEventInput()
+        dispatcher.addInput(input)
+        val handler =
+            LibraryNavigationEventBackHandler(dispatcher) { state.beginBack() }
+        input.backStarted(NavigationEvent())
+        input.backCancelled()
+        assertNull(state.pendingBackSession)
+        handler.dispose()
+        dispatcher.removeInput(input)
+    }
+
+    @Test
+    fun nonPredictiveSettlementWaitsForAuthoritativeInactivityWithoutCallbackReturn() {
+        val state = playlistState()
+        val dispose = publish(state, "modal")
+        assertEquals(
+            LibraryBackAdapterResult.Handled,
+            performLibraryBack(state, null, {}))
+        assertIs<LibraryBackSession>(state.pendingBackSession)
+        dispose()
+        assertNull(state.pendingBackSession)
+    }
+
+    private fun playlistState(): LibraryAppState =
+        LibraryAppState(null).also {
+            it.pushRoute(LibraryRoute.PlaylistDetail("playlist-1"))
+        }
+
+    private fun publish(
+        state: LibraryAppState,
+        appearance: String,
+        kind:
+            (
+                PlaylistFeatureDestination,
+                PlaylistDismissalAppearance) -> PlaylistFeatureDismissal =
+            PlaylistFeatureDismissal::Modal,
+        dispatch: () -> PlaylistFeatureDismissalDispatch = {
+            PlaylistFeatureDismissalDispatch.Started
+        },
+    ): () -> Unit {
+        val destination = state.activeDestinationId
+        return featureDismissalPublisher(
+                destination, state::registerBackSurface)
+            .publish(
+                kind(
+                    PlaylistFeatureDestination(destination.instanceToken),
+                    PlaylistDismissalAppearance(appearance)),
+            ) {
+                dispatch()
+            }
+    }
+
+    private fun featureTarget(state: LibraryAppState): LibraryBackTarget =
+        assertIs<LibraryBackBeginResult.Started>(state.beginBack())
+            .session
+            .target
+            .also {
+                state.pendingBackSession!!.reject()
+            }
+
+    private object UnsupportedTagReader : TagLibReader {
+        override fun readPath(path: String): TagReadResult =
+            TagReadResult.Unsupported("test")
+
+        override fun readProperties(path: String): Map<String, String> =
+            emptyMap()
+    }
+
+    private object EmptyPlaylistRepository : PlaylistRepository {
+        override fun playlists(): List<PlaylistSummary> = emptyList()
+
+        override fun playlist(id: String): PlaylistSummary? = null
+
+        override fun entries(playlistId: String): List<PlaylistEntry> =
+            emptyList()
+
+        override fun create(name: String): PlaylistSummary = error("not used")
+
+        override fun createWithEntries(
+            name: String,
+            trackIds: List<String>
+        ): PlaylistSummary = error("not used")
+
+        override fun importPlaylists(
+            playlists: List<PlaylistImportMutation>
+        ): List<PlaylistSummary> = error("not used")
+
+        override fun rename(id: String, name: String) = error("not used")
+
+        override fun delete(id: String) = error("not used")
+
+        override fun append(playlistId: String, trackIds: List<String>) =
+            error("not used")
+
+        override fun removeEntry(entryId: String) = error("not used")
+
+        override fun reorder(playlistId: String, entryIds: List<String>) =
+            error("not used")
     }
 }

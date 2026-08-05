@@ -44,6 +44,26 @@ feature implementation, even after `:core:database` becomes the sole SQLDelight
 owner. Stateful screens use immutable `UiState`, `UiEvent`, and `UiEffect` with a
 Presenter/ViewModel when state warrants one; stateless UI gets no empty types.
 
+The approved playlists migration creates unexported `:feature:playlists:impl` for
+Android-KMP/JVM/`iosArm64`/`iosSimulatorArm64`. It owns saved-playlist/playback-queue UI,
+immutable domain-named Playlist state/action/reducer/owner equivalents, repository
+implementations/Koin binding, backup codec/service/state/UI, a neutral common document-launcher
+contract, public Android/JVM launcher factories, and feature resources. Shared owns the common
+`expect`, Android/JVM delegates, and retained iOS actual/ABI adapter; the feature owns no iOS
+actual/source or Shared edge. Its direct allowed project edges are playlists API,
+Library API, core model/playback/ui/platform, and implementation-only core database. Other Gradle
+scopes are derived from exhaustive public signatures; generated DB/SQLDelight/generated
+`Res`/shared navigation or shell types cannot be public signature types. Koin is forbidden except
+for the public binding-module factory returning `org.koin.core.module.Module` for shared assembly.
+Governance preserves
+`com.eterocell.rhythhaus.library` and `com.eterocell.rhythhaus.playlistbackup`. The narrow public
+implementation surface is the binding-module Koin factory plus shared-needed state/action/result/
+owner/composable/dismissal/backup/launcher contracts, each with behavioral KDoc; all other
+helpers are internal/private.
+The already-characterized immutable `PlaylistState`, `PlaylistStateAction`, reducer,
+`PlaylistStateOwner`, and backup immutable state/reducer are the Task 5.2-only equivalent and do
+not relax the architecture-wide Presenter/ViewModel rule for other stateful feature migrations.
+
 ## Contracts And Composition
 
 Every migration is contract-first: relocate an explicit stable contract before its
@@ -67,9 +87,20 @@ source, resource, and test structure.
 
 `shared` arbitrates one Back transition per intent in this order: modal, edit,
 active-page selection, Now Playing, then route. Only the active destination is
-eligible, and predictive Back latches the exact destination and target. A feature
-owns modal/edit state and publishes only its foremost dismissal. Deleting the
-displayed playlist is destination invalidation, not a Back action.
+eligible, and predictive Back latches the exact destination and appearance. The feature
+publishes exactly one already-resolved foremost immutable dismissal surface, modal before
+edit, with stable identity per appearance and new identity per re-presentation. Shared owns
+identity/mapping/registration; stale registrations/disposers cannot replace or clear active
+state. Cancellation does not dismiss; completion revalidates and dispatches at most once;
+rejection/staleness clears the pending session without fallthrough. Deleting the displayed
+playlist invalidates only after confirmed exact absence, never through Back; failed/stale/
+replayed deletion does not invalidate and unrelated state is preserved.
+
+A dispatched non-predictive transition remains in flight until authoritative state reports the
+exact latched target inactive or that target explicitly rejects completion. Repeated Back is
+suppressed while in flight; callback return alone never settles or releases suppression. Rejection
+releases without treating the target as settled, and any later Back is a new intent. Predictive
+latching, cancellation, and no-fallthrough behavior remain unchanged.
 
 ## Database And Resources
 
@@ -99,6 +130,17 @@ The shared framework remains the sole iOS facade. `MainViewController` remains
 stable and enters the shared composition root. The iOS export allow-list is narrow:
 export only a module whose declarations are required in the public Swift/Objective-C
 API. Do not broadly export core modules or feature implementations.
+
+The thin shared iOS facade retains the exact executable ABI ledger in the canonical Task 5.2
+Superpowers design: package `com.eterocell.rhythhaus.playlistbackup`, framework `Shared`,
+`IOSPlaylistBackupDocumentStatus` values, Completion/Provider names/signatures/nullability,
+Bridge singleton access, MIME/max-size constant exports, and existing Swift `Int32` interop.
+Shared adapts this ABI to the Kotlin-only feature seam through its retained iOS actual; the feature
+is not exported, owns no iOS source, and Swift application files remain app-owned. Shared retains
+composition, shell/routes/Back, lifecycle, Koin
+assembly, Settings layout, generic injected
+`cancel`, and selection-bar composition. The feature owns embeddable backup sections/dialogs and
+all playlist/queue/backup EN/ZH text once, without duplicate resource keys or generated handles.
 
 ## Enforcement And Deferrals
 

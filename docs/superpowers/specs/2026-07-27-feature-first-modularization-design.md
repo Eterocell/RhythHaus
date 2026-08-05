@@ -313,13 +313,65 @@ modules. Only `:shared` assembles and starts DI; no service locator back-referen
 
 ## Back And Navigation Invariants
 
-The existing Back contract is preserved exactly. One intent performs one transition in this order: modal, edit mode, active-page selection, Now Playing, then route. Only the active destination participates. Predictive Back latches the exact destination and target. A feature owns its modal/edit state and publishes only its foremost dismissal. Deleting a displayed playlist is destination invalidation, not a Back transition. The root shell remains in `:shared`; introduce the smallest common navigation contract only if destination-scoped Back behavior requires one.
+The existing Back contract is preserved exactly. One intent performs one transition in this order: modal, edit mode, active-page selection, Now Playing, then route. Only the active destination participates. Predictive Back latches the exact destination and target. A feature publishes exactly one already-resolved foremost immutable dismissal surface, modal before edit, with stable identity per appearance and a new identity per re-presentation. Shared owns destination identity, mapping, and registration; only the active destination is accepted, and stale registrations/disposers cannot replace or clear active state. Cancellation does not dismiss. Completion revalidates the exact destination and appearance and dispatches at most once. Rejection or staleness clears the pending session with no same-intent fallthrough.
+
+A dispatched non-predictive transition remains in flight until authoritative state reports that exact latched target inactive or the target explicitly rejects completion. Repeated Back is suppressed while it remains in flight; callback return alone never settles or releases suppression. Explicit rejection releases the in-flight intent without treating the target as settled, and any later Back is a new intent. Deleting a displayed playlist is authoritative exact-destination invalidation after confirmed absence, never Back; failed, stale, or replayed deletion does not invalidate and unrelated state is preserved. The root shell remains in `:shared`; introduce the smallest common navigation contract only if destination-scoped Back behavior requires one.
 
 ## Database, Resources, And iOS
 
 During Task 1.3, `:shared` was the transitional physical SQLDelight owner while only Gradle application/configuration moved into a dedicated build-logic convention. Accepted Task 3.1 transferred the configured database/plugin ownership, true-layout `.sq`/`.sqm`/schema artifacts, drivers, and generated package atomically to `:core:database`, which is now the sole physical SQLDelight owner. The Task 1.3 convention change preserved the existing database configuration, schema, migrations, package, database name, and platform driver behavior. Runtime/coroutine consumers, README text, and arbitrary filenames do not identify an owner.
 
 Resources move with their feature through recognized KMP/Compose source-set locations; a namespace is enforced only when exposed by the public module model. Each migration verifies Android packaging, desktop runtime resolution, and iOS linking. iOS exports only modules whose declarations enter the Swift/Objective-C public API; broad exports are forbidden. The existing shared framework entry remains stable.
+
+### Approved Task 5.2 Playlist Implementation Boundary
+
+New unexported `:feature:playlists:impl` targets Android-KMP, JVM, `iosArm64`, and `iosSimulatorArm64`. It owns saved-playlist and playback-queue UI; immutable Playlist state/actions/reducer/owner, preserving the already-characterized immutable `PlaylistState`, `PlaylistStateAction`, reducer, `PlaylistStateOwner`, and backup immutable state/reducer as the Task 5.2-specific accepted equivalent without a new Presenter/ViewModel/`UiEffect`/Event scaffold; repository implementations/Koin binding; backup codec/service/state/UI; the neutral common document-launcher contract; public Android/JVM launcher factories; and feature resources. Feature owns no iOS actual/source and has no Shared edge. Shared owns the common `expect`, Android/JVM delegates, and retained iOS actual/ABI adapter. The API remains a clean repository/model contract. Its direct allowed project edges are playlists API, Library API, core model/playback/ui/platform, and implementation-only core database. Other Gradle `api`/`implementation` scopes are derived later from exhaustive public signatures. Generated DB/SQLDelight/generated `Res`/shared navigation or shell types are forbidden in public signatures. Koin is forbidden elsewhere in the public surface; the sole exception is the documented public binding-module factory returning `org.koin.core.module.Module` for shared assembly. Public implementation declarations are limited to that Koin factory, shared-needed state/action/result types, owner, composable entries, dismissal contracts, backup orchestration contracts, and launcher seam, each with declaration-specific behavioral KDoc; all other helpers are internal/private. Governance covers the preserved roots `com.eterocell.rhythhaus.library` and `com.eterocell.rhythhaus.playlistbackup`.
+
+Task 5.2 moves adapters only. `:core:database` remains sole physical owner: no `.sq`, `.sqm`, schema, migration, generated DB, driver, database-name, or FK change. Serialization/revision/cancellation invariants, backup operation exclusivity, exact 4 MiB limits, mappings, stale-library rejection, transactional import, and exactly-once native completion remain intact. Moving queue UI does not move playback engine/session/lifecycle/root playback state.
+
+Shared retains app composition, shell/routes/Back, lifecycle, Koin assembly/start, and Settings layout. The feature owns embeddable backup sections/dialogs and all playlist/queue/backup EN/ZH text once. Shared injects generic `cancel` and composes the feature-owned add-to-playlist plain `String` into the selection bar; no duplicate keys or generated resource handles cross the boundary. The thin shared iOS facade retains the exact Shared framework ABI in the executable ledger below. Shared adapts to the Kotlin-only feature seam; the feature is not exported and Swift app files remain app-owned.
+
+Both `InMemoryPlaylistRepository` and `SqlDelightPlaylistRepository` move to feature implementation ownership; neither implementation is exposed through Shared. `feature/playlists/api/.../PlaylistRepository.kt` remains the public repository contract. Retained Shared tests use that contract plus public feature state ports, never implementation classes or feature-private helpers. `LibrarySourceManagementTest` uses a test-local recording `PlaylistRepository` and `PlaylistStateOwner.refresh()` rather than `loadPlaylistSnapshot`; lifecycle, DI singleton/factory, source-management, and queue/playlist reconciliation behavior remain covered. Shared retains an internal `authoritativePlaylistBackupRevisionGuard(owner: AuthoritativeLibraryPublicationOwner): PlaylistBackupRevisionGuard` factory. Its common-test adapter suite verifies delegation of controller confirmation blocks through `AuthoritativeLibraryPublicationOwner.withCurrentRevision` for current and stale revisions and exact `CancellationException` rethrow.
+
+#### Shared iOS ABI Ledger
+
+The following ABI is literal and must remain in package `com.eterocell.rhythhaus.playlistbackup` in framework `Shared`:
+
+```kotlin
+object IOSPlaylistBackupDocumentStatus {
+    const val SUCCESS = 0
+    const val CANCELLED = 1
+    const val TOO_LARGE = 2
+    const val FAILURE = 3
+    const val UNAVAILABLE = 4
+}
+
+interface IOSPlaylistBackupDocumentCompletion {
+    fun complete(status: Int, bytes: ByteArray?, message: String?)
+}
+
+interface IOSPlaylistBackupDocumentProvider {
+    fun saveDocument(
+        fileName: String,
+        bytes: ByteArray,
+        completion: IOSPlaylistBackupDocumentCompletion,
+    )
+
+    fun openDocument(
+        maxBytes: Int,
+        completion: IOSPlaylistBackupDocumentCompletion,
+    )
+}
+
+object IOSPlaylistBackupDocumentBridge {
+    var provider: IOSPlaylistBackupDocumentProvider?
+}
+
+const val PlaylistBackupMimeType = "application/vnd.rhythhaus.playlists+json"
+const val PlaylistBackupMaxBytes = 4 * 1024 * 1024 // 4,194,304
+```
+
+Swift retains singleton access as `IOSPlaylistBackupDocumentBridge.shared.provider`. The top-level constants remain exported through `PlatformPlaylistBackupDocumentsKt.PlaylistBackupMimeType` and `PlatformPlaylistBackupDocumentsKt.PlaylistBackupMaxBytes`. Swift consumers continue to receive Kotlin `Int` as `Int32` where current interop does, notably `openDocument(maxBytes: Int32, ...)`. This ledger is the canonical exact comparison target; it does not authorize Swift source redesign.
 
 ## Migration Strategy
 
@@ -386,6 +438,8 @@ the authored self-edge negative control, and the fail-closed cardinality control
 
 Every task starts with a characterization or architecture RED test, makes the minimal move or implementation, then runs focused GREEN checks followed by architecture, Detekt, and Spotless checks. Run full `./init.sh` for graph, expect/actual, SQLDelight, resource changes, and final validation. Update `progress.md`, `roadmap.md`, and relevant ADRs during implementation. Make conventional commits per independently reviewable migration slice.
 
+Task 6.2 is executable at the design level but remains unchecked. It requires characterization/architecture RED, an atomic ownership move, DB/FK/resources/Back/edit/modal/document/DI/Swift ABI/platform verification, exact Shared iOS ABI ledger comparison plus compile/link and Swift consumer/tests (or equivalent ABI verification), and non-predictive in-flight settlement/rejection suppression tests and evidence. It also requires explicit evidence limits, architecture/quality/strict OpenSpec/diff checks, and `./init.sh`. Compile/link/tests do not prove runtime/device behavior. The later executable plan owns detailed exact commands and the path ledger.
+
 Acceptance requires actual dependency-graph and TestKit illegal-fixture coverage; a thin shared inventory; explicit public APIs; Back regressions; SQLDelight migration/integration verification; Android, desktop, and iOS startup/resource/DI coverage plus key playback and scanning paths; `qualityCheck`; `./init.sh`; strict OpenSpec validation; and `git diff --check`. Documentation and trackers must match the evidence.
 
 ## Risks And Mitigations
@@ -395,3 +449,7 @@ Acceptance requires actual dependency-graph and TestKit illegal-fixture coverage
 - SQLDelight cross-feature FKs, resources, expect/actual declarations, and Swift exports: use atomic database moves and platform-specific verification in the affected slice.
 - Stale OpenSpec tracking: reconcile the known architecture/package changes before migration work.
 - Illegal bridge dependencies: prohibit them; leave a failed atomic slice incomplete rather than weakening the graph.
+
+## Approved Task 5.2 Non-Goals
+
+No visual/product redesign, state-framework rewrite, navigation/core-navigation, generic document module, package rename, database change, playback ownership change, illegal bridge/service locator/implementation coupling, feature export, Swift redesign, resource duplication, or runtime/device claim from compile/link/tests. ADR 0002 already matches and remains untouched.

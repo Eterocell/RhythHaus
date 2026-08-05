@@ -2,9 +2,7 @@ package com.eterocell.rhythhaus.playlistbackup
 
 import kotlin.test.AfterTest
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 
 class PlatformPlaylistBackupDocumentsIosTest {
     @AfterTest
@@ -14,38 +12,55 @@ class PlatformPlaylistBackupDocumentsIosTest {
 
     @Test
     fun unavailableProviderProducesDistinctResults() {
-        assertIs<PlaylistBackupDocumentSaveResult.Unavailable>(
-            iosPlaylistBackupUnavailableSaveResult())
-        assertIs<PlaylistBackupDocumentOpenResult.Unavailable>(
-            iosPlaylistBackupUnavailableOpenResult())
+        assertEquals(
+            PlaylistBackupDocumentSaveResult.Unavailable(
+                "iOS document provider is unavailable"),
+            iosPlaylistBackupUnavailableSaveResult(),
+        )
+        assertEquals(
+            PlaylistBackupDocumentOpenResult.Unavailable(
+                "iOS document provider is unavailable"),
+            iosPlaylistBackupUnavailableOpenResult(),
+        )
     }
 
     @Test
     fun completionMapsSuccessCancellationFailureAndOversized() {
-        assertIs<PlaylistBackupDocumentSaveResult.Success>(
+        assertEquals(
+            PlaylistBackupDocumentSaveResult.Success,
             iosPlaylistBackupSaveResult(
-                IOSPlaylistBackupDocumentStatus.SUCCESS, null))
-        assertIs<PlaylistBackupDocumentSaveResult.Cancelled>(
+                IOSPlaylistBackupDocumentStatus.SUCCESS, null),
+        )
+        assertEquals(
+            PlaylistBackupDocumentSaveResult.Cancelled,
             iosPlaylistBackupSaveResult(
-                IOSPlaylistBackupDocumentStatus.CANCELLED, null))
-        assertIs<PlaylistBackupDocumentSaveResult.Failure>(
+                IOSPlaylistBackupDocumentStatus.CANCELLED, null),
+        )
+        assertEquals(
+            PlaylistBackupDocumentSaveResult.Failure("failed"),
             iosPlaylistBackupSaveResult(
-                IOSPlaylistBackupDocumentStatus.FAILURE, "failed"))
-        assertIs<PlaylistBackupDocumentSaveResult.Unavailable>(
+                IOSPlaylistBackupDocumentStatus.FAILURE, "failed"),
+        )
+        assertEquals(
+            PlaylistBackupDocumentSaveResult.Unavailable("unavailable"),
             iosPlaylistBackupSaveResult(
                 IOSPlaylistBackupDocumentStatus.UNAVAILABLE, "unavailable"),
         )
 
         val bytes = byteArrayOf(1, 2, 3)
-        assertContentEquals(
-            bytes,
-            assertIs<PlaylistBackupDocumentOpenResult.Success>(
-                    iosPlaylistBackupOpenResult(
-                        IOSPlaylistBackupDocumentStatus.SUCCESS, bytes, null),
-                )
-                .bytes,
+        assertEquals(
+            PlaylistBackupDocumentOpenResult.Success(bytes),
+            iosPlaylistBackupOpenResult(
+                IOSPlaylistBackupDocumentStatus.SUCCESS, bytes, null),
         )
-        assertIs<PlaylistBackupDocumentOpenResult.Cancelled>(
+        assertEquals(
+            PlaylistBackupDocumentOpenResult.Failure(
+                "Document provider returned no bytes"),
+            iosPlaylistBackupOpenResult(
+                IOSPlaylistBackupDocumentStatus.SUCCESS, null, null),
+        )
+        assertEquals(
+            PlaylistBackupDocumentOpenResult.Cancelled,
             iosPlaylistBackupOpenResult(
                 IOSPlaylistBackupDocumentStatus.CANCELLED, null, null),
         )
@@ -54,35 +69,17 @@ class PlatformPlaylistBackupDocumentsIosTest {
             iosPlaylistBackupOpenResult(
                 IOSPlaylistBackupDocumentStatus.TOO_LARGE, null, null),
         )
-        assertIs<PlaylistBackupDocumentOpenResult.Failure>(
+        assertEquals(
+            PlaylistBackupDocumentOpenResult.Failure("failed"),
             iosPlaylistBackupOpenResult(
                 IOSPlaylistBackupDocumentStatus.FAILURE, null, "failed"),
         )
-        assertIs<PlaylistBackupDocumentOpenResult.Unavailable>(
+        assertEquals(
+            PlaylistBackupDocumentOpenResult.Unavailable("unavailable"),
             iosPlaylistBackupOpenResult(
                 IOSPlaylistBackupDocumentStatus.UNAVAILABLE,
                 null,
                 "unavailable"),
         )
     }
-
-    @Test
-    fun bridgeRetainsRegisteredProvider() {
-        val provider = FakeProvider()
-        IOSPlaylistBackupDocumentBridge.provider = provider
-        assertEquals(provider, IOSPlaylistBackupDocumentBridge.provider)
-    }
-}
-
-private class FakeProvider : IOSPlaylistBackupDocumentProvider {
-    override fun saveDocument(
-        fileName: String,
-        bytes: ByteArray,
-        completion: IOSPlaylistBackupDocumentCompletion
-    ) = Unit
-
-    override fun openDocument(
-        maxBytes: Int,
-        completion: IOSPlaylistBackupDocumentCompletion
-    ) = Unit
 }

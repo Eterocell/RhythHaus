@@ -10,7 +10,7 @@ public object ArchitectureAllowList {
             ":shared" to setOf(":taglib", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl", ":feature:nowplaying"),
             ":feature:nowplaying" to setOf(":core:playback", ":core:ui"),
             ":feature:library:impl" to setOf(":feature:library:api"),
-            ":feature:playlists:impl" to setOf(":feature:playlists:api"),
+            ":feature:playlists:impl" to setOf(":feature:playlists:api", ":feature:library:api", ":core:model", ":core:playback", ":core:ui", ":core:platform", ":core:database"),
             ":feature:library:api" to setOf(":core:model"),
             ":core:playback" to setOf(":core:model", ":core:platform"),
         )
@@ -29,7 +29,13 @@ public object ArchitectureAllowList {
             ":feature:library:api" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
             ":feature:library:impl" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
             ":feature:playlists:api" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
-            ":feature:playlists:impl" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
+            ":feature:playlists:impl" to ModulePolicy(
+                setOf(
+                    "com.eterocell.rhythhaus.library",
+                    "com.eterocell.rhythhaus.library.ui",
+                    "com.eterocell.rhythhaus.playlistbackup",
+                ),
+            ),
             ":feature:nowplaying" to ModulePolicy(setOf("com.eterocell.rhythhaus.nowplaying", "com.eterocell.rhythhaus.ui")),
         )
 

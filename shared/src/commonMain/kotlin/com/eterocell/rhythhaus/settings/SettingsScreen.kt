@@ -51,12 +51,13 @@ import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.ui.AnimatedClearLibraryDialogRoute
+import com.eterocell.rhythhaus.library.ui.PlaylistFeatureAppearanceSource
+import com.eterocell.rhythhaus.library.ui.PlaylistFeatureDestination
+import com.eterocell.rhythhaus.library.ui.PlaylistFeatureDismissalPublisher
 import com.eterocell.rhythhaus.library.ui.ScanningCard
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupPreviewDialog
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupResultDialog
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsHost
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsLabels
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
-import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiError
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
@@ -70,28 +71,10 @@ import rhythhaus.shared.generated.resources.add_music_folder
 import rhythhaus.shared.generated.resources.appearance
 import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.clear_library
+import rhythhaus.shared.generated.resources.close
 import rhythhaus.shared.generated.resources.configured_folders
 import rhythhaus.shared.generated.resources.folder_picker_unavailable
 import rhythhaus.shared.generated.resources.manage_music
-import rhythhaus.shared.generated.resources.playlist_backup_checksum_error
-import rhythhaus.shared.generated.resources.playlist_backup_export
-import rhythhaus.shared.generated.resources.playlist_backup_exporting
-import rhythhaus.shared.generated.resources.playlist_backup_import
-import rhythhaus.shared.generated.resources.playlist_backup_import_invalid_data_error
-import rhythhaus.shared.generated.resources.playlist_backup_importing
-import rhythhaus.shared.generated.resources.playlist_backup_invalid_data_error
-import rhythhaus.shared.generated.resources.playlist_backup_invalid_duration_error
-import rhythhaus.shared.generated.resources.playlist_backup_malformed_error
-import rhythhaus.shared.generated.resources.playlist_backup_missing_duration_error
-import rhythhaus.shared.generated.resources.playlist_backup_missing_track_error
-import rhythhaus.shared.generated.resources.playlist_backup_oversized_error
-import rhythhaus.shared.generated.resources.playlist_backup_read_error
-import rhythhaus.shared.generated.resources.playlist_backup_repository_error
-import rhythhaus.shared.generated.resources.playlist_backup_section
-import rhythhaus.shared.generated.resources.playlist_backup_stale_error
-import rhythhaus.shared.generated.resources.playlist_backup_unavailable_error
-import rhythhaus.shared.generated.resources.playlist_backup_version_error
-import rhythhaus.shared.generated.resources.playlist_backup_write_error
 import rhythhaus.shared.generated.resources.remove
 import rhythhaus.shared.generated.resources.remove_folder
 import rhythhaus.shared.generated.resources.remove_folder_message
@@ -153,6 +136,9 @@ fun SettingsScreen(
     currentThemeMode: RhythHausThemeMode,
     playlistBackupState: PlaylistBackupUiState,
     backupDocumentAvailable: Boolean,
+    destination: PlaylistFeatureDestination,
+    appearanceSource: PlaylistFeatureAppearanceSource,
+    dismissalPublisher: PlaylistFeatureDismissalPublisher,
     onExportPlaylists: () -> Unit,
     onOpenPlaylistBackup: () -> Unit,
     onConfirmPlaylistBackup: () -> Unit,
@@ -240,35 +226,32 @@ fun SettingsScreen(
                         }
 
                         item {
-                            Text(
-                                text =
-                                    stringResource(
-                                        Res.string.playlist_backup_section),
-                                color = HausColors.current.ink,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Black,
-                            )
-                        }
-
-                        item {
-                            PlaylistBackupActions(
+                            PlaylistBackupSettingsHost(
                                 state = playlistBackupState,
                                 launcherAvailable = backupDocumentAvailable,
+                                destination = destination,
+                                appearanceSource = appearanceSource,
+                                dismissalPublisher = dismissalPublisher,
+                                labels =
+                                    PlaylistBackupSettingsLabels(
+                                        cancel =
+                                            stringResource(Res.string.cancel),
+                                        close =
+                                            stringResource(Res.string.close),
+                                    ),
                                 onExport = onExportPlaylists,
-                                onImport = onOpenPlaylistBackup,
+                                onOpen = onOpenPlaylistBackup,
+                                onAction = onPlaylistBackupAction,
+                                onDismissPreview = {
+                                    onPlaylistBackupAction(
+                                        PlaylistBackupUiAction.DismissPreview)
+                                },
+                                onConfirmPreview = onConfirmPlaylistBackup,
+                                onDismissResult = {
+                                    onPlaylistBackupAction(
+                                        PlaylistBackupUiAction.DismissResult)
+                                },
                             )
-                        }
-
-                        playlistBackupState.error?.let { error ->
-                            item {
-                                Text(
-                                    text = playlistBackupErrorMessage(error),
-                                    color = HausColors.current.pulse,
-                                    fontSize = 13.sp,
-                                    lineHeight = 18.sp,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                            }
                         }
 
                         if (scanProgress?.isActive == true) {
@@ -446,131 +429,8 @@ fun SettingsScreen(
                 },
             )
         }
-        playlistBackupState.preview?.let { preview ->
-            PlaylistBackupPreviewDialog(
-                preview = preview,
-                isBusy = playlistBackupState.isBusy,
-                onDismiss = {
-                    onPlaylistBackupAction(
-                        PlaylistBackupUiAction.DismissPreview)
-                },
-                onConfirm = onConfirmPlaylistBackup,
-            )
-        }
-        playlistBackupState.result?.let { result ->
-            PlaylistBackupResultDialog(
-                result = result,
-                onDismiss = {
-                    onPlaylistBackupAction(PlaylistBackupUiAction.DismissResult)
-                },
-            )
-        }
     }
 }
-
-internal fun playlistBackupActionsEnabled(
-    launcherAvailable: Boolean,
-    state: PlaylistBackupUiState,
-): Boolean = launcherAvailable && !state.isBusy
-
-@Composable
-private fun PlaylistBackupActions(
-    state: PlaylistBackupUiState,
-    launcherAvailable: Boolean,
-    onExport: () -> Unit,
-    onImport: () -> Unit,
-) {
-    val enabled = playlistBackupActionsEnabled(launcherAvailable, state)
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Button(
-            onClick = onExport,
-            enabled = enabled,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            cornerRadius = 16.dp,
-            colors =
-                ButtonDefaults.buttonColors(
-                    color = HausColors.current.ink,
-                    contentColor = HausColors.current.paper,
-                    disabledColor =
-                        HausColors.current.muted.copy(alpha = 0.28f),
-                    disabledContentColor = HausColors.current.muted,
-                ),
-        ) {
-            Text(
-                text =
-                    if (state.operation == PlaylistBackupOperation.Exporting ||
-                        state.operation == PlaylistBackupOperation.Saving) {
-                        stringResource(Res.string.playlist_backup_exporting)
-                    } else {
-                        stringResource(Res.string.playlist_backup_export)
-                    },
-                fontWeight = FontWeight.Black,
-            )
-        }
-        Button(
-            onClick = onImport,
-            enabled = enabled,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            cornerRadius = 16.dp,
-            colors =
-                ButtonDefaults.buttonColors(
-                    color = HausColors.current.panel,
-                    contentColor = HausColors.current.ink,
-                    disabledColor =
-                        HausColors.current.muted.copy(alpha = 0.28f),
-                    disabledContentColor = HausColors.current.muted,
-                ),
-        ) {
-            Text(
-                text =
-                    if (state.operation == PlaylistBackupOperation.Opening ||
-                        state.operation == PlaylistBackupOperation.Planning ||
-                        state.operation == PlaylistBackupOperation.Importing) {
-                        stringResource(Res.string.playlist_backup_importing)
-                    } else {
-                        stringResource(Res.string.playlist_backup_import)
-                    },
-                fontWeight = FontWeight.Black,
-            )
-        }
-    }
-}
-
-@Composable
-private fun playlistBackupErrorMessage(error: PlaylistBackupUiError): String =
-    when (error) {
-        PlaylistBackupUiError.Unavailable ->
-            stringResource(Res.string.playlist_backup_unavailable_error)
-        PlaylistBackupUiError.ReadFailed ->
-            stringResource(Res.string.playlist_backup_read_error)
-        PlaylistBackupUiError.WriteFailed ->
-            stringResource(Res.string.playlist_backup_write_error)
-        PlaylistBackupUiError.Oversized ->
-            stringResource(Res.string.playlist_backup_oversized_error)
-        PlaylistBackupUiError.Malformed ->
-            stringResource(Res.string.playlist_backup_malformed_error)
-        PlaylistBackupUiError.InvalidData ->
-            stringResource(Res.string.playlist_backup_import_invalid_data_error)
-        PlaylistBackupUiError.Checksum ->
-            stringResource(Res.string.playlist_backup_checksum_error)
-        PlaylistBackupUiError.UnsupportedVersion ->
-            stringResource(Res.string.playlist_backup_version_error)
-        PlaylistBackupUiError.StalePreview ->
-            stringResource(Res.string.playlist_backup_stale_error)
-        PlaylistBackupUiError.ExportMissingTrack ->
-            stringResource(Res.string.playlist_backup_missing_track_error)
-        PlaylistBackupUiError.ExportMissingDuration ->
-            stringResource(Res.string.playlist_backup_missing_duration_error)
-        PlaylistBackupUiError.ExportInvalidDuration ->
-            stringResource(Res.string.playlist_backup_invalid_duration_error)
-        PlaylistBackupUiError.ExportInvalidData ->
-            stringResource(Res.string.playlist_backup_invalid_data_error)
-        PlaylistBackupUiError.RepositoryFailed ->
-            stringResource(Res.string.playlist_backup_repository_error)
-    }
 
 internal enum class SourceAccessLabel {
     Available,

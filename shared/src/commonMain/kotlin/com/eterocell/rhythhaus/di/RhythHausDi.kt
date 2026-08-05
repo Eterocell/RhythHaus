@@ -26,7 +26,10 @@ fun rhythHausModule(): Module = module {
     single<CoroutineScope> {
         CoroutineScope(SupervisorJob() + Dispatchers.Default)
     }
-    includes(libraryImplementationModule(), playlistsImplementationModule())
+    includes(libraryImplementationModule())
+    // Shared is the sole composition root for the feature-owned playlist
+    // bindings.
+    includes(playlistsImplementationModule())
     single<PlatformPlaybackEngine> { createPlatformPlaybackEngine() }
     single {
         PlaybackController(

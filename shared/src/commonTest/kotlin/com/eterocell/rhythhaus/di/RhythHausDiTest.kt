@@ -16,8 +16,8 @@ import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
-import com.eterocell.rhythhaus.library.SqlDelightPlaylistRepository
 import com.eterocell.rhythhaus.library.libraryImplementationModule
+import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.session.PlaybackCheckpoint
 import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionCoordinator
@@ -60,12 +60,13 @@ class RhythHausDiTest {
             val koin = application.koin
             assertTrue(
                 koin.get<LibraryRepository>() is SqlDelightLibraryRepository)
-            assertTrue(
-                koin.get<PlaylistRepository>() is SqlDelightPlaylistRepository)
+            assertNotNull(koin.get<PlaylistRepository>())
             assertSame(
                 koin.get<LibraryRepository>(), koin.get<LibraryRepository>())
             assertSame(
                 koin.get<PlaylistRepository>(), koin.get<PlaylistRepository>())
+            assertSame(
+                koin.get<PlaylistStateOwner>(), koin.get<PlaylistStateOwner>())
         } finally {
             stopKoin()
         }
@@ -100,6 +101,7 @@ class RhythHausDiTest {
             val koin = application.koin
             assertEquals(1, koin.getAll<LibraryRepository>().size)
             assertEquals(1, koin.getAll<PlaylistRepository>().size)
+            assertEquals(1, koin.getAll<PlaylistStateOwner>().size)
         } finally {
             stopKoin()
         }

@@ -5,6 +5,7 @@ import java.nio.file.Files
 import java.util.jar.JarFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
@@ -978,6 +979,133 @@ class ArchitectureCheckPluginFunctionalTest {
         )
     }
 
+    @Test
+    fun playlistsFeatureConventionPublishesRootsAndKspRegistrations() {
+        val result = playlistsRunner(
+            playlistsFeatureFixture(),
+            ":feature:playlists:impl:kspAndroidMain",
+            ":feature:playlists:impl:kspKotlinJvm",
+            ":feature:playlists:impl:kspKotlinIosArm64",
+            ":feature:playlists:impl:kspKotlinIosSimulatorArm64",
+            ":feature:playlists:impl:verifyPlaylistsFeatureConvention",
+            "architectureCheck",
+        ).build()
+
+        assertEquals(
+            "KSP_PACKAGE_ROOTS=com.eterocell.rhythhaus.library,com.eterocell.rhythhaus.library.ui,com.eterocell.rhythhaus.playlistbackup",
+            result.output.lineSequence().single { it.startsWith("KSP_PACKAGE_ROOTS=") },
+            result.output,
+        )
+        assertEquals(
+            listOf(
+                "KSP_REGISTRATION=:feature:playlists:impl|kspAndroid|:architecture-processor",
+                "KSP_REGISTRATION=:feature:playlists:impl|kspIosArm64|:architecture-processor",
+                "KSP_REGISTRATION=:feature:playlists:impl|kspIosSimulatorArm64|:architecture-processor",
+                "KSP_REGISTRATION=:feature:playlists:impl|kspJvm|:architecture-processor",
+            ),
+            result.output.lineSequence().filter { it.startsWith("KSP_REGISTRATION=") }.toList(),
+            result.output,
+        )
+        listOf("AndroidMain", "KotlinJvm", "KotlinIosArm64", "KotlinIosSimulatorArm64").forEach { target ->
+            val task = ":feature:playlists:impl:ksp$target"
+            assertEquals(TaskOutcome.SUCCESS, result.task(task)?.outcome, result.output)
+            assertTrue(!result.output.contains("$task SKIPPED"), result.output)
+            assertTrue(!result.output.contains("$task NO-SOURCE"), result.output)
+        }
+        assertEquals(
+            setOf(
+                ":core:database", ":core:model", ":core:platform", ":core:playback", ":core:ui",
+                ":feature:library:api", ":feature:playlists:api",
+            ),
+            result.output.dependencyEdges().split(", ")
+                .filter { it.startsWith(":feature:playlists:impl|") }
+                .map { it.substringAfterLast('|') }
+                .toSet(),
+            result.output,
+        )
+    }
+
+    @Test
+    fun playlistsResourceOwnershipRetainsExactEnZhPartitionsWithoutForeignImports() {
+        val root = File(System.getProperty("rhythhaus.rootDir"))
+        val sharedEn = root.resolve("shared/src/commonMain/composeResources/values/strings.xml")
+        val sharedZh = root.resolve("shared/src/commonMain/composeResources/values-zh/strings.xml")
+        val featureEn = root.resolve("feature/playlists/impl/src/commonMain/composeResources/values/strings.xml")
+        val featureZh = root.resolve("feature/playlists/impl/src/commonMain/composeResources/values-zh/strings.xml")
+
+        val sharedEnglish = stringNames(sharedEn)
+        val sharedChinese = stringNames(sharedZh)
+        val featureEnglish = stringNames(featureEn)
+        val featureChinese = stringNames(featureZh)
+        val ownershipKeys = { names: List<String> ->
+            names.filter { it.startsWith("playlist_") || it in setOf("cancel", "close") }.toSet()
+        }
+
+        assertNoDuplicateStringNames(sharedEn)
+        assertNoDuplicateStringNames(sharedZh)
+        assertNoDuplicateStringNames(featureEn)
+        assertNoDuplicateStringNames(featureZh)
+        assertEquals(ownershipKeys(sharedEnglish), ownershipKeys(sharedChinese), "Shared EN/ZH playlist ownership differs")
+        assertEquals(ownershipKeys(featureEnglish), ownershipKeys(featureChinese), "Feature EN/ZH playlist ownership differs")
+        assertTrue(ownershipKeys(sharedEnglish).intersect(ownershipKeys(featureEnglish)).isEmpty(), "Playlist resource keys have multiple owners")
+
+        root.resolve("shared/src").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { source ->
+                assertFalse(
+                    source.readText().contains("rhythhaus.feature.playlists.generated.resources"),
+                    "Shared imports feature generated resources: ${source.relativeTo(root)}",
+                )
+            }
+        root.resolve("feature/playlists/impl/src").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { source ->
+                assertFalse(
+                    source.readText().contains("rhythhaus.shared.generated.resources"),
+                    "Feature imports Shared generated resources: ${source.relativeTo(root)}",
+                )
+            }
+    }
+
+    @Test
+    fun playlistsFeatureRejectsForbiddenSharedAndImplementationEdges() {
+        mapOf(
+            ":shared" to listOf(
+                "ARCH-CYCLE :feature:playlists:impl -> :shared -> :feature:playlists:impl",
+                "ARCH-EDGE :feature:playlists:impl [architecture] -> :shared",
+            ),
+            ":feature:library:impl" to listOf(
+                "ARCH-EDGE :feature:playlists:impl [architecture] -> :feature:library:impl",
+            ),
+        ).forEach { (forbidden, expectedDiagnostics) ->
+            assertExactFailure(
+                playlistsFeatureFixture(forbiddenDependency = forbidden),
+                expectedDiagnostics,
+            )
+        }
+    }
+
+    @Test
+    fun rejectsPlaylistsFeatureOutsidePackageRoot() =
+        assertPlaylistsKspFailure(
+            playlistsFeatureFixture("package outside.fixture\n/** Invalid package. */\npublic class InvalidFeature"),
+            "ARCH-PACKAGE :feature:playlists:impl:PlaylistFeature.kt (outside.fixture)",
+        )
+
+    @Test
+    fun playlistsFeatureRejectsEmptyConfiguredPackageRoots() =
+        assertPlaylistsKspFailure(
+            playlistsFeatureFixture(emptyPackageRoots = true),
+            "ARCH-PACKAGE :feature:playlists:impl:PlaylistFeature.kt (com.eterocell.rhythhaus.library)",
+        )
+
+    @Test
+    fun rejectsPlaylistsFeatureUndocumentedPublicDeclaration() =
+        assertPlaylistsKspFailure(
+            playlistsFeatureFixture("package com.eterocell.rhythhaus.library\npublic class MissingFeatureKDoc"),
+            "ARCH-KDOC :feature:playlists:impl:PlaylistFeature.kt:2 (com.eterocell.rhythhaus.library.MissingFeatureKDoc)",
+        )
+
     private fun assertFailure(mutation: Mutation, expectedRules: List<String>, relevantText: String) =
         assertFailure(fixture(mutation), expectedRules, relevantText)
 
@@ -1004,6 +1132,17 @@ class ArchitectureCheckPluginFunctionalTest {
     ) {
         val result = nowPlayingRunner(projectDir, task).buildAndFail()
         assertExactDiagnostics(result.output, expectedDiagnostics)
+    }
+
+    private fun stringNames(file: File): List<String> =
+        Regex("""<string\\s+name=\"([^\"]+)\"""")
+            .findAll(file.readText())
+            .map { it.groupValues[1] }
+            .toList()
+
+    private fun assertNoDuplicateStringNames(file: File) {
+        val names = stringNames(file)
+        assertEquals(names.size, names.toSet().size, "Duplicate resource keys in ${file.path}")
     }
 
     private fun assertExactDiagnostics(output: String, expectedDiagnostics: List<String>) {
@@ -1055,6 +1194,16 @@ class ArchitectureCheckPluginFunctionalTest {
         assertTrue(output.contains(":core:model:kspKotlinJvm"), output)
         assertTrue(!output.contains(":core:model:kspKotlinJvm SKIPPED"), output)
         assertTrue(!output.contains(":core:model:kspKotlinJvm NO-SOURCE"), output)
+    }
+
+    private fun assertPlaylistsKspFailure(projectDir: File, expectedDiagnostic: String) {
+        val result = playlistsRunner(projectDir, ":feature:playlists:impl:compileKotlinJvm").buildAndFail()
+
+        assertTrue(result.output.contains(expectedDiagnostic), result.output)
+        assertTrue(result.output.contains(":feature:playlists:impl:kspKotlinJvm"), result.output)
+        assertTrue(!result.output.contains(":feature:playlists:impl:kspKotlinJvm SKIPPED"), result.output)
+        assertTrue(!result.output.contains(":feature:playlists:impl:kspKotlinJvm NO-SOURCE"), result.output)
+        assertEquals(TaskOutcome.FAILED, result.task(":feature:playlists:impl:kspKotlinJvm")?.outcome, result.output)
     }
 
     private fun kspDiagnostics(output: String): List<String> =
@@ -1336,6 +1485,107 @@ class ArchitectureCheckPluginFunctionalTest {
                         enabled = false
                     }
                 }
+            }
+            """.trimIndent(),
+        )
+        return projectDir
+    }
+
+    private fun playlistsFeatureFixture(
+        source: String = "package com.eterocell.rhythhaus.library\n/** A documented feature declaration. */\npublic class PlaylistFeature",
+        forbiddenDependency: String? = null,
+        emptyPackageRoots: Boolean = false,
+    ): File {
+        val projectDir = fixture()
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement { repositories { gradlePluginPortal(); mavenCentral(); google() } }
+            dependencyResolutionManagement { repositories { mavenCentral(); google() } }
+            rootProject.name = "architecture-playlists-feature"
+            include(":androidApp", ":desktopApp", ":shared", ":taglib", ":architecture-processor", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl")
+            """.trimIndent(),
+        )
+        val processorJar = processorProject().resolve("build/libs/architecture-processor.jar")
+        require(processorJar.isFile) { "Architecture processor JAR is required at $processorJar" }
+        buildFile(projectDir, ":architecture-processor").apply {
+            parentFile.mkdirs()
+            writeText("configurations.create(\"default\")\nartifacts { add(\"default\", file(\"${processorJar.invariantSeparatorsPath}\")) }")
+        }
+        listOf(":core:platform", ":core:playback", ":core:ui").forEach { module ->
+            module(projectDir, module)
+            kmpModule(projectDir, module, strict = true)
+        }
+        buildFile(projectDir, ":feature:playlists:impl").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                import com.eterocell.gradle.architecture.ArchitectureModelRegistry
+                import com.eterocell.gradle.architecture.ControlledComposeResourcesExtension
+                import com.google.devtools.ksp.gradle.KspExtension
+
+                plugins {
+                    id("build-logic.kmp.feature.impl")
+                    id("build-logic.android.kmp.library")
+                    id("build-logic.compose-resources")
+                    id("org.jetbrains.kotlin.plugin.compose")
+                }
+
+                configurations.maybeCreate("architecture")
+                extensions.configure<ControlledComposeResourcesExtension>("architectureComposeResources") {
+                    namespace("rhythhaus.feature.playlists.generated.resources")
+                }
+
+                kotlin {
+                    android {
+                        namespace = "com.eterocell.rhythhaus.playlists"
+                        compileSdk = 37
+                        minSdk = 29
+                        withHostTest {}
+                        androidResources { enable = true }
+                    }
+                    jvm()
+                    iosArm64()
+                    iosSimulatorArm64()
+                }
+
+                dependencies {
+                    add("commonMainImplementation", "org.jetbrains.compose.runtime:runtime:1.11.1")
+                    listOf("kspAndroid", "kspJvm", "kspIosArm64", "kspIosSimulatorArm64").forEach {
+                        add(it, files("${processorJar.invariantSeparatorsPath}"))
+                    }
+                }
+
+                @Suppress("UNCHECKED_CAST")
+                val kspOptions = extensions.getByName("ksp")
+                    .javaClass.getMethod("getArguments")
+                    .invoke(extensions.getByName("ksp")) as Map<String, String>
+                val kspRegistrations = ArchitectureModelRegistry.forRoot(project).snapshot().kspRegistrations
+                    .map { it.module + "|" + it.configuration + "|" + it.processor }
+                tasks.register("verifyPlaylistsFeatureConvention") {
+                    inputs.property("packageRoots", kspOptions.getValue("architecture.packageRoots"))
+                    inputs.property("registrations", kspRegistrations)
+                    doLast {
+                        println("KSP_PACKAGE_ROOTS=" + inputs.properties.getValue("packageRoots"))
+                        (inputs.properties.getValue("registrations") as List<*>).forEach { println("KSP_REGISTRATION=" + it) }
+                    }
+                }
+
+                ${if (emptyPackageRoots) "extensions.configure<KspExtension> { arg(\"architecture.packageRoots\", \"\") }" else ""}
+                """.trimIndent(),
+            )
+        }
+        source(projectDir, ":feature:playlists:impl", "PlaylistFeature.kt", source)
+        listOf(
+            ":feature:playlists:api", ":feature:library:api", ":core:model", ":core:playback",
+            ":core:ui", ":core:platform", ":core:database",
+        ).forEach { dependency(projectDir, ":feature:playlists:impl", it) }
+        forbiddenDependency?.let { dependency(projectDir, ":feature:playlists:impl", it) }
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins { id("build-logic.architecture-check") }
+
+            tasks.named("architectureCheck") {
+                doLast { logger.lifecycle("TEST_DEPENDENCY_EDGES=" + inputs.properties.getValue("dependencyEdges")) }
             }
             """.trimIndent(),
         )
@@ -2243,6 +2493,9 @@ class ArchitectureCheckPluginFunctionalTest {
                     ),
                 ).toTypedArray(),
             )
+
+    private fun playlistsRunner(projectDir: File, vararg tasks: String): GradleRunner =
+        nowPlayingRunner(projectDir, *tasks)
 
     private fun qualityAggregationRunner(projectDir: File): GradleRunner =
         GradleRunner.create().withProjectDir(projectDir).withPluginClasspath().withArguments("qualityCheck", "--stacktrace", "--configuration-cache", "--configuration-cache-problems=fail")

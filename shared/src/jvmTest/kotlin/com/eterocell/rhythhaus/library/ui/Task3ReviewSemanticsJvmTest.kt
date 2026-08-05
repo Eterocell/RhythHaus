@@ -72,15 +72,19 @@ class Task3ReviewSemanticsJvmTest {
         runComposeUiTest {
             var confirmCount = 0
             setContent {
-                PlaylistTrackBrowser(
+                val destination = PlaylistFeatureDestination("browser")
+                PlaylistTrackBrowserOverlay(
                     playlistName = "Saved",
                     libraryTracks =
                         listOf(libraryTrack("b"), libraryTrack("a")),
-                    state =
-                        PlaylistTrackBrowserState(playlistId = "playlist-1"),
+                    state = PlaylistBrowserState(playlistId = "playlist-1"),
+                    destination = destination,
+                    appearanceSource =
+                        rememberPlaylistFeatureAppearanceSource(destination),
+                    dismissalPublisher = NoopPlaylistFeatureDismissalPublisher,
                     onStateChange = {},
                     onDismiss = {},
-                    onConfirm = { confirmCount += 1 },
+                    onConfirm = { _, _, _ -> confirmCount += 1 },
                 )
             }
 
@@ -98,20 +102,27 @@ class Task3ReviewSemanticsJvmTest {
     @Test
     fun playlistBrowserSelectedConfirmationUsesVisibleOrder() =
         runComposeUiTest {
-            var request: PlaylistAppendRequest? = null
+            var request: Pair<String, List<String>>? = null
             setContent {
                 var state by remember {
                     mutableStateOf(
-                        PlaylistTrackBrowserState(playlistId = "playlist-1"))
+                        PlaylistBrowserState(playlistId = "playlist-1"))
                 }
-                PlaylistTrackBrowser(
+                val destination = PlaylistFeatureDestination("browser")
+                PlaylistTrackBrowserOverlay(
                     playlistName = "Saved",
                     libraryTracks =
                         listOf(libraryTrack("b"), libraryTrack("a")),
                     state = state,
+                    destination = destination,
+                    appearanceSource =
+                        rememberPlaylistFeatureAppearanceSource(destination),
+                    dismissalPublisher = NoopPlaylistFeatureDismissalPublisher,
                     onStateChange = { state = it },
                     onDismiss = {},
-                    onConfirm = { request = it },
+                    onConfirm = { playlistId, trackIds, _ ->
+                        request = playlistId to trackIds
+                    },
                 )
             }
 
@@ -122,8 +133,7 @@ class Task3ReviewSemanticsJvmTest {
                         SemanticsProperties.Role, Role.Button))[0]
                 .performClick()
             waitForIdle()
-            assertEquals(
-                PlaylistAppendRequest("playlist-1", listOf("b", "a")), request)
+            assertEquals("playlist-1" to listOf("b", "a"), request)
         }
 
     @OptIn(ExperimentalTestApi::class)
@@ -218,19 +228,26 @@ class Task3ReviewSemanticsJvmTest {
             var visible by mutableStateOf(true)
             var dismissCount = 0
             setContent {
+                val destination = PlaylistFeatureDestination("picker")
                 if (visible) {
-                    AddToPlaylistPicker(
+                    AddToPlaylistPickerOverlay(
                         playlists = listOf(playlist()),
                         state =
-                            AddToPlaylistPickerState(
+                            PlaylistPickerState(
                                 trackIds = listOf("missing", "track-b")),
+                        destination = destination,
+                        appearanceSource =
+                            rememberPlaylistFeatureAppearanceSource(
+                                destination),
+                        dismissalPublisher =
+                            NoopPlaylistFeatureDismissalPublisher,
                         onStateChange = {},
                         onDismiss = {
                             dismissCount += 1
                             visible = false
                         },
-                        onAppend = {},
-                        onInlineCreate = {},
+                        onAppend = { _, _, _ -> },
+                        onInlineCreate = { _, _, _ -> },
                     )
                 }
             }
@@ -249,20 +266,27 @@ class Task3ReviewSemanticsJvmTest {
     @Test
     fun pickerUsesRetainedOrderedIdsWhenFirstSelectedTrackDisappears() =
         runComposeUiTest {
-            var appendRequest: PlaylistAppendRequest? = null
+            var appendRequest: Pair<String, List<String>>? = null
             setContent {
                 var state by remember {
                     mutableStateOf(
-                        AddToPlaylistPickerState(
+                        PlaylistPickerState(
                             trackIds = listOf("missing", "track-b")))
                 }
-                AddToPlaylistPicker(
+                val destination = PlaylistFeatureDestination("picker")
+                AddToPlaylistPickerOverlay(
                     playlists = listOf(playlist()),
                     state = state,
+                    destination = destination,
+                    appearanceSource =
+                        rememberPlaylistFeatureAppearanceSource(destination),
+                    dismissalPublisher = NoopPlaylistFeatureDismissalPublisher,
                     onStateChange = { state = it },
                     onDismiss = {},
-                    onAppend = { appendRequest = it },
-                    onInlineCreate = {},
+                    onAppend = { playlistId, trackIds, _ ->
+                        appendRequest = playlistId to trackIds
+                    },
+                    onInlineCreate = { _, _, _ -> },
                 )
             }
 
@@ -275,8 +299,7 @@ class Task3ReviewSemanticsJvmTest {
             buttons[1].performClick()
             waitForIdle()
             assertEquals(
-                PlaylistAppendRequest(
-                    "playlist-1", listOf("missing", "track-b")),
+                "playlist-1" to listOf("missing", "track-b"),
                 appendRequest,
             )
         }
@@ -317,4 +340,13 @@ class Task3ReviewSemanticsJvmTest {
             createdAtEpochMillis = 1L,
             updatedAtEpochMillis = 1L,
         )
+
+    private object NoopPlaylistFeatureDismissalPublisher :
+        PlaylistFeatureDismissalPublisher {
+        override fun publish(
+            dismissal: PlaylistFeatureDismissal?,
+            dispatch:
+                (PlaylistFeatureDismissal) -> PlaylistFeatureDismissalDispatch,
+        ): () -> Unit = {}
+    }
 }

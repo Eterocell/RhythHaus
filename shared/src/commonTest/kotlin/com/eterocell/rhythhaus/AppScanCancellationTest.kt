@@ -1,9 +1,23 @@
 package com.eterocell.rhythhaus
 
 import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.PlaylistEntry
+import com.eterocell.rhythhaus.library.PlaylistImportMutation
+import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
+import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDocumentLauncher
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDocumentOpenResult
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupDocumentSaveResult
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupRevisionGuard
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupRevisionGuardResult
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
+import com.eterocell.rhythhaus.playlistbackup.createPlaylistBackupController
 import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlin.test.Test
@@ -12,6 +26,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -76,52 +91,75 @@ class AppScanCancellationTest {
     @Test
     fun backupOrchestrationPublishesIdleRetainedPreviewBeforeRethrowingCancellation() =
         runBlocking {
-            val preview =
-                com.eterocell.rhythhaus.playlistbackup.PlaylistBackupPreview(
-                    com.eterocell.rhythhaus.playlistbackup.PlaylistImportPlan(
-                        libraryRevision = 1,
-                        playlists =
-                            listOf(
-                                com.eterocell.rhythhaus.playlistbackup
-                                    .PlaylistImportPlaylist(
-                                        0, "Mix", listOf("track"))),
-                        reports = emptyList(),
-                        totals =
-                            com.eterocell.rhythhaus.playlistbackup
-                                .PlaylistImportTotals(
-                                    1,
-                                    0,
-                                    com.eterocell.rhythhaus.playlistbackup
-                                        .PlaylistImportCounts(1, 0, 0),
-                                ),
-                        issues = emptyList(),
+            val launcher = RecordingPlaylistBackupDocumentLauncher()
+            val controller =
+                createPlaylistBackupController(
+                    owner =
+                        PlaylistStateOwner(
+                            EmptyPlaylistRepository, Dispatchers.Default),
+                    dispatcher = Dispatchers.Default,
+                    launcher = launcher,
+                    revisionGuard =
+                        object : PlaylistBackupRevisionGuard {
+                            override suspend fun <T> withCurrentRevision(
+                                expectedRevision: Long,
+                                block: suspend () -> T,
+                            ): PlaylistBackupRevisionGuardResult<T> =
+                                PlaylistBackupRevisionGuardResult.Current(
+                                    block())
+                        },
+                )
+            val saving =
+                controller.beginExport(
+                    state = PlaylistBackupUiState(),
+                    snapshot = PlaylistSnapshot(),
+                    authoritativeTracks = emptyList(),
+                    exportedAtEpochMillis = 0L,
+                )
+            val opening =
+                controller.beginOpen(
+                    controller.receiveSave(
+                        saving,
+                        PlaylistBackupDocumentSaveResult.Success,
                     ),
+                )
+            val preview =
+                checkNotNull(
+                    controller
+                        .receiveOpen(
+                            state = opening,
+                            result =
+                                PlaylistBackupDocumentOpenResult.Success(
+                                    checkNotNull(launcher.savedBytes)),
+                            destinationTracks = emptyList(),
+                            existingPlaylistNames = emptyList(),
+                            importedSuffix = " imported",
+                            libraryRevision = 1L,
+                        )
+                        .preview,
                 )
             val states =
                 mutableListOf(
-                    com.eterocell.rhythhaus.playlistbackup
-                        .PlaylistBackupUiState(
-                            operation =
-                                com.eterocell.rhythhaus.playlistbackup
-                                    .PlaylistBackupOperation
-                                    .Importing,
-                            preview = preview,
-                        ),
+                    PlaylistBackupUiState(
+                        operation = PlaylistBackupOperation.Importing,
+                        preview = preview,
+                    ),
                 )
 
-            assertFailsWith<CancellationException> {
-                runPlaylistBackupOperation(
-                    currentState = { states.last() },
-                    publishState = { state -> states.add(state) },
-                ) {
-                    throw CancellationException("gone")
+            val cancellation = CancellationException("gone")
+            val thrown =
+                assertFailsWith<CancellationException> {
+                    runPlaylistBackupOperation(
+                        currentState = { states.last() },
+                        publishState = { state -> states.add(state) },
+                        reduce = controller::reduce,
+                    ) {
+                        throw cancellation
+                    }
                 }
-            }
 
-            assertEquals(
-                com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation
-                    .Idle,
-                states.last().operation)
+            assertSame(cancellation, thrown)
+            assertEquals(PlaylistBackupOperation.Idle, states.last().operation)
             assertSame(preview, states.last().preview)
         }
 
@@ -415,6 +453,51 @@ class AppScanCancellationTest {
 
         assertEquals(emptyList(), publications)
     }
+}
+
+private object EmptyPlaylistRepository : PlaylistRepository {
+    override fun playlists(): List<PlaylistSummary> = emptyList()
+
+    override fun playlist(id: String): PlaylistSummary? = null
+
+    override fun entries(playlistId: String): List<PlaylistEntry> = emptyList()
+
+    override fun create(name: String): PlaylistSummary =
+        error("Not used by this test")
+
+    override fun createWithEntries(
+        name: String,
+        trackIds: List<String>
+    ): PlaylistSummary = error("Not used by this test")
+
+    override fun importPlaylists(
+        playlists: List<PlaylistImportMutation>
+    ): List<PlaylistSummary> = error("Not used by this test")
+
+    override fun rename(id: String, name: String) =
+        error("Not used by this test")
+
+    override fun delete(id: String) = error("Not used by this test")
+
+    override fun append(playlistId: String, trackIds: List<String>) =
+        error("Not used by this test")
+
+    override fun removeEntry(entryId: String) = error("Not used by this test")
+
+    override fun reorder(playlistId: String, entryIds: List<String>) =
+        error("Not used by this test")
+}
+
+private class RecordingPlaylistBackupDocumentLauncher :
+    PlaylistBackupDocumentLauncher {
+    override val isAvailable: Boolean = true
+    var savedBytes: ByteArray? = null
+
+    override fun save(suggestedFileName: String, bytes: ByteArray) {
+        savedBytes = bytes
+    }
+
+    override fun open() = Unit
 }
 
 private fun testScanSession(status: ScanStatus) =

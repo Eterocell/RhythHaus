@@ -66,16 +66,25 @@ internal class QueueMutationDispatcher(
     suspend fun reorder(
         occurrenceId: String,
         targetIndex: Int
-    ): QueueMutationFeedback =
-        executeQueueMutation(state) {
-            reorderCommand(occurrenceId, targetIndex)
-        }
+    ): QueueMutationFeedback = mutation {
+        reorderCommand(occurrenceId, targetIndex)
+    }
 
-    suspend fun remove(occurrenceId: String): QueueMutationFeedback =
-        executeQueueMutation(state) { removeCommand(occurrenceId) }
+    suspend fun remove(occurrenceId: String): QueueMutationFeedback = mutation {
+        removeCommand(occurrenceId)
+    }
 
-    suspend fun clear(): QueueMutationFeedback =
-        executeQueueMutation(state, clearCommand)
+    suspend fun clear(): QueueMutationFeedback = mutation(clearCommand)
+
+    private suspend fun mutation(
+        command: suspend () -> QueueMutationResult
+    ): QueueMutationFeedback {
+        val result = command()
+        return QueueMutationFeedback(
+            refreshedState = state.value,
+            showQueueChanged = result is QueueMutationResult.Rejected,
+        )
+    }
 }
 
 @Composable
@@ -90,9 +99,13 @@ internal fun LibraryRouteOverlays(
     playlistState: PlaylistState,
     playlistBackupState: PlaylistBackupUiState,
     backupDocumentAvailable: Boolean,
+    destinationId: LibraryDestinationId,
+    playlistAppearanceSource: PlaylistFeatureAppearanceSource,
+    registerBackSurface: (LibraryBackSurfacePort) -> () -> Unit,
     onPlaylistStateAction: (PlaylistStateAction) -> Unit,
     onRefreshPlaylists: () -> Unit,
-    onPlaylistMutation: PlaylistMutationLauncher,
+    onPlaylistMutation:
+        (PlaylistRepository.() -> Unit, (PlaylistStateAction) -> Unit) -> Unit,
     onExportPlaylists: () -> Unit,
     onOpenPlaylistBackup: () -> Unit,
     onConfirmPlaylistBackup: () -> Unit,
@@ -130,6 +143,12 @@ internal fun LibraryRouteOverlays(
                 currentThemeMode = currentThemeMode,
                 playlistBackupState = playlistBackupState,
                 backupDocumentAvailable = backupDocumentAvailable,
+                destination =
+                    PlaylistFeatureDestination(destinationId.instanceToken),
+                appearanceSource = playlistAppearanceSource,
+                dismissalPublisher =
+                    featureDismissalPublisher(
+                        destinationId, registerBackSurface),
                 onExportPlaylists = onExportPlaylists,
                 onOpenPlaylistBackup = onOpenPlaylistBackup,
                 onConfirmPlaylistBackup = onConfirmPlaylistBackup,
@@ -192,13 +211,15 @@ internal fun LibraryRouteContent(
     playlistState: PlaylistState,
     onPlaylistStateAction: (PlaylistStateAction) -> Unit,
     onRefreshPlaylists: () -> Unit,
-    onPlaylistMutation: PlaylistMutationLauncher,
+    onPlaylistMutation:
+        (PlaylistRepository.() -> Unit, (PlaylistStateAction) -> Unit) -> Unit,
     onRecoverStalePlaylistDetail: (String) -> Unit,
     onDisplayedPlaylistDeleteConfirmed: (PlaylistSnapshot) -> Unit = {},
     selectedTrackId: String?,
     isNowPlayingBarVisible: Boolean,
     onBack: () -> Unit,
     destinationId: LibraryDestinationId? = null,
+    playlistAppearanceSource: PlaylistFeatureAppearanceSource,
     registerBackSurface: (LibraryBackSurfacePort) -> () -> Unit = { {} },
     onOpenDetailRoute: (LibraryRoute) -> Unit,
     onTrackSelected: (String) -> Unit,
@@ -212,6 +233,12 @@ internal fun LibraryRouteContent(
     onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
     bottomContentPadding: Dp = 0.dp,
 ) {
+    val playlistDestinationId =
+        destinationId ?: LibraryDestinationId(route, "unpresented")
+    val playlistDestination =
+        PlaylistFeatureDestination(playlistDestinationId.instanceToken)
+    val playlistDismissalPublisher =
+        featureDismissalPublisher(playlistDestinationId, registerBackSurface)
     when (route) {
         is LibraryRoute.AlbumDetail -> {
             val album = albums.firstOrNull { it.album == route.album }
@@ -316,6 +343,16 @@ internal fun LibraryRouteContent(
             PlaylistHubScreen(
                 state = playlistState,
                 playbackState = playbackState,
+                destination = playlistDestination,
+                appearanceSource = playlistAppearanceSource,
+                dismissalPublisher = playlistDismissalPublisher,
+                playlistsLabel = stringResource(Res.string.playlists),
+                loadingLabel = stringResource(Res.string.playlist_loading),
+                loadFailedLabel =
+                    stringResource(Res.string.playlist_load_failed),
+                retryLabel = stringResource(Res.string.playlist_retry),
+                mutationFailedLabel =
+                    stringResource(Res.string.playlist_mutation_failed),
                 onBack = onBack,
                 onRetry = onRefreshPlaylists,
                 onOpenPlaylist = {
@@ -336,8 +373,9 @@ internal fun LibraryRouteContent(
 
         is LibraryRoute.PlaylistDetail -> {
             when (val resolution =
-                playlistDetailResolution(route.playlistId, playlistState)) {
-                PlaylistDetailResolution.AwaitConfirmation ->
+                sharedPlaylistDetailResolution(
+                    route.playlistId, playlistState)) {
+                SharedPlaylistDetailResolution.AwaitConfirmation ->
                     PlaylistRoutePlaceholder(
                         title = stringResource(Res.string.playlists),
                         state = playlistState,
@@ -345,7 +383,7 @@ internal fun LibraryRouteContent(
                         onRetry = onRefreshPlaylists,
                     )
 
-                is PlaylistDetailResolution.Show ->
+                is SharedPlaylistDetailResolution.Show ->
                     PlaylistDetailRouteContent(
                         playlist = resolution.playlist,
                         entries =
@@ -353,6 +391,11 @@ internal fun LibraryRouteContent(
                                 resolution.playlist.id),
                         libraryTracks = libraryTracks,
                         state = playlistState,
+                        destination = playlistDestination,
+                        appearanceSource = playlistAppearanceSource,
+                        dismissalPublisher = playlistDismissalPublisher,
+                        mutationFailedLabel =
+                            stringResource(Res.string.playlist_mutation_failed),
                         onBack = onBack,
                         onRetry = onRefreshPlaylists,
                         onRename = { name, onSuccess ->
@@ -370,8 +413,6 @@ internal fun LibraryRouteContent(
                         },
                         onDisplayedPlaylistDeleteConfirmed =
                             onDisplayedPlaylistDeleteConfirmed,
-                        destinationId = destinationId,
-                        registerBackSurface = registerBackSurface,
                         onOpenBrowser = {
                             onPlaylistStateAction(
                                 PlaylistStateAction.OpenBrowser(
@@ -388,25 +429,18 @@ internal fun LibraryRouteContent(
                             )
                         },
                         onRemoveEntry = { entryId ->
-                            onPlaylistMutation({ removeEntry(entryId) }) {
-                                outcome ->
-                                playlistMutationDecision(
-                                    PlaylistMutationWorkflow.Remove, outcome)
-                            }
+                            onPlaylistMutation({ removeEntry(entryId) }) {}
                         },
                         onReorder = { entryIds ->
                             onPlaylistMutation({
                                 reorder(resolution.playlist.id, entryIds)
-                            }) { outcome ->
-                                playlistMutationDecision(
-                                    PlaylistMutationWorkflow.Reorder, outcome)
-                            }
+                            }) {}
                         },
                         bottomContentPadding = bottomContentPadding,
                         onScrollPositionChanged = onScrollPositionChanged,
                     )
 
-                is PlaylistDetailResolution.ReturnToHub ->
+                is SharedPlaylistDetailResolution.ReturnToHub ->
                     PlaylistDetailRouteResolutionEffect(
                         route = route,
                         state = playlistState,
@@ -439,8 +473,8 @@ internal fun PlaylistDetailRouteResolutionEffect(
     state: PlaylistState,
     onRecoverStalePlaylistDetail: (String) -> Unit,
 ) {
-    val resolution = playlistDetailResolution(route.playlistId, state)
-    if (resolution is PlaylistDetailResolution.ReturnToHub) {
+    val resolution = sharedPlaylistDetailResolution(route.playlistId, state)
+    if (resolution is SharedPlaylistDetailResolution.ReturnToHub) {
         LaunchedEffect(route, state.publicationRevision) {
             onRecoverStalePlaylistDetail(resolution.message)
         }
@@ -458,13 +492,15 @@ internal fun PlaylistDetailRouteContent(
     entries: List<PlaylistEntry>,
     libraryTracks: List<LibraryTrack>,
     state: PlaylistState,
+    destination: PlaylistFeatureDestination,
+    appearanceSource: PlaylistFeatureAppearanceSource,
+    dismissalPublisher: PlaylistFeatureDismissalPublisher,
+    mutationFailedLabel: String,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onRename: (String, (PlaylistStateAction) -> Unit) -> Unit,
     onDeleteMutation: ((PlaylistStateAction) -> Unit) -> Unit,
     onDisplayedPlaylistDeleteConfirmed: (PlaylistSnapshot) -> Unit,
-    destinationId: LibraryDestinationId?,
-    registerBackSurface: (LibraryBackSurfacePort) -> () -> Unit,
     onOpenBrowser: () -> Unit,
     onPlayEntry: (SavedPlaylistPlaybackRequest) -> Unit,
     onRemoveEntry: (String) -> Unit,
@@ -477,19 +513,23 @@ internal fun PlaylistDetailRouteContent(
         entries = entries,
         libraryTracks = libraryTracks,
         state = state,
+        destination = destination,
+        appearanceSource = appearanceSource,
+        dismissalPublisher = dismissalPublisher,
+        mutationFailedLabel = mutationFailedLabel,
         onBack = onBack,
         onRetry = onRetry,
         onRename = onRename,
         onDelete = onDeleteMutation,
         onDeleteConfirmed = onDisplayedPlaylistDeleteConfirmed,
-        destinationId = destinationId,
-        registerBackSurface = registerBackSurface,
         onOpenBrowser = onOpenBrowser,
         onPlayEntry = onPlayEntry,
         onRemoveEntry = onRemoveEntry,
         onReorder = onReorder,
         bottomContentPadding = bottomContentPadding,
-        onScrollPositionChanged = onScrollPositionChanged,
+        onScrollPositionChanged = { index, offset ->
+            onScrollPositionChanged(LibraryScrollPosition(index, offset))
+        },
     )
 }
 
@@ -544,15 +584,15 @@ private fun PlaylistRoutePlaceholder(
                     }
                 }
             }
-            when (playlistRouteNotice(state)) {
-                PlaylistRouteNotice.PlaylistChanged ->
+            when (sharedPlaylistRouteNotice(state)) {
+                SharedPlaylistRouteNotice.PlaylistChanged ->
                     Text(
                         text = stringResource(Res.string.playlist_changed),
                         color = HausColors.current.muted,
                         modifier = Modifier.padding(top = 12.dp),
                     )
 
-                PlaylistRouteNotice.MutationFailed ->
+                SharedPlaylistRouteNotice.MutationFailed ->
                     Text(
                         text =
                             stringResource(Res.string.playlist_mutation_failed),
@@ -563,5 +603,43 @@ private fun PlaylistRoutePlaceholder(
                 null -> Unit
             }
         }
+    }
+}
+
+private enum class SharedPlaylistRouteNotice {
+    PlaylistChanged,
+    MutationFailed
+}
+
+private fun sharedPlaylistRouteNotice(
+    state: PlaylistState
+): SharedPlaylistRouteNotice? =
+    when {
+        state.recoverableMessage != null ->
+            SharedPlaylistRouteNotice.PlaylistChanged
+        state.mutationErrorMessage != null ->
+            SharedPlaylistRouteNotice.MutationFailed
+        else -> null
+    }
+
+private sealed interface SharedPlaylistDetailResolution {
+    data object AwaitConfirmation : SharedPlaylistDetailResolution
+
+    data class Show(val playlist: PlaylistSummary) :
+        SharedPlaylistDetailResolution
+
+    data class ReturnToHub(val message: String) : SharedPlaylistDetailResolution
+}
+
+private fun sharedPlaylistDetailResolution(
+    playlistId: String,
+    state: PlaylistState,
+): SharedPlaylistDetailResolution {
+    val playlist = state.confirmedSnapshot.playlist(playlistId)
+    return when {
+        playlist != null -> SharedPlaylistDetailResolution.Show(playlist)
+        state.isLoading || !state.hasConfirmedSnapshot ->
+            SharedPlaylistDetailResolution.AwaitConfirmation
+        else -> SharedPlaylistDetailResolution.ReturnToHub("playlist_changed")
     }
 }

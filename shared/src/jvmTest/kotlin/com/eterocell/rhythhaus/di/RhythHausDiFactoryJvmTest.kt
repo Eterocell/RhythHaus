@@ -3,8 +3,8 @@ package com.eterocell.rhythhaus.di
 import com.eterocell.rhythhaus.library.LibraryDatabase
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.PlaylistRepository
-import com.eterocell.rhythhaus.library.SqlDelightPlaylistRepository
 import com.eterocell.rhythhaus.library.playlistsImplementationModule
+import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -30,10 +30,11 @@ class RhythHausDiFactoryJvmTest {
 
         try {
             val koin = application.koin
-            assertTrue(
-                koin.get<PlaylistRepository>() is SqlDelightPlaylistRepository)
+            assertTrue(koin.get<PlaylistRepository>().playlists().isEmpty())
             assertSame(
                 koin.get<PlaylistRepository>(), koin.get<PlaylistRepository>())
+            assertSame(
+                koin.get<PlaylistStateOwner>(), koin.get<PlaylistStateOwner>())
             assertEquals(null, koin.getOrNull<LibraryRepository>())
         } finally {
             stopKoin()

@@ -4,7 +4,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 
-object IOSPlaylistBackupDocumentStatus {
+/**
+ * ABI-stable integer terminal statuses supplied by the iOS document provider.
+ */
+public object IOSPlaylistBackupDocumentStatus {
     const val SUCCESS = 0
     const val CANCELLED = 1
     const val TOO_LARGE = 2
@@ -12,11 +15,15 @@ object IOSPlaylistBackupDocumentStatus {
     const val UNAVAILABLE = 4
 }
 
-interface IOSPlaylistBackupDocumentCompletion {
+/** ABI completion preserving nullable terminal bytes and messages. */
+public interface IOSPlaylistBackupDocumentCompletion {
     fun complete(status: Int, bytes: ByteArray?, message: String?)
 }
 
-interface IOSPlaylistBackupDocumentProvider {
+/**
+ * ABI provider implemented by the iOS host to present save and open documents.
+ */
+public interface IOSPlaylistBackupDocumentProvider {
     fun saveDocument(
         fileName: String,
         bytes: ByteArray,
@@ -29,7 +36,8 @@ interface IOSPlaylistBackupDocumentProvider {
     )
 }
 
-object IOSPlaylistBackupDocumentBridge {
+/** ABI singleton retaining the current injected iOS document provider. */
+public object IOSPlaylistBackupDocumentBridge {
     var provider: IOSPlaylistBackupDocumentProvider? = null
 }
 
@@ -37,62 +45,72 @@ object IOSPlaylistBackupDocumentBridge {
 actual fun rememberPlatformPlaylistBackupDocumentLauncher(
     onSaveResult: (PlaylistBackupDocumentSaveResult) -> Unit,
     onOpenResult: (PlaylistBackupDocumentOpenResult) -> Unit,
-): PlatformPlaylistBackupDocumentLauncher {
+): PlaylistBackupDocumentLauncher {
     val currentSaveResult = rememberUpdatedState(onSaveResult)
     val currentOpenResult = rememberUpdatedState(onOpenResult)
     return remember {
-        object : PlatformPlaylistBackupDocumentLauncher {
-            override val isAvailable: Boolean
-                get() = IOSPlaylistBackupDocumentBridge.provider != null
-
-            override fun save(suggestedFileName: String, bytes: ByteArray) {
-                val provider = IOSPlaylistBackupDocumentBridge.provider
-                if (provider == null) {
-                    currentSaveResult.value(
-                        iosPlaylistBackupUnavailableSaveResult())
-                    return
-                }
-                provider.saveDocument(
-                    playlistBackupFileName(suggestedFileName),
-                    bytes,
-                    object : IOSPlaylistBackupDocumentCompletion {
-                        override fun complete(
-                            status: Int,
-                            bytes: ByteArray?,
-                            message: String?
-                        ) {
-                            currentSaveResult.value(
-                                iosPlaylistBackupSaveResult(status, message))
-                        }
-                    },
-                )
-            }
-
-            override fun open() {
-                val provider = IOSPlaylistBackupDocumentBridge.provider
-                if (provider == null) {
-                    currentOpenResult.value(
-                        iosPlaylistBackupUnavailableOpenResult())
-                    return
-                }
-                provider.openDocument(
-                    PlaylistBackupMaxBytes,
-                    object : IOSPlaylistBackupDocumentCompletion {
-                        override fun complete(
-                            status: Int,
-                            bytes: ByteArray?,
-                            message: String?
-                        ) {
-                            currentOpenResult.value(
-                                iosPlaylistBackupOpenResult(
-                                    status, bytes, message))
-                        }
-                    },
-                )
-            }
-        }
+        iosPlaylistBackupDocumentLauncher(
+            onSaveResult = { currentSaveResult.value(it) },
+            onOpenResult = { currentOpenResult.value(it) },
+        )
     }
 }
+
+/**
+ * Adapts the retained Shared iOS ABI provider to neutral feature launcher
+ * results.
+ */
+internal fun iosPlaylistBackupDocumentLauncher(
+    onSaveResult: (PlaylistBackupDocumentSaveResult) -> Unit,
+    onOpenResult: (PlaylistBackupDocumentOpenResult) -> Unit,
+): PlaylistBackupDocumentLauncher =
+    object : PlaylistBackupDocumentLauncher {
+        override val isAvailable: Boolean
+            get() = IOSPlaylistBackupDocumentBridge.provider != null
+
+        override fun save(suggestedFileName: String, bytes: ByteArray) {
+            val provider = IOSPlaylistBackupDocumentBridge.provider
+            if (provider == null) {
+                onSaveResult(iosPlaylistBackupUnavailableSaveResult())
+                return
+            }
+            provider.saveDocument(
+                iosPlaylistBackupFileName(suggestedFileName),
+                bytes,
+                object : IOSPlaylistBackupDocumentCompletion {
+                    override fun complete(
+                        status: Int,
+                        bytes: ByteArray?,
+                        message: String?
+                    ) {
+                        onSaveResult(
+                            iosPlaylistBackupSaveResult(status, message))
+                    }
+                },
+            )
+        }
+
+        override fun open() {
+            val provider = IOSPlaylistBackupDocumentBridge.provider
+            if (provider == null) {
+                onOpenResult(iosPlaylistBackupUnavailableOpenResult())
+                return
+            }
+            provider.openDocument(
+                PlaylistBackupMaxBytes,
+                object : IOSPlaylistBackupDocumentCompletion {
+                    override fun complete(
+                        status: Int,
+                        bytes: ByteArray?,
+                        message: String?
+                    ) {
+                        onOpenResult(
+                            iosPlaylistBackupOpenResult(status, bytes, message))
+                    }
+                },
+            )
+        }
+    }
 
 internal fun iosPlaylistBackupUnavailableSaveResult() =
     PlaylistBackupDocumentSaveResult.Unavailable(
@@ -149,3 +167,15 @@ internal fun iosPlaylistBackupOpenResult(
             PlaylistBackupDocumentOpenResult.Failure(
                 message ?: "Could not open playlist backup")
     }
+
+internal fun iosPlaylistBackupFileName(suggestedFileName: String): String {
+    val safe =
+        suggestedFileName
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .trim()
+            .ifBlank { "rhythhaus-playlists" }
+    val extension = ".rhythhaus-playlists.json"
+    return if (safe.endsWith(extension, ignoreCase = true)) safe
+    else safe + extension
+}
