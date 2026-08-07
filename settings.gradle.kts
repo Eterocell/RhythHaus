@@ -61,6 +61,8 @@ include(":feature:nowplaying")
 
 include(":feature:search")
 
+include(":feature:settings")
+
 include(":taglib")
 
 include(":architecture-processor")

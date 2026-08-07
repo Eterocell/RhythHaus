@@ -11,9 +11,10 @@ public object ArchitectureAllowList {
         mapOf(
             ":androidApp" to setOf(":shared"),
             ":desktopApp" to setOf(":shared"),
-            ":shared" to setOf(":taglib", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl", ":feature:nowplaying", ":feature:search"),
+            ":shared" to setOf(":taglib", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl", ":feature:nowplaying", ":feature:search", ":feature:settings"),
             ":feature:nowplaying" to setOf(":core:playback", ":core:ui"),
             ":feature:search" to setOf(":feature:library:api", ":core:ui"),
+            ":feature:settings" to setOf(":core:ui"),
             ":feature:library:impl" to setOf(":feature:library:api"),
             ":feature:playlists:impl" to setOf(":feature:playlists:api", ":feature:library:api", ":core:model", ":core:playback", ":core:ui", ":core:platform", ":core:database"),
             ":feature:library:api" to setOf(":core:model"),
@@ -47,11 +48,16 @@ public object ArchitectureAllowList {
                 androidNamespace = "com.eterocell.rhythhaus.search",
                 composeNamespace = "rhythhaus.feature.search.generated.resources",
             ),
+            ":feature:settings" to ModulePolicy(
+                packageRoots = setOf("com.eterocell.rhythhaus.settings"),
+                androidNamespace = "com.eterocell.rhythhaus.settings",
+                composeNamespace = "rhythhaus.feature.settings.generated.resources",
+            ),
         )
 
     public fun isAllowed(from: String, configuration: String, to: String): Boolean =
         when {
-            from == ":shared" && to == ":feature:search" -> configuration == "commonMainImplementation"
+            from == ":shared" && to in setOf(":feature:search", ":feature:settings") -> configuration == "commonMainImplementation"
             else -> to in allowList[from].orEmpty()
         }
 

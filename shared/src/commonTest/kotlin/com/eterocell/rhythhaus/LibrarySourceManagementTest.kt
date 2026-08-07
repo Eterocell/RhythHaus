@@ -23,11 +23,6 @@ import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.library.ui.reducePlaylistState
 import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
-import com.eterocell.rhythhaus.settings.SourceAccessLabel
-import com.eterocell.rhythhaus.settings.SourceDialogName
-import com.eterocell.rhythhaus.settings.SourceScanLabel
-import com.eterocell.rhythhaus.settings.sourceDialogName
-import com.eterocell.rhythhaus.settings.sourceManagementLabels
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -164,24 +159,6 @@ class LibrarySourceManagementTest {
     }
 
     @Test
-    fun sourceManagementLabelsMapAccessAndLastScanState() {
-        assertEquals(
-            SourceAccessLabel.Available to SourceScanLabel.NeverScanned,
-            sourceManagementLabels(source("available")),
-        )
-        assertEquals(
-            SourceAccessLabel.LostAccess to SourceScanLabel.LastScanned,
-            sourceManagementLabels(
-                source("lost")
-                    .copy(
-                        accessStatus = LibrarySourceAccessStatus.LostAccess,
-                        lastScanAtEpochMillis = 2L,
-                    ),
-            ),
-        )
-    }
-
-    @Test
     fun sourceMutationsFollowTerminalProgressWhenNoJobIsActive() {
         assertTrue(
             sourceMutationsAllowed(
@@ -198,36 +175,6 @@ class LibrarySourceManagementTest {
             sourceMutationsAllowed(
                 isProgressActive = scanProgress(ScanStatus.Completed).isActive,
                 isJobActive = false))
-    }
-
-    @Test
-    fun removalDialogBoundsVisualNameButPreservesFullAccessibilityName() {
-        val fullName = "A".repeat(80)
-
-        assertEquals(
-            SourceDialogName(
-                visual = "${"A".repeat(63)}…",
-                accessibility = fullName,
-            ),
-            sourceDialogName(
-                source("source").copy(displayName = fullName),
-                unnamedLabel = "Unnamed folder"),
-        )
-    }
-
-    @Test
-    fun blankSourceDisplayNameUsesNeutralLabelWithoutExposingHandle() {
-        val unnamed =
-            source("source")
-                .copy(
-                    displayName = "",
-                    handle = "content://private/provider/tree/secret")
-
-        assertEquals(
-            SourceDialogName(
-                visual = "Unnamed folder", accessibility = "Unnamed folder"),
-            sourceDialogName(unnamed, unnamedLabel = "Unnamed folder"),
-        )
     }
 
     @Test

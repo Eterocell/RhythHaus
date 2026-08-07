@@ -1176,6 +1176,111 @@ class ArchitectureCheckPluginFunctionalTest {
     }
 
     @Test
+    fun settingsFeatureConventionPublishesFinalTargetsAndDirectProcessorRegistrations() {
+        val result = settingsRunner(
+            settingsFixture(),
+            ":feature:settings:kspAndroidMain",
+            ":feature:settings:kspKotlinJvm",
+            ":feature:settings:kspKotlinIosArm64",
+            ":feature:settings:kspKotlinIosSimulatorArm64",
+            ":feature:settings:verifySettingsFeatureConvention",
+            "architectureCheck",
+        ).build()
+
+        assertEquals(
+            "KSP_PACKAGE_ROOTS=com.eterocell.rhythhaus.settings",
+            result.output.lineSequence().single { it.startsWith("KSP_PACKAGE_ROOTS=") },
+            result.output,
+        )
+        settingsKspTasks.forEach { task ->
+            assertEquals(TaskOutcome.SUCCESS, result.task(task)?.outcome, result.output)
+            assertFalse(result.output.contains("$task SKIPPED"), result.output)
+            assertFalse(result.output.contains("$task NO-SOURCE"), result.output)
+        }
+    }
+
+    @Test
+    fun settingsFeatureRejectsForbiddenEdgesAndSharedApiExposure() {
+        mapOf(
+            SettingsMutation.DependsOnShared to "ARCH-EDGE :feature:settings [architecture] -> :shared",
+            SettingsMutation.DependsOnApp to "ARCH-EDGE :feature:settings [architecture] -> :androidApp",
+            SettingsMutation.DependsOnDatabase to "ARCH-EDGE :feature:settings [architecture] -> :core:database",
+            SettingsMutation.DependsOnPlatform to "ARCH-EDGE :feature:settings [architecture] -> :core:platform",
+            SettingsMutation.DependsOnPlayback to "ARCH-EDGE :feature:settings [architecture] -> :core:playback",
+            SettingsMutation.DependsOnTagLib to "ARCH-EDGE :feature:settings [architecture] -> :taglib",
+            SettingsMutation.DependsOnLibraryApi to "ARCH-EDGE :feature:settings [architecture] -> :feature:library:api",
+        ).forEach { (mutation, diagnostic) ->
+            assertRequiredDiagnostics(settingsFixture(mutation), listOf(diagnostic))
+        }
+        mapOf(
+            SettingsMutation.DependsOnKoin to "SETTINGS-DIRECT-DEPENDENCY forbidden org.koin:koin-core:4.2.2",
+            SettingsMutation.DependsOnDataStore to "SETTINGS-DIRECT-DEPENDENCY forbidden androidx.datastore:datastore-core:1.2.1",
+        ).forEach { (mutation, diagnostic) ->
+            val result = settingsRunner(settingsFixture(mutation), ":feature:settings:verifySettingsFeatureConvention").buildAndFail()
+            assertTrue(result.output.contains(diagnostic), result.output)
+        }
+        assertExactFailure(
+            settingsFixture(SettingsMutation.SharedCommonMainApiExposure),
+            listOf("ARCH-EDGE :shared [commonMainApi] -> :feature:settings"),
+        )
+        assertRequiredDiagnostics(
+            settingsFixture(SettingsMutation.IosExport),
+            listOf("ARCH-IOS-EXPORT :shared -> :feature:settings"),
+        )
+    }
+
+    @Test
+    fun settingsFeatureProcessorRejectsPackageNamespaceAndPublicKdocMutations() {
+        assertSettingsKspFailure(
+            settingsFixture(SettingsMutation.WrongPackage),
+            "ARCH-PACKAGE :feature:settings:SettingsFeature.kt (outside.fixture)",
+        )
+        assertSettingsKspFailure(
+            settingsFixture(SettingsMutation.EmptyPackageRoots),
+            "ARCH-PACKAGE :feature:settings:SettingsFeature.kt (com.eterocell.rhythhaus.settings)",
+        )
+        assertSettingsKspFailure(
+            settingsFixture(SettingsMutation.MissingKDoc),
+            "ARCH-KDOC :feature:settings:SettingsFeature.kt:2 (com.eterocell.rhythhaus.settings.SettingsFeature)",
+        )
+        assertExactFailure(
+            settingsFixture(SettingsMutation.WrongAndroidNamespace),
+            listOf("ARCH-RESOURCE :feature:settings [main] root=feature/settings/src/androidMain/res namespace=com.example.wrong"),
+        )
+        assertExactFailure(
+            settingsFixture(SettingsMutation.WrongComposeNamespace),
+            listOf(
+                "ARCH-RESOURCE :feature:settings [androidMain] root=feature/settings/src/androidMain/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:settings [commonMain] root=feature/settings/src/commonMain/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:settings [iosArm64Main] root=feature/settings/src/iosArm64Main/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:settings [iosSimulatorArm64Main] root=feature/settings/src/iosSimulatorArm64Main/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:settings [jvmMain] root=feature/settings/src/jvmMain/composeResources namespace=example.wrong.resources",
+            ),
+        )
+    }
+
+    @Test
+    fun settingsResourceOwnershipIsProvenThroughFinalLedgerFixtureOnly() {
+        assertSettingsResourceAudit(settingsResourceFixture())
+        mapOf(
+            SettingsMutation.MissingMovedResource to "SETTINGS-RESOURCE missing Settings key",
+            SettingsMutation.DuplicateMovedResource to "SETTINGS-RESOURCE duplicate key in Settings EN",
+            SettingsMutation.DuplicateMovedResourceZh to "SETTINGS-RESOURCE duplicate key in Settings ZH",
+            SettingsMutation.ExtraMovedResource to "SETTINGS-RESOURCE unexpected Settings key",
+            SettingsMutation.CrossOwnerDuplicateResource to "SETTINGS-RESOURCE duplicate key across Shared/Settings",
+            SettingsMutation.WrongResourceOwner to "SETTINGS-RESOURCE wrong owner for moved key",
+            SettingsMutation.LocaleParityDivergence to "SETTINGS-RESOURCE locale parity differs",
+            SettingsMutation.InvalidResourceNamespace to "SETTINGS-RESOURCE wrong namespace",
+            SettingsMutation.ForeignFeatureResourceImport to "SETTINGS-RESOURCE Settings imports Shared generated resources",
+            SettingsMutation.ForeignSharedResourceImport to "SETTINGS-RESOURCE Shared imports Settings generated resources",
+            SettingsMutation.MissingLogo to "SETTINGS-RESOURCE Settings logo owner mismatch",
+        ).forEach { (mutation, diagnostic) ->
+            val failure = assertFailsWith<AssertionError> { assertSettingsResourceAudit(settingsResourceFixture(mutation)) }
+            assertTrue(failure.message.orEmpty().contains(diagnostic), failure.message)
+        }
+    }
+
+    @Test
     fun playlistsFeatureConventionPublishesRootsAndKspRegistrations() {
         val result = playlistsRunner(
             playlistsFeatureFixture(),
@@ -1414,6 +1519,12 @@ class ArchitectureCheckPluginFunctionalTest {
         assertEquals(TaskOutcome.FAILED, result.task(":feature:search:kspKotlinJvm")?.outcome, result.output)
     }
 
+    private fun assertSettingsKspFailure(projectDir: File, expectedDiagnostic: String) {
+        val result = settingsRunner(projectDir, ":feature:settings:compileKotlinJvm").buildAndFail()
+        assertEquals(listOf(expectedDiagnostic), settingsKspDiagnostics(result.output), result.output)
+        assertEquals(TaskOutcome.FAILED, result.task(":feature:settings:kspKotlinJvm")?.outcome, result.output)
+    }
+
     private fun assertSearchKdocFailureThenRestoresGreen(sourceText: String, expectedDiagnostic: String) {
         val projectDir = searchFixture(sourceOverride = sourceText)
         assertSearchKspFailure(projectDir, expectedDiagnostic)
@@ -1452,6 +1563,13 @@ class ArchitectureCheckPluginFunctionalTest {
         output.lineSequence()
             .mapNotNull { line ->
                 Regex("(ARCH-(?:PACKAGE|KDOC) :feature:search:[^\\r\\n]+)").find(line)?.groupValues?.get(1)
+            }
+            .toList()
+
+    private fun settingsKspDiagnostics(output: String): List<String> =
+        output.lineSequence()
+            .mapNotNull { line ->
+                Regex("(ARCH-(?:PACKAGE|KDOC) :feature:settings:[^\\r\\n]+)").find(line)?.groupValues?.get(1)
             }
             .toList()
 
@@ -1828,6 +1946,164 @@ class ArchitectureCheckPluginFunctionalTest {
         projectDir.resolve("build.gradle.kts").writeText("plugins { id(\"build-logic.architecture-check\") }")
         return projectDir
     }
+
+    private fun settingsFixture(mutation: SettingsMutation? = null): File {
+        val projectDir = fixture()
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement { repositories { gradlePluginPortal(); mavenCentral(); google() } }
+            dependencyResolutionManagement { repositories { mavenCentral(); google() } }
+            rootProject.name = "architecture-settings-feature"
+            include(":androidApp", ":desktopApp", ":shared", ":taglib", ":architecture-processor", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl", ":feature:settings")
+            """.trimIndent(),
+        )
+        val processorJar = externallyProvidedProcessorJarOrSkip()
+        module(projectDir, ":architecture-processor")
+        buildFile(projectDir, ":architecture-processor").writeText("configurations.create(\"default\")\nartifacts { add(\"default\", file(\"${processorJar.invariantSeparatorsPath}\")) }")
+        listOf(":core:platform", ":core:playback", ":core:ui").forEach { module(projectDir, it); kmpModule(projectDir, it, strict = true) }
+        module(projectDir, ":feature:settings")
+        val composeNamespace = if (mutation == SettingsMutation.WrongComposeNamespace) "example.wrong.resources" else "rhythhaus.feature.settings.generated.resources"
+        val androidNamespace = if (mutation == SettingsMutation.WrongAndroidNamespace) "com.example.wrong" else "com.eterocell.rhythhaus.settings"
+        buildFile(projectDir, ":feature:settings").writeText(
+            """
+            import com.eterocell.gradle.architecture.ArchitectureModelRegistry
+            import com.eterocell.gradle.architecture.ControlledComposeResourcesExtension
+            import com.google.devtools.ksp.gradle.KspExtension
+            import org.gradle.api.artifacts.ProjectDependency
+            import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+            plugins {
+                id("build-logic.kmp.feature.impl")
+                id("build-logic.android.kmp.library")
+                id("build-logic.compose-resources")
+                id("org.jetbrains.kotlin.plugin.compose")
+            }
+            configurations.maybeCreate("architecture")
+            extensions.configure<ControlledComposeResourcesExtension>("architectureComposeResources") { namespace("$composeNamespace") }
+            kotlin {
+                android { namespace = "$androidNamespace"; compileSdk = 37; minSdk = 29; compilerOptions.jvmTarget.set(JvmTarget.JVM_11); withHostTest {}; androidResources { enable = true } }
+                jvm(); iosArm64(); iosSimulatorArm64()
+            }
+            dependencies { add("commonMainImplementation", "org.jetbrains.compose.runtime:runtime:1.11.1") }
+            val expected = listOf("kspAndroid", "kspIosArm64", "kspIosSimulatorArm64", "kspJvm")
+            afterEvaluate {
+                @Suppress("UNCHECKED_CAST")
+                val arguments = extensions.getByName("ksp").javaClass.getMethod("getArguments").invoke(extensions.getByName("ksp")) as Map<String, String>
+                val registrations = ArchitectureModelRegistry.forRoot(project).snapshot().kspRegistrations
+                    .filter { it.module == project.path }.map { it.module + "|" + it.configuration + "|" + it.processor }.sorted()
+                val configurationsMatch = expected.associateWith { name ->
+                    val dependencies = configurations.getByName(name).dependencies.withType(ProjectDependency::class.java)
+                        .filter { it.path == ":architecture-processor" }
+                    dependencies.size == 1 && configurations.getByName(name).dependencies.size == 1
+                }
+                tasks.register("verifySettingsFeatureConvention") {
+                    doLast {
+                        check(arguments["architecture.packageRoots"] == "com.eterocell.rhythhaus.settings")
+                        check(registrations == expected.map { ":feature:settings|" + it + "|:architecture-processor" })
+                        configurationsMatch.forEach { (name, matches) -> check(matches == true) { "KSP registry/configuration mismatch: ${'$'}name" } }
+                        val forbiddenDirectDependencies = configurations
+                            .flatMap { configuration -> configuration.dependencies }
+                            .map { dependency -> "${'$'}{dependency.group}:${'$'}{dependency.name}:${'$'}{dependency.version}" }
+                            .filter { it in setOf("org.koin:koin-core:4.2.2", "androidx.datastore:datastore-core:1.2.1") }
+                        check(forbiddenDirectDependencies.isEmpty()) {
+                            "SETTINGS-DIRECT-DEPENDENCY forbidden " + forbiddenDirectDependencies.sorted().joinToString()
+                        }
+                        println("KSP_PACKAGE_ROOTS=" + arguments["architecture.packageRoots"])
+                    }
+                }
+            }
+            """.trimIndent(),
+        )
+        val source = when (mutation) {
+            SettingsMutation.WrongPackage -> "package outside.fixture\n/** Invalid package. */\npublic class SettingsFeature"
+            SettingsMutation.MissingKDoc -> "package com.eterocell.rhythhaus.settings\npublic class SettingsFeature"
+            else -> "package com.eterocell.rhythhaus.settings\n/** A documented Settings feature declaration. */\npublic class SettingsFeature"
+        }
+        source(projectDir, ":feature:settings", "SettingsFeature.kt", source)
+        val strings = moduleDir(projectDir, ":feature:settings").resolve("src/commonMain/composeResources/values/strings.xml")
+        strings.parentFile.mkdirs()
+        strings.writeText("<resources><string name=\"appearance\">Appearance</string></resources>")
+        append(projectDir, ":shared", "dependencies.add(\"commonMainImplementation\", project(\":feature:settings\"))")
+        dependency(projectDir, ":feature:settings", ":core:ui")
+        when (mutation) {
+            SettingsMutation.DependsOnShared -> dependency(projectDir, ":feature:settings", ":shared")
+            SettingsMutation.DependsOnApp -> dependency(projectDir, ":feature:settings", ":androidApp")
+            SettingsMutation.DependsOnDatabase -> dependency(projectDir, ":feature:settings", ":core:database")
+            SettingsMutation.DependsOnPlatform -> dependency(projectDir, ":feature:settings", ":core:platform")
+            SettingsMutation.DependsOnPlayback -> dependency(projectDir, ":feature:settings", ":core:playback")
+            SettingsMutation.DependsOnTagLib -> dependency(projectDir, ":feature:settings", ":taglib")
+            SettingsMutation.DependsOnLibraryApi -> dependency(projectDir, ":feature:settings", ":feature:library:api")
+            SettingsMutation.DependsOnKoin -> dependencyNotation(projectDir, ":feature:settings", "org.koin:koin-core:4.2.2")
+            SettingsMutation.DependsOnDataStore -> dependencyNotation(projectDir, ":feature:settings", "androidx.datastore:datastore-core:1.2.1")
+            SettingsMutation.IosExport -> append(projectDir, ":shared", "kotlin { iosArm64().binaries.framework { export(project(\":feature:settings\")) } }")
+            SettingsMutation.SharedCommonMainApiExposure -> {
+                removeText(projectDir, ":shared", "dependencies.add(\"commonMainImplementation\", project(\":feature:settings\"))")
+                append(projectDir, ":shared", "dependencies.add(\"commonMainApi\", project(\":feature:settings\"))")
+            }
+            SettingsMutation.EmptyPackageRoots -> append(projectDir, ":feature:settings", "afterEvaluate { extensions.configure<KspExtension> { arg(\"architecture.packageRoots\", \"\") } }")
+            else -> Unit
+        }
+        projectDir.resolve("build.gradle.kts").writeText("plugins { id(\"build-logic.architecture-check\") }")
+        return projectDir
+    }
+
+    private fun settingsResourceFixture(mutation: SettingsMutation? = null): SettingsResourceFixture {
+        val root = Files.createTempDirectory("settings-resource-audit").toFile()
+        val shared = listOf(root.resolve("shared-en.xml"), root.resolve("shared-zh.xml"))
+        val feature = listOf(root.resolve("settings-en.xml"), root.resolve("settings-zh.xml"))
+        val sharedSource = root.resolve("Shared.kt")
+        val featureSource = root.resolve("Settings.kt")
+        val sharedKeys = listOf("settings", "add_music_folder", "folder_picker_unavailable", "clear_library", "clear_library_message", "clear", "cancel", "remove", "close", "scanning", "scan_progress_format", "scan_complete_format", "folder_picker_error_access", "folder_picker_error_select", "folder_picker_error_prepare", "folder_picker_no_folder_selected")
+        val settingsKeys = listOf("appearance", "theme_system_label", "theme_light_label", "theme_dark_label", "theme_system_description", "theme_light_description", "theme_dark_description", "manage_music", "configured_folders", "unnamed_folder", "source_access_available", "source_access_lost", "source_never_scanned", "source_last_scanned", "source_status_format", "rescan_source_format", "remove_source_format", "remove_folder", "remove_folder_message", "about", "about_app_name", "about_logo_description", "about_version_format", "about_view_source", "about_open_source_libraries", "open_source_libraries_loading", "open_source_libraries_error", "open_source_libraries_retry")
+        fun xml(names: List<String>) = "<resources>${names.joinToString("") { "<string name=\"$it\">x</string>" }}</resources>"
+        shared.forEach { it.writeText(xml(sharedKeys)) }
+        feature.forEach { it.writeText(xml(settingsKeys)) }
+        val sharedLogo = root.resolve("shared-logo.xml")
+        val featureLogo = root.resolve("settings-logo.xml").apply { writeText("<vector />") }
+        sharedSource.writeText("package fixture")
+        featureSource.writeText("package fixture")
+        when (mutation) {
+            SettingsMutation.MissingMovedResource -> feature[0].writeText(xml(settingsKeys - "about"))
+            SettingsMutation.DuplicateMovedResource -> feature[0].writeText(xml(settingsKeys + "appearance"))
+            SettingsMutation.DuplicateMovedResourceZh -> feature[1].writeText(xml(settingsKeys + "appearance"))
+            SettingsMutation.ExtraMovedResource -> feature[0].writeText(xml(settingsKeys + "extra"))
+            SettingsMutation.CrossOwnerDuplicateResource -> shared[0].writeText(xml(sharedKeys + "appearance"))
+            SettingsMutation.WrongResourceOwner -> { feature[0].writeText(xml(settingsKeys + "clear")); shared[0].writeText(xml(sharedKeys - "clear")) }
+            SettingsMutation.LocaleParityDivergence -> feature[1].writeText(xml(settingsKeys.reversed()))
+            SettingsMutation.InvalidResourceNamespace -> featureSource.writeText("import example.wrong.resources.Res")
+            SettingsMutation.ForeignFeatureResourceImport -> featureSource.writeText("import rhythhaus.shared.generated.resources.Res")
+            SettingsMutation.ForeignSharedResourceImport -> sharedSource.writeText("import rhythhaus.feature.settings.generated.resources.Res")
+            SettingsMutation.MissingLogo -> featureLogo.delete()
+            null -> Unit
+            else -> error("Unsupported resource mutation: $mutation")
+        }
+        return SettingsResourceFixture(shared, feature, sharedLogo, featureLogo, sharedSource, featureSource)
+    }
+
+    private fun assertSettingsResourceAudit(fixture: SettingsResourceFixture) {
+        val sharedExpected = listOf("settings", "add_music_folder", "folder_picker_unavailable", "clear_library", "clear_library_message", "clear", "cancel", "remove", "close", "scanning", "scan_progress_format", "scan_complete_format", "folder_picker_error_access", "folder_picker_error_select", "folder_picker_error_prepare", "folder_picker_no_folder_selected")
+        val expected = listOf("appearance", "theme_system_label", "theme_light_label", "theme_dark_label", "theme_system_description", "theme_light_description", "theme_dark_description", "manage_music", "configured_folders", "unnamed_folder", "source_access_available", "source_access_lost", "source_never_scanned", "source_last_scanned", "source_status_format", "rescan_source_format", "remove_source_format", "remove_folder", "remove_folder_message", "about", "about_app_name", "about_logo_description", "about_version_format", "about_view_source", "about_open_source_libraries", "open_source_libraries_loading", "open_source_libraries_error", "open_source_libraries_retry")
+        val shared = fixture.shared.map(::searchStringNames)
+        val settings = fixture.feature.map(::searchStringNames)
+        shared.zip(listOf("EN", "ZH")).forEach { (names, locale) ->
+            assertEquals(names.size, names.toSet().size, "SETTINGS-RESOURCE duplicate key in Shared $locale")
+        }
+        assertTrue(shared.flatten().intersect(expected.toSet()).isEmpty(), "SETTINGS-RESOURCE duplicate key across Shared/Settings")
+        shared.zip(listOf("EN", "ZH")).forEach { (names, _) ->
+            assertEquals(sharedExpected.multiset(), names.multiset(), "SETTINGS-RESOURCE wrong owner for moved key")
+        }
+        settings.zip(listOf("EN", "ZH")).forEach { (names, locale) ->
+            assertEquals(names.size, names.toSet().size, "SETTINGS-RESOURCE duplicate key in Settings $locale")
+            assertTrue(names.all { it in expected }, "SETTINGS-RESOURCE unexpected Settings key")
+            assertEquals(expected.multiset(), names.multiset(), "SETTINGS-RESOURCE missing Settings key")
+        }
+        assertEquals(settings[0], settings[1], "SETTINGS-RESOURCE locale parity differs")
+        assertTrue(fixture.featureLogo.isFile && !fixture.sharedLogo.isFile, "SETTINGS-RESOURCE Settings logo owner mismatch")
+        assertFalse(fixture.featureSource.readText().contains("example.wrong.resources"), "SETTINGS-RESOURCE wrong namespace")
+        assertFalse(fixture.featureSource.readText().contains("rhythhaus.shared.generated.resources"), "SETTINGS-RESOURCE Settings imports Shared generated resources")
+        assertFalse(fixture.sharedSource.readText().contains("rhythhaus.feature.settings.generated.resources"), "SETTINGS-RESOURCE Shared imports Settings generated resources")
+    }
+
+    private fun List<String>.multiset(): Map<String, Int> = groupingBy { it }.eachCount()
 
     private fun searchResourceFixture(mutation: SearchMutation): SearchResourceFixture {
         val root = Files.createTempDirectory("search-resource-audit").toFile()
@@ -2955,6 +3231,9 @@ class ArchitectureCheckPluginFunctionalTest {
                 ).toTypedArray(),
             )
 
+    private fun settingsRunner(projectDir: File, vararg tasks: String): GradleRunner =
+        searchRunner(projectDir, *tasks)
+
     private fun qualityAggregationRunner(projectDir: File): GradleRunner =
         GradleRunner.create().withProjectDir(projectDir).withPluginClasspath().withArguments("qualityCheck", "--stacktrace", "--configuration-cache", "--configuration-cache-problems=fail")
 
@@ -3020,6 +3299,36 @@ class ArchitectureCheckPluginFunctionalTest {
         EmptyPackageRoots,
     }
 
+    private enum class SettingsMutation {
+        DependsOnShared,
+        DependsOnApp,
+        DependsOnDatabase,
+        DependsOnPlatform,
+        DependsOnPlayback,
+        DependsOnTagLib,
+        DependsOnLibraryApi,
+        DependsOnKoin,
+        DependsOnDataStore,
+        WrongAndroidNamespace,
+        WrongComposeNamespace,
+        WrongPackage,
+        EmptyPackageRoots,
+        MissingKDoc,
+        IosExport,
+        SharedCommonMainApiExposure,
+        MissingMovedResource,
+        DuplicateMovedResource,
+        DuplicateMovedResourceZh,
+        ExtraMovedResource,
+        CrossOwnerDuplicateResource,
+        WrongResourceOwner,
+        LocaleParityDivergence,
+        InvalidResourceNamespace,
+        ForeignFeatureResourceImport,
+        ForeignSharedResourceImport,
+        MissingLogo,
+    }
+
     private data class SearchResourceFixture(
         val shared: List<File>,
         val feature: List<File>,
@@ -3043,6 +3352,15 @@ class ArchitectureCheckPluginFunctionalTest {
         }
     }
 
+    private data class SettingsResourceFixture(
+        val shared: List<File>,
+        val feature: List<File>,
+        val sharedLogo: File,
+        val featureLogo: File,
+        val sharedSource: File,
+        val featureSource: File,
+    )
+
     private data class QualityAggregationFixture(
         val projectDir: File,
         val markerDirectory: File,
@@ -3059,6 +3377,12 @@ class ArchitectureCheckPluginFunctionalTest {
             ":feature:search:kspKotlinJvm",
             ":feature:search:kspKotlinIosArm64",
             ":feature:search:kspKotlinIosSimulatorArm64",
+        )
+        val settingsKspTasks = listOf(
+            ":feature:settings:kspAndroidMain",
+            ":feature:settings:kspKotlinJvm",
+            ":feature:settings:kspKotlinIosArm64",
+            ":feature:settings:kspKotlinIosSimulatorArm64",
         )
         const val SQLDELIGHT_FIXTURE_APPLIED_MARKER = "TEST-SQLDELIGHT-FIXTURE-APPLIED"
         const val SQLDELIGHT_RUNTIME_API_MISSING_SENTINEL = "TEST-SQLDELIGHT-RUNTIME-API-MISSING"

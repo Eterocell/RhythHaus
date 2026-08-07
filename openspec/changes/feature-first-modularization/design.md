@@ -49,7 +49,7 @@ Move SQLDelight atomically, including `.sq`, migrations, drivers, and generated 
 
 Create unexported `:feature:playlists:impl` for Android-KMP, JVM, `iosArm64`, and `iosSimulatorArm64`. It owns saved-playlist/playback-queue UI, preserving the already-characterized immutable `PlaylistState`, `PlaylistStateAction`, reducer, `PlaylistStateOwner`, and backup immutable state/reducer as the Task 5.2-specific equivalent without a new Presenter/ViewModel/`UiEffect`/Event scaffold; repository implementations/Koin binding; backup codec/service/state/UI; the neutral common document-launcher contract; public Android/JVM launcher factories; and feature resources. Feature has no iOS actual/source and no Shared edge. Shared owns the common `expect`, Android/JVM delegates, and retained iOS actual/ABI adapter. Its API remains a clean repository/model contract. Direct edges are playlists API, Library API, core model/playback/ui/platform, and implementation-only core database. Remaining Gradle scopes follow exhaustive public signatures. Generated DB/SQLDelight/generated `Res`/shared navigation or shell types are excluded from public signatures; Koin is excluded except for the public binding-module factory returning `org.koin.core.module.Module` for shared assembly.
 
-The move changes adapters only. `:core:database` remains sole physical owner: no `.sq`, `.sqm`, schema, migration, generated DB, driver, database-name, or FK changes. Preserve serialization/revision/cancellation, backup exclusivity, exact 4 MiB limits, mappings, stale-library rejection, transactional import, and exactly-once native completion. Queue UI does not transfer playback engine/session/lifecycle/root playback state. Shared retains composition, shell/routes/Back, lifecycle, Koin assembly/start, and Settings layout; the feature owns embeddable backup sections/dialogs and all playlist/queue/backup EN/ZH text once. Shared injects generic `cancel` and composes the feature-owned add-to-playlist plain `String` into the selection bar, with no duplicate keys/generated handles across the boundary.
+The move changes adapters only. `:core:database` remains sole physical owner: no `.sq`, `.sqm`, schema, migration, generated DB, driver, database-name, or FK changes. Preserve serialization/revision/cancellation, backup exclusivity, exact 4 MiB limits, mappings, stale-library rejection, transactional import, and exactly-once native completion. Queue UI does not transfer playback engine/session/lifecycle/root playback state. Shared retains composition, shell/routes/Back, lifecycle, Koin assembly/start, and Settings layout **until Task 6.4**; the feature owns embeddable backup sections/dialogs and all playlist/queue/backup EN/ZH text once. Shared injects generic `cancel` and composes the feature-owned add-to-playlist plain `String` into the selection bar, with no duplicate keys/generated handles across the boundary.
 
 The Shared framework retains the exact ABI ledger in the canonical Task 5.2 Superpowers design: package `com.eterocell.rhythhaus.playlistbackup`, framework `Shared`, status values, Completion/Provider signatures and nullability, Bridge singleton access, MIME/max-size constants and exports, and Swift `Int32` interop. It adapts to the Kotlin-only feature seam through its retained iOS actual without feature export; the feature owns no iOS source and Swift files remain app-owned. Both `InMemoryPlaylistRepository` and `SqlDelightPlaylistRepository` move to feature implementation ownership; `feature/playlists/api/.../PlaylistRepository.kt` remains the only public repository contract. Retained Shared consumers use that contract and public feature state ports, never direct implementation classes or `loadPlaylistSnapshot`. Shared exposes the internal test-visible factory `authoritativePlaylistBackupRevisionGuard(owner: AuthoritativeLibraryPublicationOwner): PlaylistBackupRevisionGuard`; its adapter regression proves current/stale delegation through `AuthoritativeLibraryPublicationOwner.withCurrentRevision` and exact cancellation rethrow. Public implementation declarations are limited to the Koin factory, shared-needed state/action/result types, owner, composable entries, dismissal contracts, backup orchestration contracts, and launcher seam, each with declaration-specific behavioral KDoc; all other helpers are internal/private. Governance covers `com.eterocell.rhythhaus.library` and `com.eterocell.rhythhaus.playlistbackup`. Enforcement changes are deferred.
 
@@ -165,6 +165,50 @@ It carries primitive playback state and callback-first selection/visible-ID/scro
 
 Shared is sole facade/composition owner: `LibraryRoutes` directly composes `SearchContent`, deletes Shared `SearchScreen`, and removes unused `TagLibReader`. Shared retains route/Back, selection reconciliation/clear, scroll storage, playback queue/restart/dismiss, bottom-bar/Now Playing, and `EqualizerStrip`; Search owns query/filter/render/focus/count/empty/row interaction. Search preserves blank-query no results; case-insensitive title/artist/album filtering; order, duplicates, and empty metadata; and an internal, non-public LazyColumn occurrence identity of filtered occurrence index plus track ID, never `track.id` alone. That rendering-only identity is unique and cannot change `LibraryTrack`, selection IDs, visible-ID sequence, playback queue order, or duplicate semantics. Search focuses once, clear-to-blank, visible-ID emission only on sequence change, ordered playback on normal activation, long press without playback, one-toggle selection row/checkbox behavior without playback, current-row highlight/Now Playing semantics, and indicator only for current+playing; it has no artwork/error state. It owns exactly the five approved Search EN/ZH keys, while Shared injects title/clear/Now Playing/composable select-track formatting with no duplicate key or resource handle. Feature production-composable tests own Search behavior and the four moved mixed-suite cases, including two equal-ID occurrences rendering/activating distinctly with stable keys across unrelated recomposition and duplicate ordered visible/playback callbacks. Real Shared route-adapter tests prove queue order, current-track restart, dismissal, and callback-failure ownership. RED/GREEN rejects feature-to-Shared/core-playback/database/core-platform/taglib/another-implementation/app, Koin, iOS export, Shared `api`/export, namespace/resource/resource-handle, and public-KDoc/closure violations. Evidence covers cross-platform, architecture, quality, strict named OpenSpec, Xcode, and `./init.sh` without runtime/device/visual claims; see [the approved Search design](../../../docs/superpowers/specs/2026-08-07-search-feature-extraction-design.md). Detailed paths and commands remain in the later executable plan.
 
+### Approved Task 6.4 Settings implementation boundary
+
+Task 6.4 creates one unexported `:feature:settings` leaf with Android-KMP/JVM/`iosArm64`/
+`iosSimulatorArm64`, no API split/Koin module/`iosMain` production source/Shared export, preserved
+`com.eterocell.rhythhaus.settings` Kotlin package and Android namespace, and
+`rhythhaus.feature.settings.generated.resources`. Its only project dependency is
+`api(:core:ui)`; required public Compose/runtime/UI dependencies are API, while
+Foundation/resources/icons/Miuix/AboutLibraries/coroutines are implementation-only. Shared declares
+only `commonMainImplementation`; no Settings-to-Shared/apps/core database/platform/playback/taglib/
+feature/Koin/DataStore/iOS-export edge is allowed. There is no Library API edge: Shared maps
+authoritative sources to `SettingsSourceItem(id, displayName, accessAvailable, hasBeenScanned)`.
+
+The exact KDoc-complete public surface is `SettingsSharedLabels(title, addMusicFolder,
+folderPickerUnavailable, clearLibrary, cancel, remove)`, `SettingsSourceItem`, scalar/callback/
+slot `SettingsScreen`, `SettingsAboutScreen`, and
+`OpenSourceLibrariesScreen(readCatalogJson: suspend () -> String, ...)`. It exposes no Shared,
+Library, Playlist, generated foreign `Res`, route/Back, repository/scanner/launcher/controller/job,
+Koin, or DataStore type. The feature owns only Settings/About presentation, source-removal dialog
+visibility, and About retry generation, explicitly without Presenter/ViewModel/Event/Effect
+scaffolding. Shared owns source-ID adaptation, mutation guards/errors, scanning/picker/clear-library
+policy and slots, route/Back/dismissal, theme persistence/actuals/Koin/root application, and
+playlist-backup embedding. `RhythHausBuildInfo` generation/model/verification moves to Settings;
+Shared retains app-wide AboutLibraries generation/config/manual TagLib attribution and checked-in
+JSON, which the feature reads through the supplied suspend callback, retrying read/parse failures.
+The loader defaults to `Dispatchers.Default`: injected read cancellation rethrows identically and
+injected parse cancellation is preserved as data across dispatcher work then rethrown identically;
+dispatcher rejection, prompt cancellation, and Job cancellation are coroutine-owned cancellation
+with neither `Loaded` nor `Failed` publication and no identity promise. Completion is gated by an
+exact opaque current token of loader identity plus monotonic retry generation, preventing an
+obsolete cancellation-resistant loader from overwriting a replacement. Resource and test ownership
+follows the dedicated approved design.
+
+`SettingsScreen` explicitly receives `sourcePickerActionVisible`, `sourcePickerAvailable`,
+`mutationsEnabled`, and `hasImportedTracks`; it uses `onRequestClearLibrary` and nullable
+`clearLibraryDialog` rather than owning clear-dialog state. Shared resolves every emitted source ID
+against latest authoritative `librarySources` at invocation, treats missing/stale IDs as no-op, then
+reevaluates initial-publication and scan/job guards. The exhaustive EN/ZH ledger, About retry/
+generation/current-loader/cancellation behavior, and public-KDoc convention are normative in the
+dedicated approved design and must be covered by characterization and architecture controls. Shared
+retains `scanning`, `scan_progress_format`, `scan_complete_format`, and all four
+`folder_picker_error_*` keys for Shared scanning-card/App/platform-picker consumers; Settings owns
+`manage_music` with its other feature-only resources. These sets have per-locale parity and
+missing/wrong-owner/duplicate/logo controls.
+
 ## Open Questions
 
-After this approved amendment, no Task 5.2 architecture decision remains unresolved. Implementation details, exhaustive public-signature scope derivation, exact commands, and path ledger remain owned by the later executable plan.
+After this approved amendment, no Task 5.2 or Task 6.4 architecture decision remains unresolved. Implementation details, exhaustive public-signature scope derivation, exact commands, and path ledger remain owned by the later executable plan.

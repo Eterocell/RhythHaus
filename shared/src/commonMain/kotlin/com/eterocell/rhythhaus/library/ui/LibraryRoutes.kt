@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -33,6 +34,9 @@ import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
+import com.eterocell.rhythhaus.library.sourceMutationsAllowed
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsHost
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsLabels
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.search.SearchContent
@@ -40,6 +44,8 @@ import com.eterocell.rhythhaus.search.SearchSharedLabels
 import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
 import com.eterocell.rhythhaus.settings.SettingsAboutScreen
 import com.eterocell.rhythhaus.settings.SettingsScreen
+import com.eterocell.rhythhaus.settings.SettingsSharedLabels
+import com.eterocell.rhythhaus.settings.SettingsSourceItem
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
@@ -48,9 +54,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.add_music_folder
 import rhythhaus.shared.generated.resources.album_detail_subtitle_format
 import rhythhaus.shared.generated.resources.artist_detail_subtitle_format
+import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.clear
+import rhythhaus.shared.generated.resources.clear_library
+import rhythhaus.shared.generated.resources.close
+import rhythhaus.shared.generated.resources.folder_picker_unavailable
 import rhythhaus.shared.generated.resources.now_playing_badge
 import rhythhaus.shared.generated.resources.playlist_changed
 import rhythhaus.shared.generated.resources.playlist_load_failed
@@ -58,8 +69,10 @@ import rhythhaus.shared.generated.resources.playlist_loading
 import rhythhaus.shared.generated.resources.playlist_mutation_failed
 import rhythhaus.shared.generated.resources.playlist_retry
 import rhythhaus.shared.generated.resources.playlists
+import rhythhaus.shared.generated.resources.remove
 import rhythhaus.shared.generated.resources.search
 import rhythhaus.shared.generated.resources.select_track_format
+import rhythhaus.shared.generated.resources.settings
 import rhythhaus.shared.generated.resources.unknown_artist
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -138,36 +151,150 @@ internal fun LibraryRouteOverlays(
     bottomContentPadding: Dp = 0.dp,
 ) {
     when (route) {
-        LibraryRoute.Settings ->
+        LibraryRoute.Settings -> {
+            val mutationsEnabled =
+                sourceMutationsAllowed(
+                    isProgressActive = scanProgress?.isActive == true,
+                    isJobActive = scanJob?.isActive == true,
+                )
+            var showClearLibraryDialog by
+                remember(destinationId, playlistAppearanceSource) {
+                    mutableStateOf(false)
+                }
             SettingsScreen(
-                sources = sources,
-                folderPickerLauncher = folderPickerLauncher,
-                sourcePickerActionVisible = sourcePickerActionVisible,
-                importMessage = importMessage,
-                scanProgress = scanProgress,
-                scanJob = scanJob,
-                hasImportedTracks = snapshot.tracks.isNotEmpty(),
+                labels =
+                    SettingsSharedLabels(
+                        title = stringResource(Res.string.settings),
+                        addMusicFolder =
+                            stringResource(Res.string.add_music_folder),
+                        folderPickerUnavailable =
+                            stringResource(
+                                Res.string.folder_picker_unavailable),
+                        clearLibrary = stringResource(Res.string.clear_library),
+                        cancel = stringResource(Res.string.cancel),
+                        remove = stringResource(Res.string.remove),
+                    ),
                 currentThemeMode = currentThemeMode,
-                playlistBackupState = playlistBackupState,
-                backupDocumentAvailable = backupDocumentAvailable,
-                destination =
-                    PlaylistFeatureDestination(destinationId.instanceToken),
-                appearanceSource = playlistAppearanceSource,
-                dismissalPublisher =
-                    featureDismissalPublisher(
-                        destinationId, registerBackSurface),
-                onExportPlaylists = onExportPlaylists,
-                onOpenPlaylistBackup = onOpenPlaylistBackup,
-                onConfirmPlaylistBackup = onConfirmPlaylistBackup,
-                onPlaylistBackupAction = onPlaylistBackupAction,
+                sources =
+                    sources.map {
+                        SettingsSourceItem(
+                            id = it.id,
+                            displayName = it.displayName,
+                            accessAvailable =
+                                it.accessStatus ==
+                                    com.eterocell.rhythhaus.library
+                                        .LibrarySourceAccessStatus
+                                        .Available,
+                            hasBeenScanned = it.lastScanAtEpochMillis != null,
+                        )
+                    },
+                sourcePickerActionVisible = sourcePickerActionVisible,
+                sourcePickerAvailable = folderPickerLauncher.isAvailable,
+                importMessage = importMessage,
+                mutationsEnabled = mutationsEnabled,
+                hasImportedTracks = snapshot.tracks.isNotEmpty(),
+                playlistBackupContent = {
+                    PlaylistBackupSettingsHost(
+                        state = playlistBackupState,
+                        launcherAvailable = backupDocumentAvailable,
+                        destination =
+                            PlaylistFeatureDestination(
+                                destinationId.instanceToken),
+                        appearanceSource = playlistAppearanceSource,
+                        dismissalPublisher =
+                            featureDismissalPublisher(
+                                destinationId, registerBackSurface),
+                        labels =
+                            PlaylistBackupSettingsLabels(
+                                cancel = stringResource(Res.string.cancel),
+                                close = stringResource(Res.string.close),
+                            ),
+                        onExport = onExportPlaylists,
+                        onOpen = onOpenPlaylistBackup,
+                        onAction = onPlaylistBackupAction,
+                        onDismissPreview = {
+                            onPlaylistBackupAction(
+                                PlaylistBackupUiAction.DismissPreview)
+                        },
+                        onConfirmPreview = onConfirmPlaylistBackup,
+                        onDismissResult = {
+                            onPlaylistBackupAction(
+                                PlaylistBackupUiAction.DismissResult)
+                        },
+                    )
+                },
+                activeScanContent =
+                    if (scanProgress?.isActive == true) {
+                        {
+                            val session = scanProgress.session!!
+                            ScanningCard(
+                                foldersVisited = session.foldersVisited,
+                                filesVisited = session.filesVisited,
+                                tracksAdded = session.tracksAdded,
+                                latestItem = scanProgress.latestItem,
+                                onCancel = onCancelScan,
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                clearLibraryDialog =
+                    if (showClearLibraryDialog) {
+                        {
+                            AnimatedClearLibraryDialogRoute(
+                                onDismiss = { showClearLibraryDialog = false },
+                                onClearLibrary = {
+                                    if (sourceMutationsAllowed(
+                                        scanProgress?.isActive == true,
+                                        scanJob?.isActive == true,
+                                    )) {
+                                        onClearLibrary()
+                                    }
+                                    showClearLibraryDialog = false
+                                },
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 onThemeModeSelected = onThemeModeSelected,
-                onClearLibrary = onClearLibrary,
-                onRescanSource = onRescanSource,
-                onRemoveSource = onRemoveSource,
-                onCancelScan = onCancelScan,
+                onAddMusicFolder = folderPickerLauncher::launch,
+                onRescanSource = { id ->
+                    sources
+                        .firstOrNull { it.id == id }
+                        ?.let { source ->
+                            if (sourceMutationsAllowed(
+                                scanProgress?.isActive == true,
+                                scanJob?.isActive == true,
+                            )) {
+                                onRescanSource(source)
+                            }
+                        }
+                },
+                onRemoveSource = { id ->
+                    sources
+                        .firstOrNull { it.id == id }
+                        ?.let { source ->
+                            if (sourceMutationsAllowed(
+                                scanProgress?.isActive == true,
+                                scanJob?.isActive == true,
+                            )) {
+                                onRemoveSource(source)
+                            }
+                        }
+                },
+                onRequestClearLibrary = {
+                    if (mutationsEnabled && snapshot.tracks.isNotEmpty()) {
+                        showClearLibraryDialog = true
+                    }
+                },
                 onAboutClick = onShowSettingsAbout,
-                onDismiss = onDismiss,
+                onDismiss = {
+                    showClearLibraryDialog = false
+                    onDismiss()
+                },
             )
+        }
 
         LibraryRoute.Search ->
             SearchContent(
@@ -234,6 +361,9 @@ internal fun LibraryRouteOverlays(
 
         LibraryRoute.OpenSourceLibraries ->
             OpenSourceLibrariesScreen(
+                readCatalogJson = {
+                    Res.readBytes("files/aboutlibraries.json").decodeToString()
+                },
                 onDismiss = onDismiss,
             )
 

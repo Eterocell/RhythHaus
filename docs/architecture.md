@@ -37,6 +37,7 @@ implementation; cross-feature interaction is only through an explicit feature AP
 | Playback engine and contracts | `:core:playback` when extracted |
 | Scanner, source access, index, repository, UI, transient state | Library feature |
 | Playlist repository, edit flow, backup, UI | Playlists feature |
+| Settings and About presentation | `:feature:settings` |
 | Composition, root shell, cross-feature navigation and Back | `:shared` |
 
 `core:ui` never owns feature UI state. Repositories and mappings remain in their
@@ -91,6 +92,56 @@ semantics. Search owns exactly its five Search-only localized keys. Shared injec
 Now Playing, and composable select-track formatting as values; no resource key duplication or
 generated handle crosses the boundary. The normative Search boundary is
 [the approved Search design](superpowers/specs/2026-08-07-search-feature-extraction-design.md).
+
+The approved Settings migration creates one unexported `:feature:settings` leaf module targeting
+Android-KMP/JVM/`iosArm64`/`iosSimulatorArm64`, with one common implementation, no API split, no
+Koin module, no `iosMain` production source, and no iOS export. Its Kotlin package and Android
+namespace are `com.eterocell.rhythhaus.settings`; its resource namespace is
+`rhythhaus.feature.settings.generated.resources`. Settings has exactly `api(:core:ui)` as a
+project dependency. Public Compose/runtime/UI dependencies required by its public API are API;
+Foundation/resources/icons/Miuix/AboutLibraries/coroutines are implementation-only. Shared declares
+only `commonMainImplementation`, never `api`, and does not export Settings. Settings has no edge to
+Shared, apps, core database/platform/playback, taglib, any feature, Koin, DataStore, or an iOS
+export, and has no Library API dependency.
+
+Settings exposes only KDoc-complete `SettingsSharedLabels(title, addMusicFolder,
+folderPickerUnavailable, clearLibrary, cancel, remove)`, `SettingsSourceItem(id, displayName,
+accessAvailable, hasBeenScanned)`, `SettingsScreen`, `SettingsAboutScreen`, and
+`OpenSourceLibrariesScreen(readCatalogJson: suspend () -> String, ...)`. Shared maps authoritative
+Library sources to the primitive projection and owns source-ID adaptation, mutation guards/errors,
+scanner/folder-picker/clear-library policy, routes/Back/dismissal, and clear-library content.
+`SettingsScreen` receives scalar state, projections, callbacks, playlist-backup and nullable scan
+slots, `sourcePickerActionVisible`, `sourcePickerAvailable`, `mutationsEnabled`,
+`hasImportedTracks`, `onRequestClearLibrary`, and a nullable clear-library-dialog slot. Settings owns leaf rendering, source-removal dialog
+visibility, and About retry generation only; this Task-6.4 ruling introduces no Presenter/ViewModel/
+Event/Effect scaffold. Playlist backup stays playlists implementation-owned and is embedded by
+Shared. ThemePreferenceStore, Android/iOS/JVM actuals, system dark preference, Koin binding,
+selected-mode persistence/collection, and root theme application stay Shared; theme mode and
+palettes stay core UI.
+
+Settings owns appearance/theme, source-management-only, About/AboutLibraries, logo, and
+remove-source-dialog resources. Shared retains/injects `settings`, `add_music_folder`,
+`folder_picker_unavailable`, `clear_library`, generic `cancel`/`remove`, and clear-library strings
+because Shared renders that dialog. No generated resource handle crosses the boundary.
+`RhythHausBuildInfo` generation/model/verification moves to Settings. AboutLibraries generation,
+configuration, manual TagLib attribution, and checked-in Shared catalog JSON remain Shared;
+Settings parses/renders caller-supplied JSON, retries read/parse failures, and rethrows cancellation.
+The normative boundary is [the approved Settings design](superpowers/specs/2026-08-07-settings-feature-extraction-design.md).
+
+Shared resolves emitted source IDs against latest authoritative `librarySources` only at callback
+invocation, treats stale/missing IDs as no-op, then reevaluates initial-publication and scan/job
+guards through its existing error path. It owns clear dialog visibility/dismiss/guarded confirm;
+Settings renders clear only for imported tracks and only requests it while mutations are enabled.
+The approved design contains the exhaustive EN/ZH shared/feature resource ledger and requires
+per-locale parity, missing/wrong-owner/duplicate/logo controls. About requires non-empty parsing,
+retry-generation Loading/current-loader behavior on `Dispatchers.Default`, exact cancellation
+rethrow, replacement-loader use, and stale-generation suppression.
+
+Shared retains `scanning`, `scan_progress_format`, `scan_complete_format`,
+`folder_picker_error_access`, `folder_picker_error_select`, `folder_picker_error_prepare`, and
+`folder_picker_no_folder_selected` because Shared scanning-card, App, and platform-picker consumers
+render them; they do not cross into Settings. Settings owns `manage_music` with its source-management
+resource set under the same EN/ZH parity and ownership controls.
 
 ## Contracts And Composition
 
@@ -166,7 +217,7 @@ Bridge singleton access, MIME/max-size constant exports, and existing Swift `Int
 Shared adapts this ABI to the Kotlin-only feature seam through its retained iOS actual; the feature
 is not exported, owns no iOS source, and Swift application files remain app-owned. Shared retains
 composition, shell/routes/Back, lifecycle, Koin
-assembly, Settings layout, generic injected
+assembly, Settings layout until Task 6.4, generic injected
 `cancel`, and selection-bar composition. The feature owns embeddable backup sections/dialogs and
 all playlist/queue/backup EN/ZH text once, without duplicate resource keys or generated handles.
 

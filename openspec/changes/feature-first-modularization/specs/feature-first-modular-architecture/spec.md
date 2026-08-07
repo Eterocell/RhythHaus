@@ -49,7 +49,7 @@ The unexported `:feature:playlists:impl` SHALL target Android-KMP, JVM, `iosArm6
 
 #### Scenario: Shared and iOS boundaries remain thin
 - **WHEN** the feature is composed
-- **THEN** shared retains composition, shell/routes/Back, lifecycle, Koin assembly, Settings layout, generic injected `cancel`, and selection-bar composition
+- **THEN** shared retains composition, shell/routes/Back, lifecycle, Koin assembly, Settings layout until Task 6.4, generic injected `cancel`, and selection-bar composition
 - **AND** the feature owns embeddable backup sections/dialogs and playlist/queue/backup EN/ZH text once without duplicate resource keys/handles
 - **AND** Shared retains the exact ABI ledger in the canonical Task 5.2 Superpowers design, including package `com.eterocell.rhythhaus.playlistbackup`, framework `Shared`, status values, Completion/Provider signatures/nullability, Bridge singleton access, MIME/max-size exports, and Swift `Int32` interop; the feature is not exported and Swift files remain app-owned.
 
@@ -138,6 +138,116 @@ Task 6.3 SHALL remain unchecked until the complete Task 5.3 module, public-bound
 - **WHEN** Task 6.3 is closed
 - **THEN** it records cross-platform, architecture, quality, strict OpenSpec, Xcode, and `./init.sh` evidence for one atomic direct-Shared-composition Search move
 - **AND** it does not infer runtime, device, visual, accessibility-device, playback-engine, desktop-launch, or iOS runtime-resource behavior.
+
+### Requirement: Settings is a callback-first unexported leaf feature
+
+Task 6.4 SHALL create exactly one unexported Android-KMP/JVM/`iosArm64`/`iosSimulatorArm64`
+`:feature:settings` with one common implementation, no API/implementation split, no Koin module,
+no `iosMain` production source, and no Shared-framework export. Its Kotlin package and Android
+namespace SHALL remain `com.eterocell.rhythhaus.settings`; its resource namespace SHALL be
+`rhythhaus.feature.settings.generated.resources`. Its only project edge SHALL be
+`api(:core:ui)`; public Compose/runtime/UI dependencies required by public signatures SHALL be API,
+and Foundation/resources/icons/Miuix/AboutLibraries/coroutines SHALL be implementation-only.
+Shared SHALL use only `commonMainImplementation`, never `api` or export. Settings SHALL NOT depend
+on Shared, apps, core database/platform/playback, taglib, any feature module, Koin, DataStore, or
+an iOS export; it SHALL NOT use Library API.
+
+Its exact KDoc-complete public declarations SHALL be `SettingsSharedLabels(title, addMusicFolder,
+folderPickerUnavailable, clearLibrary, cancel, remove)`, value-equal
+`SettingsSourceItem(id, displayName, accessAvailable, hasBeenScanned)`, `SettingsScreen`,
+`SettingsAboutScreen`, and `OpenSourceLibrariesScreen(readCatalogJson: suspend () -> String, ...)`.
+No other Settings production declaration SHALL be public. No public signature SHALL contain Shared,
+Library, Playlist, generated foreign `Res`, route/Back, repository, scanner, launcher, controller,
+job, Koin, or DataStore types.
+
+The exact `SettingsScreen` boundary SHALL include `sourcePickerActionVisible: Boolean`,
+`sourcePickerAvailable: Boolean`, `mutationsEnabled: Boolean`, `hasImportedTracks: Boolean`,
+`onRequestClearLibrary: () -> Unit`, and nullable
+`clearLibraryDialog: (@Composable () -> Unit)?`, along with scalar theme/source inputs, source-ID
+callbacks, playlist-backup and nullable scan slots, About/dismiss callbacks, and `Modifier`.
+Function KDoc SHALL document parameter behavior in prose/contracts, while declaration-specific KDoc
+is required for every public declaration and every public data property. The picker SHALL hide when
+not visible, use unavailable wording when unavailable, and respect mutation disablement; the clear
+action SHALL render only with imported tracks, request Shared visibility only when enabled, and
+render the nullable slot.
+
+#### Scenario: Settings composes presentation without receiving Library ownership
+- **WHEN** Shared composes Settings
+- **THEN** it maps authoritative current Library sources to `SettingsSourceItem`, supplies scalar
+  values, callbacks, `playlistBackupContent`, nullable `activeScanContent`, and a
+  `clearLibraryDialog` slot
+- **AND** Settings owns only presentation-local source-removal dialog visibility and About retry
+  generation, without Presenter/ViewModel/Event/Effect scaffolding
+- **AND** Shared retains authoritative source-ID adaptation, mutation guards/errors, scanner/picker/
+  clear-library orchestration, routes/Back/dismissal, playlist-backup controller/dialog behavior,
+  theme persistence/actuals/Koin/root theme application, and `RhythHausThemeMode`/palettes in core UI.
+
+#### Scenario: Settings source callbacks resolve current authority
+- **WHEN** Settings emits a source ID
+- **THEN** Shared resolves it against latest authoritative `librarySources` at invocation and then
+  reevaluates initial-publication and scan/job guards
+- **AND** a missing/stale ID is a no-op with no mutation, scan, access release, or unrelated
+  dismissal; errors use the existing Shared import/mutation path
+- **AND** tests cover current/stale IDs, authoritative replacement between composition and click,
+  and changed guards.
+
+#### Scenario: Settings preserves app-wide attribution and resource ownership
+- **WHEN** Task 6.4 moves Settings/About presentation and `RhythHausBuildInfo` generation/model/
+  verification to Settings
+- **THEN** Shared retains AboutLibraries generation/configuration/manual TagLib attribution and its
+  checked-in `aboutlibraries.json`, and Settings parses/renders caller-supplied JSON with retryable
+  read/parse failures; injected read and parse callback cancellation preserve exact object identity (parse is carried as data out of dispatcher work), while dispatcher rejection, prompt cancellation, and Job cancellation propagate without `Loaded`/`Failed` publication or identity promise
+- **AND** Settings owns appearance/theme, source-management-only, About/AboutLibraries, logo, and
+  remove-source-dialog resources, while Shared retains/injects its clear-dialog and generic wording;
+  no generated resource handle crosses the boundary.
+
+The Shared EN/ZH ledger SHALL retain `settings`, `add_music_folder`,
+`folder_picker_unavailable`, `clear_library`, `clear_library_message`, `clear`, `cancel`, `remove`,
+and `close`, plus `scanning`, `scan_progress_format`, `scan_complete_format`,
+`folder_picker_error_access`, `folder_picker_error_select`, `folder_picker_error_prepare`, and
+`folder_picker_no_folder_selected` for Shared scanning-card, App, and platform-picker consumers;
+those keys SHALL NOT cross into Settings. Labels carry `settings`, `add_music_folder`,
+`folder_picker_unavailable`, `clear_library`, `cancel`, and `remove`, while Shared resolves playlist
+`close` and clear-dialog strings internally. Settings SHALL own exactly once in each locale
+`manage_music`, all appearance/theme, source-row/remove-dialog, About/AboutLibraries keys, and
+`rhythhaus_logo` listed by the approved Settings design. Architecture controls SHALL reject parity,
+missing, wrong-owner, duplicate, and logo violations. Non-empty catalog parsing is required; the
+fixture has a top-level `libraries` array and `licenses` map, and malformed/empty data is the same
+retryable Failure. Retry immediately enters Loading and uses `Dispatchers.Default`. An injected read
+`CancellationException` SHALL rethrow with exact identity; injected parse cancellation SHALL be
+captured inside dispatcher work and rethrown outside with its original identity. Genuine dispatcher
+rejection, `withContext` prompt cancellation, and Job cancellation SHALL propagate without
+`Loaded`/`Failed` publication and without an identity guarantee. The current request is an opaque
+token of current loader identity plus monotonic retry generation; only exact-current-token completion
+publishes, so an obsolete cancellation-resistant loader cannot overwrite a newer replacement result.
+The root SHALL retain visual background/root semantics and use an input-only full-size non-semantic
+pointer shield as its first background child. Opaque Settings `Surface`/`Scaffold`/`LazyColumn` SHALL
+be a later foreground sibling and clear-library/source-removal dialogs later siblings above both. The
+shield SHALL consume at Initial only when sibling hit testing selects it, SHALL never be a controls
+ancestor, and SHALL have no clickable/focusable semantics; `AboutRow` remains normally clickable. The
+lower Library shell and Settings overlay are layered siblings, so the shield catches uncovered overlay
+coordinates while foreground controls win sibling hit testing. Causal tests SHALL mount a behind
+full-size clickable sibling first then production Settings: a physical blank-coordinate tap proves
+behind=0; a physical picker-center tap proves picker=1 and behind=0; root/shield have no click/focus
+semantics; and scroll/children work. Tests SHALL use stable tags/unmerged Miuix trees; disabled
+mutations prove no click action and zero callbacks unless an approved accessibility contract explicitly
+requires disabled semantics. No parent-pass inference, background-ancestor test, `nestedScroll`,
+`pointerInterop`, disabled clickable, or custom sibling-sharing node is allowed.
+
+### Requirement: Task 6.4 remains executable and unchecked
+
+Task 6.4 SHALL remain unchecked until Settings feature layout/policy/source-row/local-dialog/theme
+callback/slot/About/resource/build-info tests; retained Shared route/source-ID/mutation/theme/
+backup-Back/catalog-TagLib tests; architecture RED/GREEN; supported-platform and quality checks;
+strict named OpenSpec validation under Node 26.7.0; Xcode validation; `./init.sh`; and diff hygiene
+are recorded. The later executable plan SHALL own exact paths and commands without claiming this
+documentation amendment executed them.
+
+#### Scenario: Pending Settings acceptance remains bounded
+- **WHEN** Task 6.4 is closed
+- **THEN** it records the required architecture, platform, quality, strict OpenSpec, Xcode, and
+  init evidence for one atomic direct-Shared-composition Settings move
+- **AND** it does not infer runtime/device/visual/picker/scanner/playback/iOS-framework behavior.
 
 ### Requirement: Back behavior is preserved through modular moves
 

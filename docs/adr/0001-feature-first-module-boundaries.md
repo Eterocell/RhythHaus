@@ -44,6 +44,46 @@ mappings stay feature-owned. A feature implementation exposes a Koin `Module` on
 when it owns injectable bindings; UI-only modules use composable/function entry
 points and do not create empty modules. Only `:shared` assembles and starts Koin.
 
+Task 6.4 will assign leaf Settings and About presentation to one unexported
+Android-KMP/JVM/`iosArm64`/`iosSimulatorArm64` `:feature:settings` module. It will have one common
+implementation; no API split, Koin module, `iosMain` production source, or iOS export; preserved
+Kotlin package and Android namespace `com.eterocell.rhythhaus.settings`; and resource namespace
+`rhythhaus.feature.settings.generated.resources`. Its sole project dependency will be
+`api(:core:ui)`. Public Compose/runtime/UI dependencies required by its public declarations will be
+API, while Foundation/resources/icons/Miuix/AboutLibraries/coroutines will be implementation-only.
+Shared will use only `commonMainImplementation`, never `api`, and will not export Settings. No
+Settings dependency on Shared, apps, core database/platform/playback, taglib, a feature module,
+Koin, DataStore, or Library API is permitted.
+
+The Settings public boundary will be only KDoc-complete `SettingsSharedLabels(title, addMusicFolder,
+folderPickerUnavailable, clearLibrary, cancel, remove)`, `SettingsSourceItem(id, displayName,
+accessAvailable, hasBeenScanned)`, `SettingsScreen`, `SettingsAboutScreen`, and
+`OpenSourceLibrariesScreen(readCatalogJson: suspend () -> String, ...)`; it exposes no Shared,
+Library, Playlist, generated foreign resource, route/Back, repository/scanner/launcher/controller/
+job/Koin/DataStore type. Shared will map authoritative sources and supply scalar state, callbacks,
+playlist-backup content, nullable scanning content, and nullable clear-library-dialog slots. Settings
+will own only rendering, source-removal dialog visibility, and About retry generation, without a
+Presenter/ViewModel/Event/Effect rewrite. Shared retains source mutations/guards/errors,
+picker/scanning/clear-library orchestration, routes/Back/dismissal, playlist backup control, and
+theme persistence/actuals/Koin/root theme application; `RhythHausThemeMode` and palettes remain
+core UI. The planned `SettingsScreen` will include picker visibility/availability, mutation and
+imported-track booleans, `onRequestClearLibrary`, and a nullable clear-dialog slot. Shared will
+resolve source IDs against current authority at invocation, no-op stale IDs, and recheck guards.
+
+Settings will own its appearance/theme, source-management-only, About/AboutLibraries, logo, and
+remove-source-dialog resources. Shared will retain/inject Settings route/add-folder/picker-unavailable/
+clear-library/generic cancel/remove/clear-library-dialog wording. `RhythHausBuildInfo`
+generation/model/verification will move to Settings, while app-wide AboutLibraries generation/config,
+manual TagLib attribution, and checked-in Shared catalog JSON remain Shared. Settings will parse and
+render supplied JSON, retry read/parse failures, and rethrow cancellation.
+
+The planned Shared resource set will retain `scanning`, `scan_progress_format`,
+`scan_complete_format`, `folder_picker_error_access`, `folder_picker_error_select`,
+`folder_picker_error_prepare`, and `folder_picker_no_folder_selected` for scanning-card, App, and
+platform-picker consumers; these keys will not cross into Settings. Settings will own
+`manage_music` with the feature-only source-management resources, subject to EN/ZH parity and
+missing/wrong-owner/duplicate/logo controls.
+
 The approved playlists implementation is unexported `:feature:playlists:impl`, targeting
 Android-KMP, JVM, `iosArm64`, and `iosSimulatorArm64`. It owns saved-playlist/playback-queue UI,
 immutable Playlist state/action/reducer/owner equivalents, repository implementations/Koin binding,
@@ -100,7 +140,7 @@ schema, migration, generated DB, driver, database-name, or FK changes. Serializa
 cancellation, backup exclusivity, exact 4 MiB limits, mappings, stale-library rejection,
 transactional import, exactly-once native completion, and playback engine/session/lifecycle/root
 playback ownership remain unchanged. Shared retains composition, shell/routes/Back, lifecycle,
-Koin assembly, Settings layout, generic injected `cancel`, and selection-bar composition. The
+Koin assembly, Settings layout until Task 6.4, generic injected `cancel`, and selection-bar composition. The
 feature owns embeddable backup sections/dialogs and all playlist/queue/backup EN/ZH text once.
 
 The public implementation surface is limited to the binding-module Koin factory and shared-needed

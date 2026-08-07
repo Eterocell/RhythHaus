@@ -2476,52 +2476,6 @@
             ]
         },
         {
-            "uniqueId": "app.cash.sqldelight:async-extensions-jvm",
-            "artifactVersion": "2.3.2",
-            "name": "SQLDelight Async Driver Extensions",
-            "description": "Kotlin extensions for working with Async drivers",
-            "website": "https://github.com/sqldelight/sqldelight/",
-            "developers": [
-                {
-                    "name": "Square, Inc."
-                }
-            ],
-            "scm": {
-                "connection": "scm:git:git://github.com/sqldelight/sqldelight.git",
-                "developerConnection": "scm:git:ssh://git@github.com/sqldelight/sqldelight.git",
-                "url": "https://github.com/sqldelight/sqldelight/"
-            },
-            "licenses": [
-                "Apache-2.0"
-            ],
-            "funding": [
-                
-            ]
-        },
-        {
-            "uniqueId": "app.cash.sqldelight:coroutines-extensions-jvm",
-            "artifactVersion": "2.3.2",
-            "name": "SQLDelight Coroutines Extensions",
-            "description": "Kotlin extension functions to expose SQLDelight's Query as a Flow",
-            "website": "https://github.com/sqldelight/sqldelight/",
-            "developers": [
-                {
-                    "name": "Square, Inc."
-                }
-            ],
-            "scm": {
-                "connection": "scm:git:git://github.com/sqldelight/sqldelight.git",
-                "developerConnection": "scm:git:ssh://git@github.com/sqldelight/sqldelight.git",
-                "url": "https://github.com/sqldelight/sqldelight/"
-            },
-            "licenses": [
-                "Apache-2.0"
-            ],
-            "funding": [
-                
-            ]
-        },
-        {
             "uniqueId": "app.cash.sqldelight:jdbc-driver",
             "artifactVersion": "2.3.2",
             "name": "SQLDelight JDBC Driver",
@@ -2683,29 +2637,6 @@
             ]
         },
         {
-            "uniqueId": "com.github.skydoves:compose-stability-runtime-android",
-            "artifactVersion": "0.10.0",
-            "name": "Compose Stability Analyzer Runtime",
-            "description": "A Compose Compiler plugin that analyzes composable functions and generates stability reports.",
-            "website": "https://github.com/skydoves/compose-stability-analyzer/",
-            "developers": [
-                {
-                    "name": "Jaewoong Eum"
-                }
-            ],
-            "scm": {
-                "connection": "scm:git:git://github.com/skydoves/compose-stability-analyzer.git",
-                "developerConnection": "scm:git:git://github.com/skydoves/compose-stability-analyzer.git",
-                "url": "https://github.com/skydoves/compose-stability-analyzer/"
-            },
-            "licenses": [
-                "Apache-2.0"
-            ],
-            "funding": [
-                
-            ]
-        },
-        {
             "uniqueId": "com.google.accompanist:accompanist-drawablepainter",
             "artifactVersion": "0.37.3",
             "name": "Accompanist Drawable Painter library",
@@ -2778,9 +2709,9 @@
         },
         {
             "uniqueId": "com.google.guava:listenablefuture",
-            "artifactVersion": "9999.0-empty-to-avoid-conflict-with-guava",
+            "artifactVersion": "1.0",
             "name": "Guava ListenableFuture only",
-            "description": "An empty artifact that Guava depends on to signal that it is providing\n    ListenableFuture -- but is also available in a second \"version\" that\n    contains com.google.common.util.concurrent.ListenableFuture class, without\n    any other Guava classes. The idea is:\n\n    - If users want only ListenableFuture, they depend on listenablefuture-1.0.\n\n    - If users want all of Guava, they depend on guava, which, as of Guava\n    27.0, depends on\n    listenablefuture-9999.0-empty-to-avoid-conflict-with-guava. The 9999.0-...\n    version number is enough for some build systems (notably, Gradle) to select\n    that empty artifact over the \"real\" listenablefuture-1.0 -- avoiding a\n    conflict with the copy of ListenableFuture in guava itself. If users are\n    using an older version of Guava or a build system other than Gradle, they\n    may see class conflicts. If so, they can solve them by manually excluding\n    the listenablefuture artifact or manually forcing their build systems to\n    use 9999.0-....",
+            "description": "Contains Guava's com.google.common.util.concurrent.ListenableFuture class,\n    without any of its other classes -- but is also available in a second\n    \"version\" that omits the class to avoid conflicts with the copy in Guava\n    itself. The idea is:\n\n    - If users want only ListenableFuture, they depend on listenablefuture-1.0.\n\n    - If users want all of Guava, they depend on guava, which, as of Guava\n    27.0, depends on\n    listenablefuture-9999.0-empty-to-avoid-conflict-with-guava. The 9999.0-...\n    version number is enough for some build systems (notably, Gradle) to select\n    that empty artifact over the \"real\" listenablefuture-1.0 -- avoiding a\n    conflict with the copy of ListenableFuture in guava itself. If users are\n    using an older version of Guava or a build system other than Gradle, they\n    may see class conflicts. If so, they can solve them by manually excluding\n    the listenablefuture artifact or manually forcing their build systems to\n    use 9999.0-....",
             "website": "https://github.com/google/guava/listenablefuture",
             "developers": [
                 {
@@ -2825,7 +2756,7 @@
         },
         {
             "uniqueId": "com.mikepenz:aboutlibraries-compose-core-android",
-            "artifactVersion": "15.0.3",
+            "artifactVersion": "15.0.4",
             "name": "AboutLibraries Compose UI Library",
             "description": "AboutLibraries automatically detects all dependencies of a project and collects their information including the license. Optionally visualising it via the provided ui components.",
             "website": "https://github.com/mikepenz/AboutLibraries",
@@ -2848,7 +2779,7 @@
         },
         {
             "uniqueId": "com.mikepenz:aboutlibraries-compose-m3-android",
-            "artifactVersion": "15.0.3",
+            "artifactVersion": "15.0.4",
             "name": "AboutLibraries Compose Material 3 Library",
             "description": "AboutLibraries automatically detects all dependencies of a project and collects their information including the license. Optionally visualising it via the provided ui components.",
             "website": "https://github.com/mikepenz/AboutLibraries",
@@ -2871,7 +2802,7 @@
         },
         {
             "uniqueId": "com.mikepenz:aboutlibraries-core-android",
-            "artifactVersion": "15.0.3",
+            "artifactVersion": "15.0.4",
             "name": "AboutLibraries Core Library",
             "description": "AboutLibraries automatically detects all dependencies of a project and collects their information including the license. Optionally visualising it via the provided ui components.",
             "website": "https://github.com/mikepenz/AboutLibraries",
@@ -3054,7 +2985,7 @@
         },
         {
             "uniqueId": "org.jetbrains.androidx.lifecycle:lifecycle-common-jvm",
-            "artifactVersion": "2.11.0-rc01",
+            "artifactVersion": "2.11.0",
             "name": "Lifecycle-Common",
             "description": "Android Lifecycle-Common",
             "website": "https://github.com/JetBrains/compose-multiplatform",
@@ -3078,7 +3009,7 @@
         },
         {
             "uniqueId": "org.jetbrains.androidx.lifecycle:lifecycle-runtime-android",
-            "artifactVersion": "2.11.0-rc01",
+            "artifactVersion": "2.11.0",
             "name": "Lifecycle Runtime",
             "description": "Android Lifecycle Runtime",
             "website": "https://github.com/JetBrains/compose-multiplatform",
@@ -3102,7 +3033,7 @@
         },
         {
             "uniqueId": "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose-android",
-            "artifactVersion": "2.11.0-rc01",
+            "artifactVersion": "2.11.0",
             "name": "Lifecycle Runtime Compose",
             "description": "Compose integration with Lifecycle",
             "website": "https://github.com/JetBrains/compose-multiplatform",
@@ -3126,7 +3057,7 @@
         },
         {
             "uniqueId": "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-android",
-            "artifactVersion": "2.11.0-rc01",
+            "artifactVersion": "2.11.0",
             "name": "Lifecycle ViewModel",
             "description": "Android Lifecycle ViewModel",
             "website": "https://github.com/JetBrains/compose-multiplatform",
@@ -3150,7 +3081,7 @@
         },
         {
             "uniqueId": "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose-android",
-            "artifactVersion": "2.11.0-rc01",
+            "artifactVersion": "2.11.0",
             "name": "Lifecycle ViewModel Compose",
             "description": "Compose integration with Lifecycle ViewModel",
             "website": "https://github.com/JetBrains/compose-multiplatform",
@@ -3174,7 +3105,7 @@
         },
         {
             "uniqueId": "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate-android",
-            "artifactVersion": "2.11.0-rc01",
+            "artifactVersion": "2.11.0",
             "name": "Lifecycle ViewModel with SavedState",
             "description": "Android Lifecycle ViewModel",
             "website": "https://github.com/JetBrains/compose-multiplatform",
@@ -4074,7 +4005,7 @@
         },
         {
             "uniqueId": "org.jetbrains.kotlin:kotlin-stdlib",
-            "artifactVersion": "2.4.0",
+            "artifactVersion": "2.4.10",
             "name": "Kotlin Stdlib",
             "description": "Kotlin Standard Library",
             "website": "https://kotlinlang.org/",
@@ -4098,7 +4029,7 @@
         },
         {
             "uniqueId": "org.jetbrains.kotlin:kotlin-stdlib-common",
-            "artifactVersion": "2.4.0",
+            "artifactVersion": "2.4.10",
             "name": "Kotlin Stdlib Common",
             "description": "Kotlin Common Standard Library (legacy, use kotlin-stdlib instead)",
             "website": "https://kotlinlang.org/",

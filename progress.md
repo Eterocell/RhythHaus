@@ -1,3 +1,14 @@
+## Handoff - 2026-08-10 Task 5.4 Settings closeout
+
+Route: openspec+superpowers
+Owner: documentation/evidence closeout
+Input: implementation chain `862a6c4` -> `575e41c` -> `f542a1d`; final review `PASS / APPROVED`.
+Output: OpenSpec 6.4 accepted. `:feature:settings` is unexported; Shared retains route/Back/mutation/dialog/catalog authority through `commonMainImplementation`. Exact extraction arithmetic remains 23 manifest endpoints; evidence closeout committed as `850017b56035413ac2aa9cce727bb0b106af37cd`.
+Verification: retained XML focused Settings JVM `20/0`, Android/iOS policy `3/0`/`3/0`, Shared JVM `311/0/0/0`, iPhone 17 XCTest `8/0`. Retained resume logs record Shared iOS, catalog identity, BuildInfo, architecture/quality/OpenSpec/consumer/Xcode, and `./init.sh` passes; no retained full feature-JVM XML count is claimed after focused overwrite.
+Limits: no physical-device/runtime, desktop UI, visual/accessibility, live picker/scanner, or playback interaction claim.
+Next owner: open 7.*, 8.*, and OpenSpec 4.4 runtime evidence.
+Blockers: none. External credential rotation/revocation remains an operational follow-up.
+
 ## Handoff - 2026-08-07 Task 5.3 final acceptance
 
 Route: openspec+superpowers
