@@ -31,11 +31,6 @@
     <string name="album_detail_subtitle_format">%1$d tracks · %2$s</string>
     <string name="artist_detail_subtitle_format">%1$d albums · %2$d tracks</string>
     <string name="artist_album_tracks_format">%1$s · %2$d tracks</string>
-    <string name="search_placeholder">Track, artist, or album...</string>
-    <string name="search_results_count_zero">0 results</string>
-    <string name="search_results_count_one">1 result</string>
-    <string name="search_results_count_many">%1$d results</string>
-    <string name="search_no_tracks_match_format">No tracks match "%1$s"</string>
     <string name="scanning">Scanning…</string>
     <string name="scan_progress_format">%1$d folders • %2$d files • %3$d tracks</string>
     <string name="selected">Selected</string>

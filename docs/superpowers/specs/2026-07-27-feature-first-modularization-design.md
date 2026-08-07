@@ -373,6 +373,46 @@ const val PlaylistBackupMaxBytes = 4 * 1024 * 1024 // 4,194,304
 
 Swift retains singleton access as `IOSPlaylistBackupDocumentBridge.shared.provider`. The top-level constants remain exported through `PlatformPlaylistBackupDocumentsKt.PlaylistBackupMimeType` and `PlatformPlaylistBackupDocumentsKt.PlaylistBackupMaxBytes`. Swift consumers continue to receive Kotlin `Int` as `Int32` where current interop does, notably `openDocument(maxBytes: Int32, ...)`. This ledger is the canonical exact comparison target; it does not authorize Swift source redesign.
 
+### Approved Task 5.3 Search Implementation Boundary
+
+Task 5.3 creates exactly one unexported implementation module, `:feature:search`, with no API split, Koin module, platform source, repository, presenter/state/event/effect scaffolding, or iOS framework export. It targets Android-KMP, JVM, `iosArm64`, and `iosSimulatorArm64`, has one common implementation, preserves package and Android namespace `com.eterocell.rhythhaus.search`, and uses resource namespace `rhythhaus.feature.search.generated.resources`. `feature/search/README.md` is explicitly out of scope.
+
+Its exact public surface is only explicit-public, declaration-specific-KDoc `SearchSharedLabels` and `SearchContent`:
+
+```kotlin
+public data class SearchSharedLabels(
+    public val title: String,
+    public val clear: String,
+    public val nowPlaying: String,
+)
+
+@Composable
+public fun SearchContent(
+    libraryTracks: List<LibraryTrack>,
+    currentTrackId: String?,
+    isPlaying: Boolean,
+    labels: SearchSharedLabels,
+    selectTrackLabel: @Composable (String) -> String,
+    selectionModeActive: Boolean,
+    selectedTrackIds: Set<String>,
+    onStartSelection: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onVisibleTrackIdsChanged: (List<String>) -> Unit,
+    onScrollPositionChanged: (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
+    onPlayTrack: (orderedResults: List<LibraryTrack>, selectedTrack: LibraryTrack) -> Unit,
+    onDismiss: () -> Unit,
+    playingIndicator: @Composable () -> Unit,
+    bottomContentPadding: Dp = 0.dp,
+    modifier: Modifier = Modifier,
+)
+```
+
+`SearchSharedLabels` is value-equal and receives Shared-localized title, clear, and Now Playing wording. The callback-first contract carries primitive playback state, selection/visible-ID/scroll/play/dismiss callbacks, a composable label formatter that resolves `select_track_format` through structured Compose `stringResource` while a row is composed, an indicator slot, and layout defaults only. No generated resource handle crosses the boundary. It has no Shared/generated `Res`/playback controller or state/repository/Koin/platform/database/TagLib/queue type. `LibraryTrack` is from Library API; `api` is limited to Library API plus public Compose runtime/UI requirements. Core UI, Foundation, resources, and Miuix are implementation-only. Shared declares exactly `implementation(projects.feature.search)`, never `api`, and does not export Search. There is no core playback, Shared, database, platform, taglib, another implementation, Koin, or iOS-export edge.
+
+Shared is the sole facade and composition owner. `LibraryRoutes` directly composes `SearchContent`, deletes Shared compatibility `SearchScreen`, and removes the unused `TagLibReader` route input. Shared retains route/Back, selection state/reconciliation/clear, scroll storage, playback queue/restart/dismiss policy, bottom-bar/Now Playing policy, and `EqualizerStrip`; Search owns query/filter/render/focus/count/empty presentation and Search row interaction. Blank or whitespace query has no results; nonblank matching is case-insensitive over title, artist, and album and preserves order, duplicate IDs, and empty metadata. Search uses an internal, non-public LazyColumn occurrence identity of filtered occurrence index plus track ID, never `track.id` alone; it is rendering-only and cannot alter `LibraryTrack`, selection IDs, visible-ID sequence, playback queue order, or duplicate semantics. Search focuses once, clear resets empty, emits visible IDs only on sequence changes and primitive scroll position, requests ordered-result playback outside selection, starts selection on long press without playback, and toggles once without playback for selection row/checkbox activation. It invokes the supplied indicator only for a current playing row, renders no artwork/error state, and delegates dismissal/Back.
+
+Search owns exactly `search_placeholder`, `search_results_count_zero`, `search_results_count_one`, `search_results_count_many`, and `search_no_tracks_match_format` in English and Chinese. Shared retains/injects `search`, `clear`, `now_playing_badge`, and a composable `select_track_format` formatter as values. No duplicate key or generated resource handle crosses the boundary. Feature production-composable tests cover Search behavior, including the four moved mixed-suite cases and two equal-ID occurrences that render/activate distinctly, retain keys across unrelated recomposition, and preserve duplicate ordered visible/playback callbacks. Shared retains Home browse selection-clear, real route composition, Back/route, selection reducer/clear, playback adapter queue-order/current-track-restart/dismiss/callback-failure ownership, scroll, and Now Playing policy tests. RED/GREEN rejects an absent `:feature:search` module/target before registration with failure caused solely by absence; feature-to-Shared/core-playback/database/core-platform/taglib/another-implementation/app edges; Koin; iOS export; a Shared `api` or exported Search edge; wrong package/Android/resource namespace; a wrong Search resource-ownership control where a moved key is missing, duplicated, or owned by the wrong module, distinct from wrong namespace and generated-handle controls; resource duplicates/generated handles; and missing public KDoc/public-surface closure. Evidence includes cross-platform, architecture, quality, strict named OpenSpec, Xcode, and `./init.sh`, but no runtime/device/visual/accessibility/playback-engine/desktop-launch/iOS-runtime-resource claim. See [the approved Search design](2026-08-07-search-feature-extraction-design.md); detailed paths and commands remain with the later executable plan.
+
 ## Migration Strategy
 
 0. Reconcile and verify prior changes before implementation. `architecture-refactor` is 12/12 complete. Package organization implementation exists in commits `f0310e5`, `06f8a16`, and `adb1e3d` despite stale 0/5 tracking; do not redo its package moves.
@@ -438,7 +478,9 @@ the authored self-edge negative control, and the fail-closed cardinality control
 
 Every task starts with a characterization or architecture RED test, makes the minimal move or implementation, then runs focused GREEN checks followed by architecture, Detekt, and Spotless checks. Run full `./init.sh` for graph, expect/actual, SQLDelight, resource changes, and final validation. Update `progress.md`, `roadmap.md`, and relevant ADRs during implementation. Make conventional commits per independently reviewable migration slice.
 
-Task 6.2 is executable at the design level but remains unchecked. It requires characterization/architecture RED, an atomic ownership move, DB/FK/resources/Back/edit/modal/document/DI/Swift ABI/platform verification, exact Shared iOS ABI ledger comparison plus compile/link and Swift consumer/tests (or equivalent ABI verification), and non-predictive in-flight settlement/rejection suppression tests and evidence. It also requires explicit evidence limits, architecture/quality/strict OpenSpec/diff checks, and `./init.sh`. Compile/link/tests do not prove runtime/device behavior. The later executable plan owns detailed exact commands and the path ledger.
+Task 5.2/OpenSpec 6.2 is accepted and completed by implementation commit `fc1b96f858408c8dfd07221d5fe85ae3e20ced63` and evidence closeout `6e885ef75ada0d6e48b2832cb3852b460a6c62ed`. Its retained evidence does not claim runtime/device/visual, picker, or playback behavior from compile/link/tests.
+
+Task 6.3 remains unchecked until the complete Task 5.3 Search module, public boundary, dependencies, ownership, behavior, resources, test split, RED/GREEN controls, and bounded cross-platform/architecture/quality/strict-OpenSpec/Xcode/`./init.sh` evidence are accepted. The later executable plan owns detailed exact paths and commands.
 
 Acceptance requires actual dependency-graph and TestKit illegal-fixture coverage; a thin shared inventory; explicit public APIs; Back regressions; SQLDelight migration/integration verification; Android, desktop, and iOS startup/resource/DI coverage plus key playback and scanning paths; `qualityCheck`; `./init.sh`; strict OpenSpec validation; and `git diff --check`. Documentation and trackers must match the evidence.
 

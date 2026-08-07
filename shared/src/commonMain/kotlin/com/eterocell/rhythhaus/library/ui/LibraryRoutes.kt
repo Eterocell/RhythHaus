@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -30,28 +31,35 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
-import com.eterocell.rhythhaus.search.SearchScreen
+import com.eterocell.rhythhaus.search.SearchContent
+import com.eterocell.rhythhaus.search.SearchSharedLabels
 import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
 import com.eterocell.rhythhaus.settings.SettingsAboutScreen
 import com.eterocell.rhythhaus.settings.SettingsScreen
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.toPlayableTrack
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.album_detail_subtitle_format
 import rhythhaus.shared.generated.resources.artist_detail_subtitle_format
+import rhythhaus.shared.generated.resources.clear
+import rhythhaus.shared.generated.resources.now_playing_badge
 import rhythhaus.shared.generated.resources.playlist_changed
 import rhythhaus.shared.generated.resources.playlist_load_failed
 import rhythhaus.shared.generated.resources.playlist_loading
 import rhythhaus.shared.generated.resources.playlist_mutation_failed
 import rhythhaus.shared.generated.resources.playlist_retry
 import rhythhaus.shared.generated.resources.playlists
+import rhythhaus.shared.generated.resources.search
+import rhythhaus.shared.generated.resources.select_track_format
 import rhythhaus.shared.generated.resources.unknown_artist
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -92,7 +100,6 @@ internal fun LibraryRouteOverlays(
     route: LibraryRoute,
     snapshot: LibrarySnapshot,
     libraryTracks: List<LibraryTrack>,
-    tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     playbackState: PlaybackState,
     playlistRepository: PlaylistRepository,
@@ -163,15 +170,59 @@ internal fun LibraryRouteOverlays(
             )
 
         LibraryRoute.Search ->
-            SearchScreen(
+            SearchContent(
                 libraryTracks = libraryTracks,
-                tagLibReader = tagLibReader,
-                playbackController = playbackController,
-                playbackState = playbackState,
+                currentTrackId = playbackState.currentTrack?.id,
+                isPlaying = playbackState.isPlaying,
+                labels =
+                    SearchSharedLabels(
+                        stringResource(Res.string.search),
+                        stringResource(Res.string.clear),
+                        stringResource(Res.string.now_playing_badge)),
+                selectTrackLabel = { title ->
+                    stringResource(Res.string.select_track_format, title)
+                },
+                selectionModeActive =
+                    trackSelectionState.pageKey ==
+                        TrackSelectionPageKey.Search &&
+                        trackSelectionState.selectedTrackIds.isNotEmpty(),
+                selectedTrackIds =
+                    if (trackSelectionState.pageKey ==
+                        TrackSelectionPageKey.Search)
+                        trackSelectionState.selectedTrackIds
+                    else emptySet(),
+                onStartSelection = { id ->
+                    onTrackSelectionAction(
+                        TrackSelectionAction.Start(
+                            TrackSelectionPageKey.Search, id))
+                },
+                onToggleSelection = { id ->
+                    onTrackSelectionAction(
+                        TrackSelectionAction.Toggle(
+                            TrackSelectionPageKey.Search, id))
+                },
+                onVisibleTrackIdsChanged = { ids ->
+                    onTrackSelectionAction(
+                        TrackSelectionAction.ReconcileVisible(
+                            TrackSelectionPageKey.Search, ids))
+                },
+                onScrollPositionChanged = { index, offset ->
+                    onScrollPositionChanged(
+                        LibraryScrollPosition(index, offset))
+                },
+                onPlayTrack = { orderedResults, selectedTrack ->
+                    playSearchTrack(
+                        playbackController,
+                        orderedResults,
+                        selectedTrack,
+                        onDismiss)
+                },
                 onDismiss = onDismiss,
-                onScrollPositionChanged = onScrollPositionChanged,
-                trackSelectionState = trackSelectionState,
-                onTrackSelectionAction = onTrackSelectionAction,
+                playingIndicator = {
+                    Box(Modifier.testTag("shared-search-equalizer")) {
+                        EqualizerStrip(active = true)
+                    }
+                },
                 bottomContentPadding = bottomContentPadding,
             )
 
@@ -195,6 +246,20 @@ internal fun LibraryRouteOverlays(
         is LibraryRoute.PlaylistDetail,
         -> Unit
     }
+}
+
+internal fun playSearchTrack(
+    playbackController: PlaybackController,
+    orderedResults: List<LibraryTrack>,
+    selectedTrack: LibraryTrack,
+    onDismiss: () -> Unit,
+) {
+    selectLibraryTrackForPlayback(
+        playbackController = playbackController,
+        visibleQueue = orderedResults.map(LibraryTrack::toPlayableTrack),
+        selectedTrackId = selectedTrack.id,
+    )
+    onDismiss()
 }
 
 @Composable

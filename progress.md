@@ -1,4 +1,20 @@
+## Handoff - 2026-08-07 Task 5.3 final acceptance
+
+Route: openspec+superpowers
+Owner: documentation/evidence closeout
+Input: implementation commit `90e330d24b10b9668263002b9cc37945d24e9643` (`refactor: extract search feature`) and its direct bound planning parent `f947724a9a2a29e5863976cb2c17fc16225bd336`; final behavior/spec/quality and exact 20-path scope reviews `PASS / APPROVED`.
+Output: Task 5.3 and OpenSpec 6.3 are accepted. `:feature:search` is the unexported callback-first Search leaf; Shared retains route, Back, selection, scroll, playback, bottom-bar, Now Playing, and equalizer policy. The approved design is unchanged. Evidence closeout commit is pending; no closeout SHA is claimed.
+Verification: final post-review acceptance ran on the uncommitted 20-endpoint snapshot. Before/after hashes proved those bytes unchanged, and the identical endpoints were committed as `90e330d24b10b9668263002b9cc37945d24e9643`: Search filter JVM/Android/iOS `3/0/0/0` each; Search JVM UI `14/0/0/0`; Shared Home/SearchRoute/Settings `1/7/6`, all zero failures; Shared JVM `311/0/0/0`, Shared iOS `236/0/0/0`; architecture functional `82/0/0/0`. Twice-reused `architectureCheck`, Spotless, Detekt, strict named OpenSpec, Android assemble, desktop compile, generic unsigned Xcode Simulator build, iPhone 17 Xcode tests `8/0`, `./init.sh` within 20 minutes, diff check, and exact 20-path gates passed.
+Limits: no Android/iOS physical-device runtime, desktop UI launch, rendered visual or accessibility QA, live local-media scanning, or playback-engine runtime interaction is claimed.
+Next owner: implementation/planning for open Task 6.4 Settings extraction; 7.*, 8.*, OpenSpec 4.4 runtime evidence, and final-facade work remain open.
+Blockers: evidence closeout commit only; no automated Task 5.3 acceptance blocker.
+
 ## Handoff - 2026-08-07 Task 5.2 closeout
+
+Supersession: the historical pending-closeout wording below was satisfied by
+`6e885ef75ada0d6e48b2832cb3852b460a6c62ed` (`docs: close playlists feature extraction`),
+which directly follows implementation commit `fc1b96f858408c8dfd07221d5fe85ae3e20ced63`.
+Task 5.2 is closed; the historical evidence facts remain unchanged.
 
 Route: openspec+superpowers
 Owner: documentation/evidence closeout

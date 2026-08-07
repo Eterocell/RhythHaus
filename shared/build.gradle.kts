@@ -156,6 +156,7 @@ kotlin {
             api(projects.feature.playlists.api)
             implementation(projects.feature.playlists.impl)
             implementation(projects.feature.nowplaying)
+            implementation(projects.feature.search)
             implementation(projects.taglib)
             implementation(libs.aboutlibraries.compose.m3)
             implementation(libs.coil.compose)

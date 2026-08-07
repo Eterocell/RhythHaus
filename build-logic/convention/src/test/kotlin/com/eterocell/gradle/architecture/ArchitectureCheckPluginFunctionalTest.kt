@@ -6,6 +6,7 @@ import java.util.jar.JarFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
@@ -980,6 +981,201 @@ class ArchitectureCheckPluginFunctionalTest {
     }
 
     @Test
+    fun searchFeatureConventionPublishesRootsAndKspRegistrations() {
+        val result = searchRunner(
+            searchFixture(),
+            ":feature:search:kspAndroidMain",
+            ":feature:search:kspKotlinJvm",
+            ":feature:search:kspKotlinIosArm64",
+            ":feature:search:kspKotlinIosSimulatorArm64",
+            ":feature:search:verifySearchFeatureConvention",
+            "architectureCheck",
+        ).build()
+        assertEquals(
+            "KSP_PACKAGE_ROOTS=com.eterocell.rhythhaus.search",
+            result.output.lineSequence().single { it.startsWith("KSP_PACKAGE_ROOTS=") },
+            result.output,
+        )
+        assertEquals(
+            listOf(
+                "KSP_REGISTRATION=:feature:search|kspAndroid|:architecture-processor",
+                "KSP_REGISTRATION=:feature:search|kspIosArm64|:architecture-processor",
+                "KSP_REGISTRATION=:feature:search|kspIosSimulatorArm64|:architecture-processor",
+                "KSP_REGISTRATION=:feature:search|kspJvm|:architecture-processor",
+            ),
+            result.output.lineSequence().filter { it.startsWith("KSP_REGISTRATION=") }.toList(),
+            result.output,
+        )
+        assertTrue(result.output.contains(":feature:search:kspKotlinJvm"), result.output)
+        listOf("AndroidMain", "KotlinJvm", "KotlinIosArm64", "KotlinIosSimulatorArm64").forEach { target ->
+            assertEquals(TaskOutcome.SUCCESS, result.task(":feature:search:ksp$target")?.outcome, result.output)
+            assertFalse(result.output.contains(":feature:search:ksp$target SKIPPED"), result.output)
+            assertFalse(result.output.contains(":feature:search:ksp$target NO-SOURCE"), result.output)
+        }
+    }
+
+    @Test
+    fun searchFeatureConventionRejectsMissingKspProjectDependencyWhileRegistryRemains() {
+        val result = searchRunner(
+            searchFixture(SearchMutation.RemoveKspJvmProcessor),
+            ":feature:search:verifySearchFeatureConvention",
+        ).buildAndFail()
+
+        assertTrue(result.output.contains("KSP registry/configuration mismatch: kspJvm"), result.output)
+    }
+
+    @Test
+    fun searchFeatureProcessorRejectsOneMalformedCommonSourceOnEveryTargetAndRestoresGreen() {
+        val projectDir = searchFixture(
+            sourceOverride = "package outside.fixture\n/** Invalid package. */\npublic class SearchFeature",
+        )
+        val expectedDiagnostic = "ARCH-PACKAGE :feature:search:SearchFeature.kt (outside.fixture)"
+
+        searchKspTasks.forEach { task ->
+            val result = searchRunner(projectDir, task).buildAndFail()
+            assertSearchKspTaskOutcome(result, task, TaskOutcome.FAILED, expectedDiagnostic)
+        }
+
+        source(
+            projectDir,
+            ":feature:search",
+            "SearchFeature.kt",
+            "package com.eterocell.rhythhaus.search\n/** A documented Search feature declaration. */\npublic class SearchFeature",
+        )
+        searchKspTasks.forEach { task ->
+            val result = searchRunner(projectDir, task).build()
+            assertSearchKspTaskOutcome(result, task, TaskOutcome.SUCCESS)
+        }
+    }
+
+    @Test
+    fun searchFeatureProcessorRejectsUndocumentedPublicKDocClosure() {
+        assertSearchKdocFailureThenRestoresGreen(
+            "package com.eterocell.rhythhaus.search\npublic class SearchFeature",
+            "ARCH-KDOC :feature:search:SearchFeature.kt:2 (com.eterocell.rhythhaus.search.SearchFeature)",
+        )
+        assertSearchKdocFailureThenRestoresGreen(
+            """
+            package com.eterocell.rhythhaus.search
+
+            /** A documented Search feature. */
+            public class SearchFeature {
+                public fun undocumentedMember(): Unit = Unit
+            }
+            """.trimIndent(),
+            "ARCH-KDOC :feature:search:SearchFeature.kt:5 (com.eterocell.rhythhaus.search.SearchFeature.undocumentedMember)",
+        )
+        assertSearchKdocFailureThenRestoresGreen(
+            """
+            package com.eterocell.rhythhaus.search
+
+            /** A documented Search feature. */
+            public data class SearchFeature
+            /** A documented constructor. */
+            public constructor(
+                public val undocumentedProperty: String,
+            )
+            """.trimIndent(),
+            "ARCH-KDOC :feature:search:SearchFeature.kt:7 (com.eterocell.rhythhaus.search.SearchFeature.undocumentedProperty)",
+        )
+    }
+
+    @Test
+    fun searchFeatureKoinAuditUsesActualRepositoryProductionRootsAndCopiedMutation() {
+        val repositoryRoots = searchRepositoryProductionRoots()
+        assertTrue(repositoryRoots.isNotEmpty(), "Missing repository Search production roots")
+        assertSearchProductionRootsHaveNoKoin(repositoryRoots)
+
+        val copiedRoots = copySearchProductionRoots(repositoryRoots)
+        val copiedSource = copiedRoots.asSequence().flatMap { root -> root.walkTopDown().asSequence() }
+            .first { it.isFile && it.extension == "kt" }
+        copiedSource.writeText("import org.koin.core.Koin\n${copiedSource.readText()}")
+        val failure = assertFailsWith<AssertionError> { assertSearchProductionRootsHaveNoKoin(copiedRoots) }
+        assertEquals("SEARCH-KOIN feature source imports Koin: ${copiedSource.path}", failure.message)
+    }
+
+    @Test
+    fun searchFeatureRejectsEmptyConfiguredPackageRootsThroughRealProcessor() =
+        assertSearchKspFailure(
+            searchFixture(SearchMutation.EmptyPackageRoots),
+            "ARCH-PACKAGE :feature:search:SearchFeature.kt (com.eterocell.rhythhaus.search)",
+        )
+
+    @Test
+    fun searchFeatureRejectsForbiddenEdgesAndSharedExposure() {
+        mapOf(
+            SearchMutation.DependsOnShared to "ARCH-EDGE :feature:search [architecture] -> :shared",
+            SearchMutation.DependsOnPlayback to "ARCH-EDGE :feature:search [architecture] -> :core:playback",
+            SearchMutation.DependsOnTagLib to "ARCH-EDGE :feature:search [architecture] -> :taglib",
+            SearchMutation.DependsOnDatabase to "ARCH-EDGE :feature:search [architecture] -> :core:database",
+            SearchMutation.DependsOnPlatform to "ARCH-EDGE :feature:search [architecture] -> :core:platform",
+            SearchMutation.DependsOnImplementation to "ARCH-EDGE :feature:search [architecture] -> :feature:library:impl",
+            SearchMutation.DependsOnApp to "ARCH-EDGE :feature:search [architecture] -> :androidApp",
+        ).forEach { (mutation, diagnostic) ->
+            assertRequiredDiagnostics(searchFixture(mutation), listOf(diagnostic))
+        }
+    }
+
+    @Test
+    fun searchFeatureRejectsWrongPackageNamespaceKoinAndIosExport() {
+        assertSearchKspFailure(searchFixture(SearchMutation.WrongPackage), "ARCH-PACKAGE :feature:search:SearchFeature.kt (outside.fixture)")
+        assertExactFailure(
+            searchFixture(SearchMutation.IosExport),
+            listOf(
+                "ARCH-EDGE :shared [iosArm64DebugFrameworkExport] -> :feature:search",
+                "ARCH-EDGE :shared [iosArm64ReleaseFrameworkExport] -> :feature:search",
+                "ARCH-IOS-EXPORT :shared -> :feature:search",
+            ),
+        )
+        assertSearchKspFailure(searchFixture(SearchMutation.MissingKDoc), "ARCH-KDOC :feature:search:SearchFeature.kt:2 (com.eterocell.rhythhaus.search.SearchFeature)")
+    }
+
+    @Test
+    fun searchFeatureRejectsSharedCommonMainApiExposure() =
+        assertExactFailure(
+            searchFixture(SearchMutation.SharedCommonMainApiExposure),
+            listOf("ARCH-EDGE :shared [commonMainApi] -> :feature:search"),
+        )
+
+    @Test
+    fun searchFeatureRejectsWrongExpectedNamespaces() {
+        assertExactFailure(
+            searchFixture(SearchMutation.WrongAndroidNamespace),
+            listOf("ARCH-RESOURCE :feature:search [main] root=feature/search/src/androidMain/res namespace=com.example.wrong"),
+        )
+        assertExactFailure(
+            searchFixture(SearchMutation.WrongComposeNamespace),
+            listOf(
+                "ARCH-RESOURCE :feature:search [androidMain] root=feature/search/src/androidMain/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:search [commonMain] root=feature/search/src/commonMain/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:search [iosArm64Main] root=feature/search/src/iosArm64Main/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:search [iosSimulatorArm64Main] root=feature/search/src/iosSimulatorArm64Main/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:search [jvmMain] root=feature/search/src/jvmMain/composeResources namespace=example.wrong.resources",
+            ),
+        )
+    }
+
+    @Test
+    fun searchResourceOwnershipRetainsExactEnZhPartitionsWithoutForeignImports() {
+        val root = File(System.getProperty("rhythhaus.rootDir"))
+        assertSearchResourceAudit(SearchResourceFixture.fromRepository(root))
+        mapOf(
+            SearchMutation.MissingMovedResource to "SEARCH-RESOURCE missing moved key",
+            SearchMutation.DuplicateMovedResource to "SEARCH-RESOURCE duplicate key in Search EN",
+            SearchMutation.DuplicateMovedResourceZh to "SEARCH-RESOURCE duplicate key in Search ZH",
+            SearchMutation.ExtraMovedResource to "SEARCH-RESOURCE unexpected Search key",
+            SearchMutation.CrossOwnerDuplicateResource to "SEARCH-RESOURCE duplicate key across Shared/Search",
+            SearchMutation.WrongResourceOwner to "SEARCH-RESOURCE wrong owner for moved key",
+            SearchMutation.InvalidResourceNamespace to "SEARCH-RESOURCE wrong namespace",
+            SearchMutation.ForeignFeatureResourceImport to "SEARCH-RESOURCE feature imports Shared generated resources",
+            SearchMutation.ForeignSharedResourceImport to "SEARCH-RESOURCE Shared imports Search generated resources",
+        ).forEach { (mutation, diagnostic) ->
+            val failure = assertFailsWith<AssertionError> { assertSearchResourceAudit(searchResourceFixture(mutation)) }
+            assertTrue(failure.message.orEmpty().contains(diagnostic), failure.message)
+        }
+    }
+
+    @Test
     fun playlistsFeatureConventionPublishesRootsAndKspRegistrations() {
         val result = playlistsRunner(
             playlistsFeatureFixture(),
@@ -1140,6 +1336,12 @@ class ArchitectureCheckPluginFunctionalTest {
             .map { it.groupValues[1] }
             .toList()
 
+    private fun searchStringNames(file: File): List<String> =
+        Regex("""<string\s+name=\"([^\"]+)\"""")
+            .findAll(file.readText())
+            .map { it.groupValues[1] }
+            .toList()
+
     private fun assertNoDuplicateStringNames(file: File) {
         val names = stringNames(file)
         assertEquals(names.size, names.toSet().size, "Duplicate resource keys in ${file.path}")
@@ -1206,11 +1408,50 @@ class ArchitectureCheckPluginFunctionalTest {
         assertEquals(TaskOutcome.FAILED, result.task(":feature:playlists:impl:kspKotlinJvm")?.outcome, result.output)
     }
 
+    private fun assertSearchKspFailure(projectDir: File, expectedDiagnostic: String) {
+        val result = searchRunner(projectDir, ":feature:search:compileKotlinJvm").buildAndFail()
+        assertEquals(listOf(expectedDiagnostic), searchKspDiagnostics(result.output), result.output)
+        assertEquals(TaskOutcome.FAILED, result.task(":feature:search:kspKotlinJvm")?.outcome, result.output)
+    }
+
+    private fun assertSearchKdocFailureThenRestoresGreen(sourceText: String, expectedDiagnostic: String) {
+        val projectDir = searchFixture(sourceOverride = sourceText)
+        assertSearchKspFailure(projectDir, expectedDiagnostic)
+        source(
+            projectDir,
+            ":feature:search",
+            "SearchFeature.kt",
+            "package com.eterocell.rhythhaus.search\n/** A documented Search feature declaration. */\npublic class SearchFeature",
+        )
+        val green = searchRunner(projectDir, ":feature:search:kspKotlinJvm").build()
+        assertSearchKspTaskOutcome(green, ":feature:search:kspKotlinJvm", TaskOutcome.SUCCESS)
+    }
+
+    private fun assertSearchKspTaskOutcome(
+        result: org.gradle.testkit.runner.BuildResult,
+        task: String,
+        outcome: TaskOutcome,
+        expectedDiagnostic: String? = null,
+    ) {
+        assertEquals(expectedDiagnostic?.let(::listOf).orEmpty(), searchKspDiagnostics(result.output), result.output)
+        assertEquals(outcome, result.task(task)?.outcome, result.output)
+        assertFalse(result.output.contains("$task SKIPPED"), result.output)
+        assertFalse(result.output.contains("$task NO-SOURCE"), result.output)
+        assertFalse(result.output.contains("$task UP-TO-DATE"), result.output)
+    }
+
     private fun kspDiagnostics(output: String): List<String> =
         output
             .lineSequence()
             .mapNotNull { line ->
                 Regex("(ARCH-(?:PACKAGE|KDOC) .*)").find(line)?.groupValues?.get(1)
+            }
+            .toList()
+
+    private fun searchKspDiagnostics(output: String): List<String> =
+        output.lineSequence()
+            .mapNotNull { line ->
+                Regex("(ARCH-(?:PACKAGE|KDOC) :feature:search:[^\\r\\n]+)").find(line)?.groupValues?.get(1)
             }
             .toList()
 
@@ -1459,6 +1700,213 @@ class ArchitectureCheckPluginFunctionalTest {
             -> Unit
         }
         return projectDir
+    }
+
+    private fun searchFixture(
+        mutation: SearchMutation? = null,
+        sourceOverride: String? = null,
+    ): File {
+        val projectDir = fixture()
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement { repositories { gradlePluginPortal(); mavenCentral(); google() } }
+            dependencyResolutionManagement { repositories { mavenCentral(); google() } }
+            rootProject.name = "architecture-search-feature"
+            include(":androidApp", ":desktopApp", ":shared", ":taglib", ":architecture-processor", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl", ":feature:search")
+            """.trimIndent(),
+        )
+        val processorJar = externallyProvidedProcessorJarOrSkip()
+        module(projectDir, ":architecture-processor")
+        buildFile(projectDir, ":architecture-processor").writeText("configurations.create(\"default\")\nartifacts { add(\"default\", file(\"${processorJar.invariantSeparatorsPath}\")) }")
+        listOf(":core:platform", ":core:playback", ":core:ui").forEach { module(projectDir, it); kmpModule(projectDir, it, strict = true) }
+        module(projectDir, ":feature:search")
+        val composeNamespace =
+            if (mutation == SearchMutation.WrongComposeNamespace) "example.wrong.resources"
+            else "rhythhaus.feature.search.generated.resources"
+        val androidNamespace =
+            if (mutation == SearchMutation.WrongAndroidNamespace) "com.example.wrong"
+            else "com.eterocell.rhythhaus.search"
+        buildFile(projectDir, ":feature:search").writeText(
+            """
+            import com.eterocell.gradle.architecture.ArchitectureModelRegistry
+            import com.eterocell.gradle.architecture.ControlledComposeResourcesExtension
+            import org.gradle.api.artifacts.ProjectDependency
+            import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+            plugins {
+                id("build-logic.kmp.feature.impl")
+                id("build-logic.android.kmp.library")
+                id("build-logic.compose-resources")
+                id("org.jetbrains.kotlin.plugin.compose")
+            }
+            configurations.maybeCreate("architecture")
+            extensions.configure<ControlledComposeResourcesExtension>("architectureComposeResources") { namespace("$composeNamespace") }
+            kotlin {
+                android { namespace = "$androidNamespace"; compileSdk = 37; minSdk = 29; compilerOptions.jvmTarget.set(JvmTarget.JVM_11); withHostTest {}; androidResources { enable = true } }
+                jvm(); iosArm64(); iosSimulatorArm64()
+            }
+            dependencies {
+                add("commonMainImplementation", "org.jetbrains.compose.runtime:runtime:1.11.1")
+            }
+
+            val searchKspExpected = listOf("kspAndroid", "kspIosArm64", "kspIosSimulatorArm64", "kspJvm")
+            afterEvaluate {
+                @Suppress("UNCHECKED_CAST")
+                val searchKspArguments = extensions.getByName("ksp")
+                    .javaClass.getMethod("getArguments")
+                    .invoke(extensions.getByName("ksp")) as Map<String, String>
+                val searchKspRegistrations = ArchitectureModelRegistry.forRoot(project).snapshot().kspRegistrations
+                    .filter { it.module == project.path }
+                    .map { it.module + "|" + it.configuration + "|" + it.processor }
+                    .sorted()
+                val searchKspConfigurationMatches = searchKspExpected.associateWith { configurationName ->
+                    val dependencies = configurations.getByName(configurationName).dependencies
+                        .withType(ProjectDependency::class.java)
+                        .filter { it.path == ":architecture-processor" }
+                    dependencies.size == 1 && configurations.getByName(configurationName).dependencies.size == 1
+                }
+                tasks.register("verifySearchFeatureConvention") {
+                    inputs.property("packageRoots", searchKspArguments["architecture.packageRoots"])
+                    inputs.property("registrations", searchKspRegistrations)
+                    inputs.property("configurationMatches", searchKspConfigurationMatches)
+                    doLast {
+                        val packageRoots = inputs.properties.getValue("packageRoots")
+                        val registrations = inputs.properties.getValue("registrations") as List<*>
+                        val configurationMatches = inputs.properties.getValue("configurationMatches") as Map<*, *>
+                        check(packageRoots == "com.eterocell.rhythhaus.search") {
+                            "KSP package roots mismatch: ${'$'}packageRoots"
+                        }
+                        check(registrations == searchKspExpected.map { ":feature:search|" + it + "|:architecture-processor" }) {
+                            "KSP registry/configuration mismatch: ${'$'}registrations"
+                        }
+                        configurationMatches.forEach { (configurationName, matches) ->
+                            check(matches == true) { "KSP registry/configuration mismatch: ${'$'}configurationName" }
+                        }
+                        println("KSP_PACKAGE_ROOTS=" + packageRoots)
+                        registrations.forEach { println("KSP_REGISTRATION=" + it) }
+                    }
+                }
+            }
+            """.trimIndent(),
+        )
+        val source = sourceOverride ?: when (mutation) {
+            SearchMutation.WrongPackage -> "package outside.fixture\n/** Invalid package. */\npublic class SearchFeature"
+            SearchMutation.MissingKDoc -> "package com.eterocell.rhythhaus.search\npublic class SearchFeature"
+            else -> "package com.eterocell.rhythhaus.search\n/** A documented Search feature declaration. */\npublic class SearchFeature"
+        }
+        source(projectDir, ":feature:search", "SearchFeature.kt", source)
+        val strings = moduleDir(projectDir, ":feature:search").resolve("src/commonMain/composeResources/values/strings.xml")
+        strings.parentFile.mkdirs()
+        strings.writeText("<resources><string name=\"search_placeholder\">Search</string></resources>")
+        append(projectDir, ":shared", "dependencies.add(\"commonMainImplementation\", project(\":feature:search\"))")
+        dependency(projectDir, ":feature:search", ":feature:library:api")
+        dependency(projectDir, ":feature:search", ":core:ui")
+        when (mutation) {
+            SearchMutation.DependsOnShared -> dependency(projectDir, ":feature:search", ":shared")
+            SearchMutation.DependsOnPlayback -> dependency(projectDir, ":feature:search", ":core:playback")
+            SearchMutation.DependsOnTagLib -> dependency(projectDir, ":feature:search", ":taglib")
+            SearchMutation.DependsOnDatabase -> dependency(projectDir, ":feature:search", ":core:database")
+            SearchMutation.DependsOnPlatform -> dependency(projectDir, ":feature:search", ":core:platform")
+            SearchMutation.DependsOnImplementation -> dependency(projectDir, ":feature:search", ":feature:library:impl")
+            SearchMutation.DependsOnApp -> dependency(projectDir, ":feature:search", ":androidApp")
+            SearchMutation.IosExport -> append(projectDir, ":shared", "kotlin { iosArm64().binaries.framework { export(project(\":feature:search\")) } }")
+            SearchMutation.SharedCommonMainApiExposure -> {
+                removeText(projectDir, ":shared", "dependencies.add(\"commonMainImplementation\", project(\":feature:search\"))")
+                append(projectDir, ":shared", "dependencies.add(\"commonMainApi\", project(\":feature:search\"))")
+            }
+            SearchMutation.RemoveKspJvmProcessor -> append(
+                projectDir,
+                ":feature:search",
+                "configurations.named(\"kspJvm\") { dependencies.removeIf { it is ProjectDependency && it.path == \":architecture-processor\" } }",
+            )
+            SearchMutation.EmptyPackageRoots -> append(
+                projectDir,
+                ":feature:search",
+                "afterEvaluate { extensions.configure<com.google.devtools.ksp.gradle.KspExtension> { arg(\"architecture.packageRoots\", \"\") } }",
+            )
+            else -> Unit
+        }
+        projectDir.resolve("build.gradle.kts").writeText("plugins { id(\"build-logic.architecture-check\") }")
+        return projectDir
+    }
+
+    private fun searchResourceFixture(mutation: SearchMutation): SearchResourceFixture {
+        val root = Files.createTempDirectory("search-resource-audit").toFile()
+        val shared = listOf(root.resolve("shared-en.xml"), root.resolve("shared-zh.xml"))
+        val feature = listOf(root.resolve("feature-en.xml"), root.resolve("feature-zh.xml"))
+        val sharedSource = root.resolve("Shared.kt")
+        val featureSource = root.resolve("Search.kt")
+        val keys = listOf("search_placeholder", "search_results_count_zero", "search_results_count_one", "search_results_count_many", "search_no_tracks_match_format")
+        fun xml(names: List<String>) = "<resources>${names.joinToString("") { "<string name=\"$it\">x</string>" }}</resources>"
+        shared.forEach { it.writeText(xml(listOf("search", "clear", "now_playing_badge", "select_track_format"))) }
+        feature.forEach { it.writeText(xml(keys)) }
+        sharedSource.writeText("package fixture")
+        featureSource.writeText("package fixture")
+        when (mutation) {
+            SearchMutation.MissingMovedResource -> feature[0].writeText(xml(keys - "search_results_count_one"))
+            SearchMutation.DuplicateMovedResource -> feature[0].writeText(xml(keys + "search_placeholder"))
+            SearchMutation.DuplicateMovedResourceZh -> feature[1].writeText(xml(keys + "search_placeholder"))
+            SearchMutation.ExtraMovedResource -> feature[0].writeText(xml(keys + "extra"))
+            SearchMutation.CrossOwnerDuplicateResource -> shared[0].writeText(xml(listOf("search", "clear", "now_playing_badge", "select_track_format", "search_placeholder")))
+            SearchMutation.WrongResourceOwner -> {
+                feature[0].writeText(xml(keys + "clear"))
+                shared[0].writeText(xml(listOf("search", "now_playing_badge", "select_track_format")))
+            }
+            SearchMutation.InvalidResourceNamespace -> featureSource.writeText("import example.wrong.resources.Res")
+            SearchMutation.ForeignFeatureResourceImport -> featureSource.writeText("import rhythhaus.shared.generated.resources.Res")
+            SearchMutation.ForeignSharedResourceImport -> sharedSource.writeText("import rhythhaus.feature.search.generated.resources.Res")
+            else -> error("Unsupported resource mutation: $mutation")
+        }
+        return SearchResourceFixture(shared, feature, sharedSource, featureSource)
+    }
+
+    private fun assertSearchResourceAudit(fixture: SearchResourceFixture) {
+        val expected = listOf("search_placeholder", "search_results_count_zero", "search_results_count_one", "search_results_count_many", "search_no_tracks_match_format")
+        val sharedRequired = listOf("search", "clear", "now_playing_badge", "select_track_format")
+        val shared = fixture.shared.map(::searchStringNames)
+        val feature = fixture.feature.map(::searchStringNames)
+        shared.zip(listOf("EN", "ZH")).forEach { (names, locale) ->
+            assertEquals(names.size, names.toSet().size, "SEARCH-RESOURCE duplicate key in Shared $locale")
+            assertTrue(names.containsAll(sharedRequired), "SEARCH-RESOURCE wrong owner for moved key")
+        }
+        assertTrue(feature.flatten().intersect(sharedRequired.toSet()).isEmpty(), "SEARCH-RESOURCE wrong owner for moved key")
+        assertTrue(shared.flatten().intersect(expected.toSet()).isEmpty(), "SEARCH-RESOURCE duplicate key across Shared/Search")
+        feature.zip(listOf("EN", "ZH")).forEach { (names, locale) ->
+            assertEquals(names.size, names.toSet().size, "SEARCH-RESOURCE duplicate key in Search $locale")
+            assertTrue(names.all { it in expected }, "SEARCH-RESOURCE unexpected Search key")
+            assertEquals(expected, names, "SEARCH-RESOURCE missing moved key")
+        }
+        assertEquals(feature[0], feature[1], "SEARCH-RESOURCE locale parity differs")
+        assertFalse(fixture.featureSource.readText().contains("example.wrong.resources"), "SEARCH-RESOURCE wrong namespace")
+        assertFalse(fixture.featureSource.readText().contains("rhythhaus.shared.generated.resources"), "SEARCH-RESOURCE feature imports Shared generated resources")
+        assertFalse(fixture.sharedSource.readText().contains("rhythhaus.feature.search.generated.resources"), "SEARCH-RESOURCE Shared imports Search generated resources")
+    }
+
+    private fun searchRepositoryProductionRoots(): List<File> {
+        val repositoryRoot = File(System.getProperty("rhythhaus.rootDir")).canonicalFile
+        val searchSource = repositoryRoot.resolve("feature/search/src")
+        return searchSource.listFiles().orEmpty()
+            .filter { it.isDirectory && it.name.endsWith("Main") }
+            .map { it.resolve("kotlin") }
+            .filter(File::isDirectory)
+            .sortedBy { it.path }
+    }
+
+    private fun copySearchProductionRoots(roots: List<File>): List<File> {
+        val copyRoot = Files.createTempDirectory("search-production-koin-audit").toFile()
+        return roots.map { root ->
+            val destination = copyRoot.resolve(root.name)
+            check(root.copyRecursively(destination, overwrite = false)) { "Could not copy Search production root: ${root.path}" }
+            destination
+        }
+    }
+
+    private fun assertSearchProductionRootsHaveNoKoin(roots: List<File>) {
+        roots.forEach { root -> check(root.isDirectory) { "SEARCH-KOIN missing production root: ${root.path}" } }
+        roots.asSequence().flatMap { root -> root.walkTopDown().asSequence() }
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { source ->
+                assertFalse(source.readText().contains("org.koin"), "SEARCH-KOIN feature source imports Koin: ${source.path}")
+            }
     }
 
     private fun qualityEntrypointFixture(mutation: Mutation? = null): File {
@@ -2497,6 +2945,16 @@ class ArchitectureCheckPluginFunctionalTest {
     private fun playlistsRunner(projectDir: File, vararg tasks: String): GradleRunner =
         nowPlayingRunner(projectDir, *tasks)
 
+    private fun searchRunner(projectDir: File, vararg tasks: String): GradleRunner =
+        GradleRunner.create()
+            .withProjectDir(projectDir)
+            .withPluginClasspath()
+            .withArguments(
+                *(if (tasks.isEmpty()) listOf("architectureCheck") else tasks.toList()).plus(
+                    listOf("--rerun-tasks", "--stacktrace", "--no-configuration-cache"),
+                ).toTypedArray(),
+            )
+
     private fun qualityAggregationRunner(projectDir: File): GradleRunner =
         GradleRunner.create().withProjectDir(projectDir).withPluginClasspath().withArguments("qualityCheck", "--stacktrace", "--configuration-cache", "--configuration-cache-problems=fail")
 
@@ -2535,6 +2993,56 @@ class ArchitectureCheckPluginFunctionalTest {
         IosExport,
     }
 
+    private enum class SearchMutation {
+        DependsOnShared,
+        DependsOnPlayback,
+        DependsOnTagLib,
+        DependsOnDatabase,
+        DependsOnPlatform,
+        DependsOnImplementation,
+        DependsOnApp,
+        InvalidResourceNamespace,
+        WrongAndroidNamespace,
+        WrongComposeNamespace,
+        WrongPackage,
+        MissingKDoc,
+        IosExport,
+        MissingMovedResource,
+        DuplicateMovedResource,
+        DuplicateMovedResourceZh,
+        ExtraMovedResource,
+        CrossOwnerDuplicateResource,
+        WrongResourceOwner,
+        ForeignFeatureResourceImport,
+        ForeignSharedResourceImport,
+        SharedCommonMainApiExposure,
+        RemoveKspJvmProcessor,
+        EmptyPackageRoots,
+    }
+
+    private data class SearchResourceFixture(
+        val shared: List<File>,
+        val feature: List<File>,
+        val sharedSource: File,
+        val featureSource: File,
+    ) {
+        companion object {
+            fun fromRepository(root: File): SearchResourceFixture =
+                SearchResourceFixture(
+                    shared = listOf(
+                        root.resolve("shared/src/commonMain/composeResources/values/strings.xml"),
+                        root.resolve("shared/src/commonMain/composeResources/values-zh/strings.xml"),
+                    ),
+                    feature = listOf(
+                        root.resolve("feature/search/src/commonMain/composeResources/values/strings.xml"),
+                        root.resolve("feature/search/src/commonMain/composeResources/values-zh/strings.xml"),
+                    ),
+                    sharedSource = root.resolve("shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt"),
+                    featureSource = root.resolve("feature/search/src/commonMain/kotlin/com/eterocell/rhythhaus/search/SearchScreen.kt"),
+                )
+        }
+    }
+
     private data class QualityAggregationFixture(
         val projectDir: File,
         val markerDirectory: File,
@@ -2546,6 +3054,12 @@ class ArchitectureCheckPluginFunctionalTest {
     }
 
     private companion object {
+        val searchKspTasks = listOf(
+            ":feature:search:kspAndroidMain",
+            ":feature:search:kspKotlinJvm",
+            ":feature:search:kspKotlinIosArm64",
+            ":feature:search:kspKotlinIosSimulatorArm64",
+        )
         const val SQLDELIGHT_FIXTURE_APPLIED_MARKER = "TEST-SQLDELIGHT-FIXTURE-APPLIED"
         const val SQLDELIGHT_RUNTIME_API_MISSING_SENTINEL = "TEST-SQLDELIGHT-RUNTIME-API-MISSING"
         const val SQLDELIGHT_RUNTIME_API_AVAILABLE_MARKER = "TEST-SQLDELIGHT-RUNTIME-API-AVAILABLE"

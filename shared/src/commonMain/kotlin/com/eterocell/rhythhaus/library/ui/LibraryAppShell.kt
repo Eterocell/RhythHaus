@@ -338,7 +338,6 @@ fun LibraryHomeScreen(
             route = route,
             snapshot = snapshot,
             libraryTracks = libraryTracks,
-            tagLibReader = tagLibReader,
             playbackController = playbackController,
             playbackState = playbackState,
             playlistRepository = playlistRepository,

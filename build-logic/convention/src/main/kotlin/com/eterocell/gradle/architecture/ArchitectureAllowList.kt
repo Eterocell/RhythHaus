@@ -1,14 +1,19 @@
 package com.eterocell.gradle.architecture
 
 public object ArchitectureAllowList {
-    private data class ModulePolicy(val packageRoots: Set<String>)
+    private data class ModulePolicy(
+        val packageRoots: Set<String>,
+        val androidNamespace: String? = null,
+        val composeNamespace: String? = null,
+    )
 
     private val allowList: Map<String, Set<String>> =
         mapOf(
             ":androidApp" to setOf(":shared"),
             ":desktopApp" to setOf(":shared"),
-            ":shared" to setOf(":taglib", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl", ":feature:nowplaying"),
+            ":shared" to setOf(":taglib", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl", ":feature:nowplaying", ":feature:search"),
             ":feature:nowplaying" to setOf(":core:playback", ":core:ui"),
+            ":feature:search" to setOf(":feature:library:api", ":core:ui"),
             ":feature:library:impl" to setOf(":feature:library:api"),
             ":feature:playlists:impl" to setOf(":feature:playlists:api", ":feature:library:api", ":core:model", ":core:playback", ":core:ui", ":core:platform", ":core:database"),
             ":feature:library:api" to setOf(":core:model"),
@@ -37,14 +42,27 @@ public object ArchitectureAllowList {
                 ),
             ),
             ":feature:nowplaying" to ModulePolicy(setOf("com.eterocell.rhythhaus.nowplaying", "com.eterocell.rhythhaus.ui")),
+            ":feature:search" to ModulePolicy(
+                packageRoots = setOf("com.eterocell.rhythhaus.search"),
+                androidNamespace = "com.eterocell.rhythhaus.search",
+                composeNamespace = "rhythhaus.feature.search.generated.resources",
+            ),
         )
 
-    public fun isAllowed(from: String, to: String): Boolean = to in allowList[from].orEmpty()
+    public fun isAllowed(from: String, configuration: String, to: String): Boolean =
+        when {
+            from == ":shared" && to == ":feature:search" -> configuration == "commonMainImplementation"
+            else -> to in allowList[from].orEmpty()
+        }
 
     public fun ownsPackage(modulePath: String, packageName: String): Boolean =
         policy(modulePath).packageRoots.any { root -> packageName == root || packageName.startsWith("$root.") }
 
     public fun packageRoots(modulePath: String): Set<String> = policy(modulePath).packageRoots
+
+    public fun expectedAndroidNamespace(modulePath: String): String? = policy(modulePath).androidNamespace
+
+    public fun expectedComposeNamespace(modulePath: String): String? = policy(modulePath).composeNamespace
 
     public fun requiresExplicitApi(modulePath: String): Boolean = modulePath.startsWith(":core:") || modulePath.endsWith(":api")
 

@@ -20,8 +20,6 @@ import com.eterocell.rhythhaus.library.ui.*
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupImportResult
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
-import com.eterocell.rhythhaus.taglib.TagLibReader
-import com.eterocell.rhythhaus.taglib.TagReadResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -29,6 +27,29 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class SettingsPlaylistBackupEmbeddingTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsPlaylistBackupEmbeddingDoesNotPublishSearchSelection() =
+        runComposeUiTest {
+            val state =
+                LibraryAppState(null).also {
+                    it.pushRoute(LibraryRoute.Settings)
+                }
+            val backupState =
+                androidx.compose.runtime.mutableStateOf(PlaylistBackupUiState())
+            val selectionActions = mutableListOf<TrackSelectionAction>()
+            setContent {
+                SettingsHarness(
+                    state,
+                    backupState,
+                    onTrackSelectionAction = { selectionActions += it },
+                )
+            }
+            waitForIdle()
+
+            assertTrue(selectionActions.isEmpty())
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun settingsHostEmbedsSectionPreviewAndResultWithCurrentCallbacks() =
@@ -59,7 +80,6 @@ class SettingsPlaylistBackupEmbeddingTest {
                     snapshot =
                         LibrarySnapshot("Library", "", emptyList(), null),
                     libraryTracks = emptyList(),
-                    tagLibReader = UnsupportedTagReader,
                     playbackController =
                         PlaybackController(FakePlaybackEngine()),
                     playbackState = PlaybackState(),
@@ -218,6 +238,7 @@ class SettingsPlaylistBackupEmbeddingTest {
         state: LibraryAppState,
         backupState:
             androidx.compose.runtime.MutableState<PlaylistBackupUiState>,
+        onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
     ) {
         val source =
             rememberPlaylistFeatureAppearanceSource(
@@ -227,7 +248,6 @@ class SettingsPlaylistBackupEmbeddingTest {
             route = LibraryRoute.Settings,
             snapshot = LibrarySnapshot("Library", "", emptyList(), null),
             libraryTracks = emptyList(),
-            tagLibReader = UnsupportedTagReader,
             playbackController = PlaybackController(FakePlaybackEngine()),
             playbackState = PlaybackState(),
             playlistRepository = EmptyPlaylistRepository,
@@ -263,6 +283,7 @@ class SettingsPlaylistBackupEmbeddingTest {
             onShowOpenSourceLibraries = {},
             onDismiss = {},
             onScrollPositionChanged = {},
+            onTrackSelectionAction = onTrackSelectionAction,
         )
     }
 
@@ -303,12 +324,6 @@ class SettingsPlaylistBackupEmbeddingTest {
             0,
             com.eterocell.rhythhaus.playlistbackup.PlaylistBackupCounts(
                 1, 0, 0))
-
-    private object UnsupportedTagReader : TagLibReader {
-        override fun readPath(path: String) = TagReadResult.Unsupported("test")
-
-        override fun readProperties(path: String) = emptyMap<String, String>()
-    }
 
     private val unavailablePicker =
         object : PlatformFolderPickerLauncher {

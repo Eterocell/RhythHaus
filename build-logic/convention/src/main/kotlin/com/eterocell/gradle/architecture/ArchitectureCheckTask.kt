@@ -34,7 +34,7 @@ public abstract class ArchitectureCheckTask : DefaultTask() {
 
         findCycles(directEdges).forEach { violations += "ARCH-CYCLE $it" }
         edges.sortedWith(compareBy<Edge> { it.from }.thenBy { it.configuration }.thenBy { it.to })
-            .filterNot { ArchitectureAllowList.isAllowed(it.from, it.to) }
+            .filterNot { ArchitectureAllowList.isAllowed(it.from, it.configuration, it.to) }
             .forEach { violations += "ARCH-EDGE ${it.from} [${it.configuration}] -> ${it.to}" }
         resourceRecords.get().sorted().forEach { record ->
             val (module, sourceSet, kind, root, namespace) = record.split("|", limit = 5)
@@ -42,6 +42,16 @@ public abstract class ArchitectureCheckTask : DefaultTask() {
                 violations += "ARCH-RESOURCE $module [$sourceSet] root=$root unsupported"
             } else if ((kind == "COMPOSE" || kind == "ANDROID") && namespace == "<invalid>") {
                 violations += "ARCH-RESOURCE $module [$sourceSet] root=$root namespace=$namespace"
+            } else {
+                val expectedNamespace =
+                    when (kind) {
+                        "ANDROID" -> ArchitectureAllowList.expectedAndroidNamespace(module)
+                        "COMPOSE" -> ArchitectureAllowList.expectedComposeNamespace(module)
+                        else -> null
+                    }
+                if (expectedNamespace != null && namespace != expectedNamespace) {
+                    violations += "ARCH-RESOURCE $module [$sourceSet] root=$root namespace=$namespace"
+                }
             }
         }
         kotlinModules.get()

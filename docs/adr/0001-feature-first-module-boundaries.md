@@ -119,6 +119,35 @@ package rename, database/playback ownership change, illegal bridge/service-locat
 coupling, Swift redesign, resource duplication, or runtime/device claim from compile/link/tests is
 authorized. ADR 0002 remains untouched.
 
+The approved Search move is one unexported `:feature:search` leaf module, not an API/implementation
+pair. It targets Android-KMP/JVM/`iosArm64`/`iosSimulatorArm64`, has one common implementation,
+no platform source or iOS export, preserves `com.eterocell.rhythhaus.search` as its Android
+namespace and Kotlin package, and uses resource namespace
+`rhythhaus.feature.search.generated.resources`. Its public dependencies are Library API and required
+Compose runtime/UI; core UI, Foundation, resources, and Miuix are implementation details. Shared
+declares exactly `implementation(projects.feature.search)`, never `api`, and does not export Search.
+Search has no forbidden outbound edge to Shared, core playback, database, core platform, taglib,
+another implementation, or app, and has no Koin or iOS export. `feature/search/README.md` is not
+part of this migration.
+
+Search exposes exactly explicit-public, declaration-specific-KDoc `SearchSharedLabels` and
+callback-first `SearchContent`: Library API tracks; primitive current-track/playing state; plain
+Shared labels and a composable selection-label formatter that resolves `select_track_format` with
+structured Compose `stringResource` during row composition without a generated resource handle;
+selection/visible-ID/scroll/ordered-play/dismiss callbacks; a Shared playing-indicator slot; and
+only `Dp`/`Modifier` layout defaults. It exposes no
+Shared/generated-resource/playback-controller-or-state/queue/repository/Koin/platform type. Shared
+remains sole facade and directly composes `SearchContent` from `LibraryRoutes`; no Shared
+compatibility screen or unused TagLib reader remains. Shared retains route/Back, selection
+reconciliation/clear, scroll storage, playback queue/restart/dismiss, bottom-bar/Now Playing policy,
+and `EqualizerStrip`; Search owns local query/filter/render/focus/count/empty behavior and Search
+row interaction. Search uses a private rendering identity of filtered occurrence index plus track
+ID, never `track.id` alone, which is unique for duplicate rows and does not alter `LibraryTrack`,
+selection IDs, visible-ID sequence, playback queue order, or duplicate semantics. Search-only
+strings are feature-owned exactly once, while Shared injects title, clear, Now Playing, and
+composable select-track formatting as values; no resource handles cross. The
+normative boundary is [the approved Search design](../superpowers/specs/2026-08-07-search-feature-extraction-design.md).
+
 ## Consequences
 
 The graph retains a stable application and iOS facade while making ownership and

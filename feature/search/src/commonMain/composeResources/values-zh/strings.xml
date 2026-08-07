@@ -1,0 +1,7 @@
+<resources>
+    <string name="search_placeholder">曲目、艺术家或专辑...</string>
+    <string name="search_results_count_zero">0 个结果</string>
+    <string name="search_results_count_one">1 个结果</string>
+    <string name="search_results_count_many">%1$d 个结果</string>
+    <string name="search_no_tracks_match_format">没有匹配“%1$s”的曲目</string>
+</resources>

@@ -140,6 +140,31 @@ Gradle TestKit illegal fixtures begin RED before gate implementation. The reject
 
 Every task follows RED characterization/architecture test, minimal GREEN move, focused verification, architecture/Detekt/Spotless gates, and full `./init.sh` for graph, expect/actual, SQLDelight, resource, and final slices. Failed slices are rolled back to their last passing boundary rather than bridged. Independently reviewable slices use conventional commits. Implementation updates progress, roadmap, and ADR evidence.
 
+### Approved Task 5.3 Search implementation boundary
+
+Task 5.3 creates one unexported `:feature:search` implementation module with no API split, Koin module, platform source, repository, state abstraction, or iOS export. It targets Android-KMP/JVM/`iosArm64`/`iosSimulatorArm64`, has one common implementation, preserves Kotlin package and Android namespace `com.eterocell.rhythhaus.search`, and uses `rhythhaus.feature.search.generated.resources`. `feature/search/README.md` is out of scope.
+
+The exact public boundary is only explicit-public, declaration-specific-KDoc `SearchSharedLabels(title: String, clear: String, nowPlaying: String)` and:
+
+```kotlin
+@Composable
+public fun SearchContent(
+    libraryTracks: List<LibraryTrack>, currentTrackId: String?, isPlaying: Boolean,
+    labels: SearchSharedLabels, selectTrackLabel: @Composable (String) -> String,
+    selectionModeActive: Boolean, selectedTrackIds: Set<String>,
+    onStartSelection: (String) -> Unit, onToggleSelection: (String) -> Unit,
+    onVisibleTrackIdsChanged: (List<String>) -> Unit,
+    onScrollPositionChanged: (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
+    onPlayTrack: (orderedResults: List<LibraryTrack>, selectedTrack: LibraryTrack) -> Unit,
+    onDismiss: () -> Unit, playingIndicator: @Composable () -> Unit,
+    bottomContentPadding: Dp = 0.dp, modifier: Modifier = Modifier,
+)
+```
+
+It carries primitive playback state and callback-first selection/visible-ID/scroll/play/dismiss behavior, a composable formatter that resolves Shared's `select_track_format` with structured Compose `stringResource` while a row is composed, an indicator slot, and layout defaults. No generated resource handle crosses the boundary. It has no Shared/generated `Res`/playback controller or state/repository/Koin/platform/database/TagLib/queue type. `api` is only Library API plus public Compose runtime/UI; core UI, Foundation, resources, and Miuix are implementation-only. Shared uses exactly `implementation(projects.feature.search)`, never `api`, and never exports Search. No core playback, Shared, database, platform, taglib, another implementation, Koin, or iOS-export edge is allowed.
+
+Shared is sole facade/composition owner: `LibraryRoutes` directly composes `SearchContent`, deletes Shared `SearchScreen`, and removes unused `TagLibReader`. Shared retains route/Back, selection reconciliation/clear, scroll storage, playback queue/restart/dismiss, bottom-bar/Now Playing, and `EqualizerStrip`; Search owns query/filter/render/focus/count/empty/row interaction. Search preserves blank-query no results; case-insensitive title/artist/album filtering; order, duplicates, and empty metadata; and an internal, non-public LazyColumn occurrence identity of filtered occurrence index plus track ID, never `track.id` alone. That rendering-only identity is unique and cannot change `LibraryTrack`, selection IDs, visible-ID sequence, playback queue order, or duplicate semantics. Search focuses once, clear-to-blank, visible-ID emission only on sequence change, ordered playback on normal activation, long press without playback, one-toggle selection row/checkbox behavior without playback, current-row highlight/Now Playing semantics, and indicator only for current+playing; it has no artwork/error state. It owns exactly the five approved Search EN/ZH keys, while Shared injects title/clear/Now Playing/composable select-track formatting with no duplicate key or resource handle. Feature production-composable tests own Search behavior and the four moved mixed-suite cases, including two equal-ID occurrences rendering/activating distinctly with stable keys across unrelated recomposition and duplicate ordered visible/playback callbacks. Real Shared route-adapter tests prove queue order, current-track restart, dismissal, and callback-failure ownership. RED/GREEN rejects feature-to-Shared/core-playback/database/core-platform/taglib/another-implementation/app, Koin, iOS export, Shared `api`/export, namespace/resource/resource-handle, and public-KDoc/closure violations. Evidence covers cross-platform, architecture, quality, strict named OpenSpec, Xcode, and `./init.sh` without runtime/device/visual claims; see [the approved Search design](../../../docs/superpowers/specs/2026-08-07-search-feature-extraction-design.md). Detailed paths and commands remain in the later executable plan.
+
 ## Open Questions
 
 After this approved amendment, no Task 5.2 architecture decision remains unresolved. Implementation details, exhaustive public-signature scope derivation, exact commands, and path ledger remain owned by the later executable plan.

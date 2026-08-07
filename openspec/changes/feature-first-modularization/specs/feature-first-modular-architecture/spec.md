@@ -63,14 +63,14 @@ The feature SHALL publish exactly one already-resolved foremost immutable dismis
 - **AND** for non-predictive dispatch, callback return leaves the intent in flight until authoritative inactive observation or explicit rejection; repeated Back is suppressed, rejection releases without settlement, and later Back is a new intent
 - **AND** stale registration, disposal, completion, or failed/stale/replayed deletion cannot clear active state, fall through to edit/route, or invalidate unrelated state.
 
-### Requirement: Task 6.2 verification remains executable but pending
+### Requirement: Task 5.2 and OpenSpec 6.2 are accepted
 
-Task 6.2 SHALL remain unchecked while requiring characterization/architecture RED, atomic ownership move, DB/FK/resources/Back/edit/modal/document/DI/Swift ABI/platform verification, tests/evidence for non-predictive in-flight settlement/rejection suppression, and exact comparison against the canonical Task 5.2 Shared iOS ABI ledger plus compile/link and Swift consumer/tests (or equivalent ABI verification). It SHALL also require explicit evidence limits, architecture/quality/strict OpenSpec/diff checks, and `./init.sh`. Evidence SHALL NOT infer runtime/device behavior from compile/link/tests. Detailed commands and path ledger remain owned by the later executable plan.
+Task 5.2/OpenSpec 6.2 SHALL be recorded as completed by implementation commit `fc1b96f858408c8dfd07221d5fe85ae3e20ced63` and evidence closeout `6e885ef75ada0d6e48b2832cb3852b460a6c62ed`. Its compile/link/tests SHALL NOT be interpreted as runtime, device, visual, picker, or playback validation.
 
-#### Scenario: Pending implementation records bounded evidence
-- **WHEN** Task 6.2 is implemented
-- **THEN** it begins with characterization/architecture RED and completes one atomic ownership move with the required DB/FK/resources/Back/edit/modal/document/DI/Swift ABI/platform and quality evidence
-- **AND** the task remains unchecked until that evidence, strict OpenSpec, diff scope, and `./init.sh` are recorded without runtime/device overclaims.
+#### Scenario: Accepted playlists evidence remains bounded
+- **WHEN** the completed Task 5.2 boundary is referenced
+- **THEN** it retains its accepted implementation and evidence-closeout commits
+- **AND** it does not reopen OpenSpec 6.2 or infer runtime/device/visual behavior from retained automated evidence.
 
 ### Requirement: Approved migration non-goals remain bounded
 
@@ -79,6 +79,65 @@ Task 5.2 SHALL NOT redesign visuals/products, rewrite the state framework, add n
 #### Scenario: An implementation proposal stays within the approved move
 - **WHEN** a Task 5.2 implementation change is reviewed
 - **THEN** it changes ownership only and contains none of the prohibited redesign, module, package, database, playback, bridge, export, Swift, resource, or evidence-claim changes.
+
+### Requirement: Search is a callback-first unexported leaf feature
+
+Task 5.3 SHALL create exactly one unexported `:feature:search` with Android-KMP, JVM, `iosArm64`, and `iosSimulatorArm64` targets; one common implementation; Kotlin package and Android namespace `com.eterocell.rhythhaus.search`; and resource namespace `rhythhaus.feature.search.generated.resources`. It SHALL have no API split, Koin module, platform source, iOS export, Shared/core playback/database/platform/taglib/another-implementation/app edge, repository, empty state abstraction, or `feature/search/README.md`. Its `api` SHALL be only Library API plus public Compose runtime/UI requirements; core UI, Foundation, resources, and Miuix SHALL be implementation-only. Shared SHALL depend through exactly `implementation(projects.feature.search)`, SHALL NOT use `api`, and SHALL NOT export Search.
+
+Its only explicit-public, declaration-specific-KDoc boundary SHALL include this value-equal Shared-label declaration:
+
+```kotlin
+/**
+ * Shared-owned wording consumed by [SearchContent]. Value equality keeps unchanged
+ * labels stable across recomposition; callers provide already-localized text.
+ *
+ * @property title Search route title.
+ * @property clear Label for the query-clear action.
+ * @property nowPlaying Accessibility state for the current result.
+ */
+public data class SearchSharedLabels(
+    /** Search route title resolved by Shared. */
+    public val title: String,
+    /** Query-clear action label resolved by Shared. */
+    public val clear: String,
+    /** Current-result accessibility state resolved by Shared. */
+    public val nowPlaying: String,
+)
+```
+
+The other and final public declaration SHALL be:
+
+```kotlin
+@Composable
+public fun SearchContent(
+    libraryTracks: List<LibraryTrack>, currentTrackId: String?, isPlaying: Boolean,
+    labels: SearchSharedLabels, selectTrackLabel: @Composable (String) -> String,
+    selectionModeActive: Boolean, selectedTrackIds: Set<String>,
+    onStartSelection: (String) -> Unit, onToggleSelection: (String) -> Unit,
+    onVisibleTrackIdsChanged: (List<String>) -> Unit,
+    onScrollPositionChanged: (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
+    onPlayTrack: (orderedResults: List<LibraryTrack>, selectedTrack: LibraryTrack) -> Unit,
+    onDismiss: () -> Unit, playingIndicator: @Composable () -> Unit,
+    bottomContentPadding: Dp = 0.dp, modifier: Modifier = Modifier,
+)
+```
+
+No Shared/generated resource/playback controller or state/repository/Koin/platform/database/TagLib/queue type SHALL occur in that boundary. `selectTrackLabel` SHALL composably resolve Shared's `select_track_format` with structured Compose `stringResource` while Search composes a row; no generated resource handle crosses the boundary. `LibraryRoutes` SHALL compose `SearchContent` directly and delete Shared compatibility `SearchScreen` and unused `TagLibReader`. Shared SHALL retain route/Back, selection/reconciliation/clear, scroll storage, playback queue/restart/dismiss, bottom-bar/Now Playing policy, and `EqualizerStrip`; Search SHALL retain query/filter/render/focus/count/empty/row interaction. Search SHALL preserve blank-query no results; case-insensitive title/artist/album matching; order, duplicates, and empty metadata; and a private rendering-only LazyColumn occurrence identity of filtered occurrence index plus track ID, never `track.id` alone. It SHALL be unique without altering public `LibraryTrack`, selection IDs, visible-ID sequence, playback queue order, or duplicate semantics. Search SHALL focus exactly once; clear reset to blank; visible-ID emission only on sequence change; normal activation requesting ordered filtered playback; long press never playing; selection-mode row and checkbox each toggling once without playback; current-row highlight and Now Playing semantics; an indicator only for current+playing; and no artwork/error state. Search SHALL own exactly the five approved EN/ZH keys; Shared SHALL inject title/clear/Now Playing/composable select-track formatting without duplicate keys or resource handles. The approved design is [2026-08-07-search-feature-extraction-design.md](../../../../../docs/superpowers/specs/2026-08-07-search-feature-extraction-design.md).
+
+#### Scenario: Search ownership and behavior are verified
+- **WHEN** Task 5.3 is implemented
+- **THEN** feature production-composable tests cover Search behavior and the four moved mixed-suite cases, including two equal-ID occurrences rendering/activating distinctly with keys surviving unrelated recomposition and visible/playback callbacks preserving duplicate order, while real Shared route-adapter tests prove queue order, current-track restart, dismissal, and callback-failure ownership
+- **AND** RED/GREEN rejects an absent `:feature:search` module/target before registration with failure caused solely by absence; feature-to-Shared/core-playback/database/core-platform/taglib/another-implementation/app edges; Koin; iOS export; Shared `api` or exported Search exposure; wrong package/Android/resource namespace; a wrong Search resource-ownership control where a moved key is missing, duplicated, or owned by the wrong module, distinct from wrong namespace and generated-handle controls; resource duplicates/generated handles; and missing public KDoc/public-surface closure
+- **AND** supported-platform, architecture, quality, strict named OpenSpec, Xcode, and `./init.sh` evidence are recorded without runtime/device/visual claims.
+
+### Requirement: Task 6.3 remains executable and unchecked
+
+Task 6.3 SHALL remain unchecked until the complete Task 5.3 module, public-boundary, dependency, ownership, behavior, resource, test-split, RED/GREEN, and bounded-evidence requirements are accepted. The later executable plan SHALL own detailed exact paths and commands.
+
+#### Scenario: Pending Search acceptance is bounded
+- **WHEN** Task 6.3 is closed
+- **THEN** it records cross-platform, architecture, quality, strict OpenSpec, Xcode, and `./init.sh` evidence for one atomic direct-Shared-composition Search move
+- **AND** it does not infer runtime, device, visual, accessibility-device, playback-engine, desktop-launch, or iOS runtime-resource behavior.
 
 ### Requirement: Back behavior is preserved through modular moves
 

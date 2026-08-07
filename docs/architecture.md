@@ -64,6 +64,34 @@ The already-characterized immutable `PlaylistState`, `PlaylistStateAction`, redu
 `PlaylistStateOwner`, and backup immutable state/reducer are the Task 5.2-only equivalent and do
 not relax the architecture-wide Presenter/ViewModel rule for other stateful feature migrations.
 
+The approved Search migration creates one unexported `:feature:search` leaf module targeting
+Android-KMP/JVM/`iosArm64`/`iosSimulatorArm64`, with one common implementation, no API split, and
+no iOS export. Its Android namespace and Kotlin package are `com.eterocell.rhythhaus.search`; its
+resource namespace is `rhythhaus.feature.search.generated.resources`. Its only public declarations
+are explicit-public, declaration-specific-KDoc `SearchSharedLabels` and callback-first
+`SearchContent`: Library API tracks, primitive playback state, plain Shared labels and a composable
+selection-label formatter that resolves `select_track_format` through structured Compose
+`stringResource` during row composition without a generated resource handle, selection/visible-ID/
+scroll/play/dismiss callbacks, a playing-indicator slot, and
+only `Dp`/`Modifier` layout defaults. No Shared/generated-resource/playback-controller-or-state/
+queue/repository/Koin/platform/database/TagLib/other-implementation type is public. Library API
+and required Compose runtime/UI are public dependencies; core UI, Foundation, resources, and Miuix
+are implementation-only. Shared declares exactly `implementation(projects.feature.search)`, never
+`api`, and does not export Search. Search has no edge to Shared, core playback/database/platform,
+taglib, Koin, another implementation, app, or iOS export. `feature/search/README.md` is not part
+of this migration.
+
+Shared directly composes `SearchContent` from `LibraryRoutes` and remains the sole facade. It owns
+route/Back, selection reconciliation/clear, scroll storage, playback queue/restart/dismiss,
+bottom-bar/Now Playing policy, and `EqualizerStrip`; Search owns query/filter/render/focus/count/
+empty behavior and Search-row interaction. For duplicate IDs, Search uses only an internal
+rendering identity of filtered occurrence index plus track ID, never `track.id` alone; it does not
+alter `LibraryTrack`, selection IDs, visible-ID sequence, playback queue order, or duplicate
+semantics. Search owns exactly its five Search-only localized keys. Shared injects title, clear,
+Now Playing, and composable select-track formatting as values; no resource key duplication or
+generated handle crosses the boundary. The normative Search boundary is
+[the approved Search design](superpowers/specs/2026-08-07-search-feature-extraction-design.md).
+
 ## Contracts And Composition
 
 Every migration is contract-first: relocate an explicit stable contract before its

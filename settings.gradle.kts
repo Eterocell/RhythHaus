@@ -59,6 +59,8 @@ include(":feature:playlists:impl")
 
 include(":feature:nowplaying")
 
+include(":feature:search")
+
 include(":taglib")
 
 include(":architecture-processor")
