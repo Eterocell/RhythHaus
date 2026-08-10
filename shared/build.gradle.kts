@@ -80,6 +80,7 @@ kotlin {
             api(projects.feature.library.api)
             api(projects.feature.playlists.api)
             implementation(projects.feature.playlists.impl)
+            implementation(projects.feature.library.impl)
             implementation(projects.feature.nowplaying)
             implementation(projects.feature.search)
             implementation(projects.feature.settings)

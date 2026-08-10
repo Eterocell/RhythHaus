@@ -3959,3 +3959,7 @@ Output: package-preserving exact root ownership, declaration-indexed actual-depe
 Verification: focused TestKit 18-case RED/GREEN, full `:build-logic:convention:test`, `architectureCheck --configuration-cache --configuration-cache-problems=fail` twice with second-run reuse, `spotlessApply`, independent `spotlessCheck`, independent `detekt`, and `openspec validate feature-first-modularization --strict` passed.
 Next owner: Task 1.4 only, for explicitly scoped root/CI `architectureCheck` wiring.
 Blockers: none. Residual limitation: lexical declaration scanning deliberately avoids compiler internals; generated SQLDelight and Native cinterop handling is limited to their physical build artifacts.
+
+
+## Task 6.1 (Library-last extraction) — COMPLETE
+Implementation `741f5eb`, lineage `1c7ad37 -> c48f11d -> 741f5eb`, 109 paths. See final-acceptance report.

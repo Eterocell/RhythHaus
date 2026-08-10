@@ -15,7 +15,7 @@ public object ArchitectureAllowList {
             ":feature:nowplaying" to setOf(":core:playback", ":core:ui"),
             ":feature:search" to setOf(":feature:library:api", ":core:ui"),
             ":feature:settings" to setOf(":core:ui"),
-            ":feature:library:impl" to setOf(":feature:library:api"),
+            ":feature:library:impl" to setOf(":feature:library:api", ":core:model", ":core:ui", ":core:database", ":core:platform", ":taglib"),
             ":feature:playlists:impl" to setOf(":feature:playlists:api", ":feature:library:api", ":core:model", ":core:playback", ":core:ui", ":core:platform", ":core:database"),
             ":feature:library:api" to setOf(":core:model"),
             ":core:playback" to setOf(":core:model", ":core:platform"),
@@ -33,7 +33,15 @@ public object ArchitectureAllowList {
             ":core:playback" to ModulePolicy(setOf("com.eterocell.rhythhaus")),
             ":core:ui" to ModulePolicy(setOf("com.eterocell.rhythhaus.ui", "com.eterocell.rhythhaus.theme")),
             ":feature:library:api" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
-            ":feature:library:impl" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
+            ":feature:library:impl" to ModulePolicy(
+                packageRoots = setOf(
+                    "com.eterocell.rhythhaus.library",
+                    "com.eterocell.rhythhaus.library.impl",
+                    "com.eterocell.rhythhaus.library.ui",
+                ),
+                androidNamespace = "com.eterocell.rhythhaus.library.impl",
+                composeNamespace = "rhythhaus.feature.library.generated.resources",
+            ),
             ":feature:playlists:api" to ModulePolicy(setOf("com.eterocell.rhythhaus.library")),
             ":feature:playlists:impl" to ModulePolicy(
                 setOf(

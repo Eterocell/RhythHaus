@@ -7,6 +7,7 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
+import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.library.playlistsImplementationModule
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
@@ -196,7 +197,7 @@ private class PlaylistLifecycleHarness(
             events += "reconcile"
             afterCascade()
             controller.reconcileSession(
-                tracks.map(LibraryTrack::toPlayableTrack))
+                tracks.map { it.toPlayableTrack() })
             PlaybackSessionReconcileResult.Applied
         }
 
@@ -211,7 +212,7 @@ private object NoOpPlatformSourceAccess :
     com.eterocell.rhythhaus.library.PlatformSourceAccess {
     override fun scan(
         source: LibrarySource
-    ): Sequence<com.eterocell.rhythhaus.library.PlatformScanEvent> =
+    ): Sequence<com.eterocell.rhythhaus.library.impl.PlatformScanEvent> =
         emptySequence()
 }
 

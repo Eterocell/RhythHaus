@@ -46,7 +46,7 @@ private object TestPlatformSourceAccess :
     com.eterocell.rhythhaus.library.PlatformSourceAccess {
     override fun scan(
         source: LibrarySource
-    ): Sequence<com.eterocell.rhythhaus.library.PlatformScanEvent> =
+    ): Sequence<com.eterocell.rhythhaus.library.impl.PlatformScanEvent> =
         emptySequence()
 }
 

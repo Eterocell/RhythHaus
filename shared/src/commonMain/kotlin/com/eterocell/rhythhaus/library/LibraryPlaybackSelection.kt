@@ -4,6 +4,17 @@ import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.QueueOccurrence
 
+internal fun LibraryTrack.toPlayableTrack(): PlayableTrack =
+    PlayableTrack(
+        id = id,
+        title = title,
+        artist = artist,
+        album = album,
+        durationMillis = durationMillis,
+        source = audioSource,
+        artworkBytes = artworkBytes,
+    )
+
 internal fun selectLibraryTrackForPlayback(
     playbackController: PlaybackController,
     visibleQueue: List<PlayableTrack>,
@@ -33,3 +44,5 @@ internal fun selectOccurrenceForPlayback(
         playbackController.play()
     }
 }
+
+// Library extraction

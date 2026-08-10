@@ -23,6 +23,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.LibrarySnapshot
+import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus
@@ -322,7 +323,15 @@ class SearchRouteAdapterJvmTest {
             queue =
                 listOf(
                     QueueOccurrence(
-                        "current", track(trackId).toPlayableTrack())),
+                        "current",
+                        PlayableTrack(
+                            id = trackId,
+                            title = "song $trackId",
+                            artist = "Artist",
+                            album = "Album",
+                            durationMillis = 1,
+                            source = AudioSource.FilePath(trackId),
+                        ))),
             status = PlaybackStatus.Playing,
         )
 
@@ -384,3 +393,5 @@ class SearchRouteAdapterJvmTest {
             error("unused")
     }
 }
+
+// Library extraction

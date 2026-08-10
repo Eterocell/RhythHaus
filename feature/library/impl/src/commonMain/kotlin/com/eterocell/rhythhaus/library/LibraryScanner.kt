@@ -1,0 +1,216 @@
+package com.eterocell.rhythhaus.library
+
+import com.eterocell.rhythhaus.AudioSource
+import com.eterocell.rhythhaus.library.impl.AudioMetadataReader
+import com.eterocell.rhythhaus.library.impl.PlatformAudioScanner
+import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
+import com.eterocell.rhythhaus.library.impl.resolvePathForMetadata
+import kotlin.coroutines.cancellation.CancellationException
+
+/** Scans a library source into repository tracks, sessions, and errors. */
+class LibraryScanner(
+    private val repository: LibraryRepository,
+    private val platformScanner: PlatformAudioScanner,
+    private val metadataReader: AudioMetadataReader = AudioMetadataReader(),
+    private val now: () -> Long,
+    private val idFactory: (String) -> String,
+) {
+    /**
+     * Scans the given source and reports progress through [onProgress].
+     *
+     * @param source the library source to scan.
+     * @param isCancelled whether the caller requests cancellation.
+     * @param onProgress receives scan progress after each state change.
+     */
+    fun scan(
+        source: LibrarySource,
+        isCancelled: () -> Boolean = { false },
+        onProgress: (ScanProgress) -> Unit = {},
+    ): ScanSession {
+        val scanId = idFactory("scan")
+        var session =
+            ScanSession(
+                id = scanId,
+                sourceId = source.id,
+                status = ScanStatus.Scanning,
+                startedAtEpochMillis = now(),
+            )
+
+        repository.upsertSource(source)
+        repository.insertScanSession(session)
+        onProgress(ScanProgress(session = session))
+
+        return try {
+            for (event in platformScanner.scan(source)) {
+                if (isCancelled()) {
+                    if (event is PlatformScanEvent.AudioCandidate) {
+                        event.candidate.cleanupMetadataAudioSource?.invoke()
+                    }
+                    session = session.cancelled()
+                    repository.updateScanSession(session)
+                    onProgress(ScanProgress(session = session))
+                    return session
+                }
+
+                session =
+                    when (event) {
+                        is PlatformScanEvent.FolderVisited ->
+                            session.copy(
+                                foldersVisited = session.foldersVisited + 1,
+                            )
+
+                        is PlatformScanEvent.Skipped ->
+                            session.recordSkipped(scanId, event)
+
+                        is PlatformScanEvent.AudioCandidate ->
+                            session.importCandidate(scanId, event.candidate)
+                    }
+                repository.updateScanSession(session)
+                onProgress(
+                    ScanProgress(
+                        session = session, latestItem = event.displayPath))
+            }
+
+            if (isCancelled()) {
+                session = session.cancelled()
+            } else {
+                val completedAt = now()
+                session =
+                    session.copy(
+                        status = ScanStatus.Completed,
+                        completedAtEpochMillis = completedAt,
+                    )
+                repository.upsertSource(
+                    source.copy(lastScanAtEpochMillis = completedAt))
+            }
+            repository.updateScanSession(session)
+            onProgress(ScanProgress(session = session))
+            session
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (throwable: Throwable) {
+            session =
+                session.copy(
+                    status = ScanStatus.Failed,
+                    completedAtEpochMillis = now(),
+                    terminalMessage =
+                        throwable.message
+                            ?: throwable::class.simpleName
+                            ?: "Scan failed",
+                )
+            repository.updateScanSession(session)
+            onProgress(ScanProgress(session = session))
+            session
+        }
+    }
+
+    private val PlatformScanEvent.displayPath: String
+        get() =
+            when (this) {
+                is PlatformScanEvent.AudioCandidate -> candidate.displayPath
+                is PlatformScanEvent.FolderVisited -> displayPath
+                is PlatformScanEvent.Skipped -> displayPath
+            }
+
+    private fun ScanSession.recordSkipped(
+        scanId: String,
+        event: PlatformScanEvent.Skipped,
+    ): ScanSession {
+        repository.insertScanError(
+            ScanError(
+                id = idFactory("scan-error"),
+                scanId = scanId,
+                sourceLocalKey = event.sourceLocalKey,
+                displayPath = event.displayPath,
+                reason = event.reason,
+                recoverable = event.recoverable,
+                createdAtEpochMillis = now(),
+            ),
+        )
+        return copy(
+            filesVisited = filesVisited + 1,
+            filesSkipped = filesSkipped + 1,
+        )
+    }
+
+    private fun ScanSession.importCandidate(
+        scanId: String,
+        candidate: AudioScanCandidate,
+    ): ScanSession {
+        val track =
+            candidate.toLibraryTrack(
+                scanId = scanId,
+                timestamp = now(),
+                trackId = idFactory("track"),
+                metadataReader = metadataReader,
+            )
+        return when (repository.upsertTrack(track)) {
+            TrackUpsertResult.Added ->
+                copy(
+                    filesVisited = filesVisited + 1,
+                    tracksAdded = tracksAdded + 1,
+                )
+
+            TrackUpsertResult.Updated ->
+                copy(
+                    filesVisited = filesVisited + 1,
+                    tracksUpdated = tracksUpdated + 1,
+                )
+        }
+    }
+
+    private fun ScanSession.cancelled(): ScanSession =
+        copy(
+            status = ScanStatus.Cancelled,
+            completedAtEpochMillis = now(),
+            terminalMessage = "Scan cancelled",
+        )
+}
+
+private fun AudioScanCandidate.toLibraryTrack(
+    scanId: String,
+    timestamp: Long,
+    trackId: String,
+    metadataReader: AudioMetadataReader,
+): LibraryTrack {
+    val resolvedSource =
+        when (val source = metadataAudioSource) {
+            is AudioSource.FilePath ->
+                source.copy(path = resolvePathForMetadata(source.path))
+            is AudioSource.FileDescriptor -> source
+            is AudioSource.Uri -> source
+        }
+    val metadata =
+        try {
+            runCatching { metadataReader.read(resolvedSource) }.getOrNull()
+        } finally {
+            cleanupMetadataAudioSource?.invoke()
+        }
+    return LibraryTrack(
+        id = trackId,
+        sourceId = sourceId,
+        sourceLocalKey = sourceLocalKey,
+        audioSource = audioSource,
+        displayName = displayName,
+        title = metadata?.title ?: displayName.fallbackTitle(),
+        artist = metadata?.artist ?: "Local file",
+        album = metadata?.album ?: "Imported audio",
+        durationMillis = metadata?.durationMillis,
+        sizeBytes = sizeBytes,
+        modifiedAtEpochMillis = modifiedAtEpochMillis,
+        lastSeenScanId = scanId,
+        createdAtEpochMillis = timestamp,
+        updatedAtEpochMillis = timestamp,
+        trackNumber = metadata?.trackNumber,
+        discNumber = metadata?.discNumber,
+        artworkBytes = metadata?.artworkBytes,
+        artworkMimeType = metadata?.artworkMimeType,
+    )
+}
+
+private fun String.fallbackTitle(): String =
+    substringBeforeLast('.', missingDelimiterValue = this)
+        .replace('_', ' ')
+        .replace('-', ' ')
+        .trim()
+        .ifBlank { "Untitled audio" }

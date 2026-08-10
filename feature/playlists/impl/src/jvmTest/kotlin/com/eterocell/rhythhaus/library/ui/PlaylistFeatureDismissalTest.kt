@@ -153,7 +153,8 @@ class PlaylistFeatureDismissalTest {
                     entries =
                         listOf(
                             PlaylistEntry("entry", "playlist", "track", 0, 1)),
-                    libraryTracks = listOf(track()),
+                    playableTracksById =
+                        mapOf(playableTrack().id to playableTrack()),
                     state =
                         PlaylistState(
                             confirmedSnapshot =
@@ -530,7 +531,8 @@ class PlaylistFeatureDismissalTest {
                             listOf(
                                 PlaylistEntry(
                                     "entry", "playlist", "track", 0, 1)),
-                        libraryTracks = listOf(track()),
+                        playableTracksById =
+                            mapOf(playableTrack().id to playableTrack()),
                         state =
                             PlaylistState(
                                 confirmedSnapshot =
@@ -607,6 +609,16 @@ class PlaylistFeatureDismissalTest {
             lastSeenScanId = "scan",
             createdAtEpochMillis = 1,
             updatedAtEpochMillis = 1,
+        )
+
+    private fun playableTrack(id: String = "track", title: String = "Track") =
+        PlayableTrack(
+            id = id,
+            title = title,
+            artist = "Artist",
+            album = "Album",
+            durationMillis = 1_000,
+            source = AudioSource.FilePath("/$id"),
         )
 
     private class RecordingPublisher : PlaylistFeatureDismissalPublisher {
@@ -691,3 +703,5 @@ class PlaylistFeatureDismissalTest {
                 registrations.values.lastOrNull { it.dismissal == target })
     }
 }
+
+// Library extraction

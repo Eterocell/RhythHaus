@@ -15,6 +15,11 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.library.ui.LibrarySharedLabels
+import com.eterocell.rhythhaus.library.ui.TrackRow
+import com.eterocell.rhythhaus.library.ui.TrackRowActivation
+import com.eterocell.rhythhaus.library.ui.TrackRowGesture
+import com.eterocell.rhythhaus.library.ui.trackRowActivation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -57,6 +62,8 @@ class TrackSelectionSemanticsJvmTest {
                     isNowPlaying = false,
                     selectionModeActive = false,
                     isSelected = false,
+                    labels = labels(),
+                    artworkLoader = { null },
                     onPlay = { playCount += 1 },
                     onToggleSelection = {},
                     onStartSelection = { selectionStartCount += 1 },
@@ -92,6 +99,8 @@ class TrackSelectionSemanticsJvmTest {
                 isNowPlaying = true,
                 selectionModeActive = true,
                 isSelected = true,
+                labels = labels(),
+                artworkLoader = { null },
                 onPlay = {},
                 onToggleSelection = {},
                 onStartSelection = {},
@@ -129,6 +138,8 @@ class TrackSelectionSemanticsJvmTest {
                     isNowPlaying = false,
                     selectionModeActive = true,
                     isSelected = false,
+                    labels = labels(),
+                    artworkLoader = { null },
                     onPlay = { playCount += 1 },
                     onToggleSelection = { toggleCount += 1 },
                     onStartSelection = {},
@@ -163,6 +174,8 @@ class TrackSelectionSemanticsJvmTest {
                     isNowPlaying = false,
                     selectionModeActive = true,
                     isSelected = false,
+                    labels = labels(),
+                    artworkLoader = { null },
                     onPlay = { playCount += 1 },
                     onToggleSelection = { toggleCount += 1 },
                     onStartSelection = {},
@@ -186,5 +199,21 @@ class TrackSelectionSemanticsJvmTest {
             durationSeconds = 180,
             accent = TrackAccent(0xFF000000, 0xFFFFFFFF),
             source = AudioSource.FilePath("song.mp3"),
+        )
+
+    private fun labels(): LibrarySharedLabels =
+        LibrarySharedLabels(
+            addMusicFolder = "Add music folder",
+            folderPickerUnavailable = "Folder picker unavailable",
+            clearLibrary = "Clear library",
+            cancel = "Cancel",
+            playlists = "Playlists",
+            playlistsAccessibility = "Open playlists",
+            libraryQueue = "Library queue",
+            albumArt = "Album art",
+            albumArtwork = "Album artwork",
+            nowPlayingBadge = "Now playing",
+            selectTrack = { title -> "Select $title" },
+            trackArtistAlbum = { artist, album -> "$artist · $album" },
         )
 }

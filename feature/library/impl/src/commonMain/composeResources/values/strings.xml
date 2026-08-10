@@ -1,0 +1,23 @@
+<resources>
+    <string name="folder_picker_error_access">Could not access selected folder</string>
+    <string name="folder_picker_error_select">Could not select music folder</string>
+    <string name="folder_picker_error_prepare">Could not prepare the app-local music folder</string>
+    <string name="folder_picker_no_folder_selected">No folder selected</string>
+    <string name="unknown_artist">Unknown artist</string>
+    <string name="artist_artwork">Artist artwork</string>
+    <string name="album_accessibility_format">Album %1$s</string>
+    <string name="artist_accessibility_format">Artist %1$s</string>
+    <string name="album_track_count_format">%1$d albums · %2$d tracks</string>
+    <string name="track_count_format">%1$d tracks</string>
+    <string name="album_detail_subtitle_format">%1$d tracks · %2$s</string>
+    <string name="artist_detail_subtitle_format">%1$d albums · %2$d tracks</string>
+    <string name="artist_album_tracks_format">%1$s · %2$d tracks</string>
+    <string name="browse_mode_albums">Albums</string>
+    <string name="browse_mode_artists">Artists</string>
+    <string name="browse_mode_songs">Songs</string>
+    <string name="scanning">Scanning…</string>
+    <string name="scan_progress_format">%1$d folders • %2$d files • %3$d tracks</string>
+    <string name="import_card_title">Add music folder</string>
+    <string name="import_card_title_with_tracks">Manage music folders</string>
+    <string name="import_card_description">Choose a music folder on this device to build your local library.</string>
+</resources>

@@ -9,12 +9,10 @@ tasks.withType<Test>().configureEach {
         ->
         systemProperty("rhythhaus.aabProbeFile", probeFile)
     }
-    providers
-        .gradleProperty("rhythhaus.architectureProcessorJar")
+    providers.gradleProperty("rhythhaus.architectureProcessorJar")
+        .orElse(providers.provider { System.getProperty("rhythhaus.architectureProcessorJar") })
         .orNull
-        ?.let { processorJar ->
-            systemProperty("rhythhaus.architectureProcessorJar", processorJar)
-        }
+        ?.let { processorJar -> systemProperty("rhythhaus.architectureProcessorJar", processorJar) }
 }
 
 gradlePlugin {

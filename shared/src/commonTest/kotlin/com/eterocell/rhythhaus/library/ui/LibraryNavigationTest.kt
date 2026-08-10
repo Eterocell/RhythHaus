@@ -5,6 +5,9 @@ import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.ui.BrowseMode
+import com.eterocell.rhythhaus.library.ui.DrillDownAction
+import com.eterocell.rhythhaus.library.ui.dispatchDrillDownAction
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -278,31 +281,27 @@ class LibraryNavigationTest {
     fun drillDownRowDispatchesOnlyTrackSelectionWithSelectedTrack() {
         val selectedTrack = testTrack(id = "selected")
         val selectedTracks = mutableListOf<Track>()
-        var transportToggleCount = 0
 
         dispatchDrillDownAction(
             action = DrillDownAction.SelectTrack(selectedTrack),
-            onTrackClick = { selectedTracks.add(it) },
-            onPlayPause = { transportToggleCount += 1 },
+            onPlayTrack = { _, track -> selectedTracks.add(track) },
+            orderedTracks = listOf(selectedTrack),
         )
 
         assertEquals(listOf(selectedTrack), selectedTracks)
-        assertEquals(0, transportToggleCount)
     }
 
     @Test
-    fun drillDownTransportDispatchesOnlyPlayPause() {
+    fun drillDownTransportToggleDispatchesNoPlayback() {
         val selectedTracks = mutableListOf<Track>()
-        var transportToggleCount = 0
 
         dispatchDrillDownAction(
             action = DrillDownAction.ToggleTransport,
-            onTrackClick = { selectedTracks.add(it) },
-            onPlayPause = { transportToggleCount += 1 },
+            onPlayTrack = { _, track -> selectedTracks.add(track) },
+            orderedTracks = emptyList(),
         )
 
         assertTrue(selectedTracks.isEmpty())
-        assertEquals(1, transportToggleCount)
     }
 
     @Test

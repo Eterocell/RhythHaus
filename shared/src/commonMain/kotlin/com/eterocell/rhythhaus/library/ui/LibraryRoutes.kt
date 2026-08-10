@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.LibrarySource
@@ -35,6 +36,13 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.sourceMutationsAllowed
+import com.eterocell.rhythhaus.library.ui.DrillDownMiuixScrollChrome
+import com.eterocell.rhythhaus.library.ui.DrillDownView
+import com.eterocell.rhythhaus.library.ui.EqualizerStrip
+import com.eterocell.rhythhaus.library.ui.LibraryDetailSummary
+import com.eterocell.rhythhaus.library.ui.LibrarySelectionPage
+import com.eterocell.rhythhaus.library.ui.ScanningCard
+import com.eterocell.rhythhaus.library.ui.rememberMiuixTopAppBarScrollBehavior
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsHost
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsLabels
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
@@ -46,17 +54,14 @@ import com.eterocell.rhythhaus.settings.SettingsAboutScreen
 import com.eterocell.rhythhaus.settings.SettingsScreen
 import com.eterocell.rhythhaus.settings.SettingsSharedLabels
 import com.eterocell.rhythhaus.settings.SettingsSourceItem
-import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
-import com.eterocell.rhythhaus.toPlayableTrack
+import com.eterocell.rhythhaus.library.toPlayableTrack
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.add_music_folder
-import rhythhaus.shared.generated.resources.album_detail_subtitle_format
-import rhythhaus.shared.generated.resources.artist_detail_subtitle_format
 import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.clear
 import rhythhaus.shared.generated.resources.clear_library
@@ -73,7 +78,6 @@ import rhythhaus.shared.generated.resources.remove
 import rhythhaus.shared.generated.resources.search
 import rhythhaus.shared.generated.resources.select_track_format
 import rhythhaus.shared.generated.resources.settings
-import rhythhaus.shared.generated.resources.unknown_artist
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -232,6 +236,7 @@ internal fun LibraryRouteOverlays(
                                 filesVisited = session.filesVisited,
                                 tracksAdded = session.tracksAdded,
                                 latestItem = scanProgress.latestItem,
+                                labels = librarySharedLabels(),
                                 onCancel = onCancelScan,
                             )
                         }
@@ -386,20 +391,42 @@ internal fun playSearchTrack(
 ) {
     selectLibraryTrackForPlayback(
         playbackController = playbackController,
-        visibleQueue = orderedResults.map(LibraryTrack::toPlayableTrack),
+        visibleQueue = orderedResults.map { it.toPlayableTrack() },
         selectedTrackId = selectedTrack.id,
     )
     onDismiss()
 }
 
+/**
+ * Resolves the ordered album track sequence for a detail route, matching the
+ * feature's internal grouping order (disc, track, lowercase title).
+ */
+private fun albumDetailTracks(tracks: List<Track>, album: String): List<Track> =
+    tracks
+        .filter { it.album == album }
+        .sortedWith(
+            compareBy<Track> { it.discNumber ?: 0 }
+                .thenBy { it.trackNumber ?: 0 }
+                .thenBy { it.title.lowercase() })
+
+/**
+ * Resolves the ordered artist track sequence for a detail route, matching the
+ * feature's internal grouping order (disc, track, lowercase title).
+ */
+private fun artistDetailTracks(tracks: List<Track>, artist: String): List<Track> =
+    tracks
+        .filter { it.artist == artist }
+        .sortedWith(
+            compareBy<Track> { it.discNumber ?: 0 }
+                .thenBy { it.trackNumber ?: 0 }
+                .thenBy { it.title.lowercase() })
+
 @Composable
 internal fun LibraryRouteContent(
     route: LibraryRoute,
-    albums: List<AlbumGroup>,
-    artists: List<ArtistGroup>,
+    tracks: List<Track>,
     snapshot: LibrarySnapshot,
     libraryTracks: List<LibraryTrack>,
-    tagLibReader: TagLibReader,
     playbackController: PlaybackController,
     playbackState: PlaybackState,
     playlistRepository: PlaylistRepository,
@@ -423,6 +450,7 @@ internal fun LibraryRouteContent(
     onShowSettings: () -> Unit,
     onShowSearch: () -> Unit,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit,
+    artworkLoader: suspend (String) -> ByteArray?,
     homeContent: @Composable ((LibraryRoute) -> Unit) -> Unit,
     trackSelectionState: TrackSelectionState = TrackSelectionState(),
     onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
@@ -434,91 +462,137 @@ internal fun LibraryRouteContent(
         PlaylistFeatureDestination(playlistDestinationId.instanceToken)
     val playlistDismissalPublisher =
         featureDismissalPublisher(playlistDestinationId, registerBackSurface)
+    val playableTracksById =
+        remember(libraryTracks) {
+            libraryTracks.associate { it.id to it.toPlayableTrack() }
+        }
     when (route) {
         is LibraryRoute.AlbumDetail -> {
-            val album = albums.firstOrNull { it.album == route.album }
-            if (album == null) {
+            val albumTracks = albumDetailTracks(tracks, route.album)
+            if (albumTracks.isEmpty()) {
                 LaunchedEffect(route) { onBack() }
                 Box(modifier = Modifier.fillMaxSize())
             } else {
-                val albumTracks = album.tracks
-                val selectedAlbumTrackId by
-                    remember(album.album) {
-                        mutableStateOf(albumTracks.firstOrNull()?.id)
-                    }
-                val selectedAlbumTrack =
-                    albumTracks.firstOrNull { it.id == selectedAlbumTrackId }
-                        ?: albumTracks.firstOrNull()
                 DrillDownView(
-                    title = album.album,
-                    subtitle =
-                        stringResource(
-                            Res.string.album_detail_subtitle_format,
-                            albumTracks.size,
-                            album.artist
-                                ?: stringResource(Res.string.unknown_artist)),
+                    title = route.album,
+                    summary =
+                        LibraryDetailSummary.Album(
+                            trackCount = albumTracks.size,
+                            artist = albumTracks.firstOrNull()?.artist,
+                        ),
                     tracks = albumTracks,
                     topBarArtworkTrack = albumTracks.firstOrNull(),
-                    selectedTrack = selectedAlbumTrack,
-                    playbackState = playbackState,
-                    playbackController = playbackController,
-                    tagLibReader = tagLibReader,
-                    libraryTracks = libraryTracks,
+                    currentTrackId = playbackState.currentTrack?.id,
+                    selectionPage = LibrarySelectionPage.Album(route.album),
+                    selectionModeActive =
+                        trackSelectionState.pageKey ==
+                            TrackSelectionPageKey.Album(route.album) &&
+                            trackSelectionState.selectedTrackIds.isNotEmpty(),
+                    selectedTrackIds =
+                        if (trackSelectionState.pageKey ==
+                            TrackSelectionPageKey.Album(route.album))
+                            trackSelectionState.selectedTrackIds
+                        else emptySet(),
+                    labels = librarySharedLabels(),
+                    artworkLoader = artworkLoader,
                     onBack = onBack,
-                    onTrackClick = { track ->
-                        onTrackSelected(track.id)
-                        onTrackClickFromTracks(albumTracks, track)
+                    onPlayTrack = { orderedTracks, selectedTrack ->
+                        onTrackSelected(selectedTrack.id)
+                        onTrackClickFromTracks(orderedTracks, selectedTrack)
                     },
-                    onPlayPause = playbackController::togglePlayPause,
-                    selectionPageKey = TrackSelectionPageKey.Album(album.album),
-                    trackSelectionState = trackSelectionState,
-                    onTrackSelectionAction = onTrackSelectionAction,
+                    onToggleSelection = { trackId ->
+                        onTrackSelectionAction(
+                            TrackSelectionAction.Toggle(
+                                TrackSelectionPageKey.Album(route.album),
+                                trackId,
+                            ),
+                        )
+                    },
+                    onStartSelection = { trackId ->
+                        onTrackSelectionAction(
+                            TrackSelectionAction.Start(
+                                TrackSelectionPageKey.Album(route.album),
+                                trackId,
+                            ),
+                        )
+                    },
+                    onVisibleTrackIdsChanged = { ids ->
+                        onTrackSelectionAction(
+                            TrackSelectionAction.ReconcileVisible(
+                                TrackSelectionPageKey.Album(route.album), ids))
+                    },
+                    onScrollPositionChanged = { index, offset ->
+                        onScrollPositionChanged(
+                            LibraryScrollPosition(index, offset))
+                    },
                     bottomContentPadding = bottomContentPadding,
-                    onScrollPositionChanged = onScrollPositionChanged,
                 )
             }
         }
 
         is LibraryRoute.ArtistDetail -> {
-            val artist = artists.firstOrNull { it.artist == route.artist }
-            if (artist == null) {
+            val artistTracks = artistDetailTracks(tracks, route.artist)
+            if (artistTracks.isEmpty()) {
                 LaunchedEffect(route) { onBack() }
                 Box(modifier = Modifier.fillMaxSize())
             } else {
-                val artistTracks = artist.tracks
-                val selectedArtistTrackId by
-                    remember(artist.artist) {
-                        mutableStateOf(artistTracks.firstOrNull()?.id)
-                    }
-                val selectedArtistTrack =
-                    artistTracks.firstOrNull { it.id == selectedArtistTrackId }
-                        ?: artistTracks.firstOrNull()
                 DrillDownView(
-                    title = artist.artist,
-                    subtitle =
-                        stringResource(
-                            Res.string.artist_detail_subtitle_format,
-                            artist.albumCount,
-                            artistTracks.size),
+                    title = route.artist,
+                    summary =
+                        LibraryDetailSummary.Artist(
+                            albumCount =
+                                artistTracks.map { it.album }.distinct().size,
+                            trackCount = artistTracks.size,
+                        ),
                     tracks = artistTracks,
                     topBarArtworkTrack = artistTracks.firstOrNull(),
-                    selectedTrack = selectedArtistTrack,
-                    playbackState = playbackState,
-                    playbackController = playbackController,
-                    tagLibReader = tagLibReader,
-                    libraryTracks = libraryTracks,
+                    currentTrackId = playbackState.currentTrack?.id,
+                    selectionPage = LibrarySelectionPage.Artist(route.artist),
+                    selectionModeActive =
+                        trackSelectionState.pageKey ==
+                            TrackSelectionPageKey.Artist(route.artist) &&
+                            trackSelectionState.selectedTrackIds.isNotEmpty(),
+                    selectedTrackIds =
+                        if (trackSelectionState.pageKey ==
+                            TrackSelectionPageKey.Artist(route.artist))
+                            trackSelectionState.selectedTrackIds
+                        else emptySet(),
+                    labels = librarySharedLabels(),
+                    artworkLoader = artworkLoader,
                     onBack = onBack,
-                    onTrackClick = { track ->
-                        onTrackSelected(track.id)
-                        onTrackClickFromTracks(artistTracks, track)
+                    onPlayTrack = { orderedTracks, selectedTrack ->
+                        onTrackSelected(selectedTrack.id)
+                        onTrackClickFromTracks(orderedTracks, selectedTrack)
                     },
-                    onPlayPause = playbackController::togglePlayPause,
-                    selectionPageKey =
-                        TrackSelectionPageKey.Artist(artist.artist),
-                    trackSelectionState = trackSelectionState,
-                    onTrackSelectionAction = onTrackSelectionAction,
+                    onToggleSelection = { trackId ->
+                        onTrackSelectionAction(
+                            TrackSelectionAction.Toggle(
+                                TrackSelectionPageKey.Artist(route.artist),
+                                trackId,
+                            ),
+                        )
+                    },
+                    onStartSelection = { trackId ->
+                        onTrackSelectionAction(
+                            TrackSelectionAction.Start(
+                                TrackSelectionPageKey.Artist(route.artist),
+                                trackId,
+                            ),
+                        )
+                    },
+                    onVisibleTrackIdsChanged = { ids ->
+                        onTrackSelectionAction(
+                            TrackSelectionAction.ReconcileVisible(
+                                TrackSelectionPageKey.Artist(route.artist),
+                                ids,
+                            ),
+                        )
+                    },
+                    onScrollPositionChanged = { index, offset ->
+                        onScrollPositionChanged(
+                            LibraryScrollPosition(index, offset))
+                    },
                     bottomContentPadding = bottomContentPadding,
-                    onScrollPositionChanged = onScrollPositionChanged,
                 )
             }
         }
@@ -584,7 +658,7 @@ internal fun LibraryRouteContent(
                         entries =
                             playlistState.confirmedSnapshot.entries(
                                 resolution.playlist.id),
-                        libraryTracks = libraryTracks,
+                        playableTracksById = playableTracksById,
                         state = playlistState,
                         destination = playlistDestination,
                         appearanceSource = playlistAppearanceSource,
@@ -685,7 +759,7 @@ internal fun PlaylistDetailRouteResolutionEffect(
 internal fun PlaylistDetailRouteContent(
     playlist: PlaylistSummary,
     entries: List<PlaylistEntry>,
-    libraryTracks: List<LibraryTrack>,
+    playableTracksById: Map<String, PlayableTrack>,
     state: PlaylistState,
     destination: PlaylistFeatureDestination,
     appearanceSource: PlaylistFeatureAppearanceSource,
@@ -706,7 +780,7 @@ internal fun PlaylistDetailRouteContent(
     PlaylistDetailScreen(
         playlist = playlist,
         entries = entries,
-        libraryTracks = libraryTracks,
+        playableTracksById = playableTracksById,
         state = state,
         destination = destination,
         appearanceSource = appearanceSource,
@@ -743,6 +817,7 @@ private fun PlaylistRoutePlaceholder(
             title = title,
             onBack = onBack,
             backdrop = null,
+            modifier = Modifier,
         )
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),

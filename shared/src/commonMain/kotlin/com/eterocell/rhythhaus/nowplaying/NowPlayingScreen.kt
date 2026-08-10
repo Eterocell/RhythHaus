@@ -7,7 +7,7 @@ import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.taglib.TagLibReader
-import com.eterocell.rhythhaus.ui.LocalTrackArtworkLoader
+import com.eterocell.rhythhaus.library.ui.LocalTrackArtworkLoader
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.album_artwork

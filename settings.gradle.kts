@@ -53,6 +53,8 @@ include(":core:playback")
 
 include(":feature:library:api")
 
+include(":feature:library:impl")
+
 include(":feature:playlists:api")
 
 include(":feature:playlists:impl")

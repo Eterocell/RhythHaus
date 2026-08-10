@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -58,7 +59,12 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.TrackArtwork
+import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
+import com.eterocell.rhythhaus.library.ui.BrowseMode
+import com.eterocell.rhythhaus.library.ui.LibraryHomeContent
+import com.eterocell.rhythhaus.library.ui.LibrarySharedLabels
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarLabels
 import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
@@ -76,17 +82,81 @@ import kotlinx.coroutines.Job
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.adaptive_detail_placeholder
+import rhythhaus.shared.generated.resources.add_music_folder
 import rhythhaus.shared.generated.resources.album_art
+import rhythhaus.shared.generated.resources.album_artwork
+import rhythhaus.shared.generated.resources.cancel
+import rhythhaus.shared.generated.resources.clear_library
+import rhythhaus.shared.generated.resources.folder_picker_unavailable
 import rhythhaus.shared.generated.resources.library
+import rhythhaus.shared.generated.resources.library_queue
+import rhythhaus.shared.generated.resources.now_playing_badge
 import rhythhaus.shared.generated.resources.pause
 import rhythhaus.shared.generated.resources.play
+import rhythhaus.shared.generated.resources.playlists
+import rhythhaus.shared.generated.resources.playlists_accessibility
 import rhythhaus.shared.generated.resources.search
+import rhythhaus.shared.generated.resources.select_track_format
 import rhythhaus.shared.generated.resources.settings
 import rhythhaus.shared.generated.resources.track_artist_album_format
 import top.yukonga.miuix.kmp.basic.Surface
 
 internal const val NowPlayingShellPlacementTestTag = "NowPlayingShellPlacement"
 internal const val SelectionShellPlacementTestTag = "SelectionShellPlacement"
+
+/**
+ * Shared composition-local artwork loader resolving artwork for a track ID.
+ * App provides it once from the repository; the bottom bar and Now Playing
+ * adapters consume it while feature leaves receive their own loader callback.
+ */
+internal val LocalTrackArtworkLoader =
+    staticCompositionLocalOf<suspend (String) -> TrackArtwork?> { { null } }
+
+/** Shared-owned localized wording for the feature library composables. */
+@Composable
+internal fun librarySharedLabels(): LibrarySharedLabels =
+    LibrarySharedLabels(
+        addMusicFolder = stringResource(Res.string.add_music_folder),
+        folderPickerUnavailable =
+            stringResource(Res.string.folder_picker_unavailable),
+        clearLibrary = stringResource(Res.string.clear_library),
+        cancel = stringResource(Res.string.cancel),
+        playlists = stringResource(Res.string.playlists),
+        playlistsAccessibility =
+            stringResource(Res.string.playlists_accessibility),
+        libraryQueue = stringResource(Res.string.library_queue),
+        albumArt = stringResource(Res.string.album_art),
+        albumArtwork = stringResource(Res.string.album_artwork),
+        nowPlayingBadge = stringResource(Res.string.now_playing_badge),
+        selectTrack = { title ->
+            stringResource(Res.string.select_track_format, title)
+        },
+        trackArtistAlbum = { artist, album ->
+            stringResource(Res.string.track_artist_album_format, artist, album)
+        },
+    )
+
+private fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition =
+    LibraryScrollPosition(
+        firstVisibleItemIndex = firstVisibleItemIndex,
+        firstVisibleItemScrollOffset = firstVisibleItemScrollOffset,
+    )
+
+/**
+ * Applies a home browse-mode change, clearing the songs selection through the
+ * route-change reducer exactly when leaving the songs browse mode.
+ */
+internal fun dispatchHomeBrowseModeChange(
+    currentMode: BrowseMode,
+    nextMode: BrowseMode,
+    onTrackSelectionAction: (TrackSelectionAction) -> Unit,
+    onBrowseModeChange: (BrowseMode) -> Unit,
+) {
+    if (currentMode == BrowseMode.Songs && nextMode != BrowseMode.Songs) {
+        onTrackSelectionAction(TrackSelectionAction.RouteChanged(null))
+    }
+    onBrowseModeChange(nextMode)
+}
 
 /**
  * The shell-owned callbacks for one rendered playlist detail navigation entry.
@@ -173,7 +243,6 @@ fun LibraryHomeScreen(
     val selectedTrack =
         snapshot.tracks.firstOrNull { it.id == appState.selectedTrackId }
             ?: snapshot.tracks.firstOrNull()
-    val homeListState = rememberLazyListState()
     val expandProgress = remember { Animatable(0f) }
     var screenHeightPx by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(appState.showNowPlaying) {
@@ -181,9 +250,21 @@ fun LibraryHomeScreen(
         expandProgress.animateTo(target, tween(300))
     }
     val albums =
-        remember(snapshot.tracks) { groupTracksByAlbum(snapshot.tracks) }
+        remember(snapshot.tracks) {
+            snapshot.tracks.sortedWith(
+                compareBy<Track> { it.discNumber ?: 0 }
+                    .thenBy { it.trackNumber ?: 0 }
+                    .thenBy { it.title.lowercase() },
+            )
+        }
     val artists =
-        remember(snapshot.tracks) { groupTracksByArtist(snapshot.tracks) }
+        remember(snapshot.tracks) {
+            snapshot.tracks.sortedWith(
+                compareBy<Track> { it.discNumber ?: 0 }
+                    .thenBy { it.trackNumber ?: 0 }
+                    .thenBy { it.title.lowercase() },
+            )
+        }
     var trackSelectionState by remember {
         mutableStateOf(TrackSelectionState())
     }
@@ -200,6 +281,7 @@ fun LibraryHomeScreen(
             isNowPlayingVisible = appState.isNowPlayingBarVisible,
         )
     val density = LocalDensity.current
+    val artworkLoader = LocalTrackArtworkLoader.current
     val activeBottomBarClearance =
         with(density) {
             activeBottomBarClearancePx(bottomBarContent, bottomBarMeasurement)
@@ -260,15 +342,11 @@ fun LibraryHomeScreen(
                     snapshot.tracks.map(Track::id)
                 is TrackSelectionPageKey.Album ->
                     albums
-                        .firstOrNull { it.album == pageKey.album }
-                        ?.tracks
-                        .orEmpty()
+                        .filter { it.album == pageKey.album }
                         .map(Track::id)
                 is TrackSelectionPageKey.Artist ->
                     artists
-                        .firstOrNull { it.artist == pageKey.artist }
-                        ?.tracks
-                        .orEmpty()
+                        .filter { it.artist == pageKey.artist }
                         .map(Track::id)
                 TrackSelectionPageKey.Search -> searchVisibleTrackIds
             }
@@ -313,12 +391,6 @@ fun LibraryHomeScreen(
 
     val previousEntry = navigationEventBackHandler.routePreview()?.incomingEntry
 
-    LaunchedEffect(
-        homeListState.firstVisibleItemIndex,
-        homeListState.firstVisibleItemScrollOffset) {
-            appState.updateNowPlayingBarVisibilityForScroll(
-                homeListState.toLibraryScrollPosition())
-        }
     fun selectTrackFromTracks(tracks: List<Track>, track: Track) {
         selectLibraryTrackForPlayback(
             playbackController = playbackController,
@@ -384,11 +456,9 @@ fun LibraryHomeScreen(
         val route = entry.route
         LibraryRouteContent(
             route = route,
-            albums = albums,
-            artists = artists,
+            tracks = snapshot.tracks,
             snapshot = snapshot,
             libraryTracks = libraryTracks,
-            tagLibReader = tagLibReader,
             playbackController = playbackController,
             playbackState = playbackState,
             playlistRepository = playlistRepository,
@@ -420,37 +490,78 @@ fun LibraryHomeScreen(
             onShowSearch = { pushRoute(LibraryRoute.Search) },
             onScrollPositionChanged =
                 appState::updateNowPlayingBarVisibilityForScroll,
+            artworkLoader = { id -> artworkLoader(id)?.bytes },
             trackSelectionState = trackSelectionState,
             onTrackSelectionAction = ::dispatchTrackSelection,
             bottomContentPadding = activeBottomBarClearance,
             homeContent = { onOpenDetailRoute ->
                 LibraryHomeContent(
-                    snapshot = snapshot,
-                    albums = albums,
-                    artists = artists,
+                    title = snapshot.title,
+                    subtitle = snapshot.subtitle,
+                    tracks = snapshot.tracks,
                     browseMode = appState.browseMode,
-                    homeListState = homeListState,
                     folderPickerLauncher = folderPickerLauncher,
                     sourcePickerActionVisible = sourcePickerActionVisible,
                     importMessage = importMessage,
                     scanProgress = scanProgress,
-                    scanJob = scanJob,
-                    selectedTrackId = appState.selectedTrackId,
-                    playbackController = playbackController,
+                    mutationsEnabled =
+                        emptyLibrarySourceMutationsAllowed(
+                            isProgressActive = scanProgress?.isActive == true,
+                            isJobActive = scanJob?.isActive == true,
+                        ),
+                    currentTrackId = playbackState.currentTrack?.id,
+                    selectionModeActive =
+                        trackSelectionState.pageKey ==
+                            TrackSelectionPageKey.HomeSongs &&
+                            trackSelectionState.selectedTrackIds.isNotEmpty(),
+                    selectedTrackIds =
+                        if (trackSelectionState.pageKey ==
+                            TrackSelectionPageKey.HomeSongs)
+                            trackSelectionState.selectedTrackIds
+                        else emptySet(),
+                    labels = librarySharedLabels(),
                     homeBackdrop = rememberRhythHausBackdrop(),
-                    onBrowseModeChange = appState::setBrowseMode,
+                    artworkLoader = { id -> artworkLoader(id)?.bytes },
+                    onBrowseModeChange = { next ->
+                        dispatchHomeBrowseModeChange(
+                            appState.browseMode,
+                            next,
+                            ::dispatchTrackSelection,
+                            appState::setBrowseMode,
+                        )
+                    },
                     onClearLibrary = onClearLibrary,
                     onCancelScan = onCancelScan,
-                    onOpenDetailRoute = onOpenDetailRoute,
-                    onShowPlaylists = { pushRoute(LibraryRoute.PlaylistHub) },
-                    onAddToPlaylist = { trackId ->
-                        onPlaylistStateAction(
-                            PlaylistStateAction.OpenPicker(
-                                PlaylistPickerState(listOf(trackId))))
+                    onOpenAlbum = { album ->
+                        onOpenDetailRoute(LibraryRoute.AlbumDetail(album))
                     },
-                    onTrackSelected = appState::setSelectedTrackId,
-                    trackSelectionState = trackSelectionState,
-                    onTrackSelectionAction = ::dispatchTrackSelection,
+                    onOpenArtist = { artist ->
+                        onOpenDetailRoute(LibraryRoute.ArtistDetail(artist))
+                    },
+                    onShowPlaylists = { pushRoute(LibraryRoute.PlaylistHub) },
+                    onPlayTrack = { orderedTracks, selectedTrack ->
+                        appState.setSelectedTrackId(selectedTrack.id)
+                        selectTrackFromTracks(orderedTracks, selectedTrack)
+                    },
+                    onToggleSelection = { id ->
+                        dispatchTrackSelection(
+                            TrackSelectionAction.Toggle(
+                                TrackSelectionPageKey.HomeSongs, id))
+                    },
+                    onStartSelection = { id ->
+                        dispatchTrackSelection(
+                            TrackSelectionAction.Start(
+                                TrackSelectionPageKey.HomeSongs, id))
+                    },
+                    onVisibleTrackIdsChanged = { ids ->
+                        dispatchTrackSelection(
+                            TrackSelectionAction.ReconcileVisible(
+                                TrackSelectionPageKey.HomeSongs, ids))
+                    },
+                    onScrollPositionChanged = { index, offset ->
+                        appState.updateNowPlayingBarVisibilityForScroll(
+                            LibraryScrollPosition(index, offset))
+                    },
                     bottomContentPadding = activeBottomBarClearance,
                 )
                 if (libraryRouteRendersAsActiveOverlay(
@@ -471,8 +582,6 @@ fun LibraryHomeScreen(
                 .onSizeChanged { screenHeightPx = it.height.toFloat() },
     ) {
         val rootBackdrop = rememberRhythHausBackdrop()
-        val artworkLoader =
-            com.eterocell.rhythhaus.ui.LocalTrackArtworkLoader.current
         val adaptiveLayoutMode =
             libraryAdaptiveLayoutModeFor(
                 widthDp = maxWidth.value,
@@ -495,35 +604,79 @@ fun LibraryHomeScreen(
                         modifier = Modifier.fillMaxHeight().weight(0.42f),
                     ) {
                         LibraryHomeContent(
-                            snapshot = snapshot,
-                            albums = albums,
-                            artists = artists,
+                            title = snapshot.title,
+                            subtitle = snapshot.subtitle,
+                            tracks = snapshot.tracks,
                             browseMode = appState.browseMode,
-                            homeListState = homeListState,
                             folderPickerLauncher = folderPickerLauncher,
                             sourcePickerActionVisible =
                                 sourcePickerActionVisible,
                             importMessage = importMessage,
                             scanProgress = scanProgress,
-                            scanJob = scanJob,
-                            selectedTrackId = appState.selectedTrackId,
-                            playbackController = playbackController,
+                            mutationsEnabled =
+                                emptyLibrarySourceMutationsAllowed(
+                                    isProgressActive =
+                                        scanProgress?.isActive == true,
+                                    isJobActive = scanJob?.isActive == true,
+                                ),
+                            currentTrackId = playbackState.currentTrack?.id,
+                            selectionModeActive =
+                                trackSelectionState.pageKey ==
+                                    TrackSelectionPageKey.HomeSongs &&
+                                    trackSelectionState
+                                        .selectedTrackIds
+                                        .isNotEmpty(),
+                            selectedTrackIds =
+                                if (trackSelectionState.pageKey ==
+                                    TrackSelectionPageKey.HomeSongs)
+                                    trackSelectionState.selectedTrackIds
+                                else emptySet(),
+                            labels = librarySharedLabels(),
                             homeBackdrop = rememberRhythHausBackdrop(),
-                            onBrowseModeChange = appState::setBrowseMode,
+                            artworkLoader = { id -> artworkLoader(id)?.bytes },
+                            onBrowseModeChange = { next ->
+                                dispatchHomeBrowseModeChange(
+                                    appState.browseMode,
+                                    next,
+                                    ::dispatchTrackSelection,
+                                    appState::setBrowseMode,
+                                )
+                            },
                             onClearLibrary = onClearLibrary,
                             onCancelScan = onCancelScan,
-                            onOpenDetailRoute = ::openDetailRoute,
+                            onOpenAlbum = { album ->
+                                openDetailRoute(LibraryRoute.AlbumDetail(album))
+                            },
+                            onOpenArtist = { artist ->
+                                openDetailRoute(LibraryRoute.ArtistDetail(artist))
+                            },
                             onShowPlaylists = {
                                 pushRoute(LibraryRoute.PlaylistHub)
                             },
-                            onAddToPlaylist = { trackId ->
-                                onPlaylistStateAction(
-                                    PlaylistStateAction.OpenPicker(
-                                        PlaylistPickerState(listOf(trackId))))
+                            onPlayTrack = { orderedTracks, selectedTrack ->
+                                appState.setSelectedTrackId(selectedTrack.id)
+                                selectTrackFromTracks(
+                                    orderedTracks, selectedTrack)
                             },
-                            onTrackSelected = appState::setSelectedTrackId,
-                            trackSelectionState = trackSelectionState,
-                            onTrackSelectionAction = ::dispatchTrackSelection,
+                            onToggleSelection = { id ->
+                                dispatchTrackSelection(
+                                    TrackSelectionAction.Toggle(
+                                        TrackSelectionPageKey.HomeSongs, id))
+                            },
+                            onStartSelection = { id ->
+                                dispatchTrackSelection(
+                                    TrackSelectionAction.Start(
+                                        TrackSelectionPageKey.HomeSongs, id))
+                            },
+                            onVisibleTrackIdsChanged = { ids ->
+                                dispatchTrackSelection(
+                                    TrackSelectionAction.ReconcileVisible(
+                                        TrackSelectionPageKey.HomeSongs, ids))
+                            },
+                            onScrollPositionChanged = { index, offset ->
+                                appState.updateNowPlayingBarVisibilityForScroll(
+                                    LibraryScrollPosition(index, offset))
+                            },
                             bottomContentPadding = activeBottomBarClearance,
                         )
                     }

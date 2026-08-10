@@ -5,16 +5,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 
-private object LibraryDatabaseAndroidContextHolder {
-    lateinit var applicationContext: Context
-}
-
 /**
  * Sets the Android application context used by the default database factory.
  */
 public fun setLibraryDatabaseAndroidContext(context: Context) {
-    LibraryDatabaseAndroidContextHolder.applicationContext =
-        context.applicationContext
+    LibraryDatabaseContext.applicationContext = context
 }
 
 /** Android SQLDelight database backed by the supplied application context. */
@@ -40,7 +35,7 @@ public actual class LibraryDatabase(private val context: Context) {
 
 /** Creates the Android database using the initialized application context. */
 public actual fun createLibraryDatabase(): LibraryDatabase =
-    LibraryDatabase(LibraryDatabaseAndroidContextHolder.applicationContext)
+    LibraryDatabase(LibraryDatabaseContext.applicationContext)
 
 internal fun libraryDatabaseCallback() =
     object : AndroidSqliteDriver.Callback(RhythHausDatabase.Schema) {
@@ -48,3 +43,5 @@ internal fun libraryDatabaseCallback() =
             db.setForeignKeyConstraintsEnabled(true)
         }
     }
+
+// Library extraction

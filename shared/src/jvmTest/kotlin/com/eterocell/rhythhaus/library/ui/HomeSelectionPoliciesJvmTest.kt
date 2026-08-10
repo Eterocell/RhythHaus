@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus.library.ui
 
+import com.eterocell.rhythhaus.library.ui.BrowseMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

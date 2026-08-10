@@ -16,8 +16,6 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
-import com.eterocell.rhythhaus.taglib.TagLibReader
-import com.eterocell.rhythhaus.taglib.TagReadResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -102,13 +100,11 @@ class PlaylistBackPolicyJvmTest {
                         PlaylistFeatureDestination(destination.instanceToken))
                 LibraryRouteContent(
                     route = LibraryRoute.PlaylistHub,
-                    albums = emptyList(),
-                    artists = emptyList(),
+                    tracks = emptyList(),
                     snapshot =
                         LibrarySnapshot(
                             "Library", "", emptyList<Track>(), null),
                     libraryTracks = emptyList(),
-                    tagLibReader = UnsupportedTagReader,
                     playbackController = playbackController,
                     playbackState = PlaybackState(),
                     playlistRepository = EmptyPlaylistRepository,
@@ -133,7 +129,8 @@ class PlaylistBackPolicyJvmTest {
                     onShowSettings = {},
                     onShowSearch = {},
                     onScrollPositionChanged = {},
-                    homeContent = {},
+                    artworkLoader = { null },
+                    homeContent = { _ -> },
                 )
             }
             waitForIdle()
@@ -337,14 +334,6 @@ class PlaylistBackPolicyJvmTest {
             .also {
                 state.pendingBackSession!!.reject()
             }
-
-    private object UnsupportedTagReader : TagLibReader {
-        override fun readPath(path: String): TagReadResult =
-            TagReadResult.Unsupported("test")
-
-        override fun readProperties(path: String): Map<String, String> =
-            emptyMap()
-    }
 
     private object EmptyPlaylistRepository : PlaylistRepository {
         override fun playlists(): List<PlaylistSummary> = emptyList()

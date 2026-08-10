@@ -1,6 +1,6 @@
 package com.eterocell.rhythhaus
 
-import com.eterocell.rhythhaus.library.appLocalMusicFolderPath
+import com.eterocell.rhythhaus.library.impl.appLocalMusicFolderPath
 
 actual fun createPlatformPlaybackEngine(): PlatformPlaybackEngine =
     createIOSPlaybackEngine(

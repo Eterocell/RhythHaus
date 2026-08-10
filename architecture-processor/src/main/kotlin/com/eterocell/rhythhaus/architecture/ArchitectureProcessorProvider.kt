@@ -9,6 +9,7 @@ import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSDeclaration
 import com.google.devtools.ksp.symbol.KSFile
+import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSNode
 import com.google.devtools.ksp.symbol.Modifier
 import com.google.devtools.ksp.symbol.Origin
@@ -56,7 +57,10 @@ private class ArchitectureProcessor(
                 validatePackage(file, diagnostics)
                 file.declarations
                     .flatMap(KSDeclaration::allDeclarations)
-                    .forEach { validateKDoc(it, diagnostics) }
+                    .forEach {
+                        validateKDoc(it, diagnostics)
+                        validateLibraryPublicCallableContract(it, diagnostics)
+                    }
             }
         diagnostics.forEach { (message, node) ->
             environment.logger.error(message, node)
@@ -92,6 +96,54 @@ private class ArchitectureProcessor(
                 "ARCH-KDOC $modulePath:${declaration.identity()}",
                 declaration)
         }
+    }
+
+    private fun validateLibraryPublicCallableContract(
+        declaration: KSDeclaration,
+        diagnostics: MutableMap<String, KSNode>,
+    ) {
+        if (modulePath != ":feature:library:impl" ||
+            declaration !is KSFunctionDeclaration ||
+            declaration.origin == Origin.SYNTHETIC ||
+            Modifier.PUBLIC !in declaration.modifiers ||
+            declaration.qualifiedName == null
+        ) return
+
+        declaration.parameters.forEach { parameter ->
+            val name = parameter.name?.asString() ?: return@forEach
+            if (!declaration.docString.orEmpty().contains(Regex("@param\\s+$name(?:\\s|$)"))) {
+                report(
+                    diagnostics,
+                    "ARCH-KDOC $modulePath:${declaration.identity()} missing @param $name",
+                    declaration,
+                )
+            }
+            if (parameter.hasDefault && !isAllowedLibraryDefault(declaration, name)) {
+                report(
+                    diagnostics,
+                    "ARCH-DEFAULT $modulePath:${declaration.identity()} ($name)",
+                    declaration,
+                )
+            }
+        }
+    }
+
+    private fun isAllowedLibraryDefault(declaration: KSFunctionDeclaration, parameterName: String): Boolean {
+        val owner = declaration.parentDeclaration?.qualifiedName?.asString()
+        val callable = declaration.qualifiedName?.asString()
+        return (owner == "com.eterocell.rhythhaus.library.ScanProgress" &&
+            parameterName in setOf("session", "latestItem")) ||
+            (callable == "com.eterocell.rhythhaus.library.LibraryScanner.scan" &&
+                parameterName in setOf("isCancelled", "onProgress")) ||
+            (callable == "com.eterocell.rhythhaus.library.impl.audioCandidateForSourceFile" &&
+                parameterName in setOf(
+                    "metadataAudioSource",
+                    "cleanupMetadataAudioSource",
+                    "sizeBytes",
+                    "modifiedAtEpochMillis",
+                )) ||
+            (owner == "com.eterocell.rhythhaus.library.PlatformFolderPickResult.Failure" &&
+                parameterName == "cause")
     }
 
     private fun report(

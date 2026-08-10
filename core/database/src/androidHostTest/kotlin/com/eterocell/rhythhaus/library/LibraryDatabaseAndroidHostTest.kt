@@ -2,11 +2,39 @@ package com.eterocell.rhythhaus.library
 
 import androidx.sqlite.db.SupportSQLiteDatabase
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import android.app.Application
+import android.content.Context
+import android.content.ContextWrapper
 import java.lang.reflect.Proxy
 import kotlin.test.Test
 import kotlin.test.assertFails
+import kotlin.test.assertSame
 
 class LibraryDatabaseAndroidHostTest {
+    @Test
+    fun directSetterNormalizesApplicationContext() {
+        val applicationContext = Application()
+        val suppliedContext = ApplicationContextWrapper(applicationContext)
+
+        setLibraryDatabaseAndroidContext(suppliedContext)
+
+        assertSame(applicationContext, LibraryDatabaseContext.applicationContext)
+    }
+
+    @Test
+    fun contextSetterNormalizesAndDatabaseFactoryReadsTheHolder() {
+        val applicationContext = Application()
+        val suppliedContext = ApplicationContextWrapper(applicationContext)
+
+        LibraryDatabaseContext.applicationContext = suppliedContext
+
+        assertSame(applicationContext, LibraryDatabaseContext.applicationContext)
+        val database = createLibraryDatabase()
+        val contextField = LibraryDatabase::class.java.getDeclaredField("context")
+        contextField.isAccessible = true
+        assertSame(applicationContext, contextField.get(database))
+    }
+
     @Test
     fun productionAndroidCallbackRejectsInvalidPlaylistEntryForeignKeys() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
@@ -44,6 +72,12 @@ class LibraryDatabaseAndroidHostTest {
     }
 }
 
+private class ApplicationContextWrapper(
+    private val application: Context,
+) : ContextWrapper(application) {
+    override fun getApplicationContext(): Context = application
+}
+
 private fun defaultValue(type: Class<*>): Any? =
     when (type) {
         Boolean::class.javaPrimitiveType -> false
@@ -56,3 +90,5 @@ private fun defaultValue(type: Class<*>): Any? =
         Char::class.javaPrimitiveType -> '\u0000'
         else -> null
     }
+
+// Library extraction

@@ -238,3 +238,114 @@ GREEN retains canonical main resources and the authored self-edge fixture remain
 control.
 Dependency Analysis Plugin adoption is deferred until graph stabilization and separate
 version/KMP compatibility evaluation.
+
+## Slice 6 Library Boundary
+
+The approved Library move creates exactly one unexported Android-KMP
+`:feature:library:impl`, targeting Android-KMP with host tests/resources, JVM,
+`iosArm64`, and `iosSimulatorArm64`. Existing `:feature:library:api` retains its module identity
+and domain/repository-contract role; the amendment below authorizes removal of its playback
+conversion/type residue. The implementation preserves current package roots, uses Android
+namespace `com.eterocell.rhythhaus.library.impl`, and uses resource namespace
+`rhythhaus.feature.library.generated.resources`; it is never exported from Shared or iOS. It owns
+scanner/index/repository implementations and mappings, metadata/TagLib integration, source access,
+folder picker/path resolver seams and actuals, Library leaf UI/helpers/resources, and local transient
+rendering state. Core database remains the sole physical SQLDelight owner.
+
+Library's public surface is callback-first: browse mode, Shared labels, home/album/artist/scanning
+content, plain folder-picker result/launcher/remember contract, `PlatformSourceAccess`, scan
+service, and the KDoc-complete `libraryImplementationModule(): Module` factory. No Shared route,
+AppState, Back/navigation/destination, playback controller/state/queue, generated resource, Job,
+TagLib, database, other feature, or native handle may appear in public signatures. Shared retains
+`LibraryPlaybackSelection.kt` and adapts ordered feature callbacks to playback, so the feature does
+not gain a core playback dependency. LibraryAppShell is a Shared coordinator, not a wholesale move;
+existing reducers/remember state remain under the explicit Task 7.2 characterization exception.
+
+Move Library-only EN/ZH resources once using an exhaustive current-consumer ledger. Shared retains
+App/shell-rendered and cross-feature labels including `scan_complete_format`,
+`adaptive_detail_placeholder`, and keys used by Settings, Now Playing, Search, selection, and
+playback shell; uncertain Shared-rendered keys remain Shared or are injected as values. The
+current `readAudioMetadata`/`AudioMetadata` exports are intentionally retired under the documented
+f4ae104/30f89ff bridge-consumer history; move them into impl without an export or compatibility facade. Require
+source-consumer, generated-header, approved-ABI, platform-actual, resource parity/ownership,
+physical-database-owner, and stale-Shared-residue controls.
+
+### Amendment: Executable Library Boundary
+
+The dedicated 2026-08-10 Library design is the authoritative executable amendment for Slice 6 and
+preserves accepted text above as historical context. It corrects the API statement: module identity
+is unchanged, but `:feature:library:api` stays a `:core:model`-only domain/repository contract and
+loses `LibraryTrack.toPlayableTrack()` and every playback type; Shared keeps conversion and
+`LibraryPlaybackSelection.kt`. The sole public Koin declaration is
+`public fun libraryImplementationModule(): Module`.
+
+Shared retains root/shell/route/Back/predictive/navigation identity, `LibraryAppState`, browse state
+needed by Back, selection/page/visible-ID/scroll/bottom-bar policy, playback/session, scan
+Job/orchestration/publication, cross-feature composition, and total Koin assembly. Impl owns only
+the repository/scanner/metadata/TagLib/platform seams/leaf UI/resources and local rendering state.
+The Android `LibraryDatabaseContext` holder moves physically to core-database Android while
+preserving its public setter and initialization-before-Koin order; no Koin Android/native Context
+contract is added. The explicit resource ledger, exact scanner/picker/UI contracts, and approved
+intentional removal of the formerly Swift-consumed metadata ABI are binding as written in the
+dedicated design.
+
+That design's literal UI declarations are the only Slice 6 public UI authority: `BrowseMode`,
+`LibrarySelectionPage`, `LibrarySharedLabels`, `LibraryHomeContent`, and `DrillDownView`. No
+generalized parameter-group reading is permitted. It fixes local versus Shared state, duplicate
+occurrence identity, primitive report callbacks, required one-spacer clearance, resolved-unavailable
+detail Back behavior, and internal `formatDuration`. Its exhaustive EN/ZH ledger distinguishes all
+twelve injected labels, all Shared-only keys, all moved keys, and `selected` absence; names do not
+create ownership. The API's module/repository-domain role remains, while only the historic
+`toPlayableTrack` playback residue is intentionally removed. Metadata becomes internal impl code;
+the exact forbidden/retained generated-header symbols and the exact single core-database Android
+`LibraryDatabaseContext` path/init-order controls are mandatory.
+
+### Third-Review Literal Amendment
+
+The dedicated design controls every alternative: Home and Detail have only its required no-default
+parameters, use `currentTrackId` only, omit `isPlaying` and `onPlayPause`, and receive the required
+artwork loader. Public core-model/core-UI/Compose signature dependencies are API; other UI libraries
+are implementation-only. Its precise authoritative-sequence/group ordering, duplicate occurrence,
+state/reset, one-spacer, resource resolver table, Koin all-single/same-concrete-role graph, Android
+variant/direct-dependency controls, and source/header-proven intentional metadata retirement apply.
+The old accidental-export characterization is historical and superseded by the `f4ae104`/`30f89ff`
+consumer history. API module/repository-domain identity remains; only `toPlayableTrack` playback
+residue is intentionally removed.
+
+### Fifth-Review Shared Playback Projection Amendment
+
+The complete baseline conversion inventory is six production sites: Shared `App.kt`,
+`LibraryAppShell.kt`, moving `LibraryHomeContent.kt`, `LibraryRoutes.kt`, and
+`PlaybackSessionCoordinator.kt`, plus playlist impl `PlaylistScreens.kt`. After extraction,
+retained Shared adapters perform every `LibraryTrack`-to-`PlayableTrack` conversion; moving leaf UI
+returns `Track` callback data. `PlayableTrack` remains `:core:model`, never `:core:playback`, and
+Library API remains core-model-only with no playback type or conversion.
+
+Shared `LibraryRoutes.kt` supplies playlist detail an authoritative
+`playableTracksById: Map<String, PlayableTrack>`. `PlaylistDetailScreen` consumes that map directly
+and has no local mapper. The ID map uses current `associate` duplicate-key semantics, while
+unchanged `SavedPlaylistPlaybackRequest(occurrences, selectedOccurrenceId)` preserves playlist
+occurrence identity/order and unchanged `onPlayEntry` carries it. Browser overlays may still use
+`List<LibraryTrack>` metadata. Playlists impl retains existing `api(projects.core.model)` visibility;
+there is no new project edge, Shared edge, or callback redesign. Causal checks cover projection
+fields/artwork bytes, direct detail input, occurrence order/selection, and failure/settlement.
+
+### Fourth-Review Literal Amendment
+
+### Oracle Conversion Inventory Correction
+
+The six paths named above are historical/baseline inventory only. Post-extraction exactly four retained Shared production files own conversion/projection: `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`, `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionCoordinator.kt`, `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`, and `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt`. Moving feature-owned `LibraryHomeContent.kt` returns `Track` callback data and contains no conversion; playlist impl `PlaylistScreens.kt` consumes `playableTracksById` and contains no conversion. Task 7 deletes only `LibraryTrack.kt` method/import residue, adapts/removes `LibraryApiModelsTest.kt` conversion assertions, adapts `PlaylistLifecycleIntegrationJvmTest.kt` to Shared projection, and retains unrelated `MusicModels.kt` `Track.toPlayableTrack()` plus `SearchRouteAdapterJvmTest.kt` use.
+
+Impl exposes Library API/core model/core UI/signature Compose APIs through `api`, and keeps the
+remaining declared dependencies implementation-only; Shared retains API Library contracts and an
+implementation-only impl edge. Detail receives only required raw `LibraryDetailSummary`; feature
+formats its moved detail strings. The dedicated internal scanner/event/access/metadata declarations,
+exact all-single no-wrapper Koin graph, full twelve-field resolver table, source-level metadata
+retirement, and retained Shared resource consumers are binding. No canonical Slice 6 text authorizes
+an alternate formatter, API scope, scanner object, or resource owner.
+
+Because the sole public Koin factory returns `Module`, impl uses exactly `api(libs.koin.core)`;
+Koin Compose and all other Koin/UI dependencies absent from public signatures remain implementation-
+only. The dedicated signature authority is pseudocode, while production-source KDoc is mandatory on
+every public declaration/member/constructor property/function and uses `@param` entries for each
+callable parameter/callback; KSP checks source, rejecting missing or placeholder documentation.

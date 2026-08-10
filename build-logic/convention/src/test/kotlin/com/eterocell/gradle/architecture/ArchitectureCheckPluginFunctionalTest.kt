@@ -1281,6 +1281,176 @@ class ArchitectureCheckPluginFunctionalTest {
     }
 
     @Test
+    fun libraryImplementationConventionPublishesRequiredTargetsRootsAndRegistrations() {
+        val result = libraryRunner(
+            libraryFixture(),
+            ":feature:library:impl:kspAndroidMain",
+            ":feature:library:impl:kspKotlinJvm",
+            ":feature:library:impl:kspKotlinIosArm64",
+            ":feature:library:impl:kspKotlinIosSimulatorArm64",
+            ":feature:library:impl:verifyLibraryFeatureConvention",
+            "architectureCheck",
+        ).build()
+
+        assertTrue(result.output.contains("LIBRARY_ROOTS=com.eterocell.rhythhaus.library,com.eterocell.rhythhaus.library.impl,com.eterocell.rhythhaus.library.ui"), result.output)
+        libraryKspTasks.forEach { task ->
+            assertEquals(TaskOutcome.SUCCESS, result.task(task)?.outcome, result.output)
+            assertFalse(result.output.contains("$task SKIPPED"), result.output)
+            assertFalse(result.output.contains("$task NO-SOURCE"), result.output)
+        }
+    }
+
+    @Test
+    fun libraryImplementationGovernanceRejectsEdgesCyclesNamespacesAndIosExport() {
+        mapOf(
+            LibraryMutation.DependsOnShared to "ARCH-EDGE :feature:library:impl [architecture] -> :shared",
+            LibraryMutation.DependsOnApp to "ARCH-EDGE :feature:library:impl [architecture] -> :androidApp",
+            LibraryMutation.DependsOnPlaylistsImplementation to "ARCH-EDGE :feature:library:impl [architecture] -> :feature:playlists:impl",
+            LibraryMutation.CycleThroughShared to "ARCH-CYCLE :feature:library:impl -> :shared -> :feature:library:impl",
+        ).forEach { (mutation, diagnostic) ->
+            val projectDir = libraryFixture(mutation)
+            val expected = if (mutation == LibraryMutation.CycleThroughShared || mutation == LibraryMutation.DependsOnShared) {
+                listOf(
+                    "ARCH-CYCLE :feature:library:impl -> :shared -> :feature:library:impl",
+                    "ARCH-EDGE :feature:library:impl [architecture] -> :shared",
+                )
+            } else if (mutation == LibraryMutation.DependsOnApp) {
+                listOf(
+                    "ARCH-CYCLE :androidApp -> :shared -> :feature:library:impl -> :androidApp",
+                    "ARCH-EDGE :feature:library:impl [architecture] -> :androidApp",
+                )
+            } else {
+                listOf(diagnostic)
+            }
+            assertLibraryExactFailure(projectDir, expected)
+            restoreLibraryMutation(projectDir, mutation)
+            assertLibraryGreen(projectDir)
+        }
+        val iosExportProject = libraryFixture(LibraryMutation.IosExport)
+        assertLibraryExactFailure(iosExportProject, listOf("ARCH-IOS-EXPORT :shared -> :feature:library:impl"))
+        restoreLibraryMutation(iosExportProject, LibraryMutation.IosExport)
+        assertLibraryGreen(iosExportProject)
+        val wrongAndroidProject = libraryFixture(LibraryMutation.WrongAndroidNamespace)
+        assertLibraryExactFailure(
+            wrongAndroidProject,
+            listOf("ARCH-RESOURCE :feature:library:impl [main] root=feature/library/impl/src/androidMain/res namespace=com.example.wrong"),
+        )
+        restoreLibraryMutation(wrongAndroidProject, LibraryMutation.WrongAndroidNamespace)
+        assertLibraryGreen(wrongAndroidProject)
+        val wrongComposeProject = libraryFixture(LibraryMutation.WrongComposeNamespace)
+        assertLibraryExactFailure(
+            wrongComposeProject,
+            listOf(
+                "ARCH-RESOURCE :feature:library:impl [androidMain] root=feature/library/impl/src/androidMain/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:library:impl [commonMain] root=feature/library/impl/src/commonMain/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:library:impl [iosArm64Main] root=feature/library/impl/src/iosArm64Main/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:library:impl [iosSimulatorArm64Main] root=feature/library/impl/src/iosSimulatorArm64Main/composeResources namespace=example.wrong.resources",
+                "ARCH-RESOURCE :feature:library:impl [jvmMain] root=feature/library/impl/src/jvmMain/composeResources namespace=example.wrong.resources",
+            ),
+        )
+        restoreLibraryMutation(wrongComposeProject, LibraryMutation.WrongComposeNamespace)
+        assertLibraryGreen(wrongComposeProject)
+    }
+
+    @Test
+    fun libraryImplementationProcessorRejectsPackageKdocParamAndDefaultMutationsThenRestoresGreen() {
+        listOf(
+            LibraryMutation.WrongPackage to "ARCH-PACKAGE :feature:library:impl:LibraryFeature.kt (outside.fixture)",
+            LibraryMutation.MissingKDoc to "ARCH-KDOC :feature:library:impl:LibraryFeature.kt:2 (com.eterocell.rhythhaus.library.LibraryFeature)",
+            LibraryMutation.MissingParamKDoc to "ARCH-KDOC :feature:library:impl:LibraryFeature.kt:5 (com.eterocell.rhythhaus.library.LibraryFeature.describe) missing @param title",
+            LibraryMutation.ForbiddenDefault to "ARCH-DEFAULT :feature:library:impl:LibraryFeature.kt:8 (com.eterocell.rhythhaus.library.LibraryFeature.describe) (title)",
+        ).forEach { (mutation, diagnostic) ->
+            val projectDir = libraryFixture(mutation)
+            assertLibraryKspFailure(projectDir, diagnostic)
+            source(projectDir, ":feature:library:impl", "LibraryFeature.kt", libraryFeatureSource)
+            val green = libraryRunner(projectDir, ":feature:library:impl:kspKotlinJvm").build()
+            assertEquals(TaskOutcome.SUCCESS, green.task(":feature:library:impl:kspKotlinJvm")?.outcome, green.output)
+        }
+        val allowedDefaults = libraryFixture(LibraryMutation.AllowedDefaults)
+        assertLibraryKspGreen(allowedDefaults)
+    }
+
+    @Test
+    fun libraryGovernanceFixturesProveResourceHolderAndKoinIdentityContracts() {
+        val fixture = libraryGovernanceFixture()
+        assertLibraryGovernanceFixture(fixture)
+
+        fixture.featureStrings[0].writeText("<resources><string name=\"library_queue\">x</string></resources>")
+        assertFailsWith<AssertionError> { assertLibraryGovernanceFixture(fixture) }
+        fixture.featureStrings[0].writeText(fixture.featureStrings[1].readText())
+        assertLibraryGovernanceFixture(fixture)
+        fixture.holder.writeText("package fixture\ninternal object LibraryDatabaseContext")
+        assertFailsWith<AssertionError> { assertLibraryGovernanceFixture(fixture) }
+        fixture.holder.writeText(libraryHolderSource)
+        assertLibraryGovernanceFixture(fixture)
+        fixture.koin.writeText("single<PlatformSourceAccess> { createPlatformSourceAccess() }")
+        assertFailsWith<AssertionError> { assertLibraryGovernanceFixture(fixture) }
+        fixture.koin.writeText(libraryKoinSource)
+        assertLibraryGovernanceFixture(fixture)
+    }
+
+    @Test
+    fun libraryDatabaseHolderRejectsDuplicateStorageAndFactoryIdentityThenRestoresGreen() {
+        val fixture = libraryGovernanceFixture()
+        assertLibraryHolderControlGreen(fixture)
+
+        fixture.holder.writeText(
+            fixture.holder.readText() +
+                "\nprivate object LibraryDatabaseAndroidContextHolder { lateinit var applicationContext: Any }\n",
+        )
+        assertLibraryHolderControlFailure(
+            fixture,
+            listOf(
+                "ARCH-LIBRARY-HOLDER duplicate storage owner: LibraryDatabaseAndroidContextHolder",
+            ),
+        )
+        fixture.holder.writeText(libraryHolderSource)
+        assertLibraryHolderControlGreen(fixture)
+
+        fixture.factory.writeText(
+            fixture.factory.readText().replace(
+                "LibraryDatabaseContext.applicationContext",
+                "LibraryDatabaseAndroidContextHolder.applicationContext",
+            ),
+        )
+        assertLibraryHolderControlFailure(
+            fixture,
+            listOf(
+                "ARCH-LIBRARY-HOLDER factory identity must read LibraryDatabaseContext.applicationContext",
+            ),
+        )
+        fixture.factory.writeText(libraryFactorySource)
+        assertLibraryHolderControlGreen(fixture)
+    }
+
+    @Test
+    fun libraryAndroidStartupOrderingRejectsDatabaseAfterSharedOrKoinThenRestoresGreen() {
+        val fixture = libraryGovernanceFixture()
+        assertLibraryStartupControlGreen(fixture)
+
+        fixture.startup.writeText(libraryStartupAfterSharedSource)
+        assertLibraryStartupControlFailure(
+            fixture,
+            listOf(
+                "ARCH-LIBRARY-ANDROID-STARTUP database context must precede Shared Android context",
+            ),
+        )
+        fixture.startup.writeText(libraryStartupSource)
+        assertLibraryStartupControlGreen(fixture)
+
+        fixture.startup.writeText(libraryStartupAfterKoinSource)
+        assertLibraryStartupControlFailure(
+            fixture,
+            listOf(
+                "ARCH-LIBRARY-ANDROID-STARTUP database context must precede Shared Android context",
+                "ARCH-LIBRARY-ANDROID-STARTUP database context must precede Koin",
+            ),
+        )
+        fixture.startup.writeText(libraryStartupSource)
+        assertLibraryStartupControlGreen(fixture)
+    }
+
+    @Test
     fun playlistsFeatureConventionPublishesRootsAndKspRegistrations() {
         val result = playlistsRunner(
             playlistsFeatureFixture(),
@@ -2044,6 +2214,242 @@ class ArchitectureCheckPluginFunctionalTest {
         }
         projectDir.resolve("build.gradle.kts").writeText("plugins { id(\"build-logic.architecture-check\") }")
         return projectDir
+    }
+
+    private fun libraryFixture(mutation: LibraryMutation? = null): File {
+        val projectDir = fixture()
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement { repositories { gradlePluginPortal(); mavenCentral(); google() } }
+            dependencyResolutionManagement { repositories { mavenCentral(); google() } }
+            rootProject.name = "architecture-library-feature"
+            include(":androidApp", ":desktopApp", ":shared", ":taglib", ":architecture-processor", ":core:model", ":core:database", ":core:platform", ":core:playback", ":core:ui", ":feature:library:api", ":feature:library:impl", ":feature:playlists:api", ":feature:playlists:impl")
+            """.trimIndent(),
+        )
+        val processorJar = externallyProvidedProcessorJarOrSkip()
+        module(projectDir, ":architecture-processor")
+        buildFile(projectDir, ":architecture-processor").writeText("configurations.create(\"default\")\nartifacts { add(\"default\", file(\"${processorJar.invariantSeparatorsPath}\")) }")
+        listOf(":core:platform", ":core:playback", ":core:ui").forEach { module(projectDir, it); kmpModule(projectDir, it, strict = true) }
+        module(projectDir, ":feature:library:impl")
+        val androidNamespace = if (mutation == LibraryMutation.WrongAndroidNamespace) "com.example.wrong" else "com.eterocell.rhythhaus.library.impl"
+        val composeNamespace = if (mutation == LibraryMutation.WrongComposeNamespace) "example.wrong.resources" else "rhythhaus.feature.library.generated.resources"
+        buildFile(projectDir, ":feature:library:impl").writeText(
+            """
+            import com.eterocell.gradle.architecture.ArchitectureModelRegistry
+            import com.eterocell.gradle.architecture.ControlledComposeResourcesExtension
+            import org.gradle.api.artifacts.ProjectDependency
+            import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+            plugins {
+                id("build-logic.kmp.feature.impl")
+                id("build-logic.android.kmp.library")
+                id("build-logic.compose-resources")
+                id("org.jetbrains.kotlin.plugin.compose")
+            }
+            configurations.maybeCreate("architecture")
+            extensions.configure<ControlledComposeResourcesExtension>("architectureComposeResources") { namespace("$composeNamespace") }
+            kotlin {
+                android { namespace = "$androidNamespace"; compileSdk = 37; minSdk = 29; compilerOptions.jvmTarget.set(JvmTarget.JVM_11); withHostTest {}; androidResources { enable = true } }
+                jvm(); iosArm64(); iosSimulatorArm64()
+            }
+            dependencies { add("commonMainImplementation", "org.jetbrains.compose.runtime:runtime:1.11.1") }
+            val expected = listOf("kspAndroid", "kspIosArm64", "kspIosSimulatorArm64", "kspJvm")
+            afterEvaluate {
+                @Suppress("UNCHECKED_CAST")
+                val arguments = extensions.getByName("ksp").javaClass.getMethod("getArguments").invoke(extensions.getByName("ksp")) as Map<String, String>
+                val registrations = ArchitectureModelRegistry.forRoot(project).snapshot().kspRegistrations.filter { it.module == project.path }.map { it.module + "|" + it.configuration + "|" + it.processor }.sorted()
+                val configurationsMatch = expected.associateWith { name ->
+                    val dependencies = configurations.getByName(name).dependencies.withType(ProjectDependency::class.java).filter { it.path == ":architecture-processor" }
+                    dependencies.size == 1 && configurations.getByName(name).dependencies.size == 1
+                }
+                tasks.register("verifyLibraryFeatureConvention") {
+                    doLast {
+                        check(arguments["architecture.packageRoots"] == "com.eterocell.rhythhaus.library,com.eterocell.rhythhaus.library.impl,com.eterocell.rhythhaus.library.ui")
+                        check(registrations == expected.map { ":feature:library:impl|" + it + "|:architecture-processor" })
+                        configurationsMatch.forEach { (name, matches) -> check(matches == true) { "KSP registry/configuration mismatch: ${'$'}name" } }
+                        println("LIBRARY_ROOTS=" + arguments["architecture.packageRoots"])
+                    }
+                }
+            }
+            """.trimIndent(),
+        )
+        val source = when (mutation) {
+            LibraryMutation.WrongPackage -> "package outside.fixture\n/** A documented feature. */\npublic class LibraryFeature"
+            LibraryMutation.MissingKDoc -> "package com.eterocell.rhythhaus.library\npublic class LibraryFeature"
+            LibraryMutation.MissingParamKDoc -> "package com.eterocell.rhythhaus.library\n/** A documented feature. */\npublic class LibraryFeature {\n    /** Describes this fixture. */\n    public fun describe(title: String): String = title\n}"
+            LibraryMutation.ForbiddenDefault -> "package com.eterocell.rhythhaus.library\n/** A documented feature. */\npublic class LibraryFeature {\n    /**\n     * Describes this fixture.\n     * @param title The title to describe.\n     */\n    public fun describe(title: String = \"fixture\"): String = title\n}"
+            LibraryMutation.AllowedDefaults -> libraryAllowedDefaultsSource
+            else -> libraryFeatureSource
+        }
+        source(projectDir, ":feature:library:impl", "LibraryFeature.kt", source)
+        val strings = moduleDir(projectDir, ":feature:library:impl").resolve("src/commonMain/composeResources/values/strings.xml")
+        strings.parentFile.mkdirs()
+        strings.writeText("<resources><string name=\"unknown_artist\">Unknown artist</string></resources>")
+        append(projectDir, ":shared", "dependencies.add(\"commonMainImplementation\", project(\":feature:library:impl\"))")
+        listOf(":feature:library:api", ":core:model", ":core:ui", ":core:database", ":core:platform", ":taglib").forEach { dependency(projectDir, ":feature:library:impl", it) }
+        when (mutation) {
+            LibraryMutation.DependsOnShared -> dependency(projectDir, ":feature:library:impl", ":shared")
+            LibraryMutation.DependsOnApp -> dependency(projectDir, ":feature:library:impl", ":androidApp")
+            LibraryMutation.DependsOnPlaylistsImplementation -> dependency(projectDir, ":feature:library:impl", ":feature:playlists:impl")
+            LibraryMutation.CycleThroughShared -> dependency(projectDir, ":feature:library:impl", ":shared")
+            LibraryMutation.IosExport -> append(projectDir, ":shared", "kotlin { iosArm64().binaries.framework { export(project(\":feature:library:impl\")) } }")
+            else -> Unit
+        }
+        projectDir.resolve("build.gradle.kts").writeText("plugins { id(\"build-logic.architecture-check\") }")
+        return projectDir
+    }
+
+    private fun assertLibraryKspFailure(projectDir: File, expectedDiagnostic: String) {
+        val result = libraryRunner(projectDir, ":feature:library:impl:compileKotlinJvm").buildAndFail()
+        val diagnostics = result.output.lineSequence()
+            .filter { line -> line.trimStart().startsWith("ARCH-") || ": ARCH-" in line }
+            .map { line -> "ARCH-" + line.substringAfter("ARCH-").trim() }
+            .distinct()
+            .toList()
+        assertEquals(listOf(expectedDiagnostic), diagnostics, result.output)
+        assertEquals(TaskOutcome.FAILED, result.task(":feature:library:impl:kspKotlinJvm")?.outcome, result.output)
+    }
+
+    private fun assertLibraryExactFailure(projectDir: File, expectedDiagnostics: List<String>) {
+        val result = libraryRunner(projectDir, "architectureCheck").buildAndFail()
+        assertExactDiagnostics(result.output, expectedDiagnostics)
+    }
+
+    private fun assertLibraryKspGreen(projectDir: File) {
+        val result = libraryRunner(projectDir, ":feature:library:impl:kspKotlinJvm").build()
+        assertEquals(TaskOutcome.SUCCESS, result.task(":feature:library:impl:kspKotlinJvm")?.outcome, result.output)
+    }
+
+    private fun assertLibraryGreen(projectDir: File) {
+        val result = libraryRunner(projectDir, "architectureCheck").build()
+        assertEquals(TaskOutcome.SUCCESS, result.task(":architectureCheck")?.outcome, result.output)
+    }
+
+    private fun restoreLibraryMutation(projectDir: File, mutation: LibraryMutation) {
+        val moduleBuild = moduleDir(projectDir, ":feature:library:impl").resolve("build.gradle.kts")
+        var text = moduleBuild.readText()
+        text = text.replace("com.example.wrong", "com.eterocell.rhythhaus.library.impl")
+            .replace("example.wrong.resources", "rhythhaus.feature.library.generated.resources")
+        moduleBuild.writeText(text)
+        if (mutation == LibraryMutation.IosExport) {
+            val sharedBuild = moduleDir(projectDir, ":shared").resolve("build.gradle.kts")
+            sharedBuild.writeText(sharedBuild.readText().replace("\nkotlin { iosArm64().binaries.framework { export(project(\":feature:library:impl\")) } }", ""))
+        }
+        if (mutation == LibraryMutation.CycleThroughShared) {
+            moduleDir(projectDir, ":shared").resolve("build.gradle.kts").writeText(
+                moduleDir(projectDir, ":shared").resolve("build.gradle.kts").readText().replace("dependencies.add(\"commonMainImplementation\", project(\":feature:library:impl\"))", ""),
+            )
+            removeDependency(projectDir, ":feature:library:impl", ":shared")
+        }
+        if (mutation.name.startsWith("Depends")) {
+            val dependency = when (mutation) {
+                LibraryMutation.DependsOnShared -> ":shared"
+                LibraryMutation.DependsOnApp -> ":androidApp"
+                else -> ":feature:playlists:impl"
+            }
+            removeDependency(projectDir, ":feature:library:impl", dependency)
+        }
+    }
+
+    private fun libraryRunner(projectDir: File, vararg tasks: String): GradleRunner = searchRunner(projectDir, *tasks)
+
+    private fun libraryGovernanceFixture(): LibraryGovernanceFixture {
+        val root = Files.createTempDirectory("library-governance").toFile()
+        val sharedStrings = listOf(root.resolve("shared-en.xml"), root.resolve("shared-zh.xml"))
+        val featureStrings = listOf(root.resolve("library-en.xml"), root.resolve("library-zh.xml"))
+        sharedStrings.forEach { it.writeText("<resources><string name=\"library_queue\">x</string><string name=\"album_artwork\">x</string></resources>") }
+        featureStrings.forEach { it.writeText("<resources><string name=\"unknown_artist\">x</string><string name=\"artist_artwork\">x</string></resources>") }
+        val holder = root.resolve("src/main/kotlin/com/eterocell/rhythhaus/library/LibraryDatabaseContext.android.kt").apply {
+            parentFile.mkdirs()
+            writeText(libraryHolderSource)
+        }
+        val koin = root.resolve("src/main/kotlin/com/eterocell/rhythhaus/library/LibraryImplementationModule.kt").apply {
+            parentFile.mkdirs()
+            writeText(libraryKoinSource)
+        }
+        val factory = root.resolve("src/main/kotlin/com/eterocell/rhythhaus/library/LibraryDatabase.android.kt").apply {
+            writeText(libraryFactorySource)
+        }
+        val startup = root.resolve("src/main/kotlin/com/eterocell/rhythhaus/library/RhythHausApplication.kt").apply {
+            writeText(libraryStartupSource)
+        }
+        root.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement { repositories { gradlePluginPortal(); mavenCentral() } }
+            dependencyResolutionManagement { repositories { mavenCentral() } }
+            rootProject.name = "library-governance"
+            """.trimIndent(),
+        )
+        root.resolve("build.gradle.kts").writeText(libraryGovernanceBuildSource)
+        root.resolve("src/main/kotlin/com/eterocell/rhythhaus/library/GovernanceConsumer.kt").apply {
+            parentFile.mkdirs()
+            writeText(libraryGovernanceConsumerSource)
+        }
+        return LibraryGovernanceFixture(root, sharedStrings, featureStrings, holder, koin, factory, startup)
+    }
+
+    private fun assertLibraryGovernanceFixture(fixture: LibraryGovernanceFixture) {
+        val result = try {
+            GradleRunner.create()
+                .withProjectDir(fixture.root)
+                .withArguments("runGovernanceFixture", "--stacktrace")
+                .build()
+        } catch (failure: Throwable) {
+            throw AssertionError(failure.message, failure)
+        }
+        assertEquals(TaskOutcome.SUCCESS, result.task(":runGovernanceFixture")?.outcome, result.output)
+        assertTrue(result.output.contains("LIBRARY-RESOURCE registry=shared:library_queue,shared:album_artwork;feature:unknown_artist,feature:artist_artwork"), result.output)
+        assertTrue(result.output.contains("LIBRARY-HOLDER identity=com.eterocell.rhythhaus.library.LibraryDatabaseContext"), result.output)
+        assertTrue(result.output.contains("LIBRARY-KOIN identity=PlatformSourceAccessAndScanner"), result.output)
+    }
+
+    private fun assertLibraryHolderControlGreen(fixture: LibraryGovernanceFixture) {
+        assertEquals(emptyList(), libraryHolderDiagnostics(fixture), "Unexpected library holder diagnostics")
+    }
+
+    private fun assertLibraryHolderControlFailure(
+        fixture: LibraryGovernanceFixture,
+        expected: List<String>,
+    ) {
+        assertEquals(expected, libraryHolderDiagnostics(fixture))
+    }
+
+    private fun libraryHolderDiagnostics(fixture: LibraryGovernanceFixture): List<String> {
+        val holder = fixture.holder.readText()
+        val factory = fixture.factory.readText()
+        return buildList {
+            if ("LibraryDatabaseAndroidContextHolder" in holder) {
+                add("ARCH-LIBRARY-HOLDER duplicate storage owner: LibraryDatabaseAndroidContextHolder")
+            }
+            if ("LibraryDatabaseAndroidContextHolder.applicationContext" in factory) {
+                add("ARCH-LIBRARY-HOLDER factory identity must read LibraryDatabaseContext.applicationContext")
+            }
+        }
+    }
+
+    private fun assertLibraryStartupControlGreen(fixture: LibraryGovernanceFixture) {
+        assertEquals(emptyList(), libraryStartupDiagnostics(fixture), "Unexpected Android startup diagnostics")
+    }
+
+    private fun assertLibraryStartupControlFailure(
+        fixture: LibraryGovernanceFixture,
+        expected: List<String>,
+    ) {
+        assertEquals(expected, libraryStartupDiagnostics(fixture))
+    }
+
+    private fun libraryStartupDiagnostics(fixture: LibraryGovernanceFixture): List<String> {
+        val source = fixture.startup.readText()
+        val database = source.indexOf("LibraryDatabaseContext.applicationContext = this")
+        val shared = source.indexOf("setRhythHausAndroidContext(this)")
+        val koin = source.indexOf("startKoin")
+        return buildList {
+            if (database > shared) {
+                add("ARCH-LIBRARY-ANDROID-STARTUP database context must precede Shared Android context")
+            }
+            if (database > koin) {
+                add("ARCH-LIBRARY-ANDROID-STARTUP database context must precede Koin")
+            }
+        }
     }
 
     private fun settingsResourceFixture(mutation: SettingsMutation? = null): SettingsResourceFixture {
@@ -3329,6 +3735,21 @@ class ArchitectureCheckPluginFunctionalTest {
         MissingLogo,
     }
 
+    private enum class LibraryMutation {
+        DependsOnShared,
+        DependsOnApp,
+        DependsOnPlaylistsImplementation,
+        CycleThroughShared,
+        WrongAndroidNamespace,
+        WrongComposeNamespace,
+        WrongPackage,
+        MissingKDoc,
+        MissingParamKDoc,
+        ForbiddenDefault,
+        AllowedDefaults,
+        IosExport,
+    }
+
     private data class SearchResourceFixture(
         val shared: List<File>,
         val feature: List<File>,
@@ -3361,6 +3782,16 @@ class ArchitectureCheckPluginFunctionalTest {
         val featureSource: File,
     )
 
+    private data class LibraryGovernanceFixture(
+        val root: File,
+        val sharedStrings: List<File>,
+        val featureStrings: List<File>,
+        val holder: File,
+        val koin: File,
+        val factory: File,
+        val startup: File,
+    )
+
     private data class QualityAggregationFixture(
         val projectDir: File,
         val markerDirectory: File,
@@ -3384,6 +3815,180 @@ class ArchitectureCheckPluginFunctionalTest {
             ":feature:settings:kspKotlinIosArm64",
             ":feature:settings:kspKotlinIosSimulatorArm64",
         )
+        val libraryKspTasks = listOf(
+            ":feature:library:impl:kspAndroidMain",
+            ":feature:library:impl:kspKotlinJvm",
+            ":feature:library:impl:kspKotlinIosArm64",
+            ":feature:library:impl:kspKotlinIosSimulatorArm64",
+        )
+        const val libraryFeatureSource = """
+            package com.eterocell.rhythhaus.library.consumer
+
+            /** A documented Library feature fixture. */
+            public class LibraryFeature {
+                /**
+                 * Describes the fixture.
+                 * @param title The title to describe.
+                 */
+                public fun describe(title: String): String = title
+            }
+        """
+        const val libraryAllowedDefaultsSource = """
+            package com.eterocell.rhythhaus.library
+            /** Reports scan state. */
+            public data class ScanProgress(
+                /** Session state. @param session Current session. */
+                public val session: String? = null,
+                /** Latest item. @param latestItem Current item. */
+                public val latestItem: String? = null,
+            )
+            /** Scans sources. */
+            public class LibraryScanner {
+                /** Scans one source. @param source Source. @param isCancelled Cancellation. @param onProgress Progress. */
+                public fun scan(source: String, isCancelled: () -> Boolean = { false }, onProgress: (ScanProgress) -> Unit = {}): String = source
+            }
+            /** Folder result. */
+            public sealed interface PlatformFolderPickResult {
+                /** Failure result. */
+                public data class Failure(
+                    /** Message. @param message Message. */
+                    public val message: String,
+                    /** Cause. @param cause Cause. */
+                    public val cause: String? = null,
+                ) : PlatformFolderPickResult
+            }
+        """
+        const val libraryHolderSource = """
+            package com.eterocell.rhythhaus.library
+            public object LibraryDatabaseContext {
+                public var applicationContext: Any = Any()
+            }
+            public fun setRhythHausAndroidContext(context: Any) = Unit
+        """
+        const val libraryFactorySource = """
+            package com.eterocell.rhythhaus.library
+            public fun createLibraryDatabase(): Any = LibraryDatabaseContext.applicationContext
+        """
+        const val libraryStartupSource = """
+            package com.eterocell.rhythhaus.library
+
+            public class RhythHausApplication {
+                public fun startup() {
+                    LibraryDatabaseContext.applicationContext = this
+                    setRhythHausAndroidContext(this)
+                    org.koin.core.context.startKoin { }
+                }
+            }
+        """
+        const val libraryStartupAfterSharedSource = """
+            package com.eterocell.rhythhaus.library
+            public fun startup() {
+                setRhythHausAndroidContext(this)
+                LibraryDatabaseContext.applicationContext = this
+                startKoin { }
+            }
+        """
+        const val libraryStartupAfterKoinSource = """
+            package com.eterocell.rhythhaus.library
+            public fun startup() {
+                setRhythHausAndroidContext(this)
+                startKoin { }
+                LibraryDatabaseContext.applicationContext = this
+            }
+        """
+        const val libraryKoinSource = """
+            package com.eterocell.rhythhaus.library
+
+            import org.koin.core.context.startKoin
+            import org.koin.core.context.stopKoin
+            import org.koin.dsl.module
+
+            public interface PlatformSourceAccess
+            public interface PlatformAudioScanner
+            public interface PlatformSourceAccessAndScanner : PlatformSourceAccess, PlatformAudioScanner
+            private class ConcretePlatformSourceAccess : PlatformSourceAccessAndScanner
+            private fun createPlatformSourceAccess(): ConcretePlatformSourceAccess = ConcretePlatformSourceAccess()
+
+            public fun libraryModule() = module {
+                single<PlatformSourceAccessAndScanner> { createPlatformSourceAccess() }
+                single<PlatformSourceAccess> { get<PlatformSourceAccessAndScanner>() }
+                single<PlatformAudioScanner> { get<PlatformSourceAccessAndScanner>() }
+            }
+
+            public fun resolveLibraryBindings(): String {
+                val koin = startKoin { modules(libraryModule()) }.koin
+                return try {
+                    val scanner = koin.get<PlatformSourceAccessAndScanner>()
+                    check(scanner === koin.get<PlatformSourceAccess>())
+                    check(scanner === koin.get<PlatformAudioScanner>())
+                    scanner::class.qualifiedName ?: error("Missing concrete binding identity")
+                } finally {
+                    stopKoin()
+                }
+            }
+        """
+        const val libraryGovernanceBuildSource = """
+            import java.io.File
+            import javax.xml.parsers.DocumentBuilderFactory
+            import org.gradle.api.tasks.SourceSetContainer
+
+            plugins {
+                kotlin("jvm") version "2.3.10"
+                application
+            }
+            repositories { mavenCentral() }
+            dependencies { implementation("io.insert-koin:koin-core:4.2.2") }
+            application { mainClass.set("com.eterocell.rhythhaus.library.consumer.GovernanceConsumerKt") }
+
+            val registry = layout.buildDirectory.file("generated/governance/ResourceRegistry.kt")
+            val generateRegistry = tasks.register("generateRegistry") {
+                inputs.files(fileTree(".") { include("*-en.xml", "*-zh.xml") })
+                outputs.file(registry)
+                doLast {
+                    val names = fileTree(".") { include("*-en.xml") }.files.sortedBy { it.name }.associate { source ->
+                        val document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(source)
+                        source.name.substringBefore("-") to document.getElementsByTagName("string").let { nodes ->
+                            (0 until nodes.length).map { nodes.item(it).attributes.getNamedItem("name").nodeValue }
+                        }
+                    }
+                    check(names.keys == setOf("shared", "library")) { "Expected shared and library resource owners, got ${'$'}names" }
+                    val registryValue = "shared:${'$'}{names.getValue("shared").joinToString(",shared:")};feature:${'$'}{names.getValue("library").joinToString(",feature:")}"
+                    registry.get().asFile.apply {
+                        parentFile.mkdirs()
+                        writeText("package com.eterocell.rhythhaus.library\npublic val resourceRegistry: String = ${'$'}{34.toChar()}${'$'}registryValue${'$'}{34.toChar()}\n")
+                    }
+                }
+            }
+            kotlin.sourceSets.named("main") { kotlin.srcDir(registry.map { it.asFile.parentFile }) }
+            tasks.named("compileKotlin") { dependsOn(generateRegistry) }
+            tasks.register("runGovernanceFixture") {
+                dependsOn("installDist")
+                doLast {
+                    val process = ProcessBuilder("${'$'}{layout.buildDirectory.get().asFile}/install/library-governance/bin/library-governance")
+                        .redirectErrorStream(true)
+                        .start()
+                    val output = process.inputStream.bufferedReader().use { it.readText() }
+                    logger.lifecycle(output)
+                    check(process.waitFor() == 0) { "Governance fixture executable failed with exit code ${'$'}{process.exitValue()}" }
+                }
+            }
+        """
+        const val libraryGovernanceConsumerSource = """
+            package com.eterocell.rhythhaus.library.consumer
+
+            import com.eterocell.rhythhaus.library.LibraryDatabaseContext
+            import com.eterocell.rhythhaus.library.resolveLibraryBindings
+            import com.eterocell.rhythhaus.library.resourceRegistry
+
+            public fun main() {
+                check(resourceRegistry == "shared:library_queue,shared:album_artwork;feature:unknown_artist,feature:artist_artwork")
+                check(LibraryDatabaseContext::class.qualifiedName == "com.eterocell.rhythhaus.library.LibraryDatabaseContext")
+                check(resolveLibraryBindings().endsWith("ConcretePlatformSourceAccess"))
+                println("LIBRARY-RESOURCE registry=${'$'}resourceRegistry")
+                println("LIBRARY-HOLDER identity=${'$'}{LibraryDatabaseContext::class.qualifiedName}")
+                println("LIBRARY-KOIN identity=PlatformSourceAccessAndScanner")
+            }
+        """
         const val SQLDELIGHT_FIXTURE_APPLIED_MARKER = "TEST-SQLDELIGHT-FIXTURE-APPLIED"
         const val SQLDELIGHT_RUNTIME_API_MISSING_SENTINEL = "TEST-SQLDELIGHT-RUNTIME-API-MISSING"
         const val SQLDELIGHT_RUNTIME_API_AVAILABLE_MARKER = "TEST-SQLDELIGHT-RUNTIME-API-AVAILABLE"
@@ -3407,3 +4012,5 @@ class ArchitectureCheckPluginFunctionalTest {
         """.trimIndent()
     }
 }
+
+// Library extraction

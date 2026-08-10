@@ -562,7 +562,7 @@ internal fun filteredPlaylistTrackIds(
     tracks
         .filter { track ->
             query.isBlank() ||
-                listOf(track.title, track.artist, track.album).any {
+                listOf(track.title, track.artist.orEmpty(), track.album.orEmpty()).any {
                     it.contains(query, ignoreCase = true)
                 }
         }
@@ -1348,7 +1348,7 @@ private fun QueueMutationActions(
 public fun PlaylistDetailScreen(
     playlist: PlaylistSummary,
     entries: List<PlaylistEntry>,
-    libraryTracks: List<LibraryTrack>,
+    playableTracksById: Map<String, PlayableTrack>,
     state: PlaylistState,
     destination: PlaylistFeatureDestination,
     appearanceSource: PlaylistFeatureAppearanceSource,
@@ -1368,10 +1368,7 @@ public fun PlaylistDetailScreen(
     onScrollPositionChanged: (Int, Int) -> Unit = { _, _ -> },
     initialEditMode: Boolean = false,
 ) {
-    val tracksById =
-        remember(libraryTracks) {
-            libraryTracks.associate { it.id to it.toPlayableTrack() }
-        }
+    val tracksById = playableTracksById
     val model =
         playlistDetailModel(playlist.id, playlist.name, entries, tracksById)
     var renameDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
@@ -2503,3 +2500,5 @@ private fun PlaylistTextField(
                 borderColor = HausColors.current.line,
                 labelColor = HausColors.current.muted))
 }
+
+// Library extraction

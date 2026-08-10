@@ -266,3 +266,199 @@ SQLDelight moves SHALL atomically transfer `.sq` files, existing migrations, dri
 - **WHEN** a migration moves database, resources, expect/actual code, or public iOS declarations
 - **THEN** tests verify existing database/migrations/foreign keys and supported platform startup/resource/DI behavior
 - **AND** the iOS export allow-list admits only required public declarations.
+
+### Requirement: Library implementation is one unexported callback-first leaf
+
+Task 7.1-7.3 SHALL create exactly one unexported `:feature:library:impl`; existing
+`:feature:library:api` SHALL retain its module identity and domain/repository-contract role. The
+later corrected-Library authority explicitly authorizes removing API playback conversion/type
+residue. The
+implementation SHALL target Android-KMP with host tests/resources, JVM, `iosArm64`, and
+`iosSimulatorArm64`, preserve current Kotlin package roots, use Android namespace
+`com.eterocell.rhythhaus.library.impl`, and use Compose resource namespace
+`rhythhaus.feature.library.generated.resources`. It SHALL have no framework binary or iOS export.
+Shared SHALL use an implementation-only edge and alone compose/start Koin.
+
+Impl SHALL own Library scanner/indexing, repository implementations/mappings, scan events/progress
+implementation models, platform source access/folder picker/path resolver expect/actuals,
+`AudioMetadata`/`AudioMetadataReader` and platform metadata actuals, TagLib integration/bindings,
+Library leaf home/album/artist/scanning/import UI, browser/grouping/rows/chrome/artwork-collapse
+helpers, and Library-local transient rendering state. Core database SHALL remain the sole physical
+SQLDelight schema/driver/migration/generated owner. Impl SHALL NOT depend on core playback solely
+for queue/restart behavior: `LibraryPlaybackSelection.kt` remains Shared, and Shared adapts ordered
+Library track/selection callbacks to PlaybackController policy.
+
+The public surface SHALL be limited to KDoc-complete browse-mode and shared-label values,
+callback-first Library home/album-detail/artist-detail/scanning content, plain folder-picker
+result/launcher/`rememberPlatformFolderPickerLauncher`, `PlatformSourceAccess`, a scan-service
+contract, and `libraryImplementationModule(): org.koin.core.module.Module`. Public signatures may
+use Library API/core:model only when unavoidable, Compose runtime/UI/Dp/Modifier, and Module only
+for the factory. They SHALL NOT expose Shared route/AppState/Back/navigation/destination types,
+PlaybackController/PlaybackState/QueueOccurrence, generated Res, Job, TagLibReader, core database/
+SQLDelight, other feature types, or platform-native handles. Every public declaration/property and
+function behavior SHALL have KDoc. LibraryAppShell SHALL remain a Shared coordinator; existing
+reducers/remember state remain under the explicit Task 7.2 characterization exception.
+
+#### Scenario: Library ownership moves without widening Shared
+- **WHEN** the Library implementation is extracted
+- **THEN** scanner/source/index/repository/metadata/platform/UI tests move with their subjects and
+  Shared retains App scan cancellation/job/publication/source authority/DI/route/Back/selection/
+  playback/session/cross-feature adapter tests
+- **AND** all platform common expect and Android/JVM/iOS actuals move atomically while preserving
+  SAF/persisted permissions/DocumentFile, canonical JVM traversal, and iOS app-local Documents
+- **AND** physical SQLDelight inputs and generated ownership remain in core database.
+
+#### Scenario: Library resources and intentional metadata ABI contraction
+- **WHEN** Library resources and scanner metadata move
+- **THEN** an exhaustive named EN/ZH current-consumer ledger proves exact parity, no missing,
+  wrong-owner, or duplicate key, with `scan_complete_format` and
+  `adaptive_detail_placeholder` retained by Shared and uncertain shell-rendered keys retained or
+  injected as values
+- **AND** current `readAudioMetadata(path)` and `AudioMetadata` Shared exports are removed as an
+  intentional unsupported ABI contraction, with no impl export or compatibility facade, and source
+  consumer, generated Shared-header, MainViewController, and approved ABI checks pass.
+
+### Requirement: Library extraction remains unchecked until bounded evidence
+
+Tasks 7.1-7.3 SHALL remain unchecked until causal RED controls cover absent module/targets,
+forbidden edges, Shared API/export, namespace/resource ownership, package/public surface/KDoc,
+accidental ABI export, platform actuals, physical SQLDelight ownership, and stale Shared residue;
+GREEN preserves scanner cancellation/cleanup/fallback/progress/errors, source behavior, grouping/
+order/duplicates, detail invalidation, selection adaptation, queue/restart, and Back through real
+production boundaries. Required evidence includes focused feature common/JVM/Android-host/iOS tests
+and compiles, retained Shared JVM/iOS, core database integration, Android assemble, desktop compile/
+automatable runtime, generic Xcode/simulator checks, TestKit architecture, twice-reused root
+architectureCheck, Spotless/Detekt, strict named OpenSpec under Node 26.7.0, AboutLibraries byte
+identity, diff hygiene, and `./init.sh`. It SHALL NOT claim physical-device, picker/scanner runtime,
+playback-engine runtime, desktop visual launch, or visual/accessibility QA.
+
+#### Scenario: Pending Library acceptance is bounded
+- **WHEN** Slice 6 is reviewed
+- **THEN** the review confirms one atomic direct-Shared-composition Library move and unchanged
+  Library API/MainViewController/approved ABI boundaries
+- **AND** it does not infer product/UI changes, package renames, schema/migration changes, iOS
+  export, compatibility bridges, or runtime/device/visual behavior from compile/link evidence.
+
+### Requirement: Corrected Library authority is executable
+
+The Library requirements above are amended by the dedicated approved Library design. The retained
+API module SHALL depend only on core model and SHALL contain no playback type after
+`LibraryTrack.toPlayableTrack()` moves to Shared. Shared SHALL use `commonMainImplementation` for
+one unexported impl and retain App/root shell, route/Back/predictive/navigation identities,
+`LibraryAppState`, Back-required browse state, selection/page mapping, visible-ID reconciliation,
+scroll and bottom-bar policy, playback/session, scan Job/orchestration/publication, cross-feature
+composition, Koin startup/total assembly, and `LibraryPlaybackSelection.kt`. Impl SHALL own only
+repository/scanner/metadata/TagLib/platform seams/leaf UI/local rendering/resources; no
+Presenter/ViewModel/Event/Effect layer is permitted.
+
+Its exact public surface SHALL be the KDoc-complete `PlatformSourceAccess` access/release methods,
+internal-constructor `LibraryScanner.scan(source, isCancelled, onProgress)`, `ScanProgress`, folder
+picker result/launcher/expect, neutral browse/group/selection-page projections, callback-first
+`LibraryHomeContent`/`DrillDownView`, and exactly `public fun libraryImplementationModule(): Module`.
+Public signatures SHALL satisfy the dedicated design's prohibited-type and callback rules. The
+Android `LibraryDatabaseContext` holder SHALL move physically to core database without changing its
+package/name/public setter or application-before-Koin initialization order. The exhaustive EN/ZH
+ledger, `selected` unused-removal proof, public KDoc/boundary controls, and intentional metadata
+ABI contraction based on the documented `f4ae104`/`30f89ff` consumer history SHALL be enforced.
+
+The exact public UI declarations SHALL be the dedicated design's Kotlin declarations for
+`BrowseMode`, `LibrarySelectionPage`, `LibrarySharedLabels`, `LibraryHomeContent`, and
+`DrillDownView`, including every parameter name/type/default. They SHALL NOT be generalized into
+unnamed parameter groups. Home/detail SHALL use only `Track`, `RhythHausBackdrop`, Compose,
+feature values, and primitive callbacks; private occurrence-index-plus-ID keys preserve duplicate
+rendering and ordered visible reports; each emits primitive index/offset and has exactly one
+required-padding terminal spacer. Shared SHALL resolve unavailable detail before composition and
+perform existing route-level Back, while local state follows the exact dedicated state ledger and
+`formatDuration` is internal Library code.
+
+#### Scenario: Oracle conversion inventory correction
+- **WHEN** Slice 6 is implemented
+- **THEN** the six paths previously named are historical/baseline inventory only
+- **AND** post-extraction exactly four retained Shared production files own conversion/projection:
+  `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`, `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionCoordinator.kt`, `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`, and `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt`.
+- **AND** moving feature-owned `LibraryHomeContent.kt` returns `Track` callback data and contains no conversion; playlist impl `PlaylistScreens.kt` consumes `playableTracksById` and contains no conversion.
+- **AND** Task 7 deletes only `LibraryTrack.kt` method/import residue, adapts/removes `LibraryApiModelsTest.kt` conversion assertions, adapts `PlaylistLifecycleIntegrationJvmTest.kt` to Shared projection, and retains unrelated `MusicModels.kt` `Track.toPlayableTrack()` plus `SearchRouteAdapterJvmTest.kt` use.
+
+#### Scenario: Shared owns every Library playback projection
+- **WHEN** Slice 6 removes the Library API conversion
+- **THEN** the six listed paths are historical/baseline inventory only:
+  `App.kt`, `LibraryAppShell.kt`, moving `LibraryHomeContent.kt`, `LibraryRoutes.kt`,
+  `PlaybackSessionCoordinator.kt`, and playlist impl `PlaylistScreens.kt`
+- **AND** `PlayableTrack` remains a core-model type; Library API remains core-model-only and exposes
+  neither it nor a conversion, while moving leaf UI returns `Track` callback data.
+- **AND** Shared `LibraryRoutes.kt` passes `PlaylistDetailScreen` an authoritative
+  `playableTracksById: Map<String, PlayableTrack>` with current ID-keyed `associate` behavior;
+  playlist detail performs no local map, the map does not represent duplicate occurrences, and
+  unchanged `SavedPlaylistPlaybackRequest(occurrences, selectedOccurrenceId)` and `onPlayEntry`
+  preserve queue occurrence order, identity, selected occurrence, and callback settlement.
+- **AND** playlists impl retains existing core-model API visibility only; no new project/Shared edge
+  or callback-payload redesign is introduced, and browser overlays may retain `List<LibraryTrack>`
+  metadata input.
+
+The ledger SHALL list exactly the twelve injected label keys, all Shared-only non-injected keys, all
+Library-moved keys, and core UI `back`; it SHALL require EN/ZH multiset equality plus duplicate,
+missing, wrong-owner, foreign-key, rendered-resource, and selected-absence controls. Metadata SHALL
+be internal at `com.eterocell.rhythhaus.library.impl`; headers SHALL omit `SharedAudioMetadata`,
+`SharedAudioMetadataReader`, `SharedAudioMetadataKt`, `readAudioMetadata(path:)`, and
+`readAudioMetadataPath:` while retaining all named MainViewController symbols. The only Android
+holder declaration SHALL be the dedicated core-database path, with old-path/duplicate/visibility/
+direct-impl-dependency/init-order negatives.
+
+#### Scenario: Corrected Library implementation is accepted only with causal evidence
+- **WHEN** Tasks 7.1-7.3 are implemented
+- **THEN** causal production-composable, scanner/source/picker/repository/metadata, process-init,
+  header-contraction, dependency/namespace/resource/Koin, and malformed-negative controls prove the
+  dedicated design across required targets
+- **AND** no task is checked until all bounded platform/quality/ABI/OpenSpec evidence is recorded.
+
+### Requirement: Library literal authority has no selectable alternatives
+
+The dedicated Library design's Kotlin declarations SHALL apply exactly. Every Home/Detail parameter
+SHALL be required with no default; use `currentTrackId` and no `isPlaying` or `onPlayPause`; both
+SHALL accept the required suspend artwork loader and preserve its documented behavior. Impl SHALL
+use API core-model/core-UI/Compose signature dependencies and implementation-only remaining UI
+dependencies; Shared SHALL use implementation-only impl dependency and no export. The authoritative
+track/group ordering, occurrence keys, state/reset, one-spacer, routes, KDoc controls, and twelve
+field resource resolver table SHALL apply.
+
+`libraryImplementationModule()` SHALL be the only public Koin-shaped declaration; all stated
+bindings SHALL be singletons and use one concrete platform object for public access/internal scan
+roles. Metadata retirement is intentional after the documented f4ae104/30f89ff history, not an
+accidental-export claim. Android holder compilation/transitivity/direct-androidMain dependency/sole
+path/init ordering and exact header absence/retention controls SHALL apply.
+
+#### Scenario: Literal Library boundary rejects substituted plumbing
+- **WHEN** implementation supplies a defaulted or renamed UI parameter, an `isPlaying` or
+  `onPlayPause` leaf argument, a second scanner/access/TagLib singleton, nonliteral artwork loading,
+  or an alternative holder/export path
+- **THEN** public-surface, production-composable, Koin, Gradle, and ABI controls fail
+- **AND** only the dedicated declarations, singleton graph, holder path/order, and intentional
+  metadata-retirement symbols are accepted.
+
+### Requirement: Library detail formatting and exposed dependency graph are exact
+
+Impl SHALL declare `api` dependencies on Library API, core model, core UI, and Compose artifacts
+needed by public signatures. `DrillDownView` SHALL accept required `LibraryDetailSummary`, never a
+formatted subtitle; Shared SHALL supply only raw title/route/tracks/counts and feature SHALL resolve
+the moved unknown-artist/detail subtitle keys. The dedicated internal scanner/event/access/metadata
+signatures, all-single Koin declarations with `===` identity, 12-field resource resolver table,
+public metadata retirement, and retained Shared consumers SHALL apply exactly.
+
+Because the sole public factory returns Koin `Module`, impl SHALL declare exactly
+`api(libs.koin.core)`; Koin Compose and non-signature Koin/UI dependencies SHALL remain
+implementation-only. The dedicated signature authority is binding pseudocode. Production source
+SHALL contain declaration-specific KDoc on every listed public declaration/member/constructor
+property/function and `@param` entries for each public callable parameter/callback; KSP SHALL inspect
+source and reject missing or generic-placeholder documentation.
+
+#### Scenario: Detail formatting remains feature-owned
+- **WHEN** album and artist detail routes are adapted
+- **THEN** Shared supplies both raw summary variants and no detail formatter/resource handle
+- **AND** feature tests render EN/ZH detail copy for null/non-null artist and unchanged counts while
+  Koin/resource controls reject second objects, wrong API scope, or a moved-key Shared import.
+
+#### Scenario: Public Koin type receives API scope
+- **WHEN** Gradle and KDoc governance inspect Library impl
+- **THEN** `libs.koin.core` is an `api` dependency because factory `Module` is public
+- **AND** implementation-only Koin core, Koin Compose public leakage, source-block-comment KDoc, or
+  missing callable `@param` documentation fails.

@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus.session
 
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.toPlayableTrack
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -207,7 +208,7 @@ internal class PlaybackSessionCoordinator(
         try {
             val reconciled =
                 controller.reconcileSession(
-                    command.tracks.map(LibraryTrack::toPlayableTrack))
+                    command.tracks.map { it.toPlayableTrack() })
             val result =
                 if (_phase.value == PlaybackSessionPhase.FailedSafe) {
                     PlaybackSessionReconcileResult.FailedSafeApplied
@@ -344,3 +345,5 @@ private fun cancellation(
     message: String,
     cause: Throwable
 ): CancellationException = CancellationException(message, cause)
+
+// Library extraction

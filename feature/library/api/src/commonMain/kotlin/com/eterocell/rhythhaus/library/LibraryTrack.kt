@@ -1,7 +1,6 @@
 package com.eterocell.rhythhaus.library
 
 import com.eterocell.rhythhaus.AudioSource
-import com.eterocell.rhythhaus.PlayableTrack
 
 /** A track indexed from a [LibrarySource]. */
 public data class LibraryTrack(
@@ -42,11 +41,6 @@ public data class LibraryTrack(
     /** MIME type for [artworkBytes]. */
     public val artworkMimeType: String? = null,
 ) {
-    /** Converts this library projection to a playable track. */
-    public fun toPlayableTrack(): PlayableTrack =
-        PlayableTrack(
-            id, title, artist, album, durationMillis, audioSource, artworkBytes)
-
     override fun equals(other: Any?): Boolean =
         other is LibraryTrack &&
             id == other.id &&

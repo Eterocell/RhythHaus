@@ -3,29 +3,8 @@ package com.eterocell.rhythhaus.library
 import com.eterocell.rhythhaus.AudioSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 class LibraryApiModelsTest {
-    @Test
-    fun libraryTrackMapsToPlayableTrack() {
-        val track = track(durationMillis = 123_000L)
-
-        val playable = track.toPlayableTrack()
-
-        assertEquals("track", playable.id)
-        assertEquals("Track", playable.title)
-        assertEquals("Artist", playable.artist)
-        assertEquals("Album", playable.album)
-        assertEquals(123_000L, playable.durationMillis)
-        assertEquals(AudioSource.FilePath("/Music/Track.mp3"), playable.source)
-    }
-
-    @Test
-    fun libraryTrackWithUnknownDurationMapsToPlayableTrackWithNullDuration() {
-        assertNull(
-            track(durationMillis = null).toPlayableTrack().durationMillis)
-    }
-
     @Test
     fun libraryTrackUsesContentEqualityAndHashCodeForNullableArtworkBytes() {
         val withArtwork = track(artworkBytes = byteArrayOf(1, 2))

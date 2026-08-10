@@ -1,0 +1,174 @@
+Planning baseline: 2e199950da3fa518c2491b3168cbb5fb86c4cefd
+Frozen inventory: BEGIN
+Checkpoint 1 Governance RED: PASS / APPROVED
+Checkpoint 1 commits: 3ae4a85ae30934e110064b33b5f1cb14d4694e32 fcbfa74c704b1b37926335b911054a1b61b9b879 3f2e164 e8b9934
+Checkpoint 1 verification: ArchitectureCheckPluginFunctionalTest 90/0/0/0; KmpConventionPluginsFunctionalTest 6/0/0/0; exact forced -D processor JAR invocation PASS
+Checkpoint 2 Module, API, Holder: IN PROGRESS
+Correction inventory: BEGIN
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt	M	415ee51c47d8042f064ffaf8a748b9b0ee9f02cd5b64cff05b2c1cf823253364
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionCoordinator.kt	M	e9e7ab7d212a8f66822bb5bb53d874c6054a71d791ba3538f4392ed88424b716
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryPlaybackSelection.kt	M	0bd748d7efac5b3c2e34436dc4d50c429e8e583048f2027525c7ff81f380cc04
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt	M	4ddc10f6555a5a454b64d7a9e2986240639045f2592869409faa389ea2fef6c4
+feature/playlists/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistScreens.kt	M	7177716c316e99e25b1c0d535ccdd1e3bbdf84140fce215ea8af968c0a107c4d
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/PlaylistLifecycleIntegrationJvmTest.kt	M	f32c6785e19e8259e1c49df385ee6273dc667ee4025b73deba555e434582acbd
+core/database/src/androidMain/kotlin/com/eterocell/rhythhaus/library/LibraryDatabase.android.kt	M	8060ccc93d15fa92aa22757ce8aba480da3b986652617f1b8925c5db558f5bbb
+core/database/src/androidMain/kotlin/com/eterocell/rhythhaus/library/LibraryDatabaseContext.android.kt	M	b4dd7716604e5e88f8ee784e6137a8079a2da3408f4b7b077950d9c31b530b2e
+core/database/src/androidHostTest/kotlin/com/eterocell/rhythhaus/library/LibraryDatabaseAndroidHostTest.kt	M	b3421ed38e9b2c01bf26f8321968726001257d1bdf73ee949ec2341207fbacde
+build-logic/convention/src/test/kotlin/com/eterocell/gradle/architecture/ArchitectureCheckPluginFunctionalTest.kt	M	be9dc3e54394040301411bebb5b503643fca0e26823d80f71df22af6175a6826
+feature/playlists/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistFeatureDismissalTest.kt	M	d9312bd5be027399b396c18946726a4f3faa59780f8a4d6a5fabda653ba5a6a2
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/SearchRouteAdapterJvmTest.kt	M	6011ded54d7423e7883b356ea2873bb5b24768746c09abff414a8e4602105793
+Correction inventory: END
+Correction map SHA-256: d484ea85990b3040b2acdb56080a02d3b1eb85683c35805587ca188edef621e0
+Correction evidence prefix SHA-256: d18afa3cf33bc812fb8aa9180eb338fe8f5f3202038fefb0d5e4a7a0225073f0
+Amended library plan blob SHA-256: 48d67b16bb227ceebe1da00237298e227dca3a3cd35cfb7b315b95ff3cbbeedd
+Amended pointer plan blob SHA-256: 9773bd676a314f5284a326d2b6ebb428393a1d15ad7276cfab04c3b5d5702db9
+Frozen report SHA-256: 990983d2ac71c9935df48947f193a35e7fbc602a85cc63efe0b6b9fac5daa2cd
+Failed RED_RECOVERY attempt: BEGIN
+Stage: PRE_WORKTREE
+Observed error: cleanup_retry_fixture:1: fixture_root: parameter not set
+No Gradle build client: PASS
+No detached worktree: PASS
+Log: /var/folders/l_/j8p3d1ln6q1drdptb1hhczrh0000gn/T/opencode/rhythhaus-red-recovery-output.XXXXXX.log SHA-256: be69ba885c0f14dc609f030e9425ca65be5b6c74483becdca972bb29c4326454
+Summary: /var/folders/l_/j8p3d1ln6q1drdptb1hhczrh0000gn/T/opencode/rhythhaus-red-recovery-runtime.q9vybg/rhythhaus-red-recovery-summary.g4hQK1 SHA-256: 3028afef6648544c7e07ee7269b3ef99e6bcb993a0a8002ae995aba32c8a4e90
+Failed RED_RECOVERY attempt: END
+Failed RED_RECOVERY attempt 2: BEGIN
+Stage: PRE_WORKTREE
+Primary error: RED_RECOVERY: cleanup evidence retry fixture failed
+Secondary error: fixture_remove: attempts: parameter not set
+Secondary error: fixture_remove: second: parameter not set
+No Gradle build client: PASS
+No detached worktree: PASS
+Cleanup outcome: FAIL
+Log: /var/folders/l_/j8p3d1ln6q1drdptb1hhczrh0000gn/T/opencode/rhythhaus-red-recovery-output-fresh.JM8mHw SHA-256: bc3fa401adaeaf96846a0266cea2e2c1bbbaa3c967e9eba5795875f3595ccd9e
+Outer summary: /var/folders/l_/j8p3d1ln6q1drdptb1hhczrh0000gn/T/opencode/rhythhaus-red-recovery-runtime-fresh.bDJGfX/rhythhaus-red-recovery-summary.h8gzST SHA-256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+Fixture summary: /var/folders/l_/j8p3d1ln6q1drdptb1hhczrh0000gn/T/opencode/rhythhaus-red-recovery-runtime-fresh.bDJGfX/rhythhaus-red-cleanup-summary.vTAoIQ SHA-256: a958917a3dc2495d28e4475e141aeaa48d9bf8b0a7104be7c4a4d3123a6ed44c
+Failed RED_RECOVERY attempt 2: END
+Committed cleanup successor plan SHA: 4f850915b6686a8486c6b41a4e7e6b7dce655ef8
+Simplified recovery successor plan SHA: 6f580fadd10c4bf63b79165a899b9dd31df9ee1b
+Diagnostic successor plan SHA: bf16d36fc7198bef1c35a3229130d8870bad71f1
+Warnings successor plan SHA: 0a0ebe2f382cb9ab903ee50b21cf16cea2304784
+Comprehensive successor plan SHA: e2606e7f143a3062b4bbcd67ad7982ca50bd10ae
+Multiline successor plan SHA: 5a07209d71b605951bd1576c5c1898b642cec9d9
+Direct successor plan SHA: b48a8be41e19358e09dc3bfc360d3fc86e1ce943
+Brace successor plan SHA: d4c1f615aedeaf400be271c7d864ef73b566571a
+Record successor plan SHA: 1e3652f3df65325550f17678dd56950ba7a72da5
+Event: 1 CORRECTION PREPARE PASS correction-prepare
+Event: 2 CORRECTION PRE PASS correction-pre
+Event: 3 CORRECTION STAGE_PRE PASS correction-stage-pre
+Event: 4 CORRECTION STAGE_POST PASS correction-stage-post
+Event: 5 CORRECTION COMMIT_PRE PASS correction-commit-pre
+Event: 6 CORRECTION COMMIT_POST PASS correction-commit-post
+Scope successor plan SHA: 9bdf6874ac94785827542cfffb88b60370906229
+Reconcile successor plan SHA: 1c7ad370949d778dc202af6cfdbc04e83a8475e2
+Implementation inventory: BEGIN
+shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/AudioMetadata.jvm.kt	D	DELETED
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.kt	A	7794c7a3376fe5c44dea4f6e8aa27d24433302ef197e19d0932f75a306c2ee2e
+feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContentJvmTest.kt	A	4519dcec896ff0a1de91049e91d4c9ab211d25ff175a2cebe5dc1a180693af10
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/ui/ArtworkImageTest.kt	D	DELETED
+feature/library/impl/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ArtworkLazyLoadingTest.kt	A	de9fe715a2bc52921eb9996b6e3536da24fa9274c08f04275180a1cdc805def2
+feature/library/impl/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/impl/PathResolver.jvm.kt	A	102fb99e8b28e0684f1627c1f0f8574b4215a9a6b3ac96363d81e2f7cf38eeaf
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryRepository.kt	A	af873c10a254fb8d3e6c128ffcbdb86ddef52f9637aa0d5b9bd2125fee41c30e
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRows.kt	A	b841668a9234256523e7bddd5b15057bfd3780a9b10d847b6f9ebcd20497d239
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistBackPolicyJvmTest.kt	M	f2f2d57c31afdec24bfad6ba196443258444583870b5fcfe677d148571211cd7
+feature/playlists/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistScreens.kt	M	c757cce36b09eb38bf9bad926c1f629b78070b8c923946d3a16d880e0513eb36
+feature/library/impl/src/androidHostTest/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccessAndroidTest.kt	A	3685137d82c6951511a9f0a25bc8316d70a9d3e1d995db3c3ab53168bf0bacba
+feature/library/impl/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/PlatformFolderPicker.jvm.kt	A	6e837a758fcb25044aac8e7c6c8d429406f562cc6103efd8cfaaad7f3b8a942b
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryBrowserTest.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ui/TrackArtworkImage.kt	D	DELETED
+feature/library/impl/src/androidMain/kotlin/com/eterocell/rhythhaus/library/PlatformFolderPicker.android.kt	A	c601c0443fd771acf7126012d291051785ed11b4feef118130180a356560b50c
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryModels.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryBrowser.kt	D	DELETED
+shared/src/androidMain/kotlin/com/eterocell/rhythhaus/library/PathResolver.android.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/ImportLabels.kt	D	DELETED
+feature/library/impl/src/androidMain/kotlin/com/eterocell/rhythhaus/library/impl/PlatformSourceAccess.android.kt	A	235b1e0fa8fc96589cf3d793de8c0d2cc175a28938924ffa06851237b8670e0f
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepositoryJvmTest.kt	D	DELETED
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryScannerTest.kt	D	DELETED
+shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/PathResolver.jvm.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/session/PlaybackSessionCoordinator.kt	M	52eb32e696056bb7db180551fffa8e7451f0121b7c61922a23037d7f508dd887
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/SearchRouteAdapterJvmTest.kt	M	d643c3fc1756719b4039e5faef11ffcd5e85935f6f2a1d0b9aaa2212e04441a8
+shared/src/commonMain/composeResources/values-zh/strings.xml	M	52cdc9cee31d9f094f2cccdd250c059e915814f772c8875041958be4508d78ed
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/impl/SupportedAudio.kt	A	9f674991dc9bec38567133c2c38ecfaaff396a930b3880d36a0a1303421afe2d
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/HomeSelectionPoliciesJvmTest.kt	M	e10937b580d7025b8421f2c17a0c3b7dd7dfed4466ac8cfed589620d543fe6c0
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapse.kt	A	37a11ab4ea9aeada654604804eb6e2efc5849012a5b1ee9ba01475d2d41903a3
+feature/library/impl/src/commonMain/composeResources/values-zh/strings.xml	A	100e073a668be25acb0c104704670a49718add1031ece2adb2315834bb8fb38d
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryRepositoryContractTest.kt	D	DELETED
+shared/src/iosMain/kotlin/com/eterocell/rhythhaus/AudioMetadata.ios.kt	D	DELETED
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/impl/AudioMetadata.kt	A	d0f62e55560e2bd64e9fc61a92e9db51ffad3be9acc3f2357032f2e181ab8acb
+feature/library/impl/src/commonMain/composeResources/values/strings.xml	A	0e5c9eb1384f35b6b02c63ea8bc28270dafd3f07ee9bf791f9c16bbefb66a099
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt	M	191a982462f31d4bf4263d542540e9890e126e1b55bcfa91bd81788a6c51f141
+build-logic/convention/src/test/kotlin/com/eterocell/gradle/architecture/ArchitectureCheckPluginFunctionalTest.kt	M	9f924fa000c9ca880bab5f78406fb7183b3415a231c34d2d2000c9a685c02484
+feature/library/impl/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryRepositoryContractTest.kt	A	65aee36b24ab22880ac8561bb9ec201ae8002a510a2264c40cdf6cacb5f766f8
+shared/src/androidMain/kotlin/com/eterocell/rhythhaus/AudioMetadata.android.kt	D	DELETED
+feature/library/impl/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryModelsTest.kt	A	8a9ee1377d02d348581074f641bb8ec811d542f09be623ca392335d5620ba527
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/impl/PathResolver.kt	A	d373c0454342525fdcdcdf0fd9059f0ec887165a83ca526bf216dd0c625859a3
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt	A	dcd2ea1924c902078b5cf6b4202f4d4ab7890b7964ff5966fd5cfc79592aae4e
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryScanner.kt	D	DELETED
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContent.kt	A	da5b24d9e697d28bd01e03fec3489cd8b81fc2194ea9828961dd048cb8eb3d62
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/nowplaying/NowPlayingScreen.kt	M	4181dd5dfe7ea6de971a30cab6b650598a370c603a032e7eb85bac7aa0f45097
+feature/library/impl/build.gradle.kts	M	a69a320262d6bc8e2ef547a447d53e05a3ae1692e7ef056e968a4da1bf66cd81
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/di/RhythHausDiTest.kt	M	71ab69ff2e29e0db8d981cd8e66701c20fb43223184ccd3198fdc5ebfc0f0266
+shared/src/commonMain/composeResources/values/strings.xml	M	baa1b27abc86e53a82ecbd8140371849c87fd87cb5014883f8434edaa277379b
+feature/library/impl/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryScannerTest.kt	A	6e3ac47978ad931bce8c1e6c8dbd35bf0c9525161ffa72c14beb928cd4a082e8
+feature/playlists/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/PlaylistFeatureDismissalTest.kt	M	d847fa57bff79773a9984b9ac0bd729c26e498eb7e09d9f323aa47733763ff3d
+shared/src/iosMain/kotlin/com/eterocell/rhythhaus/library/PathResolver.ios.kt	D	DELETED
+feature/library/impl/src/iosMain/kotlin/com/eterocell/rhythhaus/library/impl/PlatformSourceAccess.ios.kt	A	b31748777677addfee18ffeef01aa52347b8b28f23bd3397adb9ca5adce0e986
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/SupportedAudio.kt	D	DELETED
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapseTest.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRows.kt	D	DELETED
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryNavigationTest.kt	M	679ade647f01cb6c8d228e002e14e5a8f05b43a6dfacf712efa155746fe622e7
+feature/library/impl/src/androidMain/kotlin/com/eterocell/rhythhaus/library/impl/AudioMetadata.android.kt	A	ae7f197dd392147ec872b9b4f8a95a4f3b4d38ad7a270218059853312fee729c
+shared/src/iosMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.ios.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.kt	D	DELETED
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/AppDispatcherJvmTest.kt	M	9b1ba222a9863d9b811254d731d3e19aea4f251a4259bcc24dbf26015917f4bd
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryRepository.kt	D	DELETED
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/TrackArtworkImage.kt	A	c5c9be6ab0114268137cb6fc6ce507e0965ecfda933341c8d83161302461325e
+feature/library/impl/src/iosTest/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccessIosTest.kt	A	fc00371bfbb055bd8a44b753e9d215027ed8bc82bad35bc6ab18bca3a9a0a739
+feature/library/impl/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/impl/PlatformSourceAccess.jvm.kt	A	b10ad873266d320a0fc54f13c578641c132024a9a8864d5320ab352264e0eff2
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/PathResolver.kt	D	DELETED
+feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/TrackArtworkImageJvmTest.kt	A	83da6663299b3cee5b1d35e5f6f86bae9edd61be7fe9b6d28e5ddff0dca4c304
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepository.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryPlaybackSelection.kt	M	9d6f58000dc42658ac010fbe07999bde7c42ef58776ba9f54308237a6dc948c8
+core/database/src/androidHostTest/kotlin/com/eterocell/rhythhaus/library/LibraryDatabaseAndroidHostTest.kt	M	12f4241f70d54bb716445057539c5fd95684d00574ebb21020d01cd91cd1ea17
+architecture-processor/src/main/kotlin/com/eterocell/rhythhaus/architecture/ArchitectureProcessorProvider.kt	M	ea601430e629c3c38b6dd7bbb01da216658aaa589ac39bc6d9e82b8828edf3ae
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryBrowser.kt	A	36ed1675e8f38576c42324bfa77c24a40a15065586ac1b020640be768b8152ac
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt	M	a8b48b887e665af6fccdccad99dfec59fb688f41654a0d53484d379df592bf23
+feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/DrillDownViewJvmTest.kt	A	506db6b1e2fbf06b62b15efd030129ef3f503ff7efc5f2577d2a0a0f9c96d3ca
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContent.kt	D	DELETED
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibrarySourceManagementTest.kt	M	1ff5e5899393b9a4c2b9b5f5ea5e321ab942449f3966a5a48b1f738796a31816
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryDetailContent.kt	A	78cdac9eb8e67ad0047655d3957d59adc4a87aa6bfb0ebdd7dc515dad8e724da
+shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.jvm.kt	D	DELETED
+feature/library/impl/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapseTest.kt	A	9f31090f30632909240a3e6b5a91fcc6108b06f0530a7902781e3984195615a6
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryImplementationModule.kt	A	88fafad3cea576b846a59b0a30e32c89e200087fb53cfe54c95331c522fb4286
+feature/library/impl/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/TrackArtworkImageTest.kt	A	647e5857350e7393079d8b657947474ca363487ff6715740d7d7b14a75492e12
+feature/library/impl/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryBrowserTest.kt	A	fc1937ac76221ebeffb354474e53bf0481cf3ae5f64d03ee8976cb9e1aa1360f
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryChrome.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRoutes.kt	M	c58c67bb778b895a9ac0331a5ceb806df2f37b67e3fc96083fdc0b0fa5a7ecac
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepository.kt	A	a9f6685bb54e2e4775198021c78d1b1ea05b2c0a173f3905f41365209da4123b
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryImplementationModule.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/ArtworkCollapse.kt	D	DELETED
+feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccessJvmTest.kt	A	29ba99f2426da3dac285deac883db0a2f20c123d2f7d0dfbb5fdbec18b43d9af
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/ArtworkLazyLoadingTest.kt	D	DELETED
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/TrackSelectionSemanticsJvmTest.kt	M	f3ea12ece00343103a934ff1a9a7423d55ecc70804062641cbb00bb205bc8e2f
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryModels.kt	A	c250059ac94fd0fdf8978460c2f0c25ad13c62ec2bd292e901b1a67e07a3cfcc
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/impl/PlatformSourceAccess.kt	A	0dcfd3f68fd353b761d8a575e64519a57f036f17011bb0da90a0461af3b1c04d
+shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryModelsTest.kt	D	DELETED
+core/database/src/androidMain/kotlin/com/eterocell/rhythhaus/library/LibraryDatabaseContext.android.kt	M	d750e7ab4787528dfdb7924039e499e3732df446c40c2cb8ae9dc2e7dd86876f
+feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepositoryJvmTest.kt	A	8615d3590761143537876304130c904d7e723186500f763bcf8fcab4478dae25
+feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/LibraryKoinIdentityTest.kt	A	e00a025de0ddd1305c1b9bb503052f5f6b3d661ea49e6379d862bb5fd3ac20b7
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryRouteAdapterJvmTest.kt	A	3ab70d85fefda1ee11781bcb82c6313276f5a688429daf26344f7d8e77b13890
+shared/src/androidMain/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccess.android.kt	D	DELETED
+shared/src/commonMain/kotlin/com/eterocell/rhythhaus/AudioMetadata.kt	D	DELETED
+core/database/src/androidMain/kotlin/com/eterocell/rhythhaus/library/LibraryDatabase.android.kt	M	74f77cf3840a7832264139baf2d2d971328acaf5f3912e25ca458d2a319e3883
+feature/library/impl/src/iosMain/kotlin/com/eterocell/rhythhaus/library/PlatformFolderPicker.ios.kt	A	f35b127435c3c0ac043c626698704e009f4dacdf07b52e2eb174f88c163f0f25
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryScanner.kt	A	04b9783d27d5c2a21fbf07ae88343b5f80e56adb0db95a514ee60adbf7925db4
+feature/library/impl/src/androidMain/kotlin/com/eterocell/rhythhaus/library/impl/PathResolver.android.kt	A	102fb99e8b28e0684f1627c1f0f8574b4215a9a6b3ac96363d81e2f7cf38eeaf
+feature/library/impl/src/iosMain/kotlin/com/eterocell/rhythhaus/library/impl/PathResolver.ios.kt	A	74c149caad04ef5950a1a59910f2973ea2f165f72ec3805a07c553aa9605892b
+feature/library/impl/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/impl/AudioMetadata.jvm.kt	A	fd3088250905066f662cb2f20052422b87e993f25e14a517526ea42d36edf769
+feature/library/impl/src/iosMain/kotlin/com/eterocell/rhythhaus/library/impl/AudioMetadata.ios.kt	A	fd3088250905066f662cb2f20052422b87e993f25e14a517526ea42d36edf769
+shared/src/jvmTest/kotlin/com/eterocell/rhythhaus/PlaylistLifecycleIntegrationJvmTest.kt	M	99a5bb5fde08493b24cb0306eeb9f7a41e8fb0645944d8bdf7c638d0da517526
+feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/LibraryResourceOwnershipJvmTest.kt	A	e4939a9cbd7f3e0541ec485ed2eacdb089a099ceaf71132c9029efb8c2297550
+feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/impl/PlatformAudioScanner.kt	A	ece6a522da8d3e6b70c25c51534ccdb06c30fd99dcdbb7f1258218c577ebcf82
+shared/src/iosMain/kotlin/com/eterocell/rhythhaus/PlatformPlaybackEngineFactory.ios.kt	M	6a595c0e6e27bda73f3dd44a0524741bfdb743e77d2615b6ff67f5b8fbc42627
+Implementation inventory: END
+Closeout evidence: complete
