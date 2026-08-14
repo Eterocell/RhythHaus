@@ -58,6 +58,8 @@ The macOS HAL callback records a thread-safe pending route-loss flag when the ac
 
 Polling avoids adding reverse-JNI global-reference and method-ID lifetime machinery. The bounded latency is acceptable for an output-route event, and completion detection already uses the same progress loop. The native bridge receives an injectable/testable construction seam so JVM tests can trigger the pending flag without depending on physical audio hardware.
 
+The native helper imports Core Audio HAL declarations and the Gradle `clang++` invocation links `-framework CoreAudio`; this is the only build-configuration change.
+
 ### 6. Stale platform events are rejected by the existing source identity
 
 The iOS interruption handler captures the active generation/source version when it is installed. Every callback checks that identity before mutating playback. The macOS scheduler likewise checks the active publication identity before handling a consumed route event. Track switches, clear, and release reset any pending interruption-resume state.
@@ -75,7 +77,7 @@ The iOS interruption handler captures the active generation/source version when 
 
 1. Add the RED regressions to the existing iOS and JVM playback test suites.
 2. Add the iOS bridge callback contract and Swift notification observers; implement generation-safe engine handling and verify iOS simulator tests.
-3. Add the macOS HAL listener, atomic pending flag, bridge injection seam, and progress-loop consumption; verify JVM/native bridge tests.
+3. Link CoreAudio and add the macOS HAL listener, atomic pending flag, bridge injection seam, and progress-loop consumption; verify JVM/native bridge tests.
 4. Run focused tests, formatting, Detekt, architecture checks, and the repository verification command required by `AGENTS.md`.
 5. Rollback is a source-level revert of the platform observer/handler changes; common playback contracts and persisted data are unchanged, so no migration or data rollback is required.
 

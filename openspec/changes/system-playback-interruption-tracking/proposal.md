@@ -25,5 +25,6 @@ When the OS pauses or interrupts playback without a user command (an AirPods tak
 - `iosApp/iosApp/Audio/RhythHausAudioPlayerProvider.swift` — `NotificationCenter` observers for interruption and route-change, and an authoritative `isPlaying` flag.
 - `core/playback/src/jvmMain/.../PlaybackEngine.jvm.kt` — route-disconnect consumption in the progress loop plus test seams and an injectable bridge.
 - `core/playback/src/nativeInterop/macos/rhythhaus_audio.mm` — Core Audio HAL property listener with an atomic route-disconnect flag and test hooks.
+- `core/playback/build.gradle.kts` — link the macOS native helper against the CoreAudio framework.
 - Tests: `core/playback/src/iosTest`, `core/playback/src/jvmTest`.
 - iOS framework export already covers the bridge interfaces; no architecture allow-list change.

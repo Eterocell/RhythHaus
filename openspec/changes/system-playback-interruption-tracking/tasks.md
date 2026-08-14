@@ -12,10 +12,11 @@
 
 ## 3. Implement macOS route-loss observation
 
-- [ ] 3.1 Add Core Audio HAL default-output monitoring to `core/playback/src/nativeInterop/macos/rhythhaus_audio.mm`; track the previously active output device, set an atomic pending flag only when that device becomes unavailable, remove the listener across reset/release lifetime boundaries, and add native test hooks for listener count and event injection.
-- [ ] 3.2 Expose `consumeRouteDisconnected()` and the native test hooks through `core/playback/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt`; add the internal bridge-injection constructor/factory seam without changing the public factory signature.
-- [ ] 3.3 Update `MacOSNativePlaybackEngine` in `core/playback/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt` to consume route loss before normal progress publication, stop progress, pause the native player, update Now Playing, and emit exactly one generation-valid `Paused` status without auto-resume.
-- [ ] 3.4 Run `./gradlew :core:playback:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest' --configuration-cache`; verify native listener lifetime, one-shot consumption, active-playback pause, paused-state no-op, and existing native playback tests are GREEN.
+- [ ] 3.1 Update `core/playback/build.gradle.kts` so `buildMacosAudioHelper` links `-framework CoreAudio`, without changing dependencies, target versions, or toolchains.
+- [ ] 3.2 Add Core Audio HAL default-output monitoring to `core/playback/src/nativeInterop/macos/rhythhaus_audio.mm`; track the previously active output device, set an atomic pending flag only when that device becomes unavailable, remove the listener across reset/release lifetime boundaries, and add native test hooks for listener count and event injection.
+- [ ] 3.3 Expose `consumeRouteDisconnected()` and the native test hooks through `core/playback/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt`; add the internal bridge-injection constructor/factory seam without changing the public factory signature.
+- [ ] 3.4 Update `MacOSNativePlaybackEngine` in `core/playback/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt` to consume route loss before normal progress publication, stop progress, pause the native player, update Now Playing, and emit exactly one generation-valid `Paused` status without auto-resume.
+- [ ] 3.5 Run `./gradlew :core:playback:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest' --configuration-cache`; verify native listener lifetime, one-shot consumption, active-playback pause, paused-state no-op, and existing native playback tests are GREEN.
 
 ## 4. Cross-platform verification and acceptance
 
