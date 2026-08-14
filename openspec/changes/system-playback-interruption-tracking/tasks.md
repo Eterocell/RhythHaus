@@ -10,6 +10,13 @@
 - [ ] 2.3 Update `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt` to install generation/source-guarded interruption handlers, cancel/restart progress, reactivate the audio session before an allowed resume, publish Now Playing rate and `Paused`/`Playing`, and clear interruption state on source replacement, clear, and release.
 - [ ] 2.4 Run `./gradlew :core:playback:iosSimulatorArm64Test --tests 'com.eterocell.rhythhaus.IOSAudioPlayerBridgeTest' --configuration-cache` and `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`; verify the new iOS tests are GREEN and no existing iOS bridge tests regress.
 
+## 2A. Repair iOS confinement and lifecycle boundaries
+
+- [ ] 2A.1 Add RED regressions in `core/playback/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridgeTest.kt` for main-thread callback/engine ordering on the real engine path, listener/provider ownership during replacement and release, failed-load cleanup across the full handler-installed setup sequence, duplicate interruption-end consumption, and duplicate completion terminality. Retain exact focused RED output before production edits.
+- [ ] 2A.2 Establish one explicit iOS main-thread confinement boundary across `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackDispatchers.ios.kt`, `PlaybackEngine.ios.kt`, and `IOSAudioPlayerBridge.kt` as needed: public engine operations, listener/provider assignment, progress, remote commands, and bridge callbacks must share the boundary, with source checks inside it. Preserve public/common playback contracts and synchronous operation semantics.
+- [ ] 2A.3 Confine `iosApp/iosApp/Audio/RhythHausAudioPlayerProvider.swift` player state, authoritative playing flag, handler ownership, observer tokens, and notification/completion callbacks to `AVAudioSession.sharedInstance()`'s main-thread boundary. Keep play-session activation and route/interruption parsing unchanged in meaning; clear handlers for every failed post-installation load path.
+- [ ] 2A.4 Run `./gradlew :core:playback:iosSimulatorArm64Test --tests 'com.eterocell.rhythhaus.IOSAudioPlayerBridgeTest' --configuration-cache` and `/usr/bin/xcrun xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`; retain exact GREEN evidence and document physical-runtime limitations.
+
 ## 3. Implement macOS route-loss observation
 
 - [ ] 3.1 Update `core/playback/build.gradle.kts` so `buildMacosAudioHelper` links `-framework CoreAudio`, without changing dependencies, target versions, or toolchains.

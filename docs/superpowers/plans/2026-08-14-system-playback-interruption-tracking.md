@@ -8,7 +8,7 @@
 
 **Goal:** Make iOS and macOS playback status reflect system interruption and active output-route loss while preserving all common playback contracts. iOS shall pause active playback on interruption begin or route disconnect and resume only after interruption end with `shouldResume == true` when that interruption began during playback. macOS shall pause only when the previously tracked default output disappears, never for a benign output switch, and shall never auto-resume.
 
-**Architecture:** Keep system notification knowledge in the owning platform bridges. Swift forwards semantic iOS interruption and route events through a new public iOS bridge interface; the iOS engine owns source identity, resume eligibility, audio-session reactivation, progress cancellation, Now Playing updates, and listener status publication. The macOS Objective-C++ bridge owns Core Audio HAL listener lifetime, device-presence classification, and an atomic one-shot pending flag; the existing 100 ms JVM progress scheduler consumes that flag before normal progress publication. `PlatformPlaybackEngine`, `PlaybackEngineListener`, `PlaybackStatus`, and `PlaybackController` in common code remain unchanged. No reverse JNI callback is introduced.
+**Architecture:** Keep system notification knowledge in the owning platform bridges. Swift forwards semantic iOS interruption and route events through a new public iOS bridge interface; the iOS engine owns source identity, resume eligibility, audio-session reactivation, progress cancellation, Now Playing updates, and listener status publication. All iOS engine/provider mutable state is main-thread confined: public engine operations, listener/provider ownership, progress work, remote commands, Swift AVAudioPlayer state, and NotificationCenter callbacks share one explicit main-thread boundary. The macOS Objective-C++ bridge owns Core Audio HAL listener lifetime, device-presence classification, and an atomic one-shot pending flag; the existing 100 ms JVM progress scheduler consumes that flag before normal progress publication. `PlatformPlaybackEngine`, `PlaybackEngineListener`, `PlaybackStatus`, and `PlaybackController` in common code remain unchanged. No reverse JNI callback is introduced.
 
 **Tech Stack:** Kotlin Multiplatform, Kotlin/Native iOS, Swift `AVAudioPlayer`/`AVAudioSession`/`NotificationCenter`, macOS Objective-C++ Core Audio HAL, JNI, AVFoundation, MediaPlayer, Gradle clang++ helper, Kotlin Test, generated WAV fixtures, coroutines, Spotless, Detekt, architectureCheck, OpenSpec, Xcode.
 
@@ -39,18 +39,19 @@
 |---|---|
 | `core/playback/build.gradle.kts` | Add only `-framework CoreAudio` to `clang++` arguments. |
 | `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridge.kt` | Public KDoc'd interruption callback interface and provider property. |
-| `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt` | Generation/source-guarded interruption and route handling, resume state, progress, Now Playing, lifecycle cleanup. |
+| `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt` | Main-thread-confined generation/source-guarded interruption and route handling, resume state, progress, Now Playing, lifecycle cleanup. |
+| `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackDispatchers.ios.kt` | Main-thread dispatcher/confinement policy used by the iOS engine boundary. |
 | `core/playback/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridgeTest.kt` | Injectable fake provider, callback forwarding tests, public-engine interruption regressions and exact status sequences. |
-| `iosApp/iosApp/Audio/RhythHausAudioPlayerProvider.swift` | Authoritative play-state tracking and NotificationCenter observer/filter/teardown implementation. |
+| `iosApp/iosApp/Audio/RhythHausAudioPlayerProvider.swift` | Main-thread-confined authoritative play-state tracking and NotificationCenter observer/filter/teardown implementation. |
 | `core/playback/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt` | Injectable bridge factory, Kotlin/native route hook declarations, route consumption and engine behavior. |
 | `core/playback/src/jvmTest/kotlin/com/eterocell/rhythhaus/JvmPlaybackEngineTest.kt` | Native snapshot classification/lifecycle hooks and injected-engine route-loss regressions. |
 | `core/playback/src/nativeInterop/macos/rhythhaus_audio.mm` | CoreAudio listener, pure snapshot classification state, atomic gate, native hooks, balanced lifetime. |
 
 ## Task 1: iOS RED Regression And Bridge Contract
 
-**Scope:** One atomic iOS TDD slice: tests first, then public bridge declarations and iOS production behavior. This task owns the iOS test and the three iOS production/Swift files only.
+**Scope:** One atomic iOS TDD slice: tests first, then public bridge declarations and iOS production behavior. The original green implementation was rejected because a Kotlin lock did not establish a Kotlin/Swift ownership contract. This task therefore includes the main-thread confinement repair before any macOS work.
 
-**Files:** `core/playback/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridgeTest.kt`, `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridge.kt`, `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt`, `iosApp/iosApp/Audio/RhythHausAudioPlayerProvider.swift`.
+**Files:** `core/playback/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridgeTest.kt`, `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridge.kt`, `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt`, `core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackDispatchers.ios.kt`, and `iosApp/iosApp/Audio/RhythHausAudioPlayerProvider.swift` only, unless an existing Swift test target can host provider notification tests without adding a target.
 
 - [ ] Extend `FakeIOSAudioPlayerProvider` with:
   ```kotlin
@@ -105,6 +106,12 @@
   git add -- core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridge.kt core/playback/src/iosMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.ios.kt core/playback/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridgeTest.kt iosApp/iosApp/Audio/RhythHausAudioPlayerProvider.swift
   git commit -m "feat: track iOS playback interruptions"
   ```
+
+- [ ] **Repair gate before Task 2:** Add RED tests for callback/operation ordering on the real engine path, listener/provider assignment and clearing during replacement/release, failed-load cleanup across the complete handler-installed setup sequence, duplicate interruption-end consumption, duplicate completion terminality, and Swift NotificationCenter decoding/observer removal when an existing Swift test target supports it. Run the focused iOS simulator test before production edits and retain the unsuppressed failures.
+- [ ] Establish one explicit main-thread confinement boundary. All iOS public engine methods must preserve their synchronous completion semantics while entering that boundary; progress, remote commands, listener/provider assignment, provider calls, and bridge callbacks must not access mutable state from arbitrary dispatchers. Swift `AVAudioPlayer`, authoritative `isPlaying`, handler properties, observer tokens, completion, and notification callbacks must be main-thread confined, with observers registered for `AVAudioSession.sharedInstance()` on the main queue. Generation/source checks occur after entering the boundary.
+- [ ] Extend load failure cleanup through every operation after handler installation and before successful ownership transfer; clear both handlers for any load-stage exception. Preserve terminal failed-auto-resume semantics and assert duplicate end/completion callbacks cannot publish, resume, or restart progress twice.
+- [ ] Run the focused Kotlin iOS test and generic Xcode consumer build again after the repair. Record exact RED/GREEN evidence and physical-runtime limitation. Independently review the combined original implementation and repair before staging.
+- [ ] Stage the exact expanded Task 1 manifest and commit the combined iOS implementation as `fix: serialize iOS playback interruptions` (or an equivalent approved conventional message). Do not begin Task 2 until the independent review is PASS.
 
 ## Task 2: macOS RED Native Snapshot Tests And Linkage
 

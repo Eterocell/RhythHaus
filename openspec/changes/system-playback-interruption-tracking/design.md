@@ -66,6 +66,12 @@ The native helper imports Core Audio HAL declarations and the Gradle `clang++` i
 
 The iOS interruption handler captures the active generation/source version when it is installed. Every callback checks that identity before mutating playback. The macOS scheduler likewise checks the active publication identity before handling a consumed route event. Track switches, clear, and release reset any pending interruption-resume state.
 
+### 7. iOS playback state has one main-thread confinement boundary
+
+The iOS engine and Swift provider use the main thread as their single mutable-state owner. The engine's public entry points, progress work, remote-command bodies, provider installation/clearing, listener assignment/clearing, and all bridge callbacks are dispatched or asserted on that same main-thread boundary before source checks or state mutation. The Swift provider registers `NotificationCenter` observers for `AVAudioSession.sharedInstance()` on the main queue and keeps player, authoritative-playing, handler, and observer-token state main-thread confined. This is an ownership contract, not merely a Kotlin lock: no mutable engine/provider state is accessed from an arbitrary dispatcher concurrently with notification delivery.
+
+The full handler-installed load sequence is covered by one failure cleanup path. If loading or any subsequent setup before successful engine ownership fails, both completion and interruption handlers are cleared before the existing failure is propagated. Current-source interruption ends consume resume eligibility on every path, including failed provider resume; duplicate end and completion callbacks are terminal and cannot publish or restart playback again. Listener replacement/clearing, track replacement, and release are lifecycle boundaries covered by tests.
+
 ## Risks / Trade-offs
 
 - **[macOS device-change false positives]** A default-output-device change can be a benign user-selected switch. → On both system-property callbacks, compare the previously tracked ID against the fresh `kAudioHardwarePropertyDevices` array before adopting the fresh default; mark pending route loss only when the old ID disappeared while playback was expected active. Cover removal, benign switch, callback ordering, paused-state suppression, and one-shot consumption with native test hooks.
