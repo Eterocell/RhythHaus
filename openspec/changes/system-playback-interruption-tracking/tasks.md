@@ -1,7 +1,7 @@
 ## 1. Establish RED regressions
 
 - [ ] 1.1 Extend `core/playback/src/iosTest/kotlin/com/eterocell/rhythhaus/IOSAudioPlayerBridgeTest.kt`'s fake provider with interruption-handler storage and simulation methods; add failing tests for interruption begin, interruption end with and without `shouldResume`, route disconnect, and callback forwarding. Run `./gradlew :core:playback:iosSimulatorArm64Test --tests 'com.eterocell.rhythhaus.IOSAudioPlayerBridgeTest' --configuration-cache` and retain the RED result before production changes.
-- [ ] 1.2 Add macOS route-monitoring RED tests in `core/playback/src/jvmTest/kotlin/com/eterocell/rhythhaus/JvmPlaybackEngineTest.kt` for listener lifetime, one-shot route-event consumption, route disconnect during playback, and route disconnect while paused. Run `./gradlew :core:playback:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest' --configuration-cache` and retain the unsuppressed RED result.
+- [ ] 1.2 Add macOS route-monitoring RED tests in `core/playback/src/jvmTest/kotlin/com/eterocell/rhythhaus/JvmPlaybackEngineTest.kt` for listener lifetime, removed tracked-device detection, benign default-device switch, callback ordering, one-shot route-event consumption, route disconnect during playback, and route disconnect while paused. Run `./gradlew :core:playback:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest' --configuration-cache` and retain the unsuppressed RED result.
 
 ## 2. Implement iOS interruption and route observation
 
@@ -13,10 +13,10 @@
 ## 3. Implement macOS route-loss observation
 
 - [ ] 3.1 Update `core/playback/build.gradle.kts` so `buildMacosAudioHelper` links `-framework CoreAudio`, without changing dependencies, target versions, or toolchains.
-- [ ] 3.2 Add Core Audio HAL default-output monitoring to `core/playback/src/nativeInterop/macos/rhythhaus_audio.mm`; track the previously active output device, set an atomic pending flag only when that device becomes unavailable, remove the listener across reset/release lifetime boundaries, and add native test hooks for listener count and event injection.
+- [ ] 3.2 Add Core Audio HAL monitoring to `core/playback/src/nativeInterop/macos/rhythhaus_audio.mm` using system-object listeners for `kAudioHardwarePropertyDevices` and `kAudioHardwarePropertyDefaultOutputDevice` at global scope/main element. On either callback, read the device list and default, classify the old tracked ID's absence before adopting a new default, set an atomic pending flag only while playback is expected active, remove both listeners across reset/release lifetime boundaries, and add deterministic native test hooks for removal, benign switch, callback ordering, listener count, paused suppression, and one-shot event consumption. Treat `kAudioDevicePropertyDeviceIsAlive` only as an optional early signal, never the authoritative removal predicate.
 - [ ] 3.3 Expose `consumeRouteDisconnected()` and the native test hooks through `core/playback/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt`; add the internal bridge-injection constructor/factory seam without changing the public factory signature.
 - [ ] 3.4 Update `MacOSNativePlaybackEngine` in `core/playback/src/jvmMain/kotlin/com/eterocell/rhythhaus/PlaybackEngine.jvm.kt` to consume route loss before normal progress publication, stop progress, pause the native player, update Now Playing, and emit exactly one generation-valid `Paused` status without auto-resume.
-- [ ] 3.5 Run `./gradlew :core:playback:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest' --configuration-cache`; verify native listener lifetime, one-shot consumption, active-playback pause, paused-state no-op, and existing native playback tests are GREEN.
+- [ ] 3.5 Run `./gradlew :core:playback:jvmTest --tests 'com.eterocell.rhythhaus.JvmPlaybackEngineTest' --configuration-cache`; verify listener lifetime, removed-device detection, benign-switch rejection, callback-order safety, one-shot consumption, active-playback pause, paused-state no-op, and existing native playback tests are GREEN.
 
 ## 4. Cross-platform verification and acceptance
 

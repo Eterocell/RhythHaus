@@ -54,7 +54,9 @@ An iOS route disconnect is handled from `routeChangeNotification` rather than by
 
 ### 5. macOS uses an atomic pending flag and existing progress scheduling
 
-The macOS HAL callback records a thread-safe pending route-loss flag when the active output device is removed or unavailable. `MacOSNativePlaybackEngine` consumes that flag before normal progress publication in its existing 100 ms scheduler and performs the same pause/status/Now Playing update as a user pause.
+The macOS bridge registers the same callback/client-data tuple on `kAudioObjectSystemObject` for `kAudioHardwarePropertyDevices` and `kAudioHardwarePropertyDefaultOutputDevice`, both at global scope/main element. The callback re-reads both the available `AudioDeviceID` list and current default output. It first classifies the previously tracked output as disconnected when that ID is absent, then updates the tracked ID for a benign default-output switch; callback delivery order therefore cannot erase the removed-device evidence. A default-device change alone is never a disconnect. `kAudioDevicePropertyDeviceIsAlive == 0` may be used only as an early unavailability signal, not as the authoritative removal predicate.
+
+The callback records a thread-safe pending route-loss flag only when playback is expected active. `MacOSNativePlaybackEngine` consumes that one-shot flag before normal progress publication in its existing 100 ms scheduler and performs the same pause/status/Now Playing update as a user pause. Play/pause/stop/reset/release keep the native playback-active gate and pending flag coherent so an event received while paused cannot become a stale pause on the next play.
 
 Polling avoids adding reverse-JNI global-reference and method-ID lifetime machinery. The bounded latency is acceptable for an output-route event, and completion detection already uses the same progress loop. The native bridge receives an injectable/testable construction seam so JVM tests can trigger the pending flag without depending on physical audio hardware.
 
@@ -66,7 +68,7 @@ The iOS interruption handler captures the active generation/source version when 
 
 ## Risks / Trade-offs
 
-- **[macOS device-change false positives]** A default-output-device change can be a benign user-selected switch. → Track the previously active device and mark pending route loss only when that device is no longer present/unavailable; cover the predicate with a native test hook rather than pausing on every change.
+- **[macOS device-change false positives]** A default-output-device change can be a benign user-selected switch. → On both system-property callbacks, compare the previously tracked ID against the fresh `kAudioHardwarePropertyDevices` array before adopting the fresh default; mark pending route loss only when the old ID disappeared while playback was expected active. Cover removal, benign switch, callback ordering, paused-state suppression, and one-shot consumption with native test hooks.
 - **[Native lifetime race]** Core Audio callbacks can outlive a player reset/release. → Register and remove the HAL listener under the existing native handle lifetime boundary, use an atomic flag, and assert listener counts return to zero in JVM tests.
 - **[iOS observer lifetime]** Notification observers could retain the provider or fire after a track is replaced. → Store/remove observer tokens with the Swift provider lifetime and use generation/source guards in Kotlin.
 - **[Interruption/manual pause race]** A user pause between interruption begin and end could be followed by a system-recommended resume. → The initial implementation follows the selected `shouldResume` contract and records this edge as a known limitation; the event handler must still clear its resume flag after every interruption end.
