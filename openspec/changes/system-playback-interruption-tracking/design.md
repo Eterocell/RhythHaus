@@ -46,7 +46,7 @@ The platform engines translate external pause/resume events into the existing `P
 - `onInterruptionEnded(shouldResume: Boolean)` for both allowed and disallowed endings;
 - `onRouteDisconnected()` for `oldDeviceUnavailable` while playing.
 
-The Swift provider maintains a single `isPlaying` flag at the play/pause/stop/completion choke points and suppresses interruption/route callbacks when playback was already paused. The iOS engine owns `wasPlayingBeforeInterruption`, the generation/source guard, session reactivation, progress-job cancellation, and status publication.
+The Swift provider maintains a single `isPlaying` flag at the play/pause/stop/completion choke points and suppresses interruption/route callbacks when playback was already paused. Its existing `play()` operation reactivates `AVAudioSession` before starting the player and reports failure to Kotlin. The iOS engine owns `wasPlayingBeforeInterruption`, the generation/source guard, resume eligibility, progress-job cancellation, and status publication; it publishes `Playing` only after `provider.play()` succeeds, without adding another public provider operation.
 
 ### 4. iOS route loss is separate from interruption resumption
 

@@ -181,8 +181,9 @@ existing `completionHandler(generation, version)` pattern:
   - `listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)`
 - `onInterruptionEnded(shouldResume)` — guard generation:
   - if `shouldResume && wasPlayingBeforeInterruption`:
-    - `configureAudioSession()` (reactivate after interruption)
-    - `audioProvider?.play()`
+    - `audioProvider?.play()`; the Swift provider's existing `play_()` operation
+      first reactivates `AVAudioSession` and returns `false` if activation or
+      playback fails
     - `updateNowPlayingInfo(positionMillis = current, playbackRate = 1.0)`
     - `listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)`
     - `startProgressLoop(generation, version)`
@@ -283,8 +284,10 @@ Core Audio default-output-device loss
   pauses (in-app or remote) *after* `.began` but before `.ended`, the engine would
   still auto-resume on `.ended` + `shouldResume`. This rare race is accepted out of
   scope; recording it here rather than silently ignoring it.
-- **Provider unavailable:** `onInterruptionEnded`'s resume path re-checks
-  `audioProvider` non-null before `play()` (same guard as `play()`).
+- **Provider unavailable or resume failure:** `onInterruptionEnded`'s resume path
+  re-checks `audioProvider` non-null and publishes `Playing` only when `play()`
+  returns true. Swift `play_()` reactivates `AVAudioSession` before starting the
+  player, so no additional public provider method is needed.
 
 ## Testing Strategy
 
