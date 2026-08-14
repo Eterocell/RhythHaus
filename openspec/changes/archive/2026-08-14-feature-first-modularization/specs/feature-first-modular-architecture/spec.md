@@ -462,3 +462,32 @@ source and reject missing or generic-placeholder documentation.
 - **THEN** `libs.koin.core` is an `api` dependency because factory `Module` is public
 - **AND** implementation-only Koin core, Koin Compose public leakage, source-block-comment KDoc, or
   missing callable `@param` documentation fails.
+
+### Requirement: Thin shared owns only facade responsibilities
+
+The `:shared` module SHALL own only `App()` composition, the root shell, cross-feature route/Back
+arbitration, lifecycle, Koin assembly, and the stable `MainViewController` iOS facade, plus the
+intentionally-retained session coordination/persistence, theme persistence, package-stable playback
+engine factory, playlist-backup ABI seam, Library selection integration, track selection state/bar,
+Now Playing shell placement, and shared formatting helpers. A thin-shared inventory test SHALL assert
+the exact `:shared` source-file set and fail on any migrated implementation ownership. Dead code left
+by extraction (the unused `Logger` Kermit singleton and the unused `Platform`/`getPlatform`
+expect-actual family) SHALL be removed without introducing any bridge dependency. A
+real-structure-only scaffold SHALL generate a requested feature-module structure; package renames and
+Dependency Analysis Gradle Plugin evaluation SHALL remain deferred.
+
+#### Scenario: Thin-shared inventory is asserted
+- **WHEN** the architecture convention inventory test inspects `:shared`
+- **THEN** the approved facade/retained source set is present exactly
+- **AND** any source file outside that set, or any approved file missing, fails the test.
+
+#### Scenario: Dead migrated ownership is removed without a bridge
+- **WHEN** the unused `Logger` and `Platform`/`getPlatform` declarations are deleted
+- **THEN** `:shared` compiles on all targets with no new dependency edge
+- **AND** the architecture allow-list/cycle checks remain GREEN.
+
+#### Scenario: Scaffold generates only real requested structure
+- **WHEN** the scaffold instantiates a new feature module
+- **THEN** it produces only the requested module skeleton (build.gradle.kts, source dirs, package
+  root, README, KDoc placeholder) with no speculative packages or full Gradle plugin
+- **AND** package renames and Dependency Analysis Gradle Plugin evaluation remain deferred.

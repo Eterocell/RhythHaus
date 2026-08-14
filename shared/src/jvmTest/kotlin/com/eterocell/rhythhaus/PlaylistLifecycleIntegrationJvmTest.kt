@@ -7,8 +7,8 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
-import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.library.playlistsImplementationModule
+import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
@@ -196,8 +196,7 @@ private class PlaylistLifecycleHarness(
         PlaybackSessionReconciler { tracks ->
             events += "reconcile"
             afterCascade()
-            controller.reconcileSession(
-                tracks.map { it.toPlayableTrack() })
+            controller.reconcileSession(tracks.map { it.toPlayableTrack() })
             PlaybackSessionReconcileResult.Applied
         }
 

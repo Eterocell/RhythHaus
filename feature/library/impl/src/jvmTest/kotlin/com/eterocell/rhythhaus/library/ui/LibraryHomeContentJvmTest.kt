@@ -183,11 +183,17 @@ class LibraryHomeContentJvmTest {
         onAllNodes(hasText("Soloist · 1 tracks")).assertCountEquals(1)
 
         val albumA =
-            onAllNodes(hasText("album a")).fetchSemanticsNodes().single()
-                .boundsInRoot.left
+            onAllNodes(hasText("album a"))
+                .fetchSemanticsNodes()
+                .single()
+                .boundsInRoot
+                .left
         val albumB =
-            onAllNodes(hasText("Album B")).fetchSemanticsNodes().single()
-                .boundsInRoot.left
+            onAllNodes(hasText("Album B"))
+                .fetchSemanticsNodes()
+                .single()
+                .boundsInRoot
+                .left
         assertTrue(albumA < albumB, "albums sort case-insensitively")
     }
 
@@ -345,6 +351,7 @@ class LibraryHomeContentJvmTest {
     private object StubPicker : PlatformFolderPickerLauncher {
         override val isAvailable: Boolean = false
         override val supportsAdditionalSources: Boolean = false
+
         override fun launch() = Unit
     }
 }

@@ -1,3 +1,10 @@
+## Purpose
+
+iOS Now Playing metadata: the `nowPlayingInfo` dictionary must always carry the fields
+`MPNowPlayingInfoCenter` needs to render duration/live-stream and rate/elapsed state.
+
+## Requirements
+
 ### Requirement: Now Playing dictionary SHALL always contain duration or live-stream indicator
 
 When a track is loaded and the `nowPlayingInfo` dictionary is set on `MPNowPlayingInfoCenter`, the system SHALL ensure that either `MPMediaItemPropertyPlaybackDuration` is present with a value greater than 0, or `MPNowPlayingInfoPropertyIsLiveStream` is set to `true`. The dictionary SHALL never omit both.

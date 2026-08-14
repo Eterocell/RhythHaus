@@ -31,72 +31,78 @@ import kotlin.test.assertTrue
 class LibraryRouteAdapterJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun routeProjectionPreservesPlayableFieldsAndArtworkBytes() = runComposeUiTest {
-        val controller = PlaybackController(FakePlaybackEngine())
-        val artwork = byteArrayOf(9, 8, 7)
-        setContent {
-            playlistDetailRoute(
-                controller,
-                libraryTracks =
-                    listOf(
-                        libraryTrack("t-1", "Projected", artworkBytes = artwork)),
-                entries = entries("pl-1", "e-1" to "t-1"),
-            )
+    fun routeProjectionPreservesPlayableFieldsAndArtworkBytes() =
+        runComposeUiTest {
+            val controller = PlaybackController(FakePlaybackEngine())
+            val artwork = byteArrayOf(9, 8, 7)
+            setContent {
+                playlistDetailRoute(
+                    controller,
+                    libraryTracks =
+                        listOf(
+                            libraryTrack(
+                                "t-1", "Projected", artworkBytes = artwork)),
+                    entries = entries("pl-1", "e-1" to "t-1"),
+                )
+            }
+            waitForIdle()
+
+            onAllNodes(hasContentDescription("Projected, Artist, Album, 3:03"))[
+                    0]
+                .performClick()
+            waitForIdle()
+
+            val queue = controller.state.value.queue
+            assertEquals(listOf("e-1"), queue.map { it.id })
+            val projected = queue.single().track
+            assertEquals("t-1", projected.id)
+            assertEquals("Projected", projected.title)
+            assertEquals("Artist", projected.artist)
+            assertEquals("Album", projected.album)
+            assertEquals(183_000L, projected.durationMillis)
+            assertEquals(AudioSource.FilePath("t-1.mp3"), projected.source)
+            assertContentEquals(artwork, projected.artworkBytes)
         }
-        waitForIdle()
-
-        onAllNodes(hasContentDescription("Projected, Artist, Album, 3:03"))[0]
-            .performClick()
-        waitForIdle()
-
-        val queue = controller.state.value.queue
-        assertEquals(listOf("e-1"), queue.map { it.id })
-        val projected = queue.single().track
-        assertEquals("t-1", projected.id)
-        assertEquals("Projected", projected.title)
-        assertEquals("Artist", projected.artist)
-        assertEquals("Album", projected.album)
-        assertEquals(183_000L, projected.durationMillis)
-        assertEquals(AudioSource.FilePath("t-1.mp3"), projected.source)
-        assertContentEquals(artwork, projected.artworkBytes)
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun routeProjectionUsesIdMapWithoutChangingOccurrenceOrder() = runComposeUiTest {
-        val controller = PlaybackController(FakePlaybackEngine())
-        setContent {
-            playlistDetailRoute(
-                controller,
-                libraryTracks =
-                    listOf(
-                        libraryTrack("t-1", "First"),
-                        libraryTrack("t-2", "Middle"),
-                        libraryTrack("t-1", "Last"),
-                    ),
-                entries =
-                    entries(
-                        "pl-1",
-                        "e-1" to "t-1",
-                        "e-2" to "t-2",
-                        "e-3" to "t-1",
-                    ),
-            )
+    fun routeProjectionUsesIdMapWithoutChangingOccurrenceOrder() =
+        runComposeUiTest {
+            val controller = PlaybackController(FakePlaybackEngine())
+            setContent {
+                playlistDetailRoute(
+                    controller,
+                    libraryTracks =
+                        listOf(
+                            libraryTrack("t-1", "First"),
+                            libraryTrack("t-2", "Middle"),
+                            libraryTrack("t-1", "Last"),
+                        ),
+                    entries =
+                        entries(
+                            "pl-1",
+                            "e-1" to "t-1",
+                            "e-2" to "t-2",
+                            "e-3" to "t-1",
+                        ),
+                )
+            }
+            waitForIdle()
+
+            onAllNodes(hasContentDescription("Middle, Artist, Album, 3:03"))[0]
+                .performClick()
+            waitForIdle()
+
+            val queue = controller.state.value.queue
+            assertEquals(
+                listOf("e-1", "e-2", "e-3"),
+                queue.map { it.id },
+                "occurrence order follows the playlist entries")
+            assertEquals(
+                listOf("Last", "Middle", "Last"),
+                queue.map { it.track.title },
+                "the ID map resolves duplicates to the last projection")
         }
-        waitForIdle()
-
-        onAllNodes(hasContentDescription("Middle, Artist, Album, 3:03"))[0]
-            .performClick()
-        waitForIdle()
-
-        val queue = controller.state.value.queue
-        assertEquals(
-            listOf("e-1", "e-2", "e-3"), queue.map { it.id },
-            "occurrence order follows the playlist entries")
-        assertEquals(
-            listOf("Last", "Middle", "Last"), queue.map { it.track.title },
-            "the ID map resolves duplicates to the last projection")
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -161,7 +167,8 @@ class LibraryRouteAdapterJvmTest {
             playlistDetailRoute(
                 controller,
                 libraryTracks =
-                    listOf(libraryTrack("t-1", "One"), libraryTrack("t-2", "Two")),
+                    listOf(
+                        libraryTrack("t-1", "One"), libraryTrack("t-2", "Two")),
                 entries = entries("pl-1", "e-1" to "t-1", "e-2" to "t-2"),
             )
         }
@@ -170,12 +177,14 @@ class LibraryRouteAdapterJvmTest {
         val row = hasContentDescription("One, Artist, Album, 3:03")
         onAllNodes(row)[0].performClick()
         waitForIdle()
-        assertEquals(listOf("e-1", "e-2"), controller.state.value.queue.map { it.id })
+        assertEquals(
+            listOf("e-1", "e-2"), controller.state.value.queue.map { it.id })
 
         onAllNodes(row)[0].performClick()
         waitForIdle()
         assertEquals(
-            listOf("e-1", "e-2"), controller.state.value.queue.map { it.id },
+            listOf("e-1", "e-2"),
+            controller.state.value.queue.map { it.id },
             "a repeated click restarts the current occurrence instead of re-settling")
     }
 
@@ -213,7 +222,8 @@ class LibraryRouteAdapterJvmTest {
             isNowPlayingBarVisible = true,
             onBack = {},
             destinationId =
-                LibraryDestinationId(LibraryRoute.PlaylistDetail("pl-1"), "adapter"),
+                LibraryDestinationId(
+                    LibraryRoute.PlaylistDetail("pl-1"), "adapter"),
             playlistAppearanceSource =
                 rememberPlaylistFeatureAppearanceSource(
                     PlaylistFeatureDestination("adapter")),
@@ -236,16 +246,15 @@ class LibraryRouteAdapterJvmTest {
     private fun entries(
         playlistId: String,
         vararg idToTrack: Pair<String, String>,
-    ): List<PlaylistEntry> =
-        idToTrack.mapIndexed { index, (entryId, trackId) ->
-            PlaylistEntry(
-                id = entryId,
-                playlistId = playlistId,
-                trackId = trackId,
-                position = index,
-                createdAtEpochMillis = 1,
-            )
-        }
+    ): List<PlaylistEntry> = idToTrack.mapIndexed { index, (entryId, trackId) ->
+        PlaylistEntry(
+            id = entryId,
+            playlistId = playlistId,
+            trackId = trackId,
+            position = index,
+            createdAtEpochMillis = 1,
+        )
+    }
 
     private fun libraryTrack(
         id: String,

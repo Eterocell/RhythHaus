@@ -21,9 +21,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.LibrarySnapshot
+import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
-import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.LibrarySource
@@ -36,13 +36,7 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.sourceMutationsAllowed
-import com.eterocell.rhythhaus.library.ui.DrillDownMiuixScrollChrome
-import com.eterocell.rhythhaus.library.ui.DrillDownView
-import com.eterocell.rhythhaus.library.ui.EqualizerStrip
-import com.eterocell.rhythhaus.library.ui.LibraryDetailSummary
-import com.eterocell.rhythhaus.library.ui.LibrarySelectionPage
-import com.eterocell.rhythhaus.library.ui.ScanningCard
-import com.eterocell.rhythhaus.library.ui.rememberMiuixTopAppBarScrollBehavior
+import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsHost
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsLabels
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
@@ -56,7 +50,6 @@ import com.eterocell.rhythhaus.settings.SettingsSharedLabels
 import com.eterocell.rhythhaus.settings.SettingsSourceItem
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
-import com.eterocell.rhythhaus.library.toPlayableTrack
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import org.jetbrains.compose.resources.stringResource
@@ -413,7 +406,10 @@ private fun albumDetailTracks(tracks: List<Track>, album: String): List<Track> =
  * Resolves the ordered artist track sequence for a detail route, matching the
  * feature's internal grouping order (disc, track, lowercase title).
  */
-private fun artistDetailTracks(tracks: List<Track>, artist: String): List<Track> =
+private fun artistDetailTracks(
+    tracks: List<Track>,
+    artist: String
+): List<Track> =
     tracks
         .filter { it.artist == artist }
         .sortedWith(

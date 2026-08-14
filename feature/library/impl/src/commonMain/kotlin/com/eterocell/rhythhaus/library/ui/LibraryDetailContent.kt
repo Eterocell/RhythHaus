@@ -66,16 +66,17 @@ public fun dispatchDrillDownAction(
     orderedTracks: List<Track>,
 ) {
     when (action) {
-        is DrillDownAction.SelectTrack -> onPlayTrack(orderedTracks, action.track)
+        is DrillDownAction.SelectTrack ->
+            onPlayTrack(orderedTracks, action.track)
         DrillDownAction.ToggleTransport -> Unit
     }
 }
 
 /**
  * Renders an already-resolved album or artist detail destination using only raw
- * feature inputs and callbacks. It owns the artwork-collapse chrome, list state,
- * local backdrop, and selected-row fallback; Shared owns route resolution,
- * Back, selection state, playback policy, and scroll storage.
+ * feature inputs and callbacks. It owns the artwork-collapse chrome, list
+ * state, local backdrop, and selected-row fallback; Shared owns route
+ * resolution, Back, selection state, playback policy, and scroll storage.
  *
  * @param title the detail title (album or artist name).
  * @param summary raw detail counts used to compose the localized subtitle.
@@ -118,7 +119,8 @@ public fun DrillDownView(
     onToggleSelection: (trackId: String) -> Unit,
     onStartSelection: (trackId: String) -> Unit,
     onVisibleTrackIdsChanged: (List<String>) -> Unit,
-    onScrollPositionChanged: (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
+    onScrollPositionChanged:
+        (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
     bottomContentPadding: Dp,
 ) {
     val subtitle =
@@ -127,8 +129,7 @@ public fun DrillDownView(
                 stringResource(
                     Res.string.album_detail_subtitle_format,
                     summary.trackCount,
-                    summary.artist
-                        ?: stringResource(Res.string.unknown_artist))
+                    summary.artist ?: stringResource(Res.string.unknown_artist))
             is LibraryDetailSummary.Artist ->
                 stringResource(
                     Res.string.artist_detail_subtitle_format,
@@ -199,12 +200,14 @@ public fun DrillDownView(
                     listState.firstVisibleItemIndex,
                     listState.firstVisibleItemScrollOffset)
             }
-        val trackIdSet = remember(tracks) { tracks.mapTo(mutableSetOf()) { it.id } }
+        val trackIdSet =
+            remember(tracks) { tracks.mapTo(mutableSetOf()) { it.id } }
         LaunchedEffect(listState) {
             snapshotFlow {
-                    listState.layoutInfo.visibleItemsInfo
-                        .mapNotNull { it.key as? String }
+                listState.layoutInfo.visibleItemsInfo.mapNotNull {
+                    it.key as? String
                 }
+            }
                 .collect { visibleKeys ->
                     onVisibleTrackIdsChanged(
                         visibleKeys.filter { it in trackIdSet })

@@ -3445,40 +3445,52 @@ I is the direct implementation child of Q and owns exactly the preserved manifes
 
 ## Task 7.1: Thin Shared And Stable iOS Exports
 
-**Existing files:** `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt:L80-L120`; `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/di/RhythHausDi.kt:L36-L85`; `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/MainViewController.kt:L7-L11`; `shared/build.gradle.kts:L159-L171`; entrypoints `androidApp/src/main/kotlin/com/eterocell/rhythhaus/{MainActivity,RhythHausApplication}.kt`; `desktopApp/src/main/kotlin/com/eterocell/rhythhaus/main.kt`.
+**Authority:** approved Slice 7 design `docs/superpowers/specs/2026-08-14-thin-shared-completion-design.md`; canonical OpenSpec design/spec/tasks, `docs/architecture.md`, and ADR 0001.
 
-**Target files:** shared root/DI/iOS sources; shared build export configuration; architecture checker fixtures; feature Koin module files; final shared inventory test.
+**Manifest (6 endpoints):**
+- D `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Logger.kt`
+- D `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/Platform.kt`
+- D `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/Platform.android.kt`
+- D `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/Platform.jvm.kt`
+- D `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/Platform.ios.kt`
+- A `build-logic/convention/src/test/kotlin/com/eterocell/gradle/architecture/ThinSharedInventoryTest.kt`
 
-- [ ] Create TestKit/shared-inventory fixture first, asserting shared cannot own scanner/repository/feature UI/state and that export configuration rejects non-public modules; run targeted architecture TestKit test; expected RED: no final inventory/export policy exists.
-- [ ] Replace centralized registrations with feature implementation module functions and have shared compose them. Preserve the shared start function contract:
-  ```kotlin
-  public fun startRhythHausKoin() { startKoin { modules(sharedAssemblyModule()) } }
-  ```
-- [ ] Reduce `App()` to composition/root Shell/arbitration. Preserve `MainViewController()` name and its `ComposeUIViewController { App() }` relationship. Export only modules with actual Swift/ObjC-facing declarations.
-- [ ] Run TestKit/shared inventory; expected GREEN. Run Android/desktop/iOS startup, iOS link/framework public API check, architectureCheck, and `./init.sh`.
-- [ ] Commit with `git add shared feature androidApp desktopApp build-logic && git commit -m "refactor: thin shared composition root"`.
+**RED/GREEN.** The inventory test enumerates the approved thin-shared source-file set (App
+composition, root shell, cross-feature route/Back arbitration, lifecycle, Koin, `MainViewController`
+facade, and the intentionally-retained session/theme/playback-factory/backup-ABI/selection/Now
+Playing/formatting helpers) and fails while the dead `Logger`/`Platform` files remain. After deleting
+the five dead files the test passes and `:shared` compiles on JVM/Android/iOS with no new dependency
+edge (architecture allow-list/cycle checks stay GREEN).
+
+**Verification.** `./gradlew :shared:compileKotlinJvm :shared:compileKotlinAndroid :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64 :build-logic:convention:test --configuration-cache`; Spotless; Detekt; `./init.sh`. Commit `refactor: thin shared composition root` staging the five deletions plus the test.
 
 ## Task 7.2: Add Scaffold After Successful Migrations
 
-**Existing files:** `build-logic/convention/build.gradle.kts`; convention scripts from Task 1.2; canonical skill `skills/kmp-architecture/SKILL.md`.
+**Authority:** approved Slice 7 design `docs/superpowers/specs/2026-08-14-thin-shared-completion-design.md`.
 
-**Target files:** `build-logic/convention/src/main/kotlin/com/eterocell/gradle/scaffold/FeatureScaffoldPlugin.kt`; `build-logic/convention/src/test/kotlin/com/eterocell/gradle/scaffold/FeatureScaffoldPluginFunctionalTest.kt`; scaffold documentation in the canonical skill.
+**Manifest (3 endpoints):**
+- A `build-logic/convention/src/main/kotlin/com/eterocell/gradle/scaffold/FeatureScaffoldPlugin.kt`
+- A `build-logic/convention/src/test/kotlin/com/eterocell/gradle/scaffold/FeatureScaffoldPluginFunctionalTest.kt`
+- M `skills/kmp-architecture/SKILL.md`
 
-- [ ] Create a TestKit fixture first, run `./gradlew :build-logic:convention:test --tests '*FeatureScaffoldPluginFunctionalTest' --configuration-cache`; expected RED: scaffold plugin/task missing.
-- [ ] Implement a command that creates only requested real module build/source/resource/test directories. Reject API generation unless the caller supplies an actual contract name; never generate empty `UiState`, `UiEvent`, `UiEffect`, or presenter classes.
-- [ ] Run the targeted TestKit command; expected GREEN: a selected feature skeleton is created and empty-pattern assertions pass.
-- [ ] Run full build-logic tests, architectureCheck, Detekt, and Spotless.
-- [ ] Commit with `git add build-logic/convention skills/kmp-architecture && git commit -m "build: add feature module scaffold"`.
+**RED/GREEN.** RED: `FeatureScaffoldPluginFunctionalTest` fails because the scaffold plugin/task is
+absent. GREEN: `FeatureScaffoldPlugin` generates a requested feature-module skeleton — build.gradle.kts
+applying the existing `android.kmp.library`/`compose-resource`/`architecture` conventions, the
+`commonMain`/`androidMain`/`jvmMain`/`iosMain` source dirs, a package-root `README`, and a KDoc'd
+public-surface placeholder — and the functional test asserts only real requested directories are
+created, API generation requires an actual contract name, and no empty `UiState`/`UiEvent`/`UiEffect`
+or presenter class is generated. Package renames and Dependency Analysis Gradle Plugin evaluation stay
+deferred.
+
+**Verification.** `./gradlew :build-logic:convention:test --tests '*FeatureScaffoldPluginFunctionalTest' --configuration-cache`; full `:build-logic:convention:test`; `architectureCheck`; Detekt; Spotless. Commit `build: add feature module scaffold` staging the two build-logic files plus the skill.
 
 ## Task 7.3: Final Evidence And Deferred Package Rename
 
-**Existing files:** OpenSpec change tasks/specs, `progress.md`, `roadmap.md`, architecture docs/ADRs, all module build files and final architecture fixtures.
+**Authority:** approved Slice 7 design `docs/superpowers/specs/2026-08-14-thin-shared-completion-design.md`.
 
-**Target files:** tracker/OpenSpec evidence and documentation only; no package rename sources.
-
-- [ ] Add final negative TestKit fixtures for every forbidden edge/cycle and run `./gradlew :build-logic:convention:test --tests '*ArchitectureCheckPluginFunctionalTest' --configuration-cache`; expected RED before the final allow-list has removed transitional edges.
+- [ ] Add final negative TestKit fixtures for every forbidden edge/cycle and run `./gradlew :build-logic:convention:test --tests '*ArchitectureCheckPluginFunctionalTest' --configuration-cache`; expected RED before transitional allow-list entries are removed.
 - [ ] Remove only completed transitional allow-list entries and update architecture/ADR/feature README inventories. Record package renames and Dependency Analysis evaluation as deferred follow-ups, never as this change's work.
-- [ ] Run targeted fixture tests; expected GREEN. Run `./gradlew architectureCheck qualityCheck --configuration-cache`, focused Back/scanner/playback/playlist tests, SQLDelight migration/FK integration, Android/desktop/iOS startup/resource/DI checks, and `./init.sh`.
+- [ ] Run targeted fixture tests; expected GREEN. Run `./gradlew architectureCheck qualityCheck --configuration-cache`, focused Back/scanner/playback/playlist tests, and `./init.sh`.
 - [ ] Run `openspec validate feature-first-modularization --strict` and `git diff --check`; record exact commands/results, module graph, thin-shared inventory, iOS export inventory, commit hashes, and blockers in tracker evidence.
 - [ ] Commit with `git add docs openspec progress.md roadmap.md && git commit -m "docs: record modularization verification"`.
 

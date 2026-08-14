@@ -15,11 +15,6 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.library.ui.LibrarySharedLabels
-import com.eterocell.rhythhaus.library.ui.TrackRow
-import com.eterocell.rhythhaus.library.ui.TrackRowActivation
-import com.eterocell.rhythhaus.library.ui.TrackRowGesture
-import com.eterocell.rhythhaus.library.ui.trackRowActivation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

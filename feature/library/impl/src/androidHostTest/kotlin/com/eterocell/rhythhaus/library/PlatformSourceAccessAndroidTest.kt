@@ -6,10 +6,10 @@ import android.content.ContextWrapper
 import com.eterocell.rhythhaus.library.impl.AndroidSafSourceAccess
 import com.eterocell.rhythhaus.library.impl.createPlatformSourceAccess
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertIs
 import kotlin.test.assertSame
-import kotlin.test.assertEquals
 
 class PlatformSourceAccessAndroidTest {
     @Test
@@ -54,4 +54,3 @@ private class ApplicationContextWrapper(
 ) : ContextWrapper(application) {
     override fun getApplicationContext(): Context = application
 }
-

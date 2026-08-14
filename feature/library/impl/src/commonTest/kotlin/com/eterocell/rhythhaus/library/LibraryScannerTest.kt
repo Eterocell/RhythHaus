@@ -1,8 +1,8 @@
 package com.eterocell.rhythhaus.library
 
+import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.impl.AudioMetadata
 import com.eterocell.rhythhaus.library.impl.AudioMetadataReader
-import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.impl.PlatformAudioScanner
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
 import com.eterocell.rhythhaus.taglib.TagLibReader

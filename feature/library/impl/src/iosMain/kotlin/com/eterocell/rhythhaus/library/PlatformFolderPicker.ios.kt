@@ -6,9 +6,6 @@ import com.eterocell.rhythhaus.library.impl.appLocalMusicFolderPath
 import kotlinx.cinterop.ExperimentalForeignApi
 import org.jetbrains.compose.resources.stringResource
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSURL
-import platform.Foundation.NSDocumentDirectory
-import platform.Foundation.NSUserDomainMask
 import rhythhaus.feature.library.generated.resources.Res
 import rhythhaus.feature.library.generated.resources.folder_picker_error_prepare
 

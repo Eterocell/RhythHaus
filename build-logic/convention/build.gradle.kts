@@ -9,10 +9,16 @@ tasks.withType<Test>().configureEach {
         ->
         systemProperty("rhythhaus.aabProbeFile", probeFile)
     }
-    providers.gradleProperty("rhythhaus.architectureProcessorJar")
-        .orElse(providers.provider { System.getProperty("rhythhaus.architectureProcessorJar") })
+    providers
+        .gradleProperty("rhythhaus.architectureProcessorJar")
+        .orElse(
+            providers.provider {
+                System.getProperty("rhythhaus.architectureProcessorJar")
+            })
         .orNull
-        ?.let { processorJar -> systemProperty("rhythhaus.architectureProcessorJar", processorJar) }
+        ?.let { processorJar ->
+            systemProperty("rhythhaus.architectureProcessorJar", processorJar)
+        }
 }
 
 gradlePlugin {
@@ -26,6 +32,11 @@ gradlePlugin {
             id = "build-logic.architecture-check"
             implementationClass =
                 "com.eterocell.gradle.architecture.ArchitectureCheckPlugin"
+        }
+        create("featureScaffold") {
+            id = "build-logic.feature-scaffold"
+            implementationClass =
+                "com.eterocell.gradle.scaffold.FeatureScaffoldPlugin"
         }
     }
 }

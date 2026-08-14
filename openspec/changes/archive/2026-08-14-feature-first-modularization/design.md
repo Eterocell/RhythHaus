@@ -335,3 +335,20 @@ other non-signature Koin/UI dependency remain implementation-only. The dedicated
 binding pseudocode. Production source, not that block, must carry declaration-specific KDoc for every
 public declaration/member/constructor property/function and `@param` KDoc for each callable
 parameter/callback; KSP rejects missing or generic-placeholder documentation.
+
+### Approved Slice 7 thin-shared completion boundary
+
+Slice 7 cleans `:shared` to its thin final role and completes the modularization. `:shared` owns
+only `App()` composition, root shell (`LibraryAppShell`/`LibraryDialogs`), cross-feature route/Back
+arbitration (`LibraryAppState`/`LibraryNavigation`/`LibraryRoutes`), lifecycle
+(`PlaybackProcessLifecycle`), Koin assembly (`di/RhythHausDi`), and the stable `MainViewController`
+iOS facade, plus intentionally-retained session coordination/persistence, theme persistence, the
+package-stable playback-engine factory, the playlist-backup ABI seam, Library selection integration,
+track selection state/bar, Now Playing shell placement, and shared formatting helpers
+(`MusicModels`). 8.1 adds a thin-shared inventory test in the architecture convention suite that
+asserts this exact source-file set. 8.2 removes the dead `Logger` Kermit singleton and the
+`Platform`/`getPlatform` expect-actual family (zero call sites) without introducing any bridge
+dependency. 8.3 adds a real-structure-only feature-module scaffold (a canonical template plus a thin
+generator script) and defers package renames and Dependency Analysis Gradle Plugin evaluation. 8.4
+runs final qualityCheck/`./init.sh`/strict OpenSpec/`git diff --check`, aligns progress/roadmap/ADRs/
+READMEs/OpenSpec evidence, and commits each slice conventionally.

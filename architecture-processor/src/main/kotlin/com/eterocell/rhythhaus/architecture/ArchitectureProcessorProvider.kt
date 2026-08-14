@@ -98,6 +98,7 @@ private class ArchitectureProcessor(
         }
     }
 
+    @Suppress("ComplexCondition")
     private fun validateLibraryPublicCallableContract(
         declaration: KSDeclaration,
         diagnostics: MutableMap<String, KSNode>,
@@ -106,19 +107,22 @@ private class ArchitectureProcessor(
             declaration !is KSFunctionDeclaration ||
             declaration.origin == Origin.SYNTHETIC ||
             Modifier.PUBLIC !in declaration.modifiers ||
-            declaration.qualifiedName == null
-        ) return
+            declaration.qualifiedName == null)
+            return
 
         declaration.parameters.forEach { parameter ->
             val name = parameter.name?.asString() ?: return@forEach
-            if (!declaration.docString.orEmpty().contains(Regex("@param\\s+$name(?:\\s|$)"))) {
+            if (!declaration.docString
+                .orEmpty()
+                .contains(Regex("@param\\s+$name(?:\\s|$)"))) {
                 report(
                     diagnostics,
                     "ARCH-KDOC $modulePath:${declaration.identity()} missing @param $name",
                     declaration,
                 )
             }
-            if (parameter.hasDefault && !isAllowedLibraryDefault(declaration, name)) {
+            if (parameter.hasDefault &&
+                !isAllowedLibraryDefault(declaration, name)) {
                 report(
                     diagnostics,
                     "ARCH-DEFAULT $modulePath:${declaration.identity()} ($name)",
@@ -128,21 +132,28 @@ private class ArchitectureProcessor(
         }
     }
 
-    private fun isAllowedLibraryDefault(declaration: KSFunctionDeclaration, parameterName: String): Boolean {
+    private fun isAllowedLibraryDefault(
+        declaration: KSFunctionDeclaration,
+        parameterName: String
+    ): Boolean {
         val owner = declaration.parentDeclaration?.qualifiedName?.asString()
         val callable = declaration.qualifiedName?.asString()
         return (owner == "com.eterocell.rhythhaus.library.ScanProgress" &&
             parameterName in setOf("session", "latestItem")) ||
-            (callable == "com.eterocell.rhythhaus.library.LibraryScanner.scan" &&
+            (callable ==
+                "com.eterocell.rhythhaus.library.LibraryScanner.scan" &&
                 parameterName in setOf("isCancelled", "onProgress")) ||
-            (callable == "com.eterocell.rhythhaus.library.impl.audioCandidateForSourceFile" &&
-                parameterName in setOf(
-                    "metadataAudioSource",
-                    "cleanupMetadataAudioSource",
-                    "sizeBytes",
-                    "modifiedAtEpochMillis",
-                )) ||
-            (owner == "com.eterocell.rhythhaus.library.PlatformFolderPickResult.Failure" &&
+            (callable ==
+                "com.eterocell.rhythhaus.library.impl.audioCandidateForSourceFile" &&
+                parameterName in
+                    setOf(
+                        "metadataAudioSource",
+                        "cleanupMetadataAudioSource",
+                        "sizeBytes",
+                        "modifiedAtEpochMillis",
+                    )) ||
+            (owner ==
+                "com.eterocell.rhythhaus.library.PlatformFolderPickResult.Failure" &&
                 parameterName == "cause")
     }
 

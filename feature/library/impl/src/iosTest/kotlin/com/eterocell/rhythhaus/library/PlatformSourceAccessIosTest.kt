@@ -3,15 +3,15 @@ package com.eterocell.rhythhaus.library
 import com.eterocell.rhythhaus.library.impl.IOSAppLocalSourceAccess
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
 import com.eterocell.rhythhaus.library.impl.createPlatformSourceAccess
-import kotlinx.cinterop.ExperimentalForeignApi
-import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlinx.cinterop.ExperimentalForeignApi
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSTemporaryDirectory
 
 @OptIn(ExperimentalForeignApi::class)
 class PlatformSourceAccessIosTest {
@@ -50,7 +50,8 @@ class PlatformSourceAccessIosTest {
     fun nonAppLocalSourcesGuardTheirScan() {
         val access = createPlatformSourceAccess()
         assertFails {
-            access.scan(
+            access
+                .scan(
                     LibrarySource(
                         id = "jvm",
                         platformKind = LibraryPlatformKind.JvmFolder,
@@ -106,23 +107,26 @@ class PlatformSourceAccessIosTest {
 
             val events = access.scan(source).toList()
             val foldersVisited =
-                events.filterIsInstance<PlatformScanEvent.FolderVisited>()
-                    .map { it.displayPath }
+                events.filterIsInstance<PlatformScanEvent.FolderVisited>().map {
+                    it.displayPath
+                }
             assertTrue(
                 "Music" in foldersVisited,
                 "root folder must be reported with its display name: " +
                     foldersVisited)
 
             val candidates =
-                events.filterIsInstance<PlatformScanEvent.AudioCandidate>()
+                events
+                    .filterIsInstance<PlatformScanEvent.AudioCandidate>()
                     .map { it.candidate }
             val first = candidates.single { it.displayName == "01 First.mp3" }
             assertEquals("01 First.mp3", first.sourceLocalKey)
             assertEquals("01 First.mp3", first.displayPath)
 
             val skipped =
-                events.filterIsInstance<PlatformScanEvent.Skipped>()
-                    .map { it.sourceLocalKey to it.reason }
+                events.filterIsInstance<PlatformScanEvent.Skipped>().map {
+                    it.sourceLocalKey to it.reason
+                }
             assertTrue(
                 ("cover.jpg" to "Unsupported audio type") in skipped,
                 "unsupported audio files must be skipped: $skipped")

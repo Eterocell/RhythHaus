@@ -349,3 +349,14 @@ Koin Compose and all other Koin/UI dependencies absent from public signatures re
 only. The dedicated signature authority is pseudocode, while production-source KDoc is mandatory on
 every public declaration/member/constructor property/function and uses `@param` entries for each
 callable parameter/callback; KSP checks source, rejecting missing or placeholder documentation.
+
+## Slice 7 — Thin Shared And Completion
+
+`:shared` owns only `App()` composition, the root shell, cross-feature route/Back arbitration,
+lifecycle, Koin assembly, and the stable `MainViewController` iOS facade, plus the retained session
+coordination/persistence, theme persistence, package-stable playback engine factory, playlist-backup
+ABI seam, Library selection integration, track selection state/bar, Now Playing shell placement, and
+shared formatting helpers. A thin-shared inventory test asserts this exact source-file set; the
+unused `Logger` Kermit singleton and unused `Platform`/`getPlatform` expect-actual family are removed
+without a bridge. A real-structure-only scaffold generates a requested feature-module skeleton;
+package renames and Dependency Analysis Gradle Plugin evaluation remain deferred.

@@ -3963,3 +3963,6 @@ Blockers: none. Residual limitation: lexical declaration scanning deliberately a
 
 ## Task 6.1 (Library-last extraction) — COMPLETE
 Implementation `741f5eb`, lineage `1c7ad37 -> c48f11d -> 741f5eb`, 109 paths. See final-acceptance report.
+
+## Task 7.1-7.3 (Thin Shared And Completion) — COMPLETE
+Design/plan `1d7cfc1`; thin-shared deletion `5196434` (removed dead `Logger`/`Platform`/`getPlatform`, zero call sites); inventory test `9e852ac` (`ThinSharedInventoryTest` asserts the 31-file facade set, RED proven via a temporary dead file); scaffold `cc2b96d` (`FeatureScaffoldPlugin` + 3-test functional coverage + `skills/kmp-architecture/SKILL.md`); formatting `968d329`; detekt guard `9d62d28`. Verified shared compiles JVM/Android/iOS-arm64/iOS-sim, `:build-logic:convention:test` (with processor-property run), `architectureCheck` + `qualityCheck` PASS, `./init.sh` PASS, strict OpenSpec valid, `git diff --check` clean. Deferred: package renames, Dependency Analysis Gradle Plugin, runtime/device/visual claims. Residual: `SearchRouteAdapterJvmTest.currentTrackRestartsBeforeDismissal` is a pre-existing flaky restart race (passed on clean re-run).

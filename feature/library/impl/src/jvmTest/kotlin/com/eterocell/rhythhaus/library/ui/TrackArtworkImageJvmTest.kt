@@ -12,51 +12,55 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
-import kotlinx.coroutines.delay
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.delay
 
 class TrackArtworkImageJvmTest {
     @Test
     fun initialStatesDistinguishEagerLazyAndAbsent() {
-        val eager = initialTrackArtworkLoadState(
-            trackId = "t-1", eagerArtworkBytes = byteArrayOf(9))
+        val eager =
+            initialTrackArtworkLoadState(
+                trackId = "t-1", eagerArtworkBytes = byteArrayOf(9))
         assertTrue(eager is TrackArtworkLoadState.Available)
         assertContentEquals(byteArrayOf(9), eager.bytes)
         assertEquals(
             TrackArtworkLoadState.Loading,
-            initialTrackArtworkLoadState(trackId = "t-1", eagerArtworkBytes = null),
+            initialTrackArtworkLoadState(
+                trackId = "t-1", eagerArtworkBytes = null),
         )
         assertEquals(
             TrackArtworkLoadState.Unavailable,
-            initialTrackArtworkLoadState(trackId = null, eagerArtworkBytes = null),
+            initialTrackArtworkLoadState(
+                trackId = null, eagerArtworkBytes = null),
         )
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun lazyStateTransitionsLoadingToLoadedWithInjectedLoader() = runComposeUiTest {
-        val states = mutableListOf<State<TrackArtworkLoadState>>()
-        setContent {
-            states +=
-                rememberLazyTrackArtworkState(
-                    trackId = "t-1",
-                    eagerArtworkBytes = null,
-                    artworkLoader = { id -> bytesFor(id) },
-                )
+    fun lazyStateTransitionsLoadingToLoadedWithInjectedLoader() =
+        runComposeUiTest {
+            val states = mutableListOf<State<TrackArtworkLoadState>>()
+            setContent {
+                states +=
+                    rememberLazyTrackArtworkState(
+                        trackId = "t-1",
+                        eagerArtworkBytes = null,
+                        artworkLoader = { id -> bytesFor(id) },
+                    )
+            }
+            waitForIdle()
+            val state = states.last()
+            waitUntil(timeoutMillis = 5_000) {
+                state.value is TrackArtworkLoadState.Available
+            }
+            assertContentEquals(
+                bytesFor("t-1"),
+                (state.value as TrackArtworkLoadState.Available).bytes,
+            )
         }
-        waitForIdle()
-        val state = states.last()
-        waitUntil(timeoutMillis = 5_000) {
-            state.value is TrackArtworkLoadState.Available
-        }
-        assertContentEquals(
-            bytesFor("t-1"),
-            (state.value as TrackArtworkLoadState.Available).bytes,
-        )
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -119,24 +123,27 @@ class TrackArtworkImageJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun eagerArtworkRendersWithoutLoaderAndSuppressesFallback() = runComposeUiTest {
-        setContent {
-            Box(Modifier.size(80.dp)) {
-                LazyTrackArtworkImage(
-                    trackId = null,
-                    eagerArtworkBytes = byteArrayOf(1, 2),
-                    contentDescription = "album art",
-                    role = ArtworkImageRole.Thumbnail,
-                    artworkLoader = { null },
-                    fallback = {
-                        Box(Modifier.size(10.dp).testTag("artwork-fallback"))
-                    },
-                )
+    fun eagerArtworkRendersWithoutLoaderAndSuppressesFallback() =
+        runComposeUiTest {
+            setContent {
+                Box(Modifier.size(80.dp)) {
+                    LazyTrackArtworkImage(
+                        trackId = null,
+                        eagerArtworkBytes = byteArrayOf(1, 2),
+                        contentDescription = "album art",
+                        role = ArtworkImageRole.Thumbnail,
+                        artworkLoader = { null },
+                        fallback = {
+                            Box(
+                                Modifier.size(10.dp)
+                                    .testTag("artwork-fallback"))
+                        },
+                    )
+                }
             }
+            waitForIdle()
+            onNodeWithTag("artwork-fallback").assertDoesNotExist()
         }
-        waitForIdle()
-        onNodeWithTag("artwork-fallback").assertDoesNotExist()
-    }
 
     private fun bytesFor(id: String): ByteArray? =
         when (id) {

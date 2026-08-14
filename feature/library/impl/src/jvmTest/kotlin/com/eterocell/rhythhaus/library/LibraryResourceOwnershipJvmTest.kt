@@ -8,11 +8,11 @@ import kotlin.test.assertTrue
 
 /**
  * Deterministically asserts the library resource ownership ledger by reading
- * the actual catalog XML files. The feature catalog owns exactly the 21
- * library keys in both locales; `library_queue` and `album_artwork` remain
- * Shared-owned; `selected` is absent from both Shared catalogs; and no key
- * from the 21 library keys or the 12 injected Shared label keys is duplicated
- * across the feature and Shared catalogs.
+ * the actual catalog XML files. The feature catalog owns exactly the 21 library
+ * keys in both locales; `library_queue` and `album_artwork` remain
+ * Shared-owned; `selected` is absent from both Shared catalogs; and no key from
+ * the 21 library keys or the 12 injected Shared label keys is duplicated across
+ * the feature and Shared catalogs.
  */
 class LibraryResourceOwnershipJvmTest {
     private val library21 =
@@ -109,13 +109,13 @@ class LibraryResourceOwnershipJvmTest {
                 "key $key must be owned by exactly one of feature or shared")
             if (key in library21) {
                 assertTrue(
-                    featureOwned,
-                    "library key $key must be feature-owned")
-                assertFalse(key in sharedZhKeys, "library key $key must not be in shared ZH")
+                    featureOwned, "library key $key must be feature-owned")
+                assertFalse(
+                    key in sharedZhKeys,
+                    "library key $key must not be in shared ZH")
             } else {
                 assertTrue(
-                    sharedOwned,
-                    "injected key $key must be Shared-owned")
+                    sharedOwned, "injected key $key must be Shared-owned")
             }
         }
     }

@@ -59,3 +59,5 @@
 
 ## Task 6.1 — Library feature extraction to `:feature:library:impl`
 Completed `741f5eb`. `:shared` retains composition/routing/playback/Koin/iOS facade.
+
+- [x] 架构重构 Slice 7 Task 7.1-7.3 accepted：`:shared` 清理至 thin facade 角色（`App()`、root shell、route/Back、lifecycle、Koin、`MainViewController` + retained session/theme/playback-factory/backup-ABI/selection/Now-Playing/formatting helpers）。删除 dead `Logger`/`Platform`/`getPlatform`（零 call site）；新增 `ThinSharedInventoryTest` 断言 31 文件 facade 集（临时 dead file 证明 RED）；新增 `FeatureScaffoldPlugin`（`build-logic.feature-scaffold`）仅生成真实请求模块结构 + 3-test functional 覆盖 + `skills/kmp-architecture/SKILL.md` 文档。shared JVM/Android/iOS 编译、`:build-logic:convention:test`、`architectureCheck`/`qualityCheck`、`./init.sh`、strict OpenSpec、diff checks 均通过。Deferred：package renames、Dependency Analysis Gradle Plugin、runtime/device/visual。

@@ -1,10 +1,10 @@
 package com.eterocell.rhythhaus.library
 
-import androidx.sqlite.db.SupportSQLiteDatabase
-import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.sqlite.db.SupportSQLiteDatabase
+import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import java.lang.reflect.Proxy
 import kotlin.test.Test
 import kotlin.test.assertFails
@@ -18,7 +18,8 @@ class LibraryDatabaseAndroidHostTest {
 
         setLibraryDatabaseAndroidContext(suppliedContext)
 
-        assertSame(applicationContext, LibraryDatabaseContext.applicationContext)
+        assertSame(
+            applicationContext, LibraryDatabaseContext.applicationContext)
     }
 
     @Test
@@ -28,9 +29,11 @@ class LibraryDatabaseAndroidHostTest {
 
         LibraryDatabaseContext.applicationContext = suppliedContext
 
-        assertSame(applicationContext, LibraryDatabaseContext.applicationContext)
+        assertSame(
+            applicationContext, LibraryDatabaseContext.applicationContext)
         val database = createLibraryDatabase()
-        val contextField = LibraryDatabase::class.java.getDeclaredField("context")
+        val contextField =
+            LibraryDatabase::class.java.getDeclaredField("context")
         contextField.isAccessible = true
         assertSame(applicationContext, contextField.get(database))
     }

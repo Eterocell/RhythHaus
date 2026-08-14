@@ -5,9 +5,6 @@ import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.PlaylistSummary
-import com.eterocell.rhythhaus.library.ui.BrowseMode
-import com.eterocell.rhythhaus.library.ui.DrillDownAction
-import com.eterocell.rhythhaus.library.ui.dispatchDrillDownAction
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

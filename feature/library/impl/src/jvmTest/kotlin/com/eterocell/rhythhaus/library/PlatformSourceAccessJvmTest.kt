@@ -46,7 +46,8 @@ class PlatformSourceAccessJvmTest {
     fun jvmScanYieldsVisitedFoldersCandidatesAndSkippedUnsupported() {
         val root = Files.createTempDirectory("rhythhaus-jvm-scan").toFile()
         root.deleteOnExit()
-        val album = Files.createDirectory(root.toPath().resolve("Album One")).toFile()
+        val album =
+            Files.createDirectory(root.toPath().resolve("Album One")).toFile()
         album.deleteOnExit()
         Files.createFile(root.toPath().resolve("Album One/01 First.mp3"))
         Files.createFile(root.toPath().resolve("Album One/cover.jpg"))
@@ -57,8 +58,9 @@ class PlatformSourceAccessJvmTest {
         val events = access.scan(source).toList()
 
         val foldersVisited =
-            events.filterIsInstance<PlatformScanEvent.FolderVisited>()
-                .map { it.displayPath }
+            events.filterIsInstance<PlatformScanEvent.FolderVisited>().map {
+                it.displayPath
+            }
         assertTrue(
             source.displayName in foldersVisited,
             "root folder must be reported with its display name: $foldersVisited")
@@ -67,20 +69,21 @@ class PlatformSourceAccessJvmTest {
             "nested folder must be reported: $foldersVisited")
 
         val candidates =
-            events.filterIsInstance<PlatformScanEvent.AudioCandidate>()
-                .map { it.candidate }
+            events.filterIsInstance<PlatformScanEvent.AudioCandidate>().map {
+                it.candidate
+            }
         val first = candidates.single { it.displayName == "01 First.mp3" }
         assertEquals("Album One/01 First.mp3", first.sourceLocalKey)
         assertEquals("Album One/01 First.mp3", first.displayPath)
         assertEquals(
-            AudioSource.FilePath(
-                "$root/${"Album One/01 First.mp3"}"),
+            AudioSource.FilePath("$root/${"Album One/01 First.mp3"}"),
             first.audioSource,
         )
 
         val skipped =
-            events.filterIsInstance<PlatformScanEvent.Skipped>()
-                .map { it.sourceLocalKey to it.reason }
+            events.filterIsInstance<PlatformScanEvent.Skipped>().map {
+                it.sourceLocalKey to it.reason
+            }
         assertTrue(
             ("Album One/cover.jpg" to "Unsupported audio type") in skipped,
             "unsupported audio files must be skipped: $skipped")
@@ -93,12 +96,13 @@ class PlatformSourceAccessJvmTest {
     fun jvmScanOfMissingOrForeignFolderFailsClosed() {
         val access = createPlatformSourceAccess()
         assertFails {
-            access.scan(
-                    folderSource("/nonexistent/rhythhaus-missing-folder"))
+            access
+                .scan(folderSource("/nonexistent/rhythhaus-missing-folder"))
                 .toList()
         }
         assertFails {
-            access.scan(
+            access
+                .scan(
                     LibrarySource(
                         id = "saf",
                         platformKind = LibraryPlatformKind.AndroidSafTree,

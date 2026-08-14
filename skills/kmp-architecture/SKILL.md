@@ -67,6 +67,12 @@ do not change `AGENTS.md` while creating or revising this guidance.
 - Split a feature into API and implementation modules only for a real stable
   contract. Do not create `:core:network`, speculative modules, or empty
   `UiState`, `UiEvent`, `UiEffect`, or Presenter/ViewModel types.
+- Generate new feature modules with `build-logic.feature-scaffold`
+  (`generateFeatureModule --module-name <name> --package-name <pkg>
+  [--api-contract <Contract>]`). It creates only the real requested module
+  structure (build file, source skeleton, README) and never speculative empty
+  state/effect/presenter scaffolding; an API module is generated only when an
+  explicit `--api-contract` name is supplied.
 - Keep iOS exports to a narrow allow-list of modules whose declarations appear in
   the Swift/Objective-C public API. Preserve the shared framework facade and
   `MainViewController`; do not broadly export core or feature implementations.

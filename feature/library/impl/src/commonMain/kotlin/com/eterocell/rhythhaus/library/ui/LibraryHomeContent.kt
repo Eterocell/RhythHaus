@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,8 +45,8 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
     systemBarTopPadding
 
 /**
- * Renders the library home using only raw feature inputs and callbacks. It
- * owns internal album/artist grouping, its lazy list state, and the recorded
+ * Renders the library home using only raw feature inputs and callbacks. It owns
+ * internal album/artist grouping, its lazy list state, and the recorded
  * backdrop; Shared owns browse state, selection, playback policy, navigation,
  * and scroll storage.
  *
@@ -109,7 +109,8 @@ public fun LibraryHomeContent(
     onToggleSelection: (trackId: String) -> Unit,
     onStartSelection: (trackId: String) -> Unit,
     onVisibleTrackIdsChanged: (List<String>) -> Unit,
-    onScrollPositionChanged: (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
+    onScrollPositionChanged:
+        (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
     bottomContentPadding: Dp,
 ) {
     val albums = remember(tracks) { groupTracksByAlbum(tracks) }
@@ -315,9 +316,10 @@ public fun LibraryHomeContent(
         }
     LaunchedEffect(homeListState) {
         snapshotFlow {
-                homeListState.layoutInfo.visibleItemsInfo
-                    .mapNotNull { it.key as? String }
+            homeListState.layoutInfo.visibleItemsInfo.mapNotNull {
+                it.key as? String
             }
+        }
             .collect { visibleKeys ->
                 onVisibleTrackIdsChanged(
                     visibleKeys.filter { it in trackIdSet })

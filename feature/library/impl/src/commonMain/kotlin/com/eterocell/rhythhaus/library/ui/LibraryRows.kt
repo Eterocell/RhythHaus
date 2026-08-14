@@ -182,8 +182,7 @@ internal fun ImportAudioCard(
                     ),
             ) {
                 Text(
-                    if (folderPickerLauncher.isAvailable)
-                        labels.addMusicFolder
+                    if (folderPickerLauncher.isAvailable) labels.addMusicFolder
                     else labels.folderPickerUnavailable,
                     fontWeight = FontWeight.Black)
             }
@@ -265,8 +264,8 @@ internal fun SectionLabel(title: String, subtitle: String?) {
 }
 
 /**
- * Renders one track row with album artwork, duration, and selection or
- * playback activation.
+ * Renders one track row with album artwork, duration, and selection or playback
+ * activation.
  *
  * @param track the track to render.
  * @param isNowPlaying whether this row represents the current playback track.
@@ -603,8 +602,7 @@ internal fun ArtistRow(
             LazyTrackArtworkImage(
                 trackId = artistArtworkTrack?.id,
                 eagerArtworkBytes = artistArtworkTrack?.artworkBytes,
-                contentDescription =
-                    stringResource(Res.string.artist_artwork),
+                contentDescription = stringResource(Res.string.artist_artwork),
                 role = ArtworkImageRole.Card,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,

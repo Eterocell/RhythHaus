@@ -562,9 +562,13 @@ internal fun filteredPlaylistTrackIds(
     tracks
         .filter { track ->
             query.isBlank() ||
-                listOf(track.title, track.artist.orEmpty(), track.album.orEmpty()).any {
-                    it.contains(query, ignoreCase = true)
-                }
+                listOf(
+                        track.title,
+                        track.artist.orEmpty(),
+                        track.album.orEmpty())
+                    .any {
+                        it.contains(query, ignoreCase = true)
+                    }
         }
         .map(LibraryTrack::id)
 

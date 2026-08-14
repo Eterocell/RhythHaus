@@ -42,7 +42,9 @@ class DrillDownViewJvmTest {
             Box(Modifier.size(420.dp, 520.dp)) {
                 DrillDownView(
                     title = "Album B",
-                    summary = LibraryDetailSummary.Album(trackCount = 3, artist = "Artist"),
+                    summary =
+                        LibraryDetailSummary.Album(
+                            trackCount = 3, artist = "Artist"),
                     tracks = tracks(),
                     topBarArtworkTrack = null,
                     currentTrackId = "t-2",
@@ -73,112 +75,124 @@ class DrillDownViewJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun unknownAlbumArtistResolvesToLocalizedUnknownArtist() = runComposeUiTest {
-        setContent {
-            Box(Modifier.size(420.dp, 520.dp)) {
-                DrillDownView(
-                    title = "Album B",
-                    summary = LibraryDetailSummary.Album(trackCount = 2, artist = null),
-                    tracks = tracks().take(2),
-                    topBarArtworkTrack = null,
-                    currentTrackId = null,
-                    selectionPage = LibrarySelectionPage.Album("Album B"),
-                    selectionModeActive = false,
-                    selectedTrackIds = emptySet(),
-                    labels = labels(),
-                    artworkLoader = { null },
-                    onBack = {},
-                    onPlayTrack = { _, _ -> },
-                    onToggleSelection = {},
-                    onStartSelection = {},
-                    onVisibleTrackIdsChanged = {},
-                    onScrollPositionChanged = { _, _ -> },
-                    bottomContentPadding = 0.dp,
-                )
+    fun unknownAlbumArtistResolvesToLocalizedUnknownArtist() =
+        runComposeUiTest {
+            setContent {
+                Box(Modifier.size(420.dp, 520.dp)) {
+                    DrillDownView(
+                        title = "Album B",
+                        summary =
+                            LibraryDetailSummary.Album(
+                                trackCount = 2, artist = null),
+                        tracks = tracks().take(2),
+                        topBarArtworkTrack = null,
+                        currentTrackId = null,
+                        selectionPage = LibrarySelectionPage.Album("Album B"),
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        artworkLoader = { null },
+                        onBack = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = {},
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                    )
+                }
             }
-        }
-        waitForIdle()
+            waitForIdle()
 
-        onAllNodes(hasText("2 tracks · Unknown artist")).assertCountEquals(1)
-    }
+            onAllNodes(hasText("2 tracks · Unknown artist"))
+                .assertCountEquals(1)
+        }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun rowDispatchesOrderedPlaybackAndLongPressStartsSelection() = runComposeUiTest {
-        val plays = mutableListOf<Pair<List<Track>, Track>>()
-        val selectionStarts = mutableListOf<String>()
-        setContent {
-            Box(Modifier.size(420.dp, 520.dp)) {
-                DrillDownView(
-                    title = "Album B",
-                    summary = LibraryDetailSummary.Album(trackCount = 3, artist = "Artist"),
-                    tracks = tracks(),
-                    topBarArtworkTrack = null,
-                    currentTrackId = null,
-                    selectionPage = LibrarySelectionPage.Album("Album B"),
-                    selectionModeActive = false,
-                    selectedTrackIds = emptySet(),
-                    labels = labels(),
-                    artworkLoader = { null },
-                    onBack = {},
-                    onPlayTrack = { ordered, selected -> plays += ordered to selected },
-                    onToggleSelection = {},
-                    onStartSelection = { selectionStarts += it },
-                    onVisibleTrackIdsChanged = {},
-                    onScrollPositionChanged = { _, _ -> },
-                    bottomContentPadding = 0.dp,
-                )
+    fun rowDispatchesOrderedPlaybackAndLongPressStartsSelection() =
+        runComposeUiTest {
+            val plays = mutableListOf<Pair<List<Track>, Track>>()
+            val selectionStarts = mutableListOf<String>()
+            setContent {
+                Box(Modifier.size(420.dp, 520.dp)) {
+                    DrillDownView(
+                        title = "Album B",
+                        summary =
+                            LibraryDetailSummary.Album(
+                                trackCount = 3, artist = "Artist"),
+                        tracks = tracks(),
+                        topBarArtworkTrack = null,
+                        currentTrackId = null,
+                        selectionPage = LibrarySelectionPage.Album("Album B"),
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        artworkLoader = { null },
+                        onBack = {},
+                        onPlayTrack = { ordered, selected ->
+                            plays += ordered to selected
+                        },
+                        onToggleSelection = {},
+                        onStartSelection = { selectionStarts += it },
+                        onVisibleTrackIdsChanged = {},
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                    )
+                }
             }
+            waitForIdle()
+
+            onAllNodes(hasContentDescription("Select Two"))[0].performClick()
+            waitForIdle()
+            assertEquals(tracks(), plays.last().first)
+            assertEquals("t-1", plays.last().second.id)
+
+            onAllNodes(hasContentDescription("Select Two"))[0]
+                .performTouchInput { longClick() }
+            waitForIdle()
+            assertEquals(listOf("t-1"), selectionStarts)
         }
-        waitForIdle()
-
-        onAllNodes(hasContentDescription("Select Two"))[0].performClick()
-        waitForIdle()
-        assertEquals(tracks(), plays.last().first)
-        assertEquals("t-1", plays.last().second.id)
-
-        onAllNodes(hasContentDescription("Select Two"))[0]
-            .performTouchInput { longClick() }
-        waitForIdle()
-        assertEquals(listOf("t-1"), selectionStarts)
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun selectionModeRoutesClicksToToggleSelectionCallbacks() = runComposeUiTest {
-        var selectionModeActive by mutableStateOf(false)
-        val toggles = mutableListOf<String>()
-        setContent {
-            Box(Modifier.size(420.dp, 520.dp)) {
-                DrillDownView(
-                    title = "Album B",
-                    summary = LibraryDetailSummary.Album(trackCount = 3, artist = "Artist"),
-                    tracks = tracks(),
-                    topBarArtworkTrack = null,
-                    currentTrackId = null,
-                    selectionPage = LibrarySelectionPage.Album("Album B"),
-                    selectionModeActive = selectionModeActive,
-                    selectedTrackIds = setOf("t-2"),
-                    labels = labels(),
-                    artworkLoader = { null },
-                    onBack = {},
-                    onPlayTrack = { _, _ -> },
-                    onToggleSelection = { toggles += it },
-                    onStartSelection = {},
-                    onVisibleTrackIdsChanged = {},
-                    onScrollPositionChanged = { _, _ -> },
-                    bottomContentPadding = 0.dp,
-                )
+    fun selectionModeRoutesClicksToToggleSelectionCallbacks() =
+        runComposeUiTest {
+            var selectionModeActive by mutableStateOf(false)
+            val toggles = mutableListOf<String>()
+            setContent {
+                Box(Modifier.size(420.dp, 520.dp)) {
+                    DrillDownView(
+                        title = "Album B",
+                        summary =
+                            LibraryDetailSummary.Album(
+                                trackCount = 3, artist = "Artist"),
+                        tracks = tracks(),
+                        topBarArtworkTrack = null,
+                        currentTrackId = null,
+                        selectionPage = LibrarySelectionPage.Album("Album B"),
+                        selectionModeActive = selectionModeActive,
+                        selectedTrackIds = setOf("t-2"),
+                        labels = labels(),
+                        artworkLoader = { null },
+                        onBack = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = { toggles += it },
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = {},
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                    )
+                }
             }
-        }
-        waitForIdle()
-        selectionModeActive = true
-        waitForIdle()
+            waitForIdle()
+            selectionModeActive = true
+            waitForIdle()
 
-        onAllNodes(hasContentDescription("Select Two"))[0].performClick()
-        waitForIdle()
-        assertEquals(listOf("t-1"), toggles)
-    }
+            onAllNodes(hasContentDescription("Select Two"))[0].performClick()
+            waitForIdle()
+            assertEquals(listOf("t-1"), toggles)
+        }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -189,7 +203,9 @@ class DrillDownViewJvmTest {
             Box(Modifier.size(420.dp, 280.dp)) {
                 DrillDownView(
                     title = "Album B",
-                    summary = LibraryDetailSummary.Album(trackCount = 12, artist = "Artist"),
+                    summary =
+                        LibraryDetailSummary.Album(
+                            trackCount = 12, artist = "Artist"),
                     tracks = twelveTracks(),
                     topBarArtworkTrack = null,
                     currentTrackId = null,
@@ -212,8 +228,8 @@ class DrillDownViewJvmTest {
         }
         waitForIdle()
 
-        onAllNodes(hasContentDescription("Back"))[0]
-            .performSemanticsAction(SemanticsActions.OnClick)
+        onAllNodes(hasContentDescription("Back"))[0].performSemanticsAction(
+            SemanticsActions.OnClick)
         waitForIdle()
         assertEquals(1, backCount)
 
@@ -223,7 +239,14 @@ class DrillDownViewJvmTest {
     }
 
     private fun twelveTracks(): List<Track> =
-        List(12) { index -> track("t-${index + 1}", "Track ${index + 1}", "Album B", "Artist", number = index + 1) }
+        List(12) { index ->
+            track(
+                "t-${index + 1}",
+                "Track ${index + 1}",
+                "Album B",
+                "Artist",
+                number = index + 1)
+        }
 
     private fun tracks(): List<Track> =
         listOf(

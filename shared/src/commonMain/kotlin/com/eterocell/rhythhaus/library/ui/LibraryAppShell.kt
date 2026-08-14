@@ -62,9 +62,6 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.TrackArtwork
 import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
-import com.eterocell.rhythhaus.library.ui.BrowseMode
-import com.eterocell.rhythhaus.library.ui.LibraryHomeContent
-import com.eterocell.rhythhaus.library.ui.LibrarySharedLabels
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarLabels
 import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
@@ -105,9 +102,9 @@ internal const val NowPlayingShellPlacementTestTag = "NowPlayingShellPlacement"
 internal const val SelectionShellPlacementTestTag = "SelectionShellPlacement"
 
 /**
- * Shared composition-local artwork loader resolving artwork for a track ID.
- * App provides it once from the repository; the bottom bar and Now Playing
- * adapters consume it while feature leaves receive their own loader callback.
+ * Shared composition-local artwork loader resolving artwork for a track ID. App
+ * provides it once from the repository; the bottom bar and Now Playing adapters
+ * consume it while feature leaves receive their own loader callback.
  */
 internal val LocalTrackArtworkLoader =
     staticCompositionLocalOf<suspend (String) -> TrackArtwork?> { { null } }
@@ -341,9 +338,7 @@ fun LibraryHomeScreen(
                 TrackSelectionPageKey.HomeSongs ->
                     snapshot.tracks.map(Track::id)
                 is TrackSelectionPageKey.Album ->
-                    albums
-                        .filter { it.album == pageKey.album }
-                        .map(Track::id)
+                    albums.filter { it.album == pageKey.album }.map(Track::id)
                 is TrackSelectionPageKey.Artist ->
                     artists
                         .filter { it.artist == pageKey.artist }
@@ -623,8 +618,7 @@ fun LibraryHomeScreen(
                             selectionModeActive =
                                 trackSelectionState.pageKey ==
                                     TrackSelectionPageKey.HomeSongs &&
-                                    trackSelectionState
-                                        .selectedTrackIds
+                                    trackSelectionState.selectedTrackIds
                                         .isNotEmpty(),
                             selectedTrackIds =
                                 if (trackSelectionState.pageKey ==
@@ -648,7 +642,8 @@ fun LibraryHomeScreen(
                                 openDetailRoute(LibraryRoute.AlbumDetail(album))
                             },
                             onOpenArtist = { artist ->
-                                openDetailRoute(LibraryRoute.ArtistDetail(artist))
+                                openDetailRoute(
+                                    LibraryRoute.ArtistDetail(artist))
                             },
                             onShowPlaylists = {
                                 pushRoute(LibraryRoute.PlaylistHub)

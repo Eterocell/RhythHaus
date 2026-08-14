@@ -168,36 +168,35 @@ class ArtworkCollapseTest {
 
     @Test
     fun albumAndArtistRepresentativeIdentityDoesNotOwnScrollWithoutResolvedArtwork() {
-        listOf("album-first-track", "artist-first-track")
-            .forEach { representativeTrackId ->
-                assertEquals(
-                    DrillDownScrollOwner.Miuix,
-                    drillDownScrollOwner(
-                        DrillDownArtwork(
-                            representativeTrackId = representativeTrackId,
-                            state = TrackArtworkLoadState.Loading,
-                        ),
+        listOf("album-first-track", "artist-first-track").forEach {
+            representativeTrackId ->
+            assertEquals(
+                DrillDownScrollOwner.Miuix,
+                drillDownScrollOwner(
+                    DrillDownArtwork(
+                        representativeTrackId = representativeTrackId,
+                        state = TrackArtworkLoadState.Loading,
                     ),
-                )
-                assertEquals(
-                    DrillDownScrollOwner.Miuix,
-                    drillDownScrollOwner(
-                        DrillDownArtwork(
-                            representativeTrackId = representativeTrackId,
-                            state = TrackArtworkLoadState.Unavailable,
-                        ),
+                ),
+            )
+            assertEquals(
+                DrillDownScrollOwner.Miuix,
+                drillDownScrollOwner(
+                    DrillDownArtwork(
+                        representativeTrackId = representativeTrackId,
+                        state = TrackArtworkLoadState.Unavailable,
                     ),
-                )
-                assertEquals(
-                    DrillDownScrollOwner.Artwork,
-                    drillDownScrollOwner(
-                        DrillDownArtwork(
-                            representativeTrackId = representativeTrackId,
-                            state =
-                                TrackArtworkLoadState.Available(byteArrayOf(1)),
-                        ),
+                ),
+            )
+            assertEquals(
+                DrillDownScrollOwner.Artwork,
+                drillDownScrollOwner(
+                    DrillDownArtwork(
+                        representativeTrackId = representativeTrackId,
+                        state = TrackArtworkLoadState.Available(byteArrayOf(1)),
                     ),
-                )
-            }
+                ),
+            )
+        }
     }
 }

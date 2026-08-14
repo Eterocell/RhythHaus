@@ -8,7 +8,9 @@ import com.eterocell.rhythhaus.library.PlatformSourceAccess
 /** Creates the platform source access implementation for this platform. */
 expect fun createPlatformSourceAccess(): PlatformSourceAccess
 
-/** Builds a scan event for one source file, filtering unsupported audio types. */
+/**
+ * Builds a scan event for one source file, filtering unsupported audio types.
+ */
 fun audioCandidateForSourceFile(
     source: LibrarySource,
     sourceLocalKey: String,
@@ -47,7 +49,9 @@ fun audioCandidateForSourceFile(
 fun sourceLocalKey(vararg pathSegments: String): String =
     pathSegments.asList().sourceLocalKey()
 
-/** Joins this sequence of path segments into one normalized source-local key. */
+/**
+ * Joins this sequence of path segments into one normalized source-local key.
+ */
 fun Iterable<String>.sourceLocalKey(): String =
     joinToString("/") { segment ->
             segment.trim().trim('/').trim('\\')

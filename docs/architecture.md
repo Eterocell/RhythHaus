@@ -415,3 +415,17 @@ The dedicated public signature authority is binding pseudocode, not production-s
 Production source requires declaration-specific KDoc on every listed public declaration/member/
 constructor property/function and KDoc `@param` entries for every public callable parameter/callback;
 KSP inspects source and rejects missing or generic-placeholder documentation.
+
+### Slice 7 Amendment
+
+Slice 7 cleans `:shared` to its thin final role. `:shared` owns only `App()` composition, the root
+shell (`LibraryAppShell`/`LibraryDialogs`), cross-feature route/Back arbitration
+(`LibraryAppState`/`LibraryNavigation`/`LibraryRoutes`), lifecycle (`PlaybackProcessLifecycle`),
+Koin assembly (`di/RhythHausDi`), and the stable `MainViewController` iOS facade, plus the
+intentionally-retained session coordination/persistence, theme persistence, package-stable playback
+engine factory, playlist-backup ABI seam, Library selection integration, track selection state/bar,
+Now Playing shell placement, and shared formatting helpers. A thin-shared inventory test asserts this
+exact source-file set. The unused `Logger` Kermit singleton and the unused `Platform`/`getPlatform`
+expect-actual family are removed without any bridge dependency. A real-structure-only scaffold
+generates a requested feature-module skeleton; package renames and Dependency Analysis Gradle Plugin
+evaluation remain deferred.

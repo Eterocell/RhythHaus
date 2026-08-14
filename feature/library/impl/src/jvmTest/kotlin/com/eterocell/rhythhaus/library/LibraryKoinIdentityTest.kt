@@ -1,11 +1,11 @@
 package com.eterocell.rhythhaus.library
 
 import com.eterocell.rhythhaus.library.impl.JvmFolderSourceAccess
-import org.koin.core.context.startKoin
-import org.koin.core.context.stopKoin
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertSame
+import org.koin.core.context.startKoin
+import org.koin.core.context.stopKoin
 
 class LibraryKoinIdentityTest {
     @Test

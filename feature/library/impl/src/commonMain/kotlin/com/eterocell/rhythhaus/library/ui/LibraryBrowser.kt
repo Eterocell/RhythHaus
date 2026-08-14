@@ -5,7 +5,9 @@ import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryTrack
 
-/** Selects internally grouped album, artist, or authoritative song rendering. */
+/**
+ * Selects internally grouped album, artist, or authoritative song rendering.
+ */
 public enum class BrowseMode {
     /** Grouped album browsing. */
     Albums,
@@ -139,9 +141,15 @@ public sealed interface LibrarySelectionPage {
     ) : LibrarySelectionPage
 }
 
-/** Raw route data whose feature-owned rendering selects localized detail wording. */
+/**
+ * Raw route data whose feature-owned rendering selects localized detail
+ * wording.
+ */
 public sealed interface LibraryDetailSummary {
-    /** Album counts and optional raw artist; null resolves to feature unknown artist. */
+    /**
+     * Album counts and optional raw artist; null resolves to feature unknown
+     * artist.
+     */
     public data class Album(
         /** The resolved track count. */
         public val trackCount: Int,
@@ -149,7 +157,10 @@ public sealed interface LibraryDetailSummary {
         public val artist: String?,
     ) : LibraryDetailSummary
 
-    /** Artist counts passed unchanged to feature-owned localized subtitle formatting. */
+    /**
+     * Artist counts passed unchanged to feature-owned localized subtitle
+     * formatting.
+     */
     public data class Artist(
         /** The distinct album count. */
         public val albumCount: Int,
