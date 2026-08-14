@@ -9,6 +9,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import platform.Foundation.NSRecursiveLock
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.setActive
 import platform.Foundation.NSURL
@@ -59,6 +60,16 @@ private class IOSPlaybackEngine(
     private var activeGeneration: Long = 0L
     private var sourceVersion: Long = 0L
     private val remoteTransportGate = IOSRemoteTransportGate()
+    private val operationLock = NSRecursiveLock()
+
+    private inline fun <T> withOperationLock(block: () -> T): T {
+        operationLock.lock()
+        return try {
+            block()
+        } finally {
+            operationLock.unlock()
+        }
+    }
 
     init {
         // MPRemoteCommandCenter must be configured on the main thread so the
@@ -71,74 +82,89 @@ private class IOSPlaybackEngine(
     private fun completionHandler(generation: Long, version: Long) =
         object : IOSAudioPlayerCompletionHandler {
             override fun onPlaybackCompleted() {
-                if (!isCurrentSource(generation, version)) return
-                if (completionReported) return
-                completionReported = true
-                playbackActive = false
-                wasPlayingBeforeInterruption = false
-                progressJob?.cancel()
-                val pos =
-                    audioProvider?.currentPositionMillis()
-                        ?: durationMillis
-                        ?: 0L
-                listener?.onPlaybackProgress(generation, pos, durationMillis)
-                listener?.onPlaybackCompleted(generation)
+                withOperationLock {
+                    if (!isCurrentSource(generation, version)) return
+                    if (completionReported) return
+                    completionReported = true
+                    playbackActive = false
+                    wasPlayingBeforeInterruption = false
+                    progressJob?.cancel()
+                    val pos =
+                        audioProvider?.currentPositionMillis()
+                            ?: durationMillis
+                            ?: 0L
+                    listener?.onPlaybackProgress(generation, pos, durationMillis)
+                    listener?.onPlaybackCompleted(generation)
+                }
             }
         }
 
     private fun interruptionHandler(generation: Long, version: Long) =
         object : IOSAudioInterruptionHandler {
             override fun onInterruptionBegan() {
-                if (!isCurrentSource(generation, version) || !playbackActive) return
-                wasPlayingBeforeInterruption = true
-                playbackActive = false
-                progressJob?.cancel()
-                val provider = audioProvider ?: return
-                provider.pause()
-                val pos = provider.currentPositionMillis()
-                updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
-                listener?.onPlaybackProgress(generation, pos, durationMillis)
-                listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+                withOperationLock {
+                    if (!isCurrentSource(generation, version) || !playbackActive) return
+                    wasPlayingBeforeInterruption = true
+                    playbackActive = false
+                    progressJob?.cancel()
+                    val provider = audioProvider ?: return
+                    provider.pause()
+                    val pos = provider.currentPositionMillis()
+                    updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
+                    listener?.onPlaybackProgress(generation, pos, durationMillis)
+                    listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+                }
             }
 
             override fun onInterruptionEnded(shouldResume: Boolean) {
-                if (!isCurrentSource(generation, version)) return
-                val resume = shouldResume && wasPlayingBeforeInterruption
-                wasPlayingBeforeInterruption = false
-                if (!resume) return
-                val provider = audioProvider ?: return
-                if (!provider.play()) return
-                playbackActive = true
-                updateNowPlayingInfo(
-                    positionMillis = provider.currentPositionMillis(),
-                    playbackRate = 1.0,
-                )
-                listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
-                startProgressLoop(generation, version)
+                withOperationLock {
+                    if (!isCurrentSource(generation, version)) return
+                    val resume = shouldResume && wasPlayingBeforeInterruption
+                    wasPlayingBeforeInterruption = false
+                    if (!resume) return
+                    val provider = audioProvider ?: return
+                    if (!provider.play()) return
+                    playbackActive = true
+                    updateNowPlayingInfo(
+                        positionMillis = provider.currentPositionMillis(),
+                        playbackRate = 1.0,
+                    )
+                    listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
+                    startProgressLoop(generation, version)
+                }
             }
 
             override fun onRouteDisconnected() {
-                if (!isCurrentSource(generation, version)) return
-                wasPlayingBeforeInterruption = false
-                if (!playbackActive) return
-                playbackActive = false
-                progressJob?.cancel()
-                val provider = audioProvider ?: return
-                provider.pause()
-                val pos = provider.currentPositionMillis()
-                updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
-                listener?.onPlaybackProgress(generation, pos, durationMillis)
-                listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+                withOperationLock {
+                    if (!isCurrentSource(generation, version)) return
+                    wasPlayingBeforeInterruption = false
+                    if (!playbackActive) return
+                    playbackActive = false
+                    progressJob?.cancel()
+                    val provider = audioProvider ?: return
+                    provider.pause()
+                    val pos = provider.currentPositionMillis()
+                    updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
+                    listener?.onPlaybackProgress(generation, pos, durationMillis)
+                    listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+                }
             }
         }
 
     override suspend fun loadPaused(
         track: PlayableTrack,
         generation: Long
+    ): LoadedPlayback = withOperationLock {
+        loadPausedSerialized(track, generation)
+    }
+
+    private fun loadPausedSerialized(
+        track: PlayableTrack,
+        generation: Long,
     ): LoadedPlayback {
-        releaseForTrackSwitch()
         activeGeneration = generation
         val version = ++sourceVersion
+        releaseForTrackSwitch()
         wasPlayingBeforeInterruption = false
         playbackActive = false
         playbackLog.d { "Loading track: ${track.title}" }
@@ -168,12 +194,18 @@ private class IOSPlaybackEngine(
         provider.completionHandler = completionHandler(generation, version)
         provider.interruptionHandler = interruptionHandler(generation, version)
 
-        if (!provider.load(path)) {
-            val errorMsg = "Cannot play: ${track.title}"
-            playbackLog.e { errorMsg }
-            val error = PlaybackError(errorMsg, cause = path)
-            listener?.onPlaybackError(generation, error)
-            error(errorMsg)
+        try {
+            if (!provider.load(path)) {
+                val errorMsg = "Cannot play: ${track.title}"
+                playbackLog.e { errorMsg }
+                val error = PlaybackError(errorMsg, cause = path)
+                listener?.onPlaybackError(generation, error)
+                error(errorMsg)
+            }
+        } catch (t: Throwable) {
+            provider.completionHandler = null
+            provider.interruptionHandler = null
+            throw t
         }
 
         audioProvider = provider
@@ -190,17 +222,23 @@ private class IOSPlaybackEngine(
     }
 
     override fun clear(generation: Long) {
-        activeGeneration = generation
-        sourceVersion++
-        releaseForTrackSwitch()
-        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
+        withOperationLock {
+            activeGeneration = generation
+            sourceVersion++
+            releaseForTrackSwitch()
+            MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
+        }
     }
 
     override fun setUserTransportEnabled(enabled: Boolean) {
-        remoteTransportGate.setEnabled(enabled)
+        withOperationLock { remoteTransportGate.setEnabled(enabled) }
     }
 
     override fun play() {
+        withOperationLock { playSerialized() }
+    }
+
+    private fun playSerialized() {
         val provider = requireNotNull(audioProvider) { "No player loaded" }
         playbackLog.d { "Playing: ${loadedTrack?.title}" }
         if (!provider.play()) {
@@ -235,18 +273,26 @@ private class IOSPlaybackEngine(
         progressJob = scope.launch {
             while (isActive) {
                 delay(250)
-                if (!isCurrentSource(generation, version)) break
-                val provider = audioProvider ?: break
-                val pos = provider.currentPositionMillis()
-                if (provider.isPlaying()) {
-                    listener?.onPlaybackProgress(
-                        generation, pos, durationMillis)
+                val current = withOperationLock {
+                    if (!isCurrentSource(generation, version)) return@withOperationLock false
+                    val provider = audioProvider ?: return@withOperationLock false
+                    val pos = provider.currentPositionMillis()
+                    if (provider.isPlaying()) {
+                        listener?.onPlaybackProgress(
+                            generation, pos, durationMillis)
+                    }
+                    true
                 }
+                if (!current) break
             }
         }
     }
 
     override fun pause() {
+        withOperationLock { pauseSerialized() }
+    }
+
+    private fun pauseSerialized() {
         progressJob?.cancel()
         playbackActive = false
         wasPlayingBeforeInterruption = false
@@ -259,6 +305,10 @@ private class IOSPlaybackEngine(
     }
 
     override fun stop() {
+        withOperationLock { stopSerialized() }
+    }
+
+    private fun stopSerialized() {
         progressJob?.cancel()
         playbackActive = false
         wasPlayingBeforeInterruption = false
@@ -269,13 +319,19 @@ private class IOSPlaybackEngine(
     }
 
     override fun seekTo(positionMillis: Long) {
-        audioProvider?.seekTo(positionMillis)
-        updateNowPlayingInfo(positionMillis = positionMillis)
-        listener?.onPlaybackProgress(
-            activeGeneration, positionMillis, durationMillis)
+        withOperationLock {
+            audioProvider?.seekTo(positionMillis)
+            updateNowPlayingInfo(positionMillis = positionMillis)
+            listener?.onPlaybackProgress(
+                activeGeneration, positionMillis, durationMillis)
+        }
     }
 
     override fun release() {
+        withOperationLock { releaseSerialized() }
+    }
+
+    private fun releaseSerialized() {
         sourceVersion++
         playbackActive = false
         wasPlayingBeforeInterruption = false
@@ -320,73 +376,39 @@ private class IOSPlaybackEngine(
         remoteCommandHandlerTokens +=
             commandCenter.playCommand.addTargetWithHandler { _ ->
                 remoteTransportGate.play {
-                    val provider = audioProvider ?: return@play
-                    if (provider.play()) {
-                        playbackActive = true
-                        updateNowPlayingInfo(
-                            positionMillis = provider.currentPositionMillis(),
-                            playbackRate = 1.0)
-                        listener?.onPlaybackStatus(
-                            activeGeneration, PlaybackStatus.Playing)
-                        startProgressLoop()
+                    withOperationLock {
+                        val provider = audioProvider ?: return@withOperationLock
+                        if (provider.play()) {
+                            playbackActive = true
+                            updateNowPlayingInfo(
+                                positionMillis = provider.currentPositionMillis(),
+                                playbackRate = 1.0)
+                            listener?.onPlaybackStatus(
+                                activeGeneration, PlaybackStatus.Playing)
+                            startProgressLoop()
+                        }
                     }
                 }
             }
         remoteCommandHandlerTokens +=
             commandCenter.pauseCommand.addTargetWithHandler { _ ->
                 remoteTransportGate.perform {
-                    progressJob?.cancel()
-                    playbackActive = false
-                    wasPlayingBeforeInterruption = false
-                    audioProvider?.pause()
-                    val pos = audioProvider?.currentPositionMillis() ?: 0L
-                    updateNowPlayingInfo(
-                        positionMillis = pos, playbackRate = 0.0)
-                    listener?.onPlaybackProgress(
-                        activeGeneration, pos, durationMillis)
-                    listener?.onPlaybackStatus(
-                        activeGeneration, PlaybackStatus.Paused)
+                    withOperationLock { pauseSerialized() }
                 }
             }
         remoteCommandHandlerTokens +=
             commandCenter.togglePlayPauseCommand.addTargetWithHandler { _ ->
                 remoteTransportGate.perform {
-                    val provider = audioProvider ?: return@perform
-                    if (provider.isPlaying()) {
-                        progressJob?.cancel()
-                        playbackActive = false
-                        wasPlayingBeforeInterruption = false
-                        provider.pause()
-                        updateNowPlayingInfo(
-                            positionMillis = provider.currentPositionMillis(),
-                            playbackRate = 0.0)
-                        listener?.onPlaybackStatus(
-                            activeGeneration, PlaybackStatus.Paused)
-                    } else {
-                        if (!provider.play()) return@perform
-                        playbackActive = true
-                        updateNowPlayingInfo(
-                            positionMillis = provider.currentPositionMillis(),
-                            playbackRate = 1.0)
-                        listener?.onPlaybackStatus(
-                            activeGeneration, PlaybackStatus.Playing)
-                        startProgressLoop()
+                    withOperationLock {
+                        val provider = audioProvider ?: return@withOperationLock
+                        if (provider.isPlaying()) pauseSerialized() else playSerialized()
                     }
                 }
             }
         remoteCommandHandlerTokens +=
             commandCenter.stopCommand.addTargetWithHandler { _ ->
                 remoteTransportGate.perform {
-                    progressJob?.cancel()
-                    playbackActive = false
-                    wasPlayingBeforeInterruption = false
-                    audioProvider?.stop()
-                    updateNowPlayingInfo(
-                        positionMillis = 0L, playbackRate = 0.0)
-                    listener?.onPlaybackProgress(
-                        activeGeneration, 0L, durationMillis)
-                    listener?.onPlaybackStatus(
-                        activeGeneration, PlaybackStatus.Stopped)
+                    withOperationLock { stopSerialized() }
                 }
             }
         remoteCommandHandlerTokens +=
@@ -396,14 +418,16 @@ private class IOSPlaybackEngine(
                     val seekSeconds = event.positionTime
                     val pos = (seekSeconds * 1_000.0).toLong()
                     remoteTransportGate.seek(pos) {
-                        audioProvider?.seekTo(it)
-                        updateNowPlayingInfo(
-                            positionMillis = it,
-                            playbackRate =
-                                if (audioProvider?.isPlaying() == true) 1.0
-                                else 0.0)
-                        listener?.onPlaybackProgress(
-                            activeGeneration, it, durationMillis)
+                        withOperationLock {
+                            audioProvider?.seekTo(it)
+                            updateNowPlayingInfo(
+                                positionMillis = it,
+                                playbackRate =
+                                    if (audioProvider?.isPlaying() == true) 1.0
+                                    else 0.0)
+                            listener?.onPlaybackProgress(
+                                activeGeneration, it, durationMillis)
+                        }
                     }
                 } else {
                     MPRemoteCommandHandlerStatusCommandFailed
@@ -412,13 +436,17 @@ private class IOSPlaybackEngine(
         remoteCommandHandlerTokens +=
             commandCenter.previousTrackCommand.addTargetWithHandler { _ ->
                 remoteTransportGate.perform {
-                    listener?.onSkipToPrevious(activeGeneration)
+                    withOperationLock {
+                        listener?.onSkipToPrevious(activeGeneration)
+                    }
                 }
             }
         remoteCommandHandlerTokens +=
             commandCenter.nextTrackCommand.addTargetWithHandler { _ ->
                 remoteTransportGate.perform {
-                    listener?.onSkipToNext(activeGeneration)
+                    withOperationLock {
+                        listener?.onSkipToNext(activeGeneration)
+                    }
                 }
             }
     }
