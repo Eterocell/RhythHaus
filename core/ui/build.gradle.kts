@@ -32,6 +32,7 @@ kotlin {
         }
 
         withHostTest {}
+        androidResources { enable = true }
     }
 
     sourceSets {

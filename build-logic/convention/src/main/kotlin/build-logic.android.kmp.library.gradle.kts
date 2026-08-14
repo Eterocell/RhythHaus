@@ -23,6 +23,14 @@ androidComponents.finalizeDsl {
     android: KotlinMultiplatformAndroidLibraryExtension ->
     resourcesEnabled = android.androidResources.enable
     namespace = android.namespace?.takeIf(String::isNotBlank) ?: "<invalid>"
+    if (!resourcesEnabled &&
+        file("src/commonMain/composeResources").isDirectory) {
+        error(
+            "$path has Compose resources under src/commonMain/composeResources but " +
+                "androidResources.enable is false; add `androidResources { enable = true }` " +
+                "to the android {} block so Android packages them.",
+        )
+    }
 }
 
 androidComponents.onVariants { variant ->
