@@ -51,6 +51,8 @@ private class IOSPlaybackEngine(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var progressJob: Job? = null
     private var completionReported: Boolean = false
+    private var playbackActive: Boolean = false
+    private var wasPlayingBeforeInterruption: Boolean = false
     private var remoteCommandsRegistered: Boolean = false
     private val remoteCommandHandlerTokens = mutableListOf<Any?>()
     private var artworkTrackId: String? = null
@@ -72,6 +74,8 @@ private class IOSPlaybackEngine(
                 if (!isCurrentSource(generation, version)) return
                 if (completionReported) return
                 completionReported = true
+                playbackActive = false
+                wasPlayingBeforeInterruption = false
                 progressJob?.cancel()
                 val pos =
                     audioProvider?.currentPositionMillis()
@@ -82,6 +86,52 @@ private class IOSPlaybackEngine(
             }
         }
 
+    private fun interruptionHandler(generation: Long, version: Long) =
+        object : IOSAudioInterruptionHandler {
+            override fun onInterruptionBegan() {
+                if (!isCurrentSource(generation, version) || !playbackActive) return
+                wasPlayingBeforeInterruption = true
+                playbackActive = false
+                progressJob?.cancel()
+                val provider = audioProvider ?: return
+                provider.pause()
+                val pos = provider.currentPositionMillis()
+                updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
+                listener?.onPlaybackProgress(generation, pos, durationMillis)
+                listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+            }
+
+            override fun onInterruptionEnded(shouldResume: Boolean) {
+                if (!isCurrentSource(generation, version)) return
+                val resume = shouldResume && wasPlayingBeforeInterruption
+                wasPlayingBeforeInterruption = false
+                if (!resume) return
+                val provider = audioProvider ?: return
+                if (!provider.play()) return
+                playbackActive = true
+                updateNowPlayingInfo(
+                    positionMillis = provider.currentPositionMillis(),
+                    playbackRate = 1.0,
+                )
+                listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
+                startProgressLoop(generation, version)
+            }
+
+            override fun onRouteDisconnected() {
+                if (!isCurrentSource(generation, version)) return
+                wasPlayingBeforeInterruption = false
+                if (!playbackActive) return
+                playbackActive = false
+                progressJob?.cancel()
+                val provider = audioProvider ?: return
+                provider.pause()
+                val pos = provider.currentPositionMillis()
+                updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
+                listener?.onPlaybackProgress(generation, pos, durationMillis)
+                listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+            }
+        }
+
     override suspend fun loadPaused(
         track: PlayableTrack,
         generation: Long
@@ -89,6 +139,8 @@ private class IOSPlaybackEngine(
         releaseForTrackSwitch()
         activeGeneration = generation
         val version = ++sourceVersion
+        wasPlayingBeforeInterruption = false
+        playbackActive = false
         playbackLog.d { "Loading track: ${track.title}" }
         listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
         configureAudioSession()
@@ -114,6 +166,7 @@ private class IOSPlaybackEngine(
             error(errorMsg)
         }
         provider.completionHandler = completionHandler(generation, version)
+        provider.interruptionHandler = interruptionHandler(generation, version)
 
         if (!provider.load(path)) {
             val errorMsg = "Cannot play: ${track.title}"
@@ -157,6 +210,7 @@ private class IOSPlaybackEngine(
                 activeGeneration, PlaybackError(errorMsg, cause = null))
             return
         }
+        playbackActive = true
         if (durationMillis == null) {
             val probedDuration = provider.currentDurationMillis()
             if (probedDuration != null) {
@@ -194,6 +248,8 @@ private class IOSPlaybackEngine(
 
     override fun pause() {
         progressJob?.cancel()
+        playbackActive = false
+        wasPlayingBeforeInterruption = false
         val provider = audioProvider
         provider?.pause()
         val pos = provider?.currentPositionMillis() ?: 0L
@@ -204,6 +260,8 @@ private class IOSPlaybackEngine(
 
     override fun stop() {
         progressJob?.cancel()
+        playbackActive = false
+        wasPlayingBeforeInterruption = false
         audioProvider?.stop()
         updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         listener?.onPlaybackProgress(activeGeneration, 0L, durationMillis)
@@ -219,9 +277,12 @@ private class IOSPlaybackEngine(
 
     override fun release() {
         sourceVersion++
+        playbackActive = false
+        wasPlayingBeforeInterruption = false
         progressJob?.cancel()
         audioProvider?.stop()
         audioProvider?.completionHandler = null
+        audioProvider?.interruptionHandler = null
         audioProvider = null
         loadedTrack = null
         durationMillis = null
@@ -231,11 +292,14 @@ private class IOSPlaybackEngine(
 
     private fun releaseForTrackSwitch() {
         progressJob?.cancel()
+        playbackActive = false
+        wasPlayingBeforeInterruption = false
         audioProvider?.fadeOutAndStop(
             fadeDurationSeconds = IOS_TRACK_SWITCH_FADE_SECONDS,
             silentVolume = IOS_TRACK_SWITCH_SILENT_VOLUME,
         )
         audioProvider?.completionHandler = null
+        audioProvider?.interruptionHandler = null
         audioProvider = null
         loadedTrack = null
         durationMillis = null
@@ -258,6 +322,7 @@ private class IOSPlaybackEngine(
                 remoteTransportGate.play {
                     val provider = audioProvider ?: return@play
                     if (provider.play()) {
+                        playbackActive = true
                         updateNowPlayingInfo(
                             positionMillis = provider.currentPositionMillis(),
                             playbackRate = 1.0)
@@ -271,6 +336,8 @@ private class IOSPlaybackEngine(
             commandCenter.pauseCommand.addTargetWithHandler { _ ->
                 remoteTransportGate.perform {
                     progressJob?.cancel()
+                    playbackActive = false
+                    wasPlayingBeforeInterruption = false
                     audioProvider?.pause()
                     val pos = audioProvider?.currentPositionMillis() ?: 0L
                     updateNowPlayingInfo(
@@ -287,6 +354,8 @@ private class IOSPlaybackEngine(
                     val provider = audioProvider ?: return@perform
                     if (provider.isPlaying()) {
                         progressJob?.cancel()
+                        playbackActive = false
+                        wasPlayingBeforeInterruption = false
                         provider.pause()
                         updateNowPlayingInfo(
                             positionMillis = provider.currentPositionMillis(),
@@ -294,7 +363,8 @@ private class IOSPlaybackEngine(
                         listener?.onPlaybackStatus(
                             activeGeneration, PlaybackStatus.Paused)
                     } else {
-                        provider.play()
+                        if (!provider.play()) return@perform
+                        playbackActive = true
                         updateNowPlayingInfo(
                             positionMillis = provider.currentPositionMillis(),
                             playbackRate = 1.0)
@@ -308,6 +378,8 @@ private class IOSPlaybackEngine(
             commandCenter.stopCommand.addTargetWithHandler { _ ->
                 remoteTransportGate.perform {
                     progressJob?.cancel()
+                    playbackActive = false
+                    wasPlayingBeforeInterruption = false
                     audioProvider?.stop()
                     updateNowPlayingInfo(
                         positionMillis = 0L, playbackRate = 0.0)

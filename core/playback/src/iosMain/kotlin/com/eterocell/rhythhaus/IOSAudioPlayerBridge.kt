@@ -10,10 +10,25 @@ public interface IOSAudioPlayerCompletionHandler {
     public fun onPlaybackCompleted(): Unit
 }
 
+/** Receives system-initiated interruption and route events from the audio bridge. */
+public interface IOSAudioInterruptionHandler {
+    /** System interrupted an actively-playing session. */
+    public fun onInterruptionBegan()
+
+    /** Ends an interruption; [shouldResume] is the system resume recommendation. */
+    public fun onInterruptionEnded(shouldResume: Boolean)
+
+    /** The active output route disconnected. */
+    public fun onRouteDisconnected()
+}
+
 /** Swift-owned operations exposed to the Kotlin playback engine. */
 public interface IOSAudioPlayerProvider {
     /** Receives playback-completion notifications. */
     public var completionHandler: IOSAudioPlayerCompletionHandler?
+
+    /** Receives system interruption and route notifications. */
+    public var interruptionHandler: IOSAudioInterruptionHandler?
 
     /** Loads the audio file at [filePath]. */
     public fun load(filePath: String): Boolean

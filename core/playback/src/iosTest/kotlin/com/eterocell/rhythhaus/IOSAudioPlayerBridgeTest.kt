@@ -2,7 +2,10 @@ package com.eterocell.rhythhaus
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 
 class IOSAudioPlayerBridgeTest {
 
@@ -25,6 +28,144 @@ class IOSAudioPlayerBridgeTest {
     }
 
     @Test
+    fun swiftAudioPlayerProviderRetainsInterruptionHandlerAndForwardsNativeEvents() {
+        val provider = FakeIOSAudioPlayerProvider()
+        val events = mutableListOf<String>()
+        val handler =
+            object : IOSAudioInterruptionHandler {
+                override fun onInterruptionBegan() {
+                    events += "began"
+                }
+
+                override fun onInterruptionEnded(shouldResume: Boolean) {
+                    events += "ended:$shouldResume"
+                }
+
+                override fun onRouteDisconnected() {
+                    events += "route"
+                }
+            }
+
+        provider.interruptionHandler = handler
+        provider.simulateInterruptionBegan()
+        provider.simulateInterruptionEnded(shouldResume = true)
+        provider.simulateRouteDisconnected()
+
+        assertEquals(listOf("began", "ended:true", "route"), events)
+        assertSame(handler, provider.interruptionHandler)
+    }
+
+    @Test
+    fun interruptionBeganWhilePlayingEmitsPaused() {
+        val provider = FakeIOSAudioPlayerProvider()
+        val session = loadAndPlay(provider, generation = 1L)
+
+        provider.simulateInterruptionBegan()
+
+        assertEquals(
+            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
+                PlaybackStatus.Paused),
+            session.recording.statuses)
+        assertFalse(provider.isPlaying())
+    }
+
+    @Test
+    fun interruptionEndedWithShouldResumeAutoResumesWhenPlaying() {
+        val provider = FakeIOSAudioPlayerProvider()
+        val session = loadAndPlay(provider, generation = 2L)
+
+        provider.simulateInterruptionBegan()
+        provider.simulateInterruptionEnded(shouldResume = true)
+
+        assertEquals(
+            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
+                PlaybackStatus.Paused, PlaybackStatus.Playing),
+            session.recording.statuses)
+        assertTrue(provider.isPlaying())
+    }
+
+    @Test
+    fun interruptionEndedWithoutShouldResumeStaysPaused() {
+        val provider = FakeIOSAudioPlayerProvider()
+        val session = loadAndPlay(provider, generation = 3L)
+
+        provider.simulateInterruptionBegan()
+        provider.simulateInterruptionEnded(shouldResume = false)
+
+        assertEquals(
+            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
+                PlaybackStatus.Paused),
+            session.recording.statuses)
+        assertFalse(provider.isPlaying())
+    }
+
+    @Test
+    fun interruptionEndedResumesOnlyAfterSuccessfulProviderPlay() {
+        val provider = FakeIOSAudioPlayerProvider()
+        val session = loadAndPlay(provider, generation = 4L)
+
+        provider.simulateInterruptionBegan()
+        provider.playSucceeds = false
+        provider.simulateInterruptionEnded(shouldResume = true)
+
+        assertEquals(
+            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
+                PlaybackStatus.Paused),
+            session.recording.statuses)
+        assertFalse(provider.isPlaying())
+    }
+
+    @Test
+    fun routeDisconnectPausesWithoutAutoResume() {
+        val provider = FakeIOSAudioPlayerProvider()
+        val session = loadAndPlay(provider, generation = 5L)
+
+        provider.simulateRouteDisconnected()
+        provider.simulateInterruptionEnded(shouldResume = true)
+
+        assertEquals(
+            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
+                PlaybackStatus.Paused),
+            session.recording.statuses)
+        assertFalse(provider.isPlaying())
+    }
+
+    @Test
+    fun pausedInterruptionDoesNotEmitSpuriousPause() {
+        val provider = FakeIOSAudioPlayerProvider()
+        val session = loadAndPause(provider, generation = 6L)
+
+        provider.simulateInterruptionBegan()
+
+        assertEquals(listOf(PlaybackStatus.Loading, PlaybackStatus.Paused), session.recording.statuses)
+    }
+
+    @Test
+    fun staleInterruptionCallbacksDoNotMutateCurrentSource() {
+        val provider = FakeIOSAudioPlayerProvider()
+        IOSAudioPlayerBridge.provider = provider
+        val recording = RecordingListener()
+        val engine = createIOSPlaybackEngine(testResolver())
+        engine.listener = recording
+
+        runBlocking {
+            engine.loadPaused(testTrack("first"), generation = 7L)
+        }
+        val staleHandler = provider.interruptionHandler
+        runBlocking {
+            engine.loadPaused(testTrack("second"), generation = 8L)
+        }
+        val statusesBeforeStaleCallback = recording.statuses.toList()
+
+        assertSame(provider, IOSAudioPlayerBridge.provider)
+        staleHandler?.onInterruptionBegan()
+
+        assertEquals(statusesBeforeStaleCallback, recording.statuses)
+        engine.release()
+        IOSAudioPlayerBridge.provider = null
+    }
+
+    @Test
     fun iosPlaybackEngineUsesSwiftNativeAudioProvider() {
         assertEquals(
             IOSAudioBackend.SwiftAVAudioPlayerDelegate, iosAudioBackend)
@@ -33,6 +174,8 @@ class IOSAudioPlayerBridgeTest {
 
 private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
     override var completionHandler: IOSAudioPlayerCompletionHandler? = null
+    override var interruptionHandler: IOSAudioInterruptionHandler? = null
+    var playSucceeds = true
     private var positionMillis: Long = 0L
     private var durationMillis: Long? = null
     private var playing = false
@@ -45,6 +188,7 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
     }
 
     override fun play(): Boolean {
+        if (!playSucceeds) return false
         playing = true
         return true
     }
@@ -79,4 +223,76 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
     fun simulateNativeCompletion() {
         completionHandler?.onPlaybackCompleted()
     }
+
+    fun simulateInterruptionBegan() = interruptionHandler?.onInterruptionBegan()
+
+    fun simulateInterruptionEnded(shouldResume: Boolean) =
+        interruptionHandler?.onInterruptionEnded(shouldResume)
+
+    fun simulateRouteDisconnected() = interruptionHandler?.onRouteDisconnected()
 }
+
+private class RecordingListener : PlaybackEngineListener {
+    val statuses = mutableListOf<PlaybackStatus>()
+
+    override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) {
+        statuses += status
+    }
+
+    override fun onPlaybackProgress(
+        generation: Long,
+        positionMillis: Long,
+        durationMillis: Long?,
+    ) = Unit
+
+    override fun onPlaybackCompleted(generation: Long) = Unit
+
+    override fun onPlaybackError(generation: Long, error: PlaybackError) = Unit
+
+    override fun onSkipToNext(generation: Long) = Unit
+
+    override fun onSkipToPrevious(generation: Long) = Unit
+}
+
+private data class IOSPlaybackTestSession(
+    val engine: PlatformPlaybackEngine,
+    val recording: RecordingListener,
+)
+
+private fun loadAndPlay(
+    provider: FakeIOSAudioPlayerProvider,
+    generation: Long,
+): IOSPlaybackTestSession {
+    val session = loadAndPause(provider, generation)
+    session.engine.play()
+    return session
+}
+
+private fun loadAndPause(
+    provider: FakeIOSAudioPlayerProvider,
+    generation: Long,
+): IOSPlaybackTestSession {
+    IOSAudioPlayerBridge.provider = provider
+    val recording = RecordingListener()
+    val engine = createIOSPlaybackEngine(testResolver())
+    engine.listener = recording
+    runBlocking {
+        engine.loadPaused(testTrack("track-$generation"), generation)
+    }
+    return IOSPlaybackTestSession(engine, recording)
+}
+
+private fun testTrack(id: String) =
+    PlayableTrack(
+        id = id,
+        title = id,
+        artist = "Test",
+        album = null,
+        durationMillis = 1_000L,
+        source = AudioSource.FilePath("$id.wav"),
+    )
+
+private fun testResolver() =
+    object : IOSRelativeFilePathResolver {
+        override fun resolve(relativePath: String): String = relativePath
+    }
