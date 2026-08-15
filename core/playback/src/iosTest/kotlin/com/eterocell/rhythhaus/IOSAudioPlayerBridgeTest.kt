@@ -7,6 +7,7 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlin.test.assertFailsWith
+import platform.MediaPlayer.MPNowPlayingInfoCenter
 
 class IOSAudioPlayerBridgeTest {
 
@@ -246,6 +247,108 @@ class IOSAudioPlayerBridgeTest {
     }
 
     @Test
+    fun callbackDuringLoadCannotBecomeOwnedByTheLoadedSource() {
+        val provider = FakeIOSAudioPlayerProvider()
+        provider.onLoad = { provider.simulateInterruptionEnded(shouldResume = true) }
+        val session = loadAndPause(provider, generation = 47L)
+
+        assertEquals(listOf(PlaybackStatus.Loading, PlaybackStatus.Paused), session.recording.statuses)
+        assertFalse(provider.isPlaying())
+        session.engine.release()
+        IOSAudioPlayerBridge.provider = null
+    }
+
+    @Test
+    fun failedPostInstallSetupClearsBothHandlers() {
+        val provider = FakeIOSAudioPlayerProvider()
+        IOSAudioPlayerBridge.provider = provider
+        val recording = RecordingListener()
+        val engine = createIOSPlaybackEngine(testResolver())
+        engine.listener = recording
+
+        runBlocking {
+            engine.loadPaused(testTrack("setup-previous"), generation = 47L)
+        }
+        provider.durationThrows = true
+
+        assertFailsWith<IllegalStateException> {
+            runBlocking {
+                engine.loadPaused(
+                    testTrack("setup-failure").copy(durationMillis = null),
+                    generation = 48L,
+                )
+            }
+        }
+        assertEquals(null, provider.completionHandler)
+        assertEquals(null, provider.interruptionHandler)
+        assertEquals(null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
+        assertFailsWith<IllegalArgumentException> { engine.play() }
+        assertEquals(0, provider.playCallCount)
+        engine.release()
+        IOSAudioPlayerBridge.provider = null
+    }
+
+    @Test
+    fun failedPathResolutionClearsPreviousNowPlayingInfo() {
+        val provider = FakeIOSAudioPlayerProvider()
+        IOSAudioPlayerBridge.provider = provider
+        val engine = createIOSPlaybackEngine(testResolver())
+
+        runBlocking {
+            engine.loadPaused(testTrack("path-previous"), generation = 51L)
+        }
+        assertTrue(MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo != null)
+
+        val failingEngine = createIOSPlaybackEngine(
+            object : IOSRelativeFilePathResolver {
+                override fun resolve(relativePath: String): String =
+                    error("path resolution failed")
+            },
+        )
+        assertFailsWith<IllegalStateException> {
+            runBlocking {
+                failingEngine.loadPaused(testTrack("path-failure"), generation = 52L)
+            }
+        }
+
+        assertEquals(null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
+        engine.release()
+        failingEngine.release()
+        IOSAudioPlayerBridge.provider = null
+    }
+
+    @Test
+    fun duplicateCompletionIsTerminalOnTheRealEnginePath() {
+        val provider = FakeIOSAudioPlayerProvider()
+        val session = loadAndPlay(provider, generation = 49L)
+
+        provider.simulateNativeCompletion()
+        provider.simulateNativeCompletion()
+
+        assertEquals(1, session.recording.completionCount)
+        assertTrue(session.recording.progressCount >= 1)
+        assertFalse(provider.isPlaying())
+        session.engine.release()
+        IOSAudioPlayerBridge.provider = null
+    }
+
+    @Test
+    fun duplicateInterruptionEndIsTerminalOnTheRealEnginePath() {
+        val provider = FakeIOSAudioPlayerProvider()
+        val session = loadAndPlay(provider, generation = 50L)
+        val playCallsBeforeInterruption = provider.playCallCount
+
+        provider.simulateInterruptionBegan()
+        provider.simulateInterruptionEnded(shouldResume = true)
+        provider.simulateInterruptionEnded(shouldResume = true)
+
+        assertEquals(playCallsBeforeInterruption + 1, provider.playCallCount)
+        assertEquals(2, session.recording.statuses.count { it == PlaybackStatus.Playing })
+        session.engine.release()
+        IOSAudioPlayerBridge.provider = null
+    }
+
+    @Test
     fun iosPlaybackEngineUsesSwiftNativeAudioProvider() {
         assertEquals(
             IOSAudioBackend.SwiftAVAudioPlayerDelegate, iosAudioBackend)
@@ -259,14 +362,16 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
     var loadSucceeds = true
     var playCallCount = 0
     var onFadeOutAndStop: (() -> Unit)? = null
+    var onLoad: (() -> Unit)? = null
+    var durationThrows = false
     private var positionMillis: Long = 0L
     private var durationMillis: Long? = null
     private var playing = false
-
     override fun load(filePath: String): Boolean {
         durationMillis = 1_000L
         positionMillis = 0L
         playing = false
+        onLoad?.invoke()
         return filePath.isNotBlank() && loadSucceeds
     }
 
@@ -290,11 +395,18 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
         this.positionMillis = positionMillis
     }
 
-    override fun currentPositionMillis(): Long = positionMillis
+    override fun currentPositionMillis(): Long {
+        return positionMillis
+    }
 
-    override fun currentDurationMillis(): Long? = durationMillis
+    override fun currentDurationMillis(): Long? {
+        if (durationThrows) error("duration setup failed")
+        return durationMillis
+    }
 
-    override fun isPlaying(): Boolean = playing
+    override fun isPlaying(): Boolean {
+        return playing
+    }
 
     override fun fadeOutAndStop(
         fadeDurationSeconds: Double,
@@ -306,6 +418,7 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
     }
 
     fun simulateNativeCompletion() {
+        playing = false
         completionHandler?.onPlaybackCompleted()
     }
 
@@ -319,6 +432,8 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
 
 private class RecordingListener : PlaybackEngineListener {
     val statuses = mutableListOf<PlaybackStatus>()
+    var completionCount = 0
+    var progressCount = 0
 
     override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) {
         statuses += status
@@ -328,9 +443,13 @@ private class RecordingListener : PlaybackEngineListener {
         generation: Long,
         positionMillis: Long,
         durationMillis: Long?,
-    ) = Unit
+    ) {
+        progressCount++
+    }
 
-    override fun onPlaybackCompleted(generation: Long) = Unit
+    override fun onPlaybackCompleted(generation: Long) {
+        completionCount++
+    }
 
     override fun onPlaybackError(generation: Long, error: PlaybackError) = Unit
 

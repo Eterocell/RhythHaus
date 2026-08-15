@@ -9,7 +9,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import platform.Foundation.NSRecursiveLock
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.setActive
 import platform.Foundation.NSURL
@@ -45,7 +44,10 @@ internal const val IOS_TRACK_SWITCH_SILENT_VOLUME: Float = 0.0f
 private class IOSPlaybackEngine(
     private val relativeFilePathResolver: IOSRelativeFilePathResolver,
 ) : PlatformPlaybackEngine {
-    override var listener: PlaybackEngineListener? = null
+    private var confinedListener: PlaybackEngineListener? = null
+    override var listener: PlaybackEngineListener?
+        get() = withIOSPlaybackMainThread { confinedListener }
+        set(value) = withIOSPlaybackMainThread { confinedListener = value }
     private var audioProvider: IOSAudioPlayerProvider? = null
     private var loadedTrack: PlayableTrack? = null
     private var durationMillis: Long? = null
@@ -60,17 +62,6 @@ private class IOSPlaybackEngine(
     private var activeGeneration: Long = 0L
     private var sourceVersion: Long = 0L
     private val remoteTransportGate = IOSRemoteTransportGate()
-    private val operationLock = NSRecursiveLock()
-
-    private inline fun <T> withOperationLock(block: () -> T): T {
-        operationLock.lock()
-        return try {
-            block()
-        } finally {
-            operationLock.unlock()
-        }
-    }
-
     init {
         // MPRemoteCommandCenter must be configured on the main thread so the
         // Lock Screen UI layer picks up the enabled command state. Registration
@@ -82,9 +73,9 @@ private class IOSPlaybackEngine(
     private fun completionHandler(generation: Long, version: Long) =
         object : IOSAudioPlayerCompletionHandler {
             override fun onPlaybackCompleted() {
-                withOperationLock {
-                    if (!isCurrentSource(generation, version)) return
-                    if (completionReported) return
+                withIOSPlaybackMainThread completion@{
+                    if (!isCurrentSource(generation, version)) return@completion
+                    if (completionReported) return@completion
                     completionReported = true
                     playbackActive = false
                     wasPlayingBeforeInterruption = false
@@ -102,12 +93,12 @@ private class IOSPlaybackEngine(
     private fun interruptionHandler(generation: Long, version: Long) =
         object : IOSAudioInterruptionHandler {
             override fun onInterruptionBegan() {
-                withOperationLock {
-                    if (!isCurrentSource(generation, version) || !playbackActive) return
+                withIOSPlaybackMainThread began@{
+                    if (!isCurrentSource(generation, version) || !playbackActive) return@began
                     wasPlayingBeforeInterruption = true
                     playbackActive = false
                     progressJob?.cancel()
-                    val provider = audioProvider ?: return
+                    val provider = audioProvider ?: return@began
                     provider.pause()
                     val pos = provider.currentPositionMillis()
                     updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
@@ -117,13 +108,13 @@ private class IOSPlaybackEngine(
             }
 
             override fun onInterruptionEnded(shouldResume: Boolean) {
-                withOperationLock {
-                    if (!isCurrentSource(generation, version)) return
+                withIOSPlaybackMainThread ended@{
+                    if (!isCurrentSource(generation, version)) return@ended
                     val resume = shouldResume && wasPlayingBeforeInterruption
                     wasPlayingBeforeInterruption = false
-                    if (!resume) return
-                    val provider = audioProvider ?: return
-                    if (!provider.play()) return
+                    if (!resume) return@ended
+                    val provider = audioProvider ?: return@ended
+                    if (!provider.play()) return@ended
                     playbackActive = true
                     updateNowPlayingInfo(
                         positionMillis = provider.currentPositionMillis(),
@@ -135,13 +126,13 @@ private class IOSPlaybackEngine(
             }
 
             override fun onRouteDisconnected() {
-                withOperationLock {
-                    if (!isCurrentSource(generation, version)) return
+                withIOSPlaybackMainThread route@{
+                    if (!isCurrentSource(generation, version)) return@route
                     wasPlayingBeforeInterruption = false
-                    if (!playbackActive) return
+                    if (!playbackActive) return@route
                     playbackActive = false
                     progressJob?.cancel()
-                    val provider = audioProvider ?: return
+                    val provider = audioProvider ?: return@route
                     provider.pause()
                     val pos = provider.currentPositionMillis()
                     updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
@@ -154,7 +145,7 @@ private class IOSPlaybackEngine(
     override suspend fun loadPaused(
         track: PlayableTrack,
         generation: Long
-    ): LoadedPlayback = withOperationLock {
+    ): LoadedPlayback = withIOSPlaybackMainContext {
         loadPausedSerialized(track, generation)
     }
 
@@ -170,19 +161,6 @@ private class IOSPlaybackEngine(
         playbackLog.d { "Loading track: ${track.title}" }
         listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
         configureAudioSession()
-        val path =
-            try {
-                track.source.iosFilePath(relativeFilePathResolver)
-            } catch (t: Throwable) {
-                val errorMsg =
-                    "Could not resolve player path: ${track.title} (${t.message})"
-                playbackLog.e { errorMsg }
-                listener?.onPlaybackError(
-                    generation, PlaybackError(errorMsg, cause = null))
-                throw t
-            }
-        playbackLog.d { "Player path: $path" }
-
         val provider = IOSAudioPlayerBridge.provider
         if (provider == null) {
             val errorMsg = "iOS audio player provider is unavailable"
@@ -191,10 +169,22 @@ private class IOSPlaybackEngine(
             listener?.onPlaybackError(generation, error)
             error(errorMsg)
         }
-        provider.completionHandler = completionHandler(generation, version)
-        provider.interruptionHandler = interruptionHandler(generation, version)
 
         try {
+            val path =
+                try {
+                    track.source.iosFilePath(relativeFilePathResolver)
+                } catch (t: Throwable) {
+                    val errorMsg =
+                        "Could not resolve player path: ${track.title} (${t.message})"
+                    playbackLog.e { errorMsg }
+                    listener?.onPlaybackError(
+                        generation, PlaybackError(errorMsg, cause = null))
+                    throw t
+                }
+            playbackLog.d { "Player path: $path" }
+            provider.completionHandler = completionHandler(generation, version)
+            provider.interruptionHandler = interruptionHandler(generation, version)
             if (!provider.load(path)) {
                 val errorMsg = "Cannot play: ${track.title}"
                 playbackLog.e { errorMsg }
@@ -202,27 +192,39 @@ private class IOSPlaybackEngine(
                 listener?.onPlaybackError(generation, error)
                 error(errorMsg)
             }
+            audioProvider = provider
+            loadedTrack = track
+            durationMillis =
+                track.durationMillis ?: provider.currentDurationMillis()
+            completionReported = false
+            updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
+            provider.pause()
+            listener?.onPlaybackProgress(generation, 0L, durationMillis)
+            playbackLog.d { "Loaded OK: duration=${durationMillis}ms" }
+            listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+            return LoadedPlayback(generation, durationMillis)
         } catch (t: Throwable) {
-            provider.completionHandler = null
-            provider.interruptionHandler = null
+            clearFailedLoad(provider)
             throw t
         }
+    }
 
-        audioProvider = provider
-        loadedTrack = track
-        durationMillis =
-            track.durationMillis ?: provider.currentDurationMillis()
+    private fun clearFailedLoad(provider: IOSAudioPlayerProvider) {
+        provider.completionHandler = null
+        provider.interruptionHandler = null
+        progressJob?.cancel()
+        audioProvider = null
+        loadedTrack = null
+        durationMillis = null
         completionReported = false
-        updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
-        provider.pause()
-        listener?.onPlaybackProgress(generation, 0L, durationMillis)
-        playbackLog.d { "Loaded OK: duration=${durationMillis}ms" }
-        listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
-        return LoadedPlayback(generation, durationMillis)
+        playbackActive = false
+        wasPlayingBeforeInterruption = false
+        artworkTrackId = null
+        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
     }
 
     override fun clear(generation: Long) {
-        withOperationLock {
+        withIOSPlaybackMainThread {
             activeGeneration = generation
             sourceVersion++
             releaseForTrackSwitch()
@@ -231,11 +233,11 @@ private class IOSPlaybackEngine(
     }
 
     override fun setUserTransportEnabled(enabled: Boolean) {
-        withOperationLock { remoteTransportGate.setEnabled(enabled) }
+        withIOSPlaybackMainThread { remoteTransportGate.setEnabled(enabled) }
     }
 
     override fun play() {
-        withOperationLock { playSerialized() }
+        withIOSPlaybackMainThread { playSerialized() }
     }
 
     private fun playSerialized() {
@@ -273,9 +275,9 @@ private class IOSPlaybackEngine(
         progressJob = scope.launch {
             while (isActive) {
                 delay(250)
-                val current = withOperationLock {
-                    if (!isCurrentSource(generation, version)) return@withOperationLock false
-                    val provider = audioProvider ?: return@withOperationLock false
+                val current = withIOSPlaybackMainThread {
+                    if (!isCurrentSource(generation, version)) return@withIOSPlaybackMainThread false
+                    val provider = audioProvider ?: return@withIOSPlaybackMainThread false
                     val pos = provider.currentPositionMillis()
                     if (provider.isPlaying()) {
                         listener?.onPlaybackProgress(
@@ -289,7 +291,7 @@ private class IOSPlaybackEngine(
     }
 
     override fun pause() {
-        withOperationLock { pauseSerialized() }
+        withIOSPlaybackMainThread { pauseSerialized() }
     }
 
     private fun pauseSerialized() {
@@ -305,7 +307,7 @@ private class IOSPlaybackEngine(
     }
 
     override fun stop() {
-        withOperationLock { stopSerialized() }
+        withIOSPlaybackMainThread { stopSerialized() }
     }
 
     private fun stopSerialized() {
@@ -319,7 +321,7 @@ private class IOSPlaybackEngine(
     }
 
     override fun seekTo(positionMillis: Long) {
-        withOperationLock {
+        withIOSPlaybackMainThread {
             audioProvider?.seekTo(positionMillis)
             updateNowPlayingInfo(positionMillis = positionMillis)
             listener?.onPlaybackProgress(
@@ -328,7 +330,7 @@ private class IOSPlaybackEngine(
     }
 
     override fun release() {
-        withOperationLock { releaseSerialized() }
+        withIOSPlaybackMainThread { releaseSerialized() }
     }
 
     private fun releaseSerialized() {
@@ -360,6 +362,7 @@ private class IOSPlaybackEngine(
         loadedTrack = null
         durationMillis = null
         artworkTrackId = null
+        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
     }
 
     private fun configureAudioSession() {
@@ -375,10 +378,10 @@ private class IOSPlaybackEngine(
 
         remoteCommandHandlerTokens +=
             commandCenter.playCommand.addTargetWithHandler { _ ->
-                remoteTransportGate.play {
-                    withOperationLock {
-                        val provider = audioProvider ?: return@withOperationLock
-                        if (provider.play()) {
+                withIOSPlaybackMainThread {
+                    remoteTransportGate.play {
+                        val provider = audioProvider
+                        if (provider != null && provider.play()) {
                             playbackActive = true
                             updateNowPlayingInfo(
                                 positionMillis = provider.currentPositionMillis(),
@@ -392,23 +395,25 @@ private class IOSPlaybackEngine(
             }
         remoteCommandHandlerTokens +=
             commandCenter.pauseCommand.addTargetWithHandler { _ ->
-                remoteTransportGate.perform {
-                    withOperationLock { pauseSerialized() }
+                withIOSPlaybackMainThread {
+                    remoteTransportGate.perform { pauseSerialized() }
                 }
             }
         remoteCommandHandlerTokens +=
             commandCenter.togglePlayPauseCommand.addTargetWithHandler { _ ->
-                remoteTransportGate.perform {
-                    withOperationLock {
-                        val provider = audioProvider ?: return@withOperationLock
-                        if (provider.isPlaying()) pauseSerialized() else playSerialized()
+                withIOSPlaybackMainThread {
+                    remoteTransportGate.perform {
+                        val provider = audioProvider
+                        if (provider != null) {
+                            if (provider.isPlaying()) pauseSerialized() else playSerialized()
+                        }
                     }
                 }
             }
         remoteCommandHandlerTokens +=
             commandCenter.stopCommand.addTargetWithHandler { _ ->
-                remoteTransportGate.perform {
-                    withOperationLock { stopSerialized() }
+                withIOSPlaybackMainThread {
+                    remoteTransportGate.perform { stopSerialized() }
                 }
             }
         remoteCommandHandlerTokens +=
@@ -417,8 +422,8 @@ private class IOSPlaybackEngine(
                 if (event is MPChangePlaybackPositionCommandEvent) {
                     val seekSeconds = event.positionTime
                     val pos = (seekSeconds * 1_000.0).toLong()
-                    remoteTransportGate.seek(pos) {
-                        withOperationLock {
+                    withIOSPlaybackMainThread {
+                        remoteTransportGate.seek(pos) {
                             audioProvider?.seekTo(it)
                             updateNowPlayingInfo(
                                 positionMillis = it,
@@ -435,16 +440,16 @@ private class IOSPlaybackEngine(
             }
         remoteCommandHandlerTokens +=
             commandCenter.previousTrackCommand.addTargetWithHandler { _ ->
-                remoteTransportGate.perform {
-                    withOperationLock {
+                withIOSPlaybackMainThread {
+                    remoteTransportGate.perform {
                         listener?.onSkipToPrevious(activeGeneration)
                     }
                 }
             }
         remoteCommandHandlerTokens +=
             commandCenter.nextTrackCommand.addTargetWithHandler { _ ->
-                remoteTransportGate.perform {
-                    withOperationLock {
+                withIOSPlaybackMainThread {
+                    remoteTransportGate.perform {
                         listener?.onSkipToNext(activeGeneration)
                     }
                 }

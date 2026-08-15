@@ -64,7 +64,10 @@ public interface IOSAudioPlayerProvider {
 /** Holds the Swift-provided audio backend. */
 public object IOSAudioPlayerBridge {
     /** Swift-owned audio backend used by the engine. */
-    public var provider: IOSAudioPlayerProvider? = null
+    private var confinedProvider: IOSAudioPlayerProvider? = null
+    public var provider: IOSAudioPlayerProvider?
+        get() = withIOSPlaybackMainThread { confinedProvider }
+        set(value) = withIOSPlaybackMainThread { confinedProvider = value }
 }
 
 internal enum class IOSAudioBackend {
