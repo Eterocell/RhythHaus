@@ -3966,3 +3966,13 @@ Implementation `741f5eb`, lineage `1c7ad37 -> c48f11d -> 741f5eb`, 109 paths. Se
 
 ## Task 7.1-7.3 (Thin Shared And Completion) — COMPLETE
 Design/plan `1d7cfc1`; thin-shared deletion `5196434` (removed dead `Logger`/`Platform`/`getPlatform`, zero call sites); inventory test `9e852ac` (`ThinSharedInventoryTest` asserts the 31-file facade set, RED proven via a temporary dead file); scaffold `cc2b96d` (`FeatureScaffoldPlugin` + 3-test functional coverage + `skills/kmp-architecture/SKILL.md`); formatting `968d329`; detekt guard `9d62d28`. Verified shared compiles JVM/Android/iOS-arm64/iOS-sim, `:build-logic:convention:test` (with processor-property run), `architectureCheck` + `qualityCheck` PASS, `./init.sh` PASS, strict OpenSpec valid, `git diff --check` clean. Deferred: package renames, Dependency Analysis Gradle Plugin, runtime/device/visual claims. Residual: `SearchRouteAdapterJvmTest.currentTrackRestartsBeforeDismissal` is a pre-existing flaky restart race (passed on clean re-run).
+
+## Handoff - 2026-08-15 Playback interruption tracking
+
+Route: openspec+superpowers
+Owner: implementation and harness verification
+Input: `openspec/changes/system-playback-interruption-tracking/` and `docs/superpowers/plans/2026-08-14-system-playback-interruption-tracking.md`
+Output: iOS implementation commits `3593130`, `d36cafc`, `c850abf`; macOS implementation commit `30c9817`; OpenSpec task ledger updated with implementation and verification evidence.
+Verification: focused `:core:playback:iosSimulatorArm64Test` and `:core:playback:jvmTest`, full `:core:playback:jvmTest`, `:core:playback:compileKotlinJvm`, `:core:playback:buildMacosAudioHelper --rerun-tasks`, generic iOS Simulator Xcode consumer build, `spotlessApply`, `spotlessCheck`, and `detekt` passed. `openspec validate system-playback-interruption-tracking --strict` passed.
+Next owner: resolve the pre-existing shared iOS timeout and existing `dependencyUpdatesAggregation` architecture-cycle diagnostics, then rerun aggregate verification and archive the OpenSpec change.
+Blockers: `LibraryPlaybackSelectionTest.savedPlaylistSelectionStartsTheSelectedDuplicateOccurrence` fails with `TimeoutCancellationException` during `:shared:iosSimulatorArm64Test`; `./init.sh` reached the same failure and exceeded the 900-second command limit. `architectureCheck` fails with `ARCH-CYCLE : -> :` from `dependencyUpdatesAggregation`. Physical AirPods takeover, calls, Siri, and real route removal remain unverified.
