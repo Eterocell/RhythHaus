@@ -12,9 +12,13 @@ import java.util.concurrent.TimeUnit
 public fun createJvmPlaybackEngine(): PlatformPlaybackEngine =
     MacOSNativePlaybackEngine()
 
-private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
+internal fun createJvmPlaybackEngine(bridge: MacAudioPlayerBridge): PlatformPlaybackEngine =
+    MacOSNativePlaybackEngine(bridge)
+
+internal class MacOSNativePlaybackEngine(
+    private val bridge: MacAudioPlayerBridge = MacAudioPlayerBridge(),
+) : PlatformPlaybackEngine {
     override var listener: PlaybackEngineListener? = null
-    private val bridge = MacAudioPlayerBridge()
     private val progressExecutor: ScheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor { runnable ->
             Thread(runnable, "rhythhaus-macos-playback-progress").apply {
@@ -26,88 +30,115 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
     private var completionReported: Boolean = false
     private var activeGeneration: Long = 0L
     private var sourceVersion: Long = 0L
-    private val publicationGate = MacProgressPublicationGate()
+    private val playbackStateLock = Any()
 
     override suspend fun loadPaused(
         track: PlayableTrack,
         generation: Long
     ): LoadedPlayback {
-        stopProgressUpdates()
-        activeGeneration = generation
-        sourceVersion++
-        publicationGate.activate(generation, sourceVersion)
-        bridge.resetPlayer()
-        listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
-        val loaded = bridge.load(track.source.jvmFile().absolutePath)
-        require(loaded) { "Could not load native macOS audio player" }
-        durationMillis =
-            track.durationMillis ?: bridge.durationMillis().takeIf { it > 0L }
-        completionReported = false
-        bridge.setArtwork(track.artworkBytes)
-        bridge.registerNowPlayingRemoteCommands()
-        bridge.updateNowPlayingInfo(
-            track.title,
-            track.artist,
-            track.album,
-            durationMillis,
-            positionMillis = 0L)
-        listener?.onPlaybackProgress(generation, 0L, durationMillis)
-        listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
-        return LoadedPlayback(generation, durationMillis)
+        val loadedState = synchronized(playbackStateLock) {
+            stopProgressUpdatesLocked()
+            activeGeneration = generation
+            sourceVersion++
+            bridge.resetPlayer()
+            val loaded = bridge.load(track.source.jvmFile().absolutePath)
+            require(loaded) { "Could not load native macOS audio player" }
+            durationMillis = track.durationMillis ?: bridge.durationMillis().takeIf { it > 0L }
+            completionReported = false
+            bridge.setArtwork(track.artworkBytes)
+            bridge.registerNowPlayingRemoteCommands()
+            bridge.updateNowPlayingInfo(track.title, track.artist, track.album, durationMillis, 0L)
+            LoadedPlayback(generation, durationMillis) to sourceVersion
+        }
+        val (loadedPlayback, version) = loadedState
+        emitIfCurrent(generation, version) {
+            listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
+        }
+        emitIfCurrent(generation, version) {
+            listener?.onPlaybackProgress(generation, 0L, loadedPlayback.durationMillis)
+        }
+        emitIfCurrent(generation, version) {
+            listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+        }
+        return loadedPlayback
     }
 
     override fun clear(generation: Long) {
-        stopProgressUpdates()
-        activeGeneration = generation
-        sourceVersion++
-        publicationGate.activate(generation, sourceVersion)
-        bridge.resetPlayer()
-        durationMillis = null
-        completionReported = false
+        synchronized(playbackStateLock) {
+            stopProgressUpdatesLocked()
+            activeGeneration = generation
+            sourceVersion++
+            bridge.resetPlayer()
+            durationMillis = null
+            completionReported = false
+        }
     }
 
     override fun setUserTransportEnabled(enabled: Boolean) {
-        bridge.setTransportEnabled(enabled)
+        synchronized(playbackStateLock) { bridge.setTransportEnabled(enabled) }
     }
 
     override fun play() {
-        require(bridge.play()) { "No native macOS player has been loaded" }
-        bridge.updateNowPlayingPlaybackState(PlaybackStatus.Playing)
-        listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
-        publishProgress(activeGeneration, sourceVersion)
-        startProgressUpdates(activeGeneration, sourceVersion)
+        val transition = synchronized(playbackStateLock) {
+            require(bridge.play()) { "No native macOS player has been loaded" }
+            bridge.updateNowPlayingPlaybackState(PlaybackStatus.Playing)
+            activeGeneration to sourceVersion
+        }
+        emitIfCurrent(transition.first, transition.second) {
+            listener?.onPlaybackStatus(transition.first, PlaybackStatus.Playing)
+        }
+        publishProgress(transition.first, transition.second)
+        synchronized(playbackStateLock) {
+            if (isCurrentLocked(transition.first, transition.second)) startProgressUpdatesLocked(transition.first, transition.second)
+        }
     }
 
     override fun pause() {
-        stopProgressUpdates()
-        bridge.pause()
-        bridge.updateNowPlayingPlaybackState(PlaybackStatus.Paused)
-        publishProgress(activeGeneration, sourceVersion)
-        listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Paused)
+        val transition = synchronized(playbackStateLock) {
+            stopProgressUpdatesLocked()
+            bridge.pause()
+            bridge.updateNowPlayingPlaybackState(PlaybackStatus.Paused)
+            activeGeneration to sourceVersion
+        }
+        publishProgress(transition.first, transition.second)
+        if (isCurrent(transition.first, transition.second)) listener?.onPlaybackStatus(transition.first, PlaybackStatus.Paused)
     }
 
     override fun stop() {
-        stopProgressUpdates()
-        bridge.stop()
-        bridge.updateNowPlayingPlaybackState(PlaybackStatus.Stopped)
-        listener?.onPlaybackProgress(activeGeneration, 0L, durationMillis)
-        listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Stopped)
+        val event = synchronized(playbackStateLock) {
+            stopProgressUpdatesLocked()
+            bridge.stop()
+            bridge.updateNowPlayingPlaybackState(PlaybackStatus.Stopped)
+            Triple(activeGeneration, sourceVersion, durationMillis)
+        }
+        emitIfCurrent(event.first, event.second) {
+            listener?.onPlaybackProgress(event.first, 0L, event.third)
+        }
+        emitIfCurrent(event.first, event.second) {
+            listener?.onPlaybackStatus(event.first, PlaybackStatus.Stopped)
+        }
     }
 
     override fun seekTo(positionMillis: Long) {
-        bridge.seekTo(positionMillis)
-        publishProgress(activeGeneration, sourceVersion)
+        val transition = synchronized(playbackStateLock) {
+            bridge.seekTo(positionMillis)
+            activeGeneration to sourceVersion
+        }
+        publishProgress(transition.first, transition.second)
     }
 
     override fun release() {
-        stopProgressUpdates()
-        bridge.releasePlayer()
-        progressExecutor.shutdownNow()
-        durationMillis = null
+        synchronized(playbackStateLock) {
+            stopProgressUpdatesLocked()
+            sourceVersion++
+            bridge.releasePlayer()
+            progressExecutor.shutdownNow()
+            durationMillis = null
+        }
     }
 
-    private fun startProgressUpdates(generation: Long, version: Long) {
-        stopProgressUpdates()
+    private fun startProgressUpdatesLocked(generation: Long, version: Long) {
+        stopProgressUpdatesLocked()
         progressTask =
             progressExecutor.scheduleAtFixedRate(
                 { publishProgress(generation, version) },
@@ -117,34 +148,52 @@ private class MacOSNativePlaybackEngine : PlatformPlaybackEngine {
             )
     }
 
-    private fun stopProgressUpdates() {
+    private fun stopProgressUpdatesLocked() {
         progressTask?.cancel(false)
         progressTask = null
     }
 
     private fun publishProgress(generation: Long, version: Long) {
-        if (!publicationGate.isCurrent(generation, version)) return
-        val progress = bridge.readAndUpdateProgress(durationMillis)
-        val positionMillis = progress.positionMillis
-        val latestDurationMillis = progress.durationMillis
-        publicationGate.publish(
-            generation = generation,
-            sourceVersion = version,
-            beforeEmit = {},
-            emitProgress = {
-                listener?.onPlaybackProgress(
-                    generation, positionMillis, latestDurationMillis)
-            },
-            emitCompletion = {
-                if (!completionReported &&
-                    latestDurationMillis != null &&
-                    positionMillis >= latestDurationMillis) {
-                    completionReported = true
-                    listener?.onPlaybackCompleted(generation)
-                }
-            },
-        )
+        val event = synchronized(playbackStateLock) {
+            if (!isCurrentLocked(generation, version)) return
+            if (bridge.consumeRouteDisconnected()) {
+                stopProgressUpdatesLocked()
+                val progress = bridge.readAndUpdateProgress(durationMillis)
+                bridge.pause()
+                bridge.updateNowPlayingPlaybackState(PlaybackStatus.Paused)
+                ProgressEvent(progress, routeLoss = true, completed = false)
+            } else {
+                val progress = bridge.readAndUpdateProgress(durationMillis)
+                val completed = !completionReported && progress.durationMillis != null && progress.positionMillis >= progress.durationMillis
+                if (completed) completionReported = true
+                ProgressEvent(progress, routeLoss = false, completed = completed)
+            }
+        }
+        emitIfCurrent(generation, version) {
+            listener?.onPlaybackProgress(generation, event.progress.positionMillis, event.progress.durationMillis)
+        }
+        if (event.routeLoss) emitIfCurrent(generation, version) {
+            listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+        } else if (event.completed) emitIfCurrent(generation, version) {
+            listener?.onPlaybackCompleted(generation)
+        }
     }
+
+    internal fun publishProgressForTest() {
+        val transition = synchronized(playbackStateLock) { activeGeneration to sourceVersion }
+        publishProgress(transition.first, transition.second)
+    }
+
+    internal fun pauseProgressUpdatesForTest() {
+        synchronized(playbackStateLock) { stopProgressUpdatesLocked() }
+    }
+
+    private fun isCurrent(generation: Long, version: Long): Boolean = synchronized(playbackStateLock) { isCurrentLocked(generation, version) }
+    private inline fun emitIfCurrent(generation: Long, version: Long, event: () -> Unit) {
+        if (isCurrent(generation, version)) event()
+    }
+    private fun isCurrentLocked(generation: Long, version: Long): Boolean = generation == activeGeneration && version == sourceVersion
+    private data class ProgressEvent(val progress: MacProgressSample, val routeLoss: Boolean, val completed: Boolean)
 }
 
 internal class MacProgressPublicationGate {
@@ -272,6 +321,31 @@ internal class MacAudioPlayerBridge {
 
     internal fun liveRemoteHandlerCountForTest(): Long =
         synchronized(lifetimeLock) { nativeLiveRemoteHandlerCountForTest() }
+
+    internal fun invokeRouteDisconnectForTest(): Boolean =
+        withHandle(::nativeInvokeRouteDisconnectForTest)
+
+    internal fun setRouteExpectedActiveForTest(active: Boolean) =
+        withHandle { nativeSetRouteExpectedActiveForTest(it, active) }
+
+    internal fun routeLifecyclePartialRegistrationForTest(): Boolean =
+        withHandle(::nativeRouteLifecyclePartialRegistrationForTest)
+
+    internal fun consumeRouteDisconnected(): Boolean =
+        withHandle(::nativeConsumeRouteDisconnected)
+
+    internal fun simulateRouteSnapshotForTest(
+        availableDeviceIds: LongArray,
+        defaultOutputDeviceId: Long,
+    ): Boolean = withHandle {
+        nativeSimulateRouteSnapshotForTest(it, availableDeviceIds, defaultOutputDeviceId)
+    }
+
+    internal fun liveRouteListenerCountForTest(): Long =
+        synchronized(lifetimeLock) { nativeLiveRouteListenerCountForTest() }
+
+    internal fun nowPlayingPositionMillisForTest(): Long =
+        withHandle(::nativeNowPlayingPositionMillisForTest)
 
     internal fun readAndUpdateProgress(
         fallbackDurationMillis: Long?
@@ -418,6 +492,24 @@ internal class MacAudioPlayerBridge {
     private external fun nativeIsPlayingForTest(handle: Long): Boolean
 
     private external fun nativeLiveRemoteHandlerCountForTest(): Long
+
+    private external fun nativeInvokeRouteDisconnectForTest(handle: Long): Boolean
+
+    private external fun nativeSetRouteExpectedActiveForTest(handle: Long, active: Boolean)
+
+    private external fun nativeRouteLifecyclePartialRegistrationForTest(handle: Long): Boolean
+
+    private external fun nativeConsumeRouteDisconnected(handle: Long): Boolean
+
+    private external fun nativeSimulateRouteSnapshotForTest(
+        handle: Long,
+        availableDeviceIds: LongArray,
+        defaultOutputDeviceId: Long,
+    ): Boolean
+
+    private external fun nativeLiveRouteListenerCountForTest(): Long
+
+    private external fun nativeNowPlayingPositionMillisForTest(handle: Long): Long
 
     private external fun nativeRelease(handle: Long)
 

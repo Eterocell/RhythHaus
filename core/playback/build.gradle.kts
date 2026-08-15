@@ -39,6 +39,8 @@ val buildMacosAudioHelper by
             "MediaPlayer",
             "-framework",
             "AppKit",
+            "-framework",
+            "CoreAudio",
             "-I$javaHomePath/include",
             "-I$javaHomePath/include/darwin",
             macosAudioHelperSourceFile.absolutePath,

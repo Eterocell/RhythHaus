@@ -2,18 +2,59 @@
 #import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
 #import <MediaPlayer/MediaPlayer.h>
+#import <CoreAudio/CoreAudio.h>
 
 #include <jni.h>
+#include <atomic>
+#include <dispatch/dispatch.h>
+#include <vector>
+
+@class RhythHausAudioPlayer;
+
+@interface RhythHausRouteCallbackContext : NSObject
+{
+    std::atomic_bool _stopped;
+}
+@property(nonatomic, weak) RhythHausAudioPlayer *player;
+@property(nonatomic, strong) dispatch_queue_t queue;
+@property(nonatomic, copy) AudioObjectPropertyListenerBlock devicesBlock;
+@property(nonatomic, copy) AudioObjectPropertyListenerBlock defaultBlock;
+@property(nonatomic, assign) BOOL devicesRegistered;
+@property(nonatomic, assign) BOOL defaultRegistered;
+- (void)processRouteSnapshot;
+- (void)stopAndDrain;
+- (void)stopAndDrainWithListenerRemover:(void (^)(const AudioObjectPropertyAddress *, dispatch_queue_t, AudioObjectPropertyListenerBlock))remover;
+- (BOOL)isStopped;
+@end
 
 @interface RhythHausAudioPlayer : NSObject
+{
+    std::atomic_bool _routeDisconnectPending;
+    std::atomic_bool _expectedActive;
+    AudioDeviceID _trackedDefaultDevice;
+    std::vector<AudioDeviceID> _availableDevices;
+    RhythHausRouteCallbackContext *_routeContext;
+    BOOL _routeSnapshotInjected;
+}
 @property(nonatomic, strong) AVAudioPlayer *player;
 @property(nonatomic, assign) BOOL remoteCommandsRegistered;
 @property(nonatomic, strong) MPMediaItemArtwork *artwork;
 @property(nonatomic, assign) BOOL transportEnabled;
 @property(nonatomic, strong) NSMutableArray<NSDictionary *> *remoteCommandTargets;
+- (void)refreshRouteSnapshotWithAvailable:(const std::vector<AudioDeviceID> &)available defaultDevice:(AudioDeviceID)defaultDevice;
+- (void)removeRouteListeners;
+- (BOOL)simulateRouteSnapshotWithAvailable:(const std::vector<AudioDeviceID> &)available defaultDevice:(AudioDeviceID)defaultDevice;
+- (BOOL)consumeRouteDisconnected;
+- (void)invokeRouteDisconnect;
+- (void)setRouteExpectedActiveForTest:(BOOL)active;
+- (BOOL)releaseOnRouteQueueForTest;
+- (BOOL)play;
+- (void)pause;
+- (void)stop;
+- (void)seekToMillis:(jlong)positionMillis;
 @end
 
-@implementation RhythHausAudioPlayer
+static void releaseNativePlayer(RhythHausAudioPlayer *player);
 
 static MPRemoteCommandHandlerStatus performRemotePlay(RhythHausAudioPlayer *player) {
     if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
@@ -49,11 +90,138 @@ static MPRemoteCommandHandlerStatus performRemoteSeek(RhythHausAudioPlayer *play
 }
 
 static NSInteger liveRemoteHandlerCount = 0;
+static NSInteger liveRouteListenerCount = 0;
+static void *routeQueueSpecificKey = &routeQueueSpecificKey;
+static const AudioObjectPropertyAddress devicesAddress = {
+    kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+static const AudioObjectPropertyAddress defaultOutputAddress = {
+    kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+
+static bool containsDevice(const std::vector<AudioDeviceID> &devices, AudioDeviceID device) {
+    for (AudioDeviceID candidate : devices) if (candidate == device) return true;
+    return false;
+}
+
+static bool readRouteSnapshot(std::vector<AudioDeviceID> &available, AudioDeviceID &defaultDevice) {
+    UInt32 size = 0;
+    if (AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &devicesAddress, 0, nullptr, &size) != noErr) return false;
+    std::vector<AudioDeviceID> nextAvailable(size / sizeof(AudioDeviceID));
+    if (size > 0 && AudioObjectGetPropertyData(kAudioObjectSystemObject, &devicesAddress, 0, nullptr, &size, nextAvailable.data()) != noErr) return false;
+    AudioDeviceID nextDefaultDevice = kAudioObjectUnknown;
+    size = sizeof(defaultDevice);
+    if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &defaultOutputAddress, 0, nullptr, &size, &nextDefaultDevice) != noErr) return false;
+    available = std::move(nextAvailable);
+    defaultDevice = nextDefaultDevice;
+    return true;
+}
+
+// Keep registration bookkeeping separate from CoreAudio so native lifecycle tests can model
+// partial registration without depending on the machine's available audio properties.
+static NSInteger recordRouteListenerRegistration(RhythHausRouteCallbackContext *context,
+                                                 OSStatus devicesStatus,
+                                                 OSStatus defaultStatus) {
+    context.devicesRegistered = devicesStatus == noErr;
+    context.defaultRegistered = defaultStatus == noErr;
+    NSInteger registered = (context.devicesRegistered ? 1 : 0) + (context.defaultRegistered ? 1 : 0);
+    if (registered > 0) {
+        @synchronized([RhythHausAudioPlayer class]) { liveRouteListenerCount += registered; }
+    }
+    return registered;
+}
+
+static void removeRouteListener(const AudioObjectPropertyAddress *address,
+                                dispatch_queue_t queue,
+                                AudioObjectPropertyListenerBlock block) {
+    AudioObjectRemovePropertyListenerBlock(kAudioObjectSystemObject, address, queue, block);
+}
+
+@implementation RhythHausRouteCallbackContext
+- (instancetype)init {
+    self = [super init];
+    if (self != nil) _stopped.store(false);
+    return self;
+}
+
+- (void)processRouteSnapshot {
+    if (_stopped.load()) return;
+    RhythHausAudioPlayer *player = self.player;
+    if (player == nil || _stopped.load()) return;
+    std::vector<AudioDeviceID> available;
+    AudioDeviceID defaultDevice = kAudioObjectUnknown;
+    if (readRouteSnapshot(available, defaultDevice)) {
+        @synchronized (player) {
+            [player refreshRouteSnapshotWithAvailable:available defaultDevice:defaultDevice];
+        }
+    }
+}
+
+- (void)stopAndDrain {
+    [self stopAndDrainWithListenerRemover:^(const AudioObjectPropertyAddress *address, dispatch_queue_t queue, AudioObjectPropertyListenerBlock block) {
+        removeRouteListener(address, queue, block);
+    }];
+}
+
+- (void)stopAndDrainWithListenerRemover:(void (^)(const AudioObjectPropertyAddress *, dispatch_queue_t, AudioObjectPropertyListenerBlock))remover {
+    _stopped.store(true);
+    // Keep the context alive as a tombstone until CoreAudio has stopped referring to either
+    // listener block and all already-enqueued work has completed.
+    RhythHausRouteCallbackContext *tombstone = self;
+    dispatch_queue_t queue = tombstone.queue;
+    AudioObjectPropertyListenerBlock devicesBlock = tombstone.devicesBlock;
+    AudioObjectPropertyListenerBlock defaultBlock = tombstone.defaultBlock;
+    NSInteger registered = tombstone.devicesRegistered + tombstone.defaultRegistered;
+    if (tombstone.devicesRegistered) {
+        remover(&devicesAddress, queue, devicesBlock);
+        tombstone.devicesRegistered = NO;
+    }
+    if (tombstone.defaultRegistered) {
+        remover(&defaultOutputAddress, queue, defaultBlock);
+        tombstone.defaultRegistered = NO;
+    }
+    if (queue && dispatch_get_specific(routeQueueSpecificKey) != (__bridge void *)tombstone) {
+        dispatch_sync(queue, ^{});
+    }
+    tombstone.devicesBlock = nil;
+    tombstone.defaultBlock = nil;
+    tombstone.player = nil;
+    if (registered > 0) {
+        @synchronized([RhythHausAudioPlayer class]) { liveRouteListenerCount -= registered; }
+    }
+}
+
+- (BOOL)isStopped {
+    return _stopped.load();
+}
+@end
+
+@implementation RhythHausAudioPlayer
 
 - (instancetype)init {
     self = [super init];
     if (self != nil) {
         _transportEnabled = YES;
+        _routeDisconnectPending.store(false);
+        _expectedActive.store(false);
+        _trackedDefaultDevice = kAudioObjectUnknown;
+        _routeSnapshotInjected = NO;
+        readRouteSnapshot(_availableDevices, _trackedDefaultDevice);
+        _routeContext = [[RhythHausRouteCallbackContext alloc] init];
+        _routeContext.player = self;
+        _routeContext.queue = dispatch_queue_create("com.eterocell.rhythhaus.route", DISPATCH_QUEUE_SERIAL);
+        dispatch_queue_set_specific(_routeContext.queue, routeQueueSpecificKey, (__bridge void *)_routeContext, nullptr);
+        __weak RhythHausRouteCallbackContext *weakContext = _routeContext;
+        _routeContext.devicesBlock = ^(UInt32, const AudioObjectPropertyAddress *) {
+            RhythHausRouteCallbackContext *context = weakContext;
+            if (context != nil) dispatch_async(context.queue, ^{ [context processRouteSnapshot]; });
+        };
+        _routeContext.defaultBlock = ^(UInt32, const AudioObjectPropertyAddress *) {
+            RhythHausRouteCallbackContext *context = weakContext;
+            if (context != nil) dispatch_async(context.queue, ^{ [context processRouteSnapshot]; });
+        };
+        OSStatus devicesStatus = AudioObjectAddPropertyListenerBlock(kAudioObjectSystemObject, &devicesAddress, _routeContext.queue, _routeContext.devicesBlock);
+        OSStatus defaultStatus = AudioObjectAddPropertyListenerBlock(kAudioObjectSystemObject, &defaultOutputAddress, _routeContext.queue, _routeContext.defaultBlock);
+        NSInteger registered = recordRouteListenerRegistration(_routeContext, devicesStatus, defaultStatus);
+        if (devicesStatus != noErr || defaultStatus != noErr) [self removeRouteListeners];
     }
     return self;
 }
@@ -73,17 +241,29 @@ static NSInteger liveRemoteHandlerCount = 0;
     if (self.player == nil) {
         return NO;
     }
-    [self.player play];
+    @synchronized (self) {
+        [self.player play];
+        _expectedActive.store(self.player.isPlaying);
+        _routeDisconnectPending.store(false);
+    }
     return YES;
 }
 
 - (void)pause {
-    [self.player pause];
+    @synchronized (self) {
+        _expectedActive.store(false);
+        _routeDisconnectPending.store(false);
+        [self.player pause];
+    }
 }
 
 - (void)stop {
-    [self.player stop];
-    self.player.currentTime = 0.0;
+    @synchronized (self) {
+        _expectedActive.store(false);
+        _routeDisconnectPending.store(false);
+        [self.player stop];
+        self.player.currentTime = 0.0;
+    }
 }
 
 - (void)seekToMillis:(jlong)positionMillis {
@@ -244,10 +424,107 @@ static NSInteger liveRemoteHandlerCount = 0;
     [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = nil;
 }
 
+- (void)refreshRouteSnapshotWithAvailable:(const std::vector<AudioDeviceID> &)available defaultDevice:(AudioDeviceID)defaultDevice {
+    @synchronized (self) {
+        if (_expectedActive.load() && _trackedDefaultDevice != kAudioObjectUnknown && !containsDevice(available, _trackedDefaultDevice)) {
+            _routeDisconnectPending.store(true);
+        }
+        _availableDevices = available;
+        _trackedDefaultDevice = defaultDevice;
+    }
+}
+
+- (BOOL)simulateRouteSnapshotWithAvailable:(const std::vector<AudioDeviceID> &)available defaultDevice:(AudioDeviceID)defaultDevice {
+    @synchronized (self) {
+    if (!_routeSnapshotInjected) {
+        _availableDevices = available;
+        _trackedDefaultDevice = defaultDevice;
+        _routeSnapshotInjected = YES;
+    } else {
+        [self refreshRouteSnapshotWithAvailable:available defaultDevice:defaultDevice];
+    }
+    return YES;
+    }
+}
+
+- (void)invokeRouteDisconnect {
+    @synchronized (self) {
+    if (_expectedActive.load()) _routeDisconnectPending.store(true);
+    }
+}
+
+- (void)setRouteExpectedActiveForTest:(BOOL)active {
+    @synchronized (self) {
+        _expectedActive.store(active);
+    }
+}
+
+- (BOOL)routeLifecyclePartialRegistrationForTest {
+    RhythHausRouteCallbackContext *context = [[RhythHausRouteCallbackContext alloc] init];
+    context.player = self;
+    context.queue = dispatch_queue_create("com.eterocell.rhythhaus.route.test", DISPATCH_QUEUE_SERIAL);
+    dispatch_queue_set_specific(context.queue, routeQueueSpecificKey, (__bridge void *)context, nullptr);
+    __weak RhythHausRouteCallbackContext *weakContext = context;
+    context.devicesBlock = ^(UInt32, const AudioObjectPropertyAddress *) {
+        RhythHausRouteCallbackContext *callbackContext = weakContext;
+        if (callbackContext != nil) dispatch_async(callbackContext.queue, ^{ [callbackContext processRouteSnapshot]; });
+    };
+    context.defaultBlock = ^(UInt32, const AudioObjectPropertyAddress *) {};
+    recordRouteListenerRegistration(context, noErr, -1);
+    __block NSInteger removed = 0;
+    dispatch_sync(context.queue, ^{
+        [context stopAndDrainWithListenerRemover:^(const AudioObjectPropertyAddress *, dispatch_queue_t, AudioObjectPropertyListenerBlock) {
+            removed += 1;
+        }];
+    });
+    BOOL partialRegistrationDrained = [context isStopped] && removed == 1 && !context.devicesRegistered && !context.defaultRegistered;
+
+    return partialRegistrationDrained;
+}
+
+- (BOOL)releaseOnRouteQueueForTest {
+    __block BOOL releaseCompleted = NO;
+    dispatch_queue_t routeQueue = _routeContext.queue;
+    if (routeQueue == nil) {
+        releaseNativePlayer(self);
+        releaseCompleted = YES;
+    } else {
+        dispatch_sync(routeQueue, ^{
+            releaseNativePlayer(self);
+            releaseCompleted = YES;
+        });
+    }
+    return releaseCompleted;
+}
+
+- (BOOL)consumeRouteDisconnected {
+    @synchronized (self) {
+    return _routeDisconnectPending.exchange(false);
+    }
+}
+
+- (void)removeRouteListeners {
+    RhythHausRouteCallbackContext *context = _routeContext;
+    if (context == nil) return;
+    [context stopAndDrain];
+    _routeContext = nil;
+}
+
 @end
 
 static RhythHausAudioPlayer *playerFromHandle(jlong handle) {
     return (__bridge RhythHausAudioPlayer *)(void *)handle;
+}
+
+static void releaseNativePlayer(RhythHausAudioPlayer *player) {
+    if (player != nil) {
+        [player removeRouteListeners];
+        [player pause];
+        [player removeRemoteCommands];
+        [player clearNowPlayingInfo];
+        [player stop];
+        CFRelease((__bridge CFTypeRef)player);
+    }
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeCreate(JNIEnv *, jobject) {
@@ -387,16 +664,56 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlaye
     return player != nil && player.player.isPlaying ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeInvokeRouteDisconnectForTest(JNIEnv *, jobject, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    if (player == nil) return JNI_FALSE;
+    [player invokeRouteDisconnect];
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeSetRouteExpectedActiveForTest(JNIEnv *, jobject, jlong handle, jboolean active) {
+    [playerFromHandle(handle) setRouteExpectedActiveForTest:active == JNI_TRUE];
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeRouteLifecyclePartialRegistrationForTest(JNIEnv *, jobject, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    return player != nil && [player routeLifecyclePartialRegistrationForTest] ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_JvmPlaybackEngineTest_nativeReleaseOnRouteQueueForTest(JNIEnv *, jclass, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    return player != nil && [player releaseOnRouteQueueForTest] ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeConsumeRouteDisconnected(JNIEnv *, jobject, jlong handle) {
+    return [playerFromHandle(handle) consumeRouteDisconnected] ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeSimulateRouteSnapshotForTest(JNIEnv *env, jobject, jlong handle, jlongArray ids, jlong defaultDevice) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    if (player == nil || ids == NULL) return JNI_FALSE;
+    jsize count = env->GetArrayLength(ids);
+    std::vector<jlong> values((size_t)count);
+    env->GetLongArrayRegion(ids, 0, count, values.data());
+    std::vector<AudioDeviceID> available;
+    for (jlong value : values) available.push_back((AudioDeviceID)value);
+    return [player simulateRouteSnapshotWithAvailable:available defaultDevice:(AudioDeviceID)defaultDevice] ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeNowPlayingPositionMillisForTest(JNIEnv *, jobject, jlong handle) {
+    if (playerFromHandle(handle) == nil) return 0;
+    NSNumber *position = [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime];
+    return position == nil ? 0 : (jlong)(position.doubleValue * 1000.0);
+}
+
+extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeLiveRouteListenerCountForTest(JNIEnv *, jobject) {
+    @synchronized([RhythHausAudioPlayer class]) { return (jlong)liveRouteListenerCount; }
+}
+
 extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeLiveRemoteHandlerCountForTest(JNIEnv *, jobject) {
     @synchronized([RhythHausAudioPlayer class]) { return (jlong)liveRemoteHandlerCount; }
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeRelease(JNIEnv *, jobject, jlong handle) {
-    RhythHausAudioPlayer *player = playerFromHandle(handle);
-    if (player != nil) {
-        [player removeRemoteCommands];
-        [player clearNowPlayingInfo];
-        [player stop];
-        CFRelease((__bridge CFTypeRef)player);
-    }
+    releaseNativePlayer(playerFromHandle(handle));
 }
