@@ -498,6 +498,16 @@ Next owner: user/manual runtime QA; OpenSpec archival only when explicitly reque
 Blockers: none for automated completion; manual runtime/visual/accessibility evidence remains outstanding.
 Commits: `3ced48b`, Task 2 sequence ending `ee61662`, `dae162a`, `59ad4c9`, `deb2164`, `58b567d`, `65a5b52`, and `4b42e7d`; lifecycle commit follows this handoff.
 
+## Handoff - 2026-08-16 system-playback-interruption-tracking closeout
+
+Route: openspec+superpowers
+Owner: documentation/evidence closeout
+Input: completed system-playback-interruption-tracking implementation and follow-up fix commits `50a09cf`, `e12efc4`, and formatting-only `da79d5f`.
+Output: All existing tasks are complete. iOS `playbackEngineDispatcher` was restored from Main to Default; the focused shared duplicate-selection iOS test and `IOSNowPlayingInfoTest.iosPlaybackEngineWorkDoesNotRunOnMainDispatcher` passed, with engine/provider main-thread confinement intact. ArchitectureCheckPlugin now captures Ben Manes 0.61.0 plugin-created `ProjectDependency` identities and filters only those; same-configuration authored self dependency remains an `ARCH-CYCLE`/`ARCH-EDGE`.
+Verification: Final `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`, `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`, `./gradlew spotlessApply --configuration-cache`, separate `./gradlew spotlessCheck --configuration-cache`, separate `./gradlew detekt --configuration-cache`, strict `./gradlew architectureCheck --configuration-cache --configuration-cache-problems=fail --no-parallel`, and `./init.sh` all passed. `./init.sh` included JVM, Xcode 26.6, shared iOS simulator tests, desktop compile, and Android assemble. Focused and full `ArchitectureCheckPluginFunctionalTest` passed; formatting-only `da79d5f` followed Spotless exposure of committed playback drift.
+Next owner: OpenSpec archive.
+Blockers: none except physical runtime limits: AirPods takeover, calls, Siri, and real hardware route removal remain unverified.
+
 ## Handoff - 2026-07-19 track-multi-select-playlist-backup Task 9
 
 Route: openspec+superpowers / integration, supported-platform verification, runtime/visual QA attempt, and final review
