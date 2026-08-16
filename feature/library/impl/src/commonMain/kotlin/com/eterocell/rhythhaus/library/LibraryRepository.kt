@@ -25,6 +25,9 @@ class InMemoryLibraryRepository : LibraryRepository {
      * @param track the track to store.
      */
     override fun upsertTrack(track: LibraryTrack): TrackUpsertResult {
+        require(sources.containsKey(track.sourceId)) {
+            "Unknown source: ${track.sourceId}"
+        }
         val existing =
             tracks.values.firstOrNull {
                 it.sourceId == track.sourceId &&
@@ -77,6 +80,9 @@ class InMemoryLibraryRepository : LibraryRepository {
      * @param session the session to store.
      */
     override fun insertScanSession(session: ScanSession) {
+        require(sources.containsKey(session.sourceId)) {
+            "Unknown source: ${session.sourceId}"
+        }
         scanSessions[session.id] = session
     }
 
@@ -86,7 +92,18 @@ class InMemoryLibraryRepository : LibraryRepository {
      * @param session the session to update.
      */
     override fun updateScanSession(session: ScanSession) {
-        scanSessions[session.id] = session
+        val existing = scanSessions[session.id] ?: return
+        scanSessions[session.id] =
+            existing.copy(
+                status = session.status,
+                completedAtEpochMillis = session.completedAtEpochMillis,
+                foldersVisited = session.foldersVisited,
+                filesVisited = session.filesVisited,
+                tracksAdded = session.tracksAdded,
+                tracksUpdated = session.tracksUpdated,
+                filesSkipped = session.filesSkipped,
+                terminalMessage = session.terminalMessage,
+            )
     }
 
     /**
@@ -95,6 +112,9 @@ class InMemoryLibraryRepository : LibraryRepository {
      * @param error the error to store.
      */
     override fun insertScanError(error: ScanError) {
+        require(scanSessions.containsKey(error.scanId)) {
+            "Unknown scan: ${error.scanId}"
+        }
         scanErrors += error
     }
 
@@ -104,9 +124,13 @@ class InMemoryLibraryRepository : LibraryRepository {
      * @param scanId the scan identifier.
      */
     override fun scanErrors(scanId: String): List<ScanError> =
-        scanErrors.filter {
-            it.scanId == scanId
-        }
+        scanErrors
+            .filter {
+                it.scanId == scanId
+            }
+            .sortedWith(
+                compareBy<ScanError> { it.createdAtEpochMillis }
+                    .thenBy { it.id })
 
     /**
      * Removes tracks not observed by the latest scan of a source.
@@ -116,17 +140,59 @@ class InMemoryLibraryRepository : LibraryRepository {
      */
     override fun removeMissingTracks(
         sourceId: String,
-        latestScanId: String
-    ): Int {
+        requestedScanId: String,
+    ): RemoveMissingTracksResult {
+        if (!sources.containsKey(sourceId)) {
+            return RemoveMissingTracksResult.Rejected(
+                RemoveMissingTracksRejectionReason.UnknownSource)
+        }
+        val requested =
+            scanSessions[requestedScanId]
+                ?: return RemoveMissingTracksResult.Rejected(
+                    RemoveMissingTracksRejectionReason.UnknownScan)
+        if (requested.sourceId != sourceId) {
+            return RemoveMissingTracksResult.Rejected(
+                RemoveMissingTracksRejectionReason.ForeignSource)
+        }
+        if (requested.status != ScanStatus.Completed) {
+            return RemoveMissingTracksResult.Rejected(
+                RemoveMissingTracksRejectionReason.NotCompleted)
+        }
+        if (requested.completedAtEpochMillis == null) {
+            return RemoveMissingTracksResult.Rejected(
+                RemoveMissingTracksRejectionReason.MissingCompletionTimestamp)
+        }
+        val latest =
+            scanSessions.values
+                .filter {
+                    it.sourceId == sourceId &&
+                        it.status == ScanStatus.Completed &&
+                        it.completedAtEpochMillis != null
+                }
+                .maxWithOrNull(scanSessionAuthorityComparator)!!
+        if (latest.id != requestedScanId) {
+            return RemoveMissingTracksResult.Rejected(
+                RemoveMissingTracksRejectionReason.StaleCompletedScan)
+        }
         val ids =
             tracks.values
                 .filter {
-                    it.sourceId == sourceId && it.lastSeenScanId != latestScanId
+                    it.sourceId == sourceId &&
+                        it.lastSeenScanId != requestedScanId
                 }
                 .map { it.id }
         ids.forEach { tracks.remove(it) }
-        return ids.size
+        return RemoveMissingTracksResult.Removed(ids.size)
     }
+
+    override fun latestTerminalScanSession(): ScanSession? =
+        scanSessions.values
+            .filter {
+                it.status == ScanStatus.Completed ||
+                    it.status == ScanStatus.Cancelled ||
+                    it.status == ScanStatus.Failed
+            }
+            .maxWithOrNull(scanSessionTerminalComparator)
 
     /**
      * Removes a source and all of its owned records.
@@ -152,6 +218,20 @@ class InMemoryLibraryRepository : LibraryRepository {
         scanErrors.clear()
     }
 }
+
+private val scanSessionAuthorityComparator =
+    compareBy<ScanSession> {
+            it.completedAtEpochMillis ?: Long.MIN_VALUE
+        }
+        .thenBy { it.startedAtEpochMillis }
+        .thenBy { it.id }
+
+private val scanSessionTerminalComparator =
+    compareBy<ScanSession> {
+            it.completedAtEpochMillis ?: it.startedAtEpochMillis
+        }
+        .thenBy { it.startedAtEpochMillis }
+        .thenBy { it.id }
 
 private fun LibraryTrack.withoutArtwork(): LibraryTrack =
     copy(

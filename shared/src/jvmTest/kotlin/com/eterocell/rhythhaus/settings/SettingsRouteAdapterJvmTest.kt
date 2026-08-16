@@ -57,12 +57,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.core.ui.generated.resources.Res as CoreUiRes
 import rhythhaus.core.ui.generated.resources.back as coreBack
@@ -275,34 +270,34 @@ class SettingsRouteAdapterJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun guardChangesAndErrorsRemainSharedOwned() = runComposeUiTest {
-        val job =
-            CoroutineScope(Dispatchers.Unconfined).launch(
-                start = CoroutineStart.LAZY) {
-                    awaitCancellation()
-                }
         val source = source("one")
+        val mutationsEnabled = mutableStateOf(false)
         val removals = mutableListOf<LibrarySource>()
+        var rescanCalls = 0
         val sentinel = IllegalStateException("callback sentinel")
         setContent {
             Harness(
                 sources = listOf(source),
                 hasTracks = true,
-                scanJob = job,
-                onRescan = { throw sentinel },
+                mutationsEnabled = mutationsEnabled.value,
+                onRescan = {
+                    rescanCalls++
+                    throw sentinel
+                },
                 onRemove = { removals += it },
             )
         }
-        assertEquals(false, job.isActive)
-        job.start()
         onNodeWithTag("settings-rescan-one", useUnmergedTree = true)
             .performClick()
         onNodeWithTag("settings-remove-one", useUnmergedTree = true)
             .performClick()
         onNodeWithTag("settings-remove-confirm", useUnmergedTree = true)
-            .performClick()
+            .assertDoesNotExist()
+        assertEquals(0, rescanCalls)
         assertEquals(emptyList(), removals)
 
-        job.cancel()
+        mutationsEnabled.value = true
+        waitForIdle()
         val failure =
             assertFailsWith<IllegalStateException> {
                 onNodeWithTag("settings-rescan-one", useUnmergedTree = true)
@@ -626,6 +621,7 @@ class SettingsRouteAdapterJvmTest {
         hasTracks: Boolean = false,
         scanProgress: ScanProgress? = null,
         scanJob: Job? = null,
+        mutationsEnabled: Boolean = true,
         folderPickerLauncher: PlatformFolderPickerLauncher = unavailablePicker,
         playlistBackupState: PlaylistBackupUiState = PlaylistBackupUiState(),
         onPlaylistBackupAction: (PlaylistBackupUiAction) -> Unit = {},
@@ -693,6 +689,7 @@ class SettingsRouteAdapterJvmTest {
             importMessage = null,
             scanProgress = scanProgress,
             scanJob = scanJob,
+            mutationsEnabled = mutationsEnabled,
             currentThemeMode = RhythHausThemeMode.System,
             onThemeModeSelected = {},
             onClearLibrary = onClear,

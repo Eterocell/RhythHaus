@@ -58,9 +58,10 @@ import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.TrackArtwork
-import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarLabels
@@ -216,12 +217,15 @@ fun LibraryHomeScreen(
     sourcePickerActionVisible: Boolean,
     importMessage: String?,
     scanProgress: ScanProgress?,
+    scanErrors: List<ScanError>,
     scanJob: Job?,
+    coordinatorMutationsEnabled: Boolean,
     currentThemeMode: RhythHausThemeMode,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveSource: (LibrarySource) -> Unit,
+    onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit,
     onCancelScan: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -427,6 +431,7 @@ fun LibraryHomeScreen(
             importMessage = importMessage,
             scanProgress = scanProgress,
             scanJob = scanJob,
+            mutationsEnabled = coordinatorMutationsEnabled,
             currentThemeMode = currentThemeMode,
             onThemeModeSelected = onThemeModeSelected,
             onClearLibrary = onClearLibrary,
@@ -497,13 +502,11 @@ fun LibraryHomeScreen(
                     browseMode = appState.browseMode,
                     folderPickerLauncher = folderPickerLauncher,
                     sourcePickerActionVisible = sourcePickerActionVisible,
+                    sources = sources,
                     importMessage = importMessage,
                     scanProgress = scanProgress,
-                    mutationsEnabled =
-                        emptyLibrarySourceMutationsAllowed(
-                            isProgressActive = scanProgress?.isActive == true,
-                            isJobActive = scanJob?.isActive == true,
-                        ),
+                    scanErrors = scanErrors,
+                    mutationsEnabled = coordinatorMutationsEnabled,
                     currentTrackId = playbackState.currentTrack?.id,
                     selectionModeActive =
                         trackSelectionState.pageKey ==
@@ -527,6 +530,9 @@ fun LibraryHomeScreen(
                     },
                     onClearLibrary = onClearLibrary,
                     onCancelScan = onCancelScan,
+                    onRescanSource = onRescanSource,
+                    onRemoveSource = onRemoveSource,
+                    onRemoveMissingTracks = onRemoveMissingTracks,
                     onOpenAlbum = { album ->
                         onOpenDetailRoute(LibraryRoute.AlbumDetail(album))
                     },
@@ -606,14 +612,11 @@ fun LibraryHomeScreen(
                             folderPickerLauncher = folderPickerLauncher,
                             sourcePickerActionVisible =
                                 sourcePickerActionVisible,
+                            sources = sources,
                             importMessage = importMessage,
                             scanProgress = scanProgress,
-                            mutationsEnabled =
-                                emptyLibrarySourceMutationsAllowed(
-                                    isProgressActive =
-                                        scanProgress?.isActive == true,
-                                    isJobActive = scanJob?.isActive == true,
-                                ),
+                            scanErrors = scanErrors,
+                            mutationsEnabled = coordinatorMutationsEnabled,
                             currentTrackId = playbackState.currentTrack?.id,
                             selectionModeActive =
                                 trackSelectionState.pageKey ==
@@ -638,6 +641,9 @@ fun LibraryHomeScreen(
                             },
                             onClearLibrary = onClearLibrary,
                             onCancelScan = onCancelScan,
+                            onRescanSource = onRescanSource,
+                            onRemoveSource = onRemoveSource,
+                            onRemoveMissingTracks = onRemoveMissingTracks,
                             onOpenAlbum = { album ->
                                 openDetailRoute(LibraryRoute.AlbumDetail(album))
                             },

@@ -6,6 +6,7 @@ import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
 import com.eterocell.rhythhaus.library.playlistsImplementationModule
 import com.eterocell.rhythhaus.library.toPlayableTrack
@@ -50,10 +51,7 @@ class PlaylistLifecycleIntegrationJvmTest {
                 removeSourceInBackground(
                     sourceId = "remove-source",
                     repository = harness.library,
-                    loadPlaylists = {
-                        events += "read_playlists"
-                        harness.playlistStateOwner.refresh()
-                    },
+                    playlistStateOwner = harness.playlistStateOwner,
                     platformAccess = NoOpPlatformSourceAccess,
                     reconciler =
                         harness.reconciler(events) {
@@ -62,13 +60,18 @@ class PlaylistLifecycleIntegrationJvmTest {
                                 harness.playlists.entries(playlist.id))
                         },
                     ioDispatcher = Dispatchers.Default,
-                    updateLibrary = { events += "library" },
-                    updatePlaylists = { action ->
-                        events += "playlists"
-                        publishedPlaylists =
-                            (action as PlaylistStateAction.SnapshotConfirmed)
-                                .snapshot
-                    },
+                    publish =
+                        testLibraryMutationPublication(
+                            onPublication = { events += "read_playlists" },
+                            onContent = { events += "library" },
+                            onPlaylists = { action ->
+                                events += "playlists"
+                                publishedPlaylists =
+                                    (action
+                                            as
+                                            PlaylistStateAction.SnapshotConfirmed)
+                                        .snapshot
+                            }),
                 )
 
                 assertEquals(
@@ -111,10 +114,7 @@ class PlaylistLifecycleIntegrationJvmTest {
                 var publishedPlaylists: PlaylistSnapshot? = null
                 clearLibraryInBackground(
                     repository = harness.library,
-                    loadPlaylists = {
-                        events += "read_playlists"
-                        harness.playlistStateOwner.refresh()
-                    },
+                    playlistStateOwner = harness.playlistStateOwner,
                     platformAccess = NoOpPlatformSourceAccess,
                     reconciler =
                         harness.reconciler(events) {
@@ -123,13 +123,18 @@ class PlaylistLifecycleIntegrationJvmTest {
                                 harness.playlists.entries(playlist.id))
                         },
                     ioDispatcher = Dispatchers.Default,
-                    updateLibrary = { events += "library" },
-                    updatePlaylists = { action ->
-                        events += "playlists"
-                        publishedPlaylists =
-                            (action as PlaylistStateAction.SnapshotConfirmed)
-                                .snapshot
-                    },
+                    publish =
+                        testLibraryMutationPublication(
+                            onPublication = { events += "read_playlists" },
+                            onContent = { events += "library" },
+                            onPlaylists = { action ->
+                                events += "playlists"
+                                publishedPlaylists =
+                                    (action
+                                            as
+                                            PlaylistStateAction.SnapshotConfirmed)
+                                        .snapshot
+                            }),
                 )
 
                 assertEquals(
@@ -143,6 +148,111 @@ class PlaylistLifecycleIntegrationJvmTest {
                 assertEquals(emptyList(), harness.controller.state.value.queue)
             }
         }
+
+    @Test
+    fun removeMissingTracksRefreshesPlaylistAndReconcilesResolvedQueue() =
+        runBlocking {
+            openHarness().use { harness ->
+                harness.seedSourceAndTrack("source", "missing-track")
+                harness.seedSourceAndTrack("source", "kept-track")
+                val playlist = harness.playlists.create("Saved")
+                harness.playlists.append(
+                    playlist.id, listOf("missing-track", "kept-track"))
+                val savedEntries = harness.playlists.entries(playlist.id)
+                harness.controller.setOccurrenceQueue(
+                    harness.occurrences(savedEntries), savedEntries.first().id)
+                harness.library.insertScanSession(
+                    ScanSession(
+                        id = "completed-scan",
+                        sourceId = "source",
+                        status =
+                            com.eterocell.rhythhaus.library.ScanStatus
+                                .Completed,
+                        startedAtEpochMillis = 1L,
+                        completedAtEpochMillis = 2L,
+                    ),
+                )
+                harness.library.upsertTrack(
+                    LibraryTrack(
+                        id = "kept-track",
+                        sourceId = "source",
+                        sourceLocalKey = "kept-track.mp3",
+                        audioSource =
+                            AudioSource.FilePath("/source/kept-track.mp3"),
+                        displayName = "kept-track.mp3",
+                        title = "kept-track",
+                        artist = "Artist",
+                        album = "Album",
+                        durationMillis = null,
+                        sizeBytes = null,
+                        modifiedAtEpochMillis = null,
+                        lastSeenScanId = "completed-scan",
+                        createdAtEpochMillis = 1L,
+                        updatedAtEpochMillis = 1L,
+                    ),
+                )
+                val events = mutableListOf<String>()
+                var publishedPlaylists: PlaylistSnapshot? = null
+
+                removeMissingTracksInBackground(
+                    sourceId = "source",
+                    latestScanId = "completed-scan",
+                    repository = harness.library,
+                    playlistStateOwner = harness.playlistStateOwner,
+                    platformAccess = NoOpPlatformSourceAccess,
+                    reconciler =
+                        harness.reconciler(events) {
+                            assertEquals(
+                                listOf("kept-track"),
+                                harness.playlists
+                                    .entries(playlist.id)
+                                    .map(PlaylistEntry::trackId),
+                            )
+                        },
+                    ioDispatcher = Dispatchers.Default,
+                    publish =
+                        testLibraryMutationPublication(
+                            onPublication = { events += "read_playlists" },
+                            onContent = { events += "library" },
+                            onPlaylists = { action ->
+                                events += "playlists"
+                                publishedPlaylists =
+                                    (action
+                                            as
+                                            PlaylistStateAction.SnapshotConfirmed)
+                                        .snapshot
+                            },
+                        ),
+                )
+
+                assertEquals(
+                    listOf(
+                        "reconcile", "read_playlists", "library", "playlists"),
+                    events,
+                )
+                assertEquals(
+                    listOf("kept-track"),
+                    publishedPlaylists
+                        ?.entriesByPlaylistId
+                        ?.get(playlist.id)
+                        ?.map(PlaylistEntry::trackId),
+                )
+                assertEquals(
+                    listOf("kept-track"),
+                    harness.controller.state.value.queue.map { it.track.id },
+                )
+            }
+        }
+}
+
+private fun testLibraryMutationPublication(
+    onPublication: suspend () -> Unit = {},
+    onContent: suspend (LibraryContentState) -> Unit = {},
+    onPlaylists: suspend (PlaylistStateAction) -> Unit = {},
+): suspend (LibraryMutationPublication) -> Unit = { publication ->
+    onPublication()
+    publication.content?.let { onContent(it) }
+    publication.playlists?.let { onPlaylists(it) }
 }
 
 private class PlaylistLifecycleHarness(

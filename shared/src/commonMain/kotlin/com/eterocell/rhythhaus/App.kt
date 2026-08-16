@@ -17,12 +17,14 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickResult
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.PlaylistRepository
+import com.eterocell.rhythhaus.library.RemoveMissingTracksRejectionReason
+import com.eterocell.rhythhaus.library.RemoveMissingTracksResult
+import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.normalizePickedSource
 import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
-import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
@@ -103,9 +105,29 @@ fun App() {
     }
     var importMessage by remember { mutableStateOf<String?>(null) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
+    var scanErrors by remember { mutableStateOf(emptyList<ScanError>()) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
     val scanCancellationRequested = remember { MutableStateFlow(false) }
     val scope = rememberCoroutineScope()
+    val operationCoordinator = remember {
+        AppLibraryOperationCoordinator {
+            scanCancellationRequested.value = true
+            scanProgress = scanProgress.requestScanCancellation()
+            scanJob?.join()
+        }
+    }
+    val libraryOrchestrator = remember {
+        AppLibraryOrchestrator(
+            coordinator = operationCoordinator,
+            publishError = { message ->
+                withContext(Dispatchers.Main) { importMessage = message }
+            },
+        )
+    }
+    val operationState by operationCoordinator.state.collectAsState()
+    val mutationsEnabled =
+        initialPublication.mutationsAllowed &&
+            operationState is LibraryOperationState.Idle
     val scanCompleteFormat = stringResource(Res.string.scan_complete_format)
     val importedSuffix =
         stringResource(Res.string.playlist_backup_imported_suffix)
@@ -133,6 +155,15 @@ fun App() {
                 state.errorMessage?.let { importMessage = it }
             },
         )
+        val restoredSession = repository.latestTerminalScanSession()
+        val restoredState =
+            restoredTerminalScanState(
+                restoredSession,
+                initialLibraryContent.sources,
+                restoredSession?.let { repository.scanErrors(it.id) }.orEmpty(),
+            )
+        scanProgress = restoredState.progress
+        scanErrors = restoredState.errors
     }
 
     fun refreshPlaylists() {
@@ -152,82 +183,94 @@ fun App() {
     }
 
     fun launchSourceScan(source: LibrarySource) {
-        if (!initialPublication.mutationsAllowed ||
-            !sourceMutationsAllowed(
-                isProgressActive = scanProgress?.isActive == true,
-                isJobActive = scanJob?.isActive == true,
-            )) {
-            return
-        }
-        scanCancellationRequested.value = false
-        scanJob =
-            scope.launch(Dispatchers.Default) {
-                val progress =
-                    ScanProgress(
-                        session =
-                            ScanSession(
-                                id = "",
-                                sourceId = source.id,
-                                status = ScanStatus.Scanning,
-                                startedAtEpochMillis = 0L),
-                    )
-                withContext(Dispatchers.Main) { scanProgress = progress }
+        if (!initialPublication.mutationsAllowed) return
+        scope.launch(Dispatchers.Default) {
+            libraryOrchestrator.launchScan { token ->
+                scanJob = currentCoroutineContext()[Job]
+                scanCancellationRequested.value = false
+                var progressCallbacks: OrderedScanProgressCallbacks? = null
+                try {
+                    val progress =
+                        ScanProgress(
+                            session =
+                                ScanSession(
+                                    id = "",
+                                    sourceId = source.id,
+                                    status = ScanStatus.Scanning,
+                                    startedAtEpochMillis = 0L),
+                        )
+                    libraryOrchestrator.publishIfCurrent(token) {
+                        withContext(Dispatchers.Main) {
+                            scanProgress = progress
+                        }
+                    }
 
-                val session =
-                    scanner.scan(
-                        source = source,
-                        isCancelled = { scanCancellationRequested.value },
-                        onProgress = { latestProgress ->
-                            scope.launch(Dispatchers.Main) {
-                                scanProgress = latestProgress
+                    progressCallbacks =
+                        OrderedScanProgressCallbacks(scope) { latestProgress ->
+                            libraryOrchestrator.publishIfCurrent(token) {
+                                withContext(Dispatchers.Main) {
+                                    scanProgress = latestProgress
+                                }
+                            }
+                        }
+                    val session =
+                        scanner.scan(
+                            source = source,
+                            isCancelled = { scanCancellationRequested.value },
+                            onProgress = { latestProgress ->
+                                progressCallbacks.offer(latestProgress)
+                            },
+                        )
+
+                    progressCallbacks.awaitPublished()
+                    val content = loadLibraryContent(repository, platformAccess)
+                    publishScanContentAfterReconcile(
+                        reconciler = playbackReconciler,
+                        playlistStateOwner = playlistStateOwner,
+                        content = content,
+                        session = session,
+                        loadScanErrors = repository::scanErrors,
+                        ownerIsActive = { currentCoroutineContext().isActive },
+                        publish = { publication ->
+                            libraryOrchestrator.publishIfCurrent(token) {
+                                withContext(Dispatchers.Main) {
+                                    scanProgress = publication.progress
+                                    scanErrors = publication.scanErrors
+                                    importMessage =
+                                        publication.errorMessage
+                                            ?: scanCompleteFormat
+                                                .replaceFirst(
+                                                    "%1\$d",
+                                                    session.tracksAdded
+                                                        .toString())
+                                                .replaceFirst(
+                                                    "%2\$d",
+                                                    session.tracksUpdated
+                                                        .toString())
+                                    updateLibraryContent(publication.content)
+                                    publication.playlists?.let { action ->
+                                        playlistState =
+                                            reducePlaylistState(
+                                                playlistState,
+                                                action
+                                                    .requireSuccessfulPublication(),
+                                            )
+                                    }
+                                }
                             }
                         },
                     )
-
-                val content = loadLibraryContent(repository, platformAccess)
-                publishScanContentAfterReconcile(
-                    reconciler = playbackReconciler,
-                    loadPlaylists = playlistStateOwner::refresh,
-                    content = content,
-                    session = session,
-                    ownerIsActive = { currentCoroutineContext().isActive },
-                    publish = { publication ->
-                        withContext(Dispatchers.Main) {
-                            scanProgress = publication.progress
-                            importMessage =
-                                publication.errorMessage
-                                    ?: scanCompleteFormat
-                                        .replaceFirst(
-                                            "%1\$d",
-                                            session.tracksAdded.toString())
-                                        .replaceFirst(
-                                            "%2\$d",
-                                            session.tracksUpdated.toString())
-                            updateLibraryContent(publication.content)
-                            publication.playlists?.let { action ->
-                                playlistState =
-                                    reducePlaylistState(playlistState, action)
-                            }
-                        }
-                    },
-                )
+                } finally {
+                    withContext(NonCancellable) {
+                        progressCallbacks?.awaitPublished()
+                    }
+                }
             }
+        }
     }
 
     fun mutationError(message: String) {
         importMessage = message
-    }
-
-    fun launchLibraryMutation(block: suspend () -> Unit) {
-        scope.launch {
-            try {
-                block()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Throwable) {
-                mutationError(failure.appFailureMessage())
-            }
-        }
     }
 
     fun launchPlaylistMutation(
@@ -374,7 +417,6 @@ fun App() {
         }
     }
     val snapshot = remember(libraryTracks) { librarySnapshot(libraryTracks) }
-
     RhythHausTheme(selectedThemeMode = selectedThemeMode) {
         CompositionLocalProvider(
             LocalTrackArtworkLoader provides
@@ -413,7 +455,9 @@ fun App() {
                     ),
                 importMessage = importMessage,
                 scanProgress = scanProgress,
+                scanErrors = scanErrors,
                 scanJob = scanJob,
+                coordinatorMutationsEnabled = mutationsEnabled,
                 currentThemeMode = selectedThemeMode,
                 onThemeModeSelected = { mode ->
                     scope.launch {
@@ -421,58 +465,159 @@ fun App() {
                     }
                 },
                 onClearLibrary = {
-                    if (initialPublication.mutationsAllowed &&
-                        sourceMutationsAllowed(
-                            isProgressActive = scanProgress?.isActive == true,
-                            isJobActive = scanJob?.isActive == true,
-                        )) {
-                        launchLibraryMutation {
-                            clearLibraryInBackground(
-                                repository = repository,
-                                platformAccess = platformAccess,
-                                reconciler = playbackReconciler,
-                                ioDispatcher = Dispatchers.Default,
-                                ownerIsActive = {
-                                    currentCoroutineContext().isActive
-                                },
-                                updateLibrary = ::updateLibraryContent,
-                                loadPlaylists = playlistStateOwner::refresh,
-                                updatePlaylists = { action ->
-                                    playlistState =
-                                        reducePlaylistState(
-                                            playlistState, action)
-                                },
-                                updateError = ::mutationError,
-                            )
+                    if (mutationsEnabled) {
+                        scope.launch {
+                            libraryOrchestrator.launch(
+                                LibraryOperationKind.Clear) { token ->
+                                    clearLibraryInBackground(
+                                        repository = repository,
+                                        platformAccess = platformAccess,
+                                        reconciler = playbackReconciler,
+                                        ioDispatcher = Dispatchers.Default,
+                                        ownerIsActive = {
+                                            currentCoroutineContext().isActive
+                                        },
+                                        playlistStateOwner = playlistStateOwner,
+                                        publish = { publication ->
+                                            libraryOrchestrator
+                                                .publishIfCurrent(token) {
+                                                    withContext(
+                                                        Dispatchers.Main) {
+                                                            publication.content
+                                                                ?.let {
+                                                                    updateLibraryContent(
+                                                                        it)
+                                                                }
+                                                            scanErrors =
+                                                                emptyList()
+                                                            publication
+                                                                .playlists
+                                                                ?.let { action
+                                                                    ->
+                                                                    playlistState =
+                                                                        reducePlaylistState(
+                                                                            playlistState,
+                                                                            action
+                                                                                .requireSuccessfulPublication(),
+                                                                        )
+                                                                }
+                                                            publication
+                                                                .errorMessage
+                                                                ?.let(
+                                                                    ::
+                                                                        mutationError)
+                                                        }
+                                                }
+                                        },
+                                    )
+                                }
                         }
                     }
                 },
                 onRescanSource = ::launchSourceScan,
                 onRemoveSource = { source ->
-                    if (initialPublication.mutationsAllowed &&
-                        sourceMutationsAllowed(
-                            isProgressActive = scanProgress?.isActive == true,
-                            isJobActive = scanJob?.isActive == true,
-                        )) {
-                        launchLibraryMutation {
-                            removeSourceInBackground(
-                                sourceId = source.id,
-                                repository = repository,
-                                platformAccess = platformAccess,
-                                reconciler = playbackReconciler,
-                                ioDispatcher = Dispatchers.Default,
-                                ownerIsActive = {
-                                    currentCoroutineContext().isActive
-                                },
-                                updateLibrary = ::updateLibraryContent,
-                                loadPlaylists = playlistStateOwner::refresh,
-                                updatePlaylists = { action ->
-                                    playlistState =
-                                        reducePlaylistState(
-                                            playlistState, action)
-                                },
-                                updateError = ::mutationError,
-                            )
+                    if (mutationsEnabled) {
+                        scope.launch {
+                            libraryOrchestrator.launch(
+                                LibraryOperationKind.RemoveSource) { token ->
+                                    removeSourceInBackground(
+                                        sourceId = source.id,
+                                        repository = repository,
+                                        platformAccess = platformAccess,
+                                        reconciler = playbackReconciler,
+                                        ioDispatcher = Dispatchers.Default,
+                                        ownerIsActive = {
+                                            currentCoroutineContext().isActive
+                                        },
+                                        playlistStateOwner = playlistStateOwner,
+                                        publish = { publication ->
+                                            libraryOrchestrator
+                                                .publishIfCurrent(token) {
+                                                    withContext(
+                                                        Dispatchers.Main) {
+                                                            publication.content
+                                                                ?.let {
+                                                                    updateLibraryContent(
+                                                                        it)
+                                                                }
+                                                            scanErrors =
+                                                                emptyList()
+                                                            publication
+                                                                .playlists
+                                                                ?.let { action
+                                                                    ->
+                                                                    playlistState =
+                                                                        reducePlaylistState(
+                                                                            playlistState,
+                                                                            action
+                                                                                .requireSuccessfulPublication(),
+                                                                        )
+                                                                }
+                                                            publication
+                                                                .errorMessage
+                                                                ?.let(
+                                                                    ::
+                                                                        mutationError)
+                                                        }
+                                                }
+                                        },
+                                    )
+                                }
+                        }
+                    }
+                },
+                onRemoveMissingTracks = { source, session ->
+                    if (mutationsEnabled) {
+                        scope.launch {
+                            libraryOrchestrator.launch(
+                                LibraryOperationKind.RemoveMissingTracks) {
+                                    token ->
+                                    removeMissingTracksInBackground(
+                                        sourceId = source.id,
+                                        latestScanId = session.id,
+                                        repository = repository,
+                                        platformAccess = platformAccess,
+                                        reconciler = playbackReconciler,
+                                        ioDispatcher = Dispatchers.Default,
+                                        ownerIsActive = {
+                                            currentCoroutineContext().isActive
+                                        },
+                                        playlistStateOwner = playlistStateOwner,
+                                        publish = { publication ->
+                                            libraryOrchestrator
+                                                .publishIfCurrent(token) {
+                                                    withContext(
+                                                        Dispatchers.Main) {
+                                                            publication.content
+                                                                ?.let {
+                                                                    updateLibraryContent(
+                                                                        it)
+                                                                }
+                                                            scanErrors =
+                                                                resolveMutationScanErrors(
+                                                                    scanErrors,
+                                                                    publication)
+                                                            publication
+                                                                .playlists
+                                                                ?.let { action
+                                                                    ->
+                                                                    playlistState =
+                                                                        reducePlaylistState(
+                                                                            playlistState,
+                                                                            action
+                                                                                .requireSuccessfulPublication(),
+                                                                        )
+                                                                }
+                                                            publication
+                                                                .errorMessage
+                                                                ?.let(
+                                                                    ::
+                                                                        mutationError)
+                                                        }
+                                                }
+                                        },
+                                    )
+                                }
                         }
                     }
                 },
@@ -608,41 +753,49 @@ internal suspend fun publishInitialLibraryContent(
     }
 }
 
-internal suspend fun publishLibraryContentAfterReconcile(
-    reconciler: PlaybackSessionReconciler,
-    content: LibraryContentState,
-    updateLibrary: suspend (LibraryContentState) -> Unit,
-) {
-    reconciler.reconcile(content.tracks)
-    updateLibrary(content)
-}
-
 internal data class ScanPublicationState(
     val content: LibraryContentState,
     val progress: ScanProgress,
     val playlists: PlaylistStateAction? = null,
     val errorMessage: String? = null,
+    val scanErrors: List<ScanError> = emptyList(),
 )
+
+internal data class LibraryMutationPublication(
+    val content: LibraryContentState?,
+    val playlists: PlaylistStateAction?,
+    val errorMessage: String?,
+    val scanErrors: List<ScanError>? = emptyList(),
+)
+
+internal fun resolveMutationScanErrors(
+    currentScanErrors: List<ScanError>,
+    publication: LibraryMutationPublication,
+): List<ScanError> = publication.scanErrors ?: currentScanErrors
 
 internal suspend fun publishScanContentAfterReconcile(
     reconciler: PlaybackSessionReconciler,
-    loadPlaylists: (suspend () -> PlaylistStateAction)? = null,
+    playlistStateOwner: PlaylistStateOwner,
     content: LibraryContentState,
     session: ScanSession,
+    loadScanErrors: ((String) -> List<ScanError>)? = null,
     ownerIsActive: suspend () -> Boolean,
     publish: suspend (ScanPublicationState) -> Unit,
 ) {
-    val publication =
-        try {
-            reconciler.reconcile(content.tracks)
-            ScanPublicationState(
-                content = content,
-                progress = ScanProgress(session),
-            )
-        } catch (cancelled: CancellationException) {
-            if (ownerIsActive()) {
-                withContext(NonCancellable) {
-                    val playlists = loadPlaylists?.invoke()
+    try {
+        reconciler.reconcile(content.tracks)
+    } catch (cancelled: CancellationException) {
+        if (ownerIsActive()) {
+            withContext(NonCancellable) {
+                val playlists = runCatching {
+                    playlistStateOwner.refresh().requireSuccessfulPublication()
+                }
+                    .getOrNull()
+                val scanErrors = runCatching {
+                    loadScanErrors?.invoke(session.id).orEmpty()
+                }
+                    .getOrDefault(emptyList())
+                runCatching {
                     publish(
                         ScanPublicationState(
                             content = content,
@@ -650,20 +803,24 @@ internal suspend fun publishScanContentAfterReconcile(
                                 ScanProgress(
                                     session.terminalAfterCancellation()),
                             playlists = playlists,
+                            scanErrors = scanErrors,
                         ),
                     )
                 }
             }
-            throw cancelled
-        } catch (failure: Throwable) {
-            ScanPublicationState(
-                content = content,
-                progress = ScanProgress(session.terminalAfterFailure(failure)),
-                errorMessage = failure.appFailureMessage(),
-            )
         }
-    val playlists = loadPlaylists?.invoke()
-    publish(publication.copy(playlists = playlists))
+        throw cancelled
+    }
+    val publication =
+        ScanPublicationState(
+            content = content, progress = ScanProgress(session))
+    val playlists = playlistStateOwner.refresh().requireSuccessfulPublication()
+    publish(
+        publication.copy(
+            playlists = playlists,
+            scanErrors = loadScanErrors?.invoke(session.id).orEmpty(),
+        ),
+    )
 }
 
 internal fun loadLibraryContent(
@@ -681,14 +838,12 @@ internal fun loadLibraryContent(
 internal suspend fun removeSourceInBackground(
     sourceId: String,
     repository: LibraryRepository,
-    loadPlaylists: (suspend () -> PlaylistStateAction)? = null,
     platformAccess: PlatformSourceAccess,
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     ownerIsActive: suspend () -> Boolean = { true },
-    updateLibrary: suspend (LibraryContentState) -> Unit,
-    updatePlaylists: (PlaylistStateAction) -> Unit = {},
-    updateError: (String) -> Unit = {},
+    playlistStateOwner: PlaylistStateOwner,
+    publish: suspend (LibraryMutationPublication) -> Unit,
 ) {
     val content =
         withContext(ioDispatcher) {
@@ -701,23 +856,63 @@ internal suspend fun removeSourceInBackground(
         reconciler = reconciler,
         content = content,
         ownerIsActive = ownerIsActive,
-        loadPlaylists = loadPlaylists,
-        updateLibrary = updateLibrary,
-        updatePlaylists = updatePlaylists,
-        updateError = updateError,
+        playlistStateOwner = playlistStateOwner,
+        publish = publish,
     )
 }
 
-internal suspend fun clearLibraryInBackground(
+internal suspend fun removeMissingTracksInBackground(
+    sourceId: String,
+    latestScanId: String,
     repository: LibraryRepository,
-    loadPlaylists: (suspend () -> PlaylistStateAction)? = null,
     platformAccess: PlatformSourceAccess,
     reconciler: PlaybackSessionReconciler,
     ioDispatcher: CoroutineDispatcher,
     ownerIsActive: suspend () -> Boolean = { true },
-    updateLibrary: suspend (LibraryContentState) -> Unit,
-    updatePlaylists: (PlaylistStateAction) -> Unit = {},
-    updateError: (String) -> Unit = {},
+    playlistStateOwner: PlaylistStateOwner,
+    publish: suspend (LibraryMutationPublication) -> Unit,
+) {
+    val resultAndContent =
+        withContext(ioDispatcher) {
+            val result = repository.removeMissingTracks(sourceId, latestScanId)
+            result to
+                if (result is RemoveMissingTracksResult.Removed) {
+                    loadLibraryContent(repository, platformAccess)
+                } else {
+                    null
+                }
+        }
+    val (result, content) = resultAndContent
+    val errorMessage =
+        when (result) {
+            is RemoveMissingTracksResult.Removed -> null
+            is RemoveMissingTracksResult.Rejected ->
+                removeMissingTracksRejectionMessage(result.reason)
+        }
+    if (result is RemoveMissingTracksResult.Rejected) {
+        publish(
+            LibraryMutationPublication(
+                null, null, errorMessage, scanErrors = null))
+    } else {
+        publishLibraryContentAfterReconcileFailureSafe(
+            reconciler = reconciler,
+            content = requireNotNull(content),
+            ownerIsActive = ownerIsActive,
+            playlistStateOwner = playlistStateOwner,
+            initialError = errorMessage,
+            publish = publish,
+        )
+    }
+}
+
+internal suspend fun clearLibraryInBackground(
+    repository: LibraryRepository,
+    platformAccess: PlatformSourceAccess,
+    reconciler: PlaybackSessionReconciler,
+    ioDispatcher: CoroutineDispatcher,
+    ownerIsActive: suspend () -> Boolean = { true },
+    playlistStateOwner: PlaylistStateOwner,
+    publish: suspend (LibraryMutationPublication) -> Unit,
 ) {
     val content =
         withContext(ioDispatcher) {
@@ -730,10 +925,8 @@ internal suspend fun clearLibraryInBackground(
         reconciler = reconciler,
         content = content,
         ownerIsActive = ownerIsActive,
-        loadPlaylists = loadPlaylists,
-        updateLibrary = updateLibrary,
-        updatePlaylists = updatePlaylists,
-        updateError = updateError,
+        playlistStateOwner = playlistStateOwner,
+        publish = publish,
     )
 }
 
@@ -741,16 +934,14 @@ private suspend fun publishLibraryContentAfterReconcileFailureSafe(
     reconciler: PlaybackSessionReconciler,
     content: LibraryContentState,
     ownerIsActive: suspend () -> Boolean,
-    loadPlaylists: (suspend () -> PlaylistStateAction)?,
-    updateLibrary: suspend (LibraryContentState) -> Unit,
-    updatePlaylists: (PlaylistStateAction) -> Unit,
-    updateError: (String) -> Unit,
+    playlistStateOwner: PlaylistStateOwner,
+    initialError: String? = null,
+    publish: suspend (LibraryMutationPublication) -> Unit,
 ) {
     suspend fun publishAuthoritativeContent(errorMessage: String? = null) {
-        val playlists = loadPlaylists?.invoke()
-        updateLibrary(content)
-        playlists?.let(updatePlaylists)
-        errorMessage?.let(updateError)
+        val playlists =
+            playlistStateOwner.refresh().requireSuccessfulPublication()
+        publish(LibraryMutationPublication(content, playlists, errorMessage))
     }
     val reconciliationError =
         try {
@@ -759,15 +950,22 @@ private suspend fun publishLibraryContentAfterReconcileFailureSafe(
         } catch (cancelled: CancellationException) {
             if (ownerIsActive()) {
                 withContext(NonCancellable) {
-                    publishAuthoritativeContent(cancelled.appFailureMessage())
+                    runCatching {
+                        publishAuthoritativeContent(
+                            cancelled.appFailureMessage())
+                    }
                 }
             }
             throw cancelled
         } catch (failure: Throwable) {
             failure.appFailureMessage()
         }
-    publishAuthoritativeContent(reconciliationError)
+    publishAuthoritativeContent(reconciliationError ?: initialError)
 }
+
+internal fun removeMissingTracksRejectionMessage(
+    reason: RemoveMissingTracksRejectionReason,
+): String = "Unable to remove missing tracks: ${reason.name}"
 
 internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
     val session = this?.session ?: return this
@@ -775,7 +973,57 @@ internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
     return copy(session = session.copy(status = ScanStatus.Cancelling))
 }
 
-private fun Throwable.appFailureMessage(): String =
+internal fun restoredTerminalScanProgress(
+    session: ScanSession?,
+    sources: List<LibrarySource>,
+): ScanProgress? =
+    session
+        ?.takeIf {
+            it.status in
+                setOf(
+                    ScanStatus.Completed,
+                    ScanStatus.Cancelled,
+                    ScanStatus.Failed)
+        }
+        ?.takeIf { terminal -> sources.any { it.id == terminal.sourceId } }
+        ?.let(::ScanProgress)
+
+internal data class RestoredTerminalScanState(
+    val progress: ScanProgress?,
+    val errors: List<ScanError>,
+)
+
+internal fun restoredTerminalScanState(
+    session: ScanSession?,
+    sources: List<LibrarySource>,
+    errors: List<ScanError>,
+): RestoredTerminalScanState {
+    val progress = restoredTerminalScanProgress(session, sources)
+    return RestoredTerminalScanState(
+        progress = progress,
+        errors =
+            if (progress?.session?.id == session?.id) errors else emptyList(),
+    )
+}
+
+internal fun removeMissingTracksPublication(
+    result: RemoveMissingTracksResult,
+    content: LibraryContentState,
+): LibraryMutationPublication =
+    when (result) {
+        is RemoveMissingTracksResult.Removed ->
+            LibraryMutationPublication(content, null, null)
+        is RemoveMissingTracksResult.Rejected ->
+            LibraryMutationPublication(
+                content = null,
+                playlists = null,
+                errorMessage =
+                    removeMissingTracksRejectionMessage(result.reason),
+                scanErrors = null,
+            )
+    }
+
+internal fun Throwable.appFailureMessage(): String =
     message?.takeIf(String::isNotBlank) ?: "Playback session unavailable"
 
 private fun ScanSession.terminalAfterCancellation(): ScanSession =

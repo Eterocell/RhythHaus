@@ -395,20 +395,119 @@ class SqlDelightLibraryRepository(
             .executeAsList()
 
     /**
-     * Removes tracks not observed by the latest scan of a source.
+     * Removes tracks not observed by the requested completed scan when that
+     * scan is the source's latest completed scan.
+     *
+     * The requested scan is the authority for deciding which tracks were
+     * observed. A discriminated [RemoveMissingTracksResult.Rejected] result
+     * identifies why the request was not accepted instead of mutating data.
      *
      * @param sourceId the owning source identifier.
-     * @param latestScanId the latest scan identifier for the source.
+     * @param requestedScanId the completed scan requested as the source of
+     *   truth for observed tracks.
      */
     override fun removeMissingTracks(
         sourceId: String,
-        latestScanId: String
-    ): Int {
-        val result =
-            database.libraryTrackQueries.removeMissingTracks(
-                sourceId, latestScanId)
-        return result.value.toInt()
+        requestedScanId: String,
+    ): RemoveMissingTracksResult {
+        var outcome: RemoveMissingTracksResult =
+            RemoveMissingTracksResult.Rejected(
+                RemoveMissingTracksRejectionReason.UnknownScan)
+        database.transaction {
+            if (database.librarySourceQueries
+                .selectAllSources()
+                .executeAsList()
+                .none { it.id == sourceId }) {
+                outcome =
+                    RemoveMissingTracksResult.Rejected(
+                        RemoveMissingTracksRejectionReason.UnknownSource)
+                return@transaction
+            }
+            val requested =
+                database.scanSessionQueries
+                    .selectScanSessionById(requestedScanId)
+                    .executeAsOneOrNull()
+            if (requested == null) {
+                outcome =
+                    RemoveMissingTracksResult.Rejected(
+                        RemoveMissingTracksRejectionReason.UnknownScan)
+                return@transaction
+            }
+            if (requested.sourceId != sourceId) {
+                outcome =
+                    RemoveMissingTracksResult.Rejected(
+                        RemoveMissingTracksRejectionReason.ForeignSource)
+                return@transaction
+            }
+            if (requested.status != ScanStatus.Completed.name) {
+                outcome =
+                    RemoveMissingTracksResult.Rejected(
+                        RemoveMissingTracksRejectionReason.NotCompleted)
+                return@transaction
+            }
+            if (requested.completedAtEpochMillis == null) {
+                outcome =
+                    RemoveMissingTracksResult.Rejected(
+                        RemoveMissingTracksRejectionReason
+                            .MissingCompletionTimestamp)
+                return@transaction
+            }
+            val latest =
+                database.scanSessionQueries
+                    .selectLatestCompletedScanForSource(sourceId)
+                    .executeAsOneOrNull()
+            check(latest != null) {
+                "Completed request must be returned by latest completed query"
+            }
+            if (latest.id != requestedScanId) {
+                outcome =
+                    RemoveMissingTracksResult.Rejected(
+                        RemoveMissingTracksRejectionReason.StaleCompletedScan)
+                return@transaction
+            }
+            outcome =
+                RemoveMissingTracksResult.Removed(
+                    database.libraryTrackQueries
+                        .removeMissingTracks(sourceId, requestedScanId)
+                        .value
+                        .toIntChecked())
+        }
+        return outcome
     }
+
+    /**
+     * Returns only the latest terminal session; callers load errors with
+     * [scanErrors].
+     */
+    override fun latestTerminalScanSession(): ScanSession? =
+        database.scanSessionQueries
+            .selectLatestTerminalScanSession {
+                id,
+                sourceId,
+                status,
+                startedAtEpochMillis,
+                completedAtEpochMillis,
+                foldersVisited,
+                filesVisited,
+                tracksAdded,
+                tracksUpdated,
+                filesSkipped,
+                terminalMessage ->
+                ScanSession(
+                    id = id,
+                    sourceId = sourceId,
+                    status = ScanStatus.valueOf(status),
+                    startedAtEpochMillis = startedAtEpochMillis,
+                    completedAtEpochMillis = completedAtEpochMillis,
+                    foldersVisited = foldersVisited.toInt(),
+                    filesVisited = filesVisited.toInt(),
+                    tracksAdded = tracksAdded.toInt(),
+                    tracksUpdated = tracksUpdated.toInt(),
+                    filesSkipped = filesSkipped.toInt(),
+                    terminalMessage = terminalMessage,
+                )
+            }
+            .executeAsOneOrNull()
 
     /**
      * Removes a source and all of its owned records.
@@ -433,6 +532,11 @@ class SqlDelightLibraryRepository(
             database.librarySourceQueries.clearAllSources()
         }
     }
+}
+
+private fun Long.toIntChecked(): Int {
+    require(this in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong())
+    return toInt()
 }
 
 // --- Internal helpers ---

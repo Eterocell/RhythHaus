@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.library
 import com.eterocell.rhythhaus.AudioSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class LibraryApiContractTest {
@@ -36,11 +37,27 @@ class LibraryApiContractTest {
             TrackArtwork(byteArrayOf(1), "image/jpeg"),
             repository.artworkForTrack(track.id))
         assertEquals(listOf(error), repository.scanErrors(session.id))
-        assertEquals(1, repository.removeMissingTracks(source.id, session.id))
+        assertEquals(
+            RemoveMissingTracksResult.Removed(1),
+            repository.removeMissingTracks(source.id, session.id))
+        assertNull(repository.latestTerminalScanSession())
         repository.removeSource(source.id)
         repository.clearAll()
         assertTrue(
             repository.calls.containsAll(LibraryRepositoryMethod.entries))
+    }
+
+    @Test
+    fun removeMissingResultIsDiscriminatedAndTerminalQueryIsExposed() {
+        val rejected =
+            RemoveMissingTracksResult.Rejected(
+                RemoveMissingTracksRejectionReason.UnknownScan)
+
+        assertEquals(
+            RemoveMissingTracksRejectionReason.UnknownScan, rejected.reason)
+        assertEquals(
+            RemoveMissingTracksResult.Removed(0),
+            RemoveMissingTracksResult.Removed(0))
     }
 
     private fun source() =
@@ -80,6 +97,7 @@ private enum class LibraryRepositoryMethod {
     InsertScanError,
     ScanErrors,
     RemoveMissingTracks,
+    LatestTerminalScanSession,
     RemoveSource,
     ClearAll,
 }
@@ -141,10 +159,15 @@ private class RecordingLibraryRepository : LibraryRepository {
 
     override fun removeMissingTracks(
         sourceId: String,
-        latestScanId: String
-    ): Int {
+        requestedScanId: String
+    ): RemoveMissingTracksResult {
         calls += LibraryRepositoryMethod.RemoveMissingTracks
-        return 1
+        return RemoveMissingTracksResult.Removed(1)
+    }
+
+    override fun latestTerminalScanSession(): ScanSession? {
+        calls += LibraryRepositoryMethod.LatestTerminalScanSession
+        return null
     }
 
     override fun removeSource(sourceId: String) {

@@ -34,8 +34,25 @@ public interface LibraryRepository {
     /** Returns errors recorded for a scan. */
     public fun scanErrors(scanId: String): List<ScanError>
 
-    /** Removes tracks not observed by the latest source scan. */
-    public fun removeMissingTracks(sourceId: String, latestScanId: String): Int
+    /**
+     * Removes tracks for [sourceId] that were not observed by the authoritative
+     * completed scan.
+     *
+     * [requestedScanId] is authoritative: the request is accepted only when it
+     * identifies the latest valid completed scan for [sourceId]. Validation and
+     * removal use deterministic ordering, and a rejected request leaves all
+     * tracks unchanged.
+     */
+    public fun removeMissingTracks(
+        sourceId: String,
+        requestedScanId: String,
+    ): RemoveMissingTracksResult
+
+    /**
+     * Returns the globally latest terminal scan session. Callers load errors
+     * with [scanErrors].
+     */
+    public fun latestTerminalScanSession(): ScanSession?
 
     /** Removes a source and its owned records. */
     public fun removeSource(sourceId: String)

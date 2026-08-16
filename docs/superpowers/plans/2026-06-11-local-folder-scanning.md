@@ -8,9 +8,9 @@
 
 **Tech Stack:** Kotlin Multiplatform, Compose Multiplatform, Kotlin coroutines/StateFlow, SQLDelight 2.3.2, Android Storage Access Framework, JVM `java.nio.file`, Kotlin/Native Foundation APIs for iOS app-local storage.
 
-## Planning Amendment: Ora-10/Ora-11 TDD Checkpoints
+## Planning Amendment: Ora-10/Ora-11/Ora-19 TDD Checkpoints
 
-This amendment supersedes the earlier coarse Tasks 2-8 execution sequence for the remaining implementation. The earlier file inventory and platform examples remain context only; the independently reviewable checkpoints below are authoritative. They do not claim any newly amended requirement is implemented or complete.
+This amendment supersedes the earlier coarse Tasks 2-8 execution sequence for the remaining implementation. The earlier file inventory and platform examples remain context only; the independently reviewable checkpoints below are authoritative. They do not claim any newly amended requirement is implemented or complete. Ora-19 additionally requires the mutation-publication and non-Compose orchestration boundaries below.
 
 ### Checkpoint A: Production repository contract
 
@@ -36,10 +36,11 @@ This amendment supersedes the earlier coarse Tasks 2-8 execution sequence for th
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
 - `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/AppScanCancellationTest.kt`
 - `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibrarySourceManagementTest.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/AppLibraryOrchestrator.kt` (documented production seam)
 
-**Interfaces:** one App-owned coordinator in the existing App orchestration path with operation-token admission, `scan`, `removeMissing`, `removeSource`, and `clear`; injectable cancellation awaiter; token-validated scan/progress and combined library-plus-playlist publication; serialized repository mutations; explicit repeated-click rejection. Source removal and clear are not new atomic repository operations.
+**Interfaces:** one App-owned coordinator in the existing App orchestration path with operation-token admission, `scan`, `removeMissing`, `removeSource`, and `clear`; and one non-Compose internal `AppLibraryOrchestrator` seam. The orchestrator owns admission, exception conversion, `complete(token)` in `finally`, and the sole `coordinator.publishIfCurrent` boundary. Mutation helpers expose only `suspend (LibraryMutationPublication) -> Unit`, load playlist state internally, and publish one combined library-plus-playlist value. App owns exactly one coordinator and one orchestrator. Source removal and clear are not new atomic repository operations.
 
-**TDD:** Run `./gradlew :shared:jvmTest --tests '*AppScanCancellationTest' --tests '*LibrarySourceManagementTest' --configuration-cache` before implementation for RED. Implement cancellation-await-before-write, race serialization, stale-publication rejection, repeated-click rejection, playback reconciliation, and playlist refresh. Run the same command for GREEN.
+**TDD:** Run `./gradlew :shared:jvmTest --tests '*AppScanCancellationTest' --tests '*LibrarySourceManagementTest' --configuration-cache` before implementation for RED. Implement cancellation-await-before-write, repeated mutation admission, race serialization, stale combined-publication rejection, accepted reconciliation/playlist refresh, rejection error-only preservation, exception conversion, and failure completion. Run the same command for GREEN, including the non-Compose orchestrator seam.
 
 ### Checkpoint C: Startup restoration
 
@@ -62,14 +63,15 @@ This amendment supersedes the earlier coarse Tasks 2-8 execution sequence for th
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`
 - `feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContentJvmTest.kt`
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/AppLibraryOrchestrator.kt` (documented non-Compose seam)
 
-**Boundary:** preserve the current intended empty/add-source, scanning/cancel, completed/rescan/add-source/remove-missing/report, cancelled/retry, failed/retry/report, and lost-access/recovery states/actions. Compact and wide production surfaces delegate to the one coordinator. Picker cancellation/recovery, playback reconciliation, playlist refresh, and repeated clicks are tested at this boundary.
+**Boundary:** preserve the current intended empty/add-source, scanning/cancel, completed/rescan/add-source/remove-missing/report, cancelled/retry, failed/retry/report, and lost-access/recovery states/actions. Compact and wide production surfaces delegate to the one coordinator. JVM tests exercise the real `LibraryHomeContent` manager surface plus the non-Compose App seam. Picker cancellation/recovery, playback reconciliation, playlist refresh, and repeated clicks are tested at this boundary. Full App Compose/Koin/navigation mounting, real platform picker cancellation, and device runtime are explicit deferrals. Picker cancellation remains asymmetric: JVM emits `Unavailable`, Android emits no callback; common tests assert no state mutation and do not invent `Cancelled`.
 
-**TDD:** Run `./gradlew :feature:library:impl:jvmTest --tests '*LibraryHomeContentJvmTest' --configuration-cache` for RED, implement only the wiring needed for the existing states/actions, then run `./gradlew :feature:library:impl:jvmTest :shared:jvmTest :desktopApp:compileKotlin --configuration-cache` for GREEN.
+**TDD:** Run `./gradlew :feature:library:impl:jvmTest --tests '*LibraryHomeContentJvmTest' --configuration-cache` for RED, implement only the wiring needed for the existing states/actions and one authoritative mutation publication, then run `./gradlew :feature:library:impl:jvmTest --tests '*LibraryHomeContentJvmTest' :shared:jvmTest --tests '*AppLibraryOrchestrator*' --tests '*AppScanCancellationTest' --tests '*LibrarySourceManagementTest' :desktopApp:compileKotlin --configuration-cache` for GREEN.
 
 ### Checkpoint E: Combined acceptance
 
-Run the focused commands from Checkpoints A-D, inspect production wiring and the migration inventory, then run `openspec validate scan-local-audio-folders --strict` and `git diff --check`. Run `./init.sh` only for the authorized implementation lane. Do not check off amended requirements or claim implementation completion from this planning amendment.
+Run the focused commands from Checkpoints A-D, including the real `LibraryHomeContent` and non-Compose orchestrator seam checks, inspect production wiring and the migration inventory, then run `openspec validate scan-local-audio-folders --strict` and `git diff --check`. Run `./init.sh` only for the authorized implementation lane. Full App Compose/Koin/navigation mounting, real platform picker cancellation, and device runtime are deferred. Do not check off amended requirements or claim implementation completion from this planning amendment.
 
 ---
 

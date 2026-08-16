@@ -20,4 +20,21 @@
     <string name="import_card_title">添加音乐文件夹</string>
     <string name="import_card_title_with_tracks">管理音乐文件夹</string>
     <string name="import_card_description">选择此设备上的音乐文件夹以构建本地资料库。</string>
+    <string name="library_sources">音乐文件夹</string>
+    <string name="library_empty">添加音乐文件夹以开始构建本地资料库。</string>
+    <string name="source_access_available">可访问</string>
+    <string name="source_access_lost">访问已丢失</string>
+    <string name="scan_completed">扫描完成</string>
+    <string name="scan_cancelled">扫描已取消</string>
+    <string name="scan_failed">扫描失败</string>
+    <string name="scan_summary_format">%1$d 个文件夹 • %2$d 个文件 • 新增 %3$d 首 • 更新 %4$d 首 • 跳过 %5$d 个</string>
+    <string name="rescan">重新扫描</string>
+    <string name="retry_scan">重试扫描</string>
+    <string name="remove_missing">移除缺失文件</string>
+    <string name="view_scan_report">查看扫描报告</string>
+    <string name="hide_scan_report">隐藏扫描报告</string>
+    <string name="scan_report_empty">未记录文件错误。</string>
+    <string name="scan_report_error_format">%1$s：%2$s</string>
+    <string name="remove_source">移除文件夹</string>
+    <string name="recover_source">重新选择文件夹</string>
 </resources>

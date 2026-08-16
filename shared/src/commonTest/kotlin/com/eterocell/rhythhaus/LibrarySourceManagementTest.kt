@@ -6,6 +6,7 @@ import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
+import com.eterocell.rhythhaus.library.RemoveMissingTracksResult
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
@@ -30,13 +31,229 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.yield
 
 class LibrarySourceManagementTest {
+    @Test
+    fun coordinatorAcceptsCombinedLibraryAndPlaylistPublicationAtomically() =
+        runBlocking {
+            val coordinator = AppLibraryOperationCoordinator {}
+            val admission =
+                coordinator.admitMutation(LibraryOperationKind.Clear)
+                    as LibraryOperationAdmission.Admitted
+            val events = mutableListOf<String>()
+
+            coordinator.publishIfCurrent(admission.token) {
+                events += "library"
+                events += "playlists"
+            }
+
+            assertEquals(listOf("library", "playlists"), events)
+            coordinator.complete(admission.token)
+        }
+
+    @Test
+    fun staleMutationPublicationCannotOverwriteLibraryOrPlaylistState() =
+        runBlocking {
+            val coordinator = AppLibraryOperationCoordinator {}
+            val first =
+                coordinator.admitMutation(LibraryOperationKind.RemoveSource)
+                    as LibraryOperationAdmission.Admitted
+            coordinator.complete(first.token)
+            val current =
+                coordinator.admitMutation(LibraryOperationKind.Clear)
+                    as LibraryOperationAdmission.Admitted
+            val published = mutableListOf<String>()
+
+            coordinator.publishIfCurrent(first.token) {
+                published += "library"
+                published += "playlists"
+            }
+
+            assertEquals(emptyList(), published)
+            coordinator.publishIfCurrent(current.token) {
+                published += "library"
+                published += "playlists"
+            }
+            assertEquals(listOf("library", "playlists"), published)
+            coordinator.complete(current.token)
+        }
+
+    @Test
+    fun staleTokenSuppressesCombinedMutationHelperPublicationAtOrchestratorBoundary() =
+        runBlocking {
+            val repository =
+                InMemoryLibraryRepository().apply {
+                    upsertSource(source("remove"))
+                    upsertTrack(track("remove-track", "remove"))
+                }
+            val playlists =
+                SourceManagementPlaylistRepository().apply { create("Saved") }
+            val coordinator = AppLibraryOperationCoordinator {}
+            val orchestrator =
+                AppLibraryOrchestrator(coordinator, publishError = {})
+            val stale =
+                coordinator.admitMutation(LibraryOperationKind.RemoveSource)
+                    as LibraryOperationAdmission.Admitted
+            coordinator.complete(stale.token)
+            val current =
+                coordinator.admitMutation(LibraryOperationKind.Clear)
+                    as LibraryOperationAdmission.Admitted
+            var observedContent: LibraryContentState? = null
+            var observedPlaylistAction: PlaylistStateAction? = null
+            val observedErrors = mutableListOf<String>()
+
+            removeSourceInBackground(
+                sourceId = "remove",
+                repository = repository,
+                platformAccess = FakePlatformSourceAccess(),
+                reconciler =
+                    PlaybackSessionReconciler {
+                        PlaybackSessionReconcileResult.Applied
+                    },
+                ioDispatcher = Dispatchers.Default,
+                playlistStateOwner =
+                    PlaylistStateOwner(playlists, Dispatchers.Default),
+                publish = { publication ->
+                    assertTrue(publication.content != null)
+                    assertTrue(
+                        publication.playlists
+                            is PlaylistStateAction.SnapshotConfirmed)
+                    orchestrator.publishIfCurrent(stale.token) {
+                        observedContent = publication.content
+                        observedPlaylistAction = publication.playlists
+                        publication.errorMessage?.let(observedErrors::add)
+                    }
+                },
+            )
+
+            assertEquals(null, observedContent)
+            assertEquals(null, observedPlaylistAction)
+            assertEquals(emptyList(), observedErrors)
+            coordinator.complete(current.token)
+        }
+
+    @Test
+    fun rejectedMissingTrackRemovalPreservesAppStateAndPublishesOnlyFeedback() =
+        runBlocking {
+            val seededContent =
+                LibraryContentState(
+                    sources = listOf(source("source")),
+                    tracks = listOf(track("existing-track", "source")),
+                )
+            val seededPlaylistState =
+                PlaylistState(
+                    confirmedSnapshot = PlaylistSnapshot(),
+                    readErrorMessage = "existing playlist read error",
+                    hasConfirmedSnapshot = true,
+                )
+            val seededScanErrors =
+                listOf(
+                    com.eterocell.rhythhaus.library.ScanError(
+                        id = "existing-error",
+                        scanId = "scan",
+                        sourceLocalKey = "missing.mp3",
+                        displayPath = "/missing.mp3",
+                        reason = "missing",
+                        recoverable = true,
+                        createdAtEpochMillis = 1L,
+                    ),
+                )
+            val coordinator = AppLibraryOperationCoordinator {}
+            val feedback = mutableListOf<String>()
+            val orchestrator =
+                AppLibraryOrchestrator(coordinator, feedback::add)
+            var libraryContent = seededContent
+            var playlistState = seededPlaylistState
+            var scanErrors = seededScanErrors
+
+            orchestrator.launch(LibraryOperationKind.RemoveMissingTracks) {
+                token ->
+                removeMissingTracksInBackground(
+                    sourceId = "source",
+                    latestScanId = "scan",
+                    repository =
+                        FailingMutationRepository(
+                            removeMissingTracksResult =
+                                RemoveMissingTracksResult.Rejected(
+                                    com.eterocell.rhythhaus.library
+                                        .RemoveMissingTracksRejectionReason
+                                        .StaleCompletedScan,
+                                ),
+                        ),
+                    platformAccess = FakePlatformSourceAccess(),
+                    reconciler =
+                        PlaybackSessionReconciler {
+                            PlaybackSessionReconcileResult.Applied
+                        },
+                    ioDispatcher = Dispatchers.Default,
+                    playlistStateOwner = testPlaylistStateOwner(),
+                    publish = { publication ->
+                        orchestrator.publishIfCurrent(token) {
+                            publication.content?.let { libraryContent = it }
+                            scanErrors =
+                                resolveMutationScanErrors(
+                                    scanErrors, publication)
+                            publication.playlists?.let { action ->
+                                playlistState =
+                                    reducePlaylistState(
+                                        playlistState,
+                                        action.requireSuccessfulPublication(),
+                                    )
+                            }
+                            publication.errorMessage?.let(feedback::add)
+                        }
+                    },
+                )
+            }
+
+            assertEquals(seededContent, libraryContent)
+            assertEquals(seededPlaylistState, playlistState)
+            assertEquals(seededScanErrors, scanErrors)
+            assertEquals(
+                listOf("Unable to remove missing tracks: StaleCompletedScan"),
+                feedback,
+            )
+            assertEquals(LibraryOperationState.Idle, coordinator.state.value)
+        }
+
+    @Test
+    fun mutationHelperPlaylistReadFailurePublishesOrchestratorErrorOnceAndReturnsIdle() =
+        runBlocking {
+            val repository =
+                InMemoryLibraryRepository().apply {
+                    upsertSource(source("source"))
+                }
+            val coordinator = AppLibraryOperationCoordinator {}
+            val errors = mutableListOf<String>()
+            val orchestrator = AppLibraryOrchestrator(coordinator, errors::add)
+
+            orchestrator.launch(LibraryOperationKind.RemoveSource) { token ->
+                removeSourceInBackground(
+                    sourceId = "source",
+                    repository = repository,
+                    platformAccess = FakePlatformSourceAccess(),
+                    reconciler =
+                        PlaybackSessionReconciler {
+                            PlaybackSessionReconcileResult.Applied
+                        },
+                    ioDispatcher = Dispatchers.Default,
+                    playlistStateOwner = failingPlaylistReadHarness().owner,
+                    publish = { publication ->
+                        orchestrator.publishIfCurrent(token) {
+                            publication.playlists
+                                ?.requireSuccessfulPublication()
+                        }
+                    },
+                )
+            }
+
+            assertEquals(listOf("playlist_load_failed"), errors)
+            assertEquals(LibraryOperationState.Idle, coordinator.state.value)
+        }
+
     @Test
     fun pickerActionIsVisibleForFirstSourceRegardlessOfAdditionalSourceCapability() {
         assertTrue(
@@ -216,7 +433,10 @@ class LibrarySourceManagementTest {
                     PlaybackSessionReconcileResult.Applied
                 },
             ioDispatcher = Dispatchers.Default,
-            updateLibrary = { refreshedState = it },
+            playlistStateOwner = testPlaylistStateOwner(),
+            publish =
+                testLibraryMutationPublication(
+                    updateLibrary = { refreshedState = it }),
         )
 
         assertEquals(listOf("keep"), refreshedState?.sources?.map { it.id })
@@ -244,7 +464,10 @@ class LibrarySourceManagementTest {
                     PlaybackSessionReconcileResult.Applied
                 },
             ioDispatcher = Dispatchers.Default,
-            updateLibrary = { events += "publish" },
+            playlistStateOwner = testPlaylistStateOwner(),
+            publish =
+                testLibraryMutationPublication(
+                    updateLibrary = { events += "publish" }),
         )
 
         assertEquals(listOf("reconcile", "publish"), events)
@@ -265,13 +488,14 @@ class LibrarySourceManagementTest {
                     append(playlist.id, listOf("remove-track"))
                     events.clear()
                 }
+            val playlistStateOwner =
+                PlaylistStateOwner(playlists, Dispatchers.Default)
+            var refreshedContent: LibraryContentState? = null
+            var refreshed: PlaylistSnapshot? = null
 
             removeSourceInBackground(
                 sourceId = "remove",
                 repository = repository,
-                loadPlaylists = {
-                    PlaylistStateOwner(playlists, Dispatchers.Default).refresh()
-                },
                 platformAccess = FakePlatformSourceAccess(),
                 reconciler =
                     PlaybackSessionReconciler {
@@ -279,639 +503,24 @@ class LibrarySourceManagementTest {
                         PlaybackSessionReconcileResult.Applied
                     },
                 ioDispatcher = Dispatchers.Default,
-                updateLibrary = { events += "library" },
-                updatePlaylists = { events += "playlists" },
-            )
-
-            assertEquals(
-                listOf("reconcile", "read_playlists", "library", "playlists"),
-                events)
-        }
-
-    @Test
-    fun clearLibraryRefreshesAppOwnedPlaylistSnapshotAfterCascadeAndReconciliation() =
-        runBlocking {
-            val events = mutableListOf<String>()
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("source"))
-                    upsertTrack(track("track", "source"))
-                }
-            val playlists =
-                RecordingPlaylistRepository(events).apply {
-                    val playlist = create("Saved")
-                    append(playlist.id, listOf("track"))
-                    events.clear()
-                }
-
-            clearLibraryInBackground(
-                repository = repository,
-                loadPlaylists = {
-                    PlaylistStateOwner(playlists, Dispatchers.Default).refresh()
-                },
-                platformAccess = FakePlatformSourceAccess(),
-                reconciler =
-                    PlaybackSessionReconciler {
-                        events += "reconcile"
-                        PlaybackSessionReconcileResult.Applied
-                    },
-                ioDispatcher = Dispatchers.Default,
-                updateLibrary = { events += "library" },
-                updatePlaylists = { events += "playlists" },
-            )
-
-            assertEquals(
-                listOf("reconcile", "read_playlists", "library", "playlists"),
-                events)
-        }
-
-    @Test
-    fun rescanRefreshesAppOwnedPlaylistSnapshotAfterReconciliation() =
-        runBlocking {
-            val events = mutableListOf<String>()
-            val playlists =
-                RecordingPlaylistRepository(events).apply {
-                    create("Saved")
-                    events.clear()
-                }
-            val content =
-                LibraryContentState(sources = emptyList(), tracks = emptyList())
-            val session =
-                ScanSession(
-                    id = "scan",
-                    sourceId = "source",
-                    status = ScanStatus.Completed,
-                    startedAtEpochMillis = 1L,
-                )
-
-            publishScanContentAfterReconcile(
-                reconciler =
-                    PlaybackSessionReconciler {
-                        events += "reconcile"
-                        PlaybackSessionReconcileResult.Applied
-                    },
-                loadPlaylists = {
-                    PlaylistStateOwner(playlists, Dispatchers.Default).refresh()
-                },
-                content = content,
-                session = session,
-                ownerIsActive = { true },
-                publish = { publication ->
-                    events += "publish"
-                    val playlistAction =
-                        publication.playlists
-                            as PlaylistStateAction.SnapshotConfirmed
-                    assertEquals(
-                        listOf("playlist-entry-1"),
-                        playlistAction.snapshot.playlists.map { it.id })
-                },
-            )
-
-            assertEquals(
-                listOf("reconcile", "read_playlists", "publish"), events)
-        }
-
-    @Test
-    fun rescanPlaylistReadFailurePublishesTerminalScanAndRetainsConfirmedPlaylists() =
-        runBlocking {
-            val harness = failingPlaylistReadHarness()
-            var state = harness.initialState
-            var published: ScanPublicationState? = null
-
-            publishScanContentAfterReconcile(
-                reconciler =
-                    PlaybackSessionReconciler {
-                        PlaybackSessionReconcileResult.Applied
-                    },
-                loadPlaylists = {
-                    harness.owner.refresh("playlist_load_failed")
-                },
-                content = LibraryContentState(emptyList(), emptyList()),
-                session =
-                    ScanSession("scan", "source", ScanStatus.Completed, 1L),
-                ownerIsActive = { true },
-                publish = { publication ->
-                    published = publication
-                    publication.playlists?.let {
-                        state = reducePlaylistState(state, it)
-                    }
-                },
-            )
-
-            assertEquals(
-                ScanStatus.Completed, published?.progress?.session?.status)
-            assertEquals(
-                "playlist-1", state.confirmedSnapshot.playlists.single().id)
-            assertEquals("playlist_load_failed", state.readErrorMessage)
-            assertEquals(1, harness.readCount())
-        }
-
-    @Test
-    fun sourceRemovalPlaylistReadFailurePublishesLibraryAndRetainsConfirmedPlaylists() =
-        runBlocking {
-            val harness = failingPlaylistReadHarness()
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("remove"))
-                }
-            var state = harness.initialState
-            var libraryPublished = false
-
-            removeSourceInBackground(
-                sourceId = "remove",
-                repository = repository,
-                loadPlaylists = {
-                    harness.owner.refresh("playlist_load_failed")
-                },
-                platformAccess = FakePlatformSourceAccess(),
-                reconciler =
-                    PlaybackSessionReconciler {
-                        PlaybackSessionReconcileResult.Applied
-                    },
-                ioDispatcher = Dispatchers.Default,
-                updateLibrary = { libraryPublished = true },
-                updatePlaylists = { state = reducePlaylistState(state, it) },
-            )
-
-            assertTrue(libraryPublished)
-            assertEquals(
-                "playlist-1", state.confirmedSnapshot.playlists.single().id)
-            assertEquals("playlist_load_failed", state.readErrorMessage)
-            assertEquals(1, harness.readCount())
-        }
-
-    @Test
-    fun clearLibraryPlaylistReadFailurePublishesLibraryAndRetainsConfirmedPlaylists() =
-        runBlocking {
-            val harness = failingPlaylistReadHarness()
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("source"))
-                }
-            var state = harness.initialState
-            var libraryPublished = false
-
-            clearLibraryInBackground(
-                repository = repository,
-                loadPlaylists = {
-                    harness.owner.refresh("playlist_load_failed")
-                },
-                platformAccess = FakePlatformSourceAccess(),
-                reconciler =
-                    PlaybackSessionReconciler {
-                        PlaybackSessionReconcileResult.Applied
-                    },
-                ioDispatcher = Dispatchers.Default,
-                updateLibrary = { libraryPublished = true },
-                updatePlaylists = { state = reducePlaylistState(state, it) },
-            )
-
-            assertTrue(libraryPublished)
-            assertEquals(
-                "playlist-1", state.confirmedSnapshot.playlists.single().id)
-            assertEquals("playlist_load_failed", state.readErrorMessage)
-            assertEquals(1, harness.readCount())
-        }
-
-    @Test
-    fun cancelledRescanCompletesAuthoritativePlaylistReadAndPublicationBeforeRethrow() =
-        runBlocking {
-            val events = mutableListOf<String>()
-            val operation = async {
-                publishScanContentAfterReconcile(
-                    reconciler = cancellingReconciler(events),
-                    loadPlaylists = {
-                        yield()
-                        events += "read_playlists"
-                        PlaylistStateAction.SnapshotConfirmed(
-                            com.eterocell.rhythhaus.library.ui
-                                .PlaylistSnapshot())
-                    },
-                    content = LibraryContentState(emptyList(), emptyList()),
-                    session =
-                        ScanSession("scan", "source", ScanStatus.Scanning, 1L),
-                    ownerIsActive = { true },
-                    publish = { events += "publish" },
-                )
-            }
-
-            assertFailsWith<CancellationException> { operation.await() }
-            assertEquals(
-                listOf("reconcile", "read_playlists", "publish"), events)
-        }
-
-    @Test
-    fun cancelledSourceRemovalCompletesAuthoritativePlaylistPublicationBeforeRethrow() =
-        runBlocking {
-            val events = mutableListOf<String>()
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("remove"))
-                }
-            val operation = async {
-                removeSourceInBackground(
-                    sourceId = "remove",
-                    repository = repository,
-                    loadPlaylists = {
-                        yield()
-                        events += "read_playlists"
-                        PlaylistStateAction.SnapshotConfirmed(
-                            com.eterocell.rhythhaus.library.ui
-                                .PlaylistSnapshot())
-                    },
-                    platformAccess = FakePlatformSourceAccess(),
-                    reconciler = cancellingReconciler(events),
-                    ioDispatcher = Dispatchers.Default,
-                    ownerIsActive = { true },
-                    updateLibrary = { events += "library" },
-                    updatePlaylists = { events += "playlists" },
-                )
-            }
-
-            assertFailsWith<CancellationException> { operation.await() }
-            assertEquals(
-                listOf("reconcile", "read_playlists", "library", "playlists"),
-                events)
-        }
-
-    @Test
-    fun cancelledClearLibraryCompletesAuthoritativePlaylistPublicationBeforeRethrow() =
-        runBlocking {
-            val events = mutableListOf<String>()
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("source"))
-                }
-            val operation = async {
-                clearLibraryInBackground(
-                    repository = repository,
-                    loadPlaylists = {
-                        yield()
-                        events += "read_playlists"
-                        PlaylistStateAction.SnapshotConfirmed(
-                            com.eterocell.rhythhaus.library.ui
-                                .PlaylistSnapshot())
-                    },
-                    platformAccess = FakePlatformSourceAccess(),
-                    reconciler = cancellingReconciler(events),
-                    ioDispatcher = Dispatchers.Default,
-                    ownerIsActive = { true },
-                    updateLibrary = { events += "library" },
-                    updatePlaylists = { events += "playlists" },
-                )
-            }
-
-            assertFailsWith<CancellationException> { operation.await() }
-            assertEquals(
-                listOf("reconcile", "read_playlists", "library", "playlists"),
-                events)
-        }
-
-    @Test
-    fun sourceRemovalReleasesAccessOnlyAfterRepositoryDeletion() = runBlocking {
-        val removedSource = source("remove")
-        val repository =
-            InMemoryLibraryRepository().apply {
-                upsertSource(removedSource)
-            }
-        val platformAccess = FakePlatformSourceAccess(repository = repository)
-
-        removeSourceInBackground(
-            sourceId = removedSource.id,
-            repository = repository,
-            platformAccess = platformAccess,
-            reconciler =
-                PlaybackSessionReconciler {
-                    PlaybackSessionReconcileResult.Applied
-                },
-            ioDispatcher = Dispatchers.Default,
-            updateLibrary = {},
-        )
-
-        assertEquals(listOf(removedSource), platformAccess.releasedSources)
-        assertEquals(false, platformAccess.sourceWasPresentWhenReleased)
-    }
-
-    @Test
-    fun sourceRemovalDoesNotReleaseAccessWhenRepositoryDeletionFails() =
-        runBlocking {
-            val platformAccess = FakePlatformSourceAccess()
-
-            assertFailsWith<IllegalStateException> {
-                removeSourceInBackground(
-                    sourceId = "remove",
-                    repository = FailingMutationRepository(),
-                    platformAccess = platformAccess,
-                    reconciler =
-                        PlaybackSessionReconciler {
-                            PlaybackSessionReconcileResult.Applied
-                        },
-                    ioDispatcher = Dispatchers.Default,
-                    updateLibrary = {},
-                )
-            }
-
-            assertEquals(emptyList(), platformAccess.releasedSources)
-        }
-
-    @Test
-    fun sourceRemovalReconcileFailurePublishesAuthoritativeContentAndError() =
-        runBlocking {
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("remove"))
-                    upsertSource(source("keep"))
-                    upsertTrack(track("remove-track", "remove"))
-                    upsertTrack(track("keep-track", "keep"))
-                }
-            val platformAccess =
-                FakePlatformSourceAccess(repository = repository)
-            var published: LibraryContentState? = null
-            var errorMessage: String? = null
-
-            removeSourceInBackground(
-                sourceId = "remove",
-                repository = repository,
-                platformAccess = platformAccess,
-                reconciler =
-                    PlaybackSessionReconciler {
-                        throw IllegalStateException("remove reconcile failed")
-                    },
-                ioDispatcher = Dispatchers.Default,
-                updateLibrary = { published = it },
-                updateError = { errorMessage = it },
-            )
-
-            assertEquals(listOf("keep"), published?.sources?.map { it.id })
-            assertEquals(listOf("keep-track"), published?.tracks?.map { it.id })
-            assertEquals("remove reconcile failed", errorMessage)
-            assertEquals(
-                listOf("remove"), platformAccess.releasedSources.map { it.id })
-        }
-
-    @Test
-    fun sourceRemovalAccessReleaseFailurePropagatesWithoutPublishing() =
-        runBlocking {
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("remove"))
-                }
-            var published = false
-
-            assertFailsWith<IllegalStateException> {
-                removeSourceInBackground(
-                    sourceId = "remove",
-                    repository = repository,
-                    platformAccess = ThrowingReleasePlatformSourceAccess,
-                    reconciler =
-                        PlaybackSessionReconciler {
-                            PlaybackSessionReconcileResult.Applied
-                        },
-                    ioDispatcher = Dispatchers.Default,
-                    updateLibrary = { published = true },
-                )
-            }
-
-            assertEquals(false, published)
-        }
-
-    @Test
-    fun sourceRemovalActiveOwnerCancellationPublishesAuthoritativeContentAndRethrows() =
-        runBlocking {
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("remove"))
-                    upsertSource(source("keep"))
-                    upsertTrack(track("remove-track", "remove"))
-                    upsertTrack(track("keep-track", "keep"))
-                }
-            val platformAccess =
-                FakePlatformSourceAccess(repository = repository)
-            var published: LibraryContentState? = null
-            var errorMessage: String? = null
-
-            assertFailsWith<CancellationException> {
-                removeSourceInBackground(
-                    sourceId = "remove",
-                    repository = repository,
-                    platformAccess = platformAccess,
-                    reconciler =
-                        PlaybackSessionReconciler {
-                            throw CancellationException("remove cancelled")
-                        },
-                    ioDispatcher = Dispatchers.Default,
-                    ownerIsActive = { true },
-                    updateLibrary = { published = it },
-                    updateError = { errorMessage = it },
-                )
-            }
-
-            assertEquals(listOf("keep"), published?.sources?.map { it.id })
-            assertEquals(listOf("keep-track"), published?.tracks?.map { it.id })
-            assertEquals("remove cancelled", errorMessage)
-            assertEquals(
-                listOf("remove"), platformAccess.releasedSources.map { it.id })
-            assertEquals(false, platformAccess.sourceWasPresentWhenReleased)
-        }
-
-    @Test
-    fun sourceRemovalGoneOwnerCancellationDoesNotPublishOrReportError() =
-        runBlocking {
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("remove"))
-                }
-            var published = false
-            var errorReported = false
-
-            assertFailsWith<CancellationException> {
-                removeSourceInBackground(
-                    sourceId = "remove",
-                    repository = repository,
-                    platformAccess =
-                        FakePlatformSourceAccess(repository = repository),
-                    reconciler =
-                        PlaybackSessionReconciler {
-                            throw CancellationException("gone")
-                        },
-                    ioDispatcher = Dispatchers.Default,
-                    ownerIsActive = { false },
-                    updateLibrary = { published = true },
-                    updateError = { errorReported = true },
-                )
-            }
-
-            assertEquals(false, published)
-            assertEquals(false, errorReported)
-        }
-
-    @Test
-    fun clearLibraryRefreshesBothSourcesAndTracks() = runBlocking {
-        val repository =
-            InMemoryLibraryRepository().apply {
-                upsertSource(source("source"))
-                upsertTrack(track("track", "source"))
-            }
-        var refreshedState: LibraryContentState? = null
-
-        clearLibraryInBackground(
-            repository = repository,
-            platformAccess = FakePlatformSourceAccess(),
-            reconciler =
-                PlaybackSessionReconciler {
-                    PlaybackSessionReconcileResult.Applied
-                },
-            ioDispatcher = Dispatchers.Default,
-            updateLibrary = { refreshedState = it },
-        )
-
-        assertEquals(emptyList(), refreshedState?.sources)
-        assertEquals(emptyList(), refreshedState?.tracks)
-    }
-
-    @Test
-    fun clearLibraryReconcilesBeforePublishingFailedSafeContent() =
-        runBlocking {
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("source"))
-                    upsertTrack(track("track", "source"))
-                }
-            val events = mutableListOf<String>()
-
-            clearLibraryInBackground(
-                repository = repository,
-                platformAccess = FakePlatformSourceAccess(),
-                reconciler =
-                    PlaybackSessionReconciler {
-                        events += "reconcile"
-                        PlaybackSessionReconcileResult.FailedSafeApplied
-                    },
-                ioDispatcher = Dispatchers.Default,
-                updateLibrary = { events += "publish" },
-            )
-
-            assertEquals(listOf("reconcile", "publish"), events)
-        }
-
-    @Test
-    fun clearLibraryReleasesEverySnapshottedSourceAfterRepositoryClear() =
-        runBlocking {
-            val first = source("first")
-            val second = source("second")
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(first)
-                    upsertSource(second)
-                }
-            val platformAccess =
-                FakePlatformSourceAccess(repository = repository)
-
-            clearLibraryInBackground(
-                repository = repository,
-                platformAccess = platformAccess,
-                reconciler =
-                    PlaybackSessionReconciler {
-                        PlaybackSessionReconcileResult.Applied
-                    },
-                ioDispatcher = Dispatchers.Default,
-                updateLibrary = {},
-            )
-
-            assertEquals(listOf(first, second), platformAccess.releasedSources)
-            assertEquals(false, platformAccess.sourceWasPresentWhenReleased)
-        }
-
-    @Test
-    fun clearLibraryDoesNotReleaseAccessWhenRepositoryClearFails() =
-        runBlocking {
-            val platformAccess = FakePlatformSourceAccess()
-
-            assertFailsWith<IllegalStateException> {
-                clearLibraryInBackground(
-                    repository =
-                        FailingMutationRepository(
-                            sources = listOf(source("first"))),
-                    platformAccess = platformAccess,
-                    reconciler =
-                        PlaybackSessionReconciler {
-                            PlaybackSessionReconcileResult.Applied
-                        },
-                    ioDispatcher = Dispatchers.Default,
-                    updateLibrary = {},
-                )
-            }
-
-            assertEquals(emptyList(), platformAccess.releasedSources)
-        }
-
-    @Test
-    fun clearLibraryReconcileFailurePublishesEmptyContentAndError() =
-        runBlocking {
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("source"))
-                    upsertTrack(track("track", "source"))
-                }
-            var published: LibraryContentState? = null
-            var errorMessage: String? = null
-
-            clearLibraryInBackground(
-                repository = repository,
-                platformAccess =
-                    FakePlatformSourceAccess(repository = repository),
-                reconciler =
-                    PlaybackSessionReconciler {
-                        throw IllegalStateException("clear reconcile failed")
-                    },
-                ioDispatcher = Dispatchers.Default,
-                updateLibrary = { published = it },
-                updateError = { errorMessage = it },
-            )
-
-            assertEquals(emptyList(), published?.sources)
-            assertEquals(emptyList(), published?.tracks)
-            assertEquals("clear reconcile failed", errorMessage)
-        }
-
-    @Test
-    fun clearLibraryReconcileFailureStillRefreshesAppOwnedPlaylistSnapshot() =
-        runBlocking {
-            val repository =
-                InMemoryLibraryRepository().apply {
-                    upsertSource(source("source"))
-                    upsertTrack(track("track", "source"))
-                }
-            val playlists =
-                RecordingPlaylistRepository(mutableListOf()).apply {
-                    create("Saved")
-                }
-            var refreshed:
-                com.eterocell.rhythhaus.library.ui.PlaylistSnapshot? =
-                null
-
-            clearLibraryInBackground(
-                repository = repository,
-                loadPlaylists = {
-                    PlaylistStateOwner(playlists, Dispatchers.Default).refresh()
-                },
-                platformAccess =
-                    FakePlatformSourceAccess(repository = repository),
-                reconciler =
-                    PlaybackSessionReconciler {
-                        throw IllegalStateException("clear reconcile failed")
-                    },
-                ioDispatcher = Dispatchers.Default,
-                updateLibrary = {},
-                updatePlaylists = { action ->
-                    refreshed =
-                        (action as PlaylistStateAction.SnapshotConfirmed)
-                            .snapshot
-                },
+                playlistStateOwner = playlistStateOwner,
+                publish =
+                    testLibraryMutationPublication(
+                        updateLibrary = { refreshedContent = it },
+                        updatePlaylists = { action ->
+                            refreshed =
+                                (action
+                                        as
+                                        PlaylistStateAction.SnapshotConfirmed)
+                                    .snapshot
+                        }),
             )
 
             assertEquals(
                 listOf("playlist-entry-1"), refreshed?.playlists?.map { it.id })
+            assertEquals(emptyList(), refreshedContent?.sources)
+            assertEquals(emptyList(), refreshedContent?.tracks)
+            assertEquals(listOf("reconcile", "read_playlists"), events)
         }
 
     @Test
@@ -932,7 +541,10 @@ class LibrarySourceManagementTest {
                             PlaybackSessionReconcileResult.Applied
                         },
                     ioDispatcher = Dispatchers.Default,
-                    updateLibrary = { published = true },
+                    playlistStateOwner = testPlaylistStateOwner(),
+                    publish =
+                        testLibraryMutationPublication(
+                            updateLibrary = { published = true }),
                 )
             }
 
@@ -961,9 +573,11 @@ class LibrarySourceManagementTest {
                             throw CancellationException("clear cancelled")
                         },
                     ioDispatcher = Dispatchers.Default,
-                    ownerIsActive = { true },
-                    updateLibrary = { published = it },
-                    updateError = { errorMessage = it },
+                    playlistStateOwner = testPlaylistStateOwner(),
+                    publish =
+                        testLibraryMutationPublication(
+                            updateLibrary = { published = it },
+                            updateError = { errorMessage = it }),
                 )
             }
 
@@ -995,9 +609,12 @@ class LibrarySourceManagementTest {
                             throw CancellationException("gone")
                         },
                     ioDispatcher = Dispatchers.Default,
+                    playlistStateOwner = testPlaylistStateOwner(),
                     ownerIsActive = { false },
-                    updateLibrary = { published = true },
-                    updateError = { errorReported = true },
+                    publish =
+                        testLibraryMutationPublication(
+                            updateLibrary = { published = true },
+                            updateError = { errorReported = true }),
                 )
             }
 
@@ -1044,6 +661,20 @@ class LibrarySourceManagementTest {
         )
 }
 
+private fun testLibraryMutationPublication(
+    updateLibrary: suspend (LibraryContentState) -> Unit = {},
+    updatePlaylists: suspend (PlaylistStateAction) -> Unit = {},
+    updateError: suspend (String) -> Unit = {},
+): suspend (LibraryMutationPublication) -> Unit = { publication ->
+    publication.content?.let { updateLibrary(it) }
+    publication.playlists?.let { updatePlaylists(it) }
+    publication.errorMessage?.let { updateError(it) }
+}
+
+private fun testPlaylistStateOwner() =
+    PlaylistStateOwner(
+        SourceManagementPlaylistRepository(), Dispatchers.Default)
+
 private fun cancellingReconciler(events: MutableList<String>) =
     PlaybackSessionReconciler {
         events += "reconcile"
@@ -1062,7 +693,7 @@ private class FailingPlaylistReadHarness {
             updatedAtEpochMillis = 1L,
         )
     private val repository =
-        object : TestPlaylistRepository() {
+        object : SourceManagementPlaylistRepository() {
             override fun playlists():
                 List<com.eterocell.rhythhaus.library.PlaylistSummary> {
                 reads += 1
@@ -1085,7 +716,7 @@ private fun failingPlaylistReadHarness() = FailingPlaylistReadHarness()
 private class RecordingPlaylistRepository(
     private val events: MutableList<String>,
 ) : com.eterocell.rhythhaus.library.PlaylistRepository {
-    private val delegate = TestPlaylistRepository()
+    private val delegate = SourceManagementPlaylistRepository()
 
     override fun playlists():
         List<com.eterocell.rhythhaus.library.PlaylistSummary> {
@@ -1119,7 +750,7 @@ private class RecordingPlaylistRepository(
         delegate.reorder(playlistId, entryIds)
 }
 
-private open class TestPlaylistRepository :
+private open class SourceManagementPlaylistRepository :
     com.eterocell.rhythhaus.library.PlaylistRepository {
     private val playlists =
         linkedMapOf<String, com.eterocell.rhythhaus.library.PlaylistSummary>()
@@ -1239,6 +870,8 @@ private object ThrowingReleasePlatformSourceAccess : PlatformSourceAccess {
 
 private class FailingMutationRepository(
     private val sources: List<LibrarySource> = emptyList(),
+    private val removeMissingTracksResult: RemoveMissingTracksResult =
+        RemoveMissingTracksResult.Removed(0),
 ) : com.eterocell.rhythhaus.library.LibraryRepository {
     override fun upsertSource(source: LibrarySource) = Unit
 
@@ -1264,7 +897,12 @@ private class FailingMutationRepository(
     override fun scanErrors(scanId: String) =
         emptyList<com.eterocell.rhythhaus.library.ScanError>()
 
-    override fun removeMissingTracks(sourceId: String, latestScanId: String) = 0
+    override fun removeMissingTracks(
+        sourceId: String,
+        requestedScanId: String
+    ) = removeMissingTracksResult
+
+    override fun latestTerminalScanSession(): ScanSession? = null
 
     override fun removeSource(sourceId: String): Unit =
         throw IllegalStateException("remove failed")

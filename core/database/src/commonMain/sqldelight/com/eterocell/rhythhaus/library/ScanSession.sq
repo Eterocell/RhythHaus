@@ -25,8 +25,22 @@ WHERE id = ?;
 selectScanSessionById:
 SELECT * FROM scan_session WHERE id = ?;
 
+selectLatestCompletedScanForSource:
+SELECT * FROM scan_session
+WHERE sourceId = ? AND status = 'Completed' AND completedAtEpochMillis IS NOT NULL
+ORDER BY completedAtEpochMillis DESC, startedAtEpochMillis DESC, id DESC
+LIMIT 1;
+
+selectLatestTerminalScanSession:
+SELECT * FROM scan_session
+WHERE status IN ('Completed', 'Cancelled', 'Failed')
+ORDER BY COALESCE(completedAtEpochMillis, startedAtEpochMillis) DESC,
+    startedAtEpochMillis DESC, id DESC
+LIMIT 1;
+
 selectScanErrorsForScan:
-SELECT * FROM scan_error WHERE scanId = ?;
+SELECT * FROM scan_error WHERE scanId = ?
+ORDER BY createdAtEpochMillis ASC, id ASC;
 
 removeSessionsForSource:
 DELETE FROM scan_session WHERE sourceId = ?;

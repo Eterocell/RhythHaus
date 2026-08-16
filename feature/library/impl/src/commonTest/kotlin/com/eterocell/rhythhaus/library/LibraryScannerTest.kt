@@ -261,6 +261,7 @@ class LibraryScannerTest {
                 "Music",
                 "/Music",
                 1L)
+        repository.upsertSource(source)
         repository.upsertTrack(
             LibraryTrack(
                 id = "existing-track",

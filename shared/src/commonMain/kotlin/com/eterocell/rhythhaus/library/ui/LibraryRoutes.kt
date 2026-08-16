@@ -35,7 +35,6 @@ import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
-import com.eterocell.rhythhaus.library.sourceMutationsAllowed
 import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsHost
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsLabels
@@ -133,6 +132,7 @@ internal fun LibraryRouteOverlays(
     importMessage: String?,
     scanProgress: ScanProgress?,
     scanJob: Job?,
+    mutationsEnabled: Boolean = true,
     currentThemeMode: RhythHausThemeMode,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
@@ -149,11 +149,6 @@ internal fun LibraryRouteOverlays(
 ) {
     when (route) {
         LibraryRoute.Settings -> {
-            val mutationsEnabled =
-                sourceMutationsAllowed(
-                    isProgressActive = scanProgress?.isActive == true,
-                    isJobActive = scanJob?.isActive == true,
-                )
             var showClearLibraryDialog by
                 remember(destinationId, playlistAppearanceSource) {
                     mutableStateOf(false)
@@ -242,12 +237,7 @@ internal fun LibraryRouteOverlays(
                             AnimatedClearLibraryDialogRoute(
                                 onDismiss = { showClearLibraryDialog = false },
                                 onClearLibrary = {
-                                    if (sourceMutationsAllowed(
-                                        scanProgress?.isActive == true,
-                                        scanJob?.isActive == true,
-                                    )) {
-                                        onClearLibrary()
-                                    }
+                                    onClearLibrary()
                                     showClearLibraryDialog = false
                                 },
                             )
@@ -261,24 +251,14 @@ internal fun LibraryRouteOverlays(
                     sources
                         .firstOrNull { it.id == id }
                         ?.let { source ->
-                            if (sourceMutationsAllowed(
-                                scanProgress?.isActive == true,
-                                scanJob?.isActive == true,
-                            )) {
-                                onRescanSource(source)
-                            }
+                            onRescanSource(source)
                         }
                 },
                 onRemoveSource = { id ->
                     sources
                         .firstOrNull { it.id == id }
                         ?.let { source ->
-                            if (sourceMutationsAllowed(
-                                scanProgress?.isActive == true,
-                                scanJob?.isActive == true,
-                            )) {
-                                onRemoveSource(source)
-                            }
+                            onRemoveSource(source)
                         }
                 },
                 onRequestClearLibrary = {

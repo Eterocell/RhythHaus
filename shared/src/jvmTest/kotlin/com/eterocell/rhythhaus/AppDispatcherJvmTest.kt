@@ -3,10 +3,12 @@ package com.eterocell.rhythhaus
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.RemoveMissingTracksResult
 import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.TrackArtwork
 import com.eterocell.rhythhaus.library.TrackUpsertResult
+import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import kotlin.test.Test
@@ -29,7 +31,12 @@ class AppDispatcherJvmTest {
                     PlaybackSessionReconcileResult.Applied
                 },
             ioDispatcher = Dispatchers.Default,
-            updateLibrary = { content -> clearedContent = content },
+            playlistStateOwner =
+                PlaylistStateOwner(
+                    TestPlaylistRepository(), Dispatchers.Default),
+            publish =
+                testLibraryMutationPublication(
+                    onContent = { content -> clearedContent = content }),
         )
 
         assertEquals(emptyList(), clearedContent?.tracks)
@@ -48,6 +55,45 @@ private object TestPlatformSourceAccess :
         source: LibrarySource
     ): Sequence<com.eterocell.rhythhaus.library.impl.PlatformScanEvent> =
         emptySequence()
+}
+
+private fun testLibraryMutationPublication(
+    onContent: suspend (LibraryContentState) -> Unit = {},
+): suspend (LibraryMutationPublication) -> Unit = { publication ->
+    publication.content?.let { onContent(it) }
+}
+
+private class TestPlaylistRepository :
+    com.eterocell.rhythhaus.library.PlaylistRepository {
+    override fun playlists() =
+        emptyList<com.eterocell.rhythhaus.library.PlaylistSummary>()
+
+    override fun playlist(id: String) = null
+
+    override fun entries(playlistId: String) =
+        emptyList<com.eterocell.rhythhaus.library.PlaylistEntry>()
+
+    override fun create(name: String) = error("Not used by this test")
+
+    override fun createWithEntries(name: String, trackIds: List<String>) =
+        error("Not used by this test")
+
+    override fun importPlaylists(
+        playlists: List<com.eterocell.rhythhaus.library.PlaylistImportMutation>
+    ) = error("Not used by this test")
+
+    override fun rename(id: String, name: String) =
+        error("Not used by this test")
+
+    override fun delete(id: String) = error("Not used by this test")
+
+    override fun append(playlistId: String, trackIds: List<String>) =
+        error("Not used by this test")
+
+    override fun removeEntry(entryId: String) = error("Not used by this test")
+
+    override fun reorder(playlistId: String, entryIds: List<String>) =
+        error("Not used by this test")
 }
 
 private class ThreadCapturingRepository : LibraryRepository {
@@ -78,8 +124,10 @@ private class ThreadCapturingRepository : LibraryRepository {
 
     override fun removeMissingTracks(
         sourceId: String,
-        latestScanId: String
-    ): Int = 0
+        requestedScanId: String,
+    ): RemoveMissingTracksResult = RemoveMissingTracksResult.Removed(0)
+
+    override fun latestTerminalScanSession(): ScanSession? = null
 
     override fun removeSource(sourceId: String) = Unit
 

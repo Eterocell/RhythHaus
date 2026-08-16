@@ -45,11 +45,20 @@ class LibraryRepositoryContractTest {
                 id = "unknown",
                 sourceLocalKey = "unknown.mp3",
                 lastSeenScanId = null))
+        repository.insertScanSession(
+            ScanSession(
+                id = "scan-2",
+                sourceId = source.id,
+                status = ScanStatus.Completed,
+                startedAtEpochMillis = 1L,
+                completedAtEpochMillis = 2L,
+            ))
 
         val removed =
-            repository.removeMissingTracks(source.id, latestScanId = "scan-2")
+            repository.removeMissingTracks(
+                source.id, requestedScanId = "scan-2")
 
-        assertEquals(2, removed)
+        assertEquals(RemoveMissingTracksResult.Removed(2), removed)
         assertEquals(listOf("seen"), repository.tracks().map { it.id })
     }
 
@@ -77,13 +86,209 @@ class LibraryRepositoryContractTest {
     @Test
     fun scanErrorsAreStoredByScan() {
         val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        repository.insertScanSession(
+            testScanSession("scan-1", "source-1", ScanStatus.Scanning, 1L))
+        repository.insertScanSession(
+            testScanSession("scan-2", "source-1", ScanStatus.Scanning, 2L))
         repository.insertScanError(
-            testScanError(id = "error-1", scanId = "scan-1"))
+            testScanError(
+                id = "error-z", scanId = "scan-1", createdAtEpochMillis = 2L))
+        repository.insertScanError(
+            testScanError(
+                id = "error-a", scanId = "scan-1", createdAtEpochMillis = 2L))
+        repository.insertScanError(
+            testScanError(
+                id = "error-early",
+                scanId = "scan-1",
+                createdAtEpochMillis = 1L))
         repository.insertScanError(
             testScanError(id = "error-2", scanId = "scan-2"))
 
         assertEquals(
-            listOf("error-1"), repository.scanErrors("scan-1").map { it.id })
+            listOf("error-early", "error-a", "error-z"),
+            repository.scanErrors("scan-1").map { it.id })
+    }
+
+    @Test
+    fun updateScanSessionMatchesSqlUpdateForUnknownSessionAndSource() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        val original =
+            testScanSession(
+                id = "scan-1",
+                sourceId = "source-1",
+                status = ScanStatus.Scanning,
+                startedAtEpochMillis = 1L,
+            )
+        repository.insertScanSession(original)
+
+        repository.updateScanSession(
+            testScanSession(
+                id = "unknown",
+                sourceId = "missing-source",
+                status = ScanStatus.Completed,
+                startedAtEpochMillis = 9L,
+                completedAtEpochMillis = 10L,
+            ),
+        )
+        assertEquals(null, repository.latestTerminalScanSession())
+
+        repository.updateScanSession(
+            original.copy(
+                sourceId = "missing-source",
+                status = ScanStatus.Completed,
+                startedAtEpochMillis = 99L,
+                completedAtEpochMillis = 10L,
+                foldersVisited = 3,
+                terminalMessage = "done",
+            ),
+        )
+
+        assertEquals(
+            original.copy(
+                status = ScanStatus.Completed,
+                completedAtEpochMillis = 10L,
+                foldersVisited = 3,
+                terminalMessage = "done",
+            ),
+            repository.latestTerminalScanSession(),
+        )
+    }
+
+    @Test
+    fun removeMissingRejectsEveryNonAuthoritativeRequestWithoutMutation() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        repository.upsertSource(testSource(id = "source-2"))
+        repository.upsertSource(testSource(id = "source-3"))
+        repository.upsertSource(testSource(id = "other"))
+        repository.upsertTrack(
+            testTrack(id = "missing", lastSeenScanId = "old"))
+        repository.insertScanSession(
+            testScanSession("foreign", "other", ScanStatus.Completed, 1L, 5L))
+        repository.insertScanSession(
+            testScanSession("active", "source-1", ScanStatus.Scanning, 1L))
+        repository.insertScanSession(
+            testScanSession(
+                "cancelling", "source-1", ScanStatus.Cancelling, 1L))
+        repository.insertScanSession(
+            testScanSession(
+                "cancelled", "source-1", ScanStatus.Cancelled, 1L, 3L))
+        repository.insertScanSession(
+            testScanSession("failed", "source-1", ScanStatus.Failed, 1L, 4L))
+        repository.insertScanSession(
+            testScanSession(
+                "malformed", "source-1", ScanStatus.Completed, 2L, null))
+        repository.insertScanSession(
+            testScanSession("stale", "source-1", ScanStatus.Completed, 1L, 5L))
+        repository.insertScanSession(
+            testScanSession("latest", "source-1", ScanStatus.Completed, 2L, 6L))
+
+        val requests =
+            listOf(
+                "unknown" to RemoveMissingTracksRejectionReason.UnknownScan,
+                "foreign" to RemoveMissingTracksRejectionReason.ForeignSource,
+                "active" to RemoveMissingTracksRejectionReason.NotCompleted,
+                "cancelling" to RemoveMissingTracksRejectionReason.NotCompleted,
+                "cancelled" to RemoveMissingTracksRejectionReason.NotCompleted,
+                "failed" to RemoveMissingTracksRejectionReason.NotCompleted,
+                "malformed" to
+                    RemoveMissingTracksRejectionReason
+                        .MissingCompletionTimestamp,
+                "stale" to
+                    RemoveMissingTracksRejectionReason.StaleCompletedScan,
+            )
+        assertEquals(
+            RemoveMissingTracksResult.Rejected(
+                RemoveMissingTracksRejectionReason.UnknownSource),
+            repository.removeMissingTracks("missing-source", "unknown"),
+        )
+        requests.forEach { (scanId, reason) ->
+            assertEquals(
+                RemoveMissingTracksResult.Rejected(reason),
+                repository.removeMissingTracks("source-1", scanId),
+            )
+            assertEquals(
+                listOf("missing"),
+                repository.tracksForSource("source-1").map { it.id })
+        }
+    }
+
+    @Test
+    fun latestCompletedAndTerminalSessionsUseDeterministicOrdering() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        repository.upsertSource(testSource(id = "source-2"))
+        repository.upsertSource(testSource(id = "source-3"))
+        repository.insertScanSession(
+            testScanSession(
+                "completed-a", "source-1", ScanStatus.Completed, 10L, 20L))
+        repository.insertScanSession(
+            testScanSession(
+                "completed-b", "source-1", ScanStatus.Completed, 11L, 20L))
+        repository.insertScanSession(
+            testScanSession(
+                "completed-c", "source-1", ScanStatus.Completed, 11L, 20L))
+        assertEquals(
+            RemoveMissingTracksResult.Rejected(
+                RemoveMissingTracksRejectionReason.StaleCompletedScan),
+            repository.removeMissingTracks("source-1", "completed-b"),
+        )
+
+        repository.insertScanSession(
+            testScanSession(
+                "cancelled", "source-2", ScanStatus.Cancelled, 30L, null))
+        repository.insertScanSession(
+            testScanSession("failed", "source-3", ScanStatus.Failed, 31L, null))
+        assertEquals("failed", repository.latestTerminalScanSession()?.id)
+    }
+
+    @Test
+    fun latestOrderingUsesEveryTieBreakKey() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        repository.insertScanSession(
+            testScanSession(
+                "completed-old", "source-1", ScanStatus.Completed, 1L, 10L))
+        repository.insertScanSession(
+            testScanSession(
+                "completed-new-start",
+                "source-1",
+                ScanStatus.Completed,
+                2L,
+                10L))
+        repository.insertScanSession(
+            testScanSession(
+                "completed-z", "source-1", ScanStatus.Completed, 2L, 10L))
+        repository.upsertTrack(testTrack(lastSeenScanId = "completed-z"))
+        assertEquals(
+            RemoveMissingTracksResult.Removed(0),
+            repository.removeMissingTracks("source-1", "completed-z"))
+
+        repository.insertScanSession(
+            testScanSession(
+                "terminal-old", "source-1", ScanStatus.Failed, 20L, 30L))
+        repository.insertScanSession(
+            testScanSession(
+                "terminal-new-start",
+                "source-1",
+                ScanStatus.Cancelled,
+                21L,
+                30L))
+        repository.insertScanSession(
+            testScanSession(
+                "terminal-z", "source-1", ScanStatus.Failed, 21L, 30L))
+        repository.insertScanSession(
+            testScanSession(
+                "terminal-later-completion",
+                "source-1",
+                ScanStatus.Failed,
+                1L,
+                31L))
+        assertEquals(
+            "terminal-later-completion",
+            repository.latestTerminalScanSession()?.id)
     }
 }
 
@@ -122,9 +327,25 @@ private fun testTrack(
         updatedAtEpochMillis = 2L,
     )
 
+private fun testScanSession(
+    id: String,
+    sourceId: String,
+    status: ScanStatus,
+    startedAtEpochMillis: Long,
+    completedAtEpochMillis: Long? = 2L,
+) =
+    ScanSession(
+        id = id,
+        sourceId = sourceId,
+        status = status,
+        startedAtEpochMillis = startedAtEpochMillis,
+        completedAtEpochMillis = completedAtEpochMillis,
+    )
+
 private fun testScanError(
     id: String,
     scanId: String,
+    createdAtEpochMillis: Long = 3L,
 ) =
     ScanError(
         id = id,
@@ -133,5 +354,5 @@ private fun testScanError(
         displayPath = "/Music/bad.txt",
         reason = "Unsupported file",
         recoverable = true,
-        createdAtEpochMillis = 3L,
+        createdAtEpochMillis = createdAtEpochMillis,
     )
