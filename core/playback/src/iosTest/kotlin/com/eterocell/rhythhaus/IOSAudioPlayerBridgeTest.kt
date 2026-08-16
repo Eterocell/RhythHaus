@@ -2,11 +2,11 @@ package com.eterocell.rhythhaus
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
-import kotlin.test.assertFailsWith
 import platform.MediaPlayer.MPNowPlayingInfoCenter
 
 class IOSAudioPlayerBridgeTest {
@@ -65,7 +65,10 @@ class IOSAudioPlayerBridgeTest {
         provider.simulateInterruptionBegan()
 
         assertEquals(
-            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
+            listOf(
+                PlaybackStatus.Loading,
+                PlaybackStatus.Paused,
+                PlaybackStatus.Playing,
                 PlaybackStatus.Paused),
             session.recording.statuses)
         assertFalse(provider.isPlaying())
@@ -80,8 +83,12 @@ class IOSAudioPlayerBridgeTest {
         provider.simulateInterruptionEnded(shouldResume = true)
 
         assertEquals(
-            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
-                PlaybackStatus.Paused, PlaybackStatus.Playing),
+            listOf(
+                PlaybackStatus.Loading,
+                PlaybackStatus.Paused,
+                PlaybackStatus.Playing,
+                PlaybackStatus.Paused,
+                PlaybackStatus.Playing),
             session.recording.statuses)
         assertTrue(provider.isPlaying())
     }
@@ -95,7 +102,10 @@ class IOSAudioPlayerBridgeTest {
         provider.simulateInterruptionEnded(shouldResume = false)
 
         assertEquals(
-            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
+            listOf(
+                PlaybackStatus.Loading,
+                PlaybackStatus.Paused,
+                PlaybackStatus.Playing,
                 PlaybackStatus.Paused),
             session.recording.statuses)
         assertFalse(provider.isPlaying())
@@ -111,7 +121,10 @@ class IOSAudioPlayerBridgeTest {
         provider.simulateInterruptionEnded(shouldResume = true)
 
         assertEquals(
-            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
+            listOf(
+                PlaybackStatus.Loading,
+                PlaybackStatus.Paused,
+                PlaybackStatus.Playing,
                 PlaybackStatus.Paused),
             session.recording.statuses)
         assertFalse(provider.isPlaying())
@@ -130,7 +143,10 @@ class IOSAudioPlayerBridgeTest {
         provider.simulateInterruptionEnded(shouldResume = true)
 
         assertEquals(
-            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
+            listOf(
+                PlaybackStatus.Loading,
+                PlaybackStatus.Paused,
+                PlaybackStatus.Playing,
                 PlaybackStatus.Paused),
             session.recording.statuses)
         assertEquals(playCallsBeforeInterruption + 1, provider.playCallCount)
@@ -146,7 +162,10 @@ class IOSAudioPlayerBridgeTest {
         provider.simulateInterruptionEnded(shouldResume = true)
 
         assertEquals(
-            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
+            listOf(
+                PlaybackStatus.Loading,
+                PlaybackStatus.Paused,
+                PlaybackStatus.Playing,
                 PlaybackStatus.Paused),
             session.recording.statuses)
         assertFalse(provider.isPlaying())
@@ -159,7 +178,9 @@ class IOSAudioPlayerBridgeTest {
 
         provider.simulateInterruptionBegan()
 
-        assertEquals(listOf(PlaybackStatus.Loading, PlaybackStatus.Paused), session.recording.statuses)
+        assertEquals(
+            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused),
+            session.recording.statuses)
     }
 
     @Test
@@ -197,7 +218,9 @@ class IOSAudioPlayerBridgeTest {
         engine.listener = recording
 
         assertFailsWith<IllegalStateException> {
-            runBlocking { engine.loadPaused(testTrack("failed"), generation = 42L) }
+            runBlocking {
+                engine.loadPaused(testTrack("failed"), generation = 42L)
+            }
         }
         assertEquals(null, provider.completionHandler)
         assertEquals(null, provider.interruptionHandler)
@@ -235,11 +258,18 @@ class IOSAudioPlayerBridgeTest {
         val oldInterruption = provider.interruptionHandler
         provider.onFadeOutAndStop = { oldInterruption?.onInterruptionBegan() }
 
-        runBlocking { session.engine.loadPaused(testTrack("replacement"), generation = 46L) }
+        runBlocking {
+            session.engine.loadPaused(
+                testTrack("replacement"), generation = 46L)
+        }
 
         assertEquals(
-            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused, PlaybackStatus.Playing,
-                PlaybackStatus.Loading, PlaybackStatus.Paused),
+            listOf(
+                PlaybackStatus.Loading,
+                PlaybackStatus.Paused,
+                PlaybackStatus.Playing,
+                PlaybackStatus.Loading,
+                PlaybackStatus.Paused),
             session.recording.statuses)
         assertFalse(provider.isPlaying())
         session.engine.release()
@@ -249,10 +279,14 @@ class IOSAudioPlayerBridgeTest {
     @Test
     fun callbackDuringLoadCannotBecomeOwnedByTheLoadedSource() {
         val provider = FakeIOSAudioPlayerProvider()
-        provider.onLoad = { provider.simulateInterruptionEnded(shouldResume = true) }
+        provider.onLoad = {
+            provider.simulateInterruptionEnded(shouldResume = true)
+        }
         val session = loadAndPause(provider, generation = 47L)
 
-        assertEquals(listOf(PlaybackStatus.Loading, PlaybackStatus.Paused), session.recording.statuses)
+        assertEquals(
+            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused),
+            session.recording.statuses)
         assertFalse(provider.isPlaying())
         session.engine.release()
         IOSAudioPlayerBridge.provider = null
@@ -281,7 +315,8 @@ class IOSAudioPlayerBridgeTest {
         }
         assertEquals(null, provider.completionHandler)
         assertEquals(null, provider.interruptionHandler)
-        assertEquals(null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
+        assertEquals(
+            null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
         assertFailsWith<IllegalArgumentException> { engine.play() }
         assertEquals(0, provider.playCallCount)
         engine.release()
@@ -297,21 +332,25 @@ class IOSAudioPlayerBridgeTest {
         runBlocking {
             engine.loadPaused(testTrack("path-previous"), generation = 51L)
         }
-        assertTrue(MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo != null)
+        assertTrue(
+            MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo != null)
 
-        val failingEngine = createIOSPlaybackEngine(
-            object : IOSRelativeFilePathResolver {
-                override fun resolve(relativePath: String): String =
-                    error("path resolution failed")
-            },
-        )
+        val failingEngine =
+            createIOSPlaybackEngine(
+                object : IOSRelativeFilePathResolver {
+                    override fun resolve(relativePath: String): String =
+                        error("path resolution failed")
+                },
+            )
         assertFailsWith<IllegalStateException> {
             runBlocking {
-                failingEngine.loadPaused(testTrack("path-failure"), generation = 52L)
+                failingEngine.loadPaused(
+                    testTrack("path-failure"), generation = 52L)
             }
         }
 
-        assertEquals(null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
+        assertEquals(
+            null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
         engine.release()
         failingEngine.release()
         IOSAudioPlayerBridge.provider = null
@@ -343,7 +382,9 @@ class IOSAudioPlayerBridgeTest {
         provider.simulateInterruptionEnded(shouldResume = true)
 
         assertEquals(playCallsBeforeInterruption + 1, provider.playCallCount)
-        assertEquals(2, session.recording.statuses.count { it == PlaybackStatus.Playing })
+        assertEquals(
+            2,
+            session.recording.statuses.count { it == PlaybackStatus.Playing })
         session.engine.release()
         IOSAudioPlayerBridge.provider = null
     }
@@ -367,6 +408,7 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
     private var positionMillis: Long = 0L
     private var durationMillis: Long? = null
     private var playing = false
+
     override fun load(filePath: String): Boolean {
         durationMillis = 1_000L
         positionMillis = 0L

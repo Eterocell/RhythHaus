@@ -10,12 +10,17 @@ public interface IOSAudioPlayerCompletionHandler {
     public fun onPlaybackCompleted(): Unit
 }
 
-/** Receives system-initiated interruption and route events from the audio bridge. */
+/**
+ * Receives system-initiated interruption and route events from the audio
+ * bridge.
+ */
 public interface IOSAudioInterruptionHandler {
     /** System interrupted an actively-playing session. */
     public fun onInterruptionBegan()
 
-    /** Ends an interruption; [shouldResume] is the system resume recommendation. */
+    /**
+     * Ends an interruption; [shouldResume] is the system resume recommendation.
+     */
     public fun onInterruptionEnded(shouldResume: Boolean)
 
     /** The active output route disconnected. */

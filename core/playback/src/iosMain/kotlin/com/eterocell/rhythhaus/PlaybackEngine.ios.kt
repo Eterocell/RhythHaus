@@ -48,6 +48,7 @@ private class IOSPlaybackEngine(
     override var listener: PlaybackEngineListener?
         get() = withIOSPlaybackMainThread { confinedListener }
         set(value) = withIOSPlaybackMainThread { confinedListener = value }
+
     private var audioProvider: IOSAudioPlayerProvider? = null
     private var loadedTrack: PlayableTrack? = null
     private var durationMillis: Long? = null
@@ -62,6 +63,7 @@ private class IOSPlaybackEngine(
     private var activeGeneration: Long = 0L
     private var sourceVersion: Long = 0L
     private val remoteTransportGate = IOSRemoteTransportGate()
+
     init {
         // MPRemoteCommandCenter must be configured on the main thread so the
         // Lock Screen UI layer picks up the enabled command state. Registration
@@ -84,7 +86,8 @@ private class IOSPlaybackEngine(
                         audioProvider?.currentPositionMillis()
                             ?: durationMillis
                             ?: 0L
-                    listener?.onPlaybackProgress(generation, pos, durationMillis)
+                    listener?.onPlaybackProgress(
+                        generation, pos, durationMillis)
                     listener?.onPlaybackCompleted(generation)
                 }
             }
@@ -94,16 +97,21 @@ private class IOSPlaybackEngine(
         object : IOSAudioInterruptionHandler {
             override fun onInterruptionBegan() {
                 withIOSPlaybackMainThread began@{
-                    if (!isCurrentSource(generation, version) || !playbackActive) return@began
+                    if (!isCurrentSource(generation, version) ||
+                        !playbackActive)
+                        return@began
                     wasPlayingBeforeInterruption = true
                     playbackActive = false
                     progressJob?.cancel()
                     val provider = audioProvider ?: return@began
                     provider.pause()
                     val pos = provider.currentPositionMillis()
-                    updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
-                    listener?.onPlaybackProgress(generation, pos, durationMillis)
-                    listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+                    updateNowPlayingInfo(
+                        positionMillis = pos, playbackRate = 0.0)
+                    listener?.onPlaybackProgress(
+                        generation, pos, durationMillis)
+                    listener?.onPlaybackStatus(
+                        generation, PlaybackStatus.Paused)
                 }
             }
 
@@ -120,7 +128,8 @@ private class IOSPlaybackEngine(
                         positionMillis = provider.currentPositionMillis(),
                         playbackRate = 1.0,
                     )
-                    listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
+                    listener?.onPlaybackStatus(
+                        generation, PlaybackStatus.Playing)
                     startProgressLoop(generation, version)
                 }
             }
@@ -135,9 +144,12 @@ private class IOSPlaybackEngine(
                     val provider = audioProvider ?: return@route
                     provider.pause()
                     val pos = provider.currentPositionMillis()
-                    updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
-                    listener?.onPlaybackProgress(generation, pos, durationMillis)
-                    listener?.onPlaybackStatus(generation, PlaybackStatus.Paused)
+                    updateNowPlayingInfo(
+                        positionMillis = pos, playbackRate = 0.0)
+                    listener?.onPlaybackProgress(
+                        generation, pos, durationMillis)
+                    listener?.onPlaybackStatus(
+                        generation, PlaybackStatus.Paused)
                 }
             }
         }
@@ -184,7 +196,8 @@ private class IOSPlaybackEngine(
                 }
             playbackLog.d { "Player path: $path" }
             provider.completionHandler = completionHandler(generation, version)
-            provider.interruptionHandler = interruptionHandler(generation, version)
+            provider.interruptionHandler =
+                interruptionHandler(generation, version)
             if (!provider.load(path)) {
                 val errorMsg = "Cannot play: ${track.title}"
                 playbackLog.e { errorMsg }
@@ -276,8 +289,10 @@ private class IOSPlaybackEngine(
             while (isActive) {
                 delay(250)
                 val current = withIOSPlaybackMainThread {
-                    if (!isCurrentSource(generation, version)) return@withIOSPlaybackMainThread false
-                    val provider = audioProvider ?: return@withIOSPlaybackMainThread false
+                    if (!isCurrentSource(generation, version))
+                        return@withIOSPlaybackMainThread false
+                    val provider =
+                        audioProvider ?: return@withIOSPlaybackMainThread false
                     val pos = provider.currentPositionMillis()
                     if (provider.isPlaying()) {
                         listener?.onPlaybackProgress(
@@ -384,7 +399,8 @@ private class IOSPlaybackEngine(
                         if (provider != null && provider.play()) {
                             playbackActive = true
                             updateNowPlayingInfo(
-                                positionMillis = provider.currentPositionMillis(),
+                                positionMillis =
+                                    provider.currentPositionMillis(),
                                 playbackRate = 1.0)
                             listener?.onPlaybackStatus(
                                 activeGeneration, PlaybackStatus.Playing)
@@ -405,7 +421,8 @@ private class IOSPlaybackEngine(
                     remoteTransportGate.perform {
                         val provider = audioProvider
                         if (provider != null) {
-                            if (provider.isPlaying()) pauseSerialized() else playSerialized()
+                            if (provider.isPlaying()) pauseSerialized()
+                            else playSerialized()
                         }
                     }
                 }

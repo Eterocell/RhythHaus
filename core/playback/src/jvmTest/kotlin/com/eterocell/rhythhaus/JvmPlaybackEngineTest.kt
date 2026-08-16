@@ -75,7 +75,10 @@ class JvmPlaybackEngineTest {
     @Test
     fun macOSNativeReleaseCompletesWhenStartedOnRouteQueue() {
         val bridge = MacAudioPlayerBridge()
-        val handleField = bridge.javaClass.getDeclaredField("handle").apply { isAccessible = true }
+        val handleField =
+            bridge.javaClass.getDeclaredField("handle").apply {
+                isAccessible = true
+            }
         try {
             val handle = handleField.getLong(bridge)
             assertTrue(nativeReleaseOnRouteQueueForTest(handle))
@@ -118,9 +121,11 @@ class JvmPlaybackEngineTest {
     fun macOSRouteDisconnectIsIgnoredWhenPlaybackIsInactive() {
         val bridge = MacAudioPlayerBridge()
         try {
-            assertTrue(bridge.simulateRouteSnapshotForTest(longArrayOf(10L), 10L))
+            assertTrue(
+                bridge.simulateRouteSnapshotForTest(longArrayOf(10L), 10L))
             bridge.pause()
-            assertTrue(bridge.simulateRouteSnapshotForTest(longArrayOf(20L), 20L))
+            assertTrue(
+                bridge.simulateRouteSnapshotForTest(longArrayOf(20L), 20L))
             assertFalse(bridge.consumeRouteDisconnected())
         } finally {
             bridge.releasePlayer()
@@ -151,19 +156,34 @@ class JvmPlaybackEngineTest {
         val pausedLatch = CountDownLatch(1)
         engine.listener =
             object : PlaybackEngineListener {
-                override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) {
+                override fun onPlaybackStatus(
+                    generation: Long,
+                    status: PlaybackStatus
+                ) {
                     synchronized(statuses) {
                         statuses += status
-                        if (status == PlaybackStatus.Paused && PlaybackStatus.Playing in statuses) {
+                        if (status == PlaybackStatus.Paused &&
+                            PlaybackStatus.Playing in statuses) {
                             pausedLatch.countDown()
                         }
                     }
                 }
 
-                override fun onPlaybackProgress(generation: Long, positionMillis: Long, durationMillis: Long?) = Unit
+                override fun onPlaybackProgress(
+                    generation: Long,
+                    positionMillis: Long,
+                    durationMillis: Long?
+                ) = Unit
+
                 override fun onPlaybackCompleted(generation: Long) = Unit
-                override fun onPlaybackError(generation: Long, error: PlaybackError) = Unit
+
+                override fun onPlaybackError(
+                    generation: Long,
+                    error: PlaybackError
+                ) = Unit
+
                 override fun onSkipToNext(generation: Long) = Unit
+
                 override fun onSkipToPrevious(generation: Long) = Unit
             }
         try {
@@ -186,7 +206,11 @@ class JvmPlaybackEngineTest {
             assertTrue(pausedLatch.await(1, TimeUnit.SECONDS))
             synchronized(statuses) {
                 val playingIndex = statuses.indexOf(PlaybackStatus.Playing)
-                assertEquals(1, statuses.drop(playingIndex + 1).count { it == PlaybackStatus.Paused })
+                assertEquals(
+                    1,
+                    statuses.drop(playingIndex + 1).count {
+                        it == PlaybackStatus.Paused
+                    })
             }
             assertTrue(bridge.nowPlayingPositionMillisForTest() >= 200L)
             assertFalse(bridge.isPlayingForTest())
@@ -208,12 +232,21 @@ class JvmPlaybackEngineTest {
         val replaceOnRouteLossProgress = AtomicBoolean(false)
         engine.listener =
             object : PlaybackEngineListener {
-                override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) {
+                override fun onPlaybackStatus(
+                    generation: Long,
+                    status: PlaybackStatus
+                ) {
                     synchronized(statuses) { statuses += generation to status }
                 }
 
-                override fun onPlaybackProgress(generation: Long, positionMillis: Long, durationMillis: Long?) {
-                    if (generation == 3L && replaceOnRouteLossProgress.get() && routeLossProgress.count == 1L) {
+                override fun onPlaybackProgress(
+                    generation: Long,
+                    positionMillis: Long,
+                    durationMillis: Long?
+                ) {
+                    if (generation == 3L &&
+                        replaceOnRouteLossProgress.get() &&
+                        routeLossProgress.count == 1L) {
                         routeLossProgress.countDown()
                         runBlocking {
                             engine.loadPaused(
@@ -223,7 +256,9 @@ class JvmPlaybackEngineTest {
                                     artist = "Test",
                                     album = null,
                                     durationMillis = null,
-                                    source = AudioSource.FilePath(secondWavPath.toString()),
+                                    source =
+                                        AudioSource.FilePath(
+                                            secondWavPath.toString()),
                                 ),
                                 generation = 4L,
                             )
@@ -233,8 +268,14 @@ class JvmPlaybackEngineTest {
                 }
 
                 override fun onPlaybackCompleted(generation: Long) = Unit
-                override fun onPlaybackError(generation: Long, error: PlaybackError) = Unit
+
+                override fun onPlaybackError(
+                    generation: Long,
+                    error: PlaybackError
+                ) = Unit
+
                 override fun onSkipToNext(generation: Long) = Unit
+
                 override fun onSkipToPrevious(generation: Long) = Unit
             }
         try {
@@ -259,9 +300,11 @@ class JvmPlaybackEngineTest {
             assertTrue(routeLossProgress.await(1, TimeUnit.SECONDS))
             assertTrue(replaced.await(1, TimeUnit.SECONDS))
             synchronized(statuses) {
-                assertFalse(statuses.dropWhile { it != (3L to PlaybackStatus.Playing) }
-                    .drop(1)
-                    .any { it == 3L to PlaybackStatus.Paused })
+                assertFalse(
+                    statuses
+                        .dropWhile { it != (3L to PlaybackStatus.Playing) }
+                        .drop(1)
+                        .any { it == 3L to PlaybackStatus.Paused })
                 assertTrue((4L to PlaybackStatus.Paused) in statuses)
             }
         } finally {
@@ -281,9 +324,14 @@ class JvmPlaybackEngineTest {
         var replacing = false
         engine.listener =
             object : PlaybackEngineListener {
-                override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) {
+                override fun onPlaybackStatus(
+                    generation: Long,
+                    status: PlaybackStatus
+                ) {
                     synchronized(events) { events += generation to status.name }
-                    if (generation == 3L && status == PlaybackStatus.Loading && !replacing) {
+                    if (generation == 3L &&
+                        status == PlaybackStatus.Loading &&
+                        !replacing) {
                         replacing = true
                         runBlocking {
                             engine.loadPaused(
@@ -293,7 +341,9 @@ class JvmPlaybackEngineTest {
                                     artist = "Test",
                                     album = null,
                                     durationMillis = null,
-                                    source = AudioSource.FilePath(secondWavPath.toString()),
+                                    source =
+                                        AudioSource.FilePath(
+                                            secondWavPath.toString()),
                                 ),
                                 generation = 4L,
                             )
@@ -301,13 +351,23 @@ class JvmPlaybackEngineTest {
                     }
                 }
 
-                override fun onPlaybackProgress(generation: Long, positionMillis: Long, durationMillis: Long?) {
+                override fun onPlaybackProgress(
+                    generation: Long,
+                    positionMillis: Long,
+                    durationMillis: Long?
+                ) {
                     synchronized(events) { events += generation to "Progress" }
                 }
 
                 override fun onPlaybackCompleted(generation: Long) = Unit
-                override fun onPlaybackError(generation: Long, error: PlaybackError) = Unit
+
+                override fun onPlaybackError(
+                    generation: Long,
+                    error: PlaybackError
+                ) = Unit
+
                 override fun onSkipToNext(generation: Long) = Unit
+
                 override fun onSkipToPrevious(generation: Long) = Unit
             }
         try {
@@ -325,9 +385,11 @@ class JvmPlaybackEngineTest {
                 )
             }
             synchronized(events) {
-                assertFalse(events.dropWhile { it != (3L to PlaybackStatus.Loading.name) }
-                    .drop(1)
-                    .any { it.first == 3L })
+                assertFalse(
+                    events
+                        .dropWhile { it != (3L to PlaybackStatus.Loading.name) }
+                        .drop(1)
+                        .any { it.first == 3L })
                 assertTrue(events.contains(4L to PlaybackStatus.Loading.name))
                 assertTrue(events.contains(4L to PlaybackStatus.Paused.name))
             }
@@ -872,8 +934,11 @@ class JvmPlaybackEngineTest {
         }
         return controller.state.value.status == status
     }
+
     private companion object {
         @JvmStatic
-        private external fun nativeReleaseOnRouteQueueForTest(handle: Long): Boolean
+        private external fun nativeReleaseOnRouteQueueForTest(
+            handle: Long
+        ): Boolean
     }
 }
