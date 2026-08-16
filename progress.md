@@ -3996,3 +3996,33 @@ Output: iOS implementation commits `3593130`, `d36cafc`, `c850abf`; macOS implem
 Verification: focused `:core:playback:iosSimulatorArm64Test` and `:core:playback:jvmTest`, full `:core:playback:jvmTest`, `:core:playback:compileKotlinJvm`, `:core:playback:buildMacosAudioHelper --rerun-tasks`, generic iOS Simulator Xcode consumer build, `spotlessApply`, `spotlessCheck`, and `detekt` passed. `openspec validate system-playback-interruption-tracking --strict` passed.
 Next owner: resolve the pre-existing shared iOS timeout and existing `dependencyUpdatesAggregation` architecture-cycle diagnostics, then rerun aggregate verification and archive the OpenSpec change.
 Blockers: `LibraryPlaybackSelectionTest.savedPlaylistSelectionStartsTheSelectedDuplicateOccurrence` fails with `TimeoutCancellationException` during `:shared:iosSimulatorArm64Test`; `./init.sh` reached the same failure and exceeded the 900-second command limit. `architectureCheck` fails with `ARCH-CYCLE : -> :` from `dependencyUpdatesAggregation`. Physical AirPods takeover, calls, Siri, and real route removal remain unverified.
+
+## Handoff - 2026-08-16 scan-local-audio-folders completion
+
+Route: openspec+superpowers
+Owner: implementation and lifecycle complete
+Input: implementation commit `3e93a26` (`feat: harden local library scan management`) and completed `scan-local-audio-folders` OpenSpec change.
+Output: `removeMissingTracks(sourceId, requestedScanId)` accepts only the same-source latest Completed scan ordered by completion/start/id, validates and deletes transactionally with explicit results/reasons; terminal restore is global-latest and SQL changes are query-only (no migration). The App operation coordinator serializes scan/remove-missing/remove-source/clear, cooperatively cancels and joins scans before writes, token-guards combined library+playlist publication, uses NonCancellable cleanup and exception conversion, and restores coherent terminal state/errors while ignoring active or missing sources. Production Library manager states/actions, compact/wide shell wiring, no-result picker preservation, reconciliation/playback integration, and stale/rejected publication boundaries are covered. Independent acceptance review PASS for OpenSpec 5.2/5.3/6.1 and implementation safety.
+Verification: focused API/repository/SQLDelight/database generation+migration/build and Shared/feature UI suites passed; full `:shared:jvmTest` passed. `spotlessApply`, standalone `spotlessCheck`, standalone `detekt`, strict `architectureCheck --no-daemon`, and final `./init.sh` passed. Final init: Shared JVM `BUILD SUCCESSFUL in 7s` (376 actionable: 24 executed, 352 up-to-date); Xcode 26.6 build 17F113; iOS simulator `BUILD SUCCESSFUL in 23s` (171 actionable: 41 executed, 130 up-to-date); harness verification complete. Only existing `No cast needed` warnings in `AppScanCancellationTest`. `openspec validate scan-local-audio-folders --strict` passed before archive; its `local-library-scanning` delta was synced to canonical `openspec/specs/local-library-scanning/spec.md`, which passed strict validation; archive moved to `openspec/changes/archive/2026-08-16-scan-local-audio-folders/`; active `openspec list --json` no longer includes it; `git diff --check` passed.
+Next owner: user/manual physical runtime QA for Android/iOS/macOS folder picker, real filesystem scan, rendered UI/visual/accessibility, and device playback interactions; these remain unverified follow-up evidence, not automated blockers.
+Blockers: none for automated completion.
+Commit: implementation `3e93a26` (`feat: harden local library scan management`); lifecycle commit pending (parent will replace/update after commit if needed).
+
+## Handoff - 2026-08-16 scan-local-audio-folders completion
+
+Route: openspec+superpowers
+Owner: implementation and lifecycle complete
+Input: completed `scan-local-audio-folders` change and implementation commit `3e93a26` (`feat: harden local library scan management`).
+Output:
+- `removeMissingTracks(sourceId, requestedScanId)` accepts only the same source's latest `Completed` scan ordered by completion time, start time, and id; validation and deletion are transactional and return explicit success/rejection results. The repository also exposes global latest-terminal restoration. These are query-only SQL changes; no migration was added.
+- One App-owned coordinator and orchestrator serialize scan, remove-missing, remove-source, and clear operations. Destructive work cooperatively cancels and joins scans before repository writes; operation tokens guard combined library/playlist publication; cleanup is non-cancellable; failures are converted consistently.
+- Startup restores one coherent eligible terminal scan plus errors and ignores active, cancelling, and missing-source outcomes. The Library manager covers empty, scanning, completed, cancelled, failed, and lost-access states, compact/wide shell wiring, picker no-result preservation, playback reconciliation, and stale/rejected publication behavior.
+- Independent acceptance review passed OpenSpec Tasks 5.2, 5.3, and 6.1 and the complete implementation-safety checkpoint.
+Verification:
+- Focused API, in-memory repository, SQLDelight repository, database generation/migration/build, Shared orchestration, mutation, restoration, and Library UI suites passed.
+- Full `:shared:jvmTest`, `spotlessApply`, standalone `spotlessCheck`, standalone `detekt`, and strict `architectureCheck --no-daemon` passed.
+- Final `./init.sh` passed: Shared JVM `BUILD SUCCESSFUL in 7s` (376 actionable tasks: 24 executed, 352 up-to-date); Xcode 26.6 build 17F113; iOS simulator `BUILD SUCCESSFUL in 23s` (171 actionable tasks: 41 executed, 130 up-to-date); harness verification complete. Only two existing `No cast needed` warnings remained in `AppScanCancellationTest.kt`.
+- `openspec validate scan-local-audio-folders --strict` passed before archival. The delta spec was synchronized to the new canonical `openspec/specs/local-library-scanning/spec.md`, which passed strict validation. The change moved to `openspec/changes/archive/2026-08-16-scan-local-audio-folders/`, and `openspec list --json` no longer includes it. `git diff --check` passed.
+Next owner: user/manual physical runtime QA.
+Blockers: none for automated completion. Physical Android/iOS/macOS folder picker behavior, real filesystem scanning, rendered runtime UI/visual/accessibility, and device playback interactions remain unverified follow-up evidence.
+Commit: implementation `3e93a26`; lifecycle is recorded in the commit containing this handoff.
