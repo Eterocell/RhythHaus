@@ -1,6 +1,8 @@
 package com.eterocell.gradle.architecture
 
 import java.io.File
+import java.util.Collections
+import java.util.IdentityHashMap
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.ProjectDependency
@@ -19,6 +21,14 @@ public class ArchitectureCheckPlugin : Plugin<Project> {
             group = "verification"
             description = "Checks the configured project architecture."
         }
+        val versionsPluginAggregationDependencies =
+            Collections.newSetFromMap(IdentityHashMap<ProjectDependency, Boolean>())
+        project.pluginManager.withPlugin("com.github.ben-manes.versions") {
+            project.configurations.findByName("dependencyUpdatesAggregation")
+                ?.dependencies
+                ?.withType(ProjectDependency::class.java)
+                ?.forEach(versionsPluginAggregationDependencies::add)
+        }
         project.gradle.projectsEvaluated {
             architectureCheck.configure {
                 val projects = project.allprojects.sortedBy(Project::getPath)
@@ -30,6 +40,7 @@ public class ArchitectureCheckPlugin : Plugin<Project> {
                             .count { dependency -> dependency.path == consumer.path }
                         configuration.dependencies.withType(ProjectDependency::class.java)
                             .filterNot { dependency ->
+                                val isVersionsPluginAggregation = dependency in versionsPluginAggregationDependencies
                                 val isKspRegistration = registry.kspRegistrations.any { registration ->
                                     dependency.path == registration.processor &&
                                         consumer.path == registration.module &&
@@ -42,7 +53,7 @@ public class ArchitectureCheckPlugin : Plugin<Project> {
                                         providerPath = dependency.path,
                                         directSelfDependencyCount = directSelfDependencyCount,
                                     )
-                                isKspRegistration || isAndroidSyntheticSelfDependency
+                                isVersionsPluginAggregation || isKspRegistration || isAndroidSyntheticSelfDependency
                             }
                             .map { "${consumer.path}|${configuration.name}|${it.path}" }
                     }

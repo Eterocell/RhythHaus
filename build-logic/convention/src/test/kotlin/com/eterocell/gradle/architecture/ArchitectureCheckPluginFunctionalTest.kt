@@ -103,6 +103,25 @@ class ArchitectureCheckPluginFunctionalTest {
             ),
         )
 
+    @Test
+    fun versionsPluginAggregationSelfDependencyIsToolingAndNotAnArchitectureEdge() {
+        val result = runner(versionsPluginFixture()).build()
+
+        assertTrue(!result.output.contains("ARCH-CYCLE : -> :"), result.output)
+        assertTrue(!result.output.contains("ARCH-EDGE : [dependencyUpdatesAggregation] -> :"), result.output)
+    }
+
+    @Test
+    fun authoredVersionsPluginAggregationSelfDependencyRemainsAnArchitectureEdge() {
+        assertExactFailure(
+            versionsPluginFixture(addAuthoredAggregationSelfDependency = true),
+            listOf(
+                "ARCH-CYCLE : -> :",
+                "ARCH-EDGE : [dependencyUpdatesAggregation] -> :",
+            ),
+        )
+    }
+
     @Test fun manuallyCreatedKmpKspConfigurationIsNotTooling() =
         assertFailure(Mutation.ProductionKspProcessor, listOf("ARCH-EDGE"), ":architecture-processor")
 
@@ -1831,6 +1850,19 @@ class ArchitectureCheckPluginFunctionalTest {
             null -> Unit
         }
         return projectDir
+    }
+
+    private fun versionsPluginFixture(addAuthoredAggregationSelfDependency: Boolean = false): File = fixture().also { projectDir ->
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("build-logic.architecture-check")
+                id("com.github.ben-manes.versions") version "0.61.0"
+            }
+
+            ${if (addAuthoredAggregationSelfDependency) "dependencies { add(\"dependencyUpdatesAggregation\", project(\":\")) }" else ""}
+            """.trimIndent(),
+        )
     }
 
     private fun corePlaybackFixture(
