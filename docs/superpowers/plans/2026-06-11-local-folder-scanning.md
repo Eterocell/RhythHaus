@@ -8,6 +8,69 @@
 
 **Tech Stack:** Kotlin Multiplatform, Compose Multiplatform, Kotlin coroutines/StateFlow, SQLDelight 2.3.2, Android Storage Access Framework, JVM `java.nio.file`, Kotlin/Native Foundation APIs for iOS app-local storage.
 
+## Planning Amendment: Ora-10/Ora-11 TDD Checkpoints
+
+This amendment supersedes the earlier coarse Tasks 2-8 execution sequence for the remaining implementation. The earlier file inventory and platform examples remain context only; the independently reviewable checkpoints below are authoritative. They do not claim any newly amended requirement is implemented or complete.
+
+### Checkpoint A: Production repository contract
+
+**Exact files:**
+
+- `feature/library/api/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryRepository.kt`
+- `feature/library/api/src/commonMain/kotlin/com/eterocell/rhythhaus/library/RemoveMissingTracksResult.kt`
+- `feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryRepository.kt`
+- `feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepository.kt`
+- `core/database/src/commonMain/sqldelight/com/eterocell/rhythhaus/library/ScanSession.sq`
+- `feature/library/api/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryApiContractTest.kt`
+- `feature/library/impl/src/commonTest/kotlin/com/eterocell/rhythhaus/library/LibraryRepositoryContractTest.kt`
+- `feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepositoryJvmTest.kt`
+
+**Interfaces:** `removeMissingTracks(sourceId: String, requestedScanId: String): RemoveMissingTracksResult`, with `Removed(count)` and `Rejected(reason)` branches carrying `RemoveMissingTracksRejectionReason`, all defined in the API module. The remove-missing query accepts only the same source's authoritative latest valid `Completed` session, ordered by `completedAtEpochMillis DESC`, `startedAtEpochMillis DESC`, `id DESC`, and validates plus deletes in one transaction. Separately, `latestTerminalScanSession(): ScanSession?` is global across `Completed`, `Cancelled`, and `Failed`, ordered by `COALESCE(completedAtEpochMillis, startedAtEpochMillis) DESC`, `startedAtEpochMillis DESC`, `id DESC`; App suppresses restoration if that session's source no longer exists. The query-only change must not add a migration.
+
+**TDD:** First run `./gradlew :feature:library:api:jvmTest --tests '*LibraryApiContractTest' --configuration-cache` and retain RED for the exact API signature and discriminated result. Then run `./gradlew :feature:library:impl:jvmTest --tests '*LibraryRepositoryContractTest' --tests '*SqlDelightLibraryRepositoryJvmTest' --configuration-cache` and retain RED for the rejection matrix, stale-session, ordering, error-loading, and atomicity cases. Implement the API, in-memory, SQLDelight repository, and `ScanSession.sq` query contract, then run both commands again for GREEN. Verify generation, migration consistency, and database build with `./gradlew :core:database:generateCommonMainRhythHausDatabaseInterface :core:database:verifyCommonMainRhythHausDatabaseMigration :core:database:build --configuration-cache`.
+
+### Checkpoint B: Single App operation coordinator
+
+**Exact files:**
+
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/AppScanCancellationTest.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/LibrarySourceManagementTest.kt`
+
+**Interfaces:** one App-owned coordinator in the existing App orchestration path with operation-token admission, `scan`, `removeMissing`, `removeSource`, and `clear`; injectable cancellation awaiter; token-validated scan/progress and combined library-plus-playlist publication; serialized repository mutations; explicit repeated-click rejection. Source removal and clear are not new atomic repository operations.
+
+**TDD:** Run `./gradlew :shared:jvmTest --tests '*AppScanCancellationTest' --tests '*LibrarySourceManagementTest' --configuration-cache` before implementation for RED. Implement cancellation-await-before-write, race serialization, stale-publication rejection, repeated-click rejection, playback reconciliation, and playlist refresh. Run the same command for GREEN.
+
+### Checkpoint C: Startup restoration
+
+**Exact files:**
+
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+- `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/AppScanCancellationTest.kt`
+- `feature/library/api/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryRepository.kt`
+- `core/database/src/commonMain/sqldelight/com/eterocell/rhythhaus/library/ScanSession.sq`
+
+**Interface:** `latestTerminalScanSession(): ScanSession?` returns the global latest terminal `Completed`, `Cancelled`, or `Failed` session plus persisted errors. Its ordering is `COALESCE(completedAtEpochMillis, startedAtEpochMillis) DESC`, `startedAtEpochMillis DESC`, `id DESC`. Active and `Cancelling` sessions are ignored, and App suppresses restoration when the returned session's source does not exist. This feeds the single scan outcome panel.
+
+**TDD:** Run `./gradlew :shared:jvmTest --tests '*AppScanCancellationTest' --configuration-cache` for RED, implement startup restoration, then rerun for GREEN. Confirm the schema/migration inventory remains unchanged.
+
+### Checkpoint D: Production Library manager wiring
+
+**Exact files:**
+
+- `feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContent.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryAppShell.kt`
+- `feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContentJvmTest.kt`
+- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`
+
+**Boundary:** preserve the current intended empty/add-source, scanning/cancel, completed/rescan/add-source/remove-missing/report, cancelled/retry, failed/retry/report, and lost-access/recovery states/actions. Compact and wide production surfaces delegate to the one coordinator. Picker cancellation/recovery, playback reconciliation, playlist refresh, and repeated clicks are tested at this boundary.
+
+**TDD:** Run `./gradlew :feature:library:impl:jvmTest --tests '*LibraryHomeContentJvmTest' --configuration-cache` for RED, implement only the wiring needed for the existing states/actions, then run `./gradlew :feature:library:impl:jvmTest :shared:jvmTest :desktopApp:compileKotlin --configuration-cache` for GREEN.
+
+### Checkpoint E: Combined acceptance
+
+Run the focused commands from Checkpoints A-D, inspect production wiring and the migration inventory, then run `openspec validate scan-local-audio-folders --strict` and `git diff --check`. Run `./init.sh` only for the authorized implementation lane. Do not check off amended requirements or claim implementation completion from this planning amendment.
+
 ---
 
 ## Source Design Inputs
@@ -29,10 +92,12 @@ Create these focused files instead of growing `App.kt` further:
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryModels.kt` — source, track, scan state, scan error, audio candidate models.
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/SupportedAudio.kt` — supported audio extension checks shared by platform scanners.
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryDatabase.kt` — database driver factory expect, database construction, row mapping helpers.
-- `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryRepository.kt` — repository interface and SQLDelight implementation.
+- `feature/library/api/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryRepository.kt` — stable repository interface and result contract.
+- `feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryRepository.kt` — in-memory repository implementation.
+- `feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/SqlDelightLibraryRepository.kt` — SQLDelight repository implementation.
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryScanner.kt` — shared scan orchestration, progress, cancellation, remove-missing.
 - `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/LibraryManagerUi.kt` — shared Compose manager surface extracted from `App.kt`.
-- `shared/src/commonMain/sqldelight/com/eterocell/rhythhaus/library/RhythHausDatabase.sq` — SQLDelight schema and queries.
+- `core/database/src/commonMain/sqldelight/com/eterocell/rhythhaus/library/ScanSession.sq` — scan-session queries and terminal-session ordering.
 - `shared/src/androidMain/kotlin/com/eterocell/rhythhaus/library/LibraryPlatform.android.kt` — Android driver, SAF picker/source access, recursive traversal.
 - `shared/src/jvmMain/kotlin/com/eterocell/rhythhaus/library/LibraryPlatform.jvm.kt` — JVM driver, native folder picker, recursive filesystem traversal.
 - `shared/src/iosMain/kotlin/com/eterocell/rhythhaus/library/LibraryPlatform.ios.kt` — Native driver, app-local music folder source and scanner.
