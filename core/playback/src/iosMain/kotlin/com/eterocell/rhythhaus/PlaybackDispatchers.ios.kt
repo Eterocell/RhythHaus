@@ -7,10 +7,14 @@ import kotlinx.coroutines.withContext
 import platform.Foundation.NSThread
 
 internal actual val playbackEngineDispatcher: CoroutineDispatcher =
-    Dispatchers.Main
+    Dispatchers.Default
 
-/** Runs an iOS playback operation on the single owner of native playback state. */
-internal inline fun <T> withIOSPlaybackMainThread(crossinline block: () -> T): T {
+/**
+ * Runs an iOS playback operation on the single owner of native playback state.
+ */
+internal inline fun <T> withIOSPlaybackMainThread(
+    crossinline block: () -> T
+): T {
     if (NSThread.isMainThread) return block()
     return runBlocking(Dispatchers.Main.immediate) { block() }
 }
