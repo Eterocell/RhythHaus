@@ -1,3 +1,13 @@
+## Handoff - 2026-08-16 playlist-dialog-polish visual QA retry
+
+Route: openspec+superpowers
+Owner: documentation/evidence closeout
+Input: `.superpowers/sdd/playlist-dialog-polish-visual-qa-report.md`
+Output: Updated OpenSpec Task 4.2 evidence and roadmap status. The real desktop app was visible at 800x600 and a full-screen 3840x2160 PNG was generated, but Compose Desktop accessibility attachment failed; targeted window capture and wide resize failed; and the PNG pixels were not renderable by review tooling. No visual/theme/dialog-family/interaction pass is claimed. Prior partial 800x600/1728x1084 semantic evidence is preserved.
+Verification: `openspec validate playlist-dialog-polish --strict` and `git diff --check` are required for this documentation-only update.
+Next owner: manual QA in an active macOS desktop session with a screen reader/automation tool that can attach to Compose Desktop `MainKt`, or a human-operated session: set 800x600 and 1728x1084, test Light and Dark, exercise every migrated dialog family and playlist control, and save renderable per-state PNGs for pixel review; record keyboard/pointer outcomes separately.
+Blockers: Task 4.2 remains unchecked/open; runtime visual QA is blocked by the tooling limitations recorded in the unique report above. No commit.
+
 ## Handoff - 2026-08-10 Task 5.4 Settings closeout
 
 Route: openspec+superpowers
