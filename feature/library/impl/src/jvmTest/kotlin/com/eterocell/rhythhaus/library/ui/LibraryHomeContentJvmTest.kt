@@ -15,6 +15,8 @@ import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
@@ -386,6 +388,63 @@ class LibraryHomeContentJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun scanReportRemainsExpandedAfterManagerLazyItemIsRecreated() =
+        runComposeUiTest {
+            val source = source()
+            val session = session(ScanStatus.Completed)
+            setContent {
+                Box(Modifier.size(800.dp, 600.dp)) {
+                    managerContent(
+                        sources = listOf(source),
+                        tracks = manyAlbumTracks(),
+                        browseMode = BrowseMode.Albums,
+                        progress = ScanProgress(session),
+                        errors = listOf(scanError(session)),
+                    )
+                }
+            }
+            waitForIdle()
+
+            onNode(hasText("View scan report")).performClick()
+            onNode(hasText("broken.mp3: Unsupported file")).assertExists()
+            onNode(hasScrollToIndexAction()).performTouchInput {
+                repeat(20) { swipeUp() }
+            }
+            waitForIdle()
+            onAllNodes(hasText("Hide scan report")).assertCountEquals(0)
+            onNode(hasScrollToIndexAction()).performScrollToIndex(0)
+            waitForIdle()
+
+            onNode(hasText("Hide scan report")).assertExists()
+            onNode(hasText("broken.mp3: Unsupported file")).assertExists()
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun scanReportCollapsesWhenDisplayedSessionChanges() = runComposeUiTest {
+        val source = source()
+        var displayedSession by mutableStateOf(session(ScanStatus.Completed))
+        setContent {
+            Box(Modifier.size(420.dp, 900.dp)) {
+                managerContent(
+                    sources = listOf(source),
+                    progress = ScanProgress(displayedSession),
+                    errors = listOf(scanError(displayedSession)),
+                )
+            }
+        }
+        waitForIdle()
+
+        onNode(hasText("View scan report")).performClick()
+        onNode(hasText("Hide scan report")).assertExists()
+        displayedSession = session(ScanStatus.Completed, id = "next-scan")
+        waitForIdle()
+
+        onNode(hasText("View scan report")).assertExists()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun completedScanManagerStateAndActionsMatchAtCompactAndWideContentWidths() =
         runComposeUiTest {
             val source = source()
@@ -688,6 +747,7 @@ class LibraryHomeContentJvmTest {
     private fun managerContent(
         sources: List<LibrarySource>,
         tracks: List<Track> = emptyList(),
+        browseMode: BrowseMode = BrowseMode.Songs,
         progress: ScanProgress? = null,
         errors: List<ScanError> = emptyList(),
         folderPickerLauncher: PlatformFolderPickerLauncher = StubPicker,
@@ -702,7 +762,7 @@ class LibraryHomeContentJvmTest {
             title = "Library",
             subtitle = "",
             tracks = tracks,
-            browseMode = BrowseMode.Songs,
+            browseMode = browseMode,
             folderPickerLauncher = folderPickerLauncher,
             sourcePickerActionVisible = sourcePickerActionVisible,
             sources = sources,
@@ -747,9 +807,9 @@ class LibraryHomeContentJvmTest {
             accessStatus = accessStatus,
         )
 
-    private fun session(status: ScanStatus): ScanSession =
+    private fun session(status: ScanStatus, id: String = "scan"): ScanSession =
         ScanSession(
-            id = "scan",
+            id = id,
             sourceId = "source",
             status = status,
             startedAtEpochMillis = 1L,
@@ -781,6 +841,18 @@ class LibraryHomeContentJvmTest {
                 title = "Track ${index + 1}",
                 album = "Album B",
                 artist = "Artist",
+                disc = 1,
+                number = index + 1,
+            )
+        }
+
+    private fun manyAlbumTracks(): List<Track> =
+        List(80) { index ->
+            track(
+                id = "scroll-${index + 1}",
+                title = "Scroll track ${index + 1}",
+                album = "Scroll album ${index + 1}",
+                artist = "Scroll artist",
                 disc = 1,
                 number = index + 1,
             )

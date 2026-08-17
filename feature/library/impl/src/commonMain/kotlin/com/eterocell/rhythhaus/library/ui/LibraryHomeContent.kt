@@ -154,6 +154,8 @@ public fun LibraryHomeContent(
     val albums = remember(tracks) { groupTracksByAlbum(tracks) }
     val artists = remember(tracks) { groupTracksByArtist(tracks) }
     val homeListState = rememberLazyListState()
+    var reportVisible by
+        remember(scanProgress?.session?.id) { mutableStateOf(false) }
     val trackIdSet = remember(tracks) { tracks.mapTo(mutableSetOf()) { it.id } }
     Box(modifier = Modifier.fillMaxSize()) {
         val homeTopContentPadding =
@@ -198,7 +200,11 @@ public fun LibraryHomeContent(
                                 mutationsEnabled = mutationsEnabled,
                                 scanProgress = scanProgress,
                                 scanErrors = scanErrors,
+                                reportVisible = reportVisible,
                                 onCancelScan = onCancelScan,
+                                onToggleReport = {
+                                    reportVisible = !reportVisible
+                                },
                                 onRecoverSource = folderPickerLauncher::launch,
                                 onRescanSource = onRescanSource,
                                 onRemoveSource = onRemoveSource,
@@ -391,14 +397,14 @@ private fun LibraryManagerCard(
     mutationsEnabled: Boolean,
     scanProgress: ScanProgress?,
     scanErrors: List<ScanError>,
+    reportVisible: Boolean,
     onCancelScan: () -> Unit,
+    onToggleReport: () -> Unit,
     onRecoverSource: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveSource: (LibrarySource) -> Unit,
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit,
 ) {
-    var reportVisible by
-        remember(scanProgress?.session?.id) { mutableStateOf(false) }
     val session = scanProgress?.session
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -440,7 +446,7 @@ private fun LibraryManagerCard(
                 errors = scanErrors,
                 reportVisible = reportVisible,
                 mutationsEnabled = mutationsEnabled,
-                onToggleReport = { reportVisible = !reportVisible },
+                onToggleReport = onToggleReport,
                 onRescanSource = onRescanSource,
                 onRemoveMissingTracks = onRemoveMissingTracks,
             )

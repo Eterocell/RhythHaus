@@ -8,14 +8,14 @@ import kotlin.test.assertTrue
 
 /**
  * Deterministically asserts the library resource ownership ledger by reading
- * the actual catalog XML files. The feature catalog owns exactly the 21 library
- * keys in both locales; `library_queue` and `album_artwork` remain
+ * the actual catalog XML files. The feature catalog owns the complete expected
+ * library key set in both locales; `library_queue` and `album_artwork` remain
  * Shared-owned; `selected` is absent from both Shared catalogs; and no key from
- * the 21 library keys or the 12 injected Shared label keys is duplicated across
+ * the library keys or the 12 injected Shared label keys is duplicated across
  * the feature and Shared catalogs.
  */
 class LibraryResourceOwnershipJvmTest {
-    private val library21 =
+    private val libraryKeys =
         listOf(
             "folder_picker_error_access",
             "folder_picker_error_select",
@@ -38,6 +38,23 @@ class LibraryResourceOwnershipJvmTest {
             "import_card_title",
             "import_card_title_with_tracks",
             "import_card_description",
+            "library_sources",
+            "library_empty",
+            "source_access_available",
+            "source_access_lost",
+            "scan_completed",
+            "scan_cancelled",
+            "scan_failed",
+            "scan_summary_format",
+            "rescan",
+            "retry_scan",
+            "remove_missing",
+            "view_scan_report",
+            "hide_scan_report",
+            "scan_report_empty",
+            "scan_report_error_format",
+            "remove_source",
+            "recover_source",
         )
 
     private val injected12 =
@@ -70,9 +87,9 @@ class LibraryResourceOwnershipJvmTest {
             "shared/src/commonMain/composeResources/values-zh/strings.xml")
 
     @Test
-    fun featureOwnsExactlyTheTwentyOneLibraryKeysInBothLocales() {
-        assertEquals(library21.toSet(), featureKeys(featureValues))
-        assertEquals(library21.toSet(), featureKeys(featureValuesZh))
+    fun featureOwnsExactlyTheExpectedLibraryKeysInBothLocales() {
+        assertEquals(libraryKeys.toSet(), featureKeys(featureValues))
+        assertEquals(libraryKeys.toSet(), featureKeys(featureValuesZh))
     }
 
     @Test
@@ -101,13 +118,13 @@ class LibraryResourceOwnershipJvmTest {
         val featureKeys = featureKeys(featureValues)
         val sharedKeys = featureKeys(sharedValues)
         val sharedZhKeys = featureKeys(sharedValuesZh)
-        (library21 + injected12).forEach { key ->
+        (libraryKeys + injected12).forEach { key ->
             val featureOwned = key in featureKeys
             val sharedOwned = key in sharedKeys
             assertTrue(
                 featureOwned != sharedOwned,
                 "key $key must be owned by exactly one of feature or shared")
-            if (key in library21) {
+            if (key in libraryKeys) {
                 assertTrue(
                     featureOwned, "library key $key must be feature-owned")
                 assertFalse(

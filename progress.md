@@ -4026,3 +4026,33 @@ Verification:
 Next owner: user/manual physical runtime QA.
 Blockers: none for automated completion. Physical Android/iOS/macOS folder picker behavior, real filesystem scanning, rendered runtime UI/visual/accessibility, and device playback interactions remain unverified follow-up evidence.
 Commit: implementation `3e93a26`; lifecycle is recorded in the commit containing this handoff.
+
+## Follow-up - 2026-08-17 desktop scan-manager runtime QA
+
+Route: systematic-debugging + RED/GREEN TDD
+Owner: implementation and desktop runtime verification
+Input: post-archive manual QA for `scan-local-audio-folders`.
+Root cause and fix:
+- In the real 800x600 desktop window, expanding the persisted scan report and scrolling the manager lazy item out of composition reset the report to collapsed when the item was recreated.
+- `reportVisible` was owned by `LibraryManagerCard`, which is itself a recyclable `LazyColumn.item`; its `remember(sessionId)` therefore had the same lifetime as that item.
+- `LibraryHomeContent` now owns the session-keyed report state and passes state/events into the manager card. Lazy-item disposal no longer loses expansion, while a different scan-session id still resets the report to collapsed.
+- The Library resource-ownership test ledger was also stale after the manager strings were added. Its exact expected set now includes all 38 feature-owned English/Chinese keys without changing production resources.
+Runtime evidence:
+- Real macOS/JVM picker opened from the production Add music folder action and was cancelled twice. The stable second attempt preserved the sole `JMetal` source, the terminal snapshot, and all seven persisted errors.
+- A production Rescan action entered the visible scanning state, exposed Cancel, disabled rescan/remove/add actions, and naturally completed at 10 folders, 104 files, 0 added, 97 updated, and 7 skipped.
+- The production report action exposed all seven persisted errors through the desktop accessibility tree. The rebuilt app still opened the report after the fix.
+- Orca wheel, drag, and PageDown injection did not produce an observable scroll offset in the rebuilt Compose window, so post-fix physical scrolling is not claimed. The production-composable regression supplies the disposal/recreation evidence instead.
+TDD and verification:
+- RED: `scanReportRemainsExpandedAfterManagerLazyItemIsRecreated` failed before the state-lifetime change after the real manager item was disposed and recreated.
+- GREEN: forced `:feature:library:impl:jvmTest --tests '*LibraryHomeContentJvmTest' --rerun-tasks` passed; the tests prove both expansion survival across disposal and collapse on scan-session replacement.
+- Forced full `:feature:library:impl:jvmTest --rerun-tasks` passed after synchronizing the stale exact resource ledger (`57/57` tasks executed).
+- `:feature:library:impl:compileKotlinIosSimulatorArm64`, `:desktopApp:compileKotlin`, and `:androidApp:assembleDebug` passed.
+- `:feature:library:impl:spotlessCheck` passed; `:feature:library:impl:detekt` completed successfully with `NO-SOURCE`.
+Changed files:
+- `feature/library/impl/src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContent.kt`
+- `feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/ui/LibraryHomeContentJvmTest.kt`
+- `feature/library/impl/src/jvmTest/kotlin/com/eterocell/rhythhaus/library/LibraryResourceOwnershipJvmTest.kt`
+- `progress.md` and `roadmap.md`
+Next owner: optional physical scroll confirmation and Android/iOS runtime picker/device QA.
+Blockers: none for the report-state fix or desktop picker/rescan smoke test. Physical post-fix scroll, Android/iOS runtime, and device playback remain unverified.
+Commit: recorded by the commit containing this systematic-debugging follow-up.
