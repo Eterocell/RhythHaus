@@ -35,6 +35,7 @@ import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
+import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.toPlayableTrack
@@ -159,9 +160,17 @@ internal fun LibraryRouteOverlays(
                 }
             var reportVisible by
                 remember(scanProgress?.session?.id) { mutableStateOf(false) }
-            val terminalSession = scanProgress?.session
+            val terminalSession =
+                scanProgress?.session?.takeIf { session ->
+                    session.status in
+                        setOf(
+                            ScanStatus.Completed,
+                            ScanStatus.Failed,
+                            ScanStatus.Cancelled,
+                        )
+                }
             val scanOutcomeContent: (@Composable () -> Unit)? =
-                if (terminalSession != null && scanProgress?.isActive != true) {
+                if (terminalSession != null) {
                     {
                         ScanOutcomePanel(
                             session = terminalSession,

@@ -35,6 +35,7 @@ import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
+import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
@@ -788,6 +789,58 @@ class SettingsRouteAdapterJvmTest {
             }
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun lostAccessSourceRecoveryLaunchesFolderPicker() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val picker = CountingPicker()
+                setContent {
+                    Box(Modifier.size(500.dp, 1600.dp)) {
+                        Harness(
+                            sources =
+                                listOf(
+                                    source(
+                                        "recover-me",
+                                        scanned = true,
+                                        lostAccess = true,
+                                    ),
+                                ),
+                            folderPickerLauncher = picker,
+                        )
+                    }
+                }
+                waitForIdle()
+
+                onNodeWithTag(
+                        "settings-recover-recover-me", useUnmergedTree = true)
+                    .performScrollTo()
+                    .performClick()
+                assertEquals(1, picker.launchCalls)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun idleSessionDoesNotRenderSettingsOutcomePanel() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                setContent {
+                    Box(Modifier.size(500.dp, 1600.dp)) {
+                        Harness(
+                            sources = listOf(source("source", scanned = true)),
+                            scanProgress =
+                                ScanProgress(scanSession(ScanStatus.Idle)),
+                        )
+                    }
+                }
+                waitForIdle()
+
+                onAllNodes(hasText("Scan complete")).assertCountEquals(0)
+                onAllNodes(hasText("View scan report")).assertCountEquals(0)
+            }
+        }
+
     @Composable
     private fun Harness(
         route: MutableState<LibraryRoute> =
@@ -925,6 +978,7 @@ class SettingsRouteAdapterJvmTest {
         name: String = id,
         handle: String = "/$id",
         scanned: Boolean = false,
+        lostAccess: Boolean = false,
     ) =
         LibrarySource(
             id,
@@ -932,7 +986,11 @@ class SettingsRouteAdapterJvmTest {
             name,
             handle,
             1L,
-            if (scanned) 2L else null)
+            if (scanned) 2L else null,
+            accessStatus =
+                if (lostAccess) LibrarySourceAccessStatus.LostAccess
+                else LibrarySourceAccessStatus.Available,
+        )
 
     private fun scanSession(
         status: ScanStatus,

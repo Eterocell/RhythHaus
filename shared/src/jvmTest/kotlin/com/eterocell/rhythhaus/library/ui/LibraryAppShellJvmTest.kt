@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -25,6 +26,7 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
@@ -72,6 +74,68 @@ class LibraryAppShellJvmTest {
             }
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun compactAndWideBranchesRenderEquivalentSettingsTerminalOutcome() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                listOf(420.dp, 1200.dp).forEach { width ->
+                    val source = source()
+                    val session =
+                        ScanSession(
+                            id = "completed-$width",
+                            sourceId = source.id,
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                            foldersVisited = 2,
+                            filesVisited = 4,
+                            tracksAdded = 2,
+                            tracksUpdated = 1,
+                            filesSkipped = 1,
+                        )
+                    val errors =
+                        listOf(
+                            ScanError(
+                                id = "error-$width",
+                                scanId = session.id,
+                                sourceLocalKey = "broken.mp3",
+                                displayPath = "broken.mp3",
+                                reason = "Unsupported file",
+                                recoverable = true,
+                                createdAtEpochMillis = 1L,
+                            ),
+                        )
+                    mount(
+                        width = width,
+                        source = source,
+                        scanSession = session,
+                        scanErrors = errors,
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                    )
+                    onNodeWithTag(
+                            "NowPlayingBarSettings", useUnmergedTree = true)
+                        .performClick()
+                    waitForIdle()
+
+                    onNode(hasText("Scan complete"), useUnmergedTree = true)
+                        .assertExists()
+                    onNode(hasText("View scan report"), useUnmergedTree = true)
+                        .performClick()
+                    onNode(
+                            hasText("broken.mp3: Unsupported file"),
+                            useUnmergedTree = true)
+                        .assertExists()
+                    onNode(
+                            hasText("Remove missing files"),
+                            useUnmergedTree = true)
+                        .assertExists()
+                    onNode(hasText("Hide scan report"), useUnmergedTree = true)
+                        .assertExists()
+                }
+            }
+        }
+
     private inline fun <T> withDefaultLocale(
         locale: Locale,
         block: () -> T,
@@ -90,6 +154,7 @@ class LibraryAppShellJvmTest {
         width: Dp,
         source: LibrarySource,
         scanSession: ScanSession,
+        scanErrors: List<ScanError> = emptyList(),
         picker: CountingPicker,
         callbacks: CallbackRecorder,
     ) {
@@ -122,7 +187,7 @@ class LibraryAppShellJvmTest {
                         sourcePickerActionVisible = true,
                         importMessage = null,
                         scanProgress = ScanProgress(scanSession),
-                        scanErrors = emptyList(),
+                        scanErrors = scanErrors,
                         scanJob = null,
                         coordinatorMutationsEnabled = true,
                         currentThemeMode = RhythHausThemeMode.System,
