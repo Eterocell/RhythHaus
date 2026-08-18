@@ -32,7 +32,9 @@ import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.toPlayableTrack
@@ -131,12 +133,14 @@ internal fun LibraryRouteOverlays(
     sourcePickerActionVisible: Boolean,
     importMessage: String?,
     scanProgress: ScanProgress?,
+    scanErrors: List<ScanError> = emptyList(),
     scanJob: Job?,
     mutationsEnabled: Boolean = true,
     currentThemeMode: RhythHausThemeMode,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
+    onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit = { _, _ -> },
     onRemoveSource: (LibrarySource) -> Unit,
     onCancelScan: () -> Unit,
     onShowSettingsAbout: () -> Unit,
@@ -152,6 +156,29 @@ internal fun LibraryRouteOverlays(
             var showClearLibraryDialog by
                 remember(destinationId, playlistAppearanceSource) {
                     mutableStateOf(false)
+                }
+            var reportVisible by
+                remember(scanProgress?.session?.id) { mutableStateOf(false) }
+            val terminalSession = scanProgress?.session
+            val scanOutcomeContent: (@Composable () -> Unit)? =
+                if (terminalSession != null && scanProgress?.isActive != true) {
+                    {
+                        ScanOutcomePanel(
+                            session = terminalSession,
+                            source =
+                                sources.firstOrNull {
+                                    it.id == terminalSession.sourceId
+                                },
+                            errors = scanErrors,
+                            reportVisible = reportVisible,
+                            mutationsEnabled = mutationsEnabled,
+                            onToggleReport = { reportVisible = !reportVisible },
+                            onRescanSource = onRescanSource,
+                            onRemoveMissingTracks = onRemoveMissingTracks,
+                        )
+                    }
+                } else {
+                    null
                 }
             SettingsScreen(
                 labels =
@@ -231,6 +258,7 @@ internal fun LibraryRouteOverlays(
                     } else {
                         null
                     },
+                scanOutcomeContent = scanOutcomeContent,
                 clearLibraryDialog =
                     if (showClearLibraryDialog) {
                         {
@@ -254,6 +282,7 @@ internal fun LibraryRouteOverlays(
                             onRescanSource(source)
                         }
                 },
+                onRecoverSource = { folderPickerLauncher.launch() },
                 onRemoveSource = { id ->
                     sources
                         .firstOrNull { it.id == id }

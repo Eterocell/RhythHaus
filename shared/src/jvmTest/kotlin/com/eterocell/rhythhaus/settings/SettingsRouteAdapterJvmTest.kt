@@ -1,15 +1,22 @@
 package com.eterocell.rhythhaus.settings
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -18,6 +25,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.LibrarySnapshot
@@ -32,6 +40,7 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
@@ -50,6 +59,7 @@ import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupPreview
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -612,6 +622,172 @@ class SettingsRouteAdapterJvmTest {
         assertNull(appState.pendingBackSession)
     }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsRendersTerminalOutcomeWithReportRescanAndRemoveMissing() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val source = source("source", scanned = true)
+                val session = scanSession(ScanStatus.Completed)
+                val rescanned = mutableListOf<LibrarySource>()
+                val missingRemoved =
+                    mutableListOf<Pair<LibrarySource, ScanSession>>()
+                setContent {
+                    Box(Modifier.size(500.dp, 1600.dp)) {
+                        Harness(
+                            sources = listOf(source),
+                            scanProgress = ScanProgress(session),
+                            scanErrors = listOf(scanError(session)),
+                            onRescan = { rescanned += it },
+                            onRemoveMissingTracks = { s, sess ->
+                                missingRemoved += s to sess
+                            },
+                        )
+                    }
+                }
+                waitForIdle()
+
+                onNode(hasText("Scan complete")).assertExists()
+                onNode(hasText("View scan report")).performClick()
+                onNode(hasText("broken.mp3: Unsupported file")).assertExists()
+                onAllNodes(hasText("Rescan"))[0].performClick()
+                onNode(hasText("Remove missing files")).performClick()
+                waitForIdle()
+
+                assertEquals(listOf(source), rescanned)
+                assertEquals(listOf(source to session), missingRemoved)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsOutcomeReportSurvivesListItemRecreation() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val sources =
+                    List(60) { index ->
+                        source("source$index", scanned = true)
+                    }
+                setContent {
+                    Box(Modifier.size(500.dp, 500.dp)) {
+                        Harness(
+                            sources = sources,
+                            scanProgress =
+                                ScanProgress(scanSession(ScanStatus.Completed)),
+                            scanErrors =
+                                listOf(
+                                    scanError(
+                                        scanSession(ScanStatus.Completed))),
+                        )
+                    }
+                }
+                waitForIdle()
+
+                onNode(hasText("View scan report")).performClick()
+                onNode(hasText("broken.mp3: Unsupported file")).assertExists()
+                // LazyColumn keeps the item holding focus composed even far
+                // outside the viewport, so move focus to a source row first;
+                // otherwise the panel below could never be disposed.
+                onNodeWithTag("settings-rescan-source0", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onNode(hasScrollToIndexAction()).performScrollToIndex(60)
+                waitForIdle()
+                onAllNodes(hasText("Hide scan report")).assertCountEquals(0)
+                onNode(hasScrollToIndexAction()).performScrollToIndex(0)
+                waitForIdle()
+
+                onNode(hasText("Hide scan report")).assertExists()
+                onNode(hasText("broken.mp3: Unsupported file")).assertExists()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsOutcomeReportCollapsesWhenDisplayedSessionChanges() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val source = source("source", scanned = true)
+                var displayedSession by
+                    mutableStateOf(scanSession(ScanStatus.Completed))
+                setContent {
+                    Box(Modifier.size(500.dp, 1600.dp)) {
+                        Harness(
+                            sources = listOf(source),
+                            scanProgress = ScanProgress(displayedSession),
+                            scanErrors = listOf(scanError(displayedSession)),
+                        )
+                    }
+                }
+                waitForIdle()
+
+                onNode(hasText("View scan report")).performClick()
+                onNode(hasText("Hide scan report")).assertExists()
+                displayedSession =
+                    scanSession(ScanStatus.Completed, id = "next-scan")
+                waitForIdle()
+
+                onNode(hasText("View scan report")).assertExists()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsTerminalStatesRenderAndRetryWhenRequired() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val source = source("source", scanned = true)
+                var status by mutableStateOf(ScanStatus.Completed)
+                val rescanned = mutableListOf<LibrarySource>()
+                setContent {
+                    Box(Modifier.size(500.dp, 1600.dp)) {
+                        Harness(
+                            sources = listOf(source),
+                            scanProgress = ScanProgress(scanSession(status)),
+                            onRescan = { rescanned += it },
+                        )
+                    }
+                }
+                waitForIdle()
+
+                onNode(hasText("Scan complete")).assertExists()
+                status = ScanStatus.Failed
+                waitForIdle()
+                onNode(hasText("Scan failed")).assertExists()
+                onNode(hasText("Retry scan")).performClick()
+                status = ScanStatus.Cancelled
+                waitForIdle()
+                onNode(hasText("Scan cancelled")).assertExists()
+                onNode(hasText("Retry scan")).performClick()
+
+                assertEquals(listOf(source, source), rescanned)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun disabledCoordinatorDisablesSettingsOutcomeMutationControls() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val source = source("source", scanned = true)
+                setContent {
+                    Box(Modifier.size(500.dp, 1600.dp)) {
+                        Harness(
+                            sources = listOf(source),
+                            scanProgress =
+                                ScanProgress(scanSession(ScanStatus.Completed)),
+                            mutationsEnabled = false,
+                        )
+                    }
+                }
+                waitForIdle()
+
+                onNode(hasText("View scan report")).performClick()
+                onAllNodes(hasText("Rescan"))[0].assertIsNotEnabled()
+                onNode(hasText("Remove missing files")).assertIsNotEnabled()
+            }
+        }
+
     @Composable
     private fun Harness(
         route: MutableState<LibraryRoute> =
@@ -620,6 +796,7 @@ class SettingsRouteAdapterJvmTest {
         sources: List<LibrarySource> = emptyList(),
         hasTracks: Boolean = false,
         scanProgress: ScanProgress? = null,
+        scanErrors: List<ScanError> = emptyList(),
         scanJob: Job? = null,
         mutationsEnabled: Boolean = true,
         folderPickerLauncher: PlatformFolderPickerLauncher = unavailablePicker,
@@ -627,6 +804,8 @@ class SettingsRouteAdapterJvmTest {
         onPlaylistBackupAction: (PlaylistBackupUiAction) -> Unit = {},
         onClear: () -> Unit = {},
         onRescan: (LibrarySource) -> Unit = {},
+        onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit = { _, _ ->
+        },
         onRemove: (LibrarySource) -> Unit = {},
         onCancelScan: () -> Unit = {},
         onShowSettingsAbout: () -> Unit = {
@@ -688,12 +867,14 @@ class SettingsRouteAdapterJvmTest {
             sourcePickerActionVisible = true,
             importMessage = null,
             scanProgress = scanProgress,
+            scanErrors = scanErrors,
             scanJob = scanJob,
             mutationsEnabled = mutationsEnabled,
             currentThemeMode = RhythHausThemeMode.System,
             onThemeModeSelected = {},
             onClearLibrary = onClear,
             onRescanSource = onRescan,
+            onRemoveMissingTracks = onRemoveMissingTracks,
             onRemoveSource = onRemove,
             onCancelScan = onCancelScan,
             onShowSettingsAbout = onShowSettingsAbout,
@@ -752,6 +933,49 @@ class SettingsRouteAdapterJvmTest {
             handle,
             1L,
             if (scanned) 2L else null)
+
+    private fun scanSession(
+        status: ScanStatus,
+        id: String = "scan",
+    ): ScanSession =
+        ScanSession(
+            id = id,
+            sourceId = "source",
+            status = status,
+            startedAtEpochMillis = 1L,
+            foldersVisited = 2,
+            filesVisited = 4,
+            tracksAdded = 2,
+            tracksUpdated = 1,
+            filesSkipped = 1,
+            terminalMessage =
+                if (status == ScanStatus.Failed) "Folder is unavailable"
+                else null,
+        )
+
+    private fun scanError(session: ScanSession): ScanError =
+        ScanError(
+            id = "error",
+            scanId = session.id,
+            sourceLocalKey = "broken.mp3",
+            displayPath = "broken.mp3",
+            reason = "Unsupported file",
+            recoverable = true,
+            createdAtEpochMillis = 1L,
+        )
+
+    private inline fun <T> withDefaultLocale(
+        locale: Locale,
+        block: () -> T,
+    ): T {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(locale)
+        return try {
+            block()
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
 
     private class CountingPicker : PlatformFolderPickerLauncher {
         var launchCalls = 0
