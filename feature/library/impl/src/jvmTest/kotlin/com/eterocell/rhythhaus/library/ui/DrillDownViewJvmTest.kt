@@ -238,6 +238,53 @@ class DrillDownViewJvmTest {
         assertTrue(scrolls.any { it.first >= 8 })
     }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun albumReconcilePayloadKeepsEveryPageTrackAfterScrolling() =
+        runComposeUiTest {
+            val visibleReports = mutableListOf<List<String>>()
+            setContent {
+                Box(Modifier.size(420.dp, 520.dp)) {
+                    DrillDownView(
+                        title = "Album B",
+                        summary =
+                            LibraryDetailSummary.Album(
+                                trackCount = 40, artist = "Artist"),
+                        tracks = fortyTracks(),
+                        topBarArtworkTrack = null,
+                        currentTrackId = null,
+                        selectionPage = LibrarySelectionPage.Album("Album B"),
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        artworkLoader = { null },
+                        onBack = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = { visibleReports += it },
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                    )
+                }
+            }
+            waitForIdle()
+
+            onNode(hasScrollToIndexAction()).performScrollToIndex(35)
+            waitForIdle()
+            assertEquals(fortyTracks().map(Track::id), visibleReports.last())
+        }
+
+    private fun fortyTracks(): List<Track> =
+        List(40) { index ->
+            track(
+                "t-${index + 1}",
+                "Track ${index + 1}",
+                "Album B",
+                "Artist",
+                number = index + 1)
+        }
+
     private fun twelveTracks(): List<Track> =
         List(12) { index ->
             track(

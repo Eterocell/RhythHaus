@@ -431,6 +431,51 @@ class LibraryHomeContentJvmTest {
             onAllNodes(hasText("Remove missing files")).assertCountEquals(0)
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun songsReconcilePayloadKeepsEveryTrackAfterScrolling() =
+        runComposeUiTest {
+            val visibleReports = mutableListOf<List<String>>()
+            setContent {
+                Box(Modifier.size(420.dp, 300.dp)) {
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = twelveTracks(),
+                        browseMode = BrowseMode.Songs,
+                        folderPickerLauncher = StubPicker,
+                        sourcePickerActionVisible = false,
+                        importMessage = null,
+                        scanProgress = null,
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = { visibleReports += it },
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                    )
+                }
+            }
+            waitForIdle()
+
+            onNode(hasScrollToIndexAction()).performScrollToIndex(10)
+            waitForIdle()
+            assertEquals(twelveTracks().map(Track::id), visibleReports.last())
+        }
+
     private fun session(status: ScanStatus, id: String = "scan"): ScanSession =
         ScanSession(
             id = id,

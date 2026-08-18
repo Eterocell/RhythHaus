@@ -20,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -94,8 +93,8 @@ public fun dispatchDrillDownAction(
  *   occurrence.
  * @param onToggleSelection requests one toggle of the given track ID.
  * @param onStartSelection requests selection beginning with the given track ID.
- * @param onVisibleTrackIdsChanged receives rendered track IDs whenever their
- *   visible sequence changes.
+ * @param onVisibleTrackIdsChanged receives the page's track IDs whenever the
+ *   page track sequence changes.
  * @param onScrollPositionChanged receives first visible item index and pixel
  *   offset.
  * @param bottomContentPadding reserved trailing list space for Shared shell
@@ -200,18 +199,8 @@ public fun DrillDownView(
                     listState.firstVisibleItemIndex,
                     listState.firstVisibleItemScrollOffset)
             }
-        val trackIdSet =
-            remember(tracks) { tracks.mapTo(mutableSetOf()) { it.id } }
-        LaunchedEffect(listState) {
-            snapshotFlow {
-                listState.layoutInfo.visibleItemsInfo.mapNotNull {
-                    it.key as? String
-                }
-            }
-                .collect { visibleKeys ->
-                    onVisibleTrackIdsChanged(
-                        visibleKeys.filter { it in trackIdSet })
-                }
+        LaunchedEffect(tracks) {
+            onVisibleTrackIdsChanged(tracks.map { it.id })
         }
         Box(
             modifier =

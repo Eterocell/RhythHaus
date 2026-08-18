@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -74,8 +73,8 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  *   occurrence.
  * @param onToggleSelection requests one toggle of the given track ID.
  * @param onStartSelection requests selection beginning with the given track ID.
- * @param onVisibleTrackIdsChanged receives rendered track IDs whenever their
- *   visible sequence changes.
+ * @param onVisibleTrackIdsChanged receives the page's track IDs whenever the
+ *   page track sequence changes.
  * @param onScrollPositionChanged receives first visible item index and pixel
  *   offset.
  * @param bottomContentPadding reserved trailing list space for Shared shell
@@ -115,7 +114,6 @@ public fun LibraryHomeContent(
     val albums = remember(tracks) { groupTracksByAlbum(tracks) }
     val artists = remember(tracks) { groupTracksByArtist(tracks) }
     val homeListState = rememberLazyListState()
-    val trackIdSet = remember(tracks) { tracks.mapTo(mutableSetOf()) { it.id } }
     Box(modifier = Modifier.fillMaxSize()) {
         val homeTopContentPadding =
             libraryHomeTopContentPadding(rememberSystemBarTopPadding())
@@ -314,15 +312,7 @@ public fun LibraryHomeContent(
                 homeListState.firstVisibleItemIndex,
                 homeListState.firstVisibleItemScrollOffset)
         }
-    LaunchedEffect(homeListState) {
-        snapshotFlow {
-            homeListState.layoutInfo.visibleItemsInfo.mapNotNull {
-                it.key as? String
-            }
-        }
-            .collect { visibleKeys ->
-                onVisibleTrackIdsChanged(
-                    visibleKeys.filter { it in trackIdSet })
-            }
+    LaunchedEffect(tracks) {
+        onVisibleTrackIdsChanged(tracks.map { it.id })
     }
 }
