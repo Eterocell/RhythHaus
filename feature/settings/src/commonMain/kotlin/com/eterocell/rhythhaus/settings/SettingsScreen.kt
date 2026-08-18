@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
@@ -59,6 +60,7 @@ import rhythhaus.feature.settings.generated.resources.about
 import rhythhaus.feature.settings.generated.resources.appearance
 import rhythhaus.feature.settings.generated.resources.configured_folders
 import rhythhaus.feature.settings.generated.resources.manage_music
+import rhythhaus.feature.settings.generated.resources.recover_source_format
 import rhythhaus.feature.settings.generated.resources.remove_folder
 import rhythhaus.feature.settings.generated.resources.remove_folder_message
 import rhythhaus.feature.settings.generated.resources.remove_source_format
@@ -157,6 +159,7 @@ internal const val SettingsPickerTestTag = "settings-picker"
 internal const val SettingsClearTestTag = "settings-clear"
 internal const val SettingsAboutTestTag = "settings-about"
 internal const val SettingsRescanPrefix = "settings-rescan-"
+internal const val SettingsRecoverPrefix = "settings-recover-"
 internal const val SettingsRemovePrefix = "settings-remove-"
 internal const val SettingsRemoveConfirmTestTag = "settings-remove-confirm"
 internal const val SettingsRemoveDismissTestTag = "settings-remove-dismiss"
@@ -167,12 +170,33 @@ internal const val SettingsThemeTestTag = "settings-theme"
 
 /**
  * Renders Settings from scalar state, source projections, callbacks, and
- * caller-owned slots. The picker obeys [sourcePickerActionVisible],
- * [sourcePickerAvailable], and [mutationsEnabled]; the clear action is rendered
- * only for [hasImportedTracks], requests Shared dialog state through
- * [onRequestClearLibrary] only when enabled, and renders [clearLibraryDialog]
- * only when supplied. Source callbacks emit IDs only; Shared resolves and
- * guards them at invocation.
+ * caller-owned slots.
+ *
+ * @param labels Shared-owned wording and actions injected into this screen.
+ * @param currentThemeMode the theme mode currently in effect.
+ * @param sources the authoritative projection of configured library sources.
+ * @param sourcePickerActionVisible whether to render the add-folder action.
+ * @param sourcePickerAvailable whether the platform folder picker can launch.
+ * @param importMessage transient import feedback, or null when absent.
+ * @param mutationsEnabled gates every mutation: disabled controls neither
+ *   dispatch nor accept input.
+ * @param hasImportedTracks whether the clear action is rendered.
+ * @param playlistBackupContent the playlist-backup settings slot.
+ * @param activeScanContent the live scan surface slot, or null while idle.
+ * @param scanOutcomeContent the terminal scan-outcome panel slot rendered
+ *   directly after [activeScanContent], or null while absent.
+ * @param clearLibraryDialog the Shared-owned clear confirmation dialog slot,
+ *   rendered only when supplied.
+ * @param onThemeModeSelected dispatches the selected theme mode.
+ * @param onAddMusicFolder dispatches the add-folder action.
+ * @param onRescanSource dispatches a rescan with the source id.
+ * @param onRecoverSource dispatches a lost-access recovery (folder re-pick)
+ *   with the source id whose access is lost.
+ * @param onRemoveSource dispatches a removal with the source id.
+ * @param onRequestClearLibrary requests the Shared clear-library confirmation.
+ * @param onAboutClick navigates to the feature-owned About page.
+ * @param onDismiss navigates back.
+ * @param modifier applied to the root container.
  */
 @Composable
 public fun SettingsScreen(
@@ -186,10 +210,12 @@ public fun SettingsScreen(
     hasImportedTracks: Boolean,
     playlistBackupContent: @Composable () -> Unit,
     activeScanContent: (@Composable () -> Unit)?,
+    scanOutcomeContent: (@Composable () -> Unit)? = null,
     clearLibraryDialog: (@Composable () -> Unit)?,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onAddMusicFolder: () -> Unit,
     onRescanSource: (String) -> Unit,
+    onRecoverSource: (String) -> Unit,
     onRemoveSource: (String) -> Unit,
     onRequestClearLibrary: () -> Unit,
     onAboutClick: () -> Unit,
@@ -270,6 +296,7 @@ public fun SettingsScreen(
                                 activeScanContent?.let { content ->
                                     item { content() }
                                 }
+                                scanOutcomeContent?.let { item { it() } }
                                 if (sources.isNotEmpty()) {
                                     item {
                                         Text(
@@ -286,7 +313,10 @@ public fun SettingsScreen(
                                             ConfiguredSourceRow(
                                                 source,
                                                 mutationsEnabled,
-                                                { onRescanSource(source.id) }) {
+                                                { onRescanSource(source.id) },
+                                                onRecover = {
+                                                    onRecoverSource(source.id)
+                                                }) {
                                                     sourcePendingRemoval =
                                                         source
                                                 }
@@ -515,6 +545,7 @@ private fun ConfiguredSourceRow(
     source: SettingsSourceItem,
     mutationsEnabled: Boolean,
     onRescan: () -> Unit,
+    onRecover: () -> Unit,
     onRemove: () -> Unit
 ) {
     val presentation = source.presentation()
@@ -563,11 +594,14 @@ private fun ConfiguredSourceRow(
                         fontWeight = FontWeight.Medium,
                         maxLines = 2)
                 }
+            val lostAccess = presentation.access == SettingsSourceAccess.Lost
             IconButton(
-                onRescan,
+                onClick = if (lostAccess) onRecover else onRescan,
                 enabled = mutationsEnabled,
                 modifier =
-                    Modifier.testTag(SettingsRescanPrefix + source.id)
+                    Modifier.testTag(
+                            if (lostAccess) SettingsRecoverPrefix + source.id
+                            else SettingsRescanPrefix + source.id)
                         .semantics {
                             if (!mutationsEnabled) disabled()
                         },
@@ -575,9 +609,12 @@ private fun ConfiguredSourceRow(
                 minWidth = 44.dp,
                 minHeight = 44.dp) {
                     Icon(
-                        Icons.Default.Refresh,
+                        if (lostAccess) Icons.Default.FolderOpen
+                        else Icons.Default.Refresh,
                         stringResource(
-                            Res.string.rescan_source_format, displayName),
+                            if (lostAccess) Res.string.recover_source_format
+                            else Res.string.rescan_source_format,
+                            displayName),
                         tint = HausColors.current.ink.copy(alpha = alpha),
                         modifier = Modifier.size(20.dp))
                 }

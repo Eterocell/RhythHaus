@@ -211,6 +211,7 @@ public class SettingsResourceOwnershipJvmTest {
                 "source_last_scanned",
                 "source_status_format",
                 "rescan_source_format",
+                "recover_source_format",
                 "remove_source_format",
                 "remove_folder",
                 "remove_folder_message",
@@ -235,13 +236,7 @@ public class SettingsResourceOwnershipJvmTest {
                 "cancel",
                 "remove",
                 "close",
-                "scanning",
-                "scan_progress_format",
                 "scan_complete_format",
-                "folder_picker_error_access",
-                "folder_picker_error_select",
-                "folder_picker_error_prepare",
-                "folder_picker_no_folder_selected",
             )
         val approvedGeneratedResourcePrefixes =
             setOf(

@@ -205,6 +205,32 @@ public class SettingsScreenSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    public fun lostAccessSourceRowDispatchesRecoveryAndRemoveById(): Unit =
+        runComposeUiTest {
+            var recovered = ""
+            var removed = ""
+            setContent {
+                content(
+                    sources =
+                        listOf(
+                            SettingsSourceItem(
+                                "one", "One", accessAvailable = false, false)),
+                    onRecover = { recovered = it },
+                    onRemove = { removed = it })
+            }
+            onNodeWithTag(SettingsRecoverPrefix + "one", useUnmergedTree = true)
+                .performClick()
+            assertEquals("one", recovered)
+            onNodeWithTag(SettingsRemovePrefix + "one", useUnmergedTree = true)
+                .performClick()
+            onNodeWithTag(SettingsRemoveConfirmTestTag, useUnmergedTree = true)
+                .assertExists()
+                .performClick()
+            assertEquals("one", removed)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     public fun sourceRowsRenderLocalizedPresentationWithoutSourceIds(): Unit =
         runComposeUiTest {
             var availableNever = ""
@@ -303,6 +329,7 @@ public class SettingsScreenSemanticsJvmTest {
                 content(
                     playlistSlot = { slot("playlist") },
                     scanSlot = { slot("scan") },
+                    scanOutcomeSlot = { slot("outcome") },
                     clearSlot = { slot("clear") })
             }
             val renderedSlots =
@@ -310,9 +337,13 @@ public class SettingsScreenSemanticsJvmTest {
                     .fetchSemanticsNode()
                     .renderedTexts()
                     .filter {
-                        it == "playlist" || it == "scan" || it == "clear"
+                        it == "playlist" ||
+                            it == "scan" ||
+                            it == "outcome" ||
+                            it == "clear"
                     }
-            assertEquals(listOf("playlist", "scan", "clear"), renderedSlots)
+            assertEquals(
+                listOf("playlist", "scan", "outcome", "clear"), renderedSlots)
         }
 
     @OptIn(ExperimentalTestApi::class)
@@ -387,11 +418,13 @@ private fun content(
     sources: List<SettingsSourceItem> = emptyList(),
     playlistSlot: @Composable () -> Unit = {},
     scanSlot: (@Composable () -> Unit)? = null,
+    scanOutcomeSlot: (@Composable () -> Unit)? = null,
     clearSlot: (@Composable () -> Unit)? = null,
     onTheme: (RhythHausThemeMode) -> Unit = {},
     onAdd: () -> Unit = {},
     onClear: () -> Unit = {},
     onRescan: (String) -> Unit = {},
+    onRecover: (String) -> Unit = {},
     onRemove: (String) -> Unit = {},
     onAbout: () -> Unit = {},
     onDismiss: () -> Unit = {},
@@ -407,10 +440,12 @@ private fun content(
         hasTracks,
         playlistSlot,
         scanSlot,
+        scanOutcomeSlot,
         clearSlot,
         onTheme,
         onAdd,
         onRescan,
+        onRecover,
         onRemove,
         onClear,
         onAbout,
