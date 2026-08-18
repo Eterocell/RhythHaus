@@ -66,7 +66,6 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.HausDialog
 import com.eterocell.rhythhaus.ui.hausClickable
@@ -833,6 +832,7 @@ public fun PlaylistHubScreen(
     onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
     onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
     onClearUpcoming: suspend () -> QueueMutationFeedback,
+    artworkLoader: suspend (String) -> ByteArray? = { null },
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     var createDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
@@ -895,6 +895,7 @@ public fun PlaylistHubScreen(
                 onReorderUpcoming = onReorderUpcoming,
                 onRemoveUpcoming = onRemoveUpcoming,
                 onClearUpcoming = onClearUpcoming,
+                artworkLoader = artworkLoader,
                 clearConfirmation = queueClearConfirmation,
                 onClearConfirmationChange = { queueClearConfirmation = it },
             )
@@ -978,6 +979,7 @@ private fun LazyListScope.queueTabItems(
     onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
     onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
     onClearUpcoming: suspend () -> QueueMutationFeedback,
+    artworkLoader: suspend (String) -> ByteArray?,
     clearConfirmation: QueueClearConfirmationPresentation?,
     onClearConfirmationChange: (QueueClearConfirmationPresentation?) -> Unit,
 ) {
@@ -987,6 +989,7 @@ private fun LazyListScope.queueTabItems(
             onReorderUpcoming = onReorderUpcoming,
             onRemoveUpcoming = onRemoveUpcoming,
             onClearUpcoming = onClearUpcoming,
+            artworkLoader = artworkLoader,
             clearConfirmation = clearConfirmation,
             onClearConfirmationChange = onClearConfirmationChange,
         )
@@ -999,6 +1002,7 @@ internal fun QueueTabScreen(
     onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
     onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
     onClearUpcoming: suspend () -> QueueMutationFeedback,
+    artworkLoader: suspend (String) -> ByteArray?,
     clearConfirmation: QueueClearConfirmationPresentation?,
     onClearConfirmationChange: (QueueClearConfirmationPresentation?) -> Unit,
 ) {
@@ -1018,7 +1022,10 @@ internal fun QueueTabScreen(
                 stringResource(Res.string.playlist_empty_queue))
         } else {
             QueueSectionLabel(stringResource(Res.string.queue_current))
-            QueueOccurrenceRow(row = presentation.rows.first())
+            QueueOccurrenceRow(
+                row = presentation.rows.first(),
+                artworkLoader = artworkLoader,
+            )
             val upcomingRows = presentation.rows.drop(1)
             if (upcomingRows.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1036,6 +1043,7 @@ internal fun QueueTabScreen(
                     key(row.occurrence.id) {
                         QueueOccurrenceRow(
                             row = row,
+                            artworkLoader = artworkLoader,
                             upcomingIndex = index,
                             upcomingIds = presentation.upcomingOccurrenceIds,
                             rowCenters = rowCenters,
@@ -1114,6 +1122,7 @@ private fun QueueSectionLabel(text: String, modifier: Modifier = Modifier) {
 @Composable
 private fun QueueOccurrenceRow(
     row: QueueRowPresentation,
+    artworkLoader: suspend (String) -> ByteArray?,
     upcomingIndex: Int = -1,
     upcomingIds: List<String> = emptyList(),
     rowCenters: MutableMap<String, Float> = mutableMapOf(),
@@ -1187,7 +1196,7 @@ private fun QueueOccurrenceRow(
                         onDragTarget = onDragTarget,
                     )
                 }
-                QueueTrackMetadata(row.occurrence)
+                QueueTrackMetadata(row.occurrence, artworkLoader)
                 if (layoutPolicy.actionPlacement ==
                     QueueActionPlacement.Inline) {
                     QueueMutationActions(
@@ -1271,10 +1280,12 @@ private fun QueueDragHandle(
 
 @Composable
 private fun androidx.compose.foundation.layout.RowScope.QueueTrackMetadata(
-    occurrence: QueueOccurrence
+    occurrence: QueueOccurrence,
+    artworkLoader: suspend (String) -> ByteArray?,
 ) {
-    ArtworkImage(
-        artworkBytes = occurrence.track.artworkBytes,
+    PlaylistLazyArtworkImage(
+        trackId = occurrence.track.id,
+        eagerArtworkBytes = occurrence.track.artworkBytes,
         contentDescription = occurrence.track.title,
         role = ArtworkImageRole.Thumbnail,
         modifier =
@@ -1282,6 +1293,7 @@ private fun androidx.compose.foundation.layout.RowScope.QueueTrackMetadata(
                 .background(
                     HausColors.current.panelStrong, RoundedCornerShape(14.dp)),
         contentScale = ContentScale.Crop,
+        artworkLoader = artworkLoader,
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
@@ -1353,6 +1365,7 @@ public fun PlaylistDetailScreen(
     playlist: PlaylistSummary,
     entries: List<PlaylistEntry>,
     playableTracksById: Map<String, PlayableTrack>,
+    artworkLoader: suspend (String) -> ByteArray? = { null },
     state: PlaylistState,
     destination: PlaylistFeatureDestination,
     appearanceSource: PlaylistFeatureAppearanceSource,
@@ -1503,6 +1516,7 @@ public fun PlaylistDetailScreen(
             val rowIndex = entries.indexOfFirst { it.id == row.entry.id }
             PlaylistEntryRow(
                 row = row,
+                artworkLoader = artworkLoader,
                 rowIndex = rowIndex,
                 entryIds = entries.map(PlaylistEntry::id),
                 rowCenters = rowCenters,
@@ -2081,6 +2095,7 @@ private fun PlaylistHubRow(
 @Composable
 private fun PlaylistEntryRow(
     row: PlaylistDetailRow,
+    artworkLoader: suspend (String) -> ByteArray?,
     rowIndex: Int,
     entryIds: List<String>,
     rowCenters: MutableMap<Int, Float>,
@@ -2140,8 +2155,9 @@ private fun PlaylistEntryRow(
                             rowCenters,
                             drag,
                             onDragOrder)
-                    ArtworkImage(
-                        artworkBytes = row.track.artworkBytes,
+                    PlaylistLazyArtworkImage(
+                        trackId = row.track.id,
+                        eagerArtworkBytes = row.track.artworkBytes,
                         contentDescription = row.track.title,
                         role = ArtworkImageRole.Thumbnail,
                         modifier =
@@ -2149,18 +2165,19 @@ private fun PlaylistEntryRow(
                                 .background(
                                     HausColors.current.panelStrong,
                                     RoundedCornerShape(14.dp)),
-                        contentScale = ContentScale.Crop) {
-                            Box(
-                                Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center) {
-                                    Text(
-                                        row.track.title
-                                            .firstOrNull()
-                                            ?.uppercase() ?: "♪",
-                                        color = HausColors.current.ink,
-                                        fontWeight = FontWeight.Black)
-                                }
-                        }
+                        contentScale = ContentScale.Crop,
+                        artworkLoader = artworkLoader,
+                    ) {
+                        Box(
+                            Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center) {
+                                Text(
+                                    row.track.title.firstOrNull()?.uppercase()
+                                        ?: "♪",
+                                    color = HausColors.current.ink,
+                                    fontWeight = FontWeight.Black)
+                            }
+                    }
                     Column(
                         Modifier.weight(1f)
                             .testTag("playlist-entry-metadata-${row.entry.id}")

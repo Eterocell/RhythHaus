@@ -650,6 +650,7 @@ internal fun LibraryRouteContent(
                 onReorderUpcoming = queueMutations::reorder,
                 onRemoveUpcoming = queueMutations::remove,
                 onClearUpcoming = queueMutations::clear,
+                artworkLoader = artworkLoader,
                 bottomContentPadding = bottomContentPadding,
             )
         }
@@ -673,6 +674,7 @@ internal fun LibraryRouteContent(
                             playlistState.confirmedSnapshot.entries(
                                 resolution.playlist.id),
                         playableTracksById = playableTracksById,
+                        artworkLoader = artworkLoader,
                         state = playlistState,
                         destination = playlistDestination,
                         appearanceSource = playlistAppearanceSource,
@@ -774,6 +776,7 @@ internal fun PlaylistDetailRouteContent(
     playlist: PlaylistSummary,
     entries: List<PlaylistEntry>,
     playableTracksById: Map<String, PlayableTrack>,
+    artworkLoader: suspend (String) -> ByteArray?,
     state: PlaylistState,
     destination: PlaylistFeatureDestination,
     appearanceSource: PlaylistFeatureAppearanceSource,
@@ -795,6 +798,7 @@ internal fun PlaylistDetailRouteContent(
         playlist = playlist,
         entries = entries,
         playableTracksById = playableTracksById,
+        artworkLoader = artworkLoader,
         state = state,
         destination = destination,
         appearanceSource = appearanceSource,
