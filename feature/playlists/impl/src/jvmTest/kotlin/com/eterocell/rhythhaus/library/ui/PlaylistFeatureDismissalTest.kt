@@ -19,6 +19,9 @@ import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import java.util.Locale
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -29,6 +32,19 @@ import rhythhaus.feature.playlists.generated.resources.Res
 import rhythhaus.feature.playlists.generated.resources.playlist_modal_mutation_failed
 
 class PlaylistFeatureDismissalTest {
+    private var previousLocale: Locale? = null
+
+    @BeforeTest
+    fun setEnglishLocale() {
+        previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+    }
+
+    @AfterTest
+    fun restoreLocale() {
+        previousLocale?.let { Locale.setDefault(it) }
+    }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun hubCreateAndQueueClearPresentationsPublishFromProduction() =

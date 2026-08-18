@@ -16,6 +16,9 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import java.util.Locale
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -23,6 +26,19 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 
 class PlaylistBackPolicyJvmTest {
+    private var previousLocale: Locale? = null
+
+    @BeforeTest
+    fun setEnglishLocale() {
+        previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+    }
+
+    @AfterTest
+    fun restoreLocale() {
+        previousLocale?.let { Locale.setDefault(it) }
+    }
+
     @Test
     fun coreNavigationEventHandlerLatchesStartBeforeImmediateCompletionAndNeverRetargets() {
         val state = playlistState()
