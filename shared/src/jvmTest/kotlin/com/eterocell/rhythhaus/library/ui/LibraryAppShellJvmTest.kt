@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -14,12 +15,9 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventDispatcher
 import androidx.navigationevent.NavigationEventDispatcherOwner
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
-import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
-import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
@@ -37,12 +35,11 @@ import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertSame
 
 class LibraryAppShellJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun compactAndWideBranchesForwardEquivalentLibraryManagerCallbacks() =
+    fun compactAndWideBranchesRenderEquivalentHomeImportAndScanStates() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
                 listOf(420.dp, 1200.dp).forEach { width ->
@@ -67,47 +64,10 @@ class LibraryAppShellJvmTest {
                         .performScrollTo()
                         .performClick()
                     assertEquals(1, callbacks.cancelCalls)
-
-                    val completedSession =
-                        ScanSession(
-                            id = "completed-$width",
-                            sourceId = source.id,
-                            status = ScanStatus.Completed,
-                            startedAtEpochMillis = 2L,
-                        )
-                    mount(
-                        width = width,
-                        source = source,
-                        scanSession = completedSession,
-                        picker = picker,
-                        callbacks = callbacks,
-                    )
-                    onNode(hasText("Add music folder"), useUnmergedTree = true)
+                    onNode(hasContentDescription("Add music folder"))
                         .performScrollTo()
                         .performClick()
-                    onAllNodes(hasText("Rescan"), useUnmergedTree = true)[1]
-                        .performScrollTo()
-                        .performClick()
-                    onNode(
-                            hasText("Remove missing files"),
-                            useUnmergedTree = true)
-                        .performScrollTo()
-                        .performClick()
-                    onNode(hasText("Remove folder"), useUnmergedTree = true)
-                        .performScrollTo()
-                        .performClick()
-
                     assertEquals(1, picker.launchCalls)
-                    assertEquals(1, callbacks.rescannedSources.size)
-                    assertSame(source, callbacks.rescannedSources.single())
-                    assertEquals(1, callbacks.removeMissingCalls.size)
-                    assertSame(
-                        source, callbacks.removeMissingCalls.single().first)
-                    assertSame(
-                        completedSession,
-                        callbacks.removeMissingCalls.single().second)
-                    assertEquals(1, callbacks.removedSources.size)
-                    assertSame(source, callbacks.removedSources.single())
                 }
             }
         }
@@ -141,8 +101,7 @@ class LibraryAppShellJvmTest {
                 Box(Modifier.size(width, 900.dp)) {
                     LibraryHomeScreen(
                         snapshot =
-                            LibrarySnapshot(
-                                "Library", "", listOf(track()), null),
+                            LibrarySnapshot("Library", "", emptyList(), null),
                         libraryTracks = emptyList(),
                         tagLibReader = UnusedTagLibReader,
                         playbackController =
@@ -169,14 +128,9 @@ class LibraryAppShellJvmTest {
                         currentThemeMode = RhythHausThemeMode.System,
                         onThemeModeSelected = {},
                         onClearLibrary = {},
-                        onRescanSource = callbacks.rescannedSources::add,
-                        onRemoveSource = callbacks.removedSources::add,
-                        onRemoveMissingTracks = {
-                            selectedSource,
-                            selectedSession ->
-                            callbacks.removeMissingCalls +=
-                                selectedSource to selectedSession
-                        },
+                        onRescanSource = {},
+                        onRemoveSource = {},
+                        onRemoveMissingTracks = { _, _ -> },
                         onCancelScan = { callbacks.cancelCalls++ },
                     )
                 }
@@ -194,23 +148,8 @@ class LibraryAppShellJvmTest {
             createdAtEpochMillis = 1L,
         )
 
-    private fun track() =
-        Track(
-            id = "track",
-            title = "Track",
-            artist = "Artist",
-            album = "Album",
-            durationSeconds = 120,
-            accent = TrackAccent(0xFF000000, 0xFFFFFFFF),
-            source = AudioSource.FilePath("/music/track.mp3"),
-        )
-
     private class CallbackRecorder {
         var cancelCalls = 0
-        val rescannedSources = mutableListOf<LibrarySource>()
-        val removedSources = mutableListOf<LibrarySource>()
-        val removeMissingCalls =
-            mutableListOf<Pair<LibrarySource, ScanSession>>()
     }
 
     private object TestNavigationOwner : NavigationEventDispatcherOwner {

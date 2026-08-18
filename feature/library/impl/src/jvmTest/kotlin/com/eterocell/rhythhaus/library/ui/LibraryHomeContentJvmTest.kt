@@ -9,24 +9,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.library.LibraryPlatformKind
-import com.eterocell.rhythhaus.library.LibrarySource
-import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
-import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
@@ -56,10 +49,8 @@ class LibraryHomeContentJvmTest {
                         browseMode = BrowseMode.Songs,
                         folderPickerLauncher = StubPicker,
                         sourcePickerActionVisible = false,
-                        sources = emptyList(),
                         importMessage = null,
                         scanProgress = null,
-                        scanErrors = emptyList(),
                         mutationsEnabled = true,
                         currentTrackId = "t-2",
                         selectionModeActive = false,
@@ -70,9 +61,6 @@ class LibraryHomeContentJvmTest {
                         onBrowseModeChange = {},
                         onClearLibrary = {},
                         onCancelScan = {},
-                        onRescanSource = {},
-                        onRemoveSource = {},
-                        onRemoveMissingTracks = { _, _ -> },
                         onOpenAlbum = {},
                         onOpenArtist = {},
                         onShowPlaylists = {},
@@ -120,10 +108,8 @@ class LibraryHomeContentJvmTest {
                     browseMode = BrowseMode.Songs,
                     folderPickerLauncher = StubPicker,
                     sourcePickerActionVisible = false,
-                    sources = emptyList(),
                     importMessage = null,
                     scanProgress = null,
-                    scanErrors = emptyList(),
                     mutationsEnabled = true,
                     currentTrackId = null,
                     selectionModeActive = false,
@@ -134,9 +120,6 @@ class LibraryHomeContentJvmTest {
                     onBrowseModeChange = {},
                     onClearLibrary = {},
                     onCancelScan = {},
-                    onRescanSource = {},
-                    onRemoveSource = {},
-                    onRemoveMissingTracks = { _, _ -> },
                     onOpenAlbum = {},
                     onOpenArtist = {},
                     onShowPlaylists = {},
@@ -171,10 +154,8 @@ class LibraryHomeContentJvmTest {
                     browseMode = browseMode,
                     folderPickerLauncher = StubPicker,
                     sourcePickerActionVisible = false,
-                    sources = emptyList(),
                     importMessage = null,
                     scanProgress = null,
-                    scanErrors = emptyList(),
                     mutationsEnabled = true,
                     currentTrackId = null,
                     selectionModeActive = false,
@@ -185,9 +166,6 @@ class LibraryHomeContentJvmTest {
                     onBrowseModeChange = { browseMode = it },
                     onClearLibrary = {},
                     onCancelScan = {},
-                    onRescanSource = {},
-                    onRemoveSource = {},
-                    onRemoveMissingTracks = { _, _ -> },
                     onOpenAlbum = {},
                     onOpenArtist = {},
                     onShowPlaylists = {},
@@ -236,10 +214,8 @@ class LibraryHomeContentJvmTest {
                     browseMode = browseMode,
                     folderPickerLauncher = StubPicker,
                     sourcePickerActionVisible = false,
-                    sources = emptyList(),
                     importMessage = null,
                     scanProgress = null,
-                    scanErrors = emptyList(),
                     mutationsEnabled = true,
                     currentTrackId = null,
                     selectionModeActive = false,
@@ -250,9 +226,6 @@ class LibraryHomeContentJvmTest {
                     onBrowseModeChange = { browseMode = it },
                     onClearLibrary = {},
                     onCancelScan = {},
-                    onRescanSource = {},
-                    onRemoveSource = {},
-                    onRemoveMissingTracks = { _, _ -> },
                     onOpenAlbum = {},
                     onOpenArtist = { openedArtists += it },
                     onShowPlaylists = {},
@@ -290,10 +263,8 @@ class LibraryHomeContentJvmTest {
                     browseMode = BrowseMode.Songs,
                     folderPickerLauncher = StubPicker,
                     sourcePickerActionVisible = false,
-                    sources = emptyList(),
                     importMessage = null,
                     scanProgress = null,
-                    scanErrors = emptyList(),
                     mutationsEnabled = true,
                     currentTrackId = null,
                     selectionModeActive = false,
@@ -304,9 +275,6 @@ class LibraryHomeContentJvmTest {
                     onBrowseModeChange = { changed += it },
                     onClearLibrary = {},
                     onCancelScan = {},
-                    onRescanSource = {},
-                    onRemoveSource = {},
-                    onRemoveMissingTracks = { _, _ -> },
                     onOpenAlbum = {},
                     onOpenArtist = {},
                     onShowPlaylists = {},
@@ -328,22 +296,45 @@ class LibraryHomeContentJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun emptyManagerAndActiveScanExposeEmptyAndCancelStates() =
+    fun emptyLibraryShowsImportCardAndActiveScanWithCancel() =
         runComposeUiTest {
             var cancellations = 0
             setContent {
                 Box(Modifier.size(420.dp, 900.dp)) {
-                    managerContent(
-                        sources = emptyList(),
-                        progress = ScanProgress(session(ScanStatus.Scanning)),
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = emptyList(),
+                        browseMode = BrowseMode.Songs,
+                        folderPickerLauncher = AvailableStubPicker,
+                        sourcePickerActionVisible = true,
+                        importMessage = null,
+                        scanProgress = ScanProgress(session(ScanStatus.Scanning)),
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
                         onCancelScan = { cancellations++ },
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = {},
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
                     )
                 }
             }
             waitForIdle()
 
-            onNode(hasText("Add a music folder to start your local library."))
-                .assertExists()
+            onAllNodes(hasText("Add music folder")).assertCountEquals(2)
             onNode(hasText("Scanning…")).assertExists()
             onNode(hasText("Cancel")).performClick()
             waitForIdle()
@@ -353,459 +344,91 @@ class LibraryHomeContentJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun completedScanExposesReportRescanAndRemoveMissingCallbacks() =
-        runComposeUiTest {
-            val source = source()
-            val session = session(ScanStatus.Completed)
-            val rescanned = mutableListOf<LibrarySource>()
-            val missingRemoved =
-                mutableListOf<Pair<LibrarySource, ScanSession>>()
-            setContent {
-                Box(Modifier.size(420.dp, 900.dp)) {
-                    managerContent(
-                        sources = listOf(source),
-                        progress = ScanProgress(session),
-                        errors = listOf(scanError(session)),
-                        onRescan = { rescanned += it },
-                        onRemoveMissing = { selectedSource, selectedSession ->
-                            missingRemoved += selectedSource to selectedSession
-                        },
-                    )
-                }
-            }
-            waitForIdle()
-
-            onNode(hasText("Scan complete")).assertExists()
-            onNode(hasText("View scan report")).performClick()
-            onNode(hasText("broken.mp3: Unsupported file")).assertExists()
-            onAllNodes(hasText("Rescan"))[0].performClick()
-            onNode(hasText("Remove missing files")).performClick()
-            waitForIdle()
-
-            assertEquals(listOf(source), rescanned)
-            assertEquals(listOf(source to session), missingRemoved)
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun scanReportRemainsExpandedAfterManagerLazyItemIsRecreated() =
-        runComposeUiTest {
-            val source = source()
-            val session = session(ScanStatus.Completed)
-            setContent {
-                Box(Modifier.size(800.dp, 600.dp)) {
-                    managerContent(
-                        sources = listOf(source),
-                        tracks = manyAlbumTracks(),
-                        browseMode = BrowseMode.Albums,
-                        progress = ScanProgress(session),
-                        errors = listOf(scanError(session)),
-                    )
-                }
-            }
-            waitForIdle()
-
-            onNode(hasText("View scan report")).performClick()
-            onNode(hasText("broken.mp3: Unsupported file")).assertExists()
-            onNode(hasScrollToIndexAction()).performTouchInput {
-                repeat(20) { swipeUp() }
-            }
-            waitForIdle()
-            onAllNodes(hasText("Hide scan report")).assertCountEquals(0)
-            onNode(hasScrollToIndexAction()).performScrollToIndex(0)
-            waitForIdle()
-
-            onNode(hasText("Hide scan report")).assertExists()
-            onNode(hasText("broken.mp3: Unsupported file")).assertExists()
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun scanReportCollapsesWhenDisplayedSessionChanges() = runComposeUiTest {
-        val source = source()
-        var displayedSession by mutableStateOf(session(ScanStatus.Completed))
+    fun populatedLibraryHidesImportScanAndOutcomeUi() = runComposeUiTest {
         setContent {
             Box(Modifier.size(420.dp, 900.dp)) {
-                managerContent(
-                    sources = listOf(source),
-                    progress = ScanProgress(displayedSession),
-                    errors = listOf(scanError(displayedSession)),
-                )
-            }
-        }
-        waitForIdle()
-
-        onNode(hasText("View scan report")).performClick()
-        onNode(hasText("Hide scan report")).assertExists()
-        displayedSession = session(ScanStatus.Completed, id = "next-scan")
-        waitForIdle()
-
-        onNode(hasText("View scan report")).assertExists()
-    }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun completedScanManagerStateAndActionsMatchAtCompactAndWideContentWidths() =
-        runComposeUiTest {
-            val source = source()
-            val session = session(ScanStatus.Completed)
-            val compactActions = mutableListOf<String>()
-            val wideActions = mutableListOf<String>()
-
-            setContent {
-                Box(Modifier.size(420.dp, 900.dp)) {
-                    managerContent(
-                        sources = listOf(source),
-                        progress = ScanProgress(session),
-                        onRescan = { compactActions += "rescan:${it.id}" },
-                        onRemoveMissing = { selectedSource, selectedSession ->
-                            compactActions +=
-                                "remove-missing:${selectedSource.id}:${selectedSession.id}"
-                        },
-                    )
-                }
-            }
-            waitForIdle()
-
-            onAllNodes(hasText("Rescan"))[0].performClick()
-            onNode(hasText("Remove missing files")).performClick()
-            waitForIdle()
-
-            setContent {
-                Box(Modifier.size(1200.dp, 900.dp)) {
-                    managerContent(
-                        sources = listOf(source),
-                        progress = ScanProgress(session),
-                        onRescan = { wideActions += "rescan:${it.id}" },
-                        onRemoveMissing = { selectedSource, selectedSession ->
-                            wideActions +=
-                                "remove-missing:${selectedSource.id}:${selectedSession.id}"
-                        },
-                    )
-                }
-            }
-            waitForIdle()
-
-            onAllNodes(hasText("Rescan"))[0].performClick()
-            onNode(hasText("Remove missing files")).performClick()
-            waitForIdle()
-
-            assertEquals(compactActions, wideActions)
-            assertEquals(
-                listOf("rescan:source", "remove-missing:source:scan"),
-                compactActions,
-            )
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun addSourceActionIsVisibleAndLaunchesTheAvailablePicker() =
-        runComposeUiTest {
-            AvailableStubPicker.launches = 0
-            setContent {
-                Box(Modifier.size(420.dp, 900.dp)) {
-                    managerContent(
-                        sources = listOf(source()),
-                        tracks = listOf(managerTrack()),
-                        folderPickerLauncher = AvailableStubPicker,
-                        sourcePickerActionVisible = true,
-                    )
-                }
-            }
-            waitForIdle()
-
-            onNode(hasText("Add music folder")).performClick()
-            waitForIdle()
-
-            assertEquals(1, AvailableStubPicker.launches)
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun noResultPickerLeavesCallerOwnedManagerStateUnchangedAfterAddSourceAction() =
-        runComposeUiTest {
-            val initialSources = listOf(source())
-            var managerSources by mutableStateOf(initialSources)
-            var pickerResultCallbacks = 0
-            val picker = NoResultStubPicker {
-                pickerResultCallbacks++
-                managerSources = managerSources + source()
-            }
-            setContent {
-                Box(Modifier.size(420.dp, 900.dp)) {
-                    managerContent(
-                        sources = managerSources,
-                        tracks = listOf(managerTrack()),
-                        folderPickerLauncher = picker,
-                        sourcePickerActionVisible = true,
-                    )
-                }
-            }
-            waitForIdle()
-
-            onNode(hasText("Add music folder")).performClick()
-            waitForIdle()
-
-            assertEquals(1, picker.launches)
-            assertEquals(0, pickerResultCallbacks)
-            assertEquals(initialSources, managerSources)
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun coordinatorDisabledStateDisablesCompletedScanMutationControls() =
-        runComposeUiTest {
-            val source = source()
-            val session = session(ScanStatus.Completed)
-            val rescanned = mutableListOf<LibrarySource>()
-            val missingRemoved =
-                mutableListOf<Pair<LibrarySource, ScanSession>>()
-            setContent {
-                Box(Modifier.size(420.dp, 900.dp)) {
-                    managerContent(
-                        sources = listOf(source),
-                        progress = ScanProgress(session),
-                        mutationsEnabled = false,
-                        onRescan = { rescanned += it },
-                        onRemoveMissing = { selectedSource, selectedSession ->
-                            missingRemoved += selectedSource to selectedSession
-                        },
-                    )
-                }
-            }
-            waitForIdle()
-
-            onNode(hasText("View scan report")).performClick()
-            onAllNodes(hasText("Rescan"))[0].assertIsNotEnabled()
-            onNode(hasText("Remove missing files")).assertIsNotEnabled()
-            waitForIdle()
-
-            assertTrue(rescanned.isEmpty())
-            assertTrue(missingRemoved.isEmpty())
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun restoredTerminalStatesRenderThroughProductionContentAndRetryWhenRequired() =
-        runComposeUiTest {
-            val source = source()
-            var status by mutableStateOf(ScanStatus.Completed)
-            val rescanned = mutableListOf<LibrarySource>()
-            setContent {
-                Box(Modifier.size(420.dp, 900.dp)) {
-                    managerContent(
-                        sources = listOf(source),
-                        progress = ScanProgress(session(status)),
-                        onRescan = { rescanned += it },
-                    )
-                }
-            }
-            waitForIdle()
-
-            onNode(hasText("Scan complete")).assertExists()
-            status = ScanStatus.Failed
-            waitForIdle()
-            onNode(hasText("Scan failed")).assertExists()
-            onNode(hasText("Retry scan")).performClick()
-            status = ScanStatus.Cancelled
-            waitForIdle()
-            onNode(hasText("Scan cancelled")).assertExists()
-            onNode(hasText("Retry scan")).performClick()
-
-            assertEquals(listOf(source, source), rescanned)
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun managerActionsMatchAtCompactAndWideContentWidths() = runComposeUiTest {
-        val source = source()
-        val completedSession = session(ScanStatus.Completed)
-        val compactActions = mutableListOf<String>()
-        val wideActions = mutableListOf<String>()
-        AvailableStubPicker.launches = 0
-
-        listOf(420.dp to compactActions, 1200.dp to wideActions).forEach {
-            (width, actions) ->
-            setContent {
-                Box(Modifier.size(width, 900.dp)) {
-                    managerContent(
-                        sources = listOf(source),
-                        tracks = listOf(managerTrack()),
-                        progress = ScanProgress(session(ScanStatus.Scanning)),
-                        folderPickerLauncher = AvailableStubPicker,
-                        sourcePickerActionVisible = true,
-                        onCancelScan = { actions += "cancel" },
-                    )
-                }
-            }
-            waitForIdle()
-            onNode(hasText("Cancel")).performClick()
-            onNode(hasText("Add music folder")).performClick()
-
-            setContent {
-                Box(Modifier.size(width, 900.dp)) {
-                    managerContent(
-                        sources = listOf(source),
-                        progress = ScanProgress(session(ScanStatus.Cancelled)),
-                        errors = listOf(scanError(completedSession)),
-                        onRescan = { actions += "retry-cancelled:${it.id}" },
-                    )
-                }
-            }
-            waitForIdle()
-            onNode(hasText("Retry scan")).performClick()
-            onNode(hasText("View scan report")).performClick()
-            onNode(hasText("broken.mp3: Unsupported file")).assertExists()
-
-            setContent {
-                Box(Modifier.size(width, 900.dp)) {
-                    managerContent(
-                        sources = listOf(source),
-                        progress = ScanProgress(session(ScanStatus.Failed)),
-                        onRescan = { actions += "retry-failed:${it.id}" },
-                    )
-                }
-            }
-            waitForIdle()
-            onNode(hasText("Retry scan")).performClick()
-
-            setContent {
-                Box(Modifier.size(width, 900.dp)) {
-                    managerContent(
-                        sources =
-                            listOf(
-                                source(
-                                    accessStatus =
-                                        LibrarySourceAccessStatus.LostAccess)),
-                        folderPickerLauncher = AvailableStubPicker,
-                    )
-                }
-            }
-            waitForIdle()
-            onNode(hasText("Choose folder again")).performClick()
-
-            setContent {
-                Box(Modifier.size(width, 900.dp)) {
-                    managerContent(
-                        sources = listOf(source),
-                        progress = ScanProgress(completedSession),
-                        onRescan = { actions += "rescan:${it.id}" },
-                        onRemoveMissing = { selectedSource, selectedSession ->
-                            actions +=
-                                "remove-missing:${selectedSource.id}:${selectedSession.id}"
-                        },
-                    )
-                }
-            }
-            waitForIdle()
-            onAllNodes(hasText("Rescan"))[1].performClick()
-            onNode(hasText("Remove missing files")).performClick()
-            waitForIdle()
-        }
-
-        assertEquals(compactActions, wideActions)
-        assertEquals(
-            listOf(
-                "cancel",
-                "retry-cancelled:source",
-                "retry-failed:source",
-                "rescan:source",
-                "remove-missing:source:scan",
-            ),
-            compactActions,
-        )
-        assertEquals(4, AvailableStubPicker.launches)
-    }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun lostAccessSourceOffersRecoveryAndRemovalCallbacks() = runComposeUiTest {
-        val source = source(accessStatus = LibrarySourceAccessStatus.LostAccess)
-        val removed = mutableListOf<LibrarySource>()
-        AvailableStubPicker.launches = 0
-        setContent {
-            Box(Modifier.size(420.dp, 900.dp)) {
-                managerContent(
-                    sources = listOf(source),
+                LibraryHomeContent(
+                    title = "Library",
+                    subtitle = "",
+                    tracks = listOf(managerTrack()),
+                    browseMode = BrowseMode.Songs,
                     folderPickerLauncher = AvailableStubPicker,
-                    onRemove = { removed += it },
+                    sourcePickerActionVisible = true,
+                    importMessage = null,
+                    scanProgress = ScanProgress(session(ScanStatus.Scanning)),
+                    mutationsEnabled = true,
+                    currentTrackId = null,
+                    selectionModeActive = false,
+                    selectedTrackIds = emptySet(),
+                    labels = labels(),
+                    homeBackdrop = null,
+                    artworkLoader = { null },
+                    onBrowseModeChange = {},
+                    onClearLibrary = {},
+                    onCancelScan = {},
+                    onOpenAlbum = {},
+                    onOpenArtist = {},
+                    onShowPlaylists = {},
+                    onPlayTrack = { _, _ -> },
+                    onToggleSelection = {},
+                    onStartSelection = {},
+                    onVisibleTrackIdsChanged = {},
+                    onScrollPositionChanged = { _, _ -> },
+                    bottomContentPadding = 0.dp,
                 )
             }
         }
         waitForIdle()
 
-        onNode(hasText("Access lost")).assertExists()
-        onNode(hasText("Choose folder again")).performClick()
-        onNode(hasText("Remove folder")).performClick()
-        waitForIdle()
-
-        assertEquals(1, AvailableStubPicker.launches)
-        assertEquals(listOf(source), removed)
+        onAllNodes(hasText("Add music folder")).assertCountEquals(0)
+        onAllNodes(hasText("Scanning…")).assertCountEquals(0)
+        onAllNodes(hasText("Cancel")).assertCountEquals(0)
     }
 
-    @Composable
-    private fun managerContent(
-        sources: List<LibrarySource>,
-        tracks: List<Track> = emptyList(),
-        browseMode: BrowseMode = BrowseMode.Songs,
-        progress: ScanProgress? = null,
-        errors: List<ScanError> = emptyList(),
-        folderPickerLauncher: PlatformFolderPickerLauncher = StubPicker,
-        sourcePickerActionVisible: Boolean = false,
-        mutationsEnabled: Boolean = true,
-        onRescan: (LibrarySource) -> Unit = {},
-        onRemove: (LibrarySource) -> Unit = {},
-        onRemoveMissing: (LibrarySource, ScanSession) -> Unit = { _, _ -> },
-        onCancelScan: () -> Unit = {},
-    ) {
-        LibraryHomeContent(
-            title = "Library",
-            subtitle = "",
-            tracks = tracks,
-            browseMode = browseMode,
-            folderPickerLauncher = folderPickerLauncher,
-            sourcePickerActionVisible = sourcePickerActionVisible,
-            sources = sources,
-            importMessage = null,
-            scanProgress = progress,
-            scanErrors = errors,
-            mutationsEnabled = mutationsEnabled,
-            currentTrackId = null,
-            selectionModeActive = false,
-            selectedTrackIds = emptySet(),
-            labels = labels(),
-            homeBackdrop = null,
-            artworkLoader = { null },
-            onBrowseModeChange = {},
-            onClearLibrary = {},
-            onCancelScan = onCancelScan,
-            onRescanSource = onRescan,
-            onRemoveSource = onRemove,
-            onRemoveMissingTracks = onRemoveMissing,
-            onOpenAlbum = {},
-            onOpenArtist = {},
-            onShowPlaylists = {},
-            onPlayTrack = { _, _ -> },
-            onToggleSelection = {},
-            onStartSelection = {},
-            onVisibleTrackIdsChanged = {},
-            onScrollPositionChanged = { _, _ -> },
-            bottomContentPadding = 0.dp,
-        )
-    }
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun emptyLibraryWithTerminalSessionHidesOutcomeButShowsImport() =
+        runComposeUiTest {
+            setContent {
+                Box(Modifier.size(420.dp, 900.dp)) {
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = emptyList(),
+                        browseMode = BrowseMode.Songs,
+                        folderPickerLauncher = AvailableStubPicker,
+                        sourcePickerActionVisible = true,
+                        importMessage = null,
+                        scanProgress =
+                            ScanProgress(session(ScanStatus.Completed)),
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = {},
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                    )
+                }
+            }
+            waitForIdle()
 
-    private fun source(
-        accessStatus: LibrarySourceAccessStatus =
-            LibrarySourceAccessStatus.Available,
-    ): LibrarySource =
-        LibrarySource(
-            id = "source",
-            platformKind = LibraryPlatformKind.JvmFolder,
-            displayName = "Music",
-            handle = "/music",
-            createdAtEpochMillis = 1L,
-            accessStatus = accessStatus,
-        )
+            onAllNodes(hasText("Add music folder")).assertCountEquals(2)
+            onAllNodes(hasText("Scan complete")).assertCountEquals(0)
+            onAllNodes(hasText("Remove missing files")).assertCountEquals(0)
+        }
 
     private fun session(status: ScanStatus, id: String = "scan"): ScanSession =
         ScanSession(
@@ -823,17 +446,6 @@ class LibraryHomeContentJvmTest {
                 else null,
         )
 
-    private fun scanError(session: ScanSession): ScanError =
-        ScanError(
-            id = "error",
-            scanId = session.id,
-            sourceLocalKey = "broken.mp3",
-            displayPath = "broken.mp3",
-            reason = "Unsupported file",
-            recoverable = true,
-            createdAtEpochMillis = 1L,
-        )
-
     private fun twelveTracks(): List<Track> =
         List(12) { index ->
             track(
@@ -841,18 +453,6 @@ class LibraryHomeContentJvmTest {
                 title = "Track ${index + 1}",
                 album = "Album B",
                 artist = "Artist",
-                disc = 1,
-                number = index + 1,
-            )
-        }
-
-    private fun manyAlbumTracks(): List<Track> =
-        List(80) { index ->
-            track(
-                id = "scroll-${index + 1}",
-                title = "Scroll track ${index + 1}",
-                album = "Scroll album ${index + 1}",
-                artist = "Scroll artist",
                 disc = 1,
                 number = index + 1,
             )
@@ -930,15 +530,4 @@ class LibraryHomeContentJvmTest {
         }
     }
 
-    private class NoResultStubPicker(
-        private val onResult: () -> Unit,
-    ) : PlatformFolderPickerLauncher {
-        override val isAvailable: Boolean = true
-        override val supportsAdditionalSources: Boolean = true
-        var launches: Int = 0
-
-        override fun launch() {
-            launches++
-        }
-    }
 }

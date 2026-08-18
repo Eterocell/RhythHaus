@@ -39,7 +39,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
+import com.eterocell.rhythhaus.library.ScanError
+import com.eterocell.rhythhaus.library.ScanSession
+import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.hausClickable
@@ -54,12 +58,23 @@ import rhythhaus.feature.library.generated.resources.artist_artwork
 import rhythhaus.feature.library.generated.resources.browse_mode_albums
 import rhythhaus.feature.library.generated.resources.browse_mode_artists
 import rhythhaus.feature.library.generated.resources.browse_mode_songs
+import rhythhaus.feature.library.generated.resources.hide_scan_report
 import rhythhaus.feature.library.generated.resources.import_card_description
 import rhythhaus.feature.library.generated.resources.import_card_title
 import rhythhaus.feature.library.generated.resources.import_card_title_with_tracks
+import rhythhaus.feature.library.generated.resources.remove_missing
+import rhythhaus.feature.library.generated.resources.rescan
+import rhythhaus.feature.library.generated.resources.retry_scan
+import rhythhaus.feature.library.generated.resources.scan_cancelled
+import rhythhaus.feature.library.generated.resources.scan_completed
+import rhythhaus.feature.library.generated.resources.scan_failed
 import rhythhaus.feature.library.generated.resources.scan_progress_format
+import rhythhaus.feature.library.generated.resources.scan_report_empty
+import rhythhaus.feature.library.generated.resources.scan_report_error_format
+import rhythhaus.feature.library.generated.resources.scan_summary_format
 import rhythhaus.feature.library.generated.resources.scanning
 import rhythhaus.feature.library.generated.resources.track_count_format
+import rhythhaus.feature.library.generated.resources.view_scan_report
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -706,6 +721,117 @@ public fun ScanningCard(
                         contentColor = HausColors.current.paper),
             ) {
                 Text(labels.cancel, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+/**
+ * Renders the terminal scan-outcome panel with summary, rescan/retry,
+ * report toggle, and remove-missing actions.
+ *
+ * @param session the terminal scan session to display.
+ * @param source the source the session scanned, if still configured.
+ * @param errors file errors recorded for the displayed scan session.
+ * @param reportVisible whether the error report is expanded.
+ * @param mutationsEnabled whether scan mutations are currently allowed.
+ * @param onToggleReport requests toggling the report expansion.
+ * @param onRescanSource requests scanning the source again.
+ * @param onRemoveMissingTracks requests removing tracks not seen by the
+ *   completed scan.
+ */
+@Composable
+public fun ScanOutcomePanel(
+    session: ScanSession,
+    source: LibrarySource?,
+    errors: List<ScanError>,
+    reportVisible: Boolean,
+    mutationsEnabled: Boolean,
+    onToggleReport: () -> Unit,
+    onRescanSource: (LibrarySource) -> Unit,
+    onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit,
+) {
+    val title =
+        stringResource(
+            when (session.status) {
+                ScanStatus.Completed -> Res.string.scan_completed
+                ScanStatus.Cancelled -> Res.string.scan_cancelled
+                ScanStatus.Failed -> Res.string.scan_failed
+                else -> Res.string.scan_completed
+            },
+        )
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            title,
+            color = HausColors.current.ink,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Black)
+        Text(
+            stringResource(
+                Res.string.scan_summary_format,
+                session.foldersVisited,
+                session.filesVisited,
+                session.tracksAdded,
+                session.tracksUpdated,
+                session.filesSkipped),
+            color = HausColors.current.muted,
+            fontSize = 12.sp)
+        session.terminalMessage?.takeIf(String::isNotBlank)?.let {
+            Text(it, color = HausColors.current.pulse, fontSize = 12.sp)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            source?.let {
+                Button(
+                    onClick = { onRescanSource(it) },
+                    enabled = mutationsEnabled,
+                    modifier = Modifier.weight(1f).height(38.dp),
+                    cornerRadius = 8.dp) {
+                        Text(
+                            stringResource(
+                                if (session.status == ScanStatus.Completed)
+                                    Res.string.rescan
+                                else Res.string.retry_scan,
+                            ),
+                            fontSize = 12.sp,
+                        )
+                    }
+            }
+            Button(
+                onClick = onToggleReport,
+                modifier = Modifier.weight(1f).height(38.dp),
+                cornerRadius = 8.dp) {
+                    Text(
+                        stringResource(
+                            if (reportVisible) Res.string.hide_scan_report
+                            else Res.string.view_scan_report),
+                        fontSize = 12.sp)
+                }
+        }
+        if (session.status == ScanStatus.Completed && source != null) {
+            Button(
+                onClick = { onRemoveMissingTracks(source, session) },
+                enabled = mutationsEnabled,
+                modifier = Modifier.fillMaxWidth().height(38.dp),
+                cornerRadius = 8.dp) {
+                    Text(
+                        stringResource(Res.string.remove_missing),
+                        fontSize = 12.sp)
+                }
+        }
+        if (reportVisible) {
+            if (errors.isEmpty())
+                Text(
+                    stringResource(Res.string.scan_report_empty),
+                    color = HausColors.current.muted,
+                    fontSize = 12.sp)
+            errors.forEach { error ->
+                Text(
+                    stringResource(
+                        Res.string.scan_report_error_format,
+                        error.displayPath,
+                        error.reason),
+                    color = HausColors.current.muted,
+                    fontSize = 12.sp)
             }
         }
     }

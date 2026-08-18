@@ -502,10 +502,8 @@ fun LibraryHomeScreen(
                     browseMode = appState.browseMode,
                     folderPickerLauncher = folderPickerLauncher,
                     sourcePickerActionVisible = sourcePickerActionVisible,
-                    sources = sources,
                     importMessage = importMessage,
                     scanProgress = scanProgress,
-                    scanErrors = scanErrors,
                     mutationsEnabled = coordinatorMutationsEnabled,
                     currentTrackId = playbackState.currentTrack?.id,
                     selectionModeActive =
@@ -530,9 +528,6 @@ fun LibraryHomeScreen(
                     },
                     onClearLibrary = onClearLibrary,
                     onCancelScan = onCancelScan,
-                    onRescanSource = onRescanSource,
-                    onRemoveSource = onRemoveSource,
-                    onRemoveMissingTracks = onRemoveMissingTracks,
                     onOpenAlbum = { album ->
                         onOpenDetailRoute(LibraryRoute.AlbumDetail(album))
                     },
@@ -612,10 +607,8 @@ fun LibraryHomeScreen(
                             folderPickerLauncher = folderPickerLauncher,
                             sourcePickerActionVisible =
                                 sourcePickerActionVisible,
-                            sources = sources,
                             importMessage = importMessage,
                             scanProgress = scanProgress,
-                            scanErrors = scanErrors,
                             mutationsEnabled = coordinatorMutationsEnabled,
                             currentTrackId = playbackState.currentTrack?.id,
                             selectionModeActive =
@@ -641,9 +634,6 @@ fun LibraryHomeScreen(
                             },
                             onClearLibrary = onClearLibrary,
                             onCancelScan = onCancelScan,
-                            onRescanSource = onRescanSource,
-                            onRemoveSource = onRemoveSource,
-                            onRemoveMissingTracks = onRemoveMissingTracks,
                             onOpenAlbum = { album ->
                                 openDetailRoute(LibraryRoute.AlbumDetail(album))
                             },

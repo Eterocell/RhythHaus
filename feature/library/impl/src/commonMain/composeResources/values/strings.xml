@@ -20,10 +20,6 @@
     <string name="import_card_title">Add music folder</string>
     <string name="import_card_title_with_tracks">Manage music folders</string>
     <string name="import_card_description">Choose a music folder on this device to build your local library.</string>
-    <string name="library_sources">Music folders</string>
-    <string name="library_empty">Add a music folder to start your local library.</string>
-    <string name="source_access_available">Available</string>
-    <string name="source_access_lost">Access lost</string>
     <string name="scan_completed">Scan complete</string>
     <string name="scan_cancelled">Scan cancelled</string>
     <string name="scan_failed">Scan failed</string>
@@ -35,6 +31,4 @@
     <string name="hide_scan_report">Hide scan report</string>
     <string name="scan_report_empty">No file errors were recorded.</string>
     <string name="scan_report_error_format">%1$s: %2$s</string>
-    <string name="remove_source">Remove folder</string>
-    <string name="recover_source">Choose folder again</string>
 </resources>

@@ -38,10 +38,6 @@ class LibraryResourceOwnershipJvmTest {
             "import_card_title",
             "import_card_title_with_tracks",
             "import_card_description",
-            "library_sources",
-            "library_empty",
-            "source_access_available",
-            "source_access_lost",
             "scan_completed",
             "scan_cancelled",
             "scan_failed",
@@ -53,8 +49,6 @@ class LibraryResourceOwnershipJvmTest {
             "hide_scan_report",
             "scan_report_empty",
             "scan_report_error_format",
-            "remove_source",
-            "recover_source",
         )
 
     private val injected12 =
