@@ -132,16 +132,18 @@ class BottomBarModeTest {
     }
 
     @Test
-    fun selectionBarSemanticsExposeLocalizedCountCancelAndAddLabels() {
+    fun selectionBarSemanticsExposeLocalizedCountCancelSelectAllAndAddLabels() {
         assertEquals(
             TrackSelectionBarSemantics(
                 selectedCountDescription = "2 tracks selected",
                 cancelDescription = "Cancel selection",
+                selectAllDescription = "Select all",
                 addToPlaylistDescription = "Add selected tracks to playlist",
             ),
             trackSelectionBarSemantics(
                 selectedCountDescription = "2 tracks selected",
                 cancelDescription = "Cancel selection",
+                selectAllDescription = "Select all",
                 addToPlaylistDescription = "Add selected tracks to playlist",
             ),
         )

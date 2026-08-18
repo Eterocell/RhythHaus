@@ -335,26 +335,32 @@ fun LibraryHomeScreen(
         clearSelection()
         appState.pushRoute(route)
     }
+    fun pageTrackIds(pageKey: TrackSelectionPageKey): List<String> =
+        when (pageKey) {
+            TrackSelectionPageKey.HomeSongs -> snapshot.tracks.map(Track::id)
+            is TrackSelectionPageKey.Album ->
+                albums.filter { it.album == pageKey.album }.map(Track::id)
+            is TrackSelectionPageKey.Artist ->
+                artists.filter { it.artist == pageKey.artist }.map(Track::id)
+            TrackSelectionPageKey.Search -> searchVisibleTrackIds
+        }
     fun openSelectedTracksPicker() {
         val pageKey = trackSelectionState.pageKey ?: return
-        val visibleTrackIds =
-            when (pageKey) {
-                TrackSelectionPageKey.HomeSongs ->
-                    snapshot.tracks.map(Track::id)
-                is TrackSelectionPageKey.Album ->
-                    albums.filter { it.album == pageKey.album }.map(Track::id)
-                is TrackSelectionPageKey.Artist ->
-                    artists
-                        .filter { it.artist == pageKey.artist }
-                        .map(Track::id)
-                TrackSelectionPageKey.Search -> searchVisibleTrackIds
-            }
+        val visibleTrackIds = pageTrackIds(pageKey)
         val orderedIds =
             orderedSelectedTrackIds(
                 trackSelectionState, pageKey, visibleTrackIds)
         if (orderedIds.isNotEmpty())
             onPlaylistStateAction(
                 PlaylistStateAction.OpenPicker(PlaylistPickerState(orderedIds)))
+    }
+    fun selectAllOnCurrentPage() {
+        val pageKey = trackSelectionState.pageKey ?: return
+        val trackIds = pageTrackIds(pageKey)
+        if (trackIds.isNotEmpty()) {
+            dispatchTrackSelection(
+                TrackSelectionAction.SelectAll(pageKey, trackIds))
+        }
     }
     SideEffect {
         appState.publishSelectionPort(selectionPort)
@@ -736,7 +742,7 @@ fun LibraryHomeScreen(
                 hiddenFraction = bottomBarOffset,
             )
         if (bottomBarContent != LibraryBottomBarContent.Hidden) {
-            key(bottomBarContent) {
+            key(bottomBarContent.kind) {
                 Box(
                     modifier =
                         Modifier.align(Alignment.BottomCenter)
@@ -770,6 +776,7 @@ fun LibraryHomeScreen(
                         onCancelSelection = {
                             dispatchTrackSelection(TrackSelectionAction.Cancel)
                         },
+                        onSelectAll = ::selectAllOnCurrentPage,
                         onAddToPlaylist = ::openSelectedTracksPicker,
                         onPlayPause = playbackController::togglePlayPause,
                         onExpand = {
@@ -915,6 +922,7 @@ internal fun LibraryShellBottomBar(
     playbackState: PlaybackState,
     artworkLoader: suspend (String) -> ByteArray?,
     onCancelSelection: () -> Unit,
+    onSelectAll: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onPlayPause: () -> Unit,
     onExpand: () -> Unit,
@@ -930,6 +938,7 @@ internal fun LibraryShellBottomBar(
             TrackSelectionBar(
                 selectedCount = content.selectedCount,
                 onCancel = onCancelSelection,
+                onSelectAll = onSelectAll,
                 onAddToPlaylist = onAddToPlaylist,
                 interactive = presentation.isInteractive,
                 modifier = Modifier.testTag(SelectionShellPlacementTestTag),

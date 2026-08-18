@@ -18,6 +18,7 @@
     <string name="selection_count_one">已选择 %1$d 首曲目</string>
     <string name="selection_count_many">已选择 %1$d 首曲目</string>
     <string name="selection_cancel">取消选择</string>
+    <string name="selection_select_all">全选</string>
     <string name="selection_add_to_playlist">将所选曲目添加到播放列表</string>
     <string name="track_artist_album_format">%1$s · %2$s</string>
     <string name="adaptive_detail_placeholder">选择一个专辑或艺术家以在此显示详情。</string>

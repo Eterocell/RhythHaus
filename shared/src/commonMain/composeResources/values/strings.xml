@@ -18,6 +18,7 @@
     <string name="selection_count_one">%1$d track selected</string>
     <string name="selection_count_many">%1$d tracks selected</string>
     <string name="selection_cancel">Cancel selection</string>
+    <string name="selection_select_all">Select all</string>
     <string name="selection_add_to_playlist">Add selected tracks to playlist</string>
     <string name="track_artist_album_format">%1$s · %2$s</string>
     <string name="adaptive_detail_placeholder">Select an album or artist to show details here.</string>

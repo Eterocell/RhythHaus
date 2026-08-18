@@ -146,6 +146,7 @@ class Task3ReviewSemanticsJvmTest {
                 TrackSelectionBar(
                     selectedCount = 2,
                     onCancel = { cancelCount += 1 },
+                    onSelectAll = {},
                     onAddToPlaylist = { addCount += 1 },
                     interactive = false,
                 )
@@ -176,6 +177,7 @@ class Task3ReviewSemanticsJvmTest {
                 TrackSelectionBar(
                     selectedCount = 2,
                     onCancel = { cancelCount += 1 },
+                    onSelectAll = {},
                     onAddToPlaylist = { addCount += 1 },
                     interactive = presentation.isInteractive,
                 )
@@ -200,26 +202,53 @@ class Task3ReviewSemanticsJvmTest {
                 )
             var cancelCount = 0
             var addCount = 0
+            var selectAllCount = 0
             setContent {
                 TrackSelectionBar(
                     selectedCount = 2,
                     onCancel = { cancelCount += 1 },
+                    onSelectAll = { selectAllCount += 1 },
                     onAddToPlaylist = { addCount += 1 },
                     interactive = presentation.isInteractive,
                 )
             }
 
             onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
-                .assertCountEquals(2)
+                .assertCountEquals(3)
             val actions =
                 onAllNodes(
                     SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
             actions[0].performClick()
             actions[1].performClick()
+            actions[2].performClick()
             waitForIdle()
             assertEquals(1, cancelCount)
             assertEquals(1, addCount)
+            assertEquals(1, selectAllCount)
         }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun selectionClearanceSurvivesSelectedCountChanges() {
+        val measurement =
+            LibraryBottomBarMeasurement(
+                LibraryBottomBarContent.Selection(1), 286)
+
+        assertEquals(
+            286,
+            activeBottomBarClearancePx(
+                LibraryBottomBarContent.Selection(2), measurement),
+        )
+        assertEquals(
+            LibraryBottomBarContent.Selection(1).kind,
+            LibraryBottomBarContent.Selection(2).kind,
+        )
+        assertEquals(
+            0,
+            activeBottomBarClearancePx(
+                LibraryBottomBarContent.NowPlaying, measurement),
+        )
+    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test

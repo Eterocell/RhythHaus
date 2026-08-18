@@ -26,6 +26,7 @@ import rhythhaus.shared.generated.resources.selection_add_to_playlist
 import rhythhaus.shared.generated.resources.selection_cancel
 import rhythhaus.shared.generated.resources.selection_count_many
 import rhythhaus.shared.generated.resources.selection_count_one
+import rhythhaus.shared.generated.resources.selection_select_all
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -33,17 +34,20 @@ import top.yukonga.miuix.kmp.basic.Text
 data class TrackSelectionBarSemantics(
     val selectedCountDescription: String,
     val cancelDescription: String,
+    val selectAllDescription: String,
     val addToPlaylistDescription: String,
 )
 
 fun trackSelectionBarSemantics(
     selectedCountDescription: String,
     cancelDescription: String,
+    selectAllDescription: String,
     addToPlaylistDescription: String,
 ): TrackSelectionBarSemantics =
     TrackSelectionBarSemantics(
         selectedCountDescription = selectedCountDescription,
         cancelDescription = cancelDescription,
+        selectAllDescription = selectAllDescription,
         addToPlaylistDescription = addToPlaylistDescription,
     )
 
@@ -51,6 +55,7 @@ fun trackSelectionBarSemantics(
 fun TrackSelectionBar(
     selectedCount: Int,
     onCancel: () -> Unit,
+    onSelectAll: () -> Unit,
     onAddToPlaylist: () -> Unit,
     interactive: Boolean = true,
     modifier: Modifier = Modifier,
@@ -63,10 +68,14 @@ fun TrackSelectionBar(
             selectedCount,
         )
     val cancelDescription = stringResource(Res.string.selection_cancel)
+    val selectAllDescription = stringResource(Res.string.selection_select_all)
     val addDescription = stringResource(Res.string.selection_add_to_playlist)
     val semantics =
         trackSelectionBarSemantics(
-            countDescription, cancelDescription, addDescription)
+            countDescription,
+            cancelDescription,
+            selectAllDescription,
+            addDescription)
 
     Column(
         modifier =
@@ -100,6 +109,13 @@ fun TrackSelectionBar(
                     text = cancelDescription,
                     contentDescription = semantics.cancelDescription,
                     onClick = onCancel,
+                    modifier = Modifier.weight(1f),
+                    emphasized = false,
+                )
+                SelectionBarButton(
+                    text = selectAllDescription,
+                    contentDescription = semantics.selectAllDescription,
+                    onClick = onSelectAll,
                     modifier = Modifier.weight(1f),
                     emphasized = false,
                 )

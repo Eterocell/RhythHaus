@@ -74,11 +74,30 @@ fun shouldShowNowPlayingBar(
 ): Boolean = existingVisibility && routePermitsNowPlayingBar(route)
 
 sealed interface LibraryBottomBarContent {
-    data object Hidden : LibraryBottomBarContent
+    val kind: LibraryBottomBarKind
 
-    data object NowPlaying : LibraryBottomBarContent
+    data object Hidden : LibraryBottomBarContent {
+        override val kind = LibraryBottomBarKind.Hidden
+    }
 
-    data class Selection(val selectedCount: Int) : LibraryBottomBarContent
+    data object NowPlaying : LibraryBottomBarContent {
+        override val kind = LibraryBottomBarKind.NowPlaying
+    }
+
+    data class Selection(val selectedCount: Int) : LibraryBottomBarContent {
+        override val kind = LibraryBottomBarKind.Selection
+    }
+}
+
+/**
+ * Stable bottom-bar surface identity. The selected-count payload must not
+ * participate in equality used for remounting or clearance invalidation, or
+ * every selection toggle would tear down and rebuild the bar.
+ */
+enum class LibraryBottomBarKind {
+    Hidden,
+    NowPlaying,
+    Selection,
 }
 
 fun libraryBottomBarContent(
@@ -128,8 +147,8 @@ fun activeBottomBarClearancePx(
     content: LibraryBottomBarContent,
     measurement: LibraryBottomBarMeasurement?,
 ): Int =
-    if (content == LibraryBottomBarContent.Hidden ||
-        measurement?.content != content) {
+    if (content.kind == LibraryBottomBarKind.Hidden ||
+        measurement?.content?.kind != content.kind) {
         0
     } else {
         measurement.heightPx.coerceAtLeast(0)

@@ -25,6 +25,11 @@ sealed interface TrackSelectionAction {
     data class Toggle(val pageKey: TrackSelectionPageKey, val trackId: String) :
         TrackSelectionAction
 
+    data class SelectAll(
+        val pageKey: TrackSelectionPageKey,
+        val trackIds: List<String>,
+    ) : TrackSelectionAction
+
     data class ReconcileVisible(
         val pageKey: TrackSelectionPageKey,
         val visibleTrackIds: List<String>
@@ -82,6 +87,18 @@ fun reduceTrackSelection(
                             },
                     )
                     .normalized()
+            }
+        }
+
+        is TrackSelectionAction.SelectAll -> {
+            val pageTrackIds =
+                action.trackIds.filter(String::isNotBlank).toSet()
+            if (normalized.pageKey == null) {
+                TrackSelectionState(action.pageKey, pageTrackIds).normalized()
+            } else if (normalized.pageKey != action.pageKey) {
+                normalized
+            } else {
+                normalized.copy(selectedTrackIds = pageTrackIds).normalized()
             }
         }
 
