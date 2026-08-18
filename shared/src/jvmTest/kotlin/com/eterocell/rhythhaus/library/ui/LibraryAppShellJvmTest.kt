@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -16,9 +18,12 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventDispatcher
 import androidx.navigationevent.NavigationEventDispatcherOwner
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
@@ -136,6 +141,113 @@ class LibraryAppShellJvmTest {
             }
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun compactAndWideBranchesRenderPopulatedHomeWithoutScanOrSourceSurfaces() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                listOf(420.dp, 1200.dp).forEach { width ->
+                    val source = source()
+                    val populatedTracks =
+                        listOf(
+                            Track(
+                                "populated-track",
+                                "Populated track title",
+                                "Artist",
+                                "Test Album",
+                                0,
+                                TrackAccent(0, 0),
+                                AudioSource.FilePath("/populated.mp3"),
+                            ),
+                        )
+                    val activeSession =
+                        ScanSession(
+                            id = "active-$width",
+                            sourceId = source.id,
+                            status = ScanStatus.Scanning,
+                            startedAtEpochMillis = 1L,
+                        )
+                    val terminalSession =
+                        ScanSession(
+                            id = "terminal-$width",
+                            sourceId = source.id,
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                            foldersVisited = 2,
+                            filesVisited = 4,
+                            tracksAdded = 2,
+                            tracksUpdated = 1,
+                            filesSkipped = 1,
+                        )
+                    val errors =
+                        listOf(
+                            ScanError(
+                                id = "error-$width",
+                                scanId = terminalSession.id,
+                                sourceLocalKey = "broken.mp3",
+                                displayPath = "broken.mp3",
+                                reason = "Unsupported file",
+                                recoverable = true,
+                                createdAtEpochMillis = 1L,
+                            ),
+                        )
+                    val callbacks = CallbackRecorder()
+
+                    // An active scan must not surface on a populated home.
+                    mount(
+                        width = width,
+                        source = source,
+                        scanSession = activeSession,
+                        scanErrors = errors,
+                        tracks = populatedTracks,
+                        picker = CountingPicker(),
+                        callbacks = callbacks,
+                    )
+                    onNode(hasText("Test Album"), useUnmergedTree = true)
+                        .performScrollTo()
+                        .assertExists()
+                    onAllNodes(hasContentDescription("Add music folder"))
+                        .assertCountEquals(0)
+                    onAllNodes(hasText("Cancel"), useUnmergedTree = true)
+                        .assertCountEquals(0)
+                    onAllNodesWithTag(
+                            "settings-rescan-source", useUnmergedTree = true)
+                        .assertCountEquals(0)
+                    onAllNodesWithTag(
+                            "settings-remove-source", useUnmergedTree = true)
+                        .assertCountEquals(0)
+                    onAllNodes(hasText("Scan complete"), useUnmergedTree = true)
+                        .assertCountEquals(0)
+                    onAllNodes(
+                            hasText("View scan report"), useUnmergedTree = true)
+                        .assertCountEquals(0)
+
+                    // A terminal outcome must not surface on a populated home.
+                    mount(
+                        width = width,
+                        source = source,
+                        scanSession = terminalSession,
+                        scanErrors = errors,
+                        tracks = populatedTracks,
+                        picker = CountingPicker(),
+                        callbacks = callbacks,
+                    )
+                    onNode(hasText("Test Album"), useUnmergedTree = true)
+                        .performScrollTo()
+                        .assertExists()
+                    onAllNodes(hasText("Scan complete"), useUnmergedTree = true)
+                        .assertCountEquals(0)
+                    onAllNodes(
+                            hasText("View scan report"), useUnmergedTree = true)
+                        .assertCountEquals(0)
+                    onAllNodes(
+                            hasText("Remove missing files"),
+                            useUnmergedTree = true)
+                        .assertCountEquals(0)
+                }
+            }
+        }
+
     private inline fun <T> withDefaultLocale(
         locale: Locale,
         block: () -> T,
@@ -155,6 +267,7 @@ class LibraryAppShellJvmTest {
         source: LibrarySource,
         scanSession: ScanSession,
         scanErrors: List<ScanError> = emptyList(),
+        tracks: List<Track> = emptyList(),
         picker: CountingPicker,
         callbacks: CallbackRecorder,
     ) {
@@ -165,8 +278,7 @@ class LibraryAppShellJvmTest {
             ) {
                 Box(Modifier.size(width, 900.dp)) {
                     LibraryHomeScreen(
-                        snapshot =
-                            LibrarySnapshot("Library", "", emptyList(), null),
+                        snapshot = LibrarySnapshot("Library", "", tracks, null),
                         libraryTracks = emptyList(),
                         tagLibReader = UnusedTagLibReader,
                         playbackController =
