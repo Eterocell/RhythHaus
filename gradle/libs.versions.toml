@@ -28,7 +28,7 @@ material3 = "1.11.0-alpha07"
 media3 = "1.11.0"
 miuix = "0.9.3"
 navigationevent = "1.1.0"
-spotless = "8.9.0"
+spotless = "8.10.0"
 sqldelight = "2.3.2"
 version-catalog-update = "1.1.1"
 
