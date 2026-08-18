@@ -689,6 +689,10 @@ class SettingsRouteAdapterJvmTest {
                 // LazyColumn keeps the item holding focus composed even far
                 // outside the viewport, so move focus to a source row first;
                 // otherwise the panel below could never be disposed.
+                // Scroll the row into view so the click lands regardless of
+                // how tall the sections above it are.
+                onNode(hasScrollToIndexAction()).performScrollToIndex(5)
+                waitForIdle()
                 onNodeWithTag("settings-rescan-source0", useUnmergedTree = true)
                     .performClick()
                 waitForIdle()

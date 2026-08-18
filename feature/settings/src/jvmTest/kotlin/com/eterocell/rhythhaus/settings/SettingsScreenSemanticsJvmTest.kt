@@ -32,11 +32,13 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -101,6 +103,11 @@ public class SettingsScreenSemanticsJvmTest {
             onNodeWithTag(SettingsListTestTag, useUnmergedTree = true)
                 .performTouchInput { swipe(center, Offset(center.x, 12f)) }
         }
+        waitForIdle()
+        // Scroll by node so the picker is reachable regardless of how tall
+        // the sections above it are.
+        onNodeWithTag(SettingsListTestTag, useUnmergedTree = true)
+            .performScrollToNode(hasTestTag(SettingsPickerTestTag))
         waitForIdle()
         onNodeWithTag(SettingsPickerTestTag, useUnmergedTree = true)
             .performTouchInput { click(center) }

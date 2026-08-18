@@ -79,6 +79,7 @@ import rhythhaus.feature.settings.generated.resources.theme_system_label
 import rhythhaus.feature.settings.generated.resources.unnamed_folder
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Surface
@@ -296,7 +297,6 @@ public fun SettingsScreen(
                                     item { content() }
                                 }
                                 scanOutcomeContent?.let { item { it() } }
-                                item { playlistBackupContent() }
                                 if (sources.isNotEmpty()) {
                                     item {
                                         Text(
@@ -377,9 +377,11 @@ public fun SettingsScreen(
                                                                             .muted)) {
                                                             Text(
                                                                 pickerLabel,
+                                                                fontSize =
+                                                                    14.sp,
                                                                 fontWeight =
                                                                     FontWeight
-                                                                        .Black)
+                                                                        .Bold)
                                                         }
                                                 }
                                         } else
@@ -409,8 +411,9 @@ public fun SettingsScreen(
                                                                 .muted)) {
                                                     Text(
                                                         pickerLabel,
+                                                        fontSize = 14.sp,
                                                         fontWeight =
-                                                            FontWeight.Black)
+                                                            FontWeight.Bold)
                                                 }
                                     }
                                 importMessage?.let { message ->
@@ -423,6 +426,16 @@ public fun SettingsScreen(
                                             fontWeight = FontWeight.Medium)
                                     }
                                 }
+                                item {
+                                    HorizontalDivider(
+                                        modifier =
+                                            Modifier.padding(vertical = 4.dp),
+                                        thickness = 1.dp,
+                                        color =
+                                            HausColors.current.line.copy(
+                                                alpha = 0.6f))
+                                }
+                                item { playlistBackupContent() }
                                 if (hasImportedTracks)
                                     item {
                                         val clearModifier =
@@ -444,7 +457,7 @@ public fun SettingsScreen(
                                                         enabled = false,
                                                         modifier =
                                                             clearModifier,
-                                                        cornerRadius = 18.dp,
+                                                        cornerRadius = 16.dp,
                                                         colors =
                                                             ButtonDefaults
                                                                 .buttonColors(
@@ -462,9 +475,11 @@ public fun SettingsScreen(
                                                             Text(
                                                                 labels
                                                                     .clearLibrary,
+                                                                fontSize =
+                                                                    14.sp,
                                                                 fontWeight =
                                                                     FontWeight
-                                                                        .Black)
+                                                                        .Bold)
                                                         }
                                                 }
                                         } else
@@ -474,7 +489,7 @@ public fun SettingsScreen(
                                                 modifier =
                                                     clearModifier.testTag(
                                                         SettingsClearTestTag),
-                                                cornerRadius = 18.dp,
+                                                cornerRadius = 16.dp,
                                                 colors =
                                                     ButtonDefaults.buttonColors(
                                                         color =
@@ -488,8 +503,9 @@ public fun SettingsScreen(
                                                                 .pulse)) {
                                                     Text(
                                                         labels.clearLibrary,
+                                                        fontSize = 14.sp,
                                                         fontWeight =
-                                                            FontWeight.Black)
+                                                            FontWeight.Bold)
                                                 }
                                     }
                                 item { AboutRow(onAboutClick) }

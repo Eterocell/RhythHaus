@@ -711,17 +711,10 @@ public fun ScanningCard(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(6.dp))
-            Button(
+            ScanActionButton(
+                labels.cancel,
                 onClick = onCancel,
-                modifier = Modifier.fillMaxWidth(),
-                cornerRadius = 8.dp,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        color = HausColors.current.ink,
-                        contentColor = HausColors.current.paper),
-            ) {
-                Text(labels.cancel, fontSize = 12.sp)
-            }
+                modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -781,42 +774,29 @@ public fun ScanOutcomePanel(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             source?.let {
-                Button(
+                ScanActionButton(
+                    stringResource(
+                        if (session.status == ScanStatus.Completed)
+                            Res.string.rescan
+                        else Res.string.retry_scan),
                     onClick = { onRescanSource(it) },
-                    enabled = mutationsEnabled,
-                    modifier = Modifier.weight(1f).height(38.dp),
-                    cornerRadius = 8.dp) {
-                        Text(
-                            stringResource(
-                                if (session.status == ScanStatus.Completed)
-                                    Res.string.rescan
-                                else Res.string.retry_scan,
-                            ),
-                            fontSize = 12.sp,
-                        )
-                    }
+                    modifier = Modifier.weight(1f),
+                    enabled = mutationsEnabled)
             }
-            Button(
+            ScanActionButton(
+                stringResource(
+                    if (reportVisible) Res.string.hide_scan_report
+                    else Res.string.view_scan_report),
                 onClick = onToggleReport,
-                modifier = Modifier.weight(1f).height(38.dp),
-                cornerRadius = 8.dp) {
-                    Text(
-                        stringResource(
-                            if (reportVisible) Res.string.hide_scan_report
-                            else Res.string.view_scan_report),
-                        fontSize = 12.sp)
-                }
+                modifier = Modifier.weight(1f))
         }
         if (session.status == ScanStatus.Completed && source != null) {
-            Button(
+            ScanActionButton(
+                stringResource(Res.string.remove_missing),
                 onClick = { onRemoveMissingTracks(source, session) },
+                modifier = Modifier.fillMaxWidth(),
                 enabled = mutationsEnabled,
-                modifier = Modifier.fillMaxWidth().height(38.dp),
-                cornerRadius = 8.dp) {
-                    Text(
-                        stringResource(Res.string.remove_missing),
-                        fontSize = 12.sp)
-                }
+                destructive = true)
         }
         if (reportVisible) {
             if (errors.isEmpty())
@@ -834,5 +814,41 @@ public fun ScanOutcomePanel(
                     fontSize = 12.sp)
             }
         }
+    }
+}
+
+/**
+ * Settings-page action button: 48dp tall, 16dp corner radius, 14sp bold label.
+ * Primary uses ink/paper; destructive uses a pulse tint; disabled uses the
+ * shared muted state.
+ */
+@Composable
+private fun ScanActionButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    destructive: Boolean = false,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(48.dp),
+        cornerRadius = 16.dp,
+        colors =
+            ButtonDefaults.buttonColors(
+                color =
+                    if (destructive) {
+                        HausColors.current.pulse.copy(alpha = 0.15f)
+                    } else {
+                        HausColors.current.ink
+                    },
+                contentColor =
+                    if (destructive) HausColors.current.pulse
+                    else HausColors.current.paper,
+                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
+                disabledContentColor = HausColors.current.muted),
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }

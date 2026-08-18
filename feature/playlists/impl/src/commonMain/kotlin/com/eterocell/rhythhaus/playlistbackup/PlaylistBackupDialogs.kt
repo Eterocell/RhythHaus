@@ -71,7 +71,7 @@ public fun PlaylistBackupSettingsSection(
     Column(
         modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             DialogTitle(stringResource(Res.string.playlist_backup_section))
-            DialogButton(
+            SettingsSectionButton(
                 label =
                     stringResource(
                         if (state.operation ==
@@ -82,7 +82,7 @@ public fun PlaylistBackupSettingsSection(
                 enabled = launcherAvailable && !state.isBusy,
                 primary = true,
             )
-            DialogButton(
+            SettingsSectionButton(
                 label =
                     stringResource(
                         if (state.operation ==
@@ -96,12 +96,43 @@ public fun PlaylistBackupSettingsSection(
             )
             state.error?.let { error ->
                 CountLine(stringResource(error.resource))
-                DialogButton(
+                SettingsSectionButton(
                     labels.close,
                     { onAction(PlaylistBackupUiAction.ClearError) },
                     primary = false)
             }
         }
+}
+
+/**
+ * Settings-page action button: 48dp tall, 16dp corner radius, 14sp bold label.
+ * Primary uses ink/paper; secondary uses the shared muted tint.
+ */
+@Composable
+private fun SettingsSectionButton(
+    label: String,
+    onClick: () -> Unit,
+    primary: Boolean,
+    enabled: Boolean = true,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        cornerRadius = 16.dp,
+        colors =
+            ButtonDefaults.buttonColors(
+                color =
+                    if (primary) HausColors.current.ink
+                    else HausColors.current.muted.copy(alpha = 0.15f),
+                contentColor =
+                    if (primary) HausColors.current.paper
+                    else HausColors.current.muted,
+                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
+                disabledContentColor = HausColors.current.muted),
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    }
 }
 
 /**
