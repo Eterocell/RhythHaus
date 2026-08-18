@@ -292,11 +292,11 @@ public fun SettingsScreen(
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Black)
                                 }
-                                item { playlistBackupContent() }
                                 activeScanContent?.let { content ->
                                     item { content() }
                                 }
                                 scanOutcomeContent?.let { item { it() } }
+                                item { playlistBackupContent() }
                                 if (sources.isNotEmpty()) {
                                     item {
                                         Text(

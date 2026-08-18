@@ -343,7 +343,7 @@ public class SettingsScreenSemanticsJvmTest {
                             it == "clear"
                     }
             assertEquals(
-                listOf("playlist", "scan", "outcome", "clear"), renderedSlots)
+                listOf("scan", "outcome", "playlist", "clear"), renderedSlots)
         }
 
     @OptIn(ExperimentalTestApi::class)
