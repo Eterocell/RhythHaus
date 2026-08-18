@@ -727,8 +727,8 @@ public fun ScanningCard(
 }
 
 /**
- * Renders the terminal scan-outcome panel with summary, rescan/retry,
- * report toggle, and remove-missing actions.
+ * Renders the terminal scan-outcome panel with summary, rescan/retry, report
+ * toggle, and remove-missing actions.
  *
  * @param session the terminal scan session to display.
  * @param source the source the session scanned, if still configured.

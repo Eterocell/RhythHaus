@@ -149,7 +149,8 @@ public fun LibraryHomeContent(
                                 )
                             }
                         }
-                        if (tracks.isEmpty() && scanProgress?.isActive == true) {
+                        if (tracks.isEmpty() &&
+                            scanProgress?.isActive == true) {
                             item {
                                 val sp = scanProgress
                                 val ss = sp.session!!
@@ -325,4 +326,3 @@ public fun LibraryHomeContent(
             }
     }
 }
-

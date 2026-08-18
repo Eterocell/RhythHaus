@@ -309,7 +309,8 @@ class LibraryHomeContentJvmTest {
                         folderPickerLauncher = AvailableStubPicker,
                         sourcePickerActionVisible = true,
                         importMessage = null,
-                        scanProgress = ScanProgress(session(ScanStatus.Scanning)),
+                        scanProgress =
+                            ScanProgress(session(ScanStatus.Scanning)),
                         mutationsEnabled = true,
                         currentTrackId = null,
                         selectionModeActive = false,
@@ -529,5 +530,4 @@ class LibraryHomeContentJvmTest {
             launches++
         }
     }
-
 }

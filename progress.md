@@ -1,3 +1,13 @@
+## Handoff - 2026-08-18 home-library-content-cleanup closeout
+
+Route: openspec+superpowers
+Owner: documentation/evidence closeout
+Input: planning `7bc7d75`; implementation chain `b03122c` (`refactor: remove folder management section from home page`) -> `d1528a7` (`feat: add scan outcome slot and lost-access recovery to settings`) -> `4c08e3a` (`fix: render playlist backup below scan surfaces in settings`) -> `73d6666` (`feat: route terminal scan outcome and recovery through settings`) -> `dc1764c` (`fix: gate settings scan outcome on terminal status and cover recovery`); Task 4 full verification and scoped diff review.
+Output: `home-library-content-cleanup` accepted. Home renders no folder-management/scan-outcome UI when tracks exist (compact and wide share one `LibraryHomeContent` gate); the import card renders only when `tracks.isEmpty() && sourcePickerActionVisible`; the scanning card only while empty and active; Settings renders the terminal outcome panel with summary, report toggle (session-keyed expansion), rescan/retry, remove-missing, and lost-access recovery. `ScanOutcomePanel` is public in `:feature:library:impl` with full KDoc/@param; no dependency/database/scanner/playback/navigation-model/platform changes (21-file scoped diff, UI layer only). Evidence closeout commit: `feat: keep folder management off the home page`.
+Verification: `openspec validate home-library-content-cleanup --strict` -> `Change 'home-library-content-cleanup' is valid`; `:shared:jvmTest` 133 actionable/23 executed (cache reused); `:desktopApp:compileKotlin` 138/22; `:androidApp:assembleDebug` 307/41; Xcode 26.6 (17F113) available; `:shared:iosSimulatorArm64Test` 180/47; `architectureCheck` 10/1; `spotlessApply` (3 whitespace-only files) then separate `spotlessCheck` 273/2; separate `detekt` 12 up-to-date; `git diff --check` clean. All exit 0.
+Next owner: manual visual QA on desktop/Android/iOS (rendered UI, accessibility, physical-device picker/scan interaction) remains; no automated blocker.
+Blockers: none.
+
 ## Handoff - 2026-08-16 playlist-dialog-polish visual QA retry
 
 Route: openspec+superpowers
