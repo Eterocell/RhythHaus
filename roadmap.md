@@ -58,6 +58,10 @@
 - [x] 架构重构 Slice 3 Task 3.2 accepted：`07da78e`（base `ba500c3`）仅将 package-stable `currentTimeMillis()` / `uuid4()` expect/actual family 提取至 `:core:platform`；time 服务 Library scanning + Playlist backup，UUID 服务 Library scanning + Playback。`:shared` 以 `api(projects.core.platform)` 暴露，iOS framework 不 export core platform，core platform 无 production dependencies，source/metadata/playback engine/dispatch/persistence/theme/backup-document/application-context 等 feature-specific platform seams 保持 feature/shared-owned。Independent reviewer PASS/APPROVED，无 Critical/Important/Minor。Controller integration first run 226 tasks/47s cache stored、identical repeat 1s cache reused；core platform JVM/Android host/iOS XML 2/2/2 与 shared JVM 559 均零 failure/error/skip，Spotless/Detekt 通过。Final staged strict OpenSpec validation 与 diff checks 在 closure 后通过，包含 force-added Task 3.2 evidence files。`./init.sh`、UI/runtime launch、linked iOS app/resource lookup 与 desktop runtime 未运行或声明；下一安全动作：Task 4.1 API publication。
 
 
+## fix(UI) — playlist track artwork rounded corners
+
+- [x] fix(UI): 播放列表（Queue 标签与已保存播放列表详情）音轨专辑图预览恢复圆角；新增 `playlistArtworkThumbnailModifier()`（`.size(48.dp).clip(RoundedCornerShape(14.dp)).background(panelStrong, shape)`）替换两处仅有 rounded background、未 clip 图像的 inline modifier，与专辑视图 clip-then-background 一致；regression `PlaylistArtworkJvmTest.thumbnailModifierClipsArtworkToRoundedCorners` 断言 `GraphicsLayerElement.clip=true` 且 shape 为共享常量。`feature:playlists:impl:jvmTest`、`spotlessCheck`、`detekt` 与完整 battery（除既有 library-impl race）通过；设备/桌面运行时视觉 QA 仍待手动确认。
+
 ## Task 6.1 — Library feature extraction to `:feature:library:impl`
 Completed `741f5eb`. `:shared` retains composition/routing/playback/Koin/iOS facade.
 
