@@ -17,6 +17,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collect
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 class PlaybackControllerTest {
     @Test
@@ -1438,6 +1440,67 @@ class PlaybackControllerTest {
                 "First", controller.state.value.queue.first().track.title)
         }
 
+    /**
+     * Regression guard for cross-thread generation allocation. The controller
+     * is driven from one caller thread in production, but the session
+     * coordinator actor (reconcile/restore), engine callback threads
+     * (completion/skip), and UI event handlers can all issue queue mutations
+     * concurrently. Every load that actually reaches the engine must carry a
+     * unique generation; a reused generation would let a stale engine callback
+     * pass the active-generation guard.
+     */
+    @Test
+    fun concurrentQueueSelectionsNeverReuseGenerations() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val tracks = testTracks(2)
+        val workers =
+            (1..12).map { _ ->
+                async(Dispatchers.Default) {
+                    repeat(20) { index ->
+                        controller.setQueue(
+                            tracks,
+                            selectedTrackId =
+                                if (index % 2 == 0) "track-1" else "track-2",
+                        )
+                        controller.play()
+                        controller.pause()
+                    }
+                }
+            }
+        workers.awaitAll()
+
+        // The controller's loads run on its own dispatcher, so drain the
+        // engine's generation signals until one quiet second proves the storm
+        // has settled. Only loads that actually ran are observed.
+        val observed = mutableListOf<Long>()
+        withTimeout(10_000) {
+            while (true) {
+                val next =
+                    withTimeoutOrNull(1_000) {
+                        engine.generationSignals.receive()
+                    } ?: break
+                observed += next
+            }
+        }
+        assertTrue(
+            observed.isNotEmpty(),
+            "the storm must produce at least one engine load",
+        )
+        assertEquals(
+            observed.size,
+            observed.distinct().size,
+            "concurrent queue selections must never reuse a generation",
+        )
+        val state = controller.state.value
+        assertNotNull(state.currentOccurrenceId)
+        assertEquals(2, state.queue.size)
+        assertTrue(
+            state.queue.any { it.id == state.currentOccurrenceId },
+            "selected occurrence must remain in the queue",
+        )
+    }
+
     private suspend fun loadedController(
         engine: RecordingPlaybackEngine,
         status: PlaybackStatus,
@@ -1551,6 +1614,7 @@ class PlaybackControllerTest {
         override var listener: PlaybackEngineListener? = null
         val loadedTracks = mutableListOf<PlayableTrack>()
         val loadedGenerations = mutableListOf<Long>()
+        val generationSignals = Channel<Long>(Channel.UNLIMITED)
         var activeGeneration: Long = 0L
             private set
 
@@ -1570,6 +1634,7 @@ class PlaybackControllerTest {
             loadedTracks += track
             loadedGenerations += generation
             check(loadCountSignals.trySend(loadedGenerations.size).isSuccess)
+            check(generationSignals.trySend(generation).isSuccess)
             loadStarted.complete(Unit)
             loadGate?.await()
             loadFailure?.let { throw it }
