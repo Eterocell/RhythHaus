@@ -13,7 +13,6 @@ import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.ScanStatus
-import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
 import com.eterocell.rhythhaus.library.impl.AudioMetadataReader
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
 import com.eterocell.rhythhaus.library.libraryImplementationModule
@@ -32,7 +31,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertSame
-import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -58,8 +56,10 @@ class RhythHausDiTest {
 
         try {
             val koin = application.koin
-            assertTrue(
-                koin.get<LibraryRepository>() is SqlDelightLibraryRepository)
+            // The SQLDelight binding identity is asserted in
+            // LibraryKoinIdentityTest; this test verifies graph wiring and
+            // singleton identity only.
+            assertNotNull(koin.get<LibraryRepository>())
             assertNotNull(koin.get<PlaylistRepository>())
             assertSame(
                 koin.get<LibraryRepository>(), koin.get<LibraryRepository>())
@@ -82,8 +82,7 @@ class RhythHausDiTest {
             assertNotNull(koin.get<TagLibReader>())
             assertNotNull(koin.get<AudioMetadataReader>())
             assertNotNull(koin.get<LibraryDatabase>())
-            assertTrue(
-                koin.get<LibraryRepository>() is SqlDelightLibraryRepository)
+            assertNotNull(koin.get<LibraryRepository>())
             assertNotNull(koin.get<PlatformSourceAccess>())
             assertNotNull(koin.get<LibraryScanner>())
             assertEquals(null, koin.getOrNull<PlaylistRepository>())

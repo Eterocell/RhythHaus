@@ -143,15 +143,6 @@ private class ArchitectureProcessor(
             (callable ==
                 "com.eterocell.rhythhaus.library.LibraryScanner.scan" &&
                 parameterName in setOf("isCancelled", "onProgress")) ||
-            (callable ==
-                "com.eterocell.rhythhaus.library.impl.audioCandidateForSourceFile" &&
-                parameterName in
-                    setOf(
-                        "metadataAudioSource",
-                        "cleanupMetadataAudioSource",
-                        "sizeBytes",
-                        "modifiedAtEpochMillis",
-                    )) ||
             (owner ==
                 "com.eterocell.rhythhaus.library.PlatformFolderPickResult.Failure" &&
                 parameterName == "cause")

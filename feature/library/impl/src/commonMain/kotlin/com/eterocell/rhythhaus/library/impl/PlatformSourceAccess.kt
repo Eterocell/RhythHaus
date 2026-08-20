@@ -11,7 +11,7 @@ expect fun createPlatformSourceAccess(): PlatformSourceAccess
 /**
  * Builds a scan event for one source file, filtering unsupported audio types.
  */
-fun audioCandidateForSourceFile(
+internal fun audioCandidateForSourceFile(
     source: LibrarySource,
     sourceLocalKey: String,
     displayPath: String,

@@ -2,12 +2,13 @@ package com.eterocell.rhythhaus
 
 import com.eterocell.rhythhaus.library.LibraryDatabase
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
+import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.ScanSession
-import com.eterocell.rhythhaus.library.SqlDelightLibraryRepository
+import com.eterocell.rhythhaus.library.libraryImplementationModule
 import com.eterocell.rhythhaus.library.playlistsImplementationModule
 import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
@@ -258,8 +259,8 @@ private fun testLibraryMutationPublication(
 private class PlaylistLifecycleHarness(
     val database: LibraryDatabase,
     val playlists: PlaylistRepository,
+    val library: LibraryRepository,
 ) : AutoCloseable {
-    val library = SqlDelightLibraryRepository(database)
     val playlistStateOwner = PlaylistStateOwner(playlists, Dispatchers.Default)
     val controller = PlaybackController(FakePlaybackEngine())
 
@@ -335,10 +336,19 @@ private fun openHarness(): PlaylistLifecycleHarness {
             }
     val database = LibraryDatabase(databaseFile)
     val application = startKoin {
+        allowOverride(true)
         modules(
-            module { single<LibraryDatabase> { database } },
+            libraryImplementationModule(),
             playlistsImplementationModule(),
+            // Last definition wins with allowOverride: the temp-file
+            // database replaces the feature default so repository state
+            // stays isolated per test.
+            module { single<LibraryDatabase> { database } },
         )
     }
-    return PlaylistLifecycleHarness(database, application.koin.get())
+    return PlaylistLifecycleHarness(
+        database,
+        application.koin.get(),
+        application.koin.get(),
+    )
 }

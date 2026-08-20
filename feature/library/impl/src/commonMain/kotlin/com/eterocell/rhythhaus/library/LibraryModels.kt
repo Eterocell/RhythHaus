@@ -2,7 +2,12 @@ package com.eterocell.rhythhaus.library
 
 import com.eterocell.rhythhaus.AudioSource
 
-/** An audio file discovered by a platform scanner. */
+/**
+ * An audio file discovered by a platform scanner.
+ *
+ * Public because [PlatformScanEvent.AudioCandidate] (the scan-service public
+ * contract) carries it; it is not part of the production boundary.
+ */
 data class AudioScanCandidate(
     val sourceId: String,
     val sourceLocalKey: String,

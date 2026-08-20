@@ -16,7 +16,7 @@ internal fun artworkChunkCount(byteLength: Long): Int {
 }
 
 /** SQLDelight-backed [LibraryRepository] persisting library records. */
-class SqlDelightLibraryRepository(
+internal class SqlDelightLibraryRepository(
     private val libraryDatabase: LibraryDatabase,
 ) : LibraryRepository {
     private val database = libraryDatabase.database
@@ -579,6 +579,13 @@ private val AudioSource.stableValue: String
             is AudioSource.FileDescriptor -> stableKey
         }
 
+/**
+ * Rehydrates a persisted audio source. [AudioSource.FileDescriptor] is
+ * ephemeral and metadata-only (its fd cannot survive a process), so any
+ * historical row stored with kind "FileDescriptor" intentionally loads as a
+ * [AudioSource.Uri] carrying the descriptor's stable key (display name); the
+ * current scanner never persists a FileDescriptor as a track's playback source.
+ */
 private fun audioSourceFrom(kind: String, value: String): AudioSource =
     when (kind) {
         "FilePath" -> AudioSource.FilePath(value)

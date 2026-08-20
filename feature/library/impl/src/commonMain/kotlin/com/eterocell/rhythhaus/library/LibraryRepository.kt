@@ -1,6 +1,12 @@
 package com.eterocell.rhythhaus.library
 
-/** In-memory [LibraryRepository] used for tests and non-persistent flows. */
+/**
+ * In-memory [LibraryRepository] reference implementation used as a cross-module
+ * test double (Shared orchestration tests construct it directly) and for
+ * non-persistent flows. It stays public because it is a required shared-test
+ * consumer, not because it is part of the production boundary; it exposes no
+ * database type.
+ */
 class InMemoryLibraryRepository : LibraryRepository {
     private val sources = linkedMapOf<String, LibrarySource>()
     private val tracks = linkedMapOf<String, LibraryTrack>()

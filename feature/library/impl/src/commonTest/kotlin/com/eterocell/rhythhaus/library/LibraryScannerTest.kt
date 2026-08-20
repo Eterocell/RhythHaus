@@ -252,6 +252,46 @@ class LibraryScannerTest {
     }
 
     @Test
+    fun genericScannerFailureProducesFailedTerminalSession() {
+        val repository = InMemoryLibraryRepository()
+        val source =
+            LibrarySource(
+                "source-1",
+                LibraryPlatformKind.JvmFolder,
+                "Music",
+                "/Music",
+                1L)
+        val platform =
+            object : PlatformAudioScanner {
+                override fun scan(
+                    source: LibrarySource
+                ): Sequence<PlatformScanEvent> = sequence {
+                    yield(PlatformScanEvent.FolderVisited("/Music"))
+                    error("disk failure")
+                }
+            }
+        val progress = mutableListOf<ScanProgress>()
+        val scanner =
+            LibraryScanner(
+                repository,
+                platform,
+                now = { 100L },
+                idFactory = { prefix -> "$prefix-id" })
+
+        val result = scanner.scan(source, onProgress = progress::add)
+
+        assertEquals(ScanStatus.Failed, result.status)
+        assertEquals(100L, result.completedAtEpochMillis)
+        assertEquals("disk failure", result.terminalMessage)
+        assertEquals(1, result.foldersVisited)
+        assertEquals(ScanStatus.Failed, progress.last().session?.status)
+        val stored = repository.latestTerminalScanSession()
+        assertEquals("scan-id", stored?.id)
+        assertEquals(ScanStatus.Failed, stored?.status)
+        assertEquals("disk failure", stored?.terminalMessage)
+    }
+
+    @Test
     fun completedScanDoesNotAutomaticallyRemoveMissingTracks() {
         val repository = InMemoryLibraryRepository()
         val source =

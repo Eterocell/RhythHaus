@@ -12,6 +12,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
+import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -129,7 +132,7 @@ class TrackArtworkImageJvmTest {
                 Box(Modifier.size(80.dp)) {
                     LazyTrackArtworkImage(
                         trackId = null,
-                        eagerArtworkBytes = byteArrayOf(1, 2),
+                        eagerArtworkBytes = pngFixture(),
                         contentDescription = "album art",
                         role = ArtworkImageRole.Thumbnail,
                         artworkLoader = { null },
@@ -144,6 +147,20 @@ class TrackArtworkImageJvmTest {
             waitForIdle()
             onNodeWithTag("artwork-fallback").assertDoesNotExist()
         }
+
+    /**
+     * A valid 1x1 PNG. The eager path feeds the bytes to Coil; undecodable
+     * fixture bytes asynchronously fail and render the fallback, racing the
+     * assertion. Decodable bytes make fallback suppression deterministic.
+     */
+    private fun pngFixture(): ByteArray {
+        val image = BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
+        image.setRGB(0, 0, 0xFFFFFFFF.toInt())
+        return ByteArrayOutputStream().use { output ->
+            ImageIO.write(image, "png", output)
+            output.toByteArray()
+        }
+    }
 
     private fun bytesFor(id: String): ByteArray? =
         when (id) {

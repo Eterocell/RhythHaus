@@ -146,6 +146,41 @@ class SqlDelightLibraryRepositoryJvmTest {
         }
     }
 
+    /**
+     * A persisted FileDescriptor row is metadata-only and ephemeral; it must
+     * rehydrate as a Uri carrying the descriptor's stable key so a legacy row
+     * never presents a dangling descriptor.
+     */
+    @Test
+    fun fileDescriptorRowsRehydrateAsUriStableKeys() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-fd-roundtrip", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(
+                testTrack(
+                        id = "track-fd",
+                        sourceLocalKey = "fd.mp3",
+                        title = "FD",
+                        artist = "Local file",
+                    )
+                    .copy(
+                        audioSource =
+                            AudioSource.FileDescriptor(
+                                fd = 42, displayName = "fd.mp3"),
+                    ),
+            )
+
+            assertEquals(
+                AudioSource.Uri("fd.mp3"),
+                open.repository.tracks().single().audioSource,
+            )
+        }
+    }
+
     @Test
     fun boundedArtworkIsNotLoadedWithRoutineTrackRows() {
         val databaseFile =
