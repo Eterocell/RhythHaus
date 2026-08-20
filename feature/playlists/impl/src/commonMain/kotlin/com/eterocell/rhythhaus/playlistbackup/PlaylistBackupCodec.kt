@@ -27,15 +27,21 @@ internal object PlaylistBackupCodec {
             val parsed = StrictJsonParser(text).parse()
             val checksum = parsed.document.checksumCrc32
             if (checksum.length != 8 ||
-                checksum.any { it !in '0'..'9' && it !in 'a'..'f' }) {
+                checksum.any {
+                    it !in '0'..'9' && it !in 'a'..'f' && it !in 'A'..'F'
+                }) {
                 invalid(PlaylistBackupValidationError.INVALID_CHECKSUM)
             } else {
+                // Encoding always emits lowercase hex; accept either case on
+                // input and canonicalize so the re-serialization check is
+                // case-insensitive for the checksum field only.
+                val normalizedChecksum = checksum.lowercase()
                 val payloadBytes =
                     text
                         .substring(0, parsed.canonicalPayloadEnd)
                         .plus("}")
                         .encodeToByteArray()
-                if (Crc32.hex(payloadBytes) != checksum) {
+                if (Crc32.hex(payloadBytes) != normalizedChecksum) {
                     invalid(PlaylistBackupValidationError.INVALID_CHECKSUM)
                 } else {
                     val canonical =
@@ -43,13 +49,22 @@ internal object PlaylistBackupCodec {
                             PlaylistBackupPayload(
                                 parsed.document.exportedAtEpochMillis,
                                 parsed.document.playlists),
-                            checksum,
+                            normalizedChecksum,
                         )
-                    if (text != canonical) {
+                    val checksumFieldStart =
+                        text.lastIndexOf("\"checksumCrc32\":\"") +
+                            "\"checksumCrc32\":\"".length
+                    val textWithNormalizedChecksum =
+                        text.substring(0, checksumFieldStart) +
+                            normalizedChecksum +
+                            text.substring(checksumFieldStart + checksum.length)
+                    if (textWithNormalizedChecksum != canonical) {
                         invalid(
                             PlaylistBackupValidationError.NON_CANONICAL_JSON)
                     } else {
-                        PlaylistBackupDecodeResult.Success(parsed.document)
+                        PlaylistBackupDecodeResult.Success(
+                            parsed.document.copy(
+                                checksumCrc32 = normalizedChecksum))
                     }
                 }
             }
@@ -158,6 +173,12 @@ internal object PlaylistBackupCodec {
         }
     }
 
+    /**
+     * Accepts any well-formed string within the code-point limit, including C0
+     * control characters: real-world title/album tags legitimately contain
+     * newlines and tabs, the writer escapes them canonically, and round-trips
+     * are covered by the codec tests.
+     */
     private fun validString(value: String): Boolean {
         var count = 0
         var index = 0

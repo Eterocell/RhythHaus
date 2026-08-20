@@ -6,6 +6,12 @@ internal class SqlDelightPlaylistRepository(
     private val idFactory: () -> String = ::uuid4,
 ) : PlaylistRepository {
     private val database = libraryDatabase.database
+    /**
+     * Test seam firing immediately before entry-list mutations re-read the
+     * repository inside their transaction. Only append/remove/reorder re-read,
+     * so only they notify; create/rename/delete/import mutate without a
+     * mid-transaction read and intentionally do not.
+     */
     internal var mutationReadObserver: () -> Unit = {}
 
     override fun playlists(): List<PlaylistSummary> =

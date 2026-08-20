@@ -7,6 +7,7 @@ import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 
 /**
@@ -405,8 +406,27 @@ internal constructor(
     private val revisionGuard: PlaylistBackupRevisionGuard,
 ) {
     private val gate = PlaylistBackupDocumentOperationGate()
-    private val previewPlans =
-        mutableListOf<Pair<PlaylistBackupPreview, PlaylistImportPlan>>()
+    /**
+     * The single retained import plan. Only the latest preview is reachable
+     * through [PlaylistBackupUiState.preview], so retaining every plan would
+     * leak the full track lists of superseded imports for the controller
+     * lifetime. A new open replaces the slot and a successful confirm clears
+     * it; a failed confirm keeps it so the caller can retry.
+     */
+    private var previewPlan: Pair<PlaylistBackupPreview, PlaylistImportPlan>? =
+        null
+
+    /** Test seam: number of retained import plans (0 or 1). */
+    internal val previewPlanCountForTest: Int
+        get() = if (previewPlan == null) 0 else 1
+
+    /**
+     * Single-flight claim for imports. Two confirmations can arrive from the
+     * same UI frame (the app-level busy check is a TOCTOU snapshot); exactly
+     * one may run the guarded import, the other returns the caller state
+     * unchanged.
+     */
+    private val importInFlight = MutableStateFlow(false)
 
     /**
      * Prepares and validates export bytes before requesting save, rejecting
@@ -569,7 +589,7 @@ internal constructor(
                                     preparation.error))
                         is PlaylistBackupImportPreparation.Ready -> {
                             val preview = preparation.plan.toPreview()
-                            previewPlans += preview to preparation.plan
+                            previewPlan = preview to preparation.plan
                             settle(
                                 planning,
                                 PlaylistBackupUiAction.PreviewReady(preview))
@@ -595,46 +615,62 @@ internal constructor(
             state.preview
                 ?: return PlaylistBackupImportConfirmation(
                     state, lastConfirmedSnapshot)
-        val plan =
-            previewPlans.firstOrNull { it.first === preview }?.second
-                ?: return PlaylistBackupImportConfirmation(
-                    state.copy(
-                        operation = PlaylistBackupOperation.Idle,
-                        error = PlaylistBackupUiError.RepositoryFailed),
-                    lastConfirmedSnapshot,
-                )
+        if (!importInFlight.compareAndSet(false, true)) {
+            // A concurrent confirm is already importing; do not double-import
+            // and do not let a stale busy snapshot replace its success state.
+            // The returned confirmation carries no confirmed snapshot: only a
+            // committed import may report one.
+            return PlaylistBackupImportConfirmation(state, null)
+        }
         return try {
-            when (val guarded =
-                revisionGuard.withCurrentRevision(preview.libraryRevision) {
-                    owner.importPlaylists(
-                        plan.playlists.map {
-                            PlaylistImportMutation(it.name, it.trackIds)
-                        })
-                }) {
-                PlaylistBackupRevisionGuardResult.Stale ->
-                    PlaylistBackupImportConfirmation(
+            val plan =
+                previewPlan?.takeIf { it.first === preview }?.second
+                    ?: return PlaylistBackupImportConfirmation(
                         state.copy(
                             operation = PlaylistBackupOperation.Idle,
-                            error = PlaylistBackupUiError.StalePreview),
-                        lastConfirmedSnapshot)
-                is PlaylistBackupRevisionGuardResult.Current ->
-                    when (val imported = guarded.value) {
-                        is PlaylistImportOwnerResult.Success ->
-                            PlaylistBackupImportConfirmation(
-                                reduce(
-                                    state,
-                                    PlaylistBackupUiAction.ImportSucceeded(
-                                        plan.importResult())),
-                                imported.snapshot,
-                                imported.revision)
-                        else ->
-                            PlaylistBackupImportConfirmation(
-                                state.copy(
-                                    operation = PlaylistBackupOperation.Idle,
-                                    error =
-                                        PlaylistBackupUiError.RepositoryFailed),
-                                lastConfirmedSnapshot)
-                    }
+                            error = PlaylistBackupUiError.RepositoryFailed),
+                        lastConfirmedSnapshot,
+                    )
+            try {
+                when (val guarded =
+                    revisionGuard.withCurrentRevision(preview.libraryRevision) {
+                        owner.importPlaylists(
+                            plan.playlists.map {
+                                PlaylistImportMutation(it.name, it.trackIds)
+                            })
+                    }) {
+                    PlaylistBackupRevisionGuardResult.Stale ->
+                        PlaylistBackupImportConfirmation(
+                            state.copy(
+                                operation = PlaylistBackupOperation.Idle,
+                                error = PlaylistBackupUiError.StalePreview),
+                            lastConfirmedSnapshot)
+                    is PlaylistBackupRevisionGuardResult.Current ->
+                        when (val imported = guarded.value) {
+                            is PlaylistImportOwnerResult.Success -> {
+                                previewPlan = null
+                                PlaylistBackupImportConfirmation(
+                                    reduce(
+                                        state,
+                                        PlaylistBackupUiAction.ImportSucceeded(
+                                            plan.importResult())),
+                                    imported.snapshot,
+                                    imported.revision)
+                            }
+
+                            else ->
+                                PlaylistBackupImportConfirmation(
+                                    state.copy(
+                                        operation =
+                                            PlaylistBackupOperation.Idle,
+                                        error =
+                                            PlaylistBackupUiError
+                                                .RepositoryFailed),
+                                    lastConfirmedSnapshot)
+                        }
+                }
+            } finally {
+                importInFlight.value = false
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -666,59 +702,3 @@ internal fun PlaylistImportPlan.importResult(): PlaylistBackupImportResult =
                 totals.entries.unmatched,
                 totals.entries.ambiguous),
     )
-
-internal suspend fun confirmPlaylistBackupImportSerialized(
-    state: PlaylistBackupUiState,
-    currentLibraryRevision: Long,
-    lastConfirmedSnapshot: PlaylistSnapshot? = null,
-    mutateAndRefresh:
-        suspend (List<PlaylistImportMutation>) -> PlaylistImportOwnerResult,
-): PlaylistBackupImportConfirmation {
-    val preview =
-        state.preview
-            ?: return PlaylistBackupImportConfirmation(
-                state, lastConfirmedSnapshot)
-    if (preview.libraryRevision != currentLibraryRevision) {
-        return PlaylistBackupImportConfirmation(
-            state.copy(
-                operation = PlaylistBackupOperation.Idle,
-                error = PlaylistBackupUiError.StalePreview),
-            lastConfirmedSnapshot,
-        )
-    }
-    if (!preview.canConfirm)
-        return PlaylistBackupImportConfirmation(state, lastConfirmedSnapshot)
-    val mutations = emptyList<PlaylistImportMutation>()
-    return try {
-        when (val result = mutateAndRefresh(mutations)) {
-            is PlaylistImportOwnerResult.Success ->
-                PlaylistBackupImportConfirmation(
-                    reducePlaylistBackupUiState(
-                        state,
-                        PlaylistBackupUiAction.ImportSucceeded(
-                            PlaylistBackupImportResult(0, 0, preview.totals)),
-                    ),
-                    result.snapshot,
-                    result.revision,
-                )
-
-            PlaylistImportOwnerResult.Stale ->
-                PlaylistBackupImportConfirmation(
-                    state.copy(
-                        operation = PlaylistBackupOperation.Idle,
-                        error = PlaylistBackupUiError.StalePreview),
-                    lastConfirmedSnapshot,
-                )
-
-            is PlaylistImportOwnerResult.Failure ->
-                PlaylistBackupImportConfirmation(
-                    state.copy(
-                        operation = PlaylistBackupOperation.Idle,
-                        error = PlaylistBackupUiError.RepositoryFailed),
-                    lastConfirmedSnapshot,
-                )
-        }
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    }
-}

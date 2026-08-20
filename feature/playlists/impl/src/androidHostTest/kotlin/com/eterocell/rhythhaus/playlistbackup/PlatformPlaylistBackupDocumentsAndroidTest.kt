@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.playlistbackup
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -10,6 +11,11 @@ import kotlin.test.assertIs
 
 class PlatformPlaylistBackupDocumentsAndroidTest {
     private val uri = "content://rhythhaus/backup"
+
+    @AfterTest
+    fun clearPendingPayload() {
+        AndroidPlaylistBackupPendingPayload.bytes = null
+    }
 
     @Test
     fun saveWritesCompletePayloadExactlyOnce() {
@@ -165,6 +171,34 @@ class PlatformPlaylistBackupDocumentsAndroidTest {
         coordinator.launchOpen { error("open launch") }
         assertIs<PlaylistBackupDocumentOpenResult.Failure>(openResults.single())
         assertEquals(false, coordinator.isActive)
+    }
+
+    /**
+     * The save payload must survive activity recreation: the document panel
+     * result is delivered to a NEW coordinator after the composition is
+     * rebuilt, so the pending bytes cannot live in the old coordinator's
+     * instance state.
+     */
+    @Test
+    fun recreatedCoordinatorCompletesPendingSaveFromProcessScopedPayload() {
+        val saveResults = mutableListOf<PlaylistBackupDocumentSaveResult>()
+        val openResults = mutableListOf<PlaylistBackupDocumentOpenResult>()
+        val payload = byteArrayOf(9, 8, 7)
+        AndroidPlaylistBackupDocumentCoordinator(
+                saveResults::add, openResults::add)
+            .launchSave(payload) {}
+
+        val recreated =
+            AndroidPlaylistBackupDocumentCoordinator(
+                saveResults::add, openResults::add)
+        recreated.completeSave(uri) { selected, bytes ->
+            assertEquals(uri, selected)
+            assertContentEquals(payload, bytes)
+            ByteArrayOutputStream().apply { write(bytes) }
+        }
+
+        assertIs<PlaylistBackupDocumentSaveResult.Success>(saveResults.single())
+        assertEquals(false, recreated.hasPendingSavePayload)
     }
 }
 

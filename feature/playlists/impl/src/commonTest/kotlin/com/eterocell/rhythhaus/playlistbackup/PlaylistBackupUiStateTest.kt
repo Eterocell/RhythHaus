@@ -8,11 +8,14 @@ import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
-import kotlinx.coroutines.CancellationException
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 class PlaylistBackupUiStateTest {
     private fun preview(
@@ -29,31 +32,6 @@ class PlaylistBackupUiStateTest {
                     restorable, 0, PlaylistImportCounts(restorable, 0, 0)),
                 emptyList())
             .toPreview()
-
-    @Test
-    fun staleRevisionDoesNotImport() = runBlocking {
-        var calls = 0
-        val result =
-            confirmPlaylistBackupImportSerialized(
-                PlaylistBackupUiState(preview = preview()), 2) {
-                    calls++
-                    error("unexpected")
-                }
-        assertEquals(0, calls)
-        assertEquals(PlaylistBackupUiError.StalePreview, result.state.error)
-    }
-
-    @Test
-    fun revisionGuardRunsBlockOnlyWhenCurrent() = runBlocking {
-        var calls = 0
-        confirmPlaylistBackupImportSerialized(
-            PlaylistBackupUiState(preview = preview()), 1) {
-                calls++
-                com.eterocell.rhythhaus.library.ui.PlaylistImportOwnerResult
-                    .Success(PlaylistSnapshot(), 1)
-            }
-        assertEquals(1, calls)
-    }
 
     @Test
     fun revisionChangeWhileConfirmationIsWaitingDoesNotImport() = runBlocking {
@@ -90,25 +68,89 @@ class PlaylistBackupUiStateTest {
     }
 
     @Test
-    fun confirmationRethrowsCancellationExactly() = runBlocking {
-        val cancellation = CancellationException("cancel")
-        val thrown =
-            assertFailsWith<CancellationException> {
-                confirmPlaylistBackupImportSerialized(
-                    PlaylistBackupUiState(preview = preview()), 1) {
-                        throw cancellation
-                    }
-            }
-        assertEquals(cancellation, thrown)
-    }
-
-    @Test
     fun reducerKeepsClosedPreviewInspectable() {
         val state =
             reducePlaylistBackupUiState(
                 PlaylistBackupUiState(),
                 PlaylistBackupUiAction.PreviewReady(preview(restorable = 0)))
         assertFalse(state.preview!!.canConfirm)
+    }
+
+    /**
+     * Two confirmations issued from the same UI frame must import exactly once.
+     * The losing confirmation returns the caller state without touching the
+     * repository, so the winning import cannot be duplicated and its success
+     * state cannot be clobbered by a stale busy snapshot.
+     */
+    @Test
+    fun concurrentConfirmationsImportExactlyOnce() = runBlocking {
+        val repository = CountingRepository()
+        val launcher = RecordingLauncher()
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val controller =
+            createPlaylistBackupController(
+                PlaylistStateOwner(repository, Dispatchers.Default),
+                Dispatchers.Default,
+                launcher,
+                SuspendingSucceedingGuard(started, release))
+        val state = openedState(controller, launcher)
+
+        val first = async { controller.confirm(state, PlaylistSnapshot()) }
+        started.await()
+        val second =
+            withTimeout(5_000) { controller.confirm(state, PlaylistSnapshot()) }
+        assertEquals(0, repository.importCalls)
+        assertNull(second.confirmedSnapshot)
+
+        release.complete(Unit)
+        val firstResult = first.await()
+        assertEquals(1, repository.importCalls)
+        assertNotNull(firstResult.confirmedSnapshot)
+        Unit
+    }
+
+    @Test
+    fun repeatedOpensRetainOnlyTheLatestPlan() = runBlocking {
+        val repository = CountingRepository()
+        val launcher = RecordingLauncher()
+        val controller =
+            createPlaylistBackupController(
+                PlaylistStateOwner(repository, Dispatchers.Default),
+                Dispatchers.Default,
+                launcher,
+                SucceedingGuard())
+        val firstState = openedState(controller, launcher)
+        val secondState = openedState(controller, launcher)
+
+        assertEquals(1, controller.previewPlanCountForTest)
+
+        val confirmation = controller.confirm(secondState, PlaylistSnapshot())
+        assertNotNull(confirmation.confirmedSnapshot)
+        assertEquals(1, repository.importCalls)
+        assertEquals(0, controller.previewPlanCountForTest)
+    }
+
+    private suspend fun openedState(
+        controller: PlaylistBackupController,
+        launcher: RecordingLauncher,
+    ): PlaylistBackupUiState {
+        val saving =
+            controller.beginExport(
+                PlaylistBackupUiState(), PlaylistSnapshot(), emptyList(), 0)
+        val opening =
+            controller.beginOpen(
+                controller.receiveSave(
+                    saving, PlaylistBackupDocumentSaveResult.Success))
+        return controller.receiveOpen(
+            opening,
+            PlaylistBackupDocumentOpenResult.Success(
+                checkNotNull(launcher.bytes)),
+            emptyList(),
+            emptyList(),
+            " imported",
+            1,
+        )
     }
 
     private suspend fun confirmationFixture(
@@ -161,6 +203,28 @@ class PlaylistBackupUiStateTest {
         ): PlaylistBackupRevisionGuardResult<T> {
             reviseBeforeTransaction(this)
             return PlaylistBackupRevisionGuardResult.Stale
+        }
+    }
+
+    private class SucceedingGuard : PlaylistBackupRevisionGuard {
+        override suspend fun <T> withCurrentRevision(
+            expectedRevision: Long,
+            block: suspend () -> T,
+        ): PlaylistBackupRevisionGuardResult<T> =
+            PlaylistBackupRevisionGuardResult.Current(block())
+    }
+
+    private class SuspendingSucceedingGuard(
+        private val started: CompletableDeferred<Unit>,
+        private val release: CompletableDeferred<Unit>,
+    ) : PlaylistBackupRevisionGuard {
+        override suspend fun <T> withCurrentRevision(
+            expectedRevision: Long,
+            block: suspend () -> T,
+        ): PlaylistBackupRevisionGuardResult<T> {
+            started.complete(Unit)
+            release.await()
+            return PlaylistBackupRevisionGuardResult.Current(block())
         }
     }
 

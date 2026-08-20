@@ -383,21 +383,28 @@ fun App() {
                         state = playlistBackupState,
                         lastConfirmedSnapshot = playlistState.confirmedSnapshot,
                     )
-                playlistBackupState = confirmation.state
-                confirmation.confirmedSnapshot
-                    ?.takeIf { confirmation.state.result != null }
-                    ?.let { snapshot ->
-                        playlistState =
-                            reducePlaylistState(
-                                playlistState,
-                                PlaylistStateAction.SnapshotConfirmed(
-                                    snapshot,
-                                    requireNotNull(
-                                        confirmation
-                                            .playlistPublicationRevision),
-                                ),
-                            )
-                    }
+                // A confirm that lost the single-flight claim returns the
+                // caller's busy state unchanged; publishing it would clobber
+                // the winning import's terminal state. Terminal confirmations
+                // always settle to Idle.
+                if (confirmation.state.operation ==
+                    PlaylistBackupOperation.Idle) {
+                    playlistBackupState = confirmation.state
+                    confirmation.confirmedSnapshot
+                        ?.takeIf { confirmation.state.result != null }
+                        ?.let { snapshot ->
+                            playlistState =
+                                reducePlaylistState(
+                                    playlistState,
+                                    PlaylistStateAction.SnapshotConfirmed(
+                                        snapshot,
+                                        requireNotNull(
+                                            confirmation
+                                                .playlistPublicationRevision),
+                                    ),
+                                )
+                        }
+                }
             }
         }
     }

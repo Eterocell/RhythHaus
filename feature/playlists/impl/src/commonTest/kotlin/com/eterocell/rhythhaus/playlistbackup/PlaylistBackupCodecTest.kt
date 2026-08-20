@@ -21,6 +21,20 @@ class PlaylistBackupCodecTest {
     }
 
     @Test
+    fun uppercaseChecksumIsAcceptedAndCanonicalized() {
+        val payload = documentText()
+        val uppercase = Crc32.hex(payload.encodeToByteArray()).uppercase()
+
+        val decoded =
+            assertIs<PlaylistBackupDecodeResult.Success>(
+                    PlaylistBackupCodec.decode(withChecksum(uppercase)),
+                )
+                .document
+
+        assertEquals(uppercase.lowercase(), decoded.checksumCrc32)
+    }
+
+    @Test
     fun encodeProducesExactCanonicalCompactUtf8Bytes() {
         val payload =
             PlaylistBackupPayload(

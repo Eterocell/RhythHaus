@@ -36,7 +36,7 @@ public fun rememberAndroidPlaylistBackupDocumentLauncher(
             ActivityResultContracts.CreateDocument(PlaylistBackupMimeType)) {
                 uri ->
                 coordinator.completeSave(uri) { selected, _ ->
-                    context.contentResolver.openOutputStream(selected, "wt")
+                    context.contentResolver.openOutputStream(selected, "w")
                 }
             }
     val openLauncher =
@@ -74,13 +74,12 @@ internal class AndroidPlaylistBackupDocumentCoordinator(
     private val onOpenResult: (PlaylistBackupDocumentOpenResult) -> Unit,
 ) {
     private val operationGate = PlaylistBackupDocumentOperationGate()
-    private var pendingSaveBytes: ByteArray? = null
 
     val isActive: Boolean
         get() = operationGate.isActive
 
     val hasPendingSavePayload: Boolean
-        get() = pendingSaveBytes != null
+        get() = AndroidPlaylistBackupPendingPayload.bytes != null
 
     fun launchSave(bytes: ByteArray, launch: () -> Unit) {
         if (!operationGate.tryStart()) {
@@ -89,11 +88,11 @@ internal class AndroidPlaylistBackupDocumentCoordinator(
                     "Another document operation is active"))
             return
         }
-        pendingSaveBytes = bytes
+        AndroidPlaylistBackupPendingPayload.bytes = bytes
         try {
             launch()
         } catch (exception: Exception) {
-            pendingSaveBytes = null
+            AndroidPlaylistBackupPendingPayload.bytes = null
             operationGate.finish()
             onSaveResult(
                 PlaylistBackupDocumentSaveResult.Failure(
@@ -121,8 +120,8 @@ internal class AndroidPlaylistBackupDocumentCoordinator(
     }
 
     fun <T> completeSave(uri: T?, openOutput: (T, ByteArray) -> OutputStream?) {
-        val bytes = pendingSaveBytes
-        pendingSaveBytes = null
+        val bytes = AndroidPlaylistBackupPendingPayload.bytes
+        AndroidPlaylistBackupPendingPayload.bytes = null
         operationGate.finish()
         onSaveResult(
             if (bytes == null) {
@@ -140,6 +139,20 @@ internal class AndroidPlaylistBackupDocumentCoordinator(
         operationGate.finish()
         onOpenResult(openAndroidPlaylistBackupDocument(uri, openInput))
     }
+}
+
+/**
+ * Process-scoped holder for the single in-flight Android save payload.
+ *
+ * The coordinator is remembered per composition, so an activity recreation
+ * (rotation, theme change) would drop its instance field and the pending save
+ * would complete as a failure. The payload has no composition dependency and
+ * only one save can be in flight at a time (the operation gate), so a process
+ * singleton is the correct survival boundary; process death loses the payload
+ * exactly as it would lose the pending panel.
+ */
+internal object AndroidPlaylistBackupPendingPayload {
+    @Volatile var bytes: ByteArray? = null
 }
 
 internal fun <T> saveAndroidPlaylistBackupDocument(
