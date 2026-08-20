@@ -22,12 +22,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,7 +47,6 @@ import com.eterocell.rhythhaus.ui.VerticalSheetGestureDirection
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import com.eterocell.rhythhaus.ui.verticalSheetGesture
-import kotlinx.coroutines.CancellationException
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.nowplaying.generated.resources.Res
 import rhythhaus.feature.nowplaying.generated.resources.mini_player_empty_subtitle
@@ -244,7 +238,7 @@ private fun Artwork(
                     listOf(Color(accent.start), Color(accent.end)))),
         contentAlignment = Alignment.Center) {
             val artwork = track?.let {
-                rememberArtwork(it.id, it.artworkBytes, artworkLoader)
+                rememberNowPlayingArtwork(it.id, it.artworkBytes, artworkLoader)
             }
             ArtworkImage(
                 artwork,
@@ -282,69 +276,6 @@ private fun BarAction(
                 tint = HausColors.current.ink,
                 modifier = Modifier.size(18.dp))
         }
-}
-
-@Composable
-private fun rememberArtwork(
-    trackId: String,
-    eagerArtworkBytes: ByteArray?,
-    loader: suspend (String) -> ByteArray?
-): ByteArray? {
-    val inputKey = BarArtworkInputKey(eagerArtworkBytes)
-    val loaderKey = BarArtworkLoaderKey(loader)
-    val state =
-        remember(trackId, inputKey, loaderKey) {
-            PrivateBarArtworkState(eagerArtworkBytes)
-        }
-    LaunchedEffect(trackId, inputKey, loaderKey) {
-        state.load(trackId, loader)
-    }
-    return state.artwork
-}
-
-private class PrivateBarArtworkState(initialArtwork: ByteArray?) {
-    private val hasEagerArtwork = initialArtwork != null
-    var artwork by mutableStateOf(initialArtwork)
-        private set
-
-    private var generation = 0L
-
-    suspend fun load(trackId: String, loader: suspend (String) -> ByteArray?) {
-        val currentGeneration = ++generation
-        if (hasEagerArtwork) return
-        val loaded =
-            try {
-                loader(trackId)
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (_: Exception) {
-                null
-            }
-        if (currentGeneration == generation) artwork = loaded
-    }
-}
-
-private class BarArtworkInputKey(bytes: ByteArray?) {
-    private val identity = bytes
-    private val size = bytes?.size ?: 0
-    private val contentHash = bytes?.contentHashCode() ?: 0
-
-    override fun equals(other: Any?): Boolean =
-        other is BarArtworkInputKey &&
-            identity === other.identity &&
-            size == other.size &&
-            contentHash == other.contentHash
-
-    override fun hashCode(): Int = 31 * size + contentHash
-}
-
-private class BarArtworkLoaderKey(
-    private val loader: suspend (String) -> ByteArray?
-) {
-    override fun equals(other: Any?): Boolean =
-        other is BarArtworkLoaderKey && loader === other.loader
-
-    override fun hashCode(): Int = loader.hashCode()
 }
 
 @Composable

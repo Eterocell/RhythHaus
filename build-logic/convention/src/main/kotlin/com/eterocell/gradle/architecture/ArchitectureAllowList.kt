@@ -50,7 +50,7 @@ public object ArchitectureAllowList {
                     "com.eterocell.rhythhaus.playlistbackup",
                 ),
             ),
-            ":feature:nowplaying" to ModulePolicy(setOf("com.eterocell.rhythhaus.nowplaying", "com.eterocell.rhythhaus.ui")),
+            ":feature:nowplaying" to ModulePolicy(setOf("com.eterocell.rhythhaus.nowplaying")),
             ":feature:search" to ModulePolicy(
                 packageRoots = setOf("com.eterocell.rhythhaus.search"),
                 androidNamespace = "com.eterocell.rhythhaus.search",

@@ -30,11 +30,6 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -55,13 +50,12 @@ import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
 import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.nowplaying.ui.MusicProgressScrubber
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
-import com.eterocell.rhythhaus.ui.MusicProgressScrubber
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
-import kotlinx.coroutines.CancellationException
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.nowplaying.generated.resources.Res
 import rhythhaus.feature.nowplaying.generated.resources.next_track
@@ -501,69 +495,3 @@ private fun repeatLabel(mode: RepeatMode): String =
         RepeatMode.StopAfterCurrent ->
             stringResource(Res.string.repeat_mode_stop_after_current)
     }
-
-@Composable
-private fun rememberNowPlayingArtwork(
-    trackId: String,
-    eagerArtworkBytes: ByteArray?,
-    artworkLoader: suspend (String) -> ByteArray?
-): ByteArray? {
-    val inputKey = ArtworkInputKey(eagerArtworkBytes)
-    val loaderKey = ArtworkLoaderKey(artworkLoader)
-    val state =
-        remember(trackId, inputKey, loaderKey) {
-            PrivateArtworkState(eagerArtworkBytes)
-        }
-    LaunchedEffect(trackId, inputKey, loaderKey) {
-        state.load(trackId, artworkLoader)
-    }
-    return state.artwork
-}
-
-private class PrivateArtworkState(initialArtwork: ByteArray?) {
-    private val hasEagerArtwork = initialArtwork != null
-    var artwork by mutableStateOf(initialArtwork)
-        private set
-
-    private var generation = 0L
-
-    suspend fun load(
-        trackId: String,
-        artworkLoader: suspend (String) -> ByteArray?
-    ) {
-        val currentGeneration = ++generation
-        if (hasEagerArtwork) return
-        val loaded =
-            try {
-                artworkLoader(trackId)
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (_: Exception) {
-                null
-            }
-        if (currentGeneration == generation) artwork = loaded
-    }
-}
-
-private class ArtworkInputKey(bytes: ByteArray?) {
-    private val identity = bytes
-    private val size = bytes?.size ?: 0
-    private val contentHash = bytes?.contentHashCode() ?: 0
-
-    override fun equals(other: Any?): Boolean =
-        other is ArtworkInputKey &&
-            identity === other.identity &&
-            size == other.size &&
-            contentHash == other.contentHash
-
-    override fun hashCode(): Int = 31 * size + contentHash
-}
-
-private class ArtworkLoaderKey(
-    private val loader: suspend (String) -> ByteArray?
-) {
-    override fun equals(other: Any?): Boolean =
-        other is ArtworkLoaderKey && loader === other.loader
-
-    override fun hashCode(): Int = loader.hashCode()
-}

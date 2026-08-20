@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus.ui
+package com.eterocell.rhythhaus.nowplaying.ui
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

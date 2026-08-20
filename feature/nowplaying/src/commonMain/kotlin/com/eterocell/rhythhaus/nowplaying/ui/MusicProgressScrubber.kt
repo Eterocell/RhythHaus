@@ -1,4 +1,4 @@
-package com.eterocell.rhythhaus.ui
+package com.eterocell.rhythhaus.nowplaying.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
