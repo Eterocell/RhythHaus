@@ -1288,10 +1288,7 @@ private fun androidx.compose.foundation.layout.RowScope.QueueTrackMetadata(
         eagerArtworkBytes = occurrence.track.artworkBytes,
         contentDescription = occurrence.track.title,
         role = ArtworkImageRole.Thumbnail,
-        modifier =
-            Modifier.size(48.dp)
-                .background(
-                    HausColors.current.panelStrong, RoundedCornerShape(14.dp)),
+        modifier = playlistArtworkThumbnailModifier(),
         contentScale = ContentScale.Crop,
         artworkLoader = artworkLoader,
     ) {
@@ -2160,11 +2157,7 @@ private fun PlaylistEntryRow(
                         eagerArtworkBytes = row.track.artworkBytes,
                         contentDescription = row.track.title,
                         role = ArtworkImageRole.Thumbnail,
-                        modifier =
-                            Modifier.size(48.dp)
-                                .background(
-                                    HausColors.current.panelStrong,
-                                    RoundedCornerShape(14.dp)),
+                        modifier = playlistArtworkThumbnailModifier(),
                         contentScale = ContentScale.Crop,
                         artworkLoader = artworkLoader,
                     ) {

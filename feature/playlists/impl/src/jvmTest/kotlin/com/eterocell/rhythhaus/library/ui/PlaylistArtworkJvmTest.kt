@@ -24,10 +24,48 @@ import java.util.Base64
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class PlaylistArtworkJvmTest {
     init {
         Locale.setDefault(Locale.ENGLISH)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun thumbnailModifierClipsArtworkToRoundedCorners() = runComposeUiTest {
+        var captured: Modifier? = null
+        setContent {
+            captured = playlistArtworkThumbnailModifier()
+        }
+        waitForIdle()
+        val elements =
+            captured!!.foldIn(emptyList<Modifier.Element>()) { acc, element ->
+                acc + element
+            }
+        val names = elements.map { it::class.simpleName }
+        // Modifier.clip(shape) is implemented as a graphicsLayer with
+        // clip=true.
+        val graphicsLayer = elements.firstOrNull {
+            it::class.simpleName == "GraphicsLayerElement"
+        }
+        assertTrue(
+            graphicsLayer != null,
+            "Expected playlist artwork thumbnail modifier to clip to rounded corners, got: $names")
+        val clipField = graphicsLayer.javaClass.getDeclaredField("clip")
+        clipField.isAccessible = true
+        assertTrue(
+            clipField.getBoolean(graphicsLayer),
+            "Expected playlist artwork thumbnail graphicsLayer to clip, got: $names")
+        val shapeField = graphicsLayer.javaClass.getDeclaredField("shape")
+        shapeField.isAccessible = true
+        assertEquals(
+            PlaylistArtworkThumbnailShape,
+            shapeField.get(graphicsLayer),
+            "Expected playlist artwork thumbnail clip to use the shared rounded shape")
+        assertTrue(
+            names.any { it?.contains("Background") == true },
+            "Expected playlist artwork thumbnail modifier to keep its placeholder background, got: $names")
     }
 
     @OptIn(ExperimentalTestApi::class)
