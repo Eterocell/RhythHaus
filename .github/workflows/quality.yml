@@ -27,3 +27,27 @@ jobs:
 
       - name: Verify quality gate
         run: ./gradlew qualityCheck --configuration-cache --configuration-cache-problems=fail --no-parallel
+
+  tests:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Run JVM test battery
+        run: >-
+          ./gradlew
+          :core:model:jvmTest :core:ui:jvmTest :core:playback:jvmTest
+          :feature:library:impl:jvmTest :feature:playlists:impl:jvmTest
+          :feature:search:jvmTest :feature:settings:jvmTest
+          :feature:nowplaying:jvmTest :shared:jvmTest
+          --configuration-cache --configuration-cache-problems=fail
