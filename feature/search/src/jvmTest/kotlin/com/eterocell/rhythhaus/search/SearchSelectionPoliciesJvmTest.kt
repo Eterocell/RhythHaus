@@ -34,11 +34,32 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
+import java.util.Locale
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class SearchSelectionPoliciesJvmTest {
+    private var previousLocale: Locale? = null
+
+    /**
+     * The result-count and no-match texts are resource-backed and asserted in
+     * Simplified Chinese; pin the default locale so the test does not depend on
+     * the JVM's ambient locale.
+     */
+    @BeforeTest
+    fun setSimplifiedChineseLocale() {
+        previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
+    }
+
+    @AfterTest
+    fun restoreLocale() {
+        previousLocale?.let { Locale.setDefault(it) }
+    }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun normalClickPlaysOnlyOutsideSelection() = runComposeUiTest {
