@@ -97,7 +97,7 @@ public class SettingsResourceOwnershipJvmTest {
         )
 
         assertBuildInfoGeneratorOwnership(
-            featureBuild = requiredFile(root, featureBuildPath),
+            conventionBuild = requiredFile(root, conventionBuildPath),
             sharedBuild = requiredFile(root, sharedBuildPath),
         )
     }
@@ -162,15 +162,15 @@ public class SettingsResourceOwnershipJvmTest {
     }
 
     private fun assertBuildInfoGeneratorOwnership(
-        featureBuild: Path,
+        conventionBuild: Path,
         sharedBuild: Path
     ) {
-        val featureCode = buildScriptCode(featureBuild)
-        val missingFeatureClauses =
-            buildInfoOwnershipClauses.filterNot(featureCode::contains)
+        val conventionCode = buildScriptCode(conventionBuild)
+        val missingConventionClauses =
+            buildInfoOwnershipClauses.filterNot(conventionCode::contains)
         assertTrue(
-            missingFeatureClauses.isEmpty(),
-            "Settings must own every RhythHausBuildInfo generator clause; missing: $missingFeatureClauses",
+            missingConventionClauses.isEmpty(),
+            "The build-info convention must own every RhythHausBuildInfo generator clause; missing: $missingConventionClauses",
         )
 
         val sharedCode = buildScriptCode(sharedBuild)
@@ -269,7 +269,8 @@ public class SettingsResourceOwnershipJvmTest {
         const val sharedLogoPath =
             "shared/src/commonMain/composeResources/drawable/rhythhaus_logo.xml"
         const val featureSourcePath = "feature/settings/src/commonMain/kotlin"
-        const val featureBuildPath = "feature/settings/build.gradle.kts"
+        const val conventionBuildPath =
+            "build-logic/convention/src/main/kotlin/build-logic.build-info.gradle.kts"
         const val sharedBuildPath = "shared/build.gradle.kts"
     }
 }
