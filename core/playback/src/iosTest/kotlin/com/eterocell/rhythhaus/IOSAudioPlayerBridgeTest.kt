@@ -6,6 +6,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import platform.MediaPlayer.MPNowPlayingInfoCenter
 
@@ -128,6 +129,76 @@ class IOSAudioPlayerBridgeTest {
                 PlaybackStatus.Paused),
             session.recording.statuses)
         assertFalse(provider.isPlaying())
+    }
+
+    @Test
+    fun playbackStatusWaitsForAsynchronousNativeActivation() {
+        val provider = FakeIOSAudioPlayerProvider()
+        provider.deferPlayStart = true
+        val session = loadAndPlay(provider, generation = 40L)
+
+        assertEquals(
+            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused),
+            session.recording.statuses)
+        assertFalse(provider.isPlaying())
+
+        provider.completeDeferredPlayStart()
+
+        assertEquals(
+            listOf(
+                PlaybackStatus.Loading,
+                PlaybackStatus.Paused,
+                PlaybackStatus.Playing,
+            ),
+            session.recording.statuses)
+        assertTrue(provider.isPlaying())
+    }
+
+    @Test
+    fun loadingWaitsForAsynchronousNativePreparation() = runBlocking {
+        val provider = FakeIOSAudioPlayerProvider()
+        provider.deferLoad = true
+        IOSAudioPlayerBridge.provider = provider
+        val engine = createIOSPlaybackEngine(testResolver())
+        val recording = RecordingListener()
+        engine.listener = recording
+        val load = launch {
+            engine.loadPaused(testTrack("deferred-load"), generation = 53L)
+        }
+
+        kotlinx.coroutines.yield()
+        assertEquals(listOf(PlaybackStatus.Loading), recording.statuses)
+        assertFalse(provider.isLoaded)
+
+        provider.completeDeferredLoad()
+        load.join()
+
+        assertEquals(
+            listOf(PlaybackStatus.Loading, PlaybackStatus.Paused),
+            recording.statuses)
+        assertTrue(provider.isLoaded)
+    }
+
+    @Test
+    fun staleAsynchronousLoadCannotPublishAfterClear() = runBlocking {
+        val provider = FakeIOSAudioPlayerProvider()
+        provider.deferLoad = true
+        IOSAudioPlayerBridge.provider = provider
+        val engine = createIOSPlaybackEngine(testResolver())
+        val recording = RecordingListener()
+        engine.listener = recording
+        val load = launch {
+            runCatching {
+                engine.loadPaused(testTrack("stale-load"), generation = 54L)
+            }
+        }
+
+        kotlinx.coroutines.yield()
+        engine.clear(generation = 55L)
+        provider.completeDeferredLoad()
+        load.join()
+
+        assertEquals(listOf(PlaybackStatus.Loading), recording.statuses)
     }
 
     @Test
@@ -402,26 +473,69 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
     var playSucceeds = true
     var loadSucceeds = true
     var playCallCount = 0
+    var deferPlayStart = false
+    var deferLoad = false
     var onFadeOutAndStop: (() -> Unit)? = null
     var onLoad: (() -> Unit)? = null
     var durationThrows = false
     private var positionMillis: Long = 0L
     private var durationMillis: Long? = null
     private var playing = false
+    private var pendingPlayStart: IOSAudioPlayerPlaybackStartHandler? = null
+    private var pendingLoad: IOSAudioPlayerLoadHandler? = null
+    var isLoaded = false
 
-    override fun load(filePath: String): Boolean {
+    override fun loadAsync(
+        filePath: String,
+        handler: IOSAudioPlayerLoadHandler
+    ) {
         durationMillis = 1_000L
         positionMillis = 0L
         playing = false
-        onLoad?.invoke()
-        return filePath.isNotBlank() && loadSucceeds
+        if (deferLoad) {
+            pendingLoad = handler
+            return
+        }
+        completeLoad(filePath, handler)
     }
 
-    override fun play(): Boolean {
+    private fun completeLoad(
+        filePath: String,
+        handler: IOSAudioPlayerLoadHandler,
+    ) {
+        isLoaded = filePath.isNotBlank() && loadSucceeds
+        if (isLoaded) handler.onAudioLoaded() else handler.onAudioLoadFailed()
+        onLoad?.invoke()
+    }
+
+    fun completeDeferredLoad() {
+        val handler = requireNotNull(pendingLoad)
+        pendingLoad = null
+        completeLoad("deferred-load", handler)
+    }
+
+    override fun playAsync(handler: IOSAudioPlayerPlaybackStartHandler) {
         playCallCount++
-        if (!playSucceeds) return false
+        if (deferPlayStart) {
+            pendingPlayStart = handler
+            return
+        }
+        completePlayStart(handler)
+    }
+
+    private fun completePlayStart(handler: IOSAudioPlayerPlaybackStartHandler) {
+        if (!playSucceeds) {
+            handler.onPlaybackStartFailed()
+            return
+        }
         playing = true
-        return true
+        handler.onPlaybackStarted()
+    }
+
+    fun completeDeferredPlayStart() {
+        val handler = requireNotNull(pendingPlayStart)
+        pendingPlayStart = null
+        completePlayStart(handler)
     }
 
     override fun pause() {

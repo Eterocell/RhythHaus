@@ -16,6 +16,7 @@ final class RhythHausAudioPlayerProvider: NSObject, IOSAudioPlayerProvider, AVAu
 
     private var player: AVAudioPlayer?
     private var isPlayingAuthoritatively = false
+    private var playRequestToken = 0
     private var notificationTokens: [NSObjectProtocol] = []
 
     override init() {
@@ -47,42 +48,90 @@ final class RhythHausAudioPlayerProvider: NSObject, IOSAudioPlayerProvider, AVAu
         notificationTokens.forEach(center.removeObserver)
     }
 
-    func load(filePath: String) -> Bool {
+    func loadAsync(filePath: String, handler: IOSAudioPlayerLoadHandler) {
         Self.assertMainThread()
         stop()
-        let url = URL(fileURLWithPath: filePath)
-        do {
-            let nextPlayer = try AVAudioPlayer(contentsOf: url)
-            nextPlayer.delegate = self
-            guard nextPlayer.prepareToPlay() else { return false }
-            player = nextPlayer
-            return true
-        } catch {
-            NSLog("[RhythHaus] Could not create AVAudioPlayer for %@: %@", filePath, String(describing: error))
-            return false
+        playRequestToken += 1
+        let requestToken = playRequestToken
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            dispatchPrecondition(condition: .notOnQueue(.main))
+            let preparedPlayer: AVAudioPlayer
+            do {
+                try AVAudioSession.sharedInstance().setCategory(
+                    .playback,
+                    mode: .default,
+                    policy: .longFormAudio,
+                    options: [])
+                let candidate = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: filePath))
+                guard candidate.prepareToPlay() else {
+                    DispatchQueue.main.async {
+                        handler.onAudioLoadFailed()
+                    }
+                    return
+                }
+                preparedPlayer = candidate
+            } catch {
+                NSLog(
+                    "[RhythHaus] Could not create AVAudioPlayer for %@: %@",
+                    filePath,
+                    String(describing: error))
+                DispatchQueue.main.async {
+                    handler.onAudioLoadFailed()
+                }
+                return
+            }
+
+            DispatchQueue.main.async {
+                guard let self, self.playRequestToken == requestToken else {
+                    handler.onAudioLoadFailed()
+                    return
+                }
+                preparedPlayer.delegate = self
+                self.player = preparedPlayer
+                self.isPlayingAuthoritatively = false
+                handler.onAudioLoaded()
+            }
         }
     }
 
-    func play_() -> Bool {
+    func playAsync(handler: IOSAudioPlayerPlaybackStartHandler) {
         Self.assertMainThread()
-        do {
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            return false
+        playRequestToken += 1
+        let requestToken = playRequestToken
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            dispatchPrecondition(condition: .notOnQueue(.main))
+            guard let self else { return }
+            do {
+                try AVAudioSession.sharedInstance().setActive(true)
+            } catch {
+                DispatchQueue.main.async {
+                    handler.onPlaybackStartFailed()
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                guard self.playRequestToken == requestToken,
+                      self.player?.play() == true
+                else {
+                    handler.onPlaybackStartFailed()
+                    return
+                }
+                self.isPlayingAuthoritatively = true
+                handler.onPlaybackStarted()
+            }
         }
-        guard player?.play() == true else { return false }
-        isPlayingAuthoritatively = true
-        return true
     }
 
     func pause() {
         Self.assertMainThread()
+        playRequestToken += 1
         isPlayingAuthoritatively = false
         player?.pause()
     }
 
     func stop() {
         Self.assertMainThread()
+        playRequestToken += 1
         isPlayingAuthoritatively = false
         player?.stop()
         player?.currentTime = 0

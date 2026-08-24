@@ -1,4 +1,3 @@
-import AVFAudio
 import Foundation
 import Shared
 import UIKit
@@ -11,7 +10,7 @@ enum RhythHausAppBootstrapper {
         playlistBackupDocumentProvider: IOSPlaylistBackupDocumentProvider
     ) {
         ensureDocumentsContainerIsVisibleInFiles()
-        configureAudioSession()
+        configureRemoteControlEvents()
         registerKotlinBridges(
             audioPlayerProvider: audioPlayerProvider,
             artworkProvider: artworkProvider,
@@ -32,20 +31,7 @@ enum RhythHausAppBootstrapper {
         }
     }
 
-    private static func configureAudioSession() {
-        // Configure AVAudioSession as a long-form audio source (music app).
-        // WWDC23 "Tune up your AirPlay audio experience": set route sharing policy
-        // to .longFormAudio alongside MPNowPlayingInfoCenter + MPRemoteCommandCenter.
-        // Without .longFormAudio, iOS may not treat the app as a primary Now Playing
-        // source, causing prev/next and slider to appear greyed despite registered handlers.
-        try? AVAudioSession.sharedInstance().setCategory(
-            .playback,
-            mode: .default,
-            policy: .longFormAudio,
-            options: []
-        )
-        try? AVAudioSession.sharedInstance().setActive(true)
-
+    private static func configureRemoteControlEvents() {
         // Tell iOS this app wants to be a Now Playing app.
         UIApplication.shared.beginReceivingRemoteControlEvents()
     }

@@ -27,6 +27,27 @@ public interface IOSAudioInterruptionHandler {
     public fun onRouteDisconnected()
 }
 
+/**
+ * Receives the result of asynchronous audio-session activation and playback
+ * start.
+ */
+public interface IOSAudioPlayerPlaybackStartHandler {
+    /** Native playback is active. */
+    public fun onPlaybackStarted()
+
+    /** Audio-session activation or native playback failed. */
+    public fun onPlaybackStartFailed()
+}
+
+/** Receives the result of asynchronous native audio-player preparation. */
+public interface IOSAudioPlayerLoadHandler {
+    /** The audio player has been prepared and installed. */
+    public fun onAudioLoaded()
+
+    /** Native audio-player construction or preparation failed. */
+    public fun onAudioLoadFailed()
+}
+
 /** Swift-owned operations exposed to the Kotlin playback engine. */
 public interface IOSAudioPlayerProvider {
     /** Receives playback-completion notifications. */
@@ -35,11 +56,16 @@ public interface IOSAudioPlayerProvider {
     /** Receives system interruption and route notifications. */
     public var interruptionHandler: IOSAudioInterruptionHandler?
 
-    /** Loads the audio file at [filePath]. */
-    public fun load(filePath: String): Boolean
+    /**
+     * Loads and prepares the audio file without blocking the calling thread.
+     */
+    public fun loadAsync(filePath: String, handler: IOSAudioPlayerLoadHandler)
 
-    /** Starts playback. */
-    public fun play(): Boolean
+    /**
+     * Starts playback without blocking the calling thread on audio-session
+     * activation.
+     */
+    public fun playAsync(handler: IOSAudioPlayerPlaybackStartHandler)
 
     /** Pauses playback. */
     public fun pause(): Unit

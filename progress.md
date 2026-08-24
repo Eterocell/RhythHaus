@@ -1,3 +1,18 @@
+## Handoff - 2026-08-24 iOS playback activation and load latency
+
+Route: systematic-debugging + TDD (user-reported iOS playback regression)
+Owner: implementation
+Input: iOS play taps became visibly stuttery after the playback refactor; runtime warning from `AVAudioSession_iOS.mm:978` identified synchronous `AVAudioSession.setActive` on the main thread.
+Output: The previous fix was incomplete: `loadPausedSerialized()` still called synchronous Swift `load()`, whose main-thread `AVAudioPlayer.prepareToPlay()` can synchronously activate `AVAudioSession`. The provider now exposes `loadAsync(filePath:handler:)`; Swift performs session category setup, `AVAudioPlayer` construction, and `prepareToPlay()` on a user-initiated background queue, then installs the prepared player and delegate on main. `playAsync(handler:)` keeps explicit activation off main. Kotlin awaits load completion before publishing the paused loaded state, and request/source teardown guards stale async completions. Added `loadingWaitsForAsynchronousNativePreparation`; background closures assert they are not on the main queue.
+Verification:
+- RED: focused iOS test failed at `PlaybackEngine.ios.kt` unresolved synchronous `provider.play()` references after the async contract test seam was introduced.
+- `./gradlew :shared:iosSimulatorArm64Test --tests 'com.eterocell.rhythhaus.IOSAudioPlayerBridgeTest' --tests 'com.eterocell.rhythhaus.IOSNowPlayingInfoTest' --configuration-cache`: BUILD SUCCESSFUL.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: BUILD SUCCESSFUL after adding stale-load cancellation coverage.
+- `xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`: BUILD SUCCESSFUL after matching generated Swift label `playAsync(handler:)`.
+- `spotlessApply`, separate `spotlessCheck`, separate `detekt`, `architectureCheck`, and `git diff --check`: successful after final load-path changes.
+Next owner: none.
+Blockers: device-level playback latency verification was not available in this environment; simulator/Xcode build and focused Kotlin behavior tests pass.
+
 ## Handoff - 2026-08-20 deferred review items
 
 Route: direct user request (continue the deferred items from the independent review)
