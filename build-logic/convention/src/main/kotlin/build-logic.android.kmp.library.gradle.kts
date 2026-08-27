@@ -19,6 +19,12 @@ var namespace = "<invalid>"
 val productionResourceRoots =
     mutableListOf<Provider<List<Collection<Directory>>>>()
 
+extensions.configure<KotlinMultiplatformExtension> {
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+}
+
 androidComponents.finalizeDsl {
     android: KotlinMultiplatformAndroidLibraryExtension ->
     resourcesEnabled = android.androidResources.enable

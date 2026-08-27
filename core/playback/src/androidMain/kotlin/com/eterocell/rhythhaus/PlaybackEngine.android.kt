@@ -567,7 +567,10 @@ internal fun buildAndroidPlaybackMediaMetadata(
             .setArtist(track.artist)
             .setAlbumTitle(track.album)
     track.artworkBytes?.let { artwork ->
-        builder.setArtworkData(artwork)
+        builder.setArtworkData(
+            artwork,
+            MediaMetadata.PICTURE_TYPE_FRONT_COVER,
+        )
     }
     return builder.build()
 }

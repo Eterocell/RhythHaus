@@ -40,10 +40,14 @@ class KmpConventionPluginsFunctionalTest {
         val result = runner(projectDir, "verifyFeatureImplementationConvention").build()
 
         assertTrue(result.output.contains("EXPLICIT_API=null"), result.output)
+        assertTrue(
+            result.output.contains("EXPECT_ACTUAL_CLASSES=true"),
+            result.output,
+        )
         assertTrue(result.output.contains("KSP_MODULE=:feature:nowplaying"), result.output)
         assertTrue(
             result.output.contains(
-                "KSP_PACKAGE_ROOTS=com.eterocell.rhythhaus.nowplaying,com.eterocell.rhythhaus.ui",
+                "KSP_PACKAGE_ROOTS=com.eterocell.rhythhaus.nowplaying",
             ),
             result.output,
         )
@@ -163,6 +167,9 @@ class KmpConventionPluginsFunctionalTest {
                         println("EXPLICIT_API=" + project.tasks.withType(KotlinCompilationTask::class.java)
                             .flatMap { it.compilerOptions.freeCompilerArgs.get() }
                             .singleOrNull { it.startsWith("-Xexplicit-api=") })
+                        println("EXPECT_ACTUAL_CLASSES=" + project.tasks.withType(KotlinCompilationTask::class.java)
+                            .map { "-Xexpect-actual-classes" in it.compilerOptions.freeCompilerArgs.get() }
+                            .all { it })
                         println("KSP_MODULE=" + options.getValue("architecture.module"))
                         println("KSP_PACKAGE_ROOTS=" + options.getValue("architecture.packageRoots"))
                         println("KSP_SOURCE_ROOTS=" + options.getValue("architecture.sourceRoots"))

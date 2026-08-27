@@ -1,3 +1,19 @@
+## Handoff - 2026-08-27 build warning remediation
+
+Route: systematic-debugging + TDD (user-reported build warnings)
+Owner: implementation
+Input: enable Android host tests for the remaining `commonTest` owner, suppress Kotlin expect/actual Beta warnings project-wide through build logic, and replace deprecated Media3 artwork metadata construction.
+Output: `:taglib` now enables `withHostTest {}`; `build-logic.android.kmp.library` adds `-Xexpect-actual-classes` to every repository Android-KMP module and the former Shared-only flag is removed; Android playback supplies `MediaMetadata.PICTURE_TYPE_FRONT_COVER` through Media3's current two-argument `setArtworkData` API. The build-logic functional fixture verifies the flag on every Kotlin compilation, and the Android host regression verifies artwork bytes plus picture type. Its stale Now Playing package-root expectation was aligned with the current architecture allow-list.
+Verification:
+- RED: the build-logic fixture reported `EXPECT_ACTUAL_CLASSES=false`; the Android metadata test expected front-cover type but observed null.
+- `./gradlew :build-logic:convention:test --tests 'com.eterocell.gradle.architecture.KmpConventionPluginsFunctionalTest.featureImplementationConventionPublishesProductionKspMetadataForEveryMainTarget' :taglib:testAndroidHostTest :core:playback:testAndroidHostTest :shared:compileAndroidMain --warning-mode=all --configuration-cache --rerun-tasks`: BUILD SUCCESSFUL, 169/169 tasks executed; none of the three requested warnings appeared.
+- `./gradlew spotlessApply --configuration-cache`, separate `spotlessCheck`, and separate `detekt`: BUILD SUCCESSFUL.
+- `git diff --check`: pass.
+- `./init.sh`: failed at `:shared:jvmTest` (37/304 test failures) with `NoSuchMethodError: org.jetbrains.skia.Image.makeShader(...)` from Miuix's `AlphaImageBitmap_skikoKt`; the requested warning-remediation scope changes no dependency coordinates or JVM UI rendering code.
+- `./gradlew architectureCheck --configuration-cache` and isolated `--no-configuration-cache`: fail on the pre-existing root `dependencyUpdatesAggregation` self/project edges (`ARCH-CYCLE : -> :` plus `ARCH-EDGE : [dependencyUpdatesAggregation] ...`); unrelated to the six warning-remediation files.
+Next owner: none for the requested warnings. Architecture checker handling of the root dependency-updates aggregation remains a separate blocker.
+Blockers: repository-wide acceptance is blocked by the recorded Miuix/Skia JVM test linkage failure and architecture aggregation self-edge. `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/AppScanCancellationTest.kt` changed independently during this session and was not modified or reverted by this work.
+
 ## Handoff - 2026-08-24 iOS playback activation and load latency
 
 Route: systematic-debugging + TDD (user-reported iOS playback regression)

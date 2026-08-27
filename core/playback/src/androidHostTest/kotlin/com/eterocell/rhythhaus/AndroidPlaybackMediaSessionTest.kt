@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus
 
+import androidx.media3.common.MediaMetadata
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -17,6 +18,7 @@ class AndroidPlaybackMediaSessionTest {
 
     @Test
     fun mediaItemCarriesTrackMetadataForAndroidSystemControls() {
+        val artwork = byteArrayOf(1, 2, 3)
         val track =
             PlayableTrack(
                 id = "track-1",
@@ -26,6 +28,7 @@ class AndroidPlaybackMediaSessionTest {
                 durationMillis = 181_000L,
                 source =
                     AudioSource.Uri("content://media/external/audio/media/42"),
+                artworkBytes = artwork,
             )
 
         val mediaMetadata = buildAndroidPlaybackMediaMetadata(track)
@@ -33,6 +36,11 @@ class AndroidPlaybackMediaSessionTest {
         assertEquals("Night Drive", mediaMetadata.title.toString())
         assertEquals("Rhyth Haus", mediaMetadata.artist.toString())
         assertEquals("Local Sessions", mediaMetadata.albumTitle.toString())
+        assertTrue(artwork.contentEquals(mediaMetadata.artworkData))
+        assertEquals(
+            MediaMetadata.PICTURE_TYPE_FRONT_COVER,
+            mediaMetadata.artworkDataType,
+        )
     }
 
     @Test
