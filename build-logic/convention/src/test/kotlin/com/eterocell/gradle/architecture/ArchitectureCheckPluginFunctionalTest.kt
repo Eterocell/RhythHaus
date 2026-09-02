@@ -54,7 +54,7 @@ class ArchitectureCheckPluginFunctionalTest {
     }
 
     @Test
-    fun dedicatedQualityWorkflowInvokesCanonicalQualityEntrypoint() {
+    fun dedicatedQualityWorkflowRunsExplicitQualityAndBuildJobs() {
         val workflow = File(System.getProperty("rhythhaus.rootDir"), ".github/workflows/quality.yml")
         assertTrue(workflow.isFile, "Missing dedicated quality workflow at ${workflow.path}")
 
@@ -66,16 +66,27 @@ class ArchitectureCheckPluginFunctionalTest {
         )
         assertTrue(!Regex("(?m)^\\s+paths:").containsMatchIn(content), content)
 
-        val gradleCommands = Regex("(?m)^        run: (\\./gradlew [^\\r\\n]*)").findAll(content).map { it.groupValues[1] }.toList()
-        val qualityCommands = gradleCommands.filter { Regex("(?:^|\\s)qualityCheck(?:\\s|$)").containsMatchIn(it) }
-        assertEquals(1, qualityCommands.size, gradleCommands.joinToString("\\n"))
-        assertEquals(
-            "./gradlew qualityCheck --configuration-cache --configuration-cache-problems=fail --no-parallel",
-            qualityCommands.single(),
-        )
+        val jobs = Regex("(?ms)^  ([A-Za-z0-9-]+):\\R(.*?)(?=^  [A-Za-z0-9-]+:|\\z)")
+            .findAll(content)
+            .associate { it.groupValues[1] to it.groupValues[2] }
+        val qualityJob = jobs["quality"] ?: error("Missing quality job")
+        val qualityCommands = Regex("(?m)^        run: (\\./gradlew [^\\r\\n]*)")
+            .findAll(qualityJob)
+            .map { it.groupValues[1] }
+            .toList()
         listOf("architectureCheck", "spotlessCheck", "detekt").forEach { task ->
-            assertTrue(gradleCommands.none { Regex("(?:^|\\s)$task(?:\\s|$)").containsMatchIn(it) }, gradleCommands.joinToString("\\n"))
+            assertEquals(
+                1,
+                qualityCommands.count { Regex("(?:^|\\s)$task(?:\\s|$)").containsMatchIn(it) },
+                qualityCommands.joinToString("\\n"),
+            )
         }
+        assertTrue(qualityCommands.none { Regex("(?:^|\\s)qualityCheck(?:\\s|$)").containsMatchIn(it) }, qualityCommands.joinToString("\\n"))
+
+        assertTrue(jobs["tests"]?.contains("name: Run JVM test battery") == true, content)
+        assertTrue(jobs["android-build"]?.contains(":androidApp:assembleDebug") == true, content)
+        assertTrue(jobs["desktop-build"]?.contains(":desktopApp:compileKotlin") == true, content)
+        assertTrue(jobs["ios-build"]?.contains("xcodebuild build") == true, content)
     }
 
     @Test
@@ -112,9 +123,31 @@ class ArchitectureCheckPluginFunctionalTest {
     }
 
     @Test
+    fun currentVersionsPluginAggregationSelfDependencyIsToolingAndNotAnArchitectureEdge() {
+        val result = runner(versionsPluginFixture(pluginId = "io.github.ben-manes.versions")).build()
+
+        assertTrue(!result.output.contains("ARCH-CYCLE : -> :"), result.output)
+        assertTrue(!result.output.contains("ARCH-EDGE : [dependencyUpdatesAggregation] -> :"), result.output)
+    }
+
+    @Test
     fun authoredVersionsPluginAggregationSelfDependencyRemainsAnArchitectureEdge() {
         assertExactFailure(
             versionsPluginFixture(addAuthoredAggregationSelfDependency = true),
+            listOf(
+                "ARCH-CYCLE : -> :",
+                "ARCH-EDGE : [dependencyUpdatesAggregation] -> :",
+            ),
+        )
+    }
+
+    @Test
+    fun authoredCurrentVersionsPluginAggregationSelfDependencyRemainsAnArchitectureEdge() {
+        assertExactFailure(
+            versionsPluginFixture(
+                pluginId = "io.github.ben-manes.versions",
+                addAuthoredAggregationSelfDependency = true,
+            ),
             listOf(
                 "ARCH-CYCLE : -> :",
                 "ARCH-EDGE : [dependencyUpdatesAggregation] -> :",
@@ -1852,12 +1885,15 @@ class ArchitectureCheckPluginFunctionalTest {
         return projectDir
     }
 
-    private fun versionsPluginFixture(addAuthoredAggregationSelfDependency: Boolean = false): File = fixture().also { projectDir ->
+    private fun versionsPluginFixture(
+        pluginId: String = "com.github.ben-manes.versions",
+        addAuthoredAggregationSelfDependency: Boolean = false,
+    ): File = fixture().also { projectDir ->
         projectDir.resolve("build.gradle.kts").writeText(
             """
             plugins {
                 id("build-logic.architecture-check")
-                id("com.github.ben-manes.versions") version "0.61.0"
+                id("$pluginId") version "0.61.0"
             }
 
             ${if (addAuthoredAggregationSelfDependency) "dependencies { add(\"dependencyUpdatesAggregation\", project(\":\")) }" else ""}

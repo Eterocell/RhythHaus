@@ -1,3 +1,12 @@
+## Handoff - 2026-09-02 repair-build-quality-ci Task 4 closeout
+
+Route: openspec+superpowers acceptance and evidence closeout
+Owner: documentation/evidence closeout
+Input: controller-provided verified Task 4 evidence in `.superpowers/sdd/2026-09-02-repair-build-quality-ci/task-4-evidence.md` and the approved Task 4 brief.
+Output: OpenSpec Tasks 1.1-4.2 checked off; quality, Spotless apply/check, Detekt, JVM, Android, desktop, unsigned iOS Simulator Xcode build, strict OpenSpec validation, and `./init.sh` evidence recorded in `task-4-report.md`. The stale workflow contract test now passes; the full architecture functional class records one unrelated `composeConventionConfiguresDeclaredCustomRootForResourceGeneration` failure (96 tests, 1 failed, 21 skipped). The pre-existing user-owned `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/AppScanCancellationTest.kt` modification is explicitly preserved.
+Next owner: none for Task 4 closeout; follow-up work, if any, must address issues outside the verified scope.
+Blockers: the unrelated Compose fixture failure remains; it is outside the approved workflow-contract correction and is not claimed fixed.
+
 ## Handoff - 2026-08-27 build warning remediation
 
 Route: systematic-debugging + TDD (user-reported build warnings)

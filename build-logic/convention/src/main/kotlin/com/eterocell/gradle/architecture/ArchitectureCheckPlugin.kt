@@ -23,12 +23,14 @@ public class ArchitectureCheckPlugin : Plugin<Project> {
         }
         val versionsPluginAggregationDependencies =
             Collections.newSetFromMap(IdentityHashMap<ProjectDependency, Boolean>())
-        project.pluginManager.withPlugin("com.github.ben-manes.versions") {
+        fun captureVersionsPluginAggregation() {
             project.configurations.findByName("dependencyUpdatesAggregation")
                 ?.dependencies
                 ?.withType(ProjectDependency::class.java)
                 ?.forEach(versionsPluginAggregationDependencies::add)
         }
+        project.pluginManager.withPlugin("com.github.ben-manes.versions") { captureVersionsPluginAggregation() }
+        project.pluginManager.withPlugin("io.github.ben-manes.versions") { captureVersionsPluginAggregation() }
         project.gradle.projectsEvaluated {
             architectureCheck.configure {
                 val projects = project.allprojects.sortedBy(Project::getPath)
