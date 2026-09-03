@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -70,6 +71,11 @@ public fun dispatchDrillDownAction(
         DrillDownAction.ToggleTransport -> Unit
     }
 }
+
+internal fun shouldApplyDrillDownOverscroll(
+    canScrollForward: Boolean,
+    canScrollBackward: Boolean,
+): Boolean = canScrollForward || canScrollBackward
 
 /**
  * Renders an already-resolved album or artist detail destination using only raw
@@ -149,7 +155,23 @@ public fun DrillDownView(
         val drillDownStatusBarHeight = rememberSystemBarTopPadding()
         val drillDownBackdrop = rememberRhythHausBackdrop()
         val listState = rememberLazyListState()
-        val miuixScrollBehavior = rememberMiuixTopAppBarScrollBehavior()
+        val shouldApplyOverscroll by
+            remember(listState) {
+                derivedStateOf {
+                    shouldApplyDrillDownOverscroll(
+                        canScrollForward = listState.canScrollForward,
+                        canScrollBackward = listState.canScrollBackward,
+                    )
+                }
+            }
+        val overscrollEffect =
+            if (shouldApplyOverscroll) rememberOverscrollEffect() else null
+        val miuixScrollBehavior = rememberMiuixTopAppBarScrollBehavior {
+            shouldApplyDrillDownOverscroll(
+                canScrollForward = listState.canScrollForward,
+                canScrollBackward = listState.canScrollBackward,
+            )
+        }
         val topBarArtworkState =
             rememberLazyTrackArtworkState(
                     trackId = topBarArtworkTrack?.id,
@@ -212,6 +234,7 @@ public fun DrillDownView(
                 color = HausColors.current.paper) {
                     LazyColumn(
                         state = listState,
+                        overscrollEffect = overscrollEffect,
                         modifier =
                             Modifier.fillMaxSize()
                                 .then(

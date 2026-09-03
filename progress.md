@@ -1,3 +1,20 @@
+## Handoff - 2026-09-03 short album detail overscroll
+
+Route: systematic-debugging + TDD
+Owner: implementation
+Input: user report for the one-track “Almas Rotas” album on macOS JVM
+Output: `DrillDownView` now derives scroll-effect admission from `LazyListState.canScrollForward || canScrollBackward`. When the detail content has no scroll range, `LazyColumn` receives no `OverscrollEffect`, and the Miuix top-app-bar connection is given the same false admission signal, so an upward drag cannot start a collapse/snap-back bounce. When content is scrollable, the existing overscroll and nested-scroll behavior remains enabled. The callback is stabilized through `rememberUpdatedState` so recomposition does not recreate the Miuix behavior.
+Verification:
+- RED: the new Miuix regression could not compile because `rememberMiuixTopAppBarScrollBehavior` had no scroll-admission contract.
+- GREEN: focused `DrillDownViewJvmTest.unscrollableDetailDisablesOverscroll`, `scrollableDetailRetainsOverscroll`, and `unscrollableDetailDoesNotCollapseMiuixChromeOnUpwardDrag` passed.
+- Full `:feature:library:impl:jvmTest :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: `BUILD SUCCESSFUL`.
+- `./gradlew spotlessApply --configuration-cache`, separate `spotlessCheck`, and `detekt`: `BUILD SUCCESSFUL`.
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, build 17F113.
+- `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: `BUILD SUCCESSFUL`.
+- Real rebuilt macOS JVM app launched; Almas Rotas opened in wide master/detail and a synthetic wheel interaction left the one-track detail surface stable. Orca accessibility state was stale and did not expose animation frames, so no frame-by-frame bounce assertion is claimed.
+Next owner: none; direct fix remains uncommitted per repository rules.
+Blockers: none for automated/platform verification; frame-by-frame desktop animation capture remains unavailable through Orca.
+
 ## Handoff - 2026-09-03 progressive drilldown blur Task 3 record
 
 Route: OpenSpec acceptance and evidence closeout

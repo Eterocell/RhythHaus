@@ -31,6 +31,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -86,10 +87,18 @@ private fun rememberSafeDrawingStartPadding(): Dp =
 
 /**
  * Returns a fresh Miuix top-app-bar scroll behavior for a drill-down chrome.
+ *
+ * @param canScroll reports whether the associated detail content has a scroll
+ *   range. The chrome must not consume a drag when its content cannot scroll.
  */
 @Composable
-public fun rememberMiuixTopAppBarScrollBehavior(): ScrollBehavior =
-    MiuixScrollBehavior()
+public fun rememberMiuixTopAppBarScrollBehavior(
+    canScroll: () -> Boolean,
+): ScrollBehavior {
+    val currentCanScroll = rememberUpdatedState(canScroll)
+    val stableCanScroll = remember { { currentCanScroll.value() } }
+    return MiuixScrollBehavior(canScroll = stableCanScroll)
+}
 
 /**
  * Renders the collapsed Miuix drill-down chrome with a liquid-glass backdrop.

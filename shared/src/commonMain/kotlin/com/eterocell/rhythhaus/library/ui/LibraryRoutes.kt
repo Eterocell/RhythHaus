@@ -827,7 +827,8 @@ private fun PlaylistRoutePlaceholder(
     onBack: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    val scrollBehavior = rememberMiuixTopAppBarScrollBehavior()
+    val scrollBehavior =
+        rememberMiuixTopAppBarScrollBehavior(canScroll = { false })
     val retryLabel = stringResource(Res.string.playlist_retry)
     Box(modifier = Modifier.fillMaxSize()) {
         DrillDownMiuixScrollChrome(

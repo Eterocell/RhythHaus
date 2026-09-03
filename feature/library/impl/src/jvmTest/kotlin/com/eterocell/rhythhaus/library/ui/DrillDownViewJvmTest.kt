@@ -7,6 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
@@ -202,6 +204,50 @@ class DrillDownViewJvmTest {
             DrillDownMiuixScrollChromeBlurStyle,
         )
     }
+
+    @Test
+    fun unscrollableDetailDisablesOverscroll() {
+        assertTrue(
+            !shouldApplyDrillDownOverscroll(
+                canScrollForward = false,
+                canScrollBackward = false,
+            ),
+        )
+    }
+
+    @Test
+    fun scrollableDetailRetainsOverscroll() {
+        assertTrue(
+            shouldApplyDrillDownOverscroll(
+                canScrollForward = true,
+                canScrollBackward = false,
+            ),
+        )
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun unscrollableDetailDoesNotCollapseMiuixChromeOnUpwardDrag() =
+        runComposeUiTest {
+            lateinit var scrollBehavior:
+                top.yukonga.miuix.kmp.basic.ScrollBehavior
+            setContent {
+                scrollBehavior =
+                    rememberMiuixTopAppBarScrollBehavior(
+                        canScroll = { false },
+                    )
+            }
+            waitForIdle()
+
+            assertEquals(
+                Offset.Zero,
+                scrollBehavior.nestedScrollConnection.onPreScroll(
+                    available = Offset(0f, -64f),
+                    source = NestedScrollSource.UserInput,
+                ),
+            )
+            assertEquals(0f, scrollBehavior.state.heightOffset)
+        }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
