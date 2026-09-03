@@ -50,6 +50,7 @@ import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.RhythHausBackdrop
+import com.eterocell.rhythhaus.ui.RhythHausGlassBlurStyle
 import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
 import com.eterocell.rhythhaus.ui.rhythHausLiquidGlass
 import kotlin.math.max
@@ -65,6 +66,8 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 
 internal val NestedScrollChromeToolbarHeight = 56.dp
 internal val DrillDownMiuixScrollContentTopPadding = 128.dp
+internal val DrillDownMiuixScrollChromeBlurStyle =
+    RhythHausGlassBlurStyle.TopEdgeProgressive
 
 @Composable
 internal fun rememberSystemBarTopPadding(): Dp {
@@ -122,6 +125,7 @@ public fun DrillDownMiuixScrollChrome(
                         fallbackColor =
                             HausColors.current.panel.copy(
                                 alpha = RhythHausGlassSurfaceAlpha),
+                        blurStyle = DrillDownMiuixScrollChromeBlurStyle,
                     ),
         ) {
             TopAppBar(

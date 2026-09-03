@@ -1,3 +1,17 @@
+## Handoff - 2026-09-03 progressive drilldown blur Task 3 record
+
+Route: OpenSpec acceptance and evidence closeout
+Owner: documentation/evidence closeout
+Input: controller-provided verified Task 3 evidence and the approved Task 3 brief.
+Output:
+- OpenSpec 3.1 is complete. `./gradlew :shared:exportLibraryDefinitions --configuration-cache`: `BUILD SUCCESSFUL` (10s). Generated Miuix entries `miuix-blur`, `miuix-core`, `miuix-preference`, `miuix-shader`, `miuix-squircle`, and `miuix-ui` now report `0.9.4-rc01`.
+- OpenSpec 3.2 is complete. Focused `:core:ui:jvmTest --tests '*LiquidGlassChromeTest*'` and `:feature:library:impl:jvmTest --tests '*DrillDownViewJvmTest*'` both passed. `./gradlew spotlessApply --configuration-cache`: `BUILD SUCCESSFUL` (20s); `./gradlew spotlessCheck --configuration-cache`: `BUILD SUCCESSFUL` (19s); `./gradlew detekt --configuration-cache`: `BUILD SUCCESSFUL` (2s); `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`: `BUILD SUCCESSFUL` (48s); `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, build 17F113; `./gradlew :shared:iosSimulatorArm64Test --configuration-cache`: `BUILD SUCCESSFUL` (1m 7s), with pre-existing no-cast-needed compiler warnings in `AppScanCancellationTest.kt`.
+- Desktop smoke was partial: real `:desktopApp:run` launched; Orca opened an album detail in wide master/detail; a screenshot confirmed the master pane remained visible and the floating Now Playing bar had uniform blur. Orca’s synthetic scroll/drag did not move the Compose detail and keyboard input could not focus its window, so the collapsed progressive top edge was not visually confirmed. This is an exact limitation, not a failure claim.
+Changed records: `progress.md`, `roadmap.md`, `openspec/changes/adopt-progressive-drilldown-blur/tasks.md`, and `.superpowers/sdd/2026-09-03-progressive-drilldown-blur/task-3-report.md`.
+Final controller review: Task 1 core policy and Task 2 caller isolation reviews were clean; Task 3 evidence review passed. Two final read-only review lanes stalled and were cancelled without writes; controller completed the scoped source review. `openspec validate adopt-progressive-drilldown-blur --strict` and `git diff --check` both passed before closeout.
+Next owner: none after the conventional implementation commit in this closeout.
+Blockers: collapsed progressive top-edge visual confirmation remains unconfirmed because the Compose detail could not be scrolled or focused through Orca; automated policy, composable, build, and platform verification passed.
+
 ## Handoff - 2026-09-02 repair-build-quality-ci Task 4 closeout
 
 Route: openspec+superpowers acceptance and evidence closeout

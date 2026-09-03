@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.ui.RhythHausGlassBlurStyle
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -193,6 +194,14 @@ class DrillDownViewJvmTest {
             waitForIdle()
             assertEquals(listOf("t-1"), toggles)
         }
+
+    @Test
+    fun drillDownChromeUsesTopEdgeProgressiveBlur() {
+        assertEquals(
+            RhythHausGlassBlurStyle.TopEdgeProgressive,
+            DrillDownMiuixScrollChromeBlurStyle,
+        )
+    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
