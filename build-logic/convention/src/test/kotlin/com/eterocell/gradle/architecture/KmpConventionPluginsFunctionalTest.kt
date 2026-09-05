@@ -11,6 +11,13 @@ import org.gradle.testkit.runner.GradleRunner
 
 class KmpConventionPluginsFunctionalTest {
     @Test
+    fun macosJvmTestsDefaultToSoftwareSkikoRenderer() {
+        if (System.getProperty("os.name").startsWith("Mac")) {
+            assertEquals("SOFTWARE", System.getProperty("skiko.renderApi"))
+        }
+    }
+
+    @Test
     fun coreConventionEnablesExplicitApi() {
         assertExplicitApi(
             pluginId = "build-logic.kmp.core",
