@@ -1,5 +1,7 @@
 import com.eterocell.gradle.architecture.ArchitectureCheckPlugin
 import java.net.URI
+import org.gradle.api.tasks.testing.Test
+import org.gradle.internal.os.OperatingSystem
 
 plugins {
     id("build-logic.root-project.base")
@@ -25,6 +27,15 @@ allprojects {
     qualityCheck.configure {
         dependsOn(tasks.named("detekt"))
         dependsOn(tasks.named("spotlessCheck"))
+    }
+}
+
+subprojects {
+    tasks.withType<Test>().configureEach {
+        if (OperatingSystem.current().isMacOsX &&
+            System.getProperty("skiko.renderApi") == null) {
+            systemProperty("skiko.renderApi", "SOFTWARE")
+        }
     }
 }
 

@@ -3,12 +3,6 @@ plugins {
 }
 
 tasks.withType<Test>().configureEach {
-    if (System.getProperty("os.name").startsWith("Mac")) {
-        systemProperty(
-            "skiko.renderApi",
-            System.getProperty("skiko.renderApi") ?: "SOFTWARE",
-        )
-    }
     systemProperty(
         "rhythhaus.rootDir", projectDir.parentFile.parentFile.absolutePath)
     providers.gradleProperty("rhythhaus.aabProbeFile").orNull?.let { probeFile
