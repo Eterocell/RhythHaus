@@ -104,6 +104,16 @@ struct LibraryImportMemoryManagedFiles: LibraryImportManagedFiles {
 /// case (the managed folder lives on APFS), and a different-content occupant
 /// selects the smallest deterministic numeric suffix (2, 3, ...) that is free.
 enum LibraryImportDestinationPolicy {
+    static func planName(sourceFileName: String, managed: LibraryImportManagedFiles) -> String {
+        let destinationName = LibraryImportNamePolicy.managedImportFileName(sourceFileName)
+        guard managed.occupiedName(ciMatching: destinationName) != nil else { return destinationName }
+        var index = 2
+        while managed.occupiedName(ciMatching: LibraryImportNamePolicy.suffixingName(destinationName, index: index)) != nil {
+            index += 1
+        }
+        return LibraryImportNamePolicy.suffixingName(destinationName, index: index)
+    }
+
     static func plan(
         sourceFileName: String,
         sourceContent: Data,
@@ -272,7 +282,10 @@ protocol LibraryImportFileOperations {
     func isDirectory(at url: URL) -> Bool
     func contentsOfDirectory(at url: URL) throws -> [String]
     func recursiveFiles(in url: URL) throws -> [URL]
+    func streamedFileEntries(in url: URL) throws -> [LibraryImportEnumerationEntry]
     func readData(from url: URL) throws -> Data
+    func filesEqual(_ lhs: URL, _ rhs: URL) throws -> Bool
+    func streamCopy(from source: URL, to destination: URL) throws
     func writeTemporaryFile(data: Data, in directory: URL) throws -> URL
     func moveItem(at source: URL, to destination: URL) throws
     func removeItem(at url: URL) throws
@@ -301,6 +314,23 @@ struct FileManagerLibraryImportFileOperations: LibraryImportFileOperations {
         return files
     }
 
+    func streamedFileEntries(in url: URL) throws -> [LibraryImportEnumerationEntry] {
+        var entries: [LibraryImportEnumerationEntry] = []
+        try collectEntries(directory: url, entries: &entries)
+        return entries
+    }
+
+    private func collectEntries(directory: URL, entries: inout [LibraryImportEnumerationEntry]) throws {
+        for name in try contentsOfDirectory(at: directory) {
+            if name.hasPrefix(".") { continue }
+            let child = directory.appendingPathComponent(name)
+            if isDirectory(at: child) {
+                do { try collectEntries(directory: child, entries: &entries) }
+                catch { entries.append(.failed) }
+            } else { entries.append(.file(child)) }
+        }
+    }
+
     private func collect(directory: URL, files: inout [URL]) throws {
         for name in try contentsOfDirectory(at: directory) {
             if name.hasPrefix(".") {
@@ -321,6 +351,32 @@ struct FileManagerLibraryImportFileOperations: LibraryImportFileOperations {
 
     func readData(from url: URL) throws -> Data {
         try Data(contentsOf: url)
+    }
+
+    func filesEqual(_ lhs: URL, _ rhs: URL) throws -> Bool {
+        let leftSize = try fileManager.attributesOfItem(atPath: lhs.path)[.size] as? NSNumber
+        let rightSize = try fileManager.attributesOfItem(atPath: rhs.path)[.size] as? NSNumber
+        guard leftSize?.int64Value == rightSize?.int64Value else { return false }
+        let left = try FileHandle(forReadingFrom: lhs)
+        let right = try FileHandle(forReadingFrom: rhs)
+        defer { try? left.close(); try? right.close() }
+        while true {
+            let a = try left.read(upToCount: 64 * 1024) ?? Data()
+            let b = try right.read(upToCount: 64 * 1024) ?? Data()
+            if a != b { return false }
+            if a.isEmpty { return true }
+        }
+    }
+
+    func streamCopy(from source: URL, to destination: URL) throws {
+        let input = try FileHandle(forReadingFrom: source)
+        let output = try FileHandle(forWritingTo: destination)
+        defer { try? input.close(); try? output.close() }
+        while true {
+            let chunk = try input.read(upToCount: 64 * 1024) ?? Data()
+            if chunk.isEmpty { return }
+            try output.write(contentsOf: chunk)
+        }
     }
 
     /// Writes into a hidden sibling of the final destination so the later
@@ -344,6 +400,11 @@ struct FileManagerLibraryImportFileOperations: LibraryImportFileOperations {
     func removeItem(at url: URL) throws {
         try fileManager.removeItem(at: url)
     }
+}
+
+enum LibraryImportEnumerationEntry {
+    case file(URL)
+    case failed
 }
 
 /// Disk-backed managed destination state: occupancy is seeded from the
@@ -371,6 +432,11 @@ final class LibraryImportManagedFolderState: LibraryImportManagedFiles {
 
     func content(of fileName: String) -> Data? {
         try? operations.readData(from: directory.appendingPathComponent(fileName))
+    }
+
+    func contentEquals(fileName: String, sourceURL: URL) -> Bool {
+        guard let existing = occupiedName(ciMatching: fileName) else { return false }
+        return (try? operations.filesEqual(directory.appendingPathComponent(existing), sourceURL)) == true
     }
 
     /// Records an installed or observed destination file as occupied.
@@ -429,14 +495,19 @@ enum LibraryImportCopyRunner {
                 }
             }
             if operations.isDirectory(at: url) {
-                let files: [URL]
+                let entries: [LibraryImportEnumerationEntry]
                 do {
-                    files = try operations.recursiveFiles(in: url)
+                    entries = try operations.streamedFileEntries(in: url)
                 } catch {
                     counters.apply(.failed)
                     continue
                 }
-                for file in files {
+                for entry in entries {
+                    if case .failed = entry {
+                        counters.apply(.failed)
+                        continue
+                    }
+                    guard case let .file(file) = entry else { continue }
                     if let outcome = process(
                         file,
                         destinationDirectory: destinationDirectory,
@@ -490,32 +561,20 @@ enum LibraryImportCopyRunner {
         operations: LibraryImportFileOperations,
         managed: LibraryImportManagedFolderState
     ) -> LibraryImportFileOutcome {
-        guard let content = try? operations.readData(from: url) else {
-            return .failed
-        }
         let sourceFileName = url.lastPathComponent
         var retries = 0
         while retries < maxCollisionRetries {
-            let plan =
-                LibraryImportDestinationPolicy.plan(
-                    sourceFileName: sourceFileName,
-                    sourceContent: content,
-                    managed: managed
-                )
-            switch plan {
-            case .duplicate:
+            let originalName = LibraryImportNamePolicy.managedImportFileName(sourceFileName)
+            if let existing = managed.occupiedName(ciMatching: originalName), managed.contentEquals(fileName: existing, sourceURL: url) {
                 return .duplicate
-            case let .fresh(fileName), let .suffixed(fileName):
+            }
+            let fileName = LibraryImportDestinationPolicy.planName(sourceFileName: sourceFileName, managed: managed)
+            do {
                 let destination = destinationDirectory.appendingPathComponent(fileName)
+                let temporary = try operations.writeTemporaryFile(data: Data(), in: destinationDirectory)
                 do {
-                    let temporary =
-                        try operations.writeTemporaryFile(data: content, in: destinationDirectory)
-                    do {
-                        try operations.moveItem(at: temporary, to: destination)
-                    } catch {
-                        try? operations.removeItem(at: temporary)
-                        throw error
-                    }
+                    try operations.streamCopy(from: url, to: temporary)
+                    try operations.moveItem(at: temporary, to: destination)
                     managed.record(fileName: fileName)
                     return .imported
                 } catch let cocoaError as NSError
@@ -525,11 +584,13 @@ enum LibraryImportCopyRunner {
                     // A file landed at the planned name after planning; fold
                     // it in as occupied and pick the next suffix.
                     managed.record(fileName: fileName)
+                    try? operations.removeItem(at: temporary)
                     retries += 1
                 } catch {
+                    try? operations.removeItem(at: temporary)
                     return .failed
                 }
-            }
+            } catch { return .failed }
         }
         return .failed
     }

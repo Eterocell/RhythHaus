@@ -16,3 +16,6 @@ import androidx.compose.runtime.Composable
 expect fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
 ): PlatformFolderPickerLauncher
+
+/** Whether an iOS launcher may admit a new operation. */
+internal fun iosImportLaunchAllowed(importActive: Boolean): Boolean = !importActive

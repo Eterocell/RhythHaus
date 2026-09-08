@@ -53,7 +53,7 @@ actual fun rememberPlatformFolderPickerLauncher(
                 // mutationsEnabled (which folds in isImportActive); this
                 // guard keeps the launcher safe even if launch() is invoked
                 // through an ungated path.
-                if (importActive.value) return
+                if (!iosImportLaunchAllowed(importActive.value)) return
                 val destinationPath =
                     runCatching { ensureAppLocalMusicFolder() }
                         .getOrElse {

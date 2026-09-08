@@ -551,6 +551,31 @@ final class LibraryImportProviderTests: XCTestCase {
         XCTAssertEqual(result.counters, .zero)
     }
 
+    func testCopyRunnerReportsMoveFailureWithoutLeavingTemporaryOrFinalFile() throws {
+        let destination = try makeManagedFolder()
+        let source = try write(Data("x".utf8), to: temporaryRoot.appendingPathComponent("a.mp3"))
+        let recorder = MoveFailingOperations(base: operations())
+        let result = LibraryImportCopyRunner.run(
+            selectedURLs: [source], destinationDirectory: destination,
+            operations: recorder, scopeFor: { URLLibraryImportSecurityScope(url: $0) })
+        XCTAssertEqual(result.counters.failed, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.appendingPathComponent("a.mp3").path))
+        XCTAssertTrue(recorder.removedTemporary)
+    }
+
+    func testCopyRunnerKeepsReadableSiblingsWhenNestedDirectoryErrors() throws {
+        // The injectable enumerator returns a failure for one subtree and a
+        // readable sibling; the sibling must still be imported.
+        let destination = try makeManagedFolder()
+        let source = try seedFileTree(in: temporaryRoot.appendingPathComponent("Source", isDirectory: true))
+        let recorder = PartialEnumerationOperations(base: operations(), source: source)
+        let result = LibraryImportCopyRunner.run(
+            selectedURLs: [source], destinationDirectory: destination,
+            operations: recorder, scopeFor: { URLLibraryImportSecurityScope(url: $0) })
+        XCTAssertEqual(result.counters.imported, 2)
+        XCTAssertEqual(result.counters.failed, 1)
+    }
+
     // MARK: Helpers
 
     private func completionExpectation(for recorder: CompletionRecorder) -> XCTestExpectation {
@@ -576,6 +601,7 @@ private final class CompletionRecorder: IOSLibraryImportCompletion {
     var onComplete: (() -> Void)?
 
     func complete(status: Int32, imported: Int32, duplicates: Int32, unsupported: Int32, failed: Int32, message: String?) {
+        XCTAssertTrue(Thread.isMainThread, "ABI completion must be delivered on main queue")
         calls.append(
             Call(
                 status: status,
@@ -612,4 +638,41 @@ private final class CountingScope: LibraryImportSecurityScope {
         return granted
     }
     func stop() { stopCount += 1 }
+}
+
+private final class MoveFailingOperations: LibraryImportFileOperations {
+    let base: LibraryImportFileOperations
+    var removedTemporary = false
+    init(base: LibraryImportFileOperations) { self.base = base }
+    func isDirectory(at url: URL) -> Bool { base.isDirectory(at: url) }
+    func contentsOfDirectory(at url: URL) throws -> [String] { try base.contentsOfDirectory(at: url) }
+    func recursiveFiles(in url: URL) throws -> [URL] { try base.recursiveFiles(in: url) }
+    func streamedFileEntries(in url: URL) throws -> [LibraryImportEnumerationEntry] { try base.streamedFileEntries(in: url) }
+    func readData(from url: URL) throws -> Data { try base.readData(from: url) }
+    func filesEqual(_ lhs: URL, _ rhs: URL) throws -> Bool { try base.filesEqual(lhs, rhs) }
+    func streamCopy(from source: URL, to destination: URL) throws { try base.streamCopy(from: source, to: destination) }
+    func writeTemporaryFile(data: Data, in directory: URL) throws -> URL { try base.writeTemporaryFile(data: data, in: directory) }
+    func moveItem(at source: URL, to destination: URL) throws {
+        throw NSError(domain: "MoveFailingOperations", code: 1)
+    }
+    func removeItem(at url: URL) throws { removedTemporary = true; try base.removeItem(at: url) }
+}
+
+private final class PartialEnumerationOperations: LibraryImportFileOperations {
+    let base: LibraryImportFileOperations
+    let source: URL
+    init(base: LibraryImportFileOperations, source: URL) { self.base = base; self.source = source }
+    func isDirectory(at url: URL) -> Bool { base.isDirectory(at: url) }
+    func contentsOfDirectory(at url: URL) throws -> [String] { try base.contentsOfDirectory(at: url) }
+    func recursiveFiles(in url: URL) throws -> [URL] { try base.recursiveFiles(in: url) }
+    func streamedFileEntries(in url: URL) throws -> [LibraryImportEnumerationEntry] {
+        let album = source.appendingPathComponent("Album A")
+        return [.file(album.appendingPathComponent("track1.mp3")), .failed, .file(album.appendingPathComponent("track2.flac"))]
+    }
+    func readData(from url: URL) throws -> Data { try base.readData(from: url) }
+    func filesEqual(_ lhs: URL, _ rhs: URL) throws -> Bool { try base.filesEqual(lhs, rhs) }
+    func streamCopy(from source: URL, to destination: URL) throws { try base.streamCopy(from: source, to: destination) }
+    func writeTemporaryFile(data: Data, in directory: URL) throws -> URL { try base.writeTemporaryFile(data: data, in: directory) }
+    func moveItem(at source: URL, to destination: URL) throws { try base.moveItem(at: source, to: destination) }
+    func removeItem(at url: URL) throws { try base.removeItem(at: url) }
 }

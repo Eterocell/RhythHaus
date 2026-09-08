@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus.library
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -17,6 +18,11 @@ import kotlin.test.assertTrue
  * rely on the same rules.
  */
 class PlatformSourceAccessTest {
+    @Test
+    fun iosLauncherRejectsReentryUntilTerminalCompletion() {
+        assertTrue(iosImportLaunchAllowed(importActive = false))
+        assertFalse(iosImportLaunchAllowed(importActive = true))
+    }
     private val managedFolder = "/managed/RhythHaus Music"
 
     private fun mappedResult(
