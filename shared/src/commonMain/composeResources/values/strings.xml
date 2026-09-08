@@ -34,4 +34,5 @@
     <string name="playlist_loading">Loading playlists…</string>
     <string name="close">Close</string>
     <string name="playlist_backup_imported_suffix">Imported</string>
+    <string name="ios_import_summary_format">Imported %1$d, duplicates %2$d, unsupported %3$d, failed %4$d</string>
 </resources>

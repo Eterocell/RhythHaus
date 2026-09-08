@@ -209,7 +209,7 @@ class PlatformSourceAccessTest {
     @Test
     fun importSummaryMessageIncludesAllFourCounts() {
         assertEquals(
-            "Import complete: imported 3, duplicates 1, unsupported 2, failed 1",
+            "Imported 3, duplicates 1, unsupported 2, failed 1",
             iosImportSummaryMessage(
                 LibraryImportSummary(
                     imported = 3,
@@ -217,6 +217,7 @@ class PlatformSourceAccessTest {
                     unsupported = 2,
                     failed = 1,
                 ),
+                summaryFormat = "Imported %1\$d, duplicates %2\$d, unsupported %3\$d, failed %4\$d",
             ),
         )
     }

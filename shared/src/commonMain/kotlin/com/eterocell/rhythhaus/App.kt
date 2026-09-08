@@ -67,6 +67,7 @@ import org.koin.compose.koinInject
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.playlist_backup_imported_suffix
 import rhythhaus.shared.generated.resources.scan_complete_format
+import rhythhaus.shared.generated.resources.ios_import_summary_format
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
@@ -126,6 +127,8 @@ fun App() {
         )
     }
     val scanCompleteFormat = stringResource(Res.string.scan_complete_format)
+    val iosImportSummaryFormat =
+        stringResource(Res.string.ios_import_summary_format)
     val importedSuffix =
         stringResource(Res.string.playlist_backup_imported_suffix)
     val selectedThemeMode by
@@ -407,7 +410,12 @@ fun App() {
     }
 
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
-        val action = resolveLibraryPickerTerminal(result, librarySources)
+        val action =
+            resolveLibraryPickerTerminal(
+                result = result,
+                existingSources = librarySources,
+                importSummaryFormat = iosImportSummaryFormat,
+            )
         action.message?.let { importMessage = it }
         action.scanSource?.let(::launchSourceScan)
     }
@@ -1004,12 +1012,16 @@ internal data class LibraryPickerTerminalAction(
 internal fun resolveLibraryPickerTerminal(
     result: PlatformFolderPickResult,
     existingSources: List<LibrarySource>,
+    importSummaryFormat: String =
+        "Imported %1\$d, duplicates %2\$d, unsupported %3\$d, failed %4\$d",
 ): LibraryPickerTerminalAction =
     when (result) {
         is PlatformFolderPickResult.Success ->
             LibraryPickerTerminalAction(
                 message =
-                    result.importSummary?.let(::iosImportSummaryMessage),
+                    result.importSummary?.let {
+                        iosImportSummaryMessage(it, importSummaryFormat)
+                    },
                 scanSource =
                     normalizePickedSource(result.source, existingSources),
             )

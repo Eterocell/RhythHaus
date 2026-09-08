@@ -18,7 +18,7 @@
     <string name="scan_progress_format">%1$d 个文件夹 • %2$d 个文件 • %3$d 首曲目</string>
     <string name="import_card_title">添加音乐文件夹</string>
     <string name="import_card_title_with_tracks">管理音乐文件夹</string>
-    <string name="import_card_description">选择此设备上的音乐文件夹以构建本地资料库。</string>
+    <string name="import_card_description">在“文件”App 中选择音频文件或文件夹。所选音频会复制到 RhythHaus 管理的设备存储空间，以构建本地资料库。</string>
     <string name="scan_completed">扫描完成</string>
     <string name="scan_cancelled">扫描已取消</string>
     <string name="scan_failed">扫描失败</string>

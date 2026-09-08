@@ -30,4 +30,5 @@
     <string name="playlist_loading">正在加载播放列表…</string>
     <string name="close">关闭</string>
     <string name="playlist_backup_imported_suffix">导入</string>
+    <string name="ios_import_summary_format">已导入 %1$d，重复 %2$d，不支持 %3$d，失败 %4$d</string>
 </resources>

@@ -106,18 +106,21 @@ internal fun iosLibraryImportPickResult(
     }
 
 /**
- * Formats a terminal iOS import summary into the transient import message.
- *
- * Plain interim copy that reports every aggregate count; localized copy for
- * the import result is owned by the resource work that follows this seam.
+ * Formats a terminal iOS import summary into the transient import message
+ * using the localized resource format supplied by the Shared composition root.
  *
  * @param summary the aggregate counts reported by the import completion.
  */
-internal fun iosImportSummaryMessage(summary: LibraryImportSummary): String =
-    "Import complete: imported ${summary.imported}, " +
-        "duplicates ${summary.duplicates}, " +
-        "unsupported ${summary.unsupported}, " +
-        "failed ${summary.failed}"
+internal fun iosImportSummaryMessage(
+    summary: LibraryImportSummary,
+    summaryFormat: String =
+        "Imported %1\$d, duplicates %2\$d, unsupported %3\$d, failed %4\$d",
+): String =
+    summaryFormat
+        .replace("%1\$d", summary.imported.toString())
+        .replace("%2\$d", summary.duplicates.toString())
+        .replace("%3\$d", summary.unsupported.toString())
+        .replace("%4\$d", summary.failed.toString())
 
 /**
  * Builds the managed iOS app-local source for a successful import.

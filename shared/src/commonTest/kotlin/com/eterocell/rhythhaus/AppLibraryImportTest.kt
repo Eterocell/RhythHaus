@@ -63,7 +63,7 @@ class AppLibraryImportTest {
         // Exactly one scan request for the normalized app-local source.
         assertEquals(pickedIosSource, action.scanSource)
         val message = assertNotNull(action.message)
-        assertTrue(message.contains("imported 3"))
+        assertTrue(message.contains("Imported 3"))
         assertTrue(message.contains("duplicates 1"))
         assertTrue(message.contains("unsupported 2"))
         assertTrue(message.contains("failed 1"))
