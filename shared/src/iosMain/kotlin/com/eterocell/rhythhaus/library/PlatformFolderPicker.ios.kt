@@ -7,15 +7,15 @@ import com.eterocell.rhythhaus.library.impl.appLocalMusicFolderPath
 import kotlinx.cinterop.ExperimentalForeignApi
 import org.jetbrains.compose.resources.stringResource
 import platform.Foundation.NSFileManager
-import rhythhaus.feature.library.generated.resources.Res
-import rhythhaus.feature.library.generated.resources.folder_picker_error_prepare
+import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.folder_picker_error_prepare
 
 /**
  * Creates the iOS import launcher backed by the retained Swift Files.app
  * provider.
  *
  * The managed app-local music folder is passed to the provider as the copy
- * destination; terminal statuses are mapped to the common picker result so
+ * destination; terminal statuses are mapped onto the common picker result so
  * only a successful or duplicate-only import returns the existing
  * [LibraryPlatformKind.IosAppLocal] source. Cancellation delivers no source
  * and no error.

@@ -9,6 +9,7 @@
     <string name="clear">清空</string>
     <string name="add_music_folder">添加音乐文件夹</string>
     <string name="folder_picker_unavailable">文件夹选择器暂不可用</string>
+    <string name="folder_picker_error_prepare">无法准备应用本地音乐文件夹</string>
     <string name="now_playing_badge">正在播放</string>
     <string name="album_artwork">专辑封面</string>
     <string name="album_art">专辑封面</string>

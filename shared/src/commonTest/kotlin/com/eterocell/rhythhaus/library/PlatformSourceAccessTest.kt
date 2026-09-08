@@ -12,7 +12,9 @@ import kotlin.test.assertTrue
  *
  * The ABI statuses and counters are supplied by the Swift import provider and
  * mapped here without ever exposing external URLs; the destination policy is
- * pure so it can be mirrored by the native copy path.
+ * pure so the native copy path can mirror it deterministically. The policy
+ * lives in the Shared facade so the generated framework and the Swift mirror
+ * rely on the same rules.
  */
 class PlatformSourceAccessTest {
     private val managedFolder = "/managed/RhythHaus Music"
@@ -262,6 +264,50 @@ class PlatformSourceAccessTest {
                 sourceContent = "different".encodeToByteArray(),
                 managedFiles =
                     mapOf("podcast" to "original".encodeToByteArray()),
+            ),
+        )
+    }
+
+    @Test
+    fun caseDifferingByteIdenticalDestinationIsDuplicate() {
+        // APFS destinations are case-insensitive: Song.mp3 and song.mp3 are
+        // the same managed file, so identical bytes are a duplicate of the
+        // managed file identity.
+        val content = "same-bytes".encodeToByteArray()
+        val plan = managedImportDestinationPlan(
+            sourceFileName = "Song.mp3",
+            sourceContent = content,
+            managedFiles = mapOf("song.mp3" to content),
+        )
+        assertEquals(ManagedImportDestinationPlan.Duplicate("song.mp3"), plan)
+    }
+
+    @Test
+    fun caseDifferingDifferentContentSelectsSuffixedOriginalCasing() {
+        // Different bytes under a case-differing name collide on APFS and
+        // must receive a suffixed destination that keeps the incoming casing.
+        val managedFiles = mapOf("song.mp3" to "original".encodeToByteArray())
+        val sourceContent = "different".encodeToByteArray()
+        val expected = ManagedImportDestinationPlan.Suffixed("Song-2.mp3")
+        assertEquals(
+            expected,
+            managedImportDestinationPlan(
+                sourceFileName = "Song.mp3",
+                sourceContent = sourceContent,
+                managedFiles = managedFiles,
+            ),
+        )
+        // The chosen suffix must also skip case-differing occupied names.
+        assertEquals(
+            ManagedImportDestinationPlan.Suffixed("Song-3.mp3"),
+            managedImportDestinationPlan(
+                sourceFileName = "Song.mp3",
+                sourceContent = sourceContent,
+                managedFiles =
+                    mapOf(
+                        "song.mp3" to "original".encodeToByteArray(),
+                        "SONG-2.mp3" to "occupied".encodeToByteArray(),
+                    ),
             ),
         )
     }

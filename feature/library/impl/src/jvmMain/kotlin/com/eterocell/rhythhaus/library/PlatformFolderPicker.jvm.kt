@@ -13,10 +13,13 @@ import rhythhaus.feature.library.generated.resources.folder_picker_no_folder_sel
 /**
  * Creates the JVM native folder picker launcher.
  *
+ * Called by the Shared platform actual; the JVM platform owns this
+ * implementation inside the library feature.
+ *
  * @param onResult callback invoked with the folder-pick result.
  */
 @Composable
-actual fun rememberPlatformFolderPickerLauncher(
+public fun rememberJvmPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
 ): PlatformFolderPickerLauncher {
     val noFolderSelectedMessage =

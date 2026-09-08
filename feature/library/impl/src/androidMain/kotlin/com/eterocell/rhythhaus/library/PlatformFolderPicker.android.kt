@@ -16,10 +16,13 @@ import rhythhaus.feature.library.generated.resources.folder_picker_error_access
 /**
  * Creates the Android SAF tree folder picker launcher.
  *
+ * Called by the Shared platform actual; the Android platform owns this
+ * implementation inside the library feature.
+ *
  * @param onResult callback invoked with the folder-pick result.
  */
 @Composable
-actual fun rememberPlatformFolderPickerLauncher(
+public fun rememberAndroidPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
 ): PlatformFolderPickerLauncher {
     val context = LocalContext.current

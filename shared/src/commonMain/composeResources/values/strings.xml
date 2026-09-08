@@ -9,6 +9,7 @@
     <string name="clear">Clear</string>
     <string name="add_music_folder">Add music folder</string>
     <string name="folder_picker_unavailable">Folder picker not available yet</string>
+    <string name="folder_picker_error_prepare">Could not prepare the app-local music folder</string>
     <string name="now_playing_badge">Now playing</string>
     <string name="album_artwork">Album artwork</string>
     <string name="album_art">Album art</string>
