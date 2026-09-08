@@ -10,16 +10,16 @@ import kotlin.test.assertTrue
  * Deterministically asserts the library resource ownership ledger by reading
  * the actual catalog XML files. The feature catalog owns the complete expected
  * library key set in both locales; `library_queue` and `album_artwork` remain
- * Shared-owned; `selected` is absent from both Shared catalogs; and no key from
- * the library keys or the 12 injected Shared label keys is duplicated across
- * the feature and Shared catalogs.
+ * Shared-owned; `folder_picker_error_prepare` moved to Shared ownership with
+ * the iOS import launcher (the feature iOS picker was removed); `selected` is
+ * absent from both Shared catalogs; and no key from the library keys or the
+ * Shared-owned keys is duplicated across the feature and Shared catalogs.
  */
 class LibraryResourceOwnershipJvmTest {
     private val libraryKeys =
         listOf(
             "folder_picker_error_access",
             "folder_picker_error_select",
-            "folder_picker_error_prepare",
             "folder_picker_no_folder_selected",
             "unknown_artist",
             "artist_artwork",
@@ -51,10 +51,11 @@ class LibraryResourceOwnershipJvmTest {
             "scan_report_error_format",
         )
 
-    private val injected12 =
+    private val sharedOwnedKeys =
         listOf(
             "add_music_folder",
             "folder_picker_unavailable",
+            "folder_picker_error_prepare",
             "clear_library",
             "cancel",
             "playlists",
@@ -112,7 +113,7 @@ class LibraryResourceOwnershipJvmTest {
         val featureKeys = featureKeys(featureValues)
         val sharedKeys = featureKeys(sharedValues)
         val sharedZhKeys = featureKeys(sharedValuesZh)
-        (libraryKeys + injected12).forEach { key ->
+        (libraryKeys + sharedOwnedKeys).forEach { key ->
             val featureOwned = key in featureKeys
             val sharedOwned = key in sharedKeys
             assertTrue(
@@ -126,7 +127,7 @@ class LibraryResourceOwnershipJvmTest {
                     "library key $key must not be in shared ZH")
             } else {
                 assertTrue(
-                    sharedOwned, "injected key $key must be Shared-owned")
+                    sharedOwned, "shared-owned key $key must not be feature-owned")
             }
         }
     }

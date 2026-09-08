@@ -1,7 +1,6 @@
 <resources>
     <string name="folder_picker_error_access">无法访问所选文件夹</string>
     <string name="folder_picker_error_select">无法选择音乐文件夹</string>
-    <string name="folder_picker_error_prepare">无法准备应用本地音乐文件夹</string>
     <string name="folder_picker_no_folder_selected">未选择文件夹</string>
     <string name="unknown_artist">未知艺术家</string>
     <string name="artist_artwork">艺术家封面</string>
