@@ -325,6 +325,11 @@ struct FileManagerLibraryImportFileOperations: LibraryImportFileOperations {
             if name.hasPrefix(".") { continue }
             let child = directory.appendingPathComponent(name)
             if isDirectory(at: child) {
+                let isPackage =
+                    (try? child.resourceValues(forKeys: [.isPackageKey]))?.isPackage ?? false
+                if isPackage {
+                    continue
+                }
                 do { try collectEntries(directory: child, entries: &entries) }
                 catch { entries.append(.failed) }
             } else { entries.append(.file(child)) }

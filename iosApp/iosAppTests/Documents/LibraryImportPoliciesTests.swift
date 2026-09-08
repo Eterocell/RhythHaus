@@ -561,6 +561,32 @@ final class LibraryImportProviderTests: XCTestCase {
         XCTAssertEqual(result.counters.failed, 1)
         XCTAssertFalse(FileManager.default.fileExists(atPath: destination.appendingPathComponent("a.mp3").path))
         XCTAssertTrue(recorder.removedTemporary)
+        // The actual destination directory must contain zero artifacts: no
+        // final file and no hidden temporary file.
+        let listing = try FileManager.default.contentsOfDirectory(atPath: destination.path)
+        XCTAssertTrue(listing.isEmpty, "destination not clean: \(listing)")
+    }
+
+    func testPackageDirectoryContentsAreSkippedWhileSiblingsImport() throws {
+        let destination = try makeManagedFolder()
+        let source = temporaryRoot.appendingPathComponent("Source", isDirectory: true)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        let package = source.appendingPathComponent("media.bundle", isDirectory: true)
+        try FileManager.default.createDirectory(at: package, withIntermediateDirectories: true)
+        try write(Data("packed".utf8), to: package.appendingPathComponent("packedsong.mp3"))
+        try write(Data("sibling".utf8), to: source.appendingPathComponent("sibling.mp3"))
+        let isPackage = (try? package.resourceValues(forKeys: [.isPackageKey]))?.isPackage ?? false
+        guard isPackage else {
+            throw XCTSkip("Test filesystem does not treat \(package.lastPathComponent) as a package")
+        }
+
+        let result = LibraryImportCopyRunner.run(
+            selectedURLs: [source], destinationDirectory: destination,
+            operations: operations(), scopeFor: { URLLibraryImportSecurityScope(url: $0) })
+
+        XCTAssertEqual(result.counters.imported, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.appendingPathComponent("packedsong.mp3").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.appendingPathComponent("sibling.mp3").path))
     }
 
     func testCopyRunnerKeepsReadableSiblingsWhenNestedDirectoryErrors() throws {
