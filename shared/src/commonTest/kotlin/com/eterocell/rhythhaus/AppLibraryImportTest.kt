@@ -58,15 +58,14 @@ class AppLibraryImportTest {
                         ),
                     ),
                 existingSources = emptyList(),
+                importSummaryFormat =
+                    "失败 %4\$d；不支持 %3\$d；重复 %2\$d；已导入 %1\$d",
             )
 
         // Exactly one scan request for the normalized app-local source.
         assertEquals(pickedIosSource, action.scanSource)
         val message = assertNotNull(action.message)
-        assertTrue(message.contains("Imported 3"))
-        assertTrue(message.contains("duplicates 1"))
-        assertTrue(message.contains("unsupported 2"))
-        assertTrue(message.contains("failed 1"))
+        assertEquals("失败 1；不支持 2；重复 1；已导入 3", message)
     }
 
     @Test

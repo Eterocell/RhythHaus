@@ -66,6 +66,7 @@ class LibraryResourceOwnershipJvmTest {
             "now_playing_badge",
             "select_track_format",
             "track_artist_album_format",
+            "ios_import_summary_format",
         )
 
     private val featureValues =
@@ -90,6 +91,11 @@ class LibraryResourceOwnershipJvmTest {
     @Test
     fun featureCatalogsHaveFullEnZhParity() {
         assertEquals(featureKeys(featureValues), featureKeys(featureValuesZh))
+    }
+
+    @Test
+    fun sharedCatalogsHaveFullEnZhParity() {
+        assertEquals(featureKeys(sharedValues), featureKeys(sharedValuesZh))
     }
 
     @Test

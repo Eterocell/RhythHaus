@@ -27,8 +27,13 @@ enum RhythHausAppBootstrapper {
 
         // Write a visible file so iOS Files app recognizes the documents container.
         let marker = documentsUrl.appendingPathComponent("Put Music Files Here.txt")
-        if !FileManager.default.fileExists(atPath: marker.path) {
-            try? "In Files.app, select audio to import into RhythHaus. Selected audio is copied into RhythHaus-managed device storage.\n"
+        if let existing = try? String(contentsOf: marker, encoding: .utf8) {
+            if LibraryImportMarkerPolicy.shouldReplace(content: existing) {
+                try? LibraryImportMarkerPolicy.currentContent
+                    .write(to: marker, atomically: true, encoding: .utf8)
+            }
+        } else if !FileManager.default.fileExists(atPath: marker.path) {
+            try? LibraryImportMarkerPolicy.currentContent
                 .write(to: marker, atomically: true, encoding: .utf8)
         }
     }

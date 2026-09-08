@@ -2,6 +2,19 @@ import Foundation
 import Shared
 import UniformTypeIdentifiers
 
+/// Migration policy for the Files.app onboarding marker. Only the exact
+/// bootstrap text from older installs may be replaced; user-edited content is
+/// preserved.
+enum LibraryImportMarkerPolicy {
+    static let legacyContent = "Drop your music files (.mp3, .flac, .wav, .m4a) here.\n"
+    static let currentContent = "In Files.app, select audio to import into RhythHaus. Selected audio is copied into RhythHaus-managed device storage.\n"
+
+    static func shouldReplace(content: String) -> Bool {
+        content == legacyContent
+    }
+}
+
+
 /// Pure filename/content/destination policy for the iOS Files.app library
 /// import, mirroring the Kotlin destination policy in
 /// `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/library/IOSLibraryImport.kt`

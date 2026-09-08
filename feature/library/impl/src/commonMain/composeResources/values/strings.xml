@@ -18,7 +18,7 @@
     <string name="scan_progress_format">%1$d folders • %2$d files • %3$d tracks</string>
     <string name="import_card_title">Add music folder</string>
     <string name="import_card_title_with_tracks">Manage music folders</string>
-    <string name="import_card_description">Choose audio files or a folder in Files.app. Selected audio is copied into RhythHaus-managed device storage to build your local library.</string>
+    <string name="import_card_description">Choose a music folder or source on this device to build your local library.</string>
     <string name="scan_completed">Scan complete</string>
     <string name="scan_cancelled">Scan cancelled</string>
     <string name="scan_failed">Scan failed</string>

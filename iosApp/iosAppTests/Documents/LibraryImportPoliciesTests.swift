@@ -8,6 +8,11 @@ import XCTest
 // MARK: - Pure policy tests
 
 final class LibraryImportPoliciesTests: XCTestCase {
+    func testMarkerPolicyUpdatesOnlyKnownLegacyContent() {
+        XCTAssertTrue(LibraryImportMarkerPolicy.shouldReplace(content: LibraryImportMarkerPolicy.legacyContent))
+        XCTAssertFalse(LibraryImportMarkerPolicy.shouldReplace(content: "User's own note\n"))
+    }
+
     // Supported audio extension filtering (Kotlin `SupportedAudio.kt` parity).
     func testSupportedAudioExtensionsAreCaseInsensitive() {
         for name in ["song.mp3", "Song.FLAC", "TRACK.M4A", "mix.ogg", "clip.wav", "a.wave", "b.aif", "c.aiff", "d.au", "e.aac"] {
