@@ -45,6 +45,15 @@ actual fun rememberPlatformFolderPickerLauncher(
                 get() = importActive.value
 
             override fun launch() {
+                // Reject a second launch while an import is active. Without
+                // this guard the re-entrant provider call would answer with
+                // an OVERLAP terminal, and that terminal would clear the
+                // first operation's active gate below before its real copy
+                // finished. The App already gates the import affordance via
+                // mutationsEnabled (which folds in isImportActive); this
+                // guard keeps the launcher safe even if launch() is invoked
+                // through an ungated path.
+                if (importActive.value) return
                 val destinationPath =
                     runCatching { ensureAppLocalMusicFolder() }
                         .getOrElse {
