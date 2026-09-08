@@ -3,7 +3,7 @@ package com.eterocell.rhythhaus.library
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNull
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -69,11 +69,11 @@ class PlatformSourceAccessTest {
     }
 
     @Test
-    fun cancellationReturnsNoSourceAndNoError() {
-        assertNull(
-            mappedResult(
-                status = IOSLibraryImportStatus.CANCELLED,
-            ),
+    fun cancellationReturnsDistinctSilentResult() {
+        // Cancellation is a distinct no-error terminal outcome: a concrete
+        // result with no source and no message, never a scan trigger.
+        assertIs<PlatformFolderPickResult.Cancelled>(
+            mappedResult(status = IOSLibraryImportStatus.CANCELLED),
         )
     }
 
@@ -134,11 +134,83 @@ class PlatformSourceAccessTest {
     }
 
     @Test
-    fun successWithoutUsableCountsReturnsRecoverableFailure() {
-        assertIs<PlatformFolderPickResult.Failure>(
+    fun unsupportedOnlyCompletionDefaultNamesUnsupportedSelection() {
+        val failure = assertIs<PlatformFolderPickResult.Failure>(
             mappedResult(
                 status = IOSLibraryImportStatus.SUCCESS,
                 unsupported = 5,
+            ),
+        )
+        assertEquals(
+            "No supported audio files were imported",
+            failure.message,
+        )
+    }
+
+    @Test
+    fun failedOnlyCompletionDefaultDoesNotClaimFilesWereUnsupported() {
+        // A terminal success with nothing imported or duplicated because every
+        // copy failed must not reuse the unsupported-only default message.
+        val failure = assertIs<PlatformFolderPickResult.Failure>(
+            mappedResult(
+                status = IOSLibraryImportStatus.SUCCESS,
+                unsupported = 2,
+                failed = 3,
+            ),
+        )
+        assertEquals(
+            "Selected audio files could not be copied",
+            failure.message,
+        )
+    }
+
+    @Test
+    fun successCompletionCarriesTerminalCountSummary() {
+        val summary = assertNotNull(
+            assertIs<PlatformFolderPickResult.Success>(
+                mappedResult(
+                    status = IOSLibraryImportStatus.SUCCESS,
+                    imported = 3,
+                    duplicates = 1,
+                    unsupported = 2,
+                    failed = 1,
+                ),
+            ).importSummary,
+        )
+        assertEquals(3, summary.imported)
+        assertEquals(1, summary.duplicates)
+        assertEquals(2, summary.unsupported)
+        assertEquals(1, summary.failed)
+    }
+
+    @Test
+    fun duplicateOnlySuccessCarriesTerminalCountSummary() {
+        val summary = assertNotNull(
+            assertIs<PlatformFolderPickResult.Success>(
+                mappedResult(
+                    status = IOSLibraryImportStatus.SUCCESS,
+                    duplicates = 4,
+                    unsupported = 1,
+                ),
+            ).importSummary,
+        )
+        assertEquals(0, summary.imported)
+        assertEquals(4, summary.duplicates)
+        assertEquals(1, summary.unsupported)
+        assertEquals(0, summary.failed)
+    }
+
+    @Test
+    fun importSummaryMessageIncludesAllFourCounts() {
+        assertEquals(
+            "Import complete: imported 3, duplicates 1, unsupported 2, failed 1",
+            iosImportSummaryMessage(
+                LibraryImportSummary(
+                    imported = 3,
+                    duplicates = 1,
+                    unsupported = 2,
+                    failed = 1,
+                ),
             ),
         )
     }

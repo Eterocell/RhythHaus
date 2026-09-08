@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus.library
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import com.eterocell.rhythhaus.library.impl.appLocalMusicFolderPath
@@ -17,8 +18,10 @@ import rhythhaus.shared.generated.resources.folder_picker_error_prepare
  * The managed app-local music folder is passed to the provider as the copy
  * destination; terminal statuses are mapped onto the common picker result so
  * only a successful or duplicate-only import returns the existing
- * [LibraryPlatformKind.IosAppLocal] source. Cancellation delivers no source
- * and no error.
+ * [LibraryPlatformKind.IosAppLocal] source. Cancellation delivers a distinct
+ * silent [PlatformFolderPickResult.Cancelled]. While the picker is shown or
+ * files are being copied, [isImportActive] reports true so the App can fold
+ * the import window into source-mutation gating.
  *
  * @param onResult callback invoked with the folder-pick result.
  */
@@ -31,10 +34,15 @@ actual fun rememberPlatformFolderPickerLauncher(
         stringResource(Res.string.folder_picker_error_prepare)
     return remember {
         object : PlatformFolderPickerLauncher {
+            private val importActive = mutableStateOf(false)
+
             override val isAvailable: Boolean
                 get() = IOSLibraryImportBridge.provider != null
 
             override val supportsAdditionalSources: Boolean = false
+
+            override val isImportActive: Boolean
+                get() = importActive.value
 
             override fun launch() {
                 val destinationPath =
@@ -56,6 +64,7 @@ actual fun rememberPlatformFolderPickerLauncher(
                     )
                     return
                 }
+                importActive.value = true
                 val completion =
                     object : IOSLibraryImportCompletion {
                         override fun complete(
@@ -66,20 +75,24 @@ actual fun rememberPlatformFolderPickerLauncher(
                             failed: Int,
                             message: String?,
                         ) {
-                            iosLibraryImportPickResult(
-                                destinationFolderPath = destinationPath,
-                                status = status,
-                                imported = imported,
-                                duplicates = duplicates,
-                                unsupported = unsupported,
-                                failed = failed,
-                                message = message,
-                            )?.let(currentOnResult.value)
+                            importActive.value = false
+                            currentOnResult.value(
+                                iosLibraryImportPickResult(
+                                    destinationFolderPath = destinationPath,
+                                    status = status,
+                                    imported = imported,
+                                    duplicates = duplicates,
+                                    unsupported = unsupported,
+                                    failed = failed,
+                                    message = message,
+                                ),
+                            )
                         }
                     }
                 runCatching {
                     provider.importAudio(destinationPath, completion)
                 }.onFailure {
+                    importActive.value = false
                     currentOnResult.value(
                         PlatformFolderPickResult.Failure(
                             message = couldNotPrepareMessage,

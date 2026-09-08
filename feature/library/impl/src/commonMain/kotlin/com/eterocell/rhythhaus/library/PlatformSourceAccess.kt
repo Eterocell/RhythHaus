@@ -2,10 +2,34 @@ package com.eterocell.rhythhaus.library
 
 import com.eterocell.rhythhaus.library.impl.PlatformAudioScanner
 
+/** Aggregate terminal counts of an iOS Files import completion. */
+data class LibraryImportSummary(
+    /** Number of supported files copied into managed storage. */
+    val imported: Int,
+    /** Number of byte-identical files already present in managed storage. */
+    val duplicates: Int,
+    /** Number of selected files with unsupported types. */
+    val unsupported: Int,
+    /** Number of selected files that could not be copied. */
+    val failed: Int,
+)
+
 /** Outcome of a platform folder-picker launch. */
 sealed interface PlatformFolderPickResult {
-    /** A folder was picked and converted to a library source. */
-    data class Success(val source: LibrarySource) : PlatformFolderPickResult
+    /**
+     * A folder was picked and converted to a library source.
+     *
+     * @param importSummary terminal aggregate counts when the picker imported
+     *   files into managed storage (the iOS Files import launcher); folder
+     *   pickers on other platforms leave it null.
+     */
+    data class Success(
+        val source: LibrarySource,
+        val importSummary: LibraryImportSummary? = null,
+    ) : PlatformFolderPickResult
+
+    /** The user cancelled the picker; no source and no error occurred. */
+    data object Cancelled : PlatformFolderPickResult
 
     /** The picker is unavailable on this platform. */
     data class Unavailable(val message: String) : PlatformFolderPickResult
@@ -22,6 +46,17 @@ interface PlatformFolderPickerLauncher {
 
     /** Whether additional sources can be picked after the first one. */
     val supportsAdditionalSources: Boolean
+
+    /**
+     * Whether a platform import operation is currently active (picker shown
+     * or files being copied into managed storage).
+     *
+     * The App folds this into source-mutation gating so competing mutations
+     * cannot start while an import is in flight, before the follow-up scan is
+     * even admitted. Android and JVM folder pickers always report false.
+     */
+    val isImportActive: Boolean
+        get() = false
 
     /** Launches the folder picker. */
     fun launch()

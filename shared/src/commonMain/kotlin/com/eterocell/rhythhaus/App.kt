@@ -23,6 +23,7 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.iosImportSummaryMessage
 import com.eterocell.rhythhaus.library.normalizePickedSource
 import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
@@ -124,10 +125,6 @@ fun App() {
             },
         )
     }
-    val operationState by operationCoordinator.state.collectAsState()
-    val mutationsEnabled =
-        initialPublication.mutationsAllowed &&
-            operationState is LibraryOperationState.Idle
     val scanCompleteFormat = stringResource(Res.string.scan_complete_format)
     val importedSuffix =
         stringResource(Res.string.playlist_backup_imported_suffix)
@@ -410,19 +407,22 @@ fun App() {
     }
 
     val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
-        when (result) {
-            is PlatformFolderPickResult.Success ->
-                launchSourceScan(
-                    normalizePickedSource(result.source, librarySources),
-                )
-
-            is PlatformFolderPickResult.Unavailable ->
-                importMessage = result.message
-
-            is PlatformFolderPickResult.Failure ->
-                importMessage = result.message
-        }
+        val action = resolveLibraryPickerTerminal(result, librarySources)
+        action.message?.let { importMessage = it }
+        action.scanSource?.let(::launchSourceScan)
     }
+    // The coordinator state and mutation gate are collected after the picker
+    // launcher so the iOS import-active window can fold into the same gate
+    // that source mutations already use: while the picker is shown or files
+    // are being copied, competing mutations stay disabled even before the
+    // follow-up scan is admitted.
+    val operationState by operationCoordinator.state.collectAsState()
+    val mutationsEnabled =
+        appLibraryMutationsEnabled(
+            publicationMutationsAllowed = initialPublication.mutationsAllowed,
+            coordinatorIdle = operationState is LibraryOperationState.Idle,
+            importActive = folderPickerLauncher.isImportActive,
+        )
     val snapshot = remember(libraryTracks) { librarySnapshot(libraryTracks) }
     RhythHausTheme(selectedThemeMode = selectedThemeMode) {
         CompositionLocalProvider(
@@ -973,6 +973,86 @@ private suspend fun publishLibraryContentAfterReconcileFailureSafe(
 internal fun removeMissingTracksRejectionMessage(
     reason: RemoveMissingTracksRejectionReason,
 ): String = "Unable to remove missing tracks: ${reason.name}"
+
+/**
+ * App effects resolved from one terminal folder-pick/import result.
+ *
+ * @property message transient import message to publish, or null to leave
+ *   the current message unchanged (plain folder-pick successes and silent
+ *   cancellations publish nothing).
+ * @property scanSource normalized source to scan, or null when no scan may
+ *   start (cancellation, unavailable, and failure never scan).
+ */
+internal data class LibraryPickerTerminalAction(
+    val message: String?,
+    val scanSource: LibrarySource?,
+)
+
+/**
+ * Resolves one terminal picker result into App effects.
+ *
+ * A successful iOS import publishes its aggregate count summary and requests
+ * exactly one scan of the normalized managed app-local source. Folder-pick
+ * successes without a summary (Android/JVM) keep the legacy behavior: scan
+ * without touching the transient message. Cancellation is silent and never
+ * scans; unavailable and failure publish their message and never scan.
+ *
+ * @param result the terminal picker result.
+ * @param existingSources the currently configured library sources, used to
+ *   normalize the picked source identity.
+ */
+internal fun resolveLibraryPickerTerminal(
+    result: PlatformFolderPickResult,
+    existingSources: List<LibrarySource>,
+): LibraryPickerTerminalAction =
+    when (result) {
+        is PlatformFolderPickResult.Success ->
+            LibraryPickerTerminalAction(
+                message =
+                    result.importSummary?.let(::iosImportSummaryMessage),
+                scanSource =
+                    normalizePickedSource(result.source, existingSources),
+            )
+
+        is PlatformFolderPickResult.Cancelled ->
+            LibraryPickerTerminalAction(message = null, scanSource = null)
+
+        is PlatformFolderPickResult.Unavailable ->
+            LibraryPickerTerminalAction(
+                message = result.message,
+                scanSource = null,
+            )
+
+        is PlatformFolderPickResult.Failure ->
+            LibraryPickerTerminalAction(
+                message = result.message,
+                scanSource = null,
+            )
+    }
+
+/**
+ * App-owned source-mutation gating.
+ *
+ * Mutations require the initial publication to allow them, the operation
+ * coordinator to be idle, and no platform import to be active. Folding the
+ * iOS import-active window into this existing gate blocks competing source
+ * mutations while the picker is shown or files are being copied, before the
+ * follow-up scan is even admitted. Android and JVM launchers report their
+ * import as never active, so their gating is unchanged.
+ *
+ * @param publicationMutationsAllowed whether the initial library publication
+ *   permits mutations.
+ * @param coordinatorIdle whether the operation coordinator is idle.
+ * @param importActive whether a platform import operation is active.
+ */
+internal fun appLibraryMutationsEnabled(
+    publicationMutationsAllowed: Boolean,
+    coordinatorIdle: Boolean,
+    importActive: Boolean,
+): Boolean =
+    publicationMutationsAllowed &&
+        coordinatorIdle &&
+        !importActive
 
 internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
     val session = this?.session ?: return this

@@ -30,10 +30,12 @@ public object IOSLibraryImportStatus {
  * Maps an iOS import completion onto the common folder-picker seam result.
  *
  * Success requires at least one imported or duplicate file so an empty or
- * unsupported-only selection never publishes a source. Cancellation is a
- * distinct no-error terminal outcome and returns null: no source and no
- * error to surface. Unavailable, overlap, and failure map to recoverable
- * picker results carrying the provider message or a stable default.
+ * unsupported-only selection never publishes a source; the failure default
+ * distinguishes files that failed to copy from files that were unsupported.
+ * Cancellation is a distinct no-error terminal outcome and maps to
+ * [PlatformFolderPickResult.Cancelled]: no source and no message to surface.
+ * Unavailable, overlap, and failure map to recoverable picker results
+ * carrying the provider message or a stable default.
  *
  * @param destinationFolderPath the managed app-local folder the provider
  * copied into; becomes the returned source handle on success.
@@ -53,12 +55,25 @@ internal fun iosLibraryImportPickResult(
     unsupported: Int,
     failed: Int,
     message: String?,
-): PlatformFolderPickResult? =
+): PlatformFolderPickResult =
     when (status) {
         IOSLibraryImportStatus.SUCCESS ->
             if (imported > 0 || duplicates > 0) {
                 PlatformFolderPickResult.Success(
                     iosAppLocalImportSource(destinationFolderPath),
+                    importSummary =
+                        LibraryImportSummary(
+                            imported = imported,
+                            duplicates = duplicates,
+                            unsupported = unsupported,
+                            failed = failed,
+                        ),
+                )
+            } else if (failed > 0) {
+                // Nothing was imported or already present because every copy
+                // failed; do not claim the selection was unsupported.
+                PlatformFolderPickResult.Failure(
+                    message ?: "Selected audio files could not be copied",
                 )
             } else {
                 PlatformFolderPickResult.Failure(
@@ -66,7 +81,8 @@ internal fun iosLibraryImportPickResult(
                 )
             }
 
-        IOSLibraryImportStatus.CANCELLED -> null
+        IOSLibraryImportStatus.CANCELLED ->
+            PlatformFolderPickResult.Cancelled
 
         IOSLibraryImportStatus.UNAVAILABLE ->
             PlatformFolderPickResult.Unavailable(
@@ -88,6 +104,20 @@ internal fun iosLibraryImportPickResult(
                 message ?: "Unknown iOS import status: $status",
             )
     }
+
+/**
+ * Formats a terminal iOS import summary into the transient import message.
+ *
+ * Plain interim copy that reports every aggregate count; localized copy for
+ * the import result is owned by the resource work that follows this seam.
+ *
+ * @param summary the aggregate counts reported by the import completion.
+ */
+internal fun iosImportSummaryMessage(summary: LibraryImportSummary): String =
+    "Import complete: imported ${summary.imported}, " +
+        "duplicates ${summary.duplicates}, " +
+        "unsupported ${summary.unsupported}, " +
+        "failed ${summary.failed}"
 
 /**
  * Builds the managed iOS app-local source for a successful import.
