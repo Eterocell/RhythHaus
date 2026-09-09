@@ -20,11 +20,11 @@ import kotlinx.coroutines.flow.asStateFlow
  * [MediaNotificationPermissionController] contract.
  *
  * Owns every Android permission/rationale/intent API: runtime
- * [Manifest.permission.POST_NOTIFICATIONS] checks, the one-time launch
- * request, permission-result refresh, resume refresh, user re-request, and the
+ * [Manifest.permission.POST_NOTIFICATIONS] checks, the one-time launch request,
+ * permission-result refresh, resume refresh, user re-request, and the
  * resolvable application-notification-settings intent. The controller only
- * classifies through [NotificationPermissionPolicy] and never touches
- * playback, queue, library, or in-app transport state.
+ * classifies through [NotificationPermissionPolicy] and never touches playback,
+ * queue, library, or in-app transport state.
  */
 internal class AndroidNotificationPermissionController(
     private val activity: ComponentActivity,
@@ -54,13 +54,12 @@ internal class AndroidNotificationPermissionController(
 
     /** Recomputes the classified state from current platform facts. */
     fun refresh() {
-        mutableState.value =
-            classifyMediaNotificationPermission(currentFacts())
+        mutableState.value = classifyMediaNotificationPermission(currentFacts())
     }
 
     /**
-     * Issues the launch-time one-time request when this launch qualifies and
-     * no request is already in flight. All later recovery happens through
+     * Issues the launch-time one-time request when this launch qualifies and no
+     * request is already in flight. All later recovery happens through
      * [requestPermission] and [openAppNotificationSettings].
      */
     fun requestPermissionOnLaunchIfNeeded() {

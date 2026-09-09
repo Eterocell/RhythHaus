@@ -34,8 +34,8 @@ import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -409,155 +409,142 @@ public class SettingsScreenSemanticsJvmTest {
     @Test
     public fun absentNotificationRecoveryRendersNoCardActionOrAccessibilityNode():
         Unit = runComposeUiTest {
-            var title = ""
-            var body = ""
-            var requestLabel = ""
-            var settingsLabel = ""
-            var requests = 0
-            var settings = 0
-            setContent {
-                title =
-                    stringResource(
-                        SettingsRes.string.notification_permission_title)
-                body =
-                    stringResource(
-                        SettingsRes.string.notification_permission_body)
-                requestLabel =
-                    stringResource(
-                        SettingsRes.string.notification_permission_request)
-                settingsLabel =
-                    stringResource(
-                        SettingsRes.string.notification_permission_settings)
-                content(
-                    notificationRecovery = null,
-                    onRequestNotificationPermission = { requests++ },
-                    onOpenNotificationSettings = { settings++ })
-            }
-            onNodeWithTag(SettingsNotificationRecoveryTestTag)
-                .assertDoesNotExist()
-            onNodeWithTag(
-                    SettingsNotificationRecoveryTestTag,
-                    useUnmergedTree = true)
-                .assertDoesNotExist()
-            onAllNodesWithText(title, useUnmergedTree = true)
-                .assertCountEquals(0)
-            onAllNodesWithText(body, useUnmergedTree = true)
-                .assertCountEquals(0)
-            onAllNodesWithText(requestLabel, useUnmergedTree = true)
-                .assertCountEquals(0)
-            onAllNodesWithText(settingsLabel, useUnmergedTree = true)
-                .assertCountEquals(0)
-            assertEquals(0, requests)
-            assertEquals(0, settings)
+        var title = ""
+        var body = ""
+        var requestLabel = ""
+        var settingsLabel = ""
+        var requests = 0
+        var settings = 0
+        setContent {
+            title =
+                stringResource(SettingsRes.string.notification_permission_title)
+            body =
+                stringResource(SettingsRes.string.notification_permission_body)
+            requestLabel =
+                stringResource(
+                    SettingsRes.string.notification_permission_request)
+            settingsLabel =
+                stringResource(
+                    SettingsRes.string.notification_permission_settings)
+            content(
+                notificationRecovery = null,
+                onRequestNotificationPermission = { requests++ },
+                onOpenNotificationSettings = { settings++ })
         }
+        onNodeWithTag(SettingsNotificationRecoveryTestTag).assertDoesNotExist()
+        onNodeWithTag(
+                SettingsNotificationRecoveryTestTag, useUnmergedTree = true)
+            .assertDoesNotExist()
+        onAllNodesWithText(title, useUnmergedTree = true).assertCountEquals(0)
+        onAllNodesWithText(body, useUnmergedTree = true).assertCountEquals(0)
+        onAllNodesWithText(requestLabel, useUnmergedTree = true)
+            .assertCountEquals(0)
+        onAllNodesWithText(settingsLabel, useUnmergedTree = true)
+            .assertCountEquals(0)
+        assertEquals(0, requests)
+        assertEquals(0, settings)
+    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun requestableNotificationRecoveryRendersOneCardDispatchingRequestOnly():
         Unit = runComposeUiTest {
-            var title = ""
-            var body = ""
-            var requestLabel = ""
-            var settingsLabel = ""
-            var requests = 0
-            var settings = 0
-            setContent {
-                title =
-                    stringResource(
-                        SettingsRes.string.notification_permission_title)
-                body =
-                    stringResource(
-                        SettingsRes.string.notification_permission_body)
-                requestLabel =
-                    stringResource(
-                        SettingsRes.string.notification_permission_request)
-                settingsLabel =
-                    stringResource(
-                        SettingsRes.string.notification_permission_settings)
-                content(
-                    notificationRecovery = MediaNotificationRecovery.Requestable,
-                    onRequestNotificationPermission = { requests++ },
-                    onOpenNotificationSettings = { settings++ })
-            }
-            onAllNodesWithTag(
-                    SettingsNotificationRecoveryTestTag,
-                    useUnmergedTree = true)
-                .assertCountEquals(1)
-            onNodeWithText(title, useUnmergedTree = true).assertExists()
-            onNodeWithText(body, useUnmergedTree = true).assertExists()
-            onNodeWithText(requestLabel, useUnmergedTree = true).assertExists()
-            onAllNodesWithText(settingsLabel, useUnmergedTree = true)
-                .assertCountEquals(0)
-            onNodeWithTag(
-                    SettingsNotificationRecoveryTestTag,
-                    useUnmergedTree = true)
-                .assertHasClickAction()
-                .performClick()
-            assertEquals(1, requests)
-            assertEquals(0, settings)
+        var title = ""
+        var body = ""
+        var requestLabel = ""
+        var settingsLabel = ""
+        var requests = 0
+        var settings = 0
+        setContent {
+            title =
+                stringResource(SettingsRes.string.notification_permission_title)
+            body =
+                stringResource(SettingsRes.string.notification_permission_body)
+            requestLabel =
+                stringResource(
+                    SettingsRes.string.notification_permission_request)
+            settingsLabel =
+                stringResource(
+                    SettingsRes.string.notification_permission_settings)
+            content(
+                notificationRecovery = MediaNotificationRecovery.Requestable,
+                onRequestNotificationPermission = { requests++ },
+                onOpenNotificationSettings = { settings++ })
         }
+        onAllNodesWithTag(
+                SettingsNotificationRecoveryTestTag, useUnmergedTree = true)
+            .assertCountEquals(1)
+        onNodeWithText(title, useUnmergedTree = true).assertExists()
+        onNodeWithText(body, useUnmergedTree = true).assertExists()
+        onNodeWithText(requestLabel, useUnmergedTree = true).assertExists()
+        onAllNodesWithText(settingsLabel, useUnmergedTree = true)
+            .assertCountEquals(0)
+        onNodeWithTag(
+                SettingsNotificationRecoveryTestTag, useUnmergedTree = true)
+            .assertHasClickAction()
+            .performClick()
+        assertEquals(1, requests)
+        assertEquals(0, settings)
+    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun settingsRequiredNotificationRecoveryRendersOneCardDispatchingSettingsOnly():
         Unit = runComposeUiTest {
-            var requestLabel = ""
-            var settingsLabel = ""
-            var requests = 0
-            var settings = 0
-            setContent {
-                requestLabel =
-                    stringResource(
-                        SettingsRes.string.notification_permission_request)
-                settingsLabel =
-                    stringResource(
-                        SettingsRes.string.notification_permission_settings)
-                content(
-                    notificationRecovery =
-                        MediaNotificationRecovery.SettingsRequired,
-                    onRequestNotificationPermission = { requests++ },
-                    onOpenNotificationSettings = { settings++ })
-            }
-            onAllNodesWithTag(
-                    SettingsNotificationRecoveryTestTag,
-                    useUnmergedTree = true)
-                .assertCountEquals(1)
-            onNodeWithText(settingsLabel, useUnmergedTree = true).assertExists()
-            onAllNodesWithText(requestLabel, useUnmergedTree = true)
-                .assertCountEquals(0)
-            onNodeWithTag(
-                    SettingsNotificationRecoveryTestTag,
-                    useUnmergedTree = true)
-                .assertHasClickAction()
-                .performClick()
-            assertEquals(0, requests)
-            assertEquals(1, settings)
+        var requestLabel = ""
+        var settingsLabel = ""
+        var requests = 0
+        var settings = 0
+        setContent {
+            requestLabel =
+                stringResource(
+                    SettingsRes.string.notification_permission_request)
+            settingsLabel =
+                stringResource(
+                    SettingsRes.string.notification_permission_settings)
+            content(
+                notificationRecovery =
+                    MediaNotificationRecovery.SettingsRequired,
+                onRequestNotificationPermission = { requests++ },
+                onOpenNotificationSettings = { settings++ })
         }
+        onAllNodesWithTag(
+                SettingsNotificationRecoveryTestTag, useUnmergedTree = true)
+            .assertCountEquals(1)
+        onNodeWithText(settingsLabel, useUnmergedTree = true).assertExists()
+        onAllNodesWithText(requestLabel, useUnmergedTree = true)
+            .assertCountEquals(0)
+        onNodeWithTag(
+                SettingsNotificationRecoveryTestTag, useUnmergedTree = true)
+            .assertHasClickAction()
+            .performClick()
+        assertEquals(0, requests)
+        assertEquals(1, settings)
+    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun notificationRecoveryActionRemainsEnabledWhileMutationsDisabled():
         Unit = runComposeUiTest {
-            var requests = 0
-            var settings = 0
-            setContent {
-                content(
-                    mutations = false,
-                    sources = listOf(item()),
-                    notificationRecovery = MediaNotificationRecovery.Requestable,
-                    onRequestNotificationPermission = { requests++ },
-                    onOpenNotificationSettings = { settings++ })
-            }
-            onNodeWithTag(SettingsPickerTestTag).assertIsNotEnabled()
-            onNodeWithTag(
-                    SettingsNotificationRecoveryTestTag,
-                    useUnmergedTree = true)
-                .assertIsEnabled()
-                .assertHasClickAction()
-                .performClick()
-            assertEquals(1, requests)
-            assertEquals(0, settings)
+        var requests = 0
+        var settings = 0
+        setContent {
+            content(
+                mutations = false,
+                sources = listOf(item()),
+                notificationRecovery = MediaNotificationRecovery.Requestable,
+                onRequestNotificationPermission = { requests++ },
+                onOpenNotificationSettings = { settings++ })
         }
+        onNodeWithTag(SettingsPickerTestTag).assertIsNotEnabled()
+        onNodeWithTag(
+                SettingsNotificationRecoveryTestTag, useUnmergedTree = true)
+            .assertIsEnabled()
+            .assertHasClickAction()
+            .performClick()
+        assertEquals(1, requests)
+        assertEquals(0, settings)
+    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test

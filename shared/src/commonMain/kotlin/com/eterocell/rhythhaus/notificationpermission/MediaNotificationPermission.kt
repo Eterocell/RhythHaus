@@ -9,20 +9,29 @@ import kotlinx.coroutines.flow.StateFlow
  * The contract is deliberately Android-free: non-Android call sites (iOS,
  * desktop) keep the [Unavailable] default instead of importing an Android
  * framework type, while an Android host maps platform permission facts onto
- * these exact states. Recovery never alters playback, queue, library, or
- * in-app transport state.
+ * these exact states. Recovery never alters playback, queue, library, or in-app
+ * transport state.
  */
 enum class MediaNotificationPermissionState {
-    /** No Android media-notification permission exists (API < 33 or non-Android host). */
+    /**
+     * No Android media-notification permission exists (API < 33 or non-Android
+     * host).
+     */
     Unavailable,
 
     /** POST_NOTIFICATIONS is granted; no recovery surface is needed. */
     Granted,
 
-    /** POST_NOTIFICATIONS is denied but another request can still show the system dialog. */
+    /**
+     * POST_NOTIFICATIONS is denied but another request can still show the
+     * system dialog.
+     */
     Requestable,
 
-    /** POST_NOTIFICATIONS is denied and only the app notification settings can restore it. */
+    /**
+     * POST_NOTIFICATIONS is denied and only the app notification settings can
+     * restore it.
+     */
     SettingsRequired,
 }
 
@@ -41,17 +50,23 @@ interface MediaNotificationPermissionController {
     /** Latest classified permission state. */
     val state: StateFlow<MediaNotificationPermissionState>
 
-    /** Requests POST_NOTIFICATIONS when the state is [MediaNotificationPermissionState.Requestable]. */
+    /**
+     * Requests POST_NOTIFICATIONS when the state is
+     * [MediaNotificationPermissionState.Requestable].
+     */
     fun requestPermission()
 
-    /** Opens the Android application notification settings when the state requires it. */
+    /**
+     * Opens the Android application notification settings when the state
+     * requires it.
+     */
     fun openAppNotificationSettings()
 }
 
 /**
- * Default controller for hosts without an Android media-notification
- * permission surface. Keeps [state] at [MediaNotificationPermissionState.Unavailable]
- * and makes both actions no-ops, so iOS and desktop call sites are unchanged.
+ * Default controller for hosts without an Android media-notification permission
+ * surface. Keeps [state] at [MediaNotificationPermissionState.Unavailable] and
+ * makes both actions no-ops, so iOS and desktop call sites are unchanged.
  */
 object UnavailableMediaNotificationPermissionController :
     MediaNotificationPermissionController {

@@ -860,8 +860,7 @@ class SettingsRouteAdapterJvmTest {
                     onOpenNotificationSettings = { settings++ })
             }
             onNodeWithTag(
-                    "settings-notification-recovery",
-                    useUnmergedTree = true)
+                    "settings-notification-recovery", useUnmergedTree = true)
                 .assertDoesNotExist()
             setContent {
                 Harness(
@@ -871,8 +870,7 @@ class SettingsRouteAdapterJvmTest {
                     onOpenNotificationSettings = { settings++ })
             }
             onNodeWithTag(
-                    "settings-notification-recovery",
-                    useUnmergedTree = true)
+                    "settings-notification-recovery", useUnmergedTree = true)
                 .assertDoesNotExist()
             assertEquals(0, requests)
             assertEquals(0, settings)
@@ -892,12 +890,10 @@ class SettingsRouteAdapterJvmTest {
                     onOpenNotificationSettings = { settings++ })
             }
             onAllNodesWithTag(
-                    "settings-notification-recovery",
-                    useUnmergedTree = true)
+                    "settings-notification-recovery", useUnmergedTree = true)
                 .assertCountEquals(1)
             onNodeWithTag(
-                    "settings-notification-recovery",
-                    useUnmergedTree = true)
+                    "settings-notification-recovery", useUnmergedTree = true)
                 .performClick()
             assertEquals(1, requests)
             assertEquals(0, settings)
@@ -917,12 +913,10 @@ class SettingsRouteAdapterJvmTest {
                     onOpenNotificationSettings = { settings++ })
             }
             onAllNodesWithTag(
-                    "settings-notification-recovery",
-                    useUnmergedTree = true)
+                    "settings-notification-recovery", useUnmergedTree = true)
                 .assertCountEquals(1)
             onNodeWithTag(
-                    "settings-notification-recovery",
-                    useUnmergedTree = true)
+                    "settings-notification-recovery", useUnmergedTree = true)
                 .performClick()
             assertEquals(0, requests)
             assertEquals(1, settings)

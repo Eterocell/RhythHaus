@@ -452,8 +452,7 @@ fun LibraryHomeScreen(
             onRemoveSource = onRemoveSource,
             onCancelScan = onCancelScan,
             mediaNotificationPermission = mediaNotificationPermission,
-            onRequestNotificationPermission =
-                onRequestNotificationPermission,
+            onRequestNotificationPermission = onRequestNotificationPermission,
             onOpenNotificationSettings = onOpenNotificationSettings,
             onShowSettingsAbout = { pushRoute(LibraryRoute.SettingsAbout) },
             onShowOpenSourceLibraries = {

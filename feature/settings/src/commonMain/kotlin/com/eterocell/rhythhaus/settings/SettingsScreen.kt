@@ -211,8 +211,8 @@ internal const val SettingsThemeTestTag = "settings-theme"
  * @param clearLibraryDialog the Shared-owned clear confirmation dialog slot,
  *   rendered only when supplied.
  * @param notificationRecovery the actionable denied host media-notification
- *   permission to recover, or null when no card, action, or accessibility
- *   node may be rendered.
+ *   permission to recover, or null when no card, action, or accessibility node
+ *   may be rendered.
  * @param onThemeModeSelected dispatches the selected theme mode.
  * @param onAddMusicFolder dispatches the add-folder action.
  * @param onRescanSource dispatches a rescan with the source id.

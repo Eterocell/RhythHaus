@@ -1,6 +1,5 @@
 package com.eterocell.rhythhaus
 
-import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState.Granted
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState.Requestable
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState.SettingsRequired
@@ -63,28 +62,32 @@ class NotificationPermissionPolicyTest {
     @Test
     fun grantedOnTiramisuIsGrantedForEveryDenialHistory() {
         listOf(
-            facts(
-                sdkAtLeastTiramisu = true,
-                permissionGranted = true,
-                hasRequestedBefore = false,
-                shouldShowRationale = false,
-            ),
-            facts(
-                sdkAtLeastTiramisu = true,
-                permissionGranted = true,
-                hasRequestedBefore = true,
-                shouldShowRationale = false,
-            ),
-            facts(
-                sdkAtLeastTiramisu = true,
-                permissionGranted = true,
-                hasRequestedBefore = true,
-                shouldShowRationale = true,
-            ),
-        ).forEach { grantedFacts ->
-            assertEquals(Granted, classifyMediaNotificationPermission(grantedFacts))
-            assertFalse(shouldRequestOnLaunch(grantedFacts, requestInFlight = false))
-        }
+                facts(
+                    sdkAtLeastTiramisu = true,
+                    permissionGranted = true,
+                    hasRequestedBefore = false,
+                    shouldShowRationale = false,
+                ),
+                facts(
+                    sdkAtLeastTiramisu = true,
+                    permissionGranted = true,
+                    hasRequestedBefore = true,
+                    shouldShowRationale = false,
+                ),
+                facts(
+                    sdkAtLeastTiramisu = true,
+                    permissionGranted = true,
+                    hasRequestedBefore = true,
+                    shouldShowRationale = true,
+                ),
+            )
+            .forEach { grantedFacts ->
+                assertEquals(
+                    Granted, classifyMediaNotificationPermission(grantedFacts))
+                assertFalse(
+                    shouldRequestOnLaunch(
+                        grantedFacts, requestInFlight = false))
+            }
     }
 
     @Test
@@ -96,7 +99,8 @@ class NotificationPermissionPolicyTest {
                 hasRequestedBefore = false,
                 shouldShowRationale = false,
             )
-        assertEquals(Requestable, classifyMediaNotificationPermission(neverAsked))
+        assertEquals(
+            Requestable, classifyMediaNotificationPermission(neverAsked))
         assertTrue(shouldRequestOnLaunch(neverAsked, requestInFlight = false))
         assertTrue(canRequestPermission(Requestable))
     }
@@ -110,7 +114,8 @@ class NotificationPermissionPolicyTest {
                 hasRequestedBefore = true,
                 shouldShowRationale = true,
             )
-        assertEquals(Requestable, classifyMediaNotificationPermission(deniedOnce))
+        assertEquals(
+            Requestable, classifyMediaNotificationPermission(deniedOnce))
         assertFalse(shouldRequestOnLaunch(deniedOnce, requestInFlight = false))
         assertTrue(canRequestPermission(Requestable))
     }
@@ -194,7 +199,9 @@ class NotificationPermissionPolicyTest {
 
     @Test
     fun notificationSettingsOpenOnlyForSettingsRequiredWhenResolvable() {
-        assertTrue(shouldOpenNotificationSettings(SettingsRequired, settingsIntentResolvable = true))
+        assertTrue(
+            shouldOpenNotificationSettings(
+                SettingsRequired, settingsIntentResolvable = true))
         assertFalse(
             shouldOpenNotificationSettings(
                 SettingsRequired,
@@ -202,13 +209,16 @@ class NotificationPermissionPolicyTest {
             ),
         )
         assertFalse(
-            shouldOpenNotificationSettings(Requestable, settingsIntentResolvable = true),
+            shouldOpenNotificationSettings(
+                Requestable, settingsIntentResolvable = true),
         )
         assertFalse(
-            shouldOpenNotificationSettings(Granted, settingsIntentResolvable = true),
+            shouldOpenNotificationSettings(
+                Granted, settingsIntentResolvable = true),
         )
         assertFalse(
-            shouldOpenNotificationSettings(Unavailable, settingsIntentResolvable = true),
+            shouldOpenNotificationSettings(
+                Unavailable, settingsIntentResolvable = true),
         )
     }
 }
