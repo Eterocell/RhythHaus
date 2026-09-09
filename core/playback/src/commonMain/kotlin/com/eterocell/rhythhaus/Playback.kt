@@ -693,7 +693,7 @@ public class PlaybackController(
                         checkpointRevision = reserveCheckpointRevision(),
                     )
                     if (!_state.compareAndSet(previous, published)) continue
-                    publishRuntimeShuffleOrder(published)
+                    publishRuntimeShuffleOrder(published, successor.id)
                     emitImmediateCheckpoint(
                         published.toSessionSnapshot(),
                         published.checkpointRevision,
@@ -701,11 +701,8 @@ public class PlaybackController(
                     loadSelected(successor, autoPlay = true)
                     return@withLock QueueMutationResult.Applied
                 }
-                loadJob.value?.cancel()
-                playWhenLoaded.value = false
-                resetProgressCheckpointKey()
-                val generation = nextGeneration()
-                engineMutex.withLock { engine.clear(generation) }
+                val failedLoadJob = loadJob.value
+                val failedGeneration = activeGeneration.value
                 val idle = PlaybackState(
                     queue = remaining,
                     status = PlaybackStatus.Idle,
@@ -717,6 +714,21 @@ public class PlaybackController(
                 publishRuntimeShuffleOrder(idle)
                 emitImmediateCheckpoint(
                     idle.toSessionSnapshot(), idle.checkpointRevision)
+                // The removal is committed. Irreversible engine effects now
+                // apply only to the failed load/generation captured before the
+                // CAS; a replacement that committed concurrently owns the
+                // engine and must survive untouched.
+                if (loadJob.value === failedLoadJob) {
+                    loadJob.value?.cancel()
+                }
+                playWhenLoaded.value = false
+                resetProgressCheckpointKey()
+                engineMutex.withLock {
+                    if (activeGeneration.value == failedGeneration) {
+                        val generation = nextGeneration()
+                        engine.clear(generation)
+                    }
+                }
                 return@withLock QueueMutationResult.Applied
             }
             error("Unreachable queue mutation loop")
