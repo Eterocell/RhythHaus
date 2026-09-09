@@ -27,6 +27,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyDescendant
@@ -34,6 +35,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -50,6 +52,10 @@ import org.jetbrains.compose.resources.stringResource
 import rhythhaus.core.ui.generated.resources.Res as CoreUiRes
 import rhythhaus.core.ui.generated.resources.back
 import rhythhaus.feature.settings.generated.resources.Res as SettingsRes
+import rhythhaus.feature.settings.generated.resources.notification_permission_body
+import rhythhaus.feature.settings.generated.resources.notification_permission_request
+import rhythhaus.feature.settings.generated.resources.notification_permission_settings
+import rhythhaus.feature.settings.generated.resources.notification_permission_title
 import rhythhaus.feature.settings.generated.resources.source_access_available
 import rhythhaus.feature.settings.generated.resources.source_access_lost
 import rhythhaus.feature.settings.generated.resources.source_last_scanned
@@ -401,6 +407,160 @@ public class SettingsScreenSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    public fun absentNotificationRecoveryRendersNoCardActionOrAccessibilityNode():
+        Unit = runComposeUiTest {
+            var title = ""
+            var body = ""
+            var requestLabel = ""
+            var settingsLabel = ""
+            var requests = 0
+            var settings = 0
+            setContent {
+                title =
+                    stringResource(
+                        SettingsRes.string.notification_permission_title)
+                body =
+                    stringResource(
+                        SettingsRes.string.notification_permission_body)
+                requestLabel =
+                    stringResource(
+                        SettingsRes.string.notification_permission_request)
+                settingsLabel =
+                    stringResource(
+                        SettingsRes.string.notification_permission_settings)
+                content(
+                    notificationRecovery = null,
+                    onRequestNotificationPermission = { requests++ },
+                    onOpenNotificationSettings = { settings++ })
+            }
+            onNodeWithTag(SettingsNotificationRecoveryTestTag)
+                .assertDoesNotExist()
+            onNodeWithTag(
+                    SettingsNotificationRecoveryTestTag,
+                    useUnmergedTree = true)
+                .assertDoesNotExist()
+            onAllNodesWithText(title, useUnmergedTree = true)
+                .assertCountEquals(0)
+            onAllNodesWithText(body, useUnmergedTree = true)
+                .assertCountEquals(0)
+            onAllNodesWithText(requestLabel, useUnmergedTree = true)
+                .assertCountEquals(0)
+            onAllNodesWithText(settingsLabel, useUnmergedTree = true)
+                .assertCountEquals(0)
+            assertEquals(0, requests)
+            assertEquals(0, settings)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun requestableNotificationRecoveryRendersOneCardDispatchingRequestOnly():
+        Unit = runComposeUiTest {
+            var title = ""
+            var body = ""
+            var requestLabel = ""
+            var settingsLabel = ""
+            var requests = 0
+            var settings = 0
+            setContent {
+                title =
+                    stringResource(
+                        SettingsRes.string.notification_permission_title)
+                body =
+                    stringResource(
+                        SettingsRes.string.notification_permission_body)
+                requestLabel =
+                    stringResource(
+                        SettingsRes.string.notification_permission_request)
+                settingsLabel =
+                    stringResource(
+                        SettingsRes.string.notification_permission_settings)
+                content(
+                    notificationRecovery = MediaNotificationRecovery.Requestable,
+                    onRequestNotificationPermission = { requests++ },
+                    onOpenNotificationSettings = { settings++ })
+            }
+            onAllNodesWithTag(
+                    SettingsNotificationRecoveryTestTag,
+                    useUnmergedTree = true)
+                .assertCountEquals(1)
+            onNodeWithText(title, useUnmergedTree = true).assertExists()
+            onNodeWithText(body, useUnmergedTree = true).assertExists()
+            onNodeWithText(requestLabel, useUnmergedTree = true).assertExists()
+            onAllNodesWithText(settingsLabel, useUnmergedTree = true)
+                .assertCountEquals(0)
+            onNodeWithTag(
+                    SettingsNotificationRecoveryTestTag,
+                    useUnmergedTree = true)
+                .assertHasClickAction()
+                .performClick()
+            assertEquals(1, requests)
+            assertEquals(0, settings)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun settingsRequiredNotificationRecoveryRendersOneCardDispatchingSettingsOnly():
+        Unit = runComposeUiTest {
+            var requestLabel = ""
+            var settingsLabel = ""
+            var requests = 0
+            var settings = 0
+            setContent {
+                requestLabel =
+                    stringResource(
+                        SettingsRes.string.notification_permission_request)
+                settingsLabel =
+                    stringResource(
+                        SettingsRes.string.notification_permission_settings)
+                content(
+                    notificationRecovery =
+                        MediaNotificationRecovery.SettingsRequired,
+                    onRequestNotificationPermission = { requests++ },
+                    onOpenNotificationSettings = { settings++ })
+            }
+            onAllNodesWithTag(
+                    SettingsNotificationRecoveryTestTag,
+                    useUnmergedTree = true)
+                .assertCountEquals(1)
+            onNodeWithText(settingsLabel, useUnmergedTree = true).assertExists()
+            onAllNodesWithText(requestLabel, useUnmergedTree = true)
+                .assertCountEquals(0)
+            onNodeWithTag(
+                    SettingsNotificationRecoveryTestTag,
+                    useUnmergedTree = true)
+                .assertHasClickAction()
+                .performClick()
+            assertEquals(0, requests)
+            assertEquals(1, settings)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun notificationRecoveryActionRemainsEnabledWhileMutationsDisabled():
+        Unit = runComposeUiTest {
+            var requests = 0
+            var settings = 0
+            setContent {
+                content(
+                    mutations = false,
+                    sources = listOf(item()),
+                    notificationRecovery = MediaNotificationRecovery.Requestable,
+                    onRequestNotificationPermission = { requests++ },
+                    onOpenNotificationSettings = { settings++ })
+            }
+            onNodeWithTag(SettingsPickerTestTag).assertIsNotEnabled()
+            onNodeWithTag(
+                    SettingsNotificationRecoveryTestTag,
+                    useUnmergedTree = true)
+                .assertIsEnabled()
+                .assertHasClickAction()
+                .performClick()
+            assertEquals(1, requests)
+            assertEquals(0, settings)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     public fun publicProjectionRendersWithoutSharedTypes(): Unit =
         runComposeUiTest {
             setContent {
@@ -427,6 +587,7 @@ private fun content(
     scanSlot: (@Composable () -> Unit)? = null,
     scanOutcomeSlot: (@Composable () -> Unit)? = null,
     clearSlot: (@Composable () -> Unit)? = null,
+    notificationRecovery: MediaNotificationRecovery? = null,
     onTheme: (RhythHausThemeMode) -> Unit = {},
     onAdd: () -> Unit = {},
     onClear: () -> Unit = {},
@@ -434,29 +595,34 @@ private fun content(
     onRecover: (String) -> Unit = {},
     onRemove: (String) -> Unit = {},
     onAbout: () -> Unit = {},
+    onRequestNotificationPermission: () -> Unit = {},
+    onOpenNotificationSettings: () -> Unit = {},
     onDismiss: () -> Unit = {},
 ): Unit =
     SettingsScreen(
-        labels(),
-        RhythHausThemeMode.System,
-        sources,
-        sourcePickerActionVisible,
-        sourcePickerAvailable,
-        null,
-        mutations,
-        hasTracks,
-        playlistSlot,
-        scanSlot,
-        scanOutcomeSlot,
-        clearSlot,
-        onTheme,
-        onAdd,
-        onRescan,
-        onRecover,
-        onRemove,
-        onClear,
-        onAbout,
-        onDismiss)
+        labels = labels(),
+        currentThemeMode = RhythHausThemeMode.System,
+        sources = sources,
+        sourcePickerActionVisible = sourcePickerActionVisible,
+        sourcePickerAvailable = sourcePickerAvailable,
+        importMessage = null,
+        mutationsEnabled = mutations,
+        hasImportedTracks = hasTracks,
+        playlistBackupContent = playlistSlot,
+        activeScanContent = scanSlot,
+        scanOutcomeContent = scanOutcomeSlot,
+        clearLibraryDialog = clearSlot,
+        notificationRecovery = notificationRecovery,
+        onThemeModeSelected = onTheme,
+        onAddMusicFolder = onAdd,
+        onRescanSource = onRescan,
+        onRecoverSource = onRecover,
+        onRemoveSource = onRemove,
+        onRequestClearLibrary = onClear,
+        onAboutClick = onAbout,
+        onRequestNotificationPermission = onRequestNotificationPermission,
+        onOpenNotificationSettings = onOpenNotificationSettings,
+        onDismiss = onDismiss)
 
 private fun labels(): SettingsSharedLabels =
     SettingsSharedLabels(

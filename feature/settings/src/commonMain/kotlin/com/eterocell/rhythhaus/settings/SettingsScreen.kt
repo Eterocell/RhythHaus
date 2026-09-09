@@ -60,6 +60,10 @@ import rhythhaus.feature.settings.generated.resources.about
 import rhythhaus.feature.settings.generated.resources.appearance
 import rhythhaus.feature.settings.generated.resources.configured_folders
 import rhythhaus.feature.settings.generated.resources.manage_music
+import rhythhaus.feature.settings.generated.resources.notification_permission_body
+import rhythhaus.feature.settings.generated.resources.notification_permission_request
+import rhythhaus.feature.settings.generated.resources.notification_permission_settings
+import rhythhaus.feature.settings.generated.resources.notification_permission_title
 import rhythhaus.feature.settings.generated.resources.recover_source_format
 import rhythhaus.feature.settings.generated.resources.remove_folder
 import rhythhaus.feature.settings.generated.resources.remove_folder_message
@@ -117,6 +121,22 @@ public data class SettingsSourceItem(
     public val hasBeenScanned: Boolean,
 )
 
+/**
+ * Feature-safe projection of a denied host media-notification permission.
+ *
+ * Settings renders its recovery card only for these two actionable denied
+ * variants; an unavailable, granted, or non-Android permission surface never
+ * reaches this screen. The projection carries no Android or Shared framework
+ * type, so the feature stays host-neutral.
+ */
+public enum class MediaNotificationRecovery {
+    /** The host permission dialog can be requested again. */
+    Requestable,
+
+    /** Only the host notification settings can restore the permission. */
+    SettingsRequired,
+}
+
 internal enum class SettingsSourceAccess {
     Available,
     Lost,
@@ -165,6 +185,8 @@ internal const val SettingsRemovePrefix = "settings-remove-"
 internal const val SettingsRemoveConfirmTestTag = "settings-remove-confirm"
 internal const val SettingsRemoveDismissTestTag = "settings-remove-dismiss"
 internal const val SettingsRootTestTag = "settings-root"
+internal const val SettingsNotificationRecoveryTestTag =
+    "settings-notification-recovery"
 internal const val SettingsPointerShieldTestTag = "settings-pointer-shield"
 internal const val SettingsListTestTag = "settings-list"
 internal const val SettingsThemeTestTag = "settings-theme"
@@ -188,6 +210,9 @@ internal const val SettingsThemeTestTag = "settings-theme"
  *   directly after [activeScanContent], or null while absent.
  * @param clearLibraryDialog the Shared-owned clear confirmation dialog slot,
  *   rendered only when supplied.
+ * @param notificationRecovery the actionable denied host media-notification
+ *   permission to recover, or null when no card, action, or accessibility
+ *   node may be rendered.
  * @param onThemeModeSelected dispatches the selected theme mode.
  * @param onAddMusicFolder dispatches the add-folder action.
  * @param onRescanSource dispatches a rescan with the source id.
@@ -196,6 +221,10 @@ internal const val SettingsThemeTestTag = "settings-theme"
  * @param onRemoveSource dispatches a removal with the source id.
  * @param onRequestClearLibrary requests the Shared clear-library confirmation.
  * @param onAboutClick navigates to the feature-owned About page.
+ * @param onRequestNotificationPermission re-requests host notification
+ *   permission for the [MediaNotificationRecovery.Requestable] variant.
+ * @param onOpenNotificationSettings opens the host notification settings for
+ *   the [MediaNotificationRecovery.SettingsRequired] variant.
  * @param onDismiss navigates back.
  * @param modifier applied to the root container.
  */
@@ -213,6 +242,7 @@ public fun SettingsScreen(
     activeScanContent: (@Composable () -> Unit)?,
     scanOutcomeContent: (@Composable () -> Unit)? = null,
     clearLibraryDialog: (@Composable () -> Unit)?,
+    notificationRecovery: MediaNotificationRecovery?,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onAddMusicFolder: () -> Unit,
     onRescanSource: (String) -> Unit,
@@ -220,6 +250,8 @@ public fun SettingsScreen(
     onRemoveSource: (String) -> Unit,
     onRequestClearLibrary: () -> Unit,
     onAboutClick: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -277,6 +309,14 @@ public fun SettingsScreen(
                                             policy.topBarTitlePadding,
                                         navigationIconPadding =
                                             policy.topBarNavigationIconPadding)
+                                }
+                                notificationRecovery?.let { variant ->
+                                    item {
+                                        MediaNotificationRecoveryCard(
+                                            variant,
+                                            onRequestNotificationPermission,
+                                            onOpenNotificationSettings)
+                                    }
                                 }
                                 item {
                                     AppearanceDropdown(
@@ -651,6 +691,68 @@ private fun ConfiguredSourceRow(
                             Res.string.remove_source_format, displayName),
                         tint = HausColors.current.pulse.copy(alpha = alpha),
                         modifier = Modifier.size(20.dp))
+                }
+        }
+}
+
+@Composable
+private fun MediaNotificationRecoveryCard(
+    variant: MediaNotificationRecovery,
+    onRequestPermission: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+) {
+    val action =
+        when (variant) {
+            MediaNotificationRecovery.Requestable -> onRequestPermission
+            MediaNotificationRecovery.SettingsRequired ->
+                onOpenNotificationSettings
+        }
+    val actionLabel =
+        stringResource(
+            when (variant) {
+                MediaNotificationRecovery.Requestable ->
+                    Res.string.notification_permission_request
+                MediaNotificationRecovery.SettingsRequired ->
+                    Res.string.notification_permission_settings
+            })
+    Column(
+        Modifier.fillMaxWidth()
+            .background(
+                HausColors.current.panel.copy(alpha = .54f),
+                RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(Res.string.notification_permission_title),
+                color = HausColors.current.ink,
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
+                fontWeight = FontWeight.Black)
+            Text(
+                stringResource(Res.string.notification_permission_body),
+                color = HausColors.current.muted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium)
+            Button(
+                onClick = action,
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .height(48.dp)
+                        .testTag(SettingsNotificationRecoveryTestTag),
+                cornerRadius = 16.dp,
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color = HausColors.current.ink,
+                        contentColor = HausColors.current.paper,
+                        disabledColor =
+                            HausColors.current.muted.copy(alpha = .28f),
+                        disabledContentColor = HausColors.current.muted)) {
+                    Text(
+                        actionLabel,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold)
                 }
         }
 }

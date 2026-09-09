@@ -142,6 +142,8 @@ fun App(
     val selectedThemeMode by
         themePreferenceStore.selectedThemeMode.collectAsState(
             RhythHausThemeMode.System)
+    val notificationPermissionState by
+        notificationPermissionController.state.collectAsState()
 
     suspend fun updateLibraryContent(content: LibraryContentState) {
         val publication = libraryPublicationOwner.publish(content)
@@ -544,6 +546,14 @@ fun App(
                 scanProgress = scanProgress,
                 scanErrors = scanErrors,
                 scanJob = scanJob,
+                mediaNotificationPermission = notificationPermissionState,
+                onRequestNotificationPermission = {
+                    notificationPermissionController.requestPermission()
+                },
+                onOpenNotificationSettings = {
+                    notificationPermissionController
+                        .openAppNotificationSettings()
+                },
                 coordinatorMutationsEnabled = mutationsEnabled,
                 currentThemeMode = selectedThemeMode,
                 onThemeModeSelected = { mode ->
