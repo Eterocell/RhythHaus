@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -45,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackFailureKind
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.RepeatMode
@@ -56,9 +58,15 @@ import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.nowplaying.generated.resources.Res
 import rhythhaus.feature.nowplaying.generated.resources.next_track
+import rhythhaus.feature.nowplaying.generated.resources.playback_error_access_lost
+import rhythhaus.feature.nowplaying.generated.resources.playback_error_decoder_failure
+import rhythhaus.feature.nowplaying.generated.resources.playback_error_missing_file
+import rhythhaus.feature.nowplaying.generated.resources.playback_error_unknown
+import rhythhaus.feature.nowplaying.generated.resources.playback_error_unsupported_format
 import rhythhaus.feature.nowplaying.generated.resources.playback_status_buffering
 import rhythhaus.feature.nowplaying.generated.resources.playback_status_error
 import rhythhaus.feature.nowplaying.generated.resources.playback_status_loading
@@ -67,6 +75,9 @@ import rhythhaus.feature.nowplaying.generated.resources.playback_status_playing
 import rhythhaus.feature.nowplaying.generated.resources.playback_status_ready
 import rhythhaus.feature.nowplaying.generated.resources.playback_status_stopped
 import rhythhaus.feature.nowplaying.generated.resources.previous_track
+import rhythhaus.feature.nowplaying.generated.resources.recovery_remove_from_queue
+import rhythhaus.feature.nowplaying.generated.resources.recovery_retry
+import rhythhaus.feature.nowplaying.generated.resources.recovery_skip
 import rhythhaus.feature.nowplaying.generated.resources.repeat_mode_repeat_one
 import rhythhaus.feature.nowplaying.generated.resources.repeat_mode_repeat_playlist
 import rhythhaus.feature.nowplaying.generated.resources.repeat_mode_stop_after_current
@@ -92,6 +103,9 @@ internal const val NowPlayingStatusTestTag = "NowPlayingStatus"
 internal const val NowPlayingProgressTestTag = "NowPlayingProgress"
 internal const val NowPlayingTitleTestTag = "NowPlayingTitle"
 internal const val NowPlayingSubtitleTestTag = "NowPlayingSubtitle"
+internal const val NowPlayingRetryFailureTestTag = "NowPlayingRetryFailure"
+internal const val NowPlayingSkipFailureTestTag = "NowPlayingSkipFailure"
+internal const val NowPlayingRemoveFailureTestTag = "NowPlayingRemoveFailure"
 
 /** Immutable shared-resolved labels used by [NowPlayingContent]. */
 public data class NowPlayingScreenLabels(
@@ -262,6 +276,44 @@ private fun NowPlayingControlsPane(
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1)
+        val failureError = playbackState.error
+        if (playbackState.status == PlaybackStatus.Error &&
+            failureError != null &&
+            playbackState.currentOccurrence != null
+        ) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                recoveryFailureSummary(failureError.kind),
+                color = HausColors.current.pulse,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(10.dp))
+            val scope = rememberCoroutineScope()
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                    RecoveryActionButton(
+                        stringResource(Res.string.recovery_retry),
+                        playbackController::retryFailedTrack,
+                        primary = true,
+                        modifier = Modifier.testTag(NowPlayingRetryFailureTestTag),
+                    )
+                    RecoveryActionButton(
+                        stringResource(Res.string.recovery_skip),
+                        playbackController::skipFailedTrack,
+                        modifier = Modifier.testTag(NowPlayingSkipFailureTestTag),
+                    )
+                    RecoveryActionButton(
+                        stringResource(Res.string.recovery_remove_from_queue),
+                        { scope.launch { playbackController.removeFailedTrack() } },
+                        destructive = true,
+                        modifier = Modifier.testTag(NowPlayingRemoveFailureTestTag),
+                    )
+                }
+        }
         Spacer(Modifier.height(12.dp))
         MusicProgressScrubber(
             uiState.positionMillis,
@@ -374,6 +426,65 @@ private fun TransportButton(
                 modifier = Modifier.size(iconSize))
         }
 }
+
+/**
+ * Recovery action in the error-only failure section: 44dp tall, 14dp corner
+ * radius, 14sp bold label. Primary uses ink/paper, destructive uses the shared
+ * pulse tint, and neutral uses the shared panel surface.
+ */
+@Composable
+private fun RecoveryActionButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    primary: Boolean = false,
+    destructive: Boolean = false,
+) {
+    val background =
+        when {
+            destructive -> HausColors.current.pulse.copy(alpha = 0.15f)
+            primary -> HausColors.current.ink
+            else -> HausColors.current.panel
+        }
+    val contentColor =
+        when {
+            destructive -> HausColors.current.pulse
+            primary -> HausColors.current.paper
+            else -> HausColors.current.ink
+        }
+    Box(
+        modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(background)
+            .hausClickable(onClick)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center) {
+            Text(
+                label,
+                color = contentColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
+        }
+}
+
+/** Localized listener wording that summarizes [kind]. */
+@Composable
+private fun recoveryFailureSummary(kind: PlaybackFailureKind): String =
+    when (kind) {
+        PlaybackFailureKind.MissingFile ->
+            stringResource(Res.string.playback_error_missing_file)
+        PlaybackFailureKind.AccessLost ->
+            stringResource(Res.string.playback_error_access_lost)
+        PlaybackFailureKind.UnsupportedFormat ->
+            stringResource(Res.string.playback_error_unsupported_format)
+        PlaybackFailureKind.DecoderFailure ->
+            stringResource(Res.string.playback_error_decoder_failure)
+        PlaybackFailureKind.Unknown ->
+            stringResource(Res.string.playback_error_unknown)
+    }
 
 @Composable
 private fun CompactNowPlayingLayout(
