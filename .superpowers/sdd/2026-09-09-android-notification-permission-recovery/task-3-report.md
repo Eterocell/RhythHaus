@@ -15,6 +15,7 @@ Exact output:
 ```text
 BUILD SUCCESSFUL in 1s
 10 actionable tasks: 1 executed, 9 up-to-date
+Configuration cache entry stored.
 ```
 
 Implementation commit: `651e146` (`Fix notification permission facts filename`).
