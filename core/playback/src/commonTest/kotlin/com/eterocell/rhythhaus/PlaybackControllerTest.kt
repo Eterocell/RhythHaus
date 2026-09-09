@@ -1214,20 +1214,33 @@ class PlaybackControllerTest {
             assertEquals(
                 QueueMutationResult.Applied,
                 controller.removeFailedTrack())
+            withTimeout(5_000) {
+                while (controller.state.value.status != PlaybackStatus.Playing) {
+                    kotlinx.coroutines.yield()
+                }
+            }
             assertEquals(
                 "upcoming-1", controller.state.value.currentOccurrenceId)
 
             controller.skipToNext()
+            engine.awaitLoadCount(3)
+            withTimeout(5_000) {
+                while (controller.state.value.status != PlaybackStatus.Playing) {
+                    kotlinx.coroutines.yield()
+                }
+            }
             assertEquals(
                 "upcoming-2", controller.state.value.currentOccurrenceId)
             controller.skipToNext()
+            engine.awaitLoadCount(4)
+            withTimeout(5_000) {
+                while (controller.state.value.status != PlaybackStatus.Playing) {
+                    kotlinx.coroutines.yield()
+                }
+            }
             assertEquals(
                 "upcoming-3", controller.state.value.currentOccurrenceId)
 
-            withTimeout(5_000) {
-                while (controller.state.value.status !=
-                    PlaybackStatus.Playing) kotlinx.coroutines.yield()
-            }
             engine.clearEvents()
             controller.skipToNext()
             assertEquals(
