@@ -23,6 +23,7 @@ class PlatformSourceAccessTest {
         assertTrue(iosImportLaunchAllowed(importActive = false))
         assertFalse(iosImportLaunchAllowed(importActive = true))
     }
+
     private val managedFolder = "/managed/RhythHaus Music"
 
     private fun mappedResult(
@@ -32,27 +33,29 @@ class PlatformSourceAccessTest {
         unsupported: Int = 0,
         failed: Int = 0,
         message: String? = null,
-    ) = iosLibraryImportPickResult(
-        destinationFolderPath = managedFolder,
-        status = status,
-        imported = imported,
-        duplicates = duplicates,
-        unsupported = unsupported,
-        failed = failed,
-        message = message,
-    )
+    ) =
+        iosLibraryImportPickResult(
+            destinationFolderPath = managedFolder,
+            status = status,
+            imported = imported,
+            duplicates = duplicates,
+            unsupported = unsupported,
+            failed = failed,
+            message = message,
+        )
 
     @Test
     fun successCompletionReturnsTheAppLocalSource() {
-        val success = assertIs<PlatformFolderPickResult.Success>(
-            mappedResult(
-                status = IOSLibraryImportStatus.SUCCESS,
-                imported = 3,
-                duplicates = 1,
-                unsupported = 2,
-                failed = 1,
-            ),
-        )
+        val success =
+            assertIs<PlatformFolderPickResult.Success>(
+                mappedResult(
+                    status = IOSLibraryImportStatus.SUCCESS,
+                    imported = 3,
+                    duplicates = 1,
+                    unsupported = 2,
+                    failed = 1,
+                ),
+            )
         assertEquals("ios-app-local", success.source.id)
         assertEquals(
             LibraryPlatformKind.IosAppLocal,
@@ -64,14 +67,28 @@ class PlatformSourceAccessTest {
 
     @Test
     fun duplicateOnlyCompletionReturnsTheAppLocalSource() {
-        val success = assertIs<PlatformFolderPickResult.Success>(
-            mappedResult(
-                status = IOSLibraryImportStatus.SUCCESS,
-                duplicates = 4,
-                unsupported = 1,
-            ),
-        )
+        val success =
+            assertIs<PlatformFolderPickResult.Success>(
+                mappedResult(
+                    status = IOSLibraryImportStatus.SUCCESS,
+                    duplicates = 4,
+                    unsupported = 1,
+                ),
+            )
         assertEquals(managedFolder, success.source.handle)
+    }
+
+    @Test
+    fun alreadyManagedCompletionReturnsTheAppLocalSourceWithoutCopyCounts() {
+        val success =
+            assertIs<PlatformFolderPickResult.Success>(
+                mappedResult(
+                    status = IOSLibraryImportStatus.ALREADY_MANAGED,
+                ),
+            )
+
+        assertEquals(managedFolder, success.source.handle)
+        assertEquals(null, success.importSummary)
     }
 
     @Test
@@ -85,50 +102,59 @@ class PlatformSourceAccessTest {
 
     @Test
     fun unavailableCompletionReturnsRecoverableUnavailable() {
-        val unavailable = assertIs<PlatformFolderPickResult.Unavailable>(
-            mappedResult(
-                status = IOSLibraryImportStatus.UNAVAILABLE,
-                message = "Files picker is unavailable",
-            ),
-        )
+        val unavailable =
+            assertIs<PlatformFolderPickResult.Unavailable>(
+                mappedResult(
+                    status = IOSLibraryImportStatus.UNAVAILABLE,
+                    message = "Files picker is unavailable",
+                ),
+            )
         assertEquals("Files picker is unavailable", unavailable.message)
         assertTrue(
             assertIs<PlatformFolderPickResult.Unavailable>(
-                mappedResult(status = IOSLibraryImportStatus.UNAVAILABLE),
-            ).message.isNotBlank(),
+                    mappedResult(status = IOSLibraryImportStatus.UNAVAILABLE),
+                )
+                .message
+                .isNotBlank(),
         )
     }
 
     @Test
     fun overlapCompletionReturnsRecoverableFailure() {
-        val failure = assertIs<PlatformFolderPickResult.Failure>(
-            mappedResult(
-                status = IOSLibraryImportStatus.OVERLAP,
-                message = "Another import is already active",
-            ),
-        )
+        val failure =
+            assertIs<PlatformFolderPickResult.Failure>(
+                mappedResult(
+                    status = IOSLibraryImportStatus.OVERLAP,
+                    message = "Another import is already active",
+                ),
+            )
         assertEquals("Another import is already active", failure.message)
         assertTrue(
             assertIs<PlatformFolderPickResult.Failure>(
-                mappedResult(status = IOSLibraryImportStatus.OVERLAP),
-            ).message.isNotBlank(),
+                    mappedResult(status = IOSLibraryImportStatus.OVERLAP),
+                )
+                .message
+                .isNotBlank(),
         )
     }
 
     @Test
     fun failureCompletionReturnsRecoverableFailure() {
-        val failure = assertIs<PlatformFolderPickResult.Failure>(
-            mappedResult(
-                status = IOSLibraryImportStatus.FAILURE,
-                failed = 2,
-                message = "Copy failed",
-            ),
-        )
+        val failure =
+            assertIs<PlatformFolderPickResult.Failure>(
+                mappedResult(
+                    status = IOSLibraryImportStatus.FAILURE,
+                    failed = 2,
+                    message = "Copy failed",
+                ),
+            )
         assertEquals("Copy failed", failure.message)
         assertTrue(
             assertIs<PlatformFolderPickResult.Failure>(
-                mappedResult(status = IOSLibraryImportStatus.FAILURE),
-            ).message.isNotBlank(),
+                    mappedResult(status = IOSLibraryImportStatus.FAILURE),
+                )
+                .message
+                .isNotBlank(),
         )
     }
 
@@ -141,12 +167,13 @@ class PlatformSourceAccessTest {
 
     @Test
     fun unsupportedOnlyCompletionDefaultNamesUnsupportedSelection() {
-        val failure = assertIs<PlatformFolderPickResult.Failure>(
-            mappedResult(
-                status = IOSLibraryImportStatus.SUCCESS,
-                unsupported = 5,
-            ),
-        )
+        val failure =
+            assertIs<PlatformFolderPickResult.Failure>(
+                mappedResult(
+                    status = IOSLibraryImportStatus.SUCCESS,
+                    unsupported = 5,
+                ),
+            )
         assertEquals(
             "No supported audio files were imported",
             failure.message,
@@ -157,13 +184,14 @@ class PlatformSourceAccessTest {
     fun failedOnlyCompletionDefaultDoesNotClaimFilesWereUnsupported() {
         // A terminal success with nothing imported or duplicated because every
         // copy failed must not reuse the unsupported-only default message.
-        val failure = assertIs<PlatformFolderPickResult.Failure>(
-            mappedResult(
-                status = IOSLibraryImportStatus.SUCCESS,
-                unsupported = 2,
-                failed = 3,
-            ),
-        )
+        val failure =
+            assertIs<PlatformFolderPickResult.Failure>(
+                mappedResult(
+                    status = IOSLibraryImportStatus.SUCCESS,
+                    unsupported = 2,
+                    failed = 3,
+                ),
+            )
         assertEquals(
             "Selected audio files could not be copied",
             failure.message,
@@ -172,17 +200,19 @@ class PlatformSourceAccessTest {
 
     @Test
     fun successCompletionCarriesTerminalCountSummary() {
-        val summary = assertNotNull(
-            assertIs<PlatformFolderPickResult.Success>(
-                mappedResult(
-                    status = IOSLibraryImportStatus.SUCCESS,
-                    imported = 3,
-                    duplicates = 1,
-                    unsupported = 2,
-                    failed = 1,
-                ),
-            ).importSummary,
-        )
+        val summary =
+            assertNotNull(
+                assertIs<PlatformFolderPickResult.Success>(
+                        mappedResult(
+                            status = IOSLibraryImportStatus.SUCCESS,
+                            imported = 3,
+                            duplicates = 1,
+                            unsupported = 2,
+                            failed = 1,
+                        ),
+                    )
+                    .importSummary,
+            )
         assertEquals(3, summary.imported)
         assertEquals(1, summary.duplicates)
         assertEquals(2, summary.unsupported)
@@ -191,15 +221,17 @@ class PlatformSourceAccessTest {
 
     @Test
     fun duplicateOnlySuccessCarriesTerminalCountSummary() {
-        val summary = assertNotNull(
-            assertIs<PlatformFolderPickResult.Success>(
-                mappedResult(
-                    status = IOSLibraryImportStatus.SUCCESS,
-                    duplicates = 4,
-                    unsupported = 1,
-                ),
-            ).importSummary,
-        )
+        val summary =
+            assertNotNull(
+                assertIs<PlatformFolderPickResult.Success>(
+                        mappedResult(
+                            status = IOSLibraryImportStatus.SUCCESS,
+                            duplicates = 4,
+                            unsupported = 1,
+                        ),
+                    )
+                    .importSummary,
+            )
         assertEquals(0, summary.imported)
         assertEquals(4, summary.duplicates)
         assertEquals(1, summary.unsupported)
@@ -217,7 +249,8 @@ class PlatformSourceAccessTest {
                     unsupported = 2,
                     failed = 1,
                 ),
-                summaryFormat = "Imported %1\$d, duplicates %2\$d, unsupported %3\$d, failed %4\$d",
+                summaryFormat =
+                    "Imported %1\$d, duplicates %2\$d, unsupported %3\$d, failed %4\$d",
             ),
         )
     }
@@ -229,24 +262,23 @@ class PlatformSourceAccessTest {
         assertEquals(2, IOSLibraryImportStatus.UNAVAILABLE)
         assertEquals(3, IOSLibraryImportStatus.OVERLAP)
         assertEquals(4, IOSLibraryImportStatus.FAILURE)
+        assertEquals(5, IOSLibraryImportStatus.ALREADY_MANAGED)
     }
 
     @Test
     fun managedFileNameKeepsPlainNamesAndExtensions() {
         assertEquals("Track 01.mp3", managedImportFileName("Track 01.mp3"))
-        assertEquals("Live Session (2024).flac",
+        assertEquals(
+            "Live Session (2024).flac",
             managedImportFileName("Live Session (2024).flac"))
         assertEquals("song", managedImportFileName("song"))
     }
 
     @Test
     fun managedFileNameStripsSeparatorsAndTraversal() {
-        assertEquals("song.mp3",
-            managedImportFileName("/folder/song.mp3"))
-        assertEquals("song.mp3",
-            managedImportFileName("..\\folder\\song.mp3"))
-        assertEquals("song.mp3",
-            managedImportFileName("../../music/song.mp3"))
+        assertEquals("song.mp3", managedImportFileName("/folder/song.mp3"))
+        assertEquals("song.mp3", managedImportFileName("..\\folder\\song.mp3"))
+        assertEquals("song.mp3", managedImportFileName("../../music/song.mp3"))
     }
 
     @Test
@@ -262,33 +294,36 @@ class PlatformSourceAccessTest {
 
     @Test
     fun freeDestinationNameIsFresh() {
-        val plan = managedImportDestinationPlan(
-            sourceFileName = "song.mp3",
-            sourceContent = "fresh-bytes".encodeToByteArray(),
-            managedFiles = emptyMap(),
-        )
+        val plan =
+            managedImportDestinationPlan(
+                sourceFileName = "song.mp3",
+                sourceContent = "fresh-bytes".encodeToByteArray(),
+                managedFiles = emptyMap(),
+            )
         assertEquals(ManagedImportDestinationPlan.Fresh("song.mp3"), plan)
     }
 
     @Test
     fun byteIdenticalDestinationIsDuplicate() {
         val content = "same-bytes".encodeToByteArray()
-        val plan = managedImportDestinationPlan(
-            sourceFileName = "song.mp3",
-            sourceContent = content,
-            managedFiles = mapOf("song.mp3" to content),
-        )
+        val plan =
+            managedImportDestinationPlan(
+                sourceFileName = "song.mp3",
+                sourceContent = content,
+                managedFiles = mapOf("song.mp3" to content),
+            )
         assertEquals(ManagedImportDestinationPlan.Duplicate("song.mp3"), plan)
     }
 
     @Test
     fun byteIdenticalContentUnderAnotherNameIsFresh() {
         val content = "same-bytes".encodeToByteArray()
-        val plan = managedImportDestinationPlan(
-            sourceFileName = "copy.mp3",
-            sourceContent = content,
-            managedFiles = mapOf("song.mp3" to content),
-        )
+        val plan =
+            managedImportDestinationPlan(
+                sourceFileName = "copy.mp3",
+                sourceContent = content,
+                managedFiles = mapOf("song.mp3" to content),
+            )
         assertEquals(ManagedImportDestinationPlan.Fresh("copy.mp3"), plan)
     }
 
@@ -353,11 +388,12 @@ class PlatformSourceAccessTest {
         // the same managed file, so identical bytes are a duplicate of the
         // managed file identity.
         val content = "same-bytes".encodeToByteArray()
-        val plan = managedImportDestinationPlan(
-            sourceFileName = "Song.mp3",
-            sourceContent = content,
-            managedFiles = mapOf("song.mp3" to content),
-        )
+        val plan =
+            managedImportDestinationPlan(
+                sourceFileName = "Song.mp3",
+                sourceContent = content,
+                managedFiles = mapOf("song.mp3" to content),
+            )
         assertEquals(ManagedImportDestinationPlan.Duplicate("song.mp3"), plan)
     }
 
@@ -386,6 +422,23 @@ class PlatformSourceAccessTest {
                     mapOf(
                         "song.mp3" to "original".encodeToByteArray(),
                         "SONG-2.mp3" to "occupied".encodeToByteArray(),
+                    ),
+            ),
+        )
+    }
+
+    @Test
+    fun identicalBytesInOccupiedSuffixAreReturnedAsDuplicate() {
+        val incoming = "incoming".encodeToByteArray()
+        assertEquals(
+            ManagedImportDestinationPlan.Duplicate("song-2.mp3"),
+            managedImportDestinationPlan(
+                sourceFileName = "song.mp3",
+                sourceContent = incoming,
+                managedFiles =
+                    mapOf(
+                        "song.mp3" to "different".encodeToByteArray(),
+                        "song-2.mp3" to incoming,
                     ),
             ),
         )

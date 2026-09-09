@@ -133,7 +133,8 @@ class LibraryResourceOwnershipJvmTest {
                     "library key $key must not be in shared ZH")
             } else {
                 assertTrue(
-                    sharedOwned, "shared-owned key $key must not be feature-owned")
+                    sharedOwned,
+                    "shared-owned key $key must not be feature-owned")
             }
         }
     }

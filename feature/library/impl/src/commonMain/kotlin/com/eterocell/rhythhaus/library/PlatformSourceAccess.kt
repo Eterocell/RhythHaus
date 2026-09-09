@@ -48,8 +48,8 @@ interface PlatformFolderPickerLauncher {
     val supportsAdditionalSources: Boolean
 
     /**
-     * Whether a platform import operation is currently active (picker shown
-     * or files being copied into managed storage).
+     * Whether a platform import operation is currently active (picker shown or
+     * files being copied into managed storage).
      *
      * The App folds this into source-mutation gating so competing mutations
      * cannot start while an import is in flight, before the follow-up scan is

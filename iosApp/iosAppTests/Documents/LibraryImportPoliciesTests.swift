@@ -13,6 +13,15 @@ final class LibraryImportPoliciesTests: XCTestCase {
         XCTAssertFalse(LibraryImportMarkerPolicy.shouldReplace(content: "User's own note\n"))
     }
 
+    func testMarkerCurrentContentIsLocaleAwareAndKeepsExactLegacyMigration() {
+        let english = LibraryImportMarkerPolicy.currentContent(localeIdentifier: "en")
+        let chinese = LibraryImportMarkerPolicy.currentContent(localeIdentifier: "zh-Hans")
+        XCTAssertTrue(english.contains("Files.app"))
+        XCTAssertTrue(chinese.contains("导入"))
+        XCTAssertFalse(LibraryImportMarkerPolicy.shouldReplace(content: english))
+        XCTAssertFalse(LibraryImportMarkerPolicy.shouldReplace(content: chinese))
+    }
+
     // Supported audio extension filtering (Kotlin `SupportedAudio.kt` parity).
     func testSupportedAudioExtensionsAreCaseInsensitive() {
         for name in ["song.mp3", "Song.FLAC", "TRACK.M4A", "mix.ogg", "clip.wav", "a.wave", "b.aif", "c.aiff", "d.au", "e.aac"] {
@@ -80,6 +89,21 @@ final class LibraryImportPoliciesTests: XCTestCase {
         )
     }
 
+    func testByteIdenticalOccupiedSuffixIsDuplicate() {
+        let incoming = Data("incoming".utf8)
+        XCTAssertEqual(
+            LibraryImportDestinationPolicy.plan(
+                sourceFileName: "song.mp3",
+                sourceContent: incoming,
+                managed: LibraryImportMemoryManagedFiles([
+                    "song.mp3": Data("different".utf8),
+                    "song-2.mp3": incoming,
+                ])
+            ),
+            .duplicate(fileName: "song-2.mp3")
+        )
+    }
+
     func testCaseDifferingDifferentContentSelectsSuffixedIncomingCasing() {
         let managed = LibraryImportMemoryManagedFiles(["song.mp3": Data("old".utf8)])
         XCTAssertEqual(
@@ -144,10 +168,11 @@ final class LibraryImportPoliciesTests: XCTestCase {
         XCTAssertEqual(plan("b.mp3", changed), .fresh(fileName: "b.mp3"))
         let changedAgain = Data("b2".utf8)
         XCTAssertEqual(plan("b.mp3", changedAgain), .suffixed(fileName: "b-2.mp3"))
-        // Kotlin parity: the suffix loop skips occupied candidates without
-        // byte comparison, so a later identical import of b.mp3 does not
-        // recognize b-2.mp3 as a duplicate — it takes the next free suffix.
-        XCTAssertEqual(plan("b.mp3", changedAgain), .suffixed(fileName: "b-3.mp3"))
+        // Kotlin parity: an occupied numeric suffix holding byte-identical
+        // content is reported as a duplicate of that exact managed file, so a
+        // later identical import of b.mp3 recognizes b-2.mp3 and copies
+        // nothing.
+        XCTAssertEqual(plan("b.mp3", changedAgain), .duplicate(fileName: "b-2.mp3"))
     }
 
     // Nested-directory enumeration input classification.
@@ -193,6 +218,29 @@ final class LibraryImportPoliciesTests: XCTestCase {
         XCTAssertEqual(
             counters,
             LibraryImportCounters(imported: 2, duplicates: 1, unsupported: 1, failed: 2)
+        )
+    }
+
+    func testManagedDirectoryContainmentExcludesOnlyManagedRootAndDescendants() {
+        let managed = URL(fileURLWithPath: "/Documents/RhythHaus", isDirectory: true)
+
+        XCTAssertTrue(
+            LibraryImportPathPolicy.isAlreadyManaged(
+                URL(fileURLWithPath: "/Documents/RhythHaus"),
+                managedDirectory: managed
+            )
+        )
+        XCTAssertTrue(
+            LibraryImportPathPolicy.isAlreadyManaged(
+                URL(fileURLWithPath: "/Documents/RhythHaus/Album/track.mp3"),
+                managedDirectory: managed
+            )
+        )
+        XCTAssertFalse(
+            LibraryImportPathPolicy.isAlreadyManaged(
+                URL(fileURLWithPath: "/Documents/RhythHaus Archive/track.mp3"),
+                managedDirectory: managed
+            )
         )
     }
 }
@@ -393,6 +441,60 @@ final class LibraryImportProviderTests: XCTestCase {
         XCTAssertEqual(Set(remaining), Set(["track1.mp3", "track2.flac", "track3.m4a"]))
     }
 
+    func testNestedFolderImportDoesNotFollowSymbolicLinkDirectory() throws {
+        let source = temporaryRoot.appendingPathComponent("SourceWithLink", isDirectory: true)
+        let outside = temporaryRoot.appendingPathComponent("Outside", isDirectory: true)
+        let destination = try makeManagedFolder()
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try write(Data("outside bytes".utf8), to: outside.appendingPathComponent("escaped.mp3"))
+        let link = source.appendingPathComponent("LinkedAlbum", isDirectory: true)
+        do {
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outside)
+        } catch {
+            throw XCTSkip("Simulator filesystem does not support symbolic links: \(error)")
+        }
+
+        let result = LibraryImportCopyRunner.run(
+            selectedURLs: [source],
+            destinationDirectory: destination,
+            operations: operations(),
+            scopeFor: { _ in CountingScope(granted: true) }
+        )
+
+        XCTAssertEqual(result.outcome, .success)
+        XCTAssertEqual(result.counters.imported, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.appendingPathComponent("escaped.mp3").path))
+    }
+
+    func testSelectedSymbolicLinkDirectoryRootIsNotEnumerated() throws {
+        // The picker can hand back a symbolic link to a directory as a
+        // top-level selection. isDirectory follows the link, so without the
+        // guard the import would enumerate and copy content that lives
+        // outside the selected subtree.
+        let outside = temporaryRoot.appendingPathComponent("OutsideRoot", isDirectory: true)
+        let destination = try makeManagedFolder()
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try write(Data("outside bytes".utf8), to: outside.appendingPathComponent("escaped.mp3"))
+        let link = temporaryRoot.appendingPathComponent("LinkedRoot", isDirectory: true)
+        do {
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outside)
+        } catch {
+            throw XCTSkip("Simulator filesystem does not support symbolic links: \(error)")
+        }
+
+        let result = LibraryImportCopyRunner.run(
+            selectedURLs: [link],
+            destinationDirectory: destination,
+            operations: operations(),
+            scopeFor: { _ in CountingScope(granted: true) }
+        )
+
+        XCTAssertEqual(result.outcome, .success)
+        XCTAssertEqual(result.counters, .zero)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.appendingPathComponent("escaped.mp3").path))
+    }
+
     func testByteIdenticalReimportCountsDuplicates() throws {
         let source = try seedFileTree(in: temporaryRoot.appendingPathComponent("Source", isDirectory: true))
         let destination = try makeManagedFolder()
@@ -538,6 +640,36 @@ final class LibraryImportProviderTests: XCTestCase {
         // start() returned false: stop() must not be called (balanced).
         XCTAssertEqual(scope.startCount, 1)
         XCTAssertEqual(scope.stopCount, 0)
+    }
+
+    func testCopyRunnerSelectsManagedDirectoryWithoutCopyingItsFiles() throws {
+        let destination = try makeManagedFolder()
+        let managedTrack = try write(
+            Data("already managed".utf8),
+            to: destination.appendingPathComponent("track.mp3")
+        )
+        let scope = CountingScope(granted: true)
+
+        let result = LibraryImportCopyRunner.run(
+            selectedURLs: [destination, managedTrack],
+            destinationDirectory: destination,
+            operations: operations(),
+            scopeFor: { _ in scope }
+        )
+
+        XCTAssertEqual(result.outcome, .alreadyManaged)
+        XCTAssertEqual(result.counters, .zero)
+        XCTAssertEqual(scope.startCount, 0, "managed selections need no security scope")
+        XCTAssertEqual(scope.stopCount, 0)
+        XCTAssertEqual(
+            try Data(contentsOf: managedTrack),
+            Data("already managed".utf8),
+            "managed audio must remain in place rather than being copied or suffixed"
+        )
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: destination.path),
+            ["track.mp3"]
+        )
     }
 
     func testCopyRunnerFailsWhenDestinationFolderIsMissing() throws {

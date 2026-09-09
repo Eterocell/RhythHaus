@@ -57,20 +57,19 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES"
-       shouldAutocreateTestPlan = "NO">
-       <Testables>
-          <TestableReference
-             skipped = "NO">
-             <BuildableReference
-                BuildableIdentifier = "primary"
-                BlueprintIdentifier = "A10000000000000000000005"
-                BuildableName = "iosAppTests.xctest"
-                BlueprintName = "iosAppTests"
-                ReferencedContainer = "container:iosApp.xcodeproj">
-             </BuildableReference>
-          </TestableReference>
-       </Testables>
+      shouldUseLaunchSchemeArgsEnv = "YES">
+      <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A10000000000000000000005"
+               BuildableName = "iosAppTests.xctest"
+               BlueprintName = "iosAppTests"
+               ReferencedContainer = "container:iosApp.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Release"

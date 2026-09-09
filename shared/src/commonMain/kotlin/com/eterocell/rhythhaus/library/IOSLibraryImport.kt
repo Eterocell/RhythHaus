@@ -5,8 +5,8 @@ package com.eterocell.rhythhaus.library
  * provider and consumed by [iosLibraryImportPickResult].
  *
  * This object lives in the Shared facade (not the library feature) so the
- * generated framework exports it to Swift; the numeric values are part of
- * the Swift/Kotlin ABI and must not change. Swift reports them through
+ * generated framework exports it to Swift; the numeric values are part of the
+ * Swift/Kotlin ABI and must not change. Swift reports them through
  * `IOSLibraryImportCompletion.complete`.
  */
 public object IOSLibraryImportStatus {
@@ -24,6 +24,12 @@ public object IOSLibraryImportStatus {
 
     /** The picker or a copy failed. */
     public const val FAILURE: Int = 4
+
+    /**
+     * The selected item is already inside RhythHaus's managed Documents
+     * directory.
+     */
+    public const val ALREADY_MANAGED: Int = 5
 }
 
 /**
@@ -34,13 +40,12 @@ public object IOSLibraryImportStatus {
  * distinguishes files that failed to copy from files that were unsupported.
  * Cancellation is a distinct no-error terminal outcome and maps to
  * [PlatformFolderPickResult.Cancelled]: no source and no message to surface.
- * Unavailable, overlap, and failure map to recoverable picker results
- * carrying the provider message or a stable default.
+ * Unavailable, overlap, and failure map to recoverable picker results carrying
+ * the provider message or a stable default.
  *
- * @param destinationFolderPath the managed app-local folder the provider
- * copied into; becomes the returned source handle on success.
- * @param status the terminal [IOSLibraryImportStatus] reported by the
- * provider.
+ * @param destinationFolderPath the managed app-local folder the provider copied
+ *   into; becomes the returned source handle on success.
+ * @param status the terminal [IOSLibraryImportStatus] reported by the provider.
  * @param imported the number of supported files copied.
  * @param duplicates the number of byte-identical files already managed.
  * @param unsupported the number of selected files with unsupported types.
@@ -81,8 +86,7 @@ internal fun iosLibraryImportPickResult(
                 )
             }
 
-        IOSLibraryImportStatus.CANCELLED ->
-            PlatformFolderPickResult.Cancelled
+        IOSLibraryImportStatus.CANCELLED -> PlatformFolderPickResult.Cancelled
 
         IOSLibraryImportStatus.UNAVAILABLE ->
             PlatformFolderPickResult.Unavailable(
@@ -92,6 +96,11 @@ internal fun iosLibraryImportPickResult(
         IOSLibraryImportStatus.OVERLAP ->
             PlatformFolderPickResult.Failure(
                 message ?: "Another import is already active",
+            )
+
+        IOSLibraryImportStatus.ALREADY_MANAGED ->
+            PlatformFolderPickResult.Success(
+                iosAppLocalImportSource(destinationFolderPath),
             )
 
         IOSLibraryImportStatus.FAILURE ->
@@ -106,8 +115,8 @@ internal fun iosLibraryImportPickResult(
     }
 
 /**
- * Formats a terminal iOS import summary into the transient import message
- * using the localized resource format supplied by the Shared composition root.
+ * Formats a terminal iOS import summary into the transient import message using
+ * the localized resource format supplied by the Shared composition root.
  *
  * @param summary the aggregate counts reported by the import completion.
  */
@@ -142,24 +151,20 @@ internal const val ManagedImportFallbackFileName = "imported-audio"
 /**
  * Reduces an external source file name to one safe managed file name.
  *
- * Only the last path segment is kept, so separators and traversal never
- * escape the managed folder; the extension and other useful characters are
- * preserved. Blank, separator-only, and traversal-only names fall back to
- * [ManagedImportFallbackFileName]. The Swift copy policy mirrors this
- * function exactly.
+ * Only the last path segment is kept, so separators and traversal never escape
+ * the managed folder; the extension and other useful characters are preserved.
+ * Blank, separator-only, and traversal-only names fall back to
+ * [ManagedImportFallbackFileName]. The Swift copy policy mirrors this function
+ * exactly.
  *
  * @param sourceFileName the external file name supplied by the picker.
  */
 internal fun managedImportFileName(sourceFileName: String): String {
     val lastSegment =
-        sourceFileName
-            .replace('\\', '/')
-            .substringAfterLast('/')
-            .trim()
+        sourceFileName.replace('\\', '/').substringAfterLast('/').trim()
     return when {
-        lastSegment.isEmpty() ||
-            lastSegment == "." ||
-            lastSegment == ".." -> ManagedImportFallbackFileName
+        lastSegment.isEmpty() || lastSegment == "." || lastSegment == ".." ->
+            ManagedImportFallbackFileName
 
         else -> lastSegment
     }
@@ -170,9 +175,9 @@ internal fun managedImportFileName(sourceFileName: String): String {
  *
  * Duplicate safety is defined by the managed destination identity: only
  * byte-identical content at the same destination name is a duplicate, and
- * destination identity is case-insensitive because the managed app-local
- * folder lives on APFS by default (`song.mp3` and `Song.mp3` collide).
- * The Swift copy policy mirrors this function exactly.
+ * destination identity is case-insensitive because the managed app-local folder
+ * lives on APFS by default (`song.mp3` and `Song.mp3` collide). The Swift copy
+ * policy mirrors this function exactly.
  */
 internal sealed interface ManagedImportDestinationPlan {
     /** The destination name is free and the file should be copied. */
@@ -195,11 +200,13 @@ internal sealed interface ManagedImportDestinationPlan {
  * Plans a managed destination for one imported file without touching disk.
  *
  * Occupancy and duplicate lookups ignore case. When the destination name is
- * occupied by different content, the smallest deterministic numeric suffix
- * (2, 3, ...) that is free (case-insensitively) in [managedFiles] is
- * selected, preserving the extension and the incoming casing. The caller
- * folds each plan back into the managed state between files so batch
- * imports stay deterministic.
+ * occupied by different content, numeric suffixes (2, 3, ...) are tried in
+ * order: an occupied suffix holding byte-identical content is returned as a
+ * duplicate of that exact managed file identity, and the first suffix that is
+ * free (case-insensitively) in [managedFiles] is selected as suffixed,
+ * preserving the extension and the incoming casing. The caller folds each plan
+ * back into the managed state between files so batch imports stay
+ * deterministic.
  *
  * @param sourceFileName the external file name supplied by the picker.
  * @param sourceContent the bytes about to be imported.
@@ -224,10 +231,15 @@ internal fun managedImportDestinationPlan(
     var suffixIndex = 2
     while (true) {
         val candidate = destinationName.withNumericSuffix(suffixIndex)
-        val occupied =
-            managedFiles.keys.any { it.equals(candidate, ignoreCase = true) }
-        if (!occupied) {
+        val occupiedName =
+            managedFiles.keys.firstOrNull {
+                it.equals(candidate, ignoreCase = true)
+            }
+        if (occupiedName == null) {
             return ManagedImportDestinationPlan.Suffixed(candidate)
+        }
+        if (managedFiles.getValue(occupiedName).contentEquals(sourceContent)) {
+            return ManagedImportDestinationPlan.Duplicate(occupiedName)
         }
         suffixIndex += 1
     }

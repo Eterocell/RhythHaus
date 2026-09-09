@@ -97,6 +97,15 @@ final class RhythHausLibraryImportProvider: NSObject, IOSLibraryImportProvider {
                 failed: Int32(counters.failed),
                 message: nil
             )
+        case .alreadyManaged:
+            completion.complete(
+                status: IOSLibraryImportStatus.shared.ALREADY_MANAGED,
+                imported: 0,
+                duplicates: 0,
+                unsupported: 0,
+                failed: 0,
+                message: nil
+            )
         case .cancelled:
             completion.complete(
                 status: IOSLibraryImportStatus.shared.CANCELLED,

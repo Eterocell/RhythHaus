@@ -23,8 +23,10 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.defaultPlatformLibrarySource
 import com.eterocell.rhythhaus.library.iosImportSummaryMessage
 import com.eterocell.rhythhaus.library.normalizePickedSource
+import com.eterocell.rhythhaus.library.registerMissingDefaultLibrarySource
 import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.toPlayableTrack
@@ -65,9 +67,9 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.ios_import_summary_format
 import rhythhaus.shared.generated.resources.playlist_backup_imported_suffix
 import rhythhaus.shared.generated.resources.scan_complete_format
-import rhythhaus.shared.generated.resources.ios_import_summary_format
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
@@ -106,6 +108,7 @@ fun App() {
         mutableStateOf(PlaylistBackupUiState())
     }
     var importMessage by remember { mutableStateOf<String?>(null) }
+    var followUpScanPending by remember { mutableStateOf(false) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
     var scanErrors by remember { mutableStateOf(emptyList<ScanError>()) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
@@ -144,6 +147,118 @@ fun App() {
         }
     }
 
+    fun refreshPlaylists() {
+        playlistState =
+            reducePlaylistState(playlistState, PlaylistStateAction.LoadStarted)
+        scope.launch {
+            playlistState =
+                reducePlaylistState(
+                    playlistState,
+                    playlistStateOwner.refresh(),
+                )
+        }
+    }
+
+    LaunchedEffect(playlistRepository) {
+        refreshPlaylists()
+    }
+
+    /**
+     * Runs one source scan under an already-admitted coordinator token. Shared
+     * by [launchSourceScan] and [launchFollowUpSourceScan] so the follow-up
+     * scan uses the exact launch/admission flow as every other scan.
+     */
+    suspend fun performSourceScan(
+        source: LibrarySource,
+        token: LibraryOperationToken,
+    ) {
+        scanJob = currentCoroutineContext()[Job]
+        scanCancellationRequested.value = false
+        var progressCallbacks: OrderedScanProgressCallbacks? = null
+        try {
+            val progress =
+                ScanProgress(
+                    session =
+                        ScanSession(
+                            id = "",
+                            sourceId = source.id,
+                            status = ScanStatus.Scanning,
+                            startedAtEpochMillis = 0L),
+                )
+            libraryOrchestrator.publishIfCurrent(token) {
+                withContext(Dispatchers.Main) {
+                    scanProgress = progress
+                }
+            }
+
+            progressCallbacks =
+                OrderedScanProgressCallbacks(scope) { latestProgress ->
+                    libraryOrchestrator.publishIfCurrent(token) {
+                        withContext(Dispatchers.Main) {
+                            scanProgress = latestProgress
+                        }
+                    }
+                }
+            val session =
+                scanner.scan(
+                    source = source,
+                    isCancelled = { scanCancellationRequested.value },
+                    onProgress = { latestProgress ->
+                        progressCallbacks.offer(latestProgress)
+                    },
+                )
+
+            progressCallbacks.awaitPublished()
+            val content = loadLibraryContent(repository, platformAccess)
+            publishScanContentAfterReconcile(
+                reconciler = playbackReconciler,
+                playlistStateOwner = playlistStateOwner,
+                content = content,
+                session = session,
+                loadScanErrors = repository::scanErrors,
+                ownerIsActive = { currentCoroutineContext().isActive },
+                publish = { publication ->
+                    libraryOrchestrator.publishIfCurrent(token) {
+                        withContext(Dispatchers.Main) {
+                            scanProgress = publication.progress
+                            scanErrors = publication.scanErrors
+                            importMessage =
+                                publication.errorMessage
+                                    ?: scanCompleteFormat
+                                        .replaceFirst(
+                                            "%1\$d",
+                                            session.tracksAdded.toString())
+                                        .replaceFirst(
+                                            "%2\$d",
+                                            session.tracksUpdated.toString())
+                            updateLibraryContent(publication.content)
+                            publication.playlists?.let { action ->
+                                playlistState =
+                                    reducePlaylistState(
+                                        playlistState,
+                                        action.requireSuccessfulPublication(),
+                                    )
+                            }
+                        }
+                    }
+                },
+            )
+        } finally {
+            withContext(NonCancellable) {
+                progressCallbacks?.awaitPublished()
+            }
+        }
+    }
+
+    fun launchSourceScan(source: LibrarySource) {
+        if (!initialPublication.mutationsAllowed) return
+        scope.launch(Dispatchers.Default) {
+            libraryOrchestrator.launchScan { token ->
+                performSourceScan(source, token)
+            }
+        }
+    }
+
     LaunchedEffect(initialLibraryContent) {
         publishInitialLibraryContent(
             lifecycle = playbackLifecycle,
@@ -164,108 +279,48 @@ fun App() {
             )
         scanProgress = restoredState.progress
         scanErrors = restoredState.errors
-    }
 
-    fun refreshPlaylists() {
-        playlistState =
-            reducePlaylistState(playlistState, PlaylistStateAction.LoadStarted)
-        scope.launch {
-            playlistState =
-                reducePlaylistState(
-                    playlistState,
-                    playlistStateOwner.refresh(),
-                )
+        defaultPlatformLibrarySource()?.let { defaultSource ->
+            val sourceToScan =
+                registerMissingDefaultLibrarySource(repository, defaultSource)
+            if (sourceToScan != null) {
+                updateLibraryContent(
+                    loadLibraryContent(repository, platformAccess))
+                launchSourceScan(sourceToScan)
+            }
         }
     }
 
-    LaunchedEffect(playlistRepository) {
-        refreshPlaylists()
-    }
-
-    fun launchSourceScan(source: LibrarySource) {
-        if (!initialPublication.mutationsAllowed) return
+    /**
+     * Launches the follow-up scan of a successful iOS import terminal.
+     *
+     * The platform import-active flag is cleared before the terminal result
+     * reaches App, so the caller raises [followUpScanPending] first to keep
+     * source mutations excluded across the handoff. This launch goes through
+     * the coordinator admission exactly like any other scan; the admission call
+     * returns only after it has conclusively settled, so the pending exclusion
+     * is released there via [settleFollowUpScanPending]: when the follow-up
+     * scan was admitted the coordinator state holds the gate until completion,
+     * and when it was rejected no second scan is started. A cancelled scan
+     * still releases the gate (the coordinator completes the token before
+     * [AppLibraryOrchestrator.launchScan] rethrows the cancellation), and the
+     * cancellation keeps propagating silently. Cancellation terminals never
+     * reach this function and stay silent.
+     */
+    fun launchFollowUpSourceScan(source: LibrarySource) {
+        if (!initialPublication.mutationsAllowed) {
+            followUpScanPending = false
+            return
+        }
         scope.launch(Dispatchers.Default) {
-            libraryOrchestrator.launchScan { token ->
-                scanJob = currentCoroutineContext()[Job]
-                scanCancellationRequested.value = false
-                var progressCallbacks: OrderedScanProgressCallbacks? = null
-                try {
-                    val progress =
-                        ScanProgress(
-                            session =
-                                ScanSession(
-                                    id = "",
-                                    sourceId = source.id,
-                                    status = ScanStatus.Scanning,
-                                    startedAtEpochMillis = 0L),
-                        )
-                    libraryOrchestrator.publishIfCurrent(token) {
-                        withContext(Dispatchers.Main) {
-                            scanProgress = progress
-                        }
+            settleFollowUpScanPending(
+                scan = {
+                    libraryOrchestrator.launchScan { token ->
+                        performSourceScan(source, token)
                     }
-
-                    progressCallbacks =
-                        OrderedScanProgressCallbacks(scope) { latestProgress ->
-                            libraryOrchestrator.publishIfCurrent(token) {
-                                withContext(Dispatchers.Main) {
-                                    scanProgress = latestProgress
-                                }
-                            }
-                        }
-                    val session =
-                        scanner.scan(
-                            source = source,
-                            isCancelled = { scanCancellationRequested.value },
-                            onProgress = { latestProgress ->
-                                progressCallbacks.offer(latestProgress)
-                            },
-                        )
-
-                    progressCallbacks.awaitPublished()
-                    val content = loadLibraryContent(repository, platformAccess)
-                    publishScanContentAfterReconcile(
-                        reconciler = playbackReconciler,
-                        playlistStateOwner = playlistStateOwner,
-                        content = content,
-                        session = session,
-                        loadScanErrors = repository::scanErrors,
-                        ownerIsActive = { currentCoroutineContext().isActive },
-                        publish = { publication ->
-                            libraryOrchestrator.publishIfCurrent(token) {
-                                withContext(Dispatchers.Main) {
-                                    scanProgress = publication.progress
-                                    scanErrors = publication.scanErrors
-                                    importMessage =
-                                        publication.errorMessage
-                                            ?: scanCompleteFormat
-                                                .replaceFirst(
-                                                    "%1\$d",
-                                                    session.tracksAdded
-                                                        .toString())
-                                                .replaceFirst(
-                                                    "%2\$d",
-                                                    session.tracksUpdated
-                                                        .toString())
-                                    updateLibraryContent(publication.content)
-                                    publication.playlists?.let { action ->
-                                        playlistState =
-                                            reducePlaylistState(
-                                                playlistState,
-                                                action
-                                                    .requireSuccessfulPublication(),
-                                            )
-                                    }
-                                }
-                            }
-                        },
-                    )
-                } finally {
-                    withContext(NonCancellable) {
-                        progressCallbacks?.awaitPublished()
-                    }
-                }
-            }
+                },
+                releasePending = { followUpScanPending = false },
+            )
         }
     }
 
@@ -417,7 +472,18 @@ fun App() {
                 importSummaryFormat = iosImportSummaryFormat,
             )
         action.message?.let { importMessage = it }
-        action.scanSource?.let(::launchSourceScan)
+        action.scanSource?.let { source ->
+            if (action.holdsFollowUpScanGate) {
+                // The iOS import terminal already cleared the platform
+                // import-active flag; hold the source-mutation exclusion until
+                // exactly this follow-up scan is admitted or rejected by the
+                // operation coordinator.
+                followUpScanPending = true
+                launchFollowUpSourceScan(source)
+            } else {
+                launchSourceScan(source)
+            }
+        }
     }
     // The coordinator state and mutation gate are collected after the picker
     // launcher so the iOS import-active window can fold into the same gate
@@ -430,6 +496,7 @@ fun App() {
             publicationMutationsAllowed = initialPublication.mutationsAllowed,
             coordinatorIdle = operationState is LibraryOperationState.Idle,
             importActive = folderPickerLauncher.isImportActive,
+            followUpScanPending = followUpScanPending,
         )
     val snapshot = remember(libraryTracks) { librarySnapshot(libraryTracks) }
     RhythHausTheme(selectedThemeMode = selectedThemeMode) {
@@ -985,15 +1052,20 @@ internal fun removeMissingTracksRejectionMessage(
 /**
  * App effects resolved from one terminal folder-pick/import result.
  *
- * @property message transient import message to publish, or null to leave
- *   the current message unchanged (plain folder-pick successes and silent
+ * @property message transient import message to publish, or null to leave the
+ *   current message unchanged (plain folder-pick successes and silent
  *   cancellations publish nothing).
  * @property scanSource normalized source to scan, or null when no scan may
  *   start (cancellation, unavailable, and failure never scan).
+ * @property holdsFollowUpScanGate true only for a successful iOS import
+ *   terminal (one carrying an import summary): its scan is a follow-up scan
+ *   whose admission must release the App source-mutation exclusion, so App
+ *   holds the gate from the terminal until the coordinator settles it.
  */
 internal data class LibraryPickerTerminalAction(
     val message: String?,
     val scanSource: LibrarySource?,
+    val holdsFollowUpScanGate: Boolean = false,
 )
 
 /**
@@ -1024,6 +1096,7 @@ internal fun resolveLibraryPickerTerminal(
                     },
                 scanSource =
                     normalizePickedSource(result.source, existingSources),
+                holdsFollowUpScanGate = result.importSummary != null,
             )
 
         is PlatformFolderPickResult.Cancelled ->
@@ -1046,25 +1119,60 @@ internal fun resolveLibraryPickerTerminal(
  * App-owned source-mutation gating.
  *
  * Mutations require the initial publication to allow them, the operation
- * coordinator to be idle, and no platform import to be active. Folding the
- * iOS import-active window into this existing gate blocks competing source
+ * coordinator to be idle, and no platform import to be active. Folding the iOS
+ * import-active window into this existing gate blocks competing source
  * mutations while the picker is shown or files are being copied, before the
- * follow-up scan is even admitted. Android and JVM launchers report their
- * import as never active, so their gating is unchanged.
+ * follow-up scan is even admitted; the follow-up pending flag keeps the
+ * exclusion in force after the import terminal clears the import-active flag
+ * and until exactly that follow-up scan is admitted or rejected by the
+ * coordinator. Android and JVM launchers report their import as never active
+ * and never hold a follow-up gate, so their gating is unchanged.
  *
  * @param publicationMutationsAllowed whether the initial library publication
  *   permits mutations.
  * @param coordinatorIdle whether the operation coordinator is idle.
  * @param importActive whether a platform import operation is active.
+ * @param followUpScanPending whether a successful import's follow-up scan has
+ *   not yet been conclusively admitted or rejected by the coordinator.
  */
 internal fun appLibraryMutationsEnabled(
     publicationMutationsAllowed: Boolean,
     coordinatorIdle: Boolean,
     importActive: Boolean,
+    followUpScanPending: Boolean = false,
 ): Boolean =
     publicationMutationsAllowed &&
         coordinatorIdle &&
-        !importActive
+        !importActive &&
+        !followUpScanPending
+
+/**
+ * Runs one follow-up scan admission and guarantees the pending exclusion is
+ * released once that admission has conclusively settled.
+ *
+ * [AppLibraryOrchestrator.launchScan] completes its coordinator token and then
+ * rethrows a CancellationException when the scan is cancelled, so a plain
+ * statement after the call would leak the pending gate forever on that path.
+ * The release therefore runs in a non-cancellable finally; the original
+ * cancellation keeps propagating, so a cancelled follow-up stays silent and is
+ * never retried.
+ *
+ * @param scan the actual follow-up scan launch through the App-owned
+ *   coordinator admission flow.
+ * @param releasePending clears the App follow-up pending state.
+ */
+internal suspend fun settleFollowUpScanPending(
+    scan: suspend () -> Unit,
+    releasePending: () -> Unit,
+) {
+    try {
+        scan()
+    } finally {
+        withContext(NonCancellable) {
+            releasePending()
+        }
+    }
+}
 
 internal fun ScanProgress?.requestScanCancellation(): ScanProgress? {
     val session = this?.session ?: return this

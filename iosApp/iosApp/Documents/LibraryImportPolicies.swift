@@ -2,12 +2,23 @@ import Foundation
 import Shared
 import UniformTypeIdentifiers
 
-/// Migration policy for the Files.app onboarding marker. Only the exact
-/// bootstrap text from older installs may be replaced; user-edited content is
-/// preserved.
+/// Migration policy for the Files.app onboarding marker. New markers are
+/// written in the current locale (Chinese for `zh*` identifiers, English
+/// otherwise); only the exact bootstrap text from older installs may be
+/// replaced, so user-edited content is always preserved.
 enum LibraryImportMarkerPolicy {
+    /// Exact text older installs wrote when the app first made its documents
+    /// container visible in Files. This is the only content ever replaced.
     static let legacyContent = "Drop your music files (.mp3, .flac, .wav, .m4a) here.\n"
-    static let currentContent = "In Files.app, select audio to import into RhythHaus. Selected audio is copied into RhythHaus-managed device storage.\n"
+
+    static let englishContent = "In Files.app, select audio to import into RhythHaus. Selected audio is copied into RhythHaus-managed device storage.\n"
+    static let chineseContent = "在“文件”App 中选择要导入到 RhythHaus 的音频。所选音频会复制到 RhythHaus 管理的设备存储中。\n"
+
+    /// The current onboarding copy for the supplied locale identifier:
+    /// Chinese for any `zh`-prefixed identifier, English otherwise.
+    static func currentContent(localeIdentifier: String) -> String {
+        localeIdentifier.hasPrefix("zh") ? chineseContent : englishContent
+    }
 
     static func shouldReplace(content: String) -> Bool {
         content == legacyContent
@@ -32,6 +43,21 @@ enum LibraryImportSupportedAudio {
     static func isSupportedAudioName(_ name: String) -> Bool {
         guard let separator = name.lastIndex(of: Character(".")) else { return false }
         return extensions.contains(name[name.index(after: separator)...].lowercased())
+    }
+}
+
+/// Identity-safe containment check for RhythHaus's managed Files directory.
+/// Both URLs are standardized and symlinks are resolved before each path
+/// component is compared case-insensitively, avoiding both prefix collisions
+/// (`RhythHaus Archive`) and self-copy through a symlink.
+enum LibraryImportPathPolicy {
+    static func isAlreadyManaged(_ url: URL, managedDirectory: URL) -> Bool {
+        let selected = url.standardizedFileURL.resolvingSymlinksInPath().pathComponents
+        let managed = managedDirectory.standardizedFileURL.resolvingSymlinksInPath().pathComponents
+        guard selected.count >= managed.count else { return false }
+        return zip(selected, managed).allSatisfy {
+            $0.0.caseInsensitiveCompare($0.1) == .orderedSame
+        }
     }
 }
 
@@ -113,20 +139,13 @@ struct LibraryImportMemoryManagedFiles: LibraryImportManagedFiles {
 }
 
 /// Pure destination decision for one imported source file, mirroring Kotlin's
-/// `managedImportDestinationPlan`: occupancy and duplicate lookups ignore
-/// case (the managed folder lives on APFS), and a different-content occupant
-/// selects the smallest deterministic numeric suffix (2, 3, ...) that is free.
+/// `managedImportDestinationPlan`: occupancy and duplicate lookups ignore case
+/// (the managed folder lives on APFS). A byte-identical occupant of the base
+/// name — or of any occupied numeric suffix — is reported as a duplicate of
+/// that exact managed file identity; different-content occupants are skipped
+/// and the first free case-insensitive suffix becomes the suffixed
+/// destination, preserving the incoming casing.
 enum LibraryImportDestinationPolicy {
-    static func planName(sourceFileName: String, managed: LibraryImportManagedFiles) -> String {
-        let destinationName = LibraryImportNamePolicy.managedImportFileName(sourceFileName)
-        guard managed.occupiedName(ciMatching: destinationName) != nil else { return destinationName }
-        var index = 2
-        while managed.occupiedName(ciMatching: LibraryImportNamePolicy.suffixingName(destinationName, index: index)) != nil {
-            index += 1
-        }
-        return LibraryImportNamePolicy.suffixingName(destinationName, index: index)
-    }
-
     static func plan(
         sourceFileName: String,
         sourceContent: Data,
@@ -142,8 +161,11 @@ enum LibraryImportDestinationPolicy {
         var index = 2
         while true {
             let candidate = LibraryImportNamePolicy.suffixingName(destinationName, index: index)
-            if managed.occupiedName(ciMatching: candidate) == nil {
+            guard let occupied = managed.occupiedName(ciMatching: candidate) else {
                 return .suffixed(fileName: candidate)
+            }
+            if managed.content(of: occupied) == sourceContent {
+                return .duplicate(fileName: occupied)
             }
             index += 1
         }
@@ -224,6 +246,7 @@ struct LibraryImportCounters: Equatable {
 /// playlist-backup provider's outcome model.
 enum LibraryImportOperationOutcome: Equatable {
     case success
+    case alreadyManaged
     case cancelled
     case unavailable(String)
     case failure(String)
@@ -338,9 +361,14 @@ struct FileManagerLibraryImportFileOperations: LibraryImportFileOperations {
             if name.hasPrefix(".") { continue }
             let child = directory.appendingPathComponent(name)
             if isDirectory(at: child) {
+                // isDirectory follows the link target, so a symbolic-link
+                // directory must be classified explicitly: descending could
+                // escape the selected subtree or cycle forever.
+                let isSymbolicLink =
+                    (try? child.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink ?? false
                 let isPackage =
                     (try? child.resourceValues(forKeys: [.isPackageKey]))?.isPackage ?? false
-                if isPackage {
+                if isSymbolicLink || isPackage {
                     continue
                 }
                 do { try collectEntries(directory: child, entries: &entries) }
@@ -356,9 +384,14 @@ struct FileManagerLibraryImportFileOperations: LibraryImportFileOperations {
             }
             let child = directory.appendingPathComponent(name)
             if isDirectory(at: child) {
+                // Never follow symbolic-link directories: isDirectory reports
+                // the link target, so descending could escape the selected
+                // subtree or cycle forever.
+                let isSymbolicLink =
+                    (try? child.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink ?? false
                 let isPackage =
                     (try? child.resourceValues(forKeys: [.isPackageKey]))?.isPackage ?? false
-                if !isPackage {
+                if !isSymbolicLink && !isPackage {
                     try collect(directory: child, files: &files)
                 }
             } else {
@@ -504,7 +537,15 @@ enum LibraryImportCopyRunner {
         }
 
         var counters = LibraryImportCounters.zero
+        var selectedManagedContent = false
         for url in selectedURLs {
+            if LibraryImportPathPolicy.isAlreadyManaged(
+                url,
+                managedDirectory: destinationDirectory
+            ) {
+                selectedManagedContent = true
+                continue
+            }
             let scope = scopeFor(url)
             let accessed = scope.start()
             defer {
@@ -513,6 +554,15 @@ enum LibraryImportCopyRunner {
                 }
             }
             if operations.isDirectory(at: url) {
+                // isDirectory follows the link target, so a selected top-level
+                // symbolic link to a directory is never enumerated: listing it
+                // would import content from outside the selected subtree,
+                // mirroring the child-level symlink guard.
+                let isSymbolicLink =
+                    (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink ?? false
+                if isSymbolicLink {
+                    continue
+                }
                 let entries: [LibraryImportEnumerationEntry]
                 do {
                     entries = try operations.streamedFileEntries(in: url)
@@ -544,7 +594,10 @@ enum LibraryImportCopyRunner {
                 counters.apply(outcome)
             }
         }
-        return LibraryImportRunResult(outcome: .success, counters: counters)
+        return LibraryImportRunResult(
+            outcome: selectedManagedContent && counters == .zero ? .alreadyManaged : .success,
+            counters: counters
+        )
     }
 
     /// Classifies one regular-file URL and returns its outcome; returns nil
@@ -571,8 +624,12 @@ enum LibraryImportCopyRunner {
     }
 
     /// Copies one supported audio file through a temporary sibling file and
-    /// an atomic move. Re-plans when the destination appears between plan
-    /// and move so batch imports stay deterministic and never overwrite.
+    /// an atomic move. Destination identity follows the Kotlin planner: a
+    /// byte-identical occupant of the case-insensitive base name or of any
+    /// occupied numeric suffix is a duplicate of that exact managed file; a
+    /// different-content occupant advances to the next suffix. Re-plans when
+    /// a file lands at the planned destination between plan and move so batch
+    /// imports stay deterministic and never overwrite.
     private static func copy(
         _ url: URL,
         destinationDirectory: URL,
@@ -582,11 +639,32 @@ enum LibraryImportCopyRunner {
         let sourceFileName = url.lastPathComponent
         var retries = 0
         while retries < maxCollisionRetries {
-            let originalName = LibraryImportNamePolicy.managedImportFileName(sourceFileName)
-            if let existing = managed.occupiedName(ciMatching: originalName), managed.contentEquals(fileName: existing, sourceURL: url) {
+            let destinationName =
+                LibraryImportNamePolicy.managedImportFileName(sourceFileName)
+            if let existing = managed.occupiedName(ciMatching: destinationName),
+                managed.contentEquals(fileName: existing, sourceURL: url)
+            {
                 return .duplicate
             }
-            let fileName = LibraryImportDestinationPolicy.planName(sourceFileName: sourceFileName, managed: managed)
+            var fileName = destinationName
+            if managed.occupiedName(ciMatching: destinationName) != nil {
+                var index = 2
+                while true {
+                    let candidate =
+                        LibraryImportNamePolicy.suffixingName(
+                            destinationName,
+                            index: index
+                        )
+                    guard let occupied = managed.occupiedName(ciMatching: candidate) else {
+                        fileName = candidate
+                        break
+                    }
+                    if managed.contentEquals(fileName: occupied, sourceURL: url) {
+                        return .duplicate
+                    }
+                    index += 1
+                }
+            }
             do {
                 let destination = destinationDirectory.appendingPathComponent(fileName)
                 let temporary = try operations.writeTemporaryFile(data: Data(), in: destinationDirectory)

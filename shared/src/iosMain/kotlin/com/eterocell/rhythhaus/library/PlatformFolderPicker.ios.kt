@@ -17,10 +17,14 @@ actual fun rememberPlatformFolderPickerLauncher(
 ): PlatformFolderPickerLauncher {
     val currentOnResult = rememberUpdatedState(onResult)
     val message = stringResource(Res.string.folder_picker_error_prepare)
-    return remember { IosLibraryImportLauncher(message) { currentOnResult.value(it) } }
+    return remember {
+        IosLibraryImportLauncher(message) { currentOnResult.value(it) }
+    }
 }
 
-/** Non-Compose owner of the iOS import lifecycle, directly covered by iosTest. */
+/**
+ * Non-Compose owner of the iOS import lifecycle, directly covered by iosTest.
+ */
 internal class IosLibraryImportLauncher(
     private val couldNotPrepareMessage: String,
     private val onResult: (PlatformFolderPickResult) -> Unit,
@@ -30,52 +34,60 @@ internal class IosLibraryImportLauncher(
     override val isAvailable: Boolean
         get() = IOSLibraryImportBridge.provider != null
 
-    override val supportsAdditionalSources: Boolean = false
+    // Files.app selections from outside this source are imported into this
+    // managed source, so this action remains available after its first scan.
+    override val supportsAdditionalSources: Boolean = true
 
     override val isImportActive: Boolean
         get() = importActive.value
 
     override fun launch() {
         if (!iosImportLaunchAllowed(importActive.value)) return
-        val destinationPath =
-            runCatching { ensureAppLocalMusicFolder() }
-                .getOrElse {
-                    onResult(PlatformFolderPickResult.Failure(couldNotPrepareMessage))
-                    return
-                }
+        val destinationPath = runCatching {
+            ensureAppLocalMusicFolder()
+        }
+            .getOrElse {
+                onResult(
+                    PlatformFolderPickResult.Failure(couldNotPrepareMessage))
+                return
+            }
         val provider = IOSLibraryImportBridge.provider
         if (provider == null) {
-            onResult(PlatformFolderPickResult.Unavailable(couldNotPrepareMessage))
+            onResult(
+                PlatformFolderPickResult.Unavailable(couldNotPrepareMessage))
             return
         }
         importActive.value = true
-        val completion = object : IOSLibraryImportCompletion {
-            override fun complete(
-                status: Int,
-                imported: Int,
-                duplicates: Int,
-                unsupported: Int,
-                failed: Int,
-                message: String?,
-            ) {
+        val completion =
+            object : IOSLibraryImportCompletion {
+                override fun complete(
+                    status: Int,
+                    imported: Int,
+                    duplicates: Int,
+                    unsupported: Int,
+                    failed: Int,
+                    message: String?,
+                ) {
+                    importActive.value = false
+                    onResult(
+                        iosLibraryImportPickResult(
+                            destinationFolderPath = destinationPath,
+                            status = status,
+                            imported = imported,
+                            duplicates = duplicates,
+                            unsupported = unsupported,
+                            failed = failed,
+                            message = message,
+                        ),
+                    )
+                }
+            }
+        runCatching { provider.importAudio(destinationPath, completion) }
+            .onFailure {
                 importActive.value = false
                 onResult(
-                    iosLibraryImportPickResult(
-                        destinationFolderPath = destinationPath,
-                        status = status,
-                        imported = imported,
-                        duplicates = duplicates,
-                        unsupported = unsupported,
-                        failed = failed,
-                        message = message,
-                    ),
-                )
+                    PlatformFolderPickResult.Failure(couldNotPrepareMessage))
             }
-        }
-        runCatching { provider.importAudio(destinationPath, completion) }.onFailure {
-            importActive.value = false
-            onResult(PlatformFolderPickResult.Failure(couldNotPrepareMessage))
-        }
     }
 }
 

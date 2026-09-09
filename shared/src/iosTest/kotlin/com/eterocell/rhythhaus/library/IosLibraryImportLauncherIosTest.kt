@@ -4,7 +4,9 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import platform.Foundation.NSFileManager
 
 class IosLibraryImportLauncherIosTest {
     @AfterTest
@@ -25,23 +27,41 @@ class IosLibraryImportLauncherIosTest {
 
         assertEquals(1, provider.calls.size)
         assertTrue(launcher.isImportActive)
-        provider.calls.single().completion.complete(
-            status = IOSLibraryImportStatus.CANCELLED,
-            imported = 0,
-            duplicates = 0,
-            unsupported = 0,
-            failed = 0,
-            message = null,
-        )
+        provider.calls
+            .single()
+            .completion
+            .complete(
+                status = IOSLibraryImportStatus.CANCELLED,
+                imported = 0,
+                duplicates = 0,
+                unsupported = 0,
+                failed = 0,
+                message = null,
+            )
         assertFalse(launcher.isImportActive)
         assertEquals(
-            listOf<PlatformFolderPickResult>(PlatformFolderPickResult.Cancelled),
+            listOf<PlatformFolderPickResult>(
+                PlatformFolderPickResult.Cancelled),
             results,
         )
     }
 
+    @Test
+    fun defaultSourceExposesTheExistingIosManagedDocumentsDirectory() {
+        val source = assertNotNull(defaultPlatformLibrarySource())
+
+        assertEquals("ios-app-local", source.id)
+        assertEquals(LibraryPlatformKind.IosAppLocal, source.platformKind)
+        assertEquals("RhythHaus", source.displayName)
+        assertTrue(NSFileManager.defaultManager.fileExistsAtPath(source.handle))
+    }
+
     private class RecordingProvider : IOSLibraryImportProvider {
-        data class Call(val destinationPath: String, val completion: IOSLibraryImportCompletion)
+        data class Call(
+            val destinationPath: String,
+            val completion: IOSLibraryImportCompletion
+        )
+
         val calls = mutableListOf<Call>()
 
         override fun importAudio(

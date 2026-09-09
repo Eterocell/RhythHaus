@@ -245,8 +245,7 @@ class AppScanCancellationTest {
             assertEquals(
                 LibraryOperationAdmission.Rejected, coordinator.admitScan())
 
-            coordinator.complete(
-                first.token)
+            coordinator.complete(first.token)
             assertTrue(
                 coordinator.admitScan() is LibraryOperationAdmission.Admitted)
         }
@@ -267,9 +266,7 @@ class AppScanCancellationTest {
 
             assertEquals(listOf("cancel", "joined"), events)
             assertTrue(mutation is LibraryOperationAdmission.Admitted)
-            assertEquals(
-                LibraryOperationKind.Clear,
-                mutation.token.kind)
+            assertEquals(LibraryOperationKind.Clear, mutation.token.kind)
         }
 
     @Test

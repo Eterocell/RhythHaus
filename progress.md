@@ -1,3 +1,19 @@
+## Handoff - 2026-09-09 ios-files-import automated acceptance record
+
+Route: OpenSpec acceptance and evidence closeout (change `ios-files-import` remains active and unarchived; no commit)
+Owner: documentation/evidence closeout
+Input: controller-provided verified automated acceptance evidence for `openspec/changes/ios-files-import` tasks 1-3 and 4.1, plus the known iOS runtime evidence gap.
+Output: OpenSpec `ios-files-import` Tasks 1.1-3.3 and automated verification 4.1 are checked complete; section 4 is split so the explicit manual Files.app acceptance item (4.2) and the final closeout item (4.3) remain open. The change is not marked complete, archived, or committed. `roadmap.md` Phase 1 now records the decision/spec bullet as complete and the implementation bullet as automated-accepted with the manual device/simulator flow still pending; all other roadmap priorities are untouched.
+Verification:
+- Focused Kotlin regressions `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.PlatformSourceAccessTest.identicalBytesInOccupiedSuffixAreReturnedAsDuplicate' --tests 'com.eterocell.rhythhaus.AppLibraryImportTest.successfulImportKeepsMutationsExcludedUntilFollowUpScanIsAdmitted' --tests 'com.eterocell.rhythhaus.AppLibraryImportTest.cancelledFollowUpScanReleasesPendingGateAndStaysSilent' --configuration-cache`: `BUILD SUCCESSFUL`.
+- Focused Swift Xcode run on the available `iPhone 17, OS=26.5` simulator: 5 selected tests, 0 failures; covers suffix duplicate, batch fold, locale marker, and child/root directory-symlink protections.
+- Full `:shared:jvmTest`, `:feature:library:impl:jvmTest`, `:desktopApp:compileKotlin`, `:androidApp:assembleDebug`, and `:shared:iosSimulatorArm64Test`, each with `--configuration-cache`: `BUILD SUCCESSFUL`.
+- `/usr/bin/xcrun xcodebuild -version`: Xcode 26.6, build 17F113.
+- `spotlessApply` repaired formatting only in `shared/src/commonMain/kotlin/com/eterocell/rhythhaus/App.kt`, `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/AppLibraryImportTest.kt`, and `shared/src/commonTest/kotlin/com/eterocell/rhythhaus/library/PlatformSourceAccessTest.kt`; follow-up `spotlessCheck`, `detekt`, `architectureCheck`, and `openspec validate ios-files-import --strict`: `BUILD SUCCESSFUL`/valid.
+- Android D8 root cause repair: only the Shared Android/JVM facade Kotlin files were renamed to `PlatformFolderPickerFacade.android.kt` and `PlatformFolderPickerFacade.jvm.kt`, eliminating the duplicated generated file class while preserving actual API/delegation; `:androidApp:assembleDebug` passed after that repair, and the scoped independent review passed with no Critical/Important findings.
+Next owner: manual iOS runtime acceptance on a simulator or device - exercise a real Files.app document picker and verify selection, folder recursion, cancellation, repeated import, scan, app restart, and playback of copied audio, then record the evidence before closing/archiving `ios-files-import`.
+Blockers: the automated harness exercised the provider and policy but did not interact with a real Files.app document picker or verify selection, folder recursion, cancellation, repeated import, scan, app restart, or playback of copied audio; that manual release-acceptance sequence is the remaining gap. No commit was made.
+
 ## Handoff - 2026-09-03 short album detail overscroll
 
 Route: systematic-debugging + TDD
@@ -4224,3 +4240,33 @@ Changed files:
 Next owner: optional physical scroll confirmation and Android/iOS runtime picker/device QA.
 Blockers: none for the report-state fix or desktop picker/rescan smoke test. Physical post-fix scroll, Android/iOS runtime, and device playback remain unverified.
 Commit: recorded by the commit containing this systematic-debugging follow-up.
+## Handoff - 2026-09-09 product gap assessment and Phase 1 preparation
+
+Route: openspec exploration + roadmap planning
+Owner: planning
+Input: cross-platform music-player gap analysis grounded in the current repository, platform implementations, OpenSpec tasks, and `PlatformFolderPicker.ios.kt`.
+Output: The complete capability assessment and prioritized Phase 1–4 backlog is recorded in `roadmap.md`. `adopt-miuix-navigation-runtime` was explicitly abandoned and archived at `openspec/changes/archive/2026-09-09-adopt-miuix-navigation-runtime/`; its incomplete implementation tasks were not executed and its delta specs were not synchronized.
+Next owner: implementation after the Phase 1 iOS import contract is approved; start with a dedicated OpenSpec proposal/design and plan for Files.app import before production code.
+Blockers: iOS import policy still needs the explicit product contract; current recommendation is Files.app multi-file/folder import copied into the RhythHaus sandbox, with MusicKit and security-scoped bookmark support deferred.
+
+## Handoff - 2026-09-09 iOS Files.app manual acceptance
+
+Route: openspec+superpowers
+Owner: user acceptance
+Input: `ios-files-import` real iOS Files.app flow.
+Output: User confirmed the real document picker accepted files and directories, recursively imported folder content, cancelled cleanly, handled repeated import, scanned imported media, retained it through app restart, and played the copied audio without error.
+Status: superseded by the completed default-source implementation handoff below.
+Next owner: reviewer, then final verification.
+Blockers: resolved 2026-09-09 — use the Files-visible `Documents/RhythHaus` managed source; files already under it are scanned in place rather than copied.
+
+## Handoff - 2026-09-09 default iOS managed source
+
+Route: openspec+superpowers
+Owner: implementation
+Input: User-approved default RhythHaus folder lifecycle and no-copy behavior for files already inside it.
+Output: iOS now creates/registers the stable `ios-app-local` RhythHaus Documents source only when it is missing, then submits its first scan through the existing App coordinator. The Files provider detects the managed root and descendants before security-scoped access/copying; selection returns the source for scanning without generating a copy, suffix, or duplicate count. External imports retain their prior copy flow.
+Evidence: focused Shared JVM source-registration/status-mapping tests; selected Xcode iOS simulator tests for path containment and managed directory no-copy; selected Shared iOS simulator source-creation test; independent boundary review; separate Spotless and Detekt gates; and final `./init.sh` all passed. The final harness run compiled Shared JVM/desktop/Android, reported Xcode 26.6, and ran Shared iOS simulator tests successfully.
+OpenSpec: delta requirements were synchronized into `openspec/specs/ios-files-import/spec.md` and `openspec/specs/local-library-scanning/spec.md`, both validated by `openspec validate --specs`; the completed change is archived at `openspec/changes/archive/2026-09-09-ios-files-import/`.
+Next owner: Phase 1 playback acceptance or Android notification-denial work.
+Blockers: none.
+Commit: `feat: add iOS Files import`.
