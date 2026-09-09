@@ -917,6 +917,232 @@ class PlaybackControllerTest {
         }
 
     @Test
+    fun retryFailedTrackReloadsTheSameOccurrenceWithAutoplay() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val queue = occurrenceQueue()
+        controller.setOccurrenceQueue(queue, "current")
+        engine.awaitLoad()
+        engine.listener?.onPlaybackError(
+            engine.activeGeneration, PlaybackError("Test error"))
+        assertEquals(PlaybackStatus.Error, controller.state.value.status)
+        assertNotNull(controller.state.value.error)
+        engine.clearEvents()
+
+        controller.retryFailedTrack()
+
+        assertEquals(
+            listOf(EngineEvent.Load("track-1"), EngineEvent.Play),
+            engine.awaitEvents(2))
+        withTimeout(5_000) {
+            while (controller.state.value.status != PlaybackStatus.Playing) {
+                kotlinx.coroutines.yield()
+            }
+        }
+        assertEquals("current", controller.state.value.currentOccurrenceId)
+        assertEquals("track-1", controller.state.value.currentTrack?.id)
+        assertNull(controller.state.value.error)
+        assertEquals(
+            queue.map { it.id },
+            controller.state.value.queue.map { it.id })
+    }
+
+    @Test
+    fun skipFailedTrackLoadsEffectiveSuccessorWithoutWrapping() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller =
+            PlaybackController(
+                engine = engine,
+                shuffleOrderFactory = { ids, currentId ->
+                    listOf(currentId!!) +
+                        ids.filterNot { it == currentId }.reversed()
+                },
+            )
+        val tracks = testTracks(4)
+        val queue =
+            listOf(
+                QueueOccurrence("current", tracks[0]),
+                QueueOccurrence("upcoming-1", tracks[1]),
+                QueueOccurrence("upcoming-2", tracks[2]),
+                QueueOccurrence("upcoming-3", tracks[3]),
+            )
+        controller.setOccurrenceQueue(queue, "current")
+        engine.awaitLoad()
+        controller.setShuffleMode(ShuffleMode.On)
+        engine.listener?.onPlaybackError(
+            engine.activeGeneration, PlaybackError("Test error"))
+        assertEquals(PlaybackStatus.Error, controller.state.value.status)
+        engine.clearEvents()
+
+        controller.skipFailedTrack()
+
+        assertEquals(
+            listOf(EngineEvent.Load("track-4"), EngineEvent.Play),
+            engine.awaitEvents(2))
+        assertEquals(
+            "upcoming-3", controller.state.value.currentOccurrenceId)
+        assertNull(controller.state.value.error)
+        assertEquals(ShuffleMode.On, controller.state.value.shuffleMode)
+        assertEquals(
+            queue.map { it.id },
+            controller.state.value.queue.map { it.id })
+    }
+
+    @Test
+    fun skipFailedTrackAtEffectiveEndLeavesErrorUnchanged() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller =
+            PlaybackController(
+                engine = engine,
+                shuffleOrderFactory = { ids, currentId ->
+                    ids.filterNot { it == currentId } + listOf(currentId!!)
+                },
+            )
+        controller.setOccurrenceQueue(occurrenceQueue(), "current")
+        engine.awaitLoad()
+        controller.setShuffleMode(ShuffleMode.On)
+        engine.listener?.onPlaybackError(
+            engine.activeGeneration, PlaybackError("Test error"))
+        val errorState = controller.state.value
+        engine.clearEvents()
+
+        controller.skipFailedTrack()
+
+        assertEquals(errorState, controller.state.value)
+        assertEquals(emptyList(), engine.eventSnapshot())
+    }
+
+    @Test
+    fun removeFailedTrackRemovesOnlyCurrentOccurrenceAndAutoplaysSuccessor() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val duplicate = testTracks(1).single()
+            val queue =
+                listOf(
+                    QueueOccurrence("duplicate-current", duplicate),
+                    QueueOccurrence("other", testTracks(2)[1]),
+                    QueueOccurrence("duplicate-2", duplicate),
+                )
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.checkpoints.collect(checkpoints::send)
+                }
+            controller.setOccurrenceQueue(queue, "duplicate-current")
+            engine.awaitLoad()
+            checkpoints.receive()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("Test error"))
+            engine.clearEvents()
+
+            assertEquals(
+                QueueMutationResult.Applied,
+                controller.removeFailedTrack())
+
+            assertEquals(
+                listOf(EngineEvent.Load("track-2"), EngineEvent.Play),
+                engine.awaitEvents(2))
+            assertEquals(
+                listOf("other", "duplicate-2"),
+                controller.state.value.queue.map { it.id })
+            assertEquals(
+                "other", controller.state.value.currentOccurrenceId)
+            assertEquals("track-2", controller.state.value.currentTrack?.id)
+            assertNull(controller.state.value.error)
+
+            val checkpoint = checkpoints.receive()
+            assertTrue(checkpoint is PlaybackCheckpoint.Immediate)
+            assertEquals(
+                listOf("other", "duplicate-2"),
+                checkpoint.snapshot.queue.map { it.occurrenceId })
+            assertNull(checkpoint.snapshot.currentOccurrenceId)
+            assertNull(checkpoints.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+
+    @Test
+    fun removeFinalFailedTrackClearsEngineAndPublishesIdleWithRemainingQueue() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val queue = occurrenceQueue()
+            controller.setOccurrenceQueue(
+                listOf(queue[1], queue[2], queue[0]), "current")
+            engine.awaitLoad()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("Test error"))
+            engine.clearEvents()
+
+            assertEquals(
+                QueueMutationResult.Applied,
+                controller.removeFailedTrack())
+
+            assertEquals(listOf(EngineEvent.Clear), engine.awaitEvents(1))
+            assertEquals(PlaybackStatus.Idle, controller.state.value.status)
+            assertNull(controller.state.value.currentOccurrenceId)
+            assertNull(controller.state.value.error)
+            assertEquals(
+                listOf("upcoming-1", "upcoming-2"),
+                controller.state.value.queue.map { it.id })
+        }
+
+    @Test
+    fun recoveryCommandsAreNoOpsOutsideEnabledCurrentErrorState() =
+        runBlocking {
+            val idleEngine = RecordingPlaybackEngine()
+            val idleController = PlaybackController(idleEngine)
+            val idleState = idleController.state.value
+
+            idleController.retryFailedTrack()
+            idleController.skipFailedTrack()
+            assertEquals(
+                QueueMutationResult.Rejected(
+                    QueueMutationRejection.StaleOccurrence),
+                idleController.removeFailedTrack())
+
+            assertEquals(idleState, idleController.state.value)
+            assertEquals(emptyList(), idleEngine.eventSnapshot())
+
+            val pausedEngine = RecordingPlaybackEngine()
+            val pausedController =
+                loadedController(pausedEngine, PlaybackStatus.Paused)
+            pausedEngine.clearEvents()
+            val pausedState = pausedController.state.value
+
+            pausedController.retryFailedTrack()
+            pausedController.skipFailedTrack()
+            assertEquals(
+                QueueMutationResult.Rejected(
+                    QueueMutationRejection.StaleOccurrence),
+                pausedController.removeFailedTrack())
+
+            assertEquals(pausedState, pausedController.state.value)
+            assertEquals(emptyList(), pausedEngine.eventSnapshot())
+
+            val disabledEngine = RecordingPlaybackEngine()
+            val disabledController = PlaybackController(disabledEngine)
+            disabledController.setQueue(
+                testTracks(2), selectedTrackId = "track-1")
+            disabledEngine.awaitLoad()
+            disabledEngine.listener?.onPlaybackError(
+                disabledEngine.activeGeneration, PlaybackError("Test error"))
+            disabledController.setCommandsEnabled(false)
+            disabledEngine.clearEvents()
+            val disabledState = disabledController.state.value
+
+            disabledController.retryFailedTrack()
+            disabledController.skipFailedTrack()
+            assertEquals(
+                QueueMutationResult.Rejected(
+                    QueueMutationRejection.CommandsDisabled),
+                disabledController.removeFailedTrack())
+
+            assertEquals(disabledState, disabledController.state.value)
+            assertEquals(emptyList(), disabledEngine.eventSnapshot())
+        }
+
+    @Test
     fun restoreLoadsClampsSeeksAndPausesWithoutPlayAndEmitsNormalizedSnapshot() =
         runBlocking {
             val engine = RecordingPlaybackEngine(loadedDurationMillis = 1_000L)

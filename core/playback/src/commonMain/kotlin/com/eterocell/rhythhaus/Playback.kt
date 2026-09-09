@@ -555,6 +555,28 @@ public class PlaybackController(
         }
     }
 
+    /**
+     * Reloads the failed current occurrence with autoplay, clearing the
+     * reported error once the reload begins.
+     */
+    public fun retryFailedTrack() {
+        val occurrence = failedCurrentOccurrence() ?: return
+        loadSelected(occurrence, autoPlay = true)
+        emitImmediateCheckpoint()
+    }
+
+    /**
+     * Loads the effective successor of the failed current occurrence without
+     * repeat wrapping, leaving the failure visible at the effective end.
+     */
+    public fun skipFailedTrack() {
+        if (failedCurrentOccurrence() == null) return
+        nextTrack(wrap = false)?.let {
+            loadSelected(it, autoPlay = true)
+            emitImmediateCheckpoint()
+        }
+    }
+
     /** Moves an upcoming occurrence to [targetUpcomingIndex]. */
     public suspend fun reorderUpcoming(
         occurrenceId: String,
@@ -630,6 +652,72 @@ public class PlaybackController(
                 if (applyUpcomingQueueMutation(_state.value, emptyList())) {
                     return@withLock QueueMutationResult.Applied
                 }
+            }
+            error("Unreachable queue mutation loop")
+        }
+
+    /**
+     * Removes exactly the failed current occurrence and autoplays its
+     * pre-removal effective successor. When no successor remains, clears the
+     * engine and publishes an idle queue that retains every other occurrence.
+     *
+     * Rejected as [QueueMutationRejection.CommandsDisabled] while commands are
+     * disabled, or [QueueMutationRejection.StaleOccurrence] when the state has
+     * no enabled failed current occurrence.
+     */
+    public suspend fun removeFailedTrack(): QueueMutationResult =
+        sessionOperationMutex.withLock {
+            while (true) {
+                if (!commandsEnabled.value)
+                    return@withLock QueueMutationResult.Rejected(
+                        QueueMutationRejection.CommandsDisabled)
+                val previous = _state.value
+                val current = previous.currentOccurrence
+                if (previous.status != PlaybackStatus.Error ||
+                    previous.error == null ||
+                    current == null
+                ) {
+                    return@withLock QueueMutationResult.Rejected(
+                        QueueMutationRejection.StaleOccurrence)
+                }
+                val successor = nextTrack(wrap = false)
+                val remaining =
+                    previous.queue.filterNot { it.id == current.id }
+                if (successor != null) {
+                    val published = previous.copy(
+                        currentOccurrenceId = null,
+                        queue = remaining,
+                        positionMillis = 0L,
+                        durationMillis = null,
+                        error = null,
+                        checkpointRevision = reserveCheckpointRevision(),
+                    )
+                    if (!_state.compareAndSet(previous, published)) continue
+                    publishRuntimeShuffleOrder(published)
+                    emitImmediateCheckpoint(
+                        published.toSessionSnapshot(),
+                        published.checkpointRevision,
+                    )
+                    loadSelected(successor, autoPlay = true)
+                    return@withLock QueueMutationResult.Applied
+                }
+                loadJob.value?.cancel()
+                playWhenLoaded.value = false
+                resetProgressCheckpointKey()
+                val generation = nextGeneration()
+                engineMutex.withLock { engine.clear(generation) }
+                val idle = PlaybackState(
+                    queue = remaining,
+                    status = PlaybackStatus.Idle,
+                    repeatMode = previous.repeatMode,
+                    shuffleMode = previous.shuffleMode,
+                    checkpointRevision = reserveCheckpointRevision(),
+                )
+                if (!_state.compareAndSet(previous, idle)) continue
+                publishRuntimeShuffleOrder(idle)
+                emitImmediateCheckpoint(
+                    idle.toSessionSnapshot(), idle.checkpointRevision)
+                return@withLock QueueMutationResult.Applied
             }
             error("Unreachable queue mutation loop")
         }
@@ -1102,6 +1190,17 @@ public class PlaybackController(
                 ?: if (wrap) order.lastOrNull() else null
         return occurrenceById(previousId)
     }
+
+    /**
+     * Returns the current occurrence only while recovery commands are enabled
+     * and the latest state reports an error with a structured cause.
+     */
+    private fun failedCurrentOccurrence(): QueueOccurrence? =
+        _state.value.takeIf {
+            commandsEnabled.value &&
+                it.status == PlaybackStatus.Error &&
+                it.error != null
+        }?.currentOccurrence
 
     private fun stopAtCurrentTrackEnd() {
         val duration = _state.value.durationMillis
