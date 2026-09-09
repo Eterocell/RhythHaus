@@ -7,14 +7,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.LoadedPlayback
@@ -206,7 +209,8 @@ public class NowPlayingContentSemanticsJvmTest {
                     playbackState =
                         controller.state.collectAsState().value,
                     controller = controller,
-                    wide = true,
+                    width = 1200.dp,
+                    height = 800.dp,
                 )
             }
             waitUntil(timeoutMillis = 5_000) {
@@ -246,7 +250,8 @@ public class NowPlayingContentSemanticsJvmTest {
                     playbackState =
                         controller.state.collectAsState().value,
                     controller = controller,
-                    wide = true,
+                    width = 1200.dp,
+                    height = 800.dp,
                 )
             }
             waitUntil(timeoutMillis = 5_000) {
@@ -295,7 +300,8 @@ public class NowPlayingContentSemanticsJvmTest {
                     playbackState =
                         controller.state.collectAsState().value,
                     controller = controller,
-                    wide = true,
+                    width = 1200.dp,
+                    height = 800.dp,
                 )
             }
             waitUntil(timeoutMillis = 5_000) {
@@ -344,7 +350,8 @@ public class NowPlayingContentSemanticsJvmTest {
                     playbackState =
                         controller.state.collectAsState().value,
                     controller = controller,
-                    wide = true,
+                    width = 1200.dp,
+                    height = 800.dp,
                 )
             }
             waitUntil(timeoutMillis = 5_000) {
@@ -395,7 +402,8 @@ public class NowPlayingContentSemanticsJvmTest {
                     playbackState =
                         controller.state.collectAsState().value,
                     controller = controller,
-                    wide = true,
+                    width = 1200.dp,
+                    height = 800.dp,
                 )
             }
             waitUntil(timeoutMillis = 5_000) {
@@ -478,6 +486,149 @@ public class NowPlayingContentSemanticsJvmTest {
         onNodeWithTag(NowPlayingRemoveFailureTestTag).assertDoesNotExist()
     }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun compactErrorStateKeepsRecoveryProgressAndTransportControlsReachable():
+        Unit = withEnglishLocale {
+        runComposeUiTest {
+            // Production compact viewport (narrow 390dp phone, bounded 700dp
+            // height): the error-only recovery section plus the existing
+            // scrubber and transport row overflow a fixed non-scrollable pane,
+            // so every control must stay reachable through real pointer paths.
+            // Each scenario uses a fresh active-error controller.
+
+            // Scenario 1: recovery actions are reachable and clickable; Retry
+            // actually dispatches through a pointer click.
+            val retryEngine = RecoveryPlaybackEngine()
+            val retryController = PlaybackController(retryEngine)
+            retryEngine.failLoadWith =
+                PlaybackError(
+                    "Unavailable locally",
+                    kind = PlaybackFailureKind.MissingFile,
+                )
+            retryController.setQueue(playableTracks(), selectedTrackId = "second")
+            setContent {
+                mountedRecoveryNowPlaying(
+                    track = displayTrack(),
+                    playbackState =
+                        retryController.state.collectAsState().value,
+                    controller = retryController,
+                    height = 700.dp,
+                )
+            }
+            waitUntil(timeoutMillis = 5_000) {
+                retryController.state.value.status == PlaybackStatus.Error
+            }
+            waitForIdle()
+            onNodeWithTag(NowPlayingRetryFailureTestTag)
+                .performScrollTo()
+                .assertHasClickAction()
+            onNodeWithTag(NowPlayingSkipFailureTestTag)
+                .performScrollTo()
+                .assertHasClickAction()
+            onNodeWithTag(NowPlayingRemoveFailureTestTag)
+                .performScrollTo()
+                .assertHasClickAction()
+            retryEngine.failLoadWith = null
+            onNodeWithTag(NowPlayingRetryFailureTestTag)
+                .performScrollTo()
+                .performTouchInput { click(center) }
+            waitUntil(timeoutMillis = 5_000) {
+                retryEngine.events() ==
+                    listOf(
+                        EngineEvent.Load("second"),
+                        EngineEvent.Play,
+                    )
+            }
+            waitForIdle()
+            assertEquals(
+                listOf(EngineEvent.Load("second"), EngineEvent.Play),
+                retryEngine.events(),
+            )
+            assertEquals("second", retryController.state.value.currentTrack?.id)
+            onNodeWithTag(NowPlayingRetryFailureTestTag).assertDoesNotExist()
+
+            // Scenario 2: the next-track transport control below the recovery
+            // section stays reachable in the bounded compact viewport and
+            // dispatches through a real pointer click while the error is
+            // active.
+            val nextEngine = RecoveryPlaybackEngine()
+            val nextController = PlaybackController(nextEngine)
+            nextEngine.failLoadWith =
+                PlaybackError(
+                    "Unavailable locally",
+                    kind = PlaybackFailureKind.DecoderFailure,
+                )
+            nextController.setQueue(
+                playableTracks(), selectedTrackId = "second")
+            setContent {
+                mountedRecoveryNowPlaying(
+                    track = displayTrack(),
+                    playbackState =
+                        nextController.state.collectAsState().value,
+                    controller = nextController,
+                    height = 700.dp,
+                )
+            }
+            waitUntil(timeoutMillis = 5_000) {
+                nextController.state.value.status == PlaybackStatus.Error
+            }
+            waitForIdle()
+            nextEngine.failLoadWith = null
+            onNodeWithTag(NowPlayingNextTestTag)
+                .performScrollTo()
+                .performTouchInput { click(center) }
+            waitUntil(timeoutMillis = 5_000) {
+                nextEngine.events() ==
+                    listOf(
+                        EngineEvent.Load("third"),
+                        EngineEvent.Play,
+                    )
+            }
+            waitForIdle()
+            assertEquals(
+                listOf(EngineEvent.Load("third"), EngineEvent.Play),
+                nextEngine.events(),
+            )
+            assertEquals("third", nextController.state.value.currentTrack?.id)
+
+            // Scenario 3: the progress scrubber stays reachable in the same
+            // bounded compact viewport while the error is active and seeks
+            // through a real pointer gesture.
+            val scrubEngine = RecoveryPlaybackEngine()
+            val scrubController = PlaybackController(scrubEngine)
+            scrubEngine.failLoadWith =
+                PlaybackError(
+                    "Unavailable locally",
+                    kind = PlaybackFailureKind.AccessLost,
+                )
+            scrubController.setQueue(
+                playableTracks(), selectedTrackId = "second")
+            setContent {
+                mountedRecoveryNowPlaying(
+                    track = displayTrack(),
+                    playbackState =
+                        scrubController.state.collectAsState().value,
+                    controller = scrubController,
+                    height = 700.dp,
+                )
+            }
+            waitUntil(timeoutMillis = 5_000) {
+                scrubController.state.value.status == PlaybackStatus.Error
+            }
+            waitForIdle()
+            onNodeWithTag(NowPlayingProgressTestTag)
+                .performScrollTo()
+                .performTouchInput {
+                    click(Offset(width.toFloat(), center.y))
+                }
+            waitUntil(timeoutMillis = 5_000) {
+                scrubEngine.seekPositions.isNotEmpty()
+            }
+            assertEquals(1_000L, scrubEngine.seekPositions.last())
+        }
+    }
+
     private fun displayTrack(): Track =
         Track(
             id = "first",
@@ -548,6 +699,7 @@ private sealed interface EngineEvent {
 private class RecoveryPlaybackEngine : PlatformPlaybackEngine {
     var failLoadWith: PlaybackError? = null
     private val recordedEvents = CopyOnWriteArrayList<EngineEvent>()
+    val seekPositions = CopyOnWriteArrayList<Long>()
     override var listener: PlaybackEngineListener? = null
 
     fun events(): List<EngineEvent> = recordedEvents
@@ -573,7 +725,9 @@ private class RecoveryPlaybackEngine : PlatformPlaybackEngine {
 
     override fun stop(): Unit = Unit
 
-    override fun seekTo(positionMillis: Long): Unit = Unit
+    override fun seekTo(positionMillis: Long): Unit {
+        seekPositions += positionMillis
+    }
 
     override fun release(): Unit = Unit
 }
@@ -591,14 +745,10 @@ private fun mountedRecoveryNowPlaying(
     track: Track,
     playbackState: PlaybackState,
     controller: PlaybackController,
-    wide: Boolean = false,
+    width: Dp = 390.dp,
+    height: Dp = 844.dp,
 ): Unit {
-    Box(
-        Modifier.size(
-            if (wide) 1200.dp else 390.dp,
-            if (wide) 800.dp else 844.dp,
-        ),
-    ) {
+    Box(Modifier.size(width, height)) {
         NowPlayingContent(
             track = track,
             playbackState = playbackState,

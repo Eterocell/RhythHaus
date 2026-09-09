@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Filter1
 import androidx.compose.material.icons.filled.Pause
@@ -128,6 +130,16 @@ private data class NowPlayingUiState(
     val repeatContentDescription: String,
     val shuffleContentDescription: String,
 )
+
+/**
+ * Whether the error-only recovery section is active: the controller reports
+ * an error with a structured cause for the current queue occurrence.
+ */
+private val PlaybackState.errorRecoveryVisible: Boolean
+    get() =
+        status == PlaybackStatus.Error &&
+            error != null &&
+            currentOccurrence != null
 
 /**
  * Renders expanded Now Playing and sends the generic left-edge callback to
@@ -276,11 +288,8 @@ private fun NowPlayingControlsPane(
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1)
-        val failureError = playbackState.error
-        if (playbackState.status == PlaybackStatus.Error &&
-            failureError != null &&
-            playbackState.currentOccurrence != null
-        ) {
+        if (playbackState.errorRecoveryVisible) {
+            val failureError = playbackState.error!!
             Spacer(Modifier.height(10.dp))
             Text(
                 recoveryFailureSummary(failureError.kind),
@@ -505,13 +514,25 @@ private fun CompactNowPlayingLayout(
             NowPlayingArtworkPane(
                 track, labels, artworkLoader, brush, Modifier.fillMaxWidth())
             Spacer(Modifier.height(18.dp))
+            // The error-only recovery section can outgrow the bounded compact
+            // viewport; keep the pane scrollable so the scrubber and transport
+            // controls below it stay reachable. Outside error the pane keeps
+            // its fixed natural height and gains no scroll semantics.
+            val controlsModifier =
+                if (playbackState.errorRecoveryVisible) {
+                    Modifier.fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                } else {
+                    Modifier.fillMaxWidth()
+                }
             NowPlayingControlsPane(
                 track,
                 playbackState,
                 playbackController,
                 labels,
                 uiState,
-                Modifier.fillMaxWidth())
+                controlsModifier)
         }
 }
 
