@@ -1241,6 +1241,136 @@ class PlaybackControllerTest {
             assertEquals(emptyList(), engine.eventSnapshot())
         }
 
+    /**
+     * Regression guard for the successor-load race: [removeFailedTrack]
+     * CAS-publishes its pruned queue and only then asks loadSelected to load
+     * the pre-removal successor. A concurrent [setOccurrenceQueue] committed
+     * in that window replaces the queue with one that no longer contains the
+     * successor. loadSelected must publish its Loading transition atomically
+     * only from a state that still contains the requested occurrence; a stale
+     * successor must never be reinstated as current or reach the engine, and
+     * the aborting selection must not append a checkpoint beyond the
+     * replacement's own.
+     *
+     * The removal is paused deterministically after its prune publish: with
+     * shuffle on, the removal's post-CAS shuffle-order regeneration invokes
+     * the injected factory on the removal thread before loadSelected runs.
+     * The test commits the competing replacement while the removal is paused
+     * there, then releases it.
+     */
+    @Test
+    fun removeFailedTrackRacingReplacementNeverLoadsSupersededSuccessor() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val prunePublished = CompletableDeferred<Unit>()
+            val releasePrunePublish = CompletableDeferred<Unit>()
+            var blockedPrunePublish = false
+            val controller =
+                PlaybackController(
+                    engine = engine,
+                    shuffleOrderFactory = { ids, currentId ->
+                        if (!blockedPrunePublish &&
+                            "failed-current" !in ids && "successor" in ids
+                        ) {
+                            blockedPrunePublish = true
+                            prunePublished.complete(Unit)
+                            runBlocking { releasePrunePublish.await() }
+                        }
+                        if (currentId == null) ids
+                        else
+                            listOf(currentId) +
+                                ids.filterNot { it == currentId }
+                    },
+                )
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.checkpoints.collect(checkpoints::send)
+                }
+            val tracks = testTracks(4)
+            val queue =
+                listOf(
+                    QueueOccurrence("failed-current", tracks[0]),
+                    QueueOccurrence("successor", tracks[1]),
+                    QueueOccurrence("tail", tracks[2]),
+                )
+            controller.setOccurrenceQueue(queue, "failed-current")
+            engine.awaitLoad()
+            checkpoints.receive()
+            controller.setShuffleMode(ShuffleMode.On)
+            checkpoints.receive()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("Test error"))
+            engine.clearEvents()
+            assertNull(checkpoints.tryReceive().getOrNull())
+
+            val removal =
+                async(Dispatchers.Default) {
+                    controller.removeFailedTrack()
+                }
+            try {
+                withTimeout(5_000) { prunePublished.await() }
+                // The removal has CAS-published the pruned queue with the
+                // successor still present and is blocked regenerating its
+                // shuffle order, before loadSelected can transition the
+                // successor to Loading.
+                assertEquals(
+                    listOf("successor", "tail"),
+                    controller.state.value.queue.map { it.id })
+                assertNull(controller.state.value.currentOccurrenceId)
+
+                val replacementTrack = tracks[3]
+                controller.setOccurrenceQueue(
+                    listOf(
+                        QueueOccurrence("replacement-1", replacementTrack)),
+                    "replacement-1")
+            } finally {
+                releasePrunePublish.complete(Unit)
+            }
+
+            assertEquals(QueueMutationResult.Applied, removal.await())
+            withTimeout(5_000) {
+                while (controller.state.value.status ==
+                    PlaybackStatus.Loading) kotlinx.coroutines.yield()
+            }
+            assertEquals(
+                "replacement-1", controller.state.value.currentOccurrenceId)
+            assertEquals(
+                listOf("replacement-1"),
+                controller.state.value.queue.map { it.id })
+            assertNull(controller.state.value.error)
+            assertEquals(
+                listOf("track-1", "track-4"),
+                engine.loadedTracks.map { it.id },
+                "the superseded successor must never reach the engine",
+            )
+            // The race emits exactly two checkpoints: the replacement's own
+            // selection checkpoint and the removal's intentional queue-only
+            // prune checkpoint. The aborted stale successor load appends
+            // nothing beyond them.
+            val replacementCheckpoint = checkpoints.receive()
+            assertTrue(replacementCheckpoint is PlaybackCheckpoint.Immediate)
+            assertEquals(
+                "replacement-1",
+                replacementCheckpoint.snapshot.currentOccurrenceId)
+            assertEquals(
+                listOf("replacement-1"),
+                replacementCheckpoint.snapshot.queue.map {
+                    it.occurrenceId
+                })
+            val pruneCheckpoint = checkpoints.receive()
+            assertTrue(pruneCheckpoint is PlaybackCheckpoint.Immediate)
+            assertNull(pruneCheckpoint.snapshot.currentOccurrenceId)
+            assertEquals(
+                listOf("successor", "tail"),
+                pruneCheckpoint.snapshot.queue.map { it.occurrenceId })
+            assertNull(checkpoints.tryReceive().getOrNull())
+            assertEquals(
+                listOf(EngineEvent.Load("track-4")),
+                engine.eventSnapshot())
+            collection.cancelAndJoin()
+        }
+
     @Test
     fun removeFailedTrackCleanupDoesNotCancelReplacementCommittedDuringClear() =
         runBlocking {

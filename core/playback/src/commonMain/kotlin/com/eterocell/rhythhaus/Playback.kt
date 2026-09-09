@@ -384,8 +384,9 @@ public class PlaybackController(
                 )
             }
             publishRuntimeShuffleOrder(published, selected.id)
-            loadSelected(selected, autoPlay = false)
-            emitImmediateCheckpoint()
+            if (loadSelected(selected, autoPlay = false)) {
+                emitImmediateCheckpoint()
+            }
         }
     }
 
@@ -405,8 +406,9 @@ public class PlaybackController(
         if (!commandsEnabled.value) return
         val occurrence = occurrenceById(occurrenceId) ?: return
         resetProgressCheckpointKey()
-        loadSelected(occurrence, autoPlay)
-        emitImmediateCheckpoint()
+        if (loadSelected(occurrence, autoPlay)) {
+            emitImmediateCheckpoint()
+        }
     }
 
     /** Changes the completion behavior and persists the updated session. */
@@ -548,8 +550,9 @@ public class PlaybackController(
         if (!commandsEnabled.value) return
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
         nextTrack(wrap)?.let {
-            loadSelected(it, autoPlay = true)
-            emitImmediateCheckpoint()
+            if (loadSelected(it, autoPlay = true)) {
+                emitImmediateCheckpoint()
+            }
         }
     }
 
@@ -558,8 +561,9 @@ public class PlaybackController(
         if (!commandsEnabled.value) return
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
         previousTrack(wrap)?.let {
-            loadSelected(it, autoPlay = true)
-            emitImmediateCheckpoint()
+            if (loadSelected(it, autoPlay = true)) {
+                emitImmediateCheckpoint()
+            }
         }
     }
 
@@ -569,8 +573,9 @@ public class PlaybackController(
      */
     public fun retryFailedTrack() {
         val occurrence = failedCurrentOccurrence() ?: return
-        loadSelected(occurrence, autoPlay = true)
-        emitImmediateCheckpoint()
+        if (loadSelected(occurrence, autoPlay = true)) {
+            emitImmediateCheckpoint()
+        }
     }
 
     /**
@@ -580,8 +585,9 @@ public class PlaybackController(
     public fun skipFailedTrack() {
         if (failedCurrentOccurrence() == null) return
         nextTrack(wrap = false)?.let {
-            loadSelected(it, autoPlay = true)
-            emitImmediateCheckpoint()
+            if (loadSelected(it, autoPlay = true)) {
+                emitImmediateCheckpoint()
+            }
         }
     }
 
@@ -724,12 +730,12 @@ public class PlaybackController(
                     idle.toSessionSnapshot(), idle.checkpointRevision)
                 // The removal is committed. Irreversible engine effects now
                 // apply only to the load that produced the accepted error.
-                // loadSelected allocates a generation before it publishes its
-                // Loading state, so a concurrent retry/selection can advance
-                // activeGeneration while this Error snapshot is still current;
-                // the cleanup slot is therefore claimed only from the error's
-                // recorded generation. A replacement that already allocated a
-                // newer generation wins the CAS and cleanup skips the clear,
+                // A concurrent retry/selection that supersedes this Error
+                // snapshot bumps activeGeneration when it commits, so the
+                // cleanup slot is claimed only from the error's recorded
+                // generation. Whoever bumps from that base generation first
+                // wins: a replacement that already allocated a newer
+                // generation defeats the claim and cleanup skips the clear,
                 // leaving that load current; otherwise the cleanup generation
                 // is claimed atomically and any later load starts above it
                 // (never stale). The captured failed job is cancelled directly
@@ -929,20 +935,23 @@ public class PlaybackController(
         revisionedSessionSnapshot()
     }
 
-    private fun loadSelected(occurrence: QueueOccurrence, autoPlay: Boolean) {
+    /**
+     * Begins loading [occurrence] (autoplaying when [autoPlay] is set) and
+     * returns true when the selection was admitted. The Loading transition is
+     * published atomically only from a state whose queue still contains
+     * [occurrence]; when a competing queue replacement removes it first, the
+     * stale selection is aborted (false) without publishing the occurrence
+     * current, cancelling a load, or allocating a generation.
+     */
+    private fun loadSelected(
+        occurrence: QueueOccurrence,
+        autoPlay: Boolean,
+    ): Boolean {
+        val published = publishLoading(occurrence) ?: return false
         loadJob.value?.cancel()
         val generation = nextGeneration()
         resetProgressCheckpointKey()
         playWhenLoaded.value = autoPlay
-        val published = publishState { previous ->
-            previous.copy(
-                currentOccurrenceId = occurrence.id,
-                status = PlaybackStatus.Loading,
-                positionMillis = 0L,
-                durationMillis = occurrence.track.durationMillis,
-                error = null,
-            )
-        }
         publishRuntimeShuffleOrder(published, occurrence.id)
         loadJob.value = scope.launch {
             val trackWithArtwork = occurrence.track.withLazyArtwork()
@@ -965,6 +974,29 @@ public class PlaybackController(
                     engine.play()
                 }
             }
+        }
+        return true
+    }
+
+    /**
+     * CAS-publishes the Loading transition for [occurrence], returning null
+     * when the state the transition would originate from no longer contains
+     * it. Callers must treat null as an abort of a stale selection.
+     */
+    private fun publishLoading(occurrence: QueueOccurrence): PlaybackState? {
+        while (true) {
+            val previous = _state.value
+            if (previous.queue.none { it.id == occurrence.id }) return null
+            val updated =
+                previous.copy(
+                    currentOccurrenceId = occurrence.id,
+                    status = PlaybackStatus.Loading,
+                    positionMillis = 0L,
+                    durationMillis = occurrence.track.durationMillis,
+                    error = null,
+                    checkpointRevision = reserveCheckpointRevision(),
+                )
+            if (_state.compareAndSet(previous, updated)) return updated
         }
     }
 
@@ -1300,17 +1332,17 @@ public class PlaybackController(
                 val current =
                     _state.value.currentOccurrence
                         ?: return stopAtCurrentTrackEnd()
-                loadSelected(current, autoPlay = true)
-                emitImmediateCheckpoint()
+                if (loadSelected(current, autoPlay = true)) {
+                    emitImmediateCheckpoint()
+                }
             }
 
             RepeatMode.RepeatPlaylist -> {
                 val next = nextTrack(wrap = true)
-                if (next != null) {
-                    loadSelected(next, autoPlay = true)
-                    emitImmediateCheckpoint()
-                } else {
+                if (next == null) {
                     stopAtCurrentTrackEnd()
+                } else if (loadSelected(next, autoPlay = true)) {
+                    emitImmediateCheckpoint()
                 }
             }
 
@@ -1318,11 +1350,10 @@ public class PlaybackController(
 
             RepeatMode.StopAfterQueue -> {
                 val next = nextTrack(wrap = false)
-                if (next != null) {
-                    loadSelected(next, autoPlay = true)
-                    emitImmediateCheckpoint()
-                } else {
+                if (next == null) {
                     stopAtCurrentTrackEnd()
+                } else if (loadSelected(next, autoPlay = true)) {
+                    emitImmediateCheckpoint()
                 }
             }
         }
