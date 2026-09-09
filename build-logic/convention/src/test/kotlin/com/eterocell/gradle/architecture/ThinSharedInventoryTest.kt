@@ -28,6 +28,8 @@ class ThinSharedInventoryTest {
         "src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/TrackSelectionBar.kt",
         "src/commonMain/kotlin/com/eterocell/rhythhaus/library/ui/TrackSelectionState.kt",
         "src/commonMain/kotlin/com/eterocell/rhythhaus/MusicModels.kt",
+        // Shared facade contract — Android-free media-notification permission state/controller
+        "src/commonMain/kotlin/com/eterocell/rhythhaus/notificationpermission/MediaNotificationPermission.kt",
         "src/commonMain/kotlin/com/eterocell/rhythhaus/nowplaying/NowPlayingScreen.kt",
         "src/commonMain/kotlin/com/eterocell/rhythhaus/PlatformPlaybackEngineFactory.kt",
         "src/commonMain/kotlin/com/eterocell/rhythhaus/PlaybackProcessLifecycle.kt",
