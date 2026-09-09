@@ -121,6 +121,7 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     private var progressJob: Job? = null
     private var activeGeneration: Long = 0L
     private val requestState = AndroidPlaybackRequestState()
+    private val eventRouter = AndroidPlaybackEventRouter(requestState)
 
     /**
      * True once [release] has run; guards async connection callbacks from
@@ -362,29 +363,21 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             val c = controller ?: return
-            val generation =
-                requestState.observableGeneration(currentRequestToken(c))
-                    ?: return
-            listener?.onPlaybackStatus(
-                generation,
-                if (isPlaying) PlaybackStatus.Playing
-                else PlaybackStatus.Paused)
-            publishProgress(c)
+            val observed = currentRequestToken(c)
+            if (eventRouter.isPlayingChanged(listener, observed, isPlaying)) {
+                publishProgress(c)
+            }
         }
 
         override fun onPlayerError(error: PlaybackException) {
             val c = controller ?: return
             val observed = currentRequestToken(c)
-            val generation =
-                requestState.observableGeneration(observed) ?: return
             val failure =
                 androidPlaybackError(
                     error,
                     sourceFile = requestState.localFileFor(observed),
                 )
-            requestState.failPending(
-                observed, PlaybackFailureException(failure))
-            listener?.onPlaybackError(generation, failure)
+            eventRouter.playerError(listener, observed, failure)
         }
     }
 }
@@ -497,6 +490,16 @@ internal class AndroidPlaybackRequestState {
     private var nonce: Long = 0L
     private var pending: AndroidPlaybackRequest? = null
     private var observable: AndroidObservablePlayback? = null
+    /**
+     * Token of the observable request that reported a terminal player error,
+     * or null while that request may still publish ordinary status. Set
+     * atomically by [markTerminal] before the error is published and cleared
+     * whenever a replacement or cleared request replaces the failed one, so
+     * status callbacks trailing a Media3 error (for example
+     * `onIsPlayingChanged(false)` after `onPlayerError`) stay suppressed until
+     * a new observable request begins.
+     */
+    private var terminalErrorToken: Media3RequestToken? = null
 
     @Synchronized
     fun begin(
@@ -514,6 +517,7 @@ internal class AndroidPlaybackRequestState {
                 pending = it
                 observable =
                     AndroidObservablePlayback(it.token, generation, localFile)
+                terminalErrorToken = null
             }
     }
 
@@ -561,11 +565,36 @@ internal class AndroidPlaybackRequestState {
     fun localFileFor(observedCurrentToken: Media3RequestToken?): java.io.File? =
         observable?.takeIf { it.token == observedCurrentToken }?.localFile
 
+    /**
+     * Atomically marks the current observable request terminal when
+     * [observedCurrentToken] is exactly that request and it is not already
+     * terminal. Returns true only for the first error of the current request,
+     * so duplicate and obsolete player errors never republish.
+     */
+    @Synchronized
+    fun markTerminal(observedCurrentToken: Media3RequestToken?): Boolean {
+        if (terminalErrorToken != null) return false
+        val current = observable ?: return false
+        if (current.token != observedCurrentToken) return false
+        terminalErrorToken = observedCurrentToken
+        return true
+    }
+
+    /**
+     * True when [observedCurrentToken] is the observable request that already
+     * reported a terminal player error; status publications for that request
+     * stay suppressed until a replacement request begins.
+     */
+    @Synchronized
+    fun isTerminal(observedCurrentToken: Media3RequestToken?): Boolean =
+        terminalErrorToken == observedCurrentToken
+
     @Synchronized
     fun failActive(error: Throwable): Boolean {
         val request = pending ?: return false
         pending = null
         observable = null
+        terminalErrorToken = null
         return request.result.completeExceptionally(error)
     }
 
@@ -576,7 +605,10 @@ internal class AndroidPlaybackRequestState {
     ): Boolean {
         val request = pending?.takeIf { it.token == token } ?: return false
         pending = null
-        if (observable?.token == token) observable = null
+        if (observable?.token == token) {
+            observable = null
+            terminalErrorToken = null
+        }
         request.result.cancel(cause)
         return true
     }
@@ -586,6 +618,7 @@ internal class AndroidPlaybackRequestState {
         val request = pending
         pending = null
         observable = null
+        terminalErrorToken = null
         request?.result?.cancel(cause)
     }
 
@@ -611,6 +644,64 @@ internal class AndroidPlaybackRequestState {
         observedCurrentToken: Media3RequestToken?
     ): Boolean =
         observable == captured && captured.token == observedCurrentToken
+}
+
+/**
+ * Narrow request/listener boundary that translates the Media3 player callbacks
+ * carrying terminal-error ordering constraints into [PlaybackEngineListener]
+ * publications. [AndroidPlayerListener] supplies the observed request token and
+ * the classified failure; this router decides whether a callback may publish
+ * and drives the outstanding load settlement, keeping Media3 types out of the
+ * observable-request state machine and making the ordering contract directly
+ * testable at the listener boundary.
+ */
+internal class AndroidPlaybackEventRouter(
+    private val requestState: AndroidPlaybackRequestState,
+) {
+    /**
+     * Publishes a terminal player [failure] for the observable request denoted
+     * by [observedCurrentToken]. The request is marked terminal before the
+     * error is published and its outstanding paused load is settled, so
+     * duplicate or obsolete errors never republish and any status callback
+     * trailing the error for the same request is suppressed.
+     */
+    fun playerError(
+        listener: PlaybackEngineListener?,
+        observedCurrentToken: Media3RequestToken?,
+        failure: PlaybackError,
+    ) {
+        val generation =
+            requestState.observableGeneration(observedCurrentToken)
+                ?: return
+        if (!requestState.markTerminal(observedCurrentToken)) return
+        requestState.failPending(
+            observedCurrentToken,
+            PlaybackFailureException(failure),
+        )
+        listener?.onPlaybackError(generation, failure)
+    }
+
+    /**
+     * Publishes the ordinary playing/paused [status] for the observable request
+     * denoted by [observedCurrentToken] unless that request already reported a
+     * terminal player error. Returns true when the status was published.
+     */
+    fun isPlayingChanged(
+        listener: PlaybackEngineListener?,
+        observedCurrentToken: Media3RequestToken?,
+        isPlaying: Boolean,
+    ): Boolean {
+        val generation =
+            requestState.observableGeneration(observedCurrentToken)
+                ?: return false
+        if (requestState.isTerminal(observedCurrentToken)) return false
+        listener?.onPlaybackStatus(
+            generation,
+            if (isPlaying) PlaybackStatus.Playing
+            else PlaybackStatus.Paused,
+        )
+        return true
+    }
 }
 
 private fun currentRequestToken(

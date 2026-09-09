@@ -350,6 +350,118 @@ class AndroidPlaybackMediaSessionTest {
         assertEquals(0, executor.pendingCount)
     }
 
+    @Test
+    fun terminalPlayerErrorSuppressesTrailingIsPlayingFalsePaused() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val active = requests.begin(100L)
+        assertTrue(requests.ready(active.token, durationMillis = 60_000L))
+
+        // Media3 dispatches onPlayerError before onIsPlayingChanged(false).
+        router.playerError(
+            listener,
+            active.token,
+            PlaybackError(
+                message = "Android could not play this audio file.",
+                cause = "decoder failed",
+                kind = PlaybackFailureKind.DecoderFailure,
+            ),
+        )
+        router.isPlayingChanged(listener, active.token, isPlaying = false)
+
+        assertEquals(listOf("error:100"), listener.events)
+    }
+
+    @Test
+    fun ordinaryIsPlayingFalseStillPublishesPaused() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val active = requests.begin(200L)
+        assertTrue(requests.ready(active.token, durationMillis = 60_000L))
+
+        router.isPlayingChanged(listener, active.token, isPlaying = false)
+
+        assertEquals(listOf("status:200:Paused"), listener.events)
+    }
+
+    @Test
+    fun replacementRequestAfterTerminalFailurePublishesNormalStatuses() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val failed = requests.begin(300L)
+        assertTrue(requests.ready(failed.token, durationMillis = 60_000L))
+        router.playerError(
+            listener,
+            failed.token,
+            PlaybackError(message = "Android could not play this audio file."),
+        )
+        // A trailing is-playing callback for the failed request stays silent.
+        router.isPlayingChanged(listener, failed.token, isPlaying = false)
+
+        val replacement = requests.begin(301L)
+
+        router.isPlayingChanged(listener, replacement.token, isPlaying = false)
+        router.isPlayingChanged(listener, replacement.token, isPlaying = true)
+
+        assertEquals(
+            listOf(
+                "error:300",
+                "status:301:Paused",
+                "status:301:Playing",
+            ),
+            listener.events,
+        )
+    }
+
+    @Test
+    fun duplicatePlayerErrorDoesNotRepublishForTerminalRequest() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val active = requests.begin(400L)
+        assertTrue(requests.ready(active.token, durationMillis = 60_000L))
+
+        router.playerError(
+            listener,
+            active.token,
+            PlaybackError(message = "Android could not play this audio file."),
+        )
+        router.playerError(
+            listener,
+            active.token,
+            PlaybackError(message = "Android could not play this audio file."),
+        )
+
+        assertEquals(listOf("error:400"), listener.events)
+    }
+
+    @Test
+    fun obsoletePlayerErrorAfterReplacementDoesNotRepublish() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val failed = requests.begin(500L)
+        assertTrue(requests.ready(failed.token, durationMillis = 60_000L))
+        router.playerError(
+            listener,
+            failed.token,
+            PlaybackError(message = "Android could not play this audio file."),
+        )
+
+        val replacement = requests.begin(501L)
+        router.playerError(
+            listener,
+            failed.token,
+            PlaybackError(message = "Android could not play this audio file."),
+        )
+        router.isPlayingChanged(listener, replacement.token, isPlaying = true)
+
+        assertEquals(listOf("error:500", "status:501:Playing"), listener.events)
+    }
+
     private class RecordingAndroidControllerExecutor :
         AndroidControllerExecutor {
         private val pending = ArrayDeque<() -> Unit>()
@@ -363,5 +475,40 @@ class AndroidPlaybackMediaSessionTest {
         fun runAll() {
             while (pending.isNotEmpty()) pending.removeFirst().invoke()
         }
+    }
+
+    private class RecordingAndroidPlaybackListener :
+        PlaybackEngineListener {
+        val events = mutableListOf<String>()
+
+        override fun onPlaybackStatus(
+            generation: Long,
+            status: PlaybackStatus,
+        ) {
+            events += "status:$generation:$status"
+        }
+
+        override fun onPlaybackProgress(
+            generation: Long,
+            positionMillis: Long,
+            durationMillis: Long?,
+        ) {
+            events += "progress:$generation"
+        }
+
+        override fun onPlaybackCompleted(generation: Long) {
+            events += "completed:$generation"
+        }
+
+        override fun onPlaybackError(
+            generation: Long,
+            error: PlaybackError,
+        ) {
+            events += "error:$generation"
+        }
+
+        override fun onSkipToNext(generation: Long) = Unit
+
+        override fun onSkipToPrevious(generation: Long) = Unit
     }
 }
