@@ -144,6 +144,12 @@ public data class PlaybackState(
     /** Most recent playback error, cleared after a successful state change. */
     public val error: PlaybackError? = null,
     internal val checkpointRevision: Long = 0L,
+    /**
+     * Generation that produced the current [error], recorded atomically with
+     * its publication so queue-only recovery can bind engine cleanup to the
+     * exact failed load instead of a concurrently advanced active generation.
+     */
+    internal val errorGeneration: Long? = null,
 ) {
     /** Selected queue occurrence, when its identifier resolves in [queue]. */
     public val currentOccurrence: QueueOccurrence?
@@ -702,7 +708,7 @@ public class PlaybackController(
                     return@withLock QueueMutationResult.Applied
                 }
                 val failedLoadJob = loadJob.value
-                val failedGeneration = activeGeneration.value
+                val failedErrorGeneration = previous.errorGeneration
                 val idle = PlaybackState(
                     queue = remaining,
                     status = PlaybackStatus.Idle,
@@ -715,21 +721,25 @@ public class PlaybackController(
                 emitImmediateCheckpoint(
                     idle.toSessionSnapshot(), idle.checkpointRevision)
                 // The removal is committed. Irreversible engine effects now
-                // apply only to the failed load/generation captured before the
-                // CAS; a replacement that committed concurrently owns the
-                // engine and must survive untouched. The captured failed job
-                // is cancelled directly (never a reread current job), and the
-                // cleanup generation slot is claimed atomically so a
-                // concurrent replacement bump either wins the slot (clear is
-                // skipped and its load stays current) or loads after the
-                // cleanup generation (never stale).
+                // apply only to the load that produced the accepted error.
+                // loadSelected allocates a generation before it publishes its
+                // Loading state, so a concurrent retry/selection can advance
+                // activeGeneration while this Error snapshot is still current;
+                // the cleanup slot is therefore claimed only from the error's
+                // recorded generation. A replacement that already allocated a
+                // newer generation wins the CAS and cleanup skips the clear,
+                // leaving that load current; otherwise the cleanup generation
+                // is claimed atomically and any later load starts above it
+                // (never stale). The captured failed job is cancelled directly
+                // (never a reread current job).
                 failedLoadJob?.cancel()
                 playWhenLoaded.value = false
                 resetProgressCheckpointKey()
                 engineMutex.withLock {
-                    val cleanupGeneration = failedGeneration + 1L
+                    val recorded = failedErrorGeneration ?: return@withLock
+                    val cleanupGeneration = recorded + 1L
                     if (activeGeneration.compareAndSet(
-                            failedGeneration, cleanupGeneration)) {
+                            recorded, cleanupGeneration)) {
                         engine.clear(cleanupGeneration)
                     }
                 }
@@ -1321,7 +1331,11 @@ public class PlaybackController(
     ) {
         if (generation != activeGeneration.value) return
         _state.value =
-            _state.value.copy(status = PlaybackStatus.Error, error = error)
+            _state.value.copy(
+                status = PlaybackStatus.Error,
+                error = error,
+                errorGeneration = generation,
+            )
     }
 
     /** Handles an engine request to advance the active queue. */

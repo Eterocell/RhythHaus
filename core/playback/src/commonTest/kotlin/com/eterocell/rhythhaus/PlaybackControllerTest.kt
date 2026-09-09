@@ -1320,6 +1320,55 @@ class PlaybackControllerTest {
         }
 
     @Test
+    fun removeFinalFailedTrackDoesNotClearSelectionAllocatedWhileRemovalWaits() =
+        runBlocking {
+            val holdGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(holdGate = holdGate)
+            val controller = PlaybackController(engine)
+            val tracks = testTracks(2)
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence("survivor-1", tracks[0]),
+                    QueueOccurrence("failed-1", tracks[1]),
+                ),
+                "failed-1")
+            engine.awaitHoldEntered()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("Test error"))
+
+            val removal =
+                async(Dispatchers.Default) {
+                    controller.removeFailedTrack()
+                }
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Idle) kotlinx.coroutines.yield()
+            }
+            // The failed load still holds the engine mutex, so the removal is
+            // waiting to claim its cleanup generation. This selection allocates
+            // its generation while the Error snapshot was still current.
+            controller.selectOccurrence("survivor-1")
+            engine.releaseHold()
+
+            assertEquals(
+                QueueMutationResult.Applied, removal.await())
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            assertEquals(
+                "survivor-1",
+                controller.state.value.currentOccurrenceId)
+            assertEquals("track-1", engine.loadedTracks.last().id)
+            assertEquals(
+                listOf(
+                    EngineEvent.Load("track-2"),
+                    EngineEvent.Load("track-1"),
+                ),
+                engine.eventSnapshot())
+        }
+
+    @Test
     fun restoreLoadsClampsSeeksAndPausesWithoutPlayAndEmitsNormalizedSnapshot() =
         runBlocking {
             val engine = RecordingPlaybackEngine(loadedDurationMillis = 1_000L)
