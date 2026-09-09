@@ -1236,6 +1236,90 @@ class PlaybackControllerTest {
         }
 
     @Test
+    fun removeFailedTrackCleanupDoesNotCancelReplacementCommittedDuringClear() =
+        runBlocking {
+            val clearGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(clearGate = clearGate)
+            val controller = PlaybackController(engine)
+            val failedTrack = testTracks(1).single()
+            controller.setQueue(listOf(failedTrack), failedTrack.id)
+            engine.awaitLoad()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("Test error"))
+            engine.clearEvents()
+
+            val removal =
+                async(Dispatchers.Default) {
+                    controller.removeFailedTrack()
+                }
+            engine.awaitClearStarted()
+            val replacementTrack = testTracks(2)[1]
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("replacement-1", replacementTrack)),
+                "replacement-1")
+            engine.releaseClear()
+
+            assertEquals(
+                QueueMutationResult.Applied, removal.await())
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            assertEquals(
+                "replacement-1",
+                controller.state.value.currentOccurrenceId)
+            assertEquals("track-2", engine.loadedTracks.last().id)
+            assertEquals(
+                listOf(
+                    EngineEvent.Clear,
+                    EngineEvent.Load("track-2"),
+                ),
+                engine.eventSnapshot())
+        }
+
+    @Test
+    fun removeFailedTrackSkipsEngineClearWhenReplacementClaimsGenerationFirst() =
+        runBlocking {
+            val holdGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(holdGate = holdGate)
+            val controller = PlaybackController(engine)
+            val failedTrack = testTracks(1).single()
+            controller.setQueue(listOf(failedTrack), failedTrack.id)
+            engine.awaitHoldEntered()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("Test error"))
+            engine.clearEvents()
+
+            val removal =
+                async(Dispatchers.Default) {
+                    controller.removeFailedTrack()
+                }
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Idle) kotlinx.coroutines.yield()
+            }
+            val replacementTrack = testTracks(2)[1]
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("replacement-1", replacementTrack)),
+                "replacement-1")
+            engine.releaseHold()
+
+            assertEquals(
+                QueueMutationResult.Applied, removal.await())
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            assertEquals(
+                "replacement-1",
+                controller.state.value.currentOccurrenceId)
+            assertEquals("track-2", engine.loadedTracks.last().id)
+            assertEquals(
+                listOf(EngineEvent.Load("track-2")),
+                engine.eventSnapshot())
+        }
+
+    @Test
     fun restoreLoadsClampsSeeksAndPausesWithoutPlayAndEmitsNormalizedSnapshot() =
         runBlocking {
             val engine = RecordingPlaybackEngine(loadedDurationMillis = 1_000L)
@@ -1976,6 +2060,7 @@ class PlaybackControllerTest {
         private val loadGate: CompletableDeferred<Unit>? = null,
         private val seekGate: CompletableDeferred<Unit>? = null,
         private val clearGate: CompletableDeferred<Unit>? = null,
+        private val holdGate: CompletableDeferred<Unit>? = null,
         private val loadedDurationMillis: Long? = null,
         private val loadFailure: Throwable? = null,
     ) : PlatformPlaybackEngine {
@@ -1993,6 +2078,7 @@ class PlaybackControllerTest {
         private val loadCountSignals = Channel<Int>(Channel.UNLIMITED)
         private val seekStarted = CompletableDeferred<Unit>()
         private val clearStarted = CompletableDeferred<Unit>()
+        private val holdEntered = CompletableDeferred<Unit>()
 
         override suspend fun loadPaused(
             track: PlayableTrack,
@@ -2006,6 +2092,12 @@ class PlaybackControllerTest {
             check(generationSignals.trySend(generation).isSuccess)
             loadStarted.complete(Unit)
             loadGate?.await()
+            holdGate?.let {
+                holdEntered.complete(Unit)
+                // Non-cancellable: keeps the engine mutex held so a racing
+                // removal stays blocked until the test releases the hold.
+                runBlocking { it.await() }
+            }
             loadFailure?.let { throw it }
             nextLoadFailure?.also { nextLoadFailure = null }?.let { throw it }
             val durationMillis = loadedDurationMillis ?: track.durationMillis
@@ -2038,6 +2130,12 @@ class PlaybackControllerTest {
 
         fun releaseClear() {
             clearGate?.complete(Unit)
+        }
+
+        suspend fun awaitHoldEntered() = holdEntered.await()
+
+        fun releaseHold() {
+            holdGate?.complete(Unit)
         }
 
         fun clearEvents() {

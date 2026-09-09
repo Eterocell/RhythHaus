@@ -717,16 +717,20 @@ public class PlaybackController(
                 // The removal is committed. Irreversible engine effects now
                 // apply only to the failed load/generation captured before the
                 // CAS; a replacement that committed concurrently owns the
-                // engine and must survive untouched.
-                if (loadJob.value === failedLoadJob) {
-                    loadJob.value?.cancel()
-                }
+                // engine and must survive untouched. The captured failed job
+                // is cancelled directly (never a reread current job), and the
+                // cleanup generation slot is claimed atomically so a
+                // concurrent replacement bump either wins the slot (clear is
+                // skipped and its load stays current) or loads after the
+                // cleanup generation (never stale).
+                failedLoadJob?.cancel()
                 playWhenLoaded.value = false
                 resetProgressCheckpointKey()
                 engineMutex.withLock {
-                    if (activeGeneration.value == failedGeneration) {
-                        val generation = nextGeneration()
-                        engine.clear(generation)
+                    val cleanupGeneration = failedGeneration + 1L
+                    if (activeGeneration.compareAndSet(
+                            failedGeneration, cleanupGeneration)) {
+                        engine.clear(cleanupGeneration)
                     }
                 }
                 return@withLock QueueMutationResult.Applied
