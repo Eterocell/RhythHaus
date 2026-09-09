@@ -11,6 +11,7 @@ import kotlin.math.max
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -152,6 +153,8 @@ public data class PlaybackState(
      * exact failed load instead of a concurrently advanced active generation.
      */
     internal val errorGeneration: Long? = null,
+    /** Generation token owned by the current engine selection. */
+    internal val engineGeneration: Long = 0L,
 ) {
     /** Selected queue occurrence, when its identifier resolves in [queue]. */
     public val currentOccurrence: QueueOccurrence?
@@ -184,6 +187,13 @@ private data class RevisionedShuffleOrder(
     internal val sourceQueueIds: List<String> = emptyList(),
     internal val shuffleMode: ShuffleMode = ShuffleMode.Off,
     internal val occurrenceIds: List<String> = emptyList(),
+)
+
+private data class SelectionRequest(
+    val generation: Long,
+    val occurrenceId: String,
+    val playWhenLoaded: MutableStateFlow<Boolean>,
+    val job: Job,
 )
 
 /**
@@ -276,8 +286,7 @@ public class PlaybackController(
     // coordinator actor, and platform engine callback threads. StateFlow
     // provides both atomic updates and cross-thread visibility; a plain field
     // would let a stale engine callback pass the active-generation guard.
-    private val loadJob = MutableStateFlow<Job?>(null)
-    private val playWhenLoaded = MutableStateFlow(false)
+    private val selectionRequest = MutableStateFlow<SelectionRequest?>(null)
     private val activeGeneration = MutableStateFlow(0L)
     private val shuffledOrder = MutableStateFlow(RevisionedShuffleOrder())
     private val commandsEnabled = MutableStateFlow(true)
@@ -358,8 +367,7 @@ public class PlaybackController(
             occurrences.firstOrNull { it.id == selectedOccurrenceId }
                 ?: occurrences.firstOrNull()
         if (selected == null) {
-            loadJob.value?.cancel()
-            playWhenLoaded.value = false
+            cancelSelectionRequest()
             val generation = nextGeneration()
             resetProgressCheckpointKey()
             launchEngineAction { engine.clear(generation) }
@@ -373,18 +381,11 @@ public class PlaybackController(
             emitImmediateCheckpoint(
                 published.toSessionSnapshot(), published.checkpointRevision)
         } else {
-            val published = publishState { previous ->
-                PlaybackState(
-                    currentOccurrenceId = selected.id,
-                    queue = occurrences,
-                    status = PlaybackStatus.Loading,
-                    durationMillis = selected.track.durationMillis,
-                    repeatMode = previous.repeatMode,
-                    shuffleMode = previous.shuffleMode,
-                )
-            }
-            publishRuntimeShuffleOrder(published, selected.id)
-            if (loadSelected(selected, autoPlay = false)) {
+            if (loadSelected(
+                    selected,
+                    autoPlay = false,
+                    replacementQueue = occurrences,
+                )) {
                 emitImmediateCheckpoint()
             }
         }
@@ -470,7 +471,7 @@ public class PlaybackController(
         if (!commandsEnabled.value) return
         val current = _state.value.currentOccurrence ?: return
         if (_state.value.status == PlaybackStatus.Loading) {
-            playWhenLoaded.value = true
+            setPendingAutoplay(true)
             return
         }
         if (_state.value.status == PlaybackStatus.Idle ||
@@ -484,7 +485,7 @@ public class PlaybackController(
     /** Pauses media and emits a persistence checkpoint. */
     public fun pause() {
         if (!commandsEnabled.value) return
-        playWhenLoaded.value = false
+        setPendingAutoplay(false)
         launchEngineAction { engine.pause() }
         emitImmediateCheckpoint()
     }
@@ -492,7 +493,7 @@ public class PlaybackController(
     /** Stops media and emits a persistence checkpoint. */
     public fun stop() {
         if (!commandsEnabled.value) return
-        playWhenLoaded.value = false
+        setPendingAutoplay(false)
         resetProgressCheckpointKey()
         launchEngineAction { engine.stop() }
         emitImmediateCheckpoint()
@@ -528,8 +529,11 @@ public class PlaybackController(
             it.copy(positionMillis = 0L, error = null)
         }
         resetProgressCheckpointKey()
-        when (_state.value.status) {
-            PlaybackStatus.Loading -> playWhenLoaded.value = true
+        val admitted = when (published.status) {
+            PlaybackStatus.Loading -> {
+                setPendingAutoplay(true)
+                true
+            }
 
             PlaybackStatus.Idle,
             PlaybackStatus.Error,
@@ -540,9 +544,15 @@ public class PlaybackController(
                     engine.seekTo(0L)
                     engine.play()
                 }
+                    .let { true }
         }
-        emitImmediateCheckpoint(
-            published.toSessionSnapshot(), published.checkpointRevision)
+        if (published.status == PlaybackStatus.Idle ||
+            published.status == PlaybackStatus.Error) {
+            if (admitted) emitImmediateCheckpoint()
+        } else {
+            emitImmediateCheckpoint(
+                published.toSessionSnapshot(), published.checkpointRevision)
+        }
     }
 
     /** Loads the next occurrence, wrapping only for playlist repeat. */
@@ -714,7 +724,7 @@ public class PlaybackController(
                     loadSelected(successor, autoPlay = true)
                     return@withLock QueueMutationResult.Applied
                 }
-                val failedLoadJob = loadJob.value
+                val failedLoadJob = selectionRequest.value?.job
                 val failedErrorGeneration = previous.errorGeneration
                 val idle =
                     PlaybackState(
@@ -741,7 +751,7 @@ public class PlaybackController(
                 // (never stale). The captured failed job is cancelled directly
                 // (never a reread current job).
                 failedLoadJob?.cancel()
-                playWhenLoaded.value = false
+                setPendingAutoplay(false)
                 resetProgressCheckpointKey()
                 engineMutex.withLock {
                     val recorded = failedErrorGeneration ?: return@withLock
@@ -798,8 +808,7 @@ public class PlaybackController(
         snapshot: PlaybackSessionSnapshot,
         tracks: List<PlayableTrack>,
     ): RevisionedPlaybackSessionSnapshot = sessionOperationMutex.withLock {
-        loadJob.value?.cancel()
-        playWhenLoaded.value = false
+        cancelSelectionRequest()
         resetProgressCheckpointKey()
         val tracksById = tracks.distinctBy { it.id }.associateBy { it.id }
         val reconciledQueue =
@@ -829,11 +838,12 @@ public class PlaybackController(
         try {
             engineMutex.withLock {
                 val generation = nextGeneration()
+                publishState { it.copy(engineGeneration = generation) }
                 val loaded =
                     engine.loadPaused(
                         restoredCurrent.track.withLazyArtwork(), generation)
                 check(loaded.generation == generation)
-                check(generation == activeGeneration.value)
+                check(generation == _state.value.engineGeneration)
                 val clamped =
                     loaded.durationMillis?.let {
                         restoredPosition.coerceIn(0L, it)
@@ -867,8 +877,7 @@ public class PlaybackController(
     public override suspend fun reconcileSession(
         tracks: List<PlayableTrack>,
     ): RevisionedPlaybackSessionSnapshot = sessionOperationMutex.withLock {
-        loadJob.value?.cancel()
-        playWhenLoaded.value = false
+        cancelSelectionRequest()
         resetProgressCheckpointKey()
         val previous = _state.value
         val tracksById = tracks.distinctBy { it.id }.associateBy { it.id }
@@ -906,11 +915,12 @@ public class PlaybackController(
         try {
             engineMutex.withLock {
                 val generation = nextGeneration()
+                publishState { it.copy(engineGeneration = generation) }
                 val loaded =
                     engine.loadPaused(
                         replacement.track.withLazyArtwork(), generation)
                 check(loaded.generation == generation)
-                check(generation == activeGeneration.value)
+                check(generation == _state.value.engineGeneration)
                 engine.seekTo(0L)
                 engine.pause()
                 publishState {
@@ -946,21 +956,23 @@ public class PlaybackController(
     private fun loadSelected(
         occurrence: QueueOccurrence,
         autoPlay: Boolean,
+        replacementQueue: List<QueueOccurrence>? = null,
     ): Boolean {
-        val published = publishLoading(occurrence) ?: return false
-        loadJob.value?.cancel()
-        val generation = nextGeneration()
+        val published =
+            publishLoading(occurrence, replacementQueue) ?: return false
+        val generation = published.engineGeneration
         resetProgressCheckpointKey()
-        playWhenLoaded.value = autoPlay
         publishRuntimeShuffleOrder(published, occurrence.id)
-        loadJob.value = scope.launch {
+        val intent = MutableStateFlow(autoPlay)
+        val job = scope.launch(start = CoroutineStart.LAZY) {
             val trackWithArtwork = occurrence.track.withLazyArtwork()
             runEngineAction {
-                if (_state.value.currentOccurrenceId != occurrence.id)
+                if (!ownsSelection(generation, occurrence.id))
                     return@runEngineAction
                 val loaded = engine.loadPaused(trackWithArtwork, generation)
                 check(loaded.generation == generation)
-                if (generation != activeGeneration.value) return@runEngineAction
+                if (!ownsSelection(generation, occurrence.id))
+                    return@runEngineAction
                 _state.value =
                     _state.value.copy(
                         status = PlaybackStatus.Paused,
@@ -968,14 +980,27 @@ public class PlaybackController(
                             loaded.durationMillis
                                 ?: _state.value.durationMillis,
                     )
-                if (_state.value.currentOccurrenceId == occurrence.id &&
-                    (autoPlay || playWhenLoaded.value)) {
-                    playWhenLoaded.value = false
+                if (ownsSelection(generation, occurrence.id) &&
+                    intent.value) {
+                    intent.value = false
                     engine.play()
                 }
             }
         }
-        return true
+        val request = SelectionRequest(generation, occurrence.id, intent, job)
+        while (true) {
+            val state = _state.value
+            if (!ownsSelection(state, generation, occurrence.id)) {
+                job.cancel()
+                return false
+            }
+            val previous = selectionRequest.value
+            if (selectionRequest.compareAndSet(previous, request)) {
+                previous?.job?.cancel()
+                job.start()
+                return true
+            }
+        }
     }
 
     /**
@@ -983,22 +1008,42 @@ public class PlaybackController(
      * when the state the transition would originate from no longer contains
      * it. Callers must treat null as an abort of a stale selection.
      */
-    private fun publishLoading(occurrence: QueueOccurrence): PlaybackState? {
+    private fun publishLoading(
+        occurrence: QueueOccurrence,
+        replacementQueue: List<QueueOccurrence>? = null,
+    ): PlaybackState? {
         while (true) {
             val previous = _state.value
-            if (previous.queue.none { it.id == occurrence.id }) return null
+            if (replacementQueue == null &&
+                previous.queue.none { it.id == occurrence.id }) return null
+            val generation = nextGeneration()
             val updated =
-                previous.copy(
+                (if (replacementQueue == null) previous else
+                    previous.copy(queue = replacementQueue)).copy(
                     currentOccurrenceId = occurrence.id,
                     status = PlaybackStatus.Loading,
                     positionMillis = 0L,
                     durationMillis = occurrence.track.durationMillis,
                     error = null,
+                    engineGeneration = generation,
                     checkpointRevision = reserveCheckpointRevision(),
                 )
             if (_state.compareAndSet(previous, updated)) return updated
         }
     }
+
+    private fun ownsSelection(
+        generation: Long,
+        occurrenceId: String,
+    ): Boolean = ownsSelection(_state.value, generation, occurrenceId)
+
+    private fun ownsSelection(
+        state: PlaybackState,
+        generation: Long,
+        occurrenceId: String,
+    ): Boolean =
+        state.engineGeneration == generation &&
+            state.currentOccurrenceId == occurrenceId
 
     private fun nextGeneration(): Long {
         while (true) {
@@ -1038,6 +1083,7 @@ public class PlaybackController(
                 status = PlaybackStatus.Paused,
                 repeatMode = repeatMode,
                 shuffleMode = shuffleMode,
+                engineGeneration = generation,
             )
         }
         publishRuntimeShuffleOrder(published)
@@ -1167,6 +1213,20 @@ public class PlaybackController(
         lastProgressCheckpointKey.value = null
     }
 
+    private fun cancelSelectionRequest() {
+        selectionRequest.value?.job?.cancel()
+        selectionRequest.value = null
+    }
+
+    private fun setPendingAutoplay(enabled: Boolean) {
+        val state = _state.value
+        val request = selectionRequest.value ?: return
+        if (state.status == PlaybackStatus.Loading &&
+            ownsSelection(state, request.generation, request.occurrenceId)) {
+            request.playWhenLoaded.value = enabled
+        }
+    }
+
     private fun PlayableTrack.withLazyArtwork(): PlayableTrack {
         if (artworkBytes != null) return this
         val loadedArtwork = artworkLoader(id) ?: return this
@@ -1195,7 +1255,7 @@ public class PlaybackController(
                             throwable.message ?: throwable::class.simpleName,
                     )
             onPlaybackError(
-                activeGeneration.value,
+                _state.value.engineGeneration,
                 failure,
             )
         }
@@ -1283,7 +1343,7 @@ public class PlaybackController(
         generation: Long,
         status: PlaybackStatus
     ) {
-        if (generation != activeGeneration.value) return
+        if (generation != _state.value.engineGeneration) return
         _state.value = _state.value.copy(status = status, error = null)
     }
 
@@ -1295,7 +1355,7 @@ public class PlaybackController(
         positionMillis: Long,
         durationMillis: Long?
     ) {
-        if (generation != activeGeneration.value) return
+        if (generation != _state.value.engineGeneration) return
         val checkpointState = publishState {
             it.copy(
                 positionMillis = max(0L, positionMillis),
@@ -1326,7 +1386,7 @@ public class PlaybackController(
 
     /** Advances or stops the queue according to the selected repeat mode. */
     public override fun onPlaybackCompleted(generation: Long) {
-        if (generation != activeGeneration.value) return
+        if (generation != _state.value.engineGeneration) return
         when (_state.value.repeatMode) {
             RepeatMode.RepeatOne -> {
                 val current =
@@ -1364,7 +1424,7 @@ public class PlaybackController(
         generation: Long,
         error: PlaybackError
     ) {
-        if (generation != activeGeneration.value) return
+        if (generation != _state.value.engineGeneration) return
         _state.value =
             _state.value.copy(
                 status = PlaybackStatus.Error,
@@ -1375,13 +1435,13 @@ public class PlaybackController(
 
     /** Handles an engine request to advance the active queue. */
     public override fun onSkipToNext(generation: Long) {
-        if (generation != activeGeneration.value) return
+        if (generation != _state.value.engineGeneration) return
         skipToNext()
     }
 
     /** Handles an engine request to return to the previous occurrence. */
     public override fun onSkipToPrevious(generation: Long) {
-        if (generation != activeGeneration.value) return
+        if (generation != _state.value.engineGeneration) return
         skipToPrevious()
     }
 
