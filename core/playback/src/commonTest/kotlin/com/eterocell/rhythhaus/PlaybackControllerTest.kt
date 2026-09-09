@@ -1039,6 +1039,48 @@ class PlaybackControllerTest {
     }
 
     @Test
+    fun structuredLoadFailureSurvivesControllerAsyncCatch() = runBlocking {
+        val controller =
+            PlaybackController(
+                RecordingPlaybackEngine(
+                    loadFailure =
+                        PlaybackFailureException(
+                            PlaybackError(
+                                "File is no longer available",
+                                kind = PlaybackFailureKind.MissingFile,
+                            ),
+                        ),
+                ),
+            )
+        val track = testTracks(1).single()
+        controller.setQueue(listOf(track), track.id)
+        awaitState { controller.state.value.status == PlaybackStatus.Error }
+
+        assertEquals(
+            PlaybackFailureKind.MissingFile, controller.state.value.error?.kind)
+        assertEquals(
+            "File is no longer available", controller.state.value.error?.message)
+    }
+
+    @Test
+    fun opaqueLoadFailureUsesUnknownKind() = runBlocking {
+        val controller =
+            PlaybackController(
+                RecordingPlaybackEngine(
+                    loadFailure = IllegalStateException("opaque"),
+                ),
+            )
+        val track = testTracks(1).single()
+        controller.setQueue(listOf(track), track.id)
+        awaitState { controller.state.value.status == PlaybackStatus.Error }
+
+        assertEquals(
+            PlaybackFailureKind.Unknown, controller.state.value.error?.kind)
+        assertEquals("Playback failed", controller.state.value.error?.message)
+        assertEquals("opaque", controller.state.value.error?.cause)
+    }
+
+    @Test
     fun reconcilePreservesSurvivingCurrentWithoutReloadPositionOrStatusChange() =
         runBlocking {
             val engine = RecordingPlaybackEngine()
@@ -1499,6 +1541,12 @@ class PlaybackControllerTest {
             state.queue.any { it.id == state.currentOccurrenceId },
             "selected occurrence must remain in the queue",
         )
+    }
+
+    private suspend fun awaitState(condition: () -> Boolean) {
+        withTimeout(5_000) {
+            while (!condition()) kotlinx.coroutines.yield()
+        }
     }
 
     private suspend fun loadedController(

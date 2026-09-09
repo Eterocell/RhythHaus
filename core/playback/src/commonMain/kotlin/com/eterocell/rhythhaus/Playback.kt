@@ -63,13 +63,35 @@ public enum class ShuffleMode {
     On,
 }
 
+/** Classifies a playback failure so callers can offer recovery actions. */
+public enum class PlaybackFailureKind {
+    /** The underlying media file can no longer be located. */
+    MissingFile,
+    /** Access to the media file was lost after it was located. */
+    AccessLost,
+    /** The media format is not supported by the active engine. */
+    UnsupportedFormat,
+    /** The decoder failed while preparing or decoding the media. */
+    DecoderFailure,
+    /** The failure does not map to a specific recoverable category. */
+    Unknown,
+}
+
 /** Describes an error reported while loading or playing audio. */
 public data class PlaybackError(
     /** User-visible summary of the playback failure. */
     public val message: String,
     /** Optional underlying failure detail. */
     public val cause: String? = null,
+    /** Failure category that gates recovery actions. */
+    public val kind: PlaybackFailureKind = PlaybackFailureKind.Unknown,
 )
+
+/** Thrown by engines to carry a structured [PlaybackError] to the controller. */
+public class PlaybackFailureException(
+    /** Structured failure transported across the engine boundary. */
+    public val error: PlaybackError,
+) : IllegalStateException(error.message)
 
 /** Identifies one queue occurrence and its track, including duplicates. */
 public data class QueueOccurrence(
@@ -1017,12 +1039,16 @@ public class PlaybackController(
         } catch (throwable: Throwable) {
             if (throwable is CancellationException) throw throwable
             playbackLog.e { throwable.stackTraceToString() }
+            val failure =
+                (throwable as? PlaybackFailureException)?.error
+                    ?: PlaybackError(
+                        message = "Playback failed",
+                        cause =
+                            throwable.message ?: throwable::class.simpleName,
+                    )
             onPlaybackError(
                 activeGeneration.value,
-                PlaybackError(
-                    message = "Playback failed",
-                    cause = throwable.message ?: throwable::class.simpleName,
-                ),
+                failure,
             )
         }
     }
