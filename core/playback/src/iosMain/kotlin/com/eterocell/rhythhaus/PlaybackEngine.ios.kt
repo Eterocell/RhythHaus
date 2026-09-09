@@ -174,7 +174,6 @@ private class IOSPlaybackEngine(
         return try {
             withIOSPlaybackMainContext {
                 if (load.isManagedLocalFile &&
-                    load.path.startsWith("/") &&
                     !iosFileExistsAtPath(load.path)
                 ) {
                     val failure =
@@ -206,7 +205,6 @@ private class IOSPlaybackEngine(
                 withIOSPlaybackMainContext {
                     val managedFileMissing =
                         load.isManagedLocalFile &&
-                            load.path.startsWith("/") &&
                             !iosFileExistsAtPath(load.path)
                     val failure =
                         iosLoadFailureError(
@@ -247,22 +245,28 @@ private class IOSPlaybackEngine(
         listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
         val provider = IOSAudioPlayerBridge.provider
         if (provider == null) {
-            val errorMsg = "iOS audio player provider is unavailable"
-            playbackLog.e { errorMsg }
-            listener?.onPlaybackError(
-                generation, PlaybackError(errorMsg, cause = null))
-            error(errorMsg)
+            val failure =
+                PlaybackError(
+                    message = "iOS audio player provider is unavailable",
+                    cause = null,
+                )
+            playbackLog.e { failure.message }
+            listener?.onPlaybackError(generation, failure)
+            throw PlaybackFailureException(failure)
         }
         val path =
             try {
                 track.source.iosFilePath(relativeFilePathResolver)
             } catch (t: Throwable) {
-                val errorMsg =
-                    "Could not resolve player path: ${track.title} (${t.message})"
-                playbackLog.e { errorMsg }
-                listener?.onPlaybackError(
-                    generation, PlaybackError(errorMsg, cause = null))
-                throw t
+                val failure =
+                    PlaybackError(
+                        message =
+                            "Could not resolve player path: ${track.title} (${t.message})",
+                        cause = null,
+                    )
+                playbackLog.e { failure.message }
+                listener?.onPlaybackError(generation, failure)
+                throw PlaybackFailureException(failure)
             }
         playbackLog.d { "Player path: $path" }
         provider.completionHandler = completionHandler(generation, version)

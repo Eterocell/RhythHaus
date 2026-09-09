@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
@@ -232,10 +233,22 @@ class AndroidPlaybackMediaSessionTest {
     @Test
     fun androidDecoderFailureMapsToDecoderFailure() {
         val errorCode = PlaybackException.ERROR_CODE_DECODING_FAILED
+        val decoderErrorCodes =
+            listOf(
+                PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+                PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+                PlaybackException.ERROR_CODE_DECODING_FAILED,
+                PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+                PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+                PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED,
+            )
 
-        assertEquals(
-            PlaybackFailureKind.DecoderFailure,
-            androidFailureKind(errorCode))
+        decoderErrorCodes.forEach { code ->
+            assertEquals(
+                PlaybackFailureKind.DecoderFailure,
+                androidFailureKind(code),
+            )
+        }
         assertEquals(
             PlaybackFailureKind.DecoderFailure,
             androidPlaybackError(
@@ -272,6 +285,30 @@ class AndroidPlaybackMediaSessionTest {
                 )
 
             assertEquals(PlaybackFailureKind.MissingFile, mapped.kind)
+        } finally {
+            Files.deleteIfExists(absent)
+        }
+    }
+
+    @Test
+    fun androidReadySourceKeepsLocalFileEvidenceForOpaquePlayerError() {
+        val absent = Files.createTempFile("rhythhaus-evidence-android", ".wav")
+        Files.deleteIfExists(absent)
+        try {
+            val requests = AndroidPlaybackRequestState()
+            val request = requests.begin(95L, absent.toFile())
+            assertTrue(requests.ready(request.token, durationMillis = 2_000L))
+
+            val evidence = requests.localFileFor(request.token)
+            assertNotNull(evidence)
+            assertEquals(
+                PlaybackFailureKind.MissingFile,
+                androidPlaybackError(
+                    errorCode = PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                    message = "opaque io failure while playing",
+                    sourceFile = evidence,
+                ).kind,
+            )
         } finally {
             Files.deleteIfExists(absent)
         }

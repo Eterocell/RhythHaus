@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 package com.eterocell.rhythhaus
 
 import kotlin.test.Test
@@ -8,8 +10,10 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import platform.MediaPlayer.MPNowPlayingInfoCenter
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
+import platform.MediaPlayer.MPNowPlayingInfoCenter
 
 class IOSAudioPlayerBridgeTest {
 
@@ -416,12 +420,17 @@ class IOSAudioPlayerBridgeTest {
                         error("path resolution failed")
                 },
             )
-        assertFailsWith<IllegalStateException> {
-            runBlocking {
-                failingEngine.loadPaused(
-                    testTrack("path-failure"), generation = 52L)
+        val failure =
+            assertFailsWith<PlaybackFailureException> {
+                runBlocking {
+                    failingEngine.loadPaused(
+                        testTrack("path-failure"), generation = 52L)
+                }
             }
-        }
+        assertEquals(PlaybackFailureKind.Unknown, failure.error.kind)
+        assertTrue(
+            failure.error.message.orEmpty().startsWith(
+                "Could not resolve player path:"))
 
         assertEquals(
             null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
@@ -498,31 +507,59 @@ class IOSAudioPlayerBridgeTest {
     }
 
     @Test
-    fun missingManagedFileFailsLoadBeforeInvokingNativeProvider() {
+    fun missingManagedRelativePathMapsToMissingFileBeforeProvider() {
         val provider = FakeIOSAudioPlayerProvider()
         IOSAudioPlayerBridge.provider = provider
         val recording = RecordingListener()
-        val absentPath =
-            "${NSTemporaryDirectory()}rhythhaus-ios-managed-absent-60.wav"
-        val engine =
-            createIOSPlaybackEngine(
-                object : IOSRelativeFilePathResolver {
-                    override fun resolve(relativePath: String): String =
-                        absentPath
-                })
+        val manager = NSFileManager.defaultManager
+        val uniqueName =
+            "rhythhaus-absent-${NSProcessInfo.processInfo.globallyUniqueString}"
+        val absentRelativePath = "$uniqueName.wav"
+        // Guarantee the fixture is absent and leave no residue either way.
+        manager.removeItemAtPath(absentRelativePath, null)
+        val engine = createIOSPlaybackEngine(relativePathResolver())
         engine.listener = recording
         try {
             val failure =
                 assertFailsWith<PlaybackFailureException> {
                     runBlocking {
-                        engine.loadPaused(testTrack("absent"), generation = 60L)
+                        engine.loadPaused(
+                            testTrack(uniqueName), generation = 60L)
                     }
                 }
 
             assertEquals(PlaybackFailureKind.MissingFile, failure.error.kind)
-            assertEquals(absentPath, failure.error.cause)
+            assertEquals(absentRelativePath, failure.error.cause)
             assertFalse(provider.isLoaded)
             assertEquals(null, provider.completionHandler)
+            assertEquals(listOf(PlaybackStatus.Loading), recording.statuses)
+        } finally {
+            engine.release()
+            IOSAudioPlayerBridge.provider = null
+            manager.removeItemAtPath(absentRelativePath, null)
+        }
+    }
+
+    @Test
+    fun unavailableAudioProviderFailsLoadWithStructuredUnknown() {
+        IOSAudioPlayerBridge.provider = null
+        val recording = RecordingListener()
+        val engine = createIOSPlaybackEngine(testResolver())
+        engine.listener = recording
+        try {
+            val failure =
+                assertFailsWith<PlaybackFailureException> {
+                    runBlocking {
+                        engine.loadPaused(
+                            testTrack("no-provider"), generation = 61L)
+                    }
+                }
+
+            assertEquals(PlaybackFailureKind.Unknown, failure.error.kind)
+            assertEquals(
+                "iOS audio player provider is unavailable",
+                failure.error.message,
+            )
             assertEquals(listOf(PlaybackStatus.Loading), recording.statuses)
         } finally {
             engine.release()
@@ -716,7 +753,41 @@ private fun testTrack(id: String) =
         source = AudioSource.FilePath("$id.wav"),
     )
 
+/**
+ * Shared sandbox directory backing every successful test load. Managed
+ * FilePath sources must exist before the native loader runs, so the fixture
+ * resolver materializes each resolved relative path as a real (empty) file.
+ */
+private val iosFixtureDirectory: String by lazy {
+    val manager = NSFileManager.defaultManager
+    val directory = NSTemporaryDirectory() + "rhythhaus-playback-fixtures/"
+    if (!manager.fileExistsAtPath(directory)) {
+        manager.createDirectoryAtPath(
+            directory,
+            withIntermediateDirectories = true,
+            attributes = null,
+            error = null,
+        )
+    }
+    directory
+}
+
+private fun ensureFixtureFile(relativePath: String): String {
+    val manager = NSFileManager.defaultManager
+    val path = iosFixtureDirectory + relativePath
+    if (!manager.fileExistsAtPath(path)) {
+        manager.createFileAtPath(path, contents = null, attributes = null)
+    }
+    return path
+}
+
 private fun testResolver() =
+    object : IOSRelativeFilePathResolver {
+        override fun resolve(relativePath: String): String =
+            ensureFixtureFile(relativePath)
+    }
+
+private fun relativePathResolver() =
     object : IOSRelativeFilePathResolver {
         override fun resolve(relativePath: String): String = relativePath
     }

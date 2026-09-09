@@ -174,15 +174,15 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
                     try {
                         future.get()
                     } catch (t: Throwable) {
-                        requestState.failActive(t)
-                        listener?.onPlaybackError(
-                            activeGeneration,
+                        val failure =
                             PlaybackError(
                                 message =
                                     "Android could not start the playback service.",
                                 cause = t.message ?: t::class.simpleName,
-                            ),
-                        )
+                            )
+                        requestState.failActive(
+                            PlaybackFailureException(failure))
+                        listener?.onPlaybackError(activeGeneration, failure)
                         controllerFuture = null
                         pendingActions.clear()
                         return@addListener
@@ -437,9 +437,11 @@ internal fun androidFailureKind(errorCode: Int): PlaybackFailureKind =
         PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ->
             PlaybackFailureKind.UnsupportedFormat
         PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+        PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
         PlaybackException.ERROR_CODE_DECODING_FAILED,
         PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
-        PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ->
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+        PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED ->
             PlaybackFailureKind.DecoderFailure
         else -> PlaybackFailureKind.Unknown
     }
@@ -478,13 +480,17 @@ internal class Media3RequestTokenTracker {
 internal data class AndroidPlaybackRequest(
     val token: Media3RequestToken,
     val result: CompletableDeferred<LoadedPlayback>,
-    /** Concrete local source file for this request, when one exists. */
-    val localFile: java.io.File? = null,
 )
 
 internal data class AndroidObservablePlayback(
     val token: Media3RequestToken,
     val generation: Long,
+    /**
+     * Concrete local source file evidence for the observable request. Retained
+     * past [AndroidPlaybackRequestState.ready] so a later player error over the
+     * same media can still classify a vanished local file.
+     */
+    val localFile: java.io.File? = null,
 )
 
 internal class AndroidPlaybackRequestState {
@@ -503,11 +509,11 @@ internal class AndroidPlaybackRequestState {
         return AndroidPlaybackRequest(
                 token = Media3RequestToken(generation, ++nonce),
                 result = CompletableDeferred(),
-                localFile = localFile,
             )
             .also {
                 pending = it
-                observable = AndroidObservablePlayback(it.token, generation)
+                observable =
+                    AndroidObservablePlayback(it.token, generation, localFile)
             }
     }
 
@@ -553,7 +559,9 @@ internal class AndroidPlaybackRequestState {
 
     @Synchronized
     fun localFileFor(observedCurrentToken: Media3RequestToken?): java.io.File? =
-        pending?.takeIf { it.token == observedCurrentToken }?.localFile
+        observable
+            ?.takeIf { it.token == observedCurrentToken }
+            ?.localFile
 
     @Synchronized
     fun failActive(error: Throwable): Boolean {
