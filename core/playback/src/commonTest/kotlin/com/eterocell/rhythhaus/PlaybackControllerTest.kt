@@ -943,8 +943,7 @@ class PlaybackControllerTest {
         assertEquals("track-1", controller.state.value.currentTrack?.id)
         assertNull(controller.state.value.error)
         assertEquals(
-            queue.map { it.id },
-            controller.state.value.queue.map { it.id })
+            queue.map { it.id }, controller.state.value.queue.map { it.id })
     }
 
     @Test
@@ -979,13 +978,11 @@ class PlaybackControllerTest {
         assertEquals(
             listOf(EngineEvent.Load("track-4"), EngineEvent.Play),
             engine.awaitEvents(2))
-        assertEquals(
-            "upcoming-3", controller.state.value.currentOccurrenceId)
+        assertEquals("upcoming-3", controller.state.value.currentOccurrenceId)
         assertNull(controller.state.value.error)
         assertEquals(ShuffleMode.On, controller.state.value.shuffleMode)
         assertEquals(
-            queue.map { it.id },
-            controller.state.value.queue.map { it.id })
+            queue.map { it.id }, controller.state.value.queue.map { it.id })
     }
 
     @Test
@@ -1037,8 +1034,7 @@ class PlaybackControllerTest {
             engine.clearEvents()
 
             assertEquals(
-                QueueMutationResult.Applied,
-                controller.removeFailedTrack())
+                QueueMutationResult.Applied, controller.removeFailedTrack())
 
             assertEquals(
                 listOf(EngineEvent.Load("track-2"), EngineEvent.Play),
@@ -1046,8 +1042,7 @@ class PlaybackControllerTest {
             assertEquals(
                 listOf("other", "duplicate-2"),
                 controller.state.value.queue.map { it.id })
-            assertEquals(
-                "other", controller.state.value.currentOccurrenceId)
+            assertEquals("other", controller.state.value.currentOccurrenceId)
             assertEquals("track-2", controller.state.value.currentTrack?.id)
             assertNull(controller.state.value.error)
 
@@ -1075,8 +1070,7 @@ class PlaybackControllerTest {
             engine.clearEvents()
 
             assertEquals(
-                QueueMutationResult.Applied,
-                controller.removeFailedTrack())
+                QueueMutationResult.Applied, controller.removeFailedTrack())
 
             assertEquals(listOf(EngineEvent.Clear), engine.awaitEvents(1))
             assertEquals(PlaybackStatus.Idle, controller.state.value.status)
@@ -1167,18 +1161,15 @@ class PlaybackControllerTest {
                 "replacement-1")
             engine.releaseClear()
 
-            assertEquals(
-                QueueMutationResult.Applied, removal.await())
+            assertEquals(QueueMutationResult.Applied, removal.await())
             withTimeout(5_000) {
                 while (controller.state.value.status !=
                     PlaybackStatus.Paused) kotlinx.coroutines.yield()
             }
             assertEquals(
-                "replacement-1",
-                controller.state.value.currentOccurrenceId)
+                "replacement-1", controller.state.value.currentOccurrenceId)
             assertEquals(
-                "replacement-1",
-                controller.state.value.queue.single().id)
+                "replacement-1", controller.state.value.queue.single().id)
             assertEquals("track-4", engine.loadedTracks.last().id)
         }
 
@@ -1212,10 +1203,10 @@ class PlaybackControllerTest {
             engine.clearEvents()
 
             assertEquals(
-                QueueMutationResult.Applied,
-                controller.removeFailedTrack())
+                QueueMutationResult.Applied, controller.removeFailedTrack())
             withTimeout(5_000) {
-                while (controller.state.value.status != PlaybackStatus.Playing) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Playing) {
                     kotlinx.coroutines.yield()
                 }
             }
@@ -1225,7 +1216,8 @@ class PlaybackControllerTest {
             controller.skipToNext()
             engine.awaitLoadCount(3)
             withTimeout(5_000) {
-                while (controller.state.value.status != PlaybackStatus.Playing) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Playing) {
                     kotlinx.coroutines.yield()
                 }
             }
@@ -1234,7 +1226,8 @@ class PlaybackControllerTest {
             controller.skipToNext()
             engine.awaitLoadCount(4)
             withTimeout(5_000) {
-                while (controller.state.value.status != PlaybackStatus.Playing) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Playing) {
                     kotlinx.coroutines.yield()
                 }
             }
@@ -1272,15 +1265,13 @@ class PlaybackControllerTest {
                 "replacement-1")
             engine.releaseClear()
 
-            assertEquals(
-                QueueMutationResult.Applied, removal.await())
+            assertEquals(QueueMutationResult.Applied, removal.await())
             withTimeout(5_000) {
                 while (controller.state.value.status !=
                     PlaybackStatus.Paused) kotlinx.coroutines.yield()
             }
             assertEquals(
-                "replacement-1",
-                controller.state.value.currentOccurrenceId)
+                "replacement-1", controller.state.value.currentOccurrenceId)
             assertEquals("track-2", engine.loadedTracks.last().id)
             assertEquals(
                 listOf(
@@ -1317,19 +1308,16 @@ class PlaybackControllerTest {
                 "replacement-1")
             engine.releaseHold()
 
-            assertEquals(
-                QueueMutationResult.Applied, removal.await())
+            assertEquals(QueueMutationResult.Applied, removal.await())
             withTimeout(5_000) {
                 while (controller.state.value.status !=
                     PlaybackStatus.Paused) kotlinx.coroutines.yield()
             }
             assertEquals(
-                "replacement-1",
-                controller.state.value.currentOccurrenceId)
+                "replacement-1", controller.state.value.currentOccurrenceId)
             assertEquals("track-2", engine.loadedTracks.last().id)
             assertEquals(
-                listOf(EngineEvent.Load("track-2")),
-                engine.eventSnapshot())
+                listOf(EngineEvent.Load("track-2")), engine.eventSnapshot())
         }
 
     @Test
@@ -1363,15 +1351,13 @@ class PlaybackControllerTest {
             controller.selectOccurrence("survivor-1")
             engine.releaseHold()
 
-            assertEquals(
-                QueueMutationResult.Applied, removal.await())
+            assertEquals(QueueMutationResult.Applied, removal.await())
             withTimeout(5_000) {
                 while (controller.state.value.status !=
                     PlaybackStatus.Paused) kotlinx.coroutines.yield()
             }
             assertEquals(
-                "survivor-1",
-                controller.state.value.currentOccurrenceId)
+                "survivor-1", controller.state.value.currentOccurrenceId)
             assertEquals("track-1", engine.loadedTracks.last().id)
             assertEquals(
                 listOf(
@@ -1524,7 +1510,8 @@ class PlaybackControllerTest {
         assertEquals(
             PlaybackFailureKind.MissingFile, controller.state.value.error?.kind)
         assertEquals(
-            "File is no longer available", controller.state.value.error?.message)
+            "File is no longer available",
+            controller.state.value.error?.message)
     }
 
     @Test

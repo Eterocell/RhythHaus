@@ -87,7 +87,9 @@ public data class PlaybackError(
     public val kind: PlaybackFailureKind = PlaybackFailureKind.Unknown,
 )
 
-/** Thrown by engines to carry a structured [PlaybackError] to the controller. */
+/**
+ * Thrown by engines to carry a structured [PlaybackError] to the controller.
+ */
 public class PlaybackFailureException(
     /** Structured failure transported across the engine boundary. */
     public val error: PlaybackError,
@@ -681,23 +683,22 @@ public class PlaybackController(
                 val current = previous.currentOccurrence
                 if (previous.status != PlaybackStatus.Error ||
                     previous.error == null ||
-                    current == null
-                ) {
+                    current == null) {
                     return@withLock QueueMutationResult.Rejected(
                         QueueMutationRejection.StaleOccurrence)
                 }
                 val successor = nextTrack(wrap = false)
-                val remaining =
-                    previous.queue.filterNot { it.id == current.id }
+                val remaining = previous.queue.filterNot { it.id == current.id }
                 if (successor != null) {
-                    val published = previous.copy(
-                        currentOccurrenceId = null,
-                        queue = remaining,
-                        positionMillis = 0L,
-                        durationMillis = null,
-                        error = null,
-                        checkpointRevision = reserveCheckpointRevision(),
-                    )
+                    val published =
+                        previous.copy(
+                            currentOccurrenceId = null,
+                            queue = remaining,
+                            positionMillis = 0L,
+                            durationMillis = null,
+                            error = null,
+                            checkpointRevision = reserveCheckpointRevision(),
+                        )
                     if (!_state.compareAndSet(previous, published)) continue
                     publishRuntimeShuffleOrder(published, successor.id)
                     emitImmediateCheckpoint(
@@ -709,13 +710,14 @@ public class PlaybackController(
                 }
                 val failedLoadJob = loadJob.value
                 val failedErrorGeneration = previous.errorGeneration
-                val idle = PlaybackState(
-                    queue = remaining,
-                    status = PlaybackStatus.Idle,
-                    repeatMode = previous.repeatMode,
-                    shuffleMode = previous.shuffleMode,
-                    checkpointRevision = reserveCheckpointRevision(),
-                )
+                val idle =
+                    PlaybackState(
+                        queue = remaining,
+                        status = PlaybackStatus.Idle,
+                        repeatMode = previous.repeatMode,
+                        shuffleMode = previous.shuffleMode,
+                        checkpointRevision = reserveCheckpointRevision(),
+                    )
                 if (!_state.compareAndSet(previous, idle)) continue
                 publishRuntimeShuffleOrder(idle)
                 emitImmediateCheckpoint(
@@ -739,7 +741,7 @@ public class PlaybackController(
                     val recorded = failedErrorGeneration ?: return@withLock
                     val cleanupGeneration = recorded + 1L
                     if (activeGeneration.compareAndSet(
-                            recorded, cleanupGeneration)) {
+                        recorded, cleanupGeneration)) {
                         engine.clear(cleanupGeneration)
                     }
                 }
@@ -1222,11 +1224,13 @@ public class PlaybackController(
      * and the latest state reports an error with a structured cause.
      */
     private fun failedCurrentOccurrence(): QueueOccurrence? =
-        _state.value.takeIf {
-            commandsEnabled.value &&
-                it.status == PlaybackStatus.Error &&
-                it.error != null
-        }?.currentOccurrence
+        _state.value
+            .takeIf {
+                commandsEnabled.value &&
+                    it.status == PlaybackStatus.Error &&
+                    it.error != null
+            }
+            ?.currentOccurrence
 
     private fun stopAtCurrentTrackEnd() {
         val duration = _state.value.durationMillis

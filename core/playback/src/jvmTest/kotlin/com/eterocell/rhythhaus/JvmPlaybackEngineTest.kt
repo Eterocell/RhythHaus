@@ -694,7 +694,8 @@ class JvmPlaybackEngineTest {
                                 artist = "Test",
                                 album = null,
                                 durationMillis = null,
-                                source = AudioSource.FilePath(absent.toString()),
+                                source =
+                                    AudioSource.FilePath(absent.toString()),
                             ),
                             generation = 90L,
                         )

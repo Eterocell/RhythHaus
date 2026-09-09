@@ -132,8 +132,8 @@ private data class NowPlayingUiState(
 )
 
 /**
- * Whether the error-only recovery section is active: the controller reports
- * an error with a structured cause for the current queue occurrence.
+ * Whether the error-only recovery section is active: the controller reports an
+ * error with a structured cause for the current queue occurrence.
  */
 private val PlaybackState.errorRecoveryVisible: Boolean
     get() =
@@ -308,18 +308,25 @@ private fun NowPlayingControlsPane(
                         stringResource(Res.string.recovery_retry),
                         playbackController::retryFailedTrack,
                         primary = true,
-                        modifier = Modifier.testTag(NowPlayingRetryFailureTestTag),
+                        modifier =
+                            Modifier.testTag(NowPlayingRetryFailureTestTag),
                     )
                     RecoveryActionButton(
                         stringResource(Res.string.recovery_skip),
                         playbackController::skipFailedTrack,
-                        modifier = Modifier.testTag(NowPlayingSkipFailureTestTag),
+                        modifier =
+                            Modifier.testTag(NowPlayingSkipFailureTestTag),
                     )
                     RecoveryActionButton(
                         stringResource(Res.string.recovery_remove_from_queue),
-                        { scope.launch { playbackController.removeFailedTrack() } },
+                        {
+                            scope.launch {
+                                playbackController.removeFailedTrack()
+                            }
+                        },
                         destructive = true,
-                        modifier = Modifier.testTag(NowPlayingRemoveFailureTestTag),
+                        modifier =
+                            Modifier.testTag(NowPlayingRemoveFailureTestTag),
                     )
                 }
         }

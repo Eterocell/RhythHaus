@@ -211,19 +211,22 @@ class AndroidPlaybackMediaSessionTest {
     fun androidPermissionFailureMapsToAccessLost() {
         val errorCode = PlaybackException.ERROR_CODE_IO_NO_PERMISSION
 
-        assertEquals(PlaybackFailureKind.AccessLost, androidFailureKind(errorCode))
+        assertEquals(
+            PlaybackFailureKind.AccessLost, androidFailureKind(errorCode))
         assertEquals(
             PlaybackFailureKind.AccessLost,
             androidPlaybackError(
-                errorCode = errorCode,
-                message = "no permission to read source",
-            ).kind,
+                    errorCode = errorCode,
+                    message = "no permission to read source",
+                )
+                .kind,
         )
     }
 
     @Test
     fun androidUnsupportedContainerMapsToUnsupportedFormat() {
-        val errorCode = PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED
+        val errorCode =
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED
 
         assertEquals(
             PlaybackFailureKind.UnsupportedFormat,
@@ -239,7 +242,8 @@ class AndroidPlaybackMediaSessionTest {
                 PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
                 PlaybackException.ERROR_CODE_DECODING_FAILED,
                 PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
-                PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+                PlaybackException
+                    .ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
                 PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED,
             )
 
@@ -252,9 +256,10 @@ class AndroidPlaybackMediaSessionTest {
         assertEquals(
             PlaybackFailureKind.DecoderFailure,
             androidPlaybackError(
-                errorCode = errorCode,
-                message = "decoder could not decode samples",
-            ).kind,
+                    errorCode = errorCode,
+                    message = "decoder could not decode samples",
+                )
+                .kind,
         )
     }
 
@@ -266,9 +271,10 @@ class AndroidPlaybackMediaSessionTest {
         assertEquals(
             PlaybackFailureKind.Unknown,
             androidPlaybackError(
-                errorCode = errorCode,
-                message = "unidentified failure",
-            ).kind,
+                    errorCode = errorCode,
+                    message = "unidentified failure",
+                )
+                .kind,
         )
     }
 
@@ -304,10 +310,11 @@ class AndroidPlaybackMediaSessionTest {
             assertEquals(
                 PlaybackFailureKind.MissingFile,
                 androidPlaybackError(
-                    errorCode = PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
-                    message = "opaque io failure while playing",
-                    sourceFile = evidence,
-                ).kind,
+                        errorCode = PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                        message = "opaque io failure while playing",
+                        sourceFile = evidence,
+                    )
+                    .kind,
             )
         } finally {
             Files.deleteIfExists(absent)

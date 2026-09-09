@@ -640,9 +640,9 @@ private fun AudioSource.jvmFile(): File =
     }
 
 /**
- * True when this source is addressed by a local managed file path whose
- * absence on disk is direct evidence of a missing file. Remote or descriptor
- * sources carry no local-path evidence.
+ * True when this source is addressed by a local managed file path whose absence
+ * on disk is direct evidence of a missing file. Remote or descriptor sources
+ * carry no local-path evidence.
  */
 private val AudioSource.isManagedLocalFile: Boolean
     get() =
@@ -652,8 +652,8 @@ private val AudioSource.isManagedLocalFile: Boolean
 /**
  * Builds the structured failure for a native macOS load that did not produce a
  * playable player. Direct absence of the managed local file is the only
- * evidence the engine can classify as [PlaybackFailureKind.MissingFile]; a
- * bare Boolean failure from the native bridge over an existing file stays
+ * evidence the engine can classify as [PlaybackFailureKind.MissingFile]; a bare
+ * Boolean failure from the native bridge over an existing file stays
  * [PlaybackFailureKind.Unknown].
  */
 internal fun macosLoadFailureError(

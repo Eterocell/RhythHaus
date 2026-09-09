@@ -429,8 +429,9 @@ class IOSAudioPlayerBridgeTest {
             }
         assertEquals(PlaybackFailureKind.Unknown, failure.error.kind)
         assertTrue(
-            failure.error.message.orEmpty().startsWith(
-                "Could not resolve player path:"))
+            failure.error.message
+                .orEmpty()
+                .startsWith("Could not resolve player path:"))
 
         assertEquals(
             null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
@@ -482,7 +483,8 @@ class IOSAudioPlayerBridgeTest {
     fun iosMissingManagedPathMapsToMissingFile() {
         val failure =
             iosLoadFailureError(
-                path = "/var/mobile/Containers/Data/Application/RhythHaus/Documents/RhythHaus/absent.wav",
+                path =
+                    "/var/mobile/Containers/Data/Application/RhythHaus/Documents/RhythHaus/absent.wav",
                 managedFileMissing = true,
             )
 
@@ -496,7 +498,8 @@ class IOSAudioPlayerBridgeTest {
     fun opaqueIosProviderFailureRemainsUnknown() {
         val failure =
             iosLoadFailureError(
-                path = "/var/mobile/Containers/Data/Application/RhythHaus/Documents/RhythHaus/present.wav",
+                path =
+                    "/var/mobile/Containers/Data/Application/RhythHaus/Documents/RhythHaus/present.wav",
                 managedFileMissing = false,
             )
 
@@ -754,9 +757,9 @@ private fun testTrack(id: String) =
     )
 
 /**
- * Shared sandbox directory backing every successful test load. Managed
- * FilePath sources must exist before the native loader runs, so the fixture
- * resolver materializes each resolved relative path as a real (empty) file.
+ * Shared sandbox directory backing every successful test load. Managed FilePath
+ * sources must exist before the native loader runs, so the fixture resolver
+ * materializes each resolved relative path as a real (empty) file.
  */
 private val iosFixtureDirectory: String by lazy {
     val manager = NSFileManager.defaultManager

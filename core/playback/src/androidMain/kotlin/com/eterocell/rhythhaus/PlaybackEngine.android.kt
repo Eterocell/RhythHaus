@@ -559,9 +559,7 @@ internal class AndroidPlaybackRequestState {
 
     @Synchronized
     fun localFileFor(observedCurrentToken: Media3RequestToken?): java.io.File? =
-        observable
-            ?.takeIf { it.token == observedCurrentToken }
-            ?.localFile
+        observable?.takeIf { it.token == observedCurrentToken }?.localFile
 
     @Synchronized
     fun failActive(error: Throwable): Boolean {

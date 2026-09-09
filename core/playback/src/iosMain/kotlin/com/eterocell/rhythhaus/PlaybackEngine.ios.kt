@@ -174,8 +174,7 @@ private class IOSPlaybackEngine(
         return try {
             withIOSPlaybackMainContext {
                 if (load.isManagedLocalFile &&
-                    !iosFileExistsAtPath(load.path)
-                ) {
+                    !iosFileExistsAtPath(load.path)) {
                     val failure =
                         iosLoadFailureError(
                             path = load.path,

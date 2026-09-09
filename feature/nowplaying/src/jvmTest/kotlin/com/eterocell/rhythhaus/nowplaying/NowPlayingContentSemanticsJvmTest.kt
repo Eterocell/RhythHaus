@@ -206,8 +206,7 @@ public class NowPlayingContentSemanticsJvmTest {
             setContent {
                 mountedRecoveryNowPlaying(
                     track = displayTrack(),
-                    playbackState =
-                        controller.state.collectAsState().value,
+                    playbackState = controller.state.collectAsState().value,
                     controller = controller,
                     width = 1200.dp,
                     height = 800.dp,
@@ -224,7 +223,8 @@ public class NowPlayingContentSemanticsJvmTest {
             onAllNodes(hasTestTag(NowPlayingRemoveFailureTestTag))
                 .assertCountEquals(1)
             onAllNodes(hasText("Unavailable locally")).assertCountEquals(1)
-            onAllNodes(hasText("This media file is missing")).assertCountEquals(1)
+            onAllNodes(hasText("This media file is missing"))
+                .assertCountEquals(1)
             onAllNodes(hasText("Retry")).assertCountEquals(1)
             onAllNodes(hasText("Skip")).assertCountEquals(1)
             onAllNodes(hasText("Remove from queue")).assertCountEquals(1)
@@ -247,8 +247,7 @@ public class NowPlayingContentSemanticsJvmTest {
             setContent {
                 mountedRecoveryNowPlaying(
                     track = displayTrack(),
-                    playbackState =
-                        controller.state.collectAsState().value,
+                    playbackState = controller.state.collectAsState().value,
                     controller = controller,
                     width = 1200.dp,
                     height = 800.dp,
@@ -297,8 +296,7 @@ public class NowPlayingContentSemanticsJvmTest {
             setContent {
                 mountedRecoveryNowPlaying(
                     track = displayTrack(),
-                    playbackState =
-                        controller.state.collectAsState().value,
+                    playbackState = controller.state.collectAsState().value,
                     controller = controller,
                     width = 1200.dp,
                     height = 800.dp,
@@ -347,8 +345,7 @@ public class NowPlayingContentSemanticsJvmTest {
             setContent {
                 mountedRecoveryNowPlaying(
                     track = displayTrack(),
-                    playbackState =
-                        controller.state.collectAsState().value,
+                    playbackState = controller.state.collectAsState().value,
                     controller = controller,
                     width = 1200.dp,
                     height = 800.dp,
@@ -399,8 +396,7 @@ public class NowPlayingContentSemanticsJvmTest {
             setContent {
                 mountedRecoveryNowPlaying(
                     track = displayTrack(),
-                    playbackState =
-                        controller.state.collectAsState().value,
+                    playbackState = controller.state.collectAsState().value,
                     controller = controller,
                     width = 1200.dp,
                     height = 800.dp,
@@ -434,8 +430,7 @@ public class NowPlayingContentSemanticsJvmTest {
     public fun pausedLoadingAndOccurrenceLessErrorStatesExposeNoFailureRecoveryNodes():
         Unit = runComposeUiTest {
         val controller = PlaybackController(ImmediatePlaybackEngine())
-        val occurrence =
-            QueueOccurrence("current", playableTracks()[0])
+        val occurrence = QueueOccurrence("current", playableTracks()[0])
         val failedWithoutOccurrence =
             PlaybackState(
                 status = PlaybackStatus.Error,
@@ -506,7 +501,8 @@ public class NowPlayingContentSemanticsJvmTest {
                     "Unavailable locally",
                     kind = PlaybackFailureKind.MissingFile,
                 )
-            retryController.setQueue(playableTracks(), selectedTrackId = "second")
+            retryController.setQueue(
+                playableTracks(), selectedTrackId = "second")
             setContent {
                 mountedRecoveryNowPlaying(
                     track = displayTrack(),
@@ -564,8 +560,7 @@ public class NowPlayingContentSemanticsJvmTest {
             setContent {
                 mountedRecoveryNowPlaying(
                     track = displayTrack(),
-                    playbackState =
-                        nextController.state.collectAsState().value,
+                    playbackState = nextController.state.collectAsState().value,
                     controller = nextController,
                     height = 700.dp,
                 )
