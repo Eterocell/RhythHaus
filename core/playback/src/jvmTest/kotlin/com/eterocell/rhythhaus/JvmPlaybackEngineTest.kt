@@ -679,6 +679,70 @@ class JvmPlaybackEngineTest {
     }
 
     @Test
+    fun missingMacPathMapsToMissingFile() {
+        val absent = Files.createTempFile("rhythhaus-mac-absent", ".wav")
+        Files.deleteIfExists(absent)
+        val engine = createJvmPlaybackEngine()
+        try {
+            val failure =
+                assertFailsWith<PlaybackFailureException> {
+                    runBlocking {
+                        engine.loadPaused(
+                            PlayableTrack(
+                                id = "missing-mac",
+                                title = "Missing Mac",
+                                artist = "Test",
+                                album = null,
+                                durationMillis = null,
+                                source = AudioSource.FilePath(absent.toString()),
+                            ),
+                            generation = 90L,
+                        )
+                    }
+                }
+
+            assertEquals(PlaybackFailureKind.MissingFile, failure.error.kind)
+        } finally {
+            engine.release()
+            Files.deleteIfExists(absent)
+        }
+    }
+
+    @Test
+    fun opaqueMacNativeLoadFailureRemainsUnknown() {
+        // An existing but empty file is a valid managed path that the native
+        // macOS audio player cannot decode, so the bridge reports a bare
+        // Boolean failure with no reliable native reason.
+        val undecodable = Files.createTempFile("rhythhaus-mac-opaque", ".wav")
+        val engine = createJvmPlaybackEngine()
+        try {
+            val failure =
+                assertFailsWith<PlaybackFailureException> {
+                    runBlocking {
+                        engine.loadPaused(
+                            PlayableTrack(
+                                id = "opaque-mac",
+                                title = "Opaque Mac",
+                                artist = "Test",
+                                album = null,
+                                durationMillis = null,
+                                source =
+                                    AudioSource.FilePath(
+                                        undecodable.toString()),
+                            ),
+                            generation = 91L,
+                        )
+                    }
+                }
+
+            assertEquals(PlaybackFailureKind.Unknown, failure.error.kind)
+        } finally {
+            engine.release()
+            Files.deleteIfExists(undecodable)
+        }
+    }
+
+    @Test
     fun controllerAutoAdvancesToNextTrackOnCompletion() {
         val engine = FakePlaybackEngine()
         val controller = PlaybackController(engine)

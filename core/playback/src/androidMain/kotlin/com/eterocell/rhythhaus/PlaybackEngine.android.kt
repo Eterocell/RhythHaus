@@ -205,7 +205,8 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         track: PlayableTrack,
         generation: Long
     ): LoadedPlayback {
-        val request = requestState.begin(generation)
+        val request =
+            requestState.begin(generation, track.source.androidLocalFile())
         activeGeneration = generation
         listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
         loadedTrackDurationMillis = track.durationMillis
@@ -376,19 +377,72 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
             val observed = currentRequestToken(c)
             val generation =
                 requestState.observableGeneration(observed) ?: return
-            val cause =
-                IllegalStateException(error.message ?: error.errorCodeName)
-            requestState.failPending(observed, cause)
-            listener?.onPlaybackError(
-                generation,
-                PlaybackError(
-                    message = "Android could not play this audio file.",
-                    cause = error.message ?: error.errorCodeName,
-                ),
-            )
+            val failure =
+                androidPlaybackError(
+                    error,
+                    sourceFile = requestState.localFileFor(observed),
+                )
+            requestState.failPending(
+                observed, PlaybackFailureException(failure))
+            listener?.onPlaybackError(generation, failure)
         }
     }
 }
+
+/**
+ * Maps a Media3 [PlaybackException] into the structured playback contract.
+ *
+ * Classification uses only documented Media3 error codes. When the load
+ * references a concrete local file that no longer exists, that direct absence
+ * evidence takes precedence so an opaque IO code cannot hide a missing file.
+ * Service-connection and other unrelated failures fall through to
+ * [PlaybackFailureKind.Unknown].
+ */
+internal fun androidPlaybackError(
+    error: PlaybackException,
+    sourceFile: java.io.File? = null,
+): PlaybackError =
+    androidPlaybackError(error.errorCode, error.message, sourceFile)
+
+/**
+ * Pure classification entry point used by the engine-facing overload and by
+ * host tests (constructing a Media3 [PlaybackException] requires the Android
+ * framework clock).
+ */
+internal fun androidPlaybackError(
+    errorCode: Int,
+    message: String?,
+    sourceFile: java.io.File? = null,
+): PlaybackError {
+    val kind =
+        if (sourceFile != null && !sourceFile.exists()) {
+            PlaybackFailureKind.MissingFile
+        } else {
+            androidFailureKind(errorCode)
+        }
+    return PlaybackError(
+        message = "Android could not play this audio file.",
+        cause = message ?: PlaybackException.getErrorCodeName(errorCode),
+        kind = kind,
+    )
+}
+
+/** Maps a documented Media3 error code to a playback failure kind. */
+internal fun androidFailureKind(errorCode: Int): PlaybackFailureKind =
+    when (errorCode) {
+        PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
+            PlaybackFailureKind.MissingFile
+        PlaybackException.ERROR_CODE_IO_NO_PERMISSION ->
+            PlaybackFailureKind.AccessLost
+        PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ->
+            PlaybackFailureKind.UnsupportedFormat
+        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ->
+            PlaybackFailureKind.DecoderFailure
+        else -> PlaybackFailureKind.Unknown
+    }
 
 internal data class Media3RequestToken(val generation: Long, val nonce: Long) {
     fun encode(): String = "$generation:$nonce"
@@ -424,6 +478,8 @@ internal class Media3RequestTokenTracker {
 internal data class AndroidPlaybackRequest(
     val token: Media3RequestToken,
     val result: CompletableDeferred<LoadedPlayback>,
+    /** Concrete local source file for this request, when one exists. */
+    val localFile: java.io.File? = null,
 )
 
 internal data class AndroidObservablePlayback(
@@ -437,13 +493,17 @@ internal class AndroidPlaybackRequestState {
     private var observable: AndroidObservablePlayback? = null
 
     @Synchronized
-    fun begin(generation: Long): AndroidPlaybackRequest {
+    fun begin(
+        generation: Long,
+        localFile: java.io.File? = null,
+    ): AndroidPlaybackRequest {
         pending
             ?.result
             ?.cancel(CancellationException("Superseded Android playback load"))
         return AndroidPlaybackRequest(
                 token = Media3RequestToken(generation, ++nonce),
                 result = CompletableDeferred(),
+                localFile = localFile,
             )
             .also {
                 pending = it
@@ -490,6 +550,10 @@ internal class AndroidPlaybackRequestState {
         pending = null
         return request.result.completeExceptionally(error)
     }
+
+    @Synchronized
+    fun localFileFor(observedCurrentToken: Media3RequestToken?): java.io.File? =
+        pending?.takeIf { it.token == observedCurrentToken }?.localFile
 
     @Synchronized
     fun failActive(error: Throwable): Boolean {
@@ -582,4 +646,20 @@ private fun AudioSource.androidUri(): Uri =
         is AudioSource.FileDescriptor ->
             error(
                 "File descriptor audio sources are metadata-only and cannot be played")
+    }
+
+/**
+ * Returns the concrete local file backing this source, or null when the source
+ * is not an ordinary local file (content URIs, descriptors, remote locations).
+ */
+private fun AudioSource.androidLocalFile(): java.io.File? =
+    when (this) {
+        is AudioSource.FilePath -> java.io.File(path)
+        is AudioSource.Uri ->
+            if (value.startsWith("file:")) {
+                runCatching { java.io.File(java.net.URI(value)) }.getOrNull()
+            } else {
+                null
+            }
+        is AudioSource.FileDescriptor -> null
     }

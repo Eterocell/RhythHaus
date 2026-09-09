@@ -9,6 +9,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import platform.MediaPlayer.MPNowPlayingInfoCenter
+import platform.Foundation.NSTemporaryDirectory
 
 class IOSAudioPlayerBridgeTest {
 
@@ -288,11 +289,13 @@ class IOSAudioPlayerBridgeTest {
         val engine = createIOSPlaybackEngine(testResolver())
         engine.listener = recording
 
-        assertFailsWith<IllegalStateException> {
-            runBlocking {
-                engine.loadPaused(testTrack("failed"), generation = 42L)
+        val failure =
+            assertFailsWith<PlaybackFailureException> {
+                runBlocking {
+                    engine.loadPaused(testTrack("failed"), generation = 42L)
+                }
             }
-        }
+        assertEquals(PlaybackFailureKind.Unknown, failure.error.kind)
         assertEquals(null, provider.completionHandler)
         assertEquals(null, provider.interruptionHandler)
         provider.simulateNativeCompletion()
@@ -464,6 +467,67 @@ class IOSAudioPlayerBridgeTest {
     fun iosPlaybackEngineUsesSwiftNativeAudioProvider() {
         assertEquals(
             IOSAudioBackend.SwiftAVAudioPlayerDelegate, iosAudioBackend)
+    }
+
+    @Test
+    fun iosMissingManagedPathMapsToMissingFile() {
+        val failure =
+            iosLoadFailureError(
+                path = "/var/mobile/Containers/Data/Application/RhythHaus/Documents/RhythHaus/absent.wav",
+                managedFileMissing = true,
+            )
+
+        assertEquals(PlaybackFailureKind.MissingFile, failure.kind)
+        assertEquals(
+            "/var/mobile/Containers/Data/Application/RhythHaus/Documents/RhythHaus/absent.wav",
+            failure.cause)
+    }
+
+    @Test
+    fun opaqueIosProviderFailureRemainsUnknown() {
+        val failure =
+            iosLoadFailureError(
+                path = "/var/mobile/Containers/Data/Application/RhythHaus/Documents/RhythHaus/present.wav",
+                managedFileMissing = false,
+            )
+
+        assertEquals(PlaybackFailureKind.Unknown, failure.kind)
+        assertEquals(
+            "/var/mobile/Containers/Data/Application/RhythHaus/Documents/RhythHaus/present.wav",
+            failure.cause)
+    }
+
+    @Test
+    fun missingManagedFileFailsLoadBeforeInvokingNativeProvider() {
+        val provider = FakeIOSAudioPlayerProvider()
+        IOSAudioPlayerBridge.provider = provider
+        val recording = RecordingListener()
+        val absentPath =
+            "${NSTemporaryDirectory()}rhythhaus-ios-managed-absent-60.wav"
+        val engine =
+            createIOSPlaybackEngine(
+                object : IOSRelativeFilePathResolver {
+                    override fun resolve(relativePath: String): String =
+                        absentPath
+                })
+        engine.listener = recording
+        try {
+            val failure =
+                assertFailsWith<PlaybackFailureException> {
+                    runBlocking {
+                        engine.loadPaused(testTrack("absent"), generation = 60L)
+                    }
+                }
+
+            assertEquals(PlaybackFailureKind.MissingFile, failure.error.kind)
+            assertEquals(absentPath, failure.error.cause)
+            assertFalse(provider.isLoaded)
+            assertEquals(null, provider.completionHandler)
+            assertEquals(listOf(PlaybackStatus.Loading), recording.statuses)
+        } finally {
+            engine.release()
+            IOSAudioPlayerBridge.provider = null
+        }
     }
 }
 

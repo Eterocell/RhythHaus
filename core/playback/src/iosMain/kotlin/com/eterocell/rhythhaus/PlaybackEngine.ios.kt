@@ -11,6 +11,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
 import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
 import platform.MediaPlayer.MPMediaItemPropertyAlbumTitle
@@ -72,6 +73,12 @@ private class IOSPlaybackEngine(
         val track: PlayableTrack,
         val generation: Long,
         val version: Long,
+        /**
+         * True when the track is addressed by a local managed file path
+         * ([AudioSource.FilePath]) whose absence on disk is direct evidence of
+         * a missing file. Non-file sources carry no local-path evidence.
+         */
+        val isManagedLocalFile: Boolean,
     )
 
     init {
@@ -165,6 +172,23 @@ private class IOSPlaybackEngine(
         }
         val result = CompletableDeferred<Boolean>()
         return try {
+            withIOSPlaybackMainContext {
+                if (load.isManagedLocalFile &&
+                    load.path.startsWith("/") &&
+                    !iosFileExistsAtPath(load.path)
+                ) {
+                    val failure =
+                        iosLoadFailureError(
+                            path = load.path,
+                            managedFileMissing = true,
+                        )
+                    playbackLog.e {
+                        "Cannot play: ${load.track.title} (file is missing)"
+                    }
+                    listener?.onPlaybackError(load.generation, failure)
+                    throw PlaybackFailureException(failure)
+                }
+            }
             withIOSPlaybackMainThread {
                 load.provider.loadAsync(
                     load.path,
@@ -180,12 +204,19 @@ private class IOSPlaybackEngine(
             }
             if (!result.await()) {
                 withIOSPlaybackMainContext {
-                    val errorMsg = "Cannot play: ${track.title}"
-                    playbackLog.e { errorMsg }
-                    listener?.onPlaybackError(
-                        generation, PlaybackError(errorMsg, cause = load.path))
+                    val managedFileMissing =
+                        load.isManagedLocalFile &&
+                            load.path.startsWith("/") &&
+                            !iosFileExistsAtPath(load.path)
+                    val failure =
+                        iosLoadFailureError(
+                            path = load.path,
+                            managedFileMissing = managedFileMissing,
+                        )
+                    playbackLog.e { "Cannot play: ${track.title}" }
+                    listener?.onPlaybackError(generation, failure)
+                    throw PlaybackFailureException(failure)
                 }
-                error("Cannot play: ${track.title}")
             }
             withIOSPlaybackMainContext {
                 if (!isCurrentSource(load.generation, load.version)) {
@@ -236,7 +267,14 @@ private class IOSPlaybackEngine(
         playbackLog.d { "Player path: $path" }
         provider.completionHandler = completionHandler(generation, version)
         provider.interruptionHandler = interruptionHandler(generation, version)
-        return PendingTrackLoad(provider, path, track, generation, version)
+        return PendingTrackLoad(
+            provider = provider,
+            path = path,
+            track = track,
+            generation = generation,
+            version = version,
+            isManagedLocalFile = track.source is AudioSource.FilePath,
+        )
     }
 
     private fun finishTrackLoad(load: PendingTrackLoad): LoadedPlayback {
@@ -697,3 +735,31 @@ private fun AudioSource.iosFilePath(
             error(
                 "File descriptor audio sources are metadata-only and cannot be played")
     }
+
+/** True when a file exists at the given absolute path. */
+internal fun iosFileExistsAtPath(path: String): Boolean =
+    NSFileManager.defaultManager.fileExistsAtPath(path)
+
+/**
+ * Builds the structured failure for a native iOS audio load that did not
+ * produce playable media. Absence of the managed local file is the only direct
+ * evidence the engine can classify; every other provider failure stays
+ * [PlaybackFailureKind.Unknown].
+ */
+internal fun iosLoadFailureError(
+    path: String,
+    managedFileMissing: Boolean,
+): PlaybackError {
+    return PlaybackError(
+        message =
+            if (managedFileMissing) {
+                "This audio file is no longer available."
+            } else {
+                "This audio file could not be played."
+            },
+        cause = path,
+        kind =
+            if (managedFileMissing) PlaybackFailureKind.MissingFile
+            else PlaybackFailureKind.Unknown,
+    )
+}

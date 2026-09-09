@@ -1,6 +1,8 @@
 package com.eterocell.rhythhaus
 
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
+import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -189,6 +191,90 @@ class AndroidPlaybackMediaSessionTest {
         assertEquals(2, executor.pendingCount)
         executor.runAll()
         assertEquals(listOf("load", "clear"), calls)
+    }
+
+    @Test
+    fun androidFileNotFoundMapsToMissingFile() {
+        val mapped =
+            androidPlaybackError(
+                errorCode = PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND,
+                message = "source file missing",
+            )
+
+        assertEquals(PlaybackFailureKind.MissingFile, mapped.kind)
+        assertEquals("Android could not play this audio file.", mapped.message)
+        assertEquals("source file missing", mapped.cause)
+    }
+
+    @Test
+    fun androidPermissionFailureMapsToAccessLost() {
+        val errorCode = PlaybackException.ERROR_CODE_IO_NO_PERMISSION
+
+        assertEquals(PlaybackFailureKind.AccessLost, androidFailureKind(errorCode))
+        assertEquals(
+            PlaybackFailureKind.AccessLost,
+            androidPlaybackError(
+                errorCode = errorCode,
+                message = "no permission to read source",
+            ).kind,
+        )
+    }
+
+    @Test
+    fun androidUnsupportedContainerMapsToUnsupportedFormat() {
+        val errorCode = PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED
+
+        assertEquals(
+            PlaybackFailureKind.UnsupportedFormat,
+            androidFailureKind(errorCode))
+    }
+
+    @Test
+    fun androidDecoderFailureMapsToDecoderFailure() {
+        val errorCode = PlaybackException.ERROR_CODE_DECODING_FAILED
+
+        assertEquals(
+            PlaybackFailureKind.DecoderFailure,
+            androidFailureKind(errorCode))
+        assertEquals(
+            PlaybackFailureKind.DecoderFailure,
+            androidPlaybackError(
+                errorCode = errorCode,
+                message = "decoder could not decode samples",
+            ).kind,
+        )
+    }
+
+    @Test
+    fun androidOpaquePlayerErrorRemainsUnknown() {
+        val errorCode = PlaybackException.ERROR_CODE_UNSPECIFIED
+
+        assertEquals(PlaybackFailureKind.Unknown, androidFailureKind(errorCode))
+        assertEquals(
+            PlaybackFailureKind.Unknown,
+            androidPlaybackError(
+                errorCode = errorCode,
+                message = "unidentified failure",
+            ).kind,
+        )
+    }
+
+    @Test
+    fun androidAbsentLocalSourceFileMapsToMissingFile() {
+        val absent = Files.createTempFile("rhythhaus-absent-android", ".wav")
+        Files.deleteIfExists(absent)
+        try {
+            val mapped =
+                androidPlaybackError(
+                    errorCode = PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                    message = "opaque io failure",
+                    sourceFile = absent.toFile(),
+                )
+
+            assertEquals(PlaybackFailureKind.MissingFile, mapped.kind)
+        } finally {
+            Files.deleteIfExists(absent)
+        }
     }
 
     @Test

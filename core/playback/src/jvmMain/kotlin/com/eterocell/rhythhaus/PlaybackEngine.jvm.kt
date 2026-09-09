@@ -37,14 +37,25 @@ internal class MacOSNativePlaybackEngine(
         track: PlayableTrack,
         generation: Long
     ): LoadedPlayback {
+        val sourceFile = track.source.jvmFile()
+        val managedLocalFile = track.source.isManagedLocalFile
         val loadedState =
             synchronized(playbackStateLock) {
                 stopProgressUpdatesLocked()
                 activeGeneration = generation
                 sourceVersion++
                 bridge.resetPlayer()
-                val loaded = bridge.load(track.source.jvmFile().absolutePath)
-                require(loaded) { "Could not load native macOS audio player" }
+                if (managedLocalFile && !sourceFile.exists()) {
+                    throw PlaybackFailureException(
+                        macosLoadFailureError(
+                            sourceFile, managedFileMissing = true))
+                }
+                val loaded = bridge.load(sourceFile.absolutePath)
+                if (!loaded) {
+                    throw PlaybackFailureException(
+                        macosLoadFailureError(
+                            sourceFile, managedFileMissing = false))
+                }
                 durationMillis =
                     track.durationMillis
                         ?: bridge.durationMillis().takeIf { it > 0L }
@@ -627,3 +638,38 @@ private fun AudioSource.jvmFile(): File =
             error(
                 "File descriptor audio sources are metadata-only and cannot be played")
     }
+
+/**
+ * True when this source is addressed by a local managed file path whose
+ * absence on disk is direct evidence of a missing file. Remote or descriptor
+ * sources carry no local-path evidence.
+ */
+private val AudioSource.isManagedLocalFile: Boolean
+    get() =
+        this is AudioSource.FilePath ||
+            (this is AudioSource.Uri && value.startsWith("file:"))
+
+/**
+ * Builds the structured failure for a native macOS load that did not produce a
+ * playable player. Direct absence of the managed local file is the only
+ * evidence the engine can classify as [PlaybackFailureKind.MissingFile]; a
+ * bare Boolean failure from the native bridge over an existing file stays
+ * [PlaybackFailureKind.Unknown].
+ */
+internal fun macosLoadFailureError(
+    sourceFile: File,
+    managedFileMissing: Boolean,
+): PlaybackError {
+    return PlaybackError(
+        message =
+            if (managedFileMissing) {
+                "This audio file is no longer available."
+            } else {
+                "This audio file could not be played."
+            },
+        cause = sourceFile.absolutePath,
+        kind =
+            if (managedFileMissing) PlaybackFailureKind.MissingFile
+            else PlaybackFailureKind.Unknown,
+    )
+}
