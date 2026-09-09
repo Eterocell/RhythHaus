@@ -1371,6 +1371,541 @@ class PlaybackControllerTest {
             collection.cancelAndJoin()
         }
 
+    /**
+     * Regression guard for the retry failed-track path racing a committed
+     * queue replacement (requirement B): a retry admitted only after the
+     * replacement removed the failed occurrence must leave the winner's
+     * queue, current occurrence, engine load, generation and checkpoints
+     * completely untouched.
+     */
+    @Test
+    fun retryFailedTrackAfterQueueReplacementLeavesWinnerUntouched() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.checkpoints.collect(checkpoints::send)
+                }
+            val tracks = testTracks(3)
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence("failed", tracks[0]),
+                    QueueOccurrence("upcoming", tracks[1]),
+                ),
+                "failed")
+            engine.awaitLoad()
+            checkpoints.receive()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("boom"))
+            assertNotNull(controller.state.value.error)
+            engine.clearEvents()
+            assertNull(checkpoints.tryReceive().getOrNull())
+
+            val winnerTrack = tracks[2]
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("winner", winnerTrack)), "winner")
+            engine.awaitLoadCount(2)
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            checkpoints.receive()
+            val winnerState = controller.state.value
+            val winnerGeneration = engine.activeGeneration
+            engine.clearEvents()
+            assertNull(checkpoints.tryReceive().getOrNull())
+
+            controller.retryFailedTrack()
+
+            assertEquals(winnerState, controller.state.value)
+            assertEquals(winnerGeneration, engine.activeGeneration)
+            assertNull(controller.state.value.error)
+            assertEquals(emptyList(), engine.eventSnapshot())
+            assertNull(checkpoints.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+
+    /**
+     * Regression guard for the skip failed-track path racing a committed
+     * queue replacement (requirement B): the stale skip must not advance the
+     * replacement's queue or start any load.
+     */
+    @Test
+    fun skipFailedTrackAfterQueueReplacementDoesNotAdvanceWinner() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.checkpoints.collect(checkpoints::send)
+                }
+            val tracks = testTracks(4)
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence("failed", tracks[0]),
+                    QueueOccurrence("tail", tracks[1]),
+                    QueueOccurrence("upcoming", tracks[2]),
+                ),
+                "failed")
+            engine.awaitLoad()
+            checkpoints.receive()
+            controller.setShuffleMode(ShuffleMode.On)
+            checkpoints.receive()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("boom"))
+            engine.clearEvents()
+            assertNull(checkpoints.tryReceive().getOrNull())
+
+            val winnerTrack = tracks[3]
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("winner", winnerTrack)), "winner")
+            engine.awaitLoadCount(2)
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            checkpoints.receive()
+            val winnerState = controller.state.value
+            val winnerGeneration = engine.activeGeneration
+            engine.clearEvents()
+            assertNull(checkpoints.tryReceive().getOrNull())
+
+            controller.skipFailedTrack()
+
+            assertEquals(winnerState, controller.state.value)
+            assertEquals(winnerGeneration, engine.activeGeneration)
+            assertNull(controller.state.value.error)
+            assertEquals(emptyList(), engine.eventSnapshot())
+            assertNull(checkpoints.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+
+    /**
+     * A retry admitted while its engine load is paused must be cancelled by a
+     * superseding replacement without altering the replacement's queue,
+     * current occurrence, load, generation or checkpoints (requirement B).
+     */
+    @Test
+    fun supersededRetryLoadCannotAlterCommittedReplacement() =
+        runBlocking {
+            val holdGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(holdGate = holdGate)
+            val controller = PlaybackController(engine)
+            val tracks = testTracks(3)
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence("failed", tracks[0]),
+                    QueueOccurrence("tail", tracks[1]),
+                ),
+                "failed")
+            // The failed load holds the engine mutex inside its non-cancellable
+            // hold while the error is reported.
+            engine.awaitHoldEntered()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("boom"))
+            engine.clearEvents()
+
+            // The stale retry is admitted and its engine load pauses at the
+            // engine mutex while the Loading state is current.
+            controller.retryFailedTrack()
+            assertEquals(
+                "failed", controller.state.value.currentOccurrenceId)
+            assertEquals(PlaybackStatus.Loading, controller.state.value.status)
+
+            val winnerTrack = tracks[2]
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("winner", winnerTrack)), "winner")
+            assertEquals(
+                "winner", controller.state.value.currentOccurrenceId)
+            assertEquals(
+                listOf("winner"),
+                controller.state.value.queue.map { it.id })
+            assertNull(controller.state.value.error)
+
+            engine.releaseHold()
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            assertEquals(
+                "winner", controller.state.value.currentOccurrenceId)
+            assertEquals("track-3", engine.loadedTracks.last().id)
+            assertNull(controller.state.value.error)
+            // Only the winner's load reaches the engine after the gate opens.
+            assertEquals(
+                listOf(EngineEvent.Load("track-3")), engine.eventSnapshot())
+        }
+
+    /**
+     * Old-generation error, status, progress and completion callbacks emitted
+     * after a replacement's Loading state cannot alter the replacement's
+     * state or start another load (requirement C).
+     */
+    @Test
+    fun staleGenerationCallbacksAfterReplacementLoadingCannotAlterWinner() =
+        runBlocking {
+            val holdGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(holdGate = holdGate)
+            val controller = PlaybackController(engine)
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.checkpoints.collect(checkpoints::send)
+                }
+            val tracks = testTracks(2)
+            controller.setQueue(listOf(tracks[0]), selectedTrackId = "track-1")
+            engine.awaitHoldEntered()
+            val staleGeneration = engine.activeGeneration
+            checkpoints.receive()
+            engine.clearEvents()
+
+            // The winner's claim makes Loading current while its engine load
+            // waits behind the engine mutex held by the stuck first load.
+            controller.setQueue(listOf(tracks[1]), selectedTrackId = "track-2")
+            assertEquals(
+                "track-2", controller.state.value.currentTrack?.id)
+            assertEquals(PlaybackStatus.Loading, controller.state.value.status)
+            checkpoints.receive()
+            val loadingState = controller.state.value
+
+            engine.listener?.onPlaybackStatus(
+                staleGeneration, PlaybackStatus.Playing)
+            engine.listener?.onPlaybackProgress(
+                staleGeneration, 900L, 1_000L)
+            engine.listener?.onPlaybackCompleted(staleGeneration)
+            engine.listener?.onPlaybackError(
+                staleGeneration, PlaybackError("stale"))
+            engine.listener?.onSkipToNext(staleGeneration)
+
+            assertEquals(loadingState, controller.state.value)
+            assertNull(checkpoints.tryReceive().getOrNull())
+
+            engine.releaseHold()
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            assertEquals("track-2", controller.state.value.currentTrack?.id)
+            assertNull(controller.state.value.error)
+            // Only the winner's load reaches the engine: the stale callbacks
+            // started no further load.
+            assertEquals(
+                listOf(EngineEvent.Load("track-2")), engine.eventSnapshot())
+            assertNull(checkpoints.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+
+    /**
+     * A stale load whose engine failure surfaces after a superseding claim
+     * cannot publish an error against the winner's state (requirement C).
+     */
+    @Test
+    fun staleLoadFailureAfterSupersedeCannotErrorTheWinner() =
+        runBlocking {
+            val holdGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(holdGate = holdGate)
+            val controller = PlaybackController(engine)
+            val tracks = testTracks(2)
+            controller.setQueue(listOf(tracks[0]), selectedTrackId = "track-1")
+            engine.awaitHoldEntered()
+
+            controller.setQueue(listOf(tracks[1]), selectedTrackId = "track-2")
+            withTimeout(5_000) {
+                while (controller.state.value.currentTrack?.id != "track-2") {
+                    kotlinx.coroutines.yield()
+                }
+            }
+            // The stale first load still holds the engine mutex inside its
+            // non-cancellable hold; make it fail when released.
+            engine.nextLoadFailure =
+                PlaybackFailureException(
+                    PlaybackError(
+                        "stale failure",
+                        kind = PlaybackFailureKind.Unknown,
+                    ),
+                )
+            engine.releaseHold()
+
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            assertEquals("track-2", controller.state.value.currentTrack?.id)
+            assertNull(
+                controller.state.value.error,
+                "a stale load failure must never surface as the winner's error",
+            )
+            assertEquals("track-2", engine.loadedTracks.last().id)
+        }
+
+    /**
+     * The winner's autoplay intent survives a stale selection request, and
+     * ordinary play/pause during Loading keeps working (requirement D).
+     */
+    @Test
+    fun winnerAutoplaySurvivesStaleSelectionAndPausePlayWhileLoading() =
+        runBlocking {
+            val loadGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(loadGate = loadGate)
+            val controller = PlaybackController(engine)
+            val track = testTracks(1).single()
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitLoadStarted()
+
+            // User presses play while the winner is still loading.
+            controller.play()
+            // A stale request that lost its claim cannot reset the intent: a
+            // later selection of an occurrence absent from the queue is a
+            // no-op, and the winner keeps its pending play intent.
+            controller.selectTrack("missing-track", autoPlay = false)
+            engine.releaseLoad()
+
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Playing) kotlinx.coroutines.yield()
+            }
+            assertEquals(track.id, controller.state.value.currentTrack?.id)
+            assertEquals(PlaybackStatus.Playing, controller.state.value.status)
+        }
+
+    /**
+     * Pause during Loading suppresses autoplay, and a later play while still
+     * Loading re-enables it (requirement D, ordinary transport behavior).
+     */
+    @Test
+    fun pauseDuringLoadingSuppressesAutoplayUntilPlayIsReissued() =
+        runBlocking {
+            val loadGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(loadGate = loadGate)
+            val controller = PlaybackController(engine)
+            val track = testTracks(1).single()
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitLoadStarted()
+
+            controller.pause()
+            engine.releaseLoad()
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+
+            // A second load with pause applied while loading.
+            val secondGate = CompletableDeferred<Unit>()
+            val gated = RecordingPlaybackEngine(loadGate = secondGate)
+            val second = PlaybackController(gated)
+            second.setQueue(listOf(track), selectedTrackId = track.id)
+            gated.awaitLoadStarted()
+            second.play()
+            gated.releaseLoad()
+            withTimeout(5_000) {
+                while (second.state.value.status !=
+                    PlaybackStatus.Playing) kotlinx.coroutines.yield()
+            }
+            assertEquals(PlaybackStatus.Playing, second.state.value.status)
+        }
+
+    /**
+     * Restart of a failed track is admitted through the selection transaction:
+     * admission emits exactly the intended restart checkpoint and reloads the
+     * occurrence with autoplay (reviewer restart finding).
+     */
+    @Test
+    fun restartFailedTrackAdmissionEmitsIntendedRestartCheckpoint() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.checkpoints.collect(checkpoints::send)
+                }
+            val track = testTracks(1).single()
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitLoad()
+            checkpoints.receive()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("boom"))
+            engine.clearEvents()
+
+            controller.restartCurrentTrack()
+
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Playing) kotlinx.coroutines.yield()
+            }
+            assertEquals(track.id, controller.state.value.currentTrack?.id)
+            assertEquals(0L, controller.state.value.positionMillis)
+            assertNull(controller.state.value.error)
+            assertEquals(
+                listOf(
+                    EngineEvent.Load("track-1"),
+                    EngineEvent.Play,
+                ),
+                engine.eventSnapshot(),
+            )
+            val restartCheckpoint = checkpoints.receive()
+            assertTrue(restartCheckpoint is PlaybackCheckpoint.Immediate)
+            assertEquals(
+                track.id, restartCheckpoint.snapshot.currentTrackId)
+            assertEquals(0L, restartCheckpoint.snapshot.positionMillis)
+            assertNull(checkpoints.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+
+    /**
+     * Restart whose admitted load is superseded by a replacement never emits a
+     * stale post-replacement checkpoint: the checkpoint stream ends with the
+     * replacement's own state (reviewer restart finding).
+     */
+    @Test
+    fun supersededRestartEmitsNoStalePreReplacementCheckpoint() =
+        runBlocking {
+            val loadGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(loadGate = loadGate)
+            val controller = PlaybackController(engine)
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.checkpoints.collect(checkpoints::send)
+                }
+            val tracks = testTracks(2)
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("failed", tracks[0])), "failed")
+            // The initial load pauses at the engine gate (holding the engine
+            // mutex) so restart and the winner's claims stay serialized here.
+            engine.awaitLoadStarted()
+            checkpoints.receive()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("boom"))
+
+            controller.restartCurrentTrack()
+            assertEquals(
+                "failed", controller.state.value.currentOccurrenceId)
+            assertEquals(PlaybackStatus.Loading, controller.state.value.status)
+
+            val winnerTrack = tracks[1]
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("winner", winnerTrack)), "winner")
+            engine.releaseLoad()
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            assertEquals(
+                "winner", controller.state.value.currentOccurrenceId)
+            assertEquals("track-2", engine.loadedTracks.last().id)
+            // The stream ends with the winner's checkpoint; the superseded
+            // restart appends nothing after it.
+            val restartCheckpoint = checkpoints.receive()
+            assertTrue(restartCheckpoint is PlaybackCheckpoint.Immediate)
+            assertEquals(
+                "failed", restartCheckpoint.snapshot.currentOccurrenceId)
+            val winnerCheckpoint = checkpoints.receive()
+            assertTrue(winnerCheckpoint is PlaybackCheckpoint.Immediate)
+            assertEquals(
+                "winner",
+                winnerCheckpoint.snapshot.currentOccurrenceId)
+            assertNull(checkpoints.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+
+    /**
+     * Clearing the queue while a selection is loading cancels that request and
+     * publishes the cleared session without stale effects: the cleared state
+     * wins and the cancelled load never settles over it (request clear race).
+     */
+    @Test
+    fun clearingQueueDuringLoadingCancelsRequestWithoutStaleEffects() =
+        runBlocking {
+            val holdGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(holdGate = holdGate)
+            val controller = PlaybackController(engine)
+            val tracks = testTracks(2)
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("stuck", tracks[0])), "stuck")
+            engine.awaitHoldEntered()
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("boom"))
+            engine.clearEvents()
+
+            // The retry is admitted while its engine load waits behind the
+            // stuck load's engine mutex.
+            controller.retryFailedTrack()
+            assertEquals(PlaybackStatus.Loading, controller.state.value.status)
+
+            controller.setOccurrenceQueue(emptyList())
+            engine.releaseHold()
+            withTimeout(5_000) {
+                while (controller.state.value.currentOccurrenceId != null &&
+                    controller.state.value.status != PlaybackStatus.Paused &&
+                    controller.state.value.status != PlaybackStatus.Idle) {
+                    kotlinx.coroutines.yield()
+                }
+            }
+            assertNull(controller.state.value.currentOccurrenceId)
+            assertNull(controller.state.value.error)
+            assertEquals(emptyList(), controller.state.value.queue)
+            // The cancelled retry never reached the engine; the clear did.
+            assertEquals(
+                listOf(EngineEvent.Clear), engine.eventSnapshot())
+        }
+
+    /**
+     * A reconcile whose paused engine load is superseded by a concurrent
+     * selection cannot overwrite the winner's state: settlement and
+     * checkpoint emission are token-gated (reconcile race).
+     */
+    @Test
+    fun reconcileReplacementLoadCannotOverwriteConcurrentSelection() =
+        runBlocking {
+            val loadGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(loadGate = loadGate)
+            val controller = PlaybackController(engine)
+            val tracks = testTracks(3)
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence("gone", tracks[0]),
+                    QueueOccurrence("keep", tracks[1]),
+                ),
+                "gone")
+            // The initial load pauses at the gate holding the engine mutex.
+            engine.awaitLoadStarted()
+
+            // Reconcile (track-1 unavailable) replaces the missing current
+            // with "keep"; its claim is current and its engine load waits at
+            // the gate behind the initial load's engine mutex.
+            val reconcile =
+                async(Dispatchers.Default) {
+                    controller.reconcileSession(listOf(tracks[1]))
+                }
+            withTimeout(5_000) {
+                while (controller.state.value.currentOccurrenceId != "keep") {
+                    kotlinx.coroutines.yield()
+                }
+            }
+            val winnerTrack = tracks[2]
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("winner", winnerTrack)), "winner")
+            engine.releaseLoad()
+            reconcile.await()
+
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            assertEquals(
+                "winner", controller.state.value.currentOccurrenceId)
+            assertEquals(
+                listOf("winner"),
+                controller.state.value.queue.map { it.id })
+            assertEquals("track-3", engine.loadedTracks.last().id)
+            assertNull(controller.state.value.error)
+        }
+
     @Test
     fun removeFailedTrackCleanupDoesNotCancelReplacementCommittedDuringClear() =
         runBlocking {
