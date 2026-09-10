@@ -1814,6 +1814,376 @@ class PlaybackControllerTest {
         }
 
     /**
+     * Late callbacks from the failed load emitted between the removal's prune
+     * publish and the successor admission cannot mutate the pruned state: the
+     * prune invalidates the failed engine-generation token atomically with its
+     * publication (audit finding 4).
+     */
+    @Test
+    fun staleFailedCallbacksAfterRemovalPruneCannotMutatePrunedState() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val prunePublished = CompletableDeferred<Unit>()
+            val releasePrunePublish = CompletableDeferred<Unit>()
+            var blockedPrunePublish = false
+            val controller =
+                PlaybackController(
+                    engine = engine,
+                    shuffleOrderFactory = { ids, currentId ->
+                        if (!blockedPrunePublish &&
+                            "failed-current" !in ids && "successor" in ids
+                        ) {
+                            blockedPrunePublish = true
+                            prunePublished.complete(Unit)
+                            runBlocking { releasePrunePublish.await() }
+                        }
+                        if (currentId == null) ids
+                        else
+                            listOf(currentId) +
+                                ids.filterNot { it == currentId }
+                    },
+                )
+            val tracks = testTracks(2)
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence("failed-current", tracks[0]),
+                    QueueOccurrence("successor", tracks[1]),
+                ),
+                "failed-current")
+            engine.awaitLoad()
+            controller.setShuffleMode(ShuffleMode.On)
+            val staleGeneration = engine.activeGeneration
+            engine.listener?.onPlaybackError(
+                staleGeneration, PlaybackError("boom"))
+            engine.clearEvents()
+
+            val removal =
+                async(Dispatchers.Default) {
+                    controller.removeFailedTrack()
+                }
+            try {
+                withTimeout(5_000) { prunePublished.await() }
+                assertEquals(
+                    listOf("successor"),
+                    controller.state.value.queue.map { it.id })
+                assertNull(controller.state.value.currentOccurrenceId)
+                val prunedState = controller.state.value
+
+                // Late callbacks from the failed load must be dropped.
+                engine.listener?.onPlaybackStatus(
+                    staleGeneration, PlaybackStatus.Paused)
+                engine.listener?.onPlaybackProgress(
+                    staleGeneration, 123L, 1_000L)
+                engine.listener?.onPlaybackError(
+                    staleGeneration, PlaybackError("late failure"))
+
+                assertEquals(
+                    prunedState, controller.state.value,
+                    "late failed-load callbacks must not mutate pruned state",
+                )
+            } finally {
+                releasePrunePublish.complete(Unit)
+            }
+
+            assertEquals(QueueMutationResult.Applied, removal.await())
+            withTimeout(5_000) {
+                while (controller.state.value.status ==
+                    PlaybackStatus.Loading) kotlinx.coroutines.yield()
+            }
+            assertEquals(
+                "successor", controller.state.value.currentOccurrenceId)
+            assertEquals("track-2", engine.loadedTracks.last().id)
+            assertEquals(
+                listOf(
+                    EngineEvent.Load("track-2"),
+                    EngineEvent.Play,
+                ),
+                engine.awaitEvents(2),
+            )
+        }
+
+    /**
+     * A failed restore publishes its empty paused fail-safe checkpoint so the
+     * durable session reflects the fail-safe state (audit finding 3).
+     */
+    @Test
+    fun restoreLoadFailureFallbackPublishesCheckpoint() =
+        runBlocking {
+            val engine =
+                RecordingPlaybackEngine(
+                    loadFailure = IllegalStateException("load failed"))
+            val controller = PlaybackController(engine)
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.checkpoints.collect(checkpoints::send)
+                }
+            val track = testTracks(1).single()
+
+            controller.restoreSession(
+                PlaybackSessionSnapshot(
+                    queueIds = listOf(track.id),
+                    currentTrackId = track.id,
+                    positionMillis = 500L,
+                ),
+                listOf(track),
+            )
+
+            assertEquals(emptyList(), controller.state.value.queue)
+            assertNull(controller.state.value.currentTrack)
+            assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+            val fallback = checkpoints.receive()
+            assertTrue(fallback is PlaybackCheckpoint.Immediate)
+            assertEquals(emptyList(), fallback.snapshot.queue)
+            assertNull(fallback.snapshot.currentTrackId)
+            assertNull(checkpoints.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+
+    /**
+     * A failed restore superseded by a concurrent selection must not clear or
+     * clobber the winner with its empty fail-safe state (audit finding 3).
+     */
+    @Test
+    fun restoreFailureSupersededBySelectionDoesNotClobberWinner() =
+        runBlocking {
+            val holdGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(holdGate = holdGate)
+            val controller = PlaybackController(engine)
+            val tracks = testTracks(2)
+            val track = tracks[0]
+
+            val restore =
+                async(Dispatchers.Default) {
+                    controller.restoreSession(
+                        PlaybackSessionSnapshot(
+                            queueIds = listOf(track.id),
+                            currentTrackId = track.id,
+                            positionMillis = 500L,
+                        ),
+                        listOf(track),
+                    )
+                }
+            engine.awaitHoldEntered()
+            // The restore load fails only when released; the winner's later
+            // load must succeed.
+            engine.nextLoadFailure = IllegalStateException("load failed")
+            // A selection claims the session while the restore load is paused.
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("winner", tracks[1])), "winner")
+            engine.releaseHold()
+            restore.await()
+
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            assertEquals(
+                "winner", controller.state.value.currentOccurrenceId)
+            assertEquals(
+                listOf("winner"),
+                controller.state.value.queue.map { it.id })
+            assertNull(controller.state.value.error)
+            assertEquals("track-2", engine.loadedTracks.last().id)
+        }
+
+    /**
+     * While the winner plays, stale old-generation progress (even at a new
+     * per-second bucket), completion and error callbacks can neither mutate
+     * the state nor append checkpoints, while fresh owner progress still emits
+     * exactly one PlayingProgress checkpoint (audit: progress ownership).
+     */
+    @Test
+    fun staleProgressAndCompletionCannotAppendCheckpointsWhileWinnerPlays() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.checkpoints.collect(checkpoints::send)
+                }
+            val tracks = testTracks(2)
+            controller.setQueue(listOf(tracks[0]), selectedTrackId = "track-1")
+            engine.awaitLoad()
+            val staleGeneration = engine.activeGeneration
+            engine.listener?.onPlaybackStatus(
+                staleGeneration, PlaybackStatus.Playing)
+            checkpoints.receive() // setQueue Loading checkpoint
+
+            controller.setQueue(listOf(tracks[1]), selectedTrackId = "track-2")
+            engine.awaitLoadCount(2)
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            checkpoints.receive()
+            val winnerGeneration = engine.activeGeneration
+            engine.listener?.onPlaybackStatus(
+                winnerGeneration, PlaybackStatus.Playing)
+            engine.clearEvents()
+
+            // A stale progress at a brand-new second bucket, plus stale
+            // completion and error, must be dropped entirely.
+            engine.listener?.onPlaybackProgress(
+                staleGeneration, 9_500L, 10_000L)
+            engine.listener?.onPlaybackCompleted(staleGeneration)
+            engine.listener?.onPlaybackError(
+                staleGeneration, PlaybackError("stale"))
+            assertEquals(
+                "track-2", controller.state.value.currentTrack?.id)
+            assertEquals(PlaybackStatus.Playing, controller.state.value.status)
+            assertNull(controller.state.value.error)
+            assertNull(checkpoints.tryReceive().getOrNull())
+
+            // Fresh owner progress in a new bucket still emits exactly one.
+            engine.listener?.onPlaybackProgress(
+                winnerGeneration, 1_100L, 10_000L)
+            val progress = checkpoints.receive()
+            assertTrue(progress is PlaybackCheckpoint.PlayingProgress)
+            assertEquals(1_100L, progress.snapshot.positionMillis)
+            assertNull(checkpoints.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+
+    /**
+     * A non-cancellable load cancelled by a reconcile (which republishes the
+     * surviving current with a fresh token and settles Loading to Paused) can
+     * neither settle nor start playback against the reconciled state, even
+     * though the user had requested autoplay for that load (audit: reconcile
+     * stale settlement and cancelled autoplay intent).
+     */
+    @Test
+    fun cancelledNonCancellableLoadCannotSettleOrAutoplayAfterReconcile() =
+        runBlocking {
+            val holdGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(holdGate = holdGate)
+            val controller = PlaybackController(engine)
+            val tracks = testTracks(2)
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence("current-a", tracks[0]),
+                    QueueOccurrence("upcoming", tracks[1]),
+                ),
+                "current-a")
+            engine.awaitHoldEntered()
+            assertEquals(PlaybackStatus.Loading, controller.state.value.status)
+            controller.play()
+            engine.clearEvents()
+
+            val reconcile =
+                async(Dispatchers.Default) {
+                    controller.reconcileSession(
+                        listOf(
+                            tracks[0].copy(title = "Updated"),
+                            tracks[1],
+                        ))
+                }
+            reconcile.await()
+            assertEquals(
+                "current-a", controller.state.value.currentOccurrenceId)
+            assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+            assertEquals(
+                "Updated", controller.state.value.currentTrack?.title)
+
+            engine.releaseHold()
+            // Wait until the cancelled (non-cancellable) load has actually
+            // completed its engine load and attempted its settlement.
+            engine.awaitLoad()
+            kotlinx.coroutines.yield()
+            assertEquals(
+                "current-a", controller.state.value.currentOccurrenceId)
+            assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+            assertEquals(
+                "Updated", controller.state.value.currentTrack?.title)
+            assertEquals(
+                emptyList(), engine.eventSnapshot(),
+                "the cancelled load must neither settle nor autoplay",
+            )
+        }
+
+    /**
+     * Clearing the queue cancels the request-owned autoplay intent too: a
+     * non-cancellable load that slips past cancellation never starts playback
+     * (audit: cancelled autoplay intent).
+     */
+    @Test
+    fun clearingQueueDuringLoadingCancelsAutoplayIntent() =
+        runBlocking {
+            val holdGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(holdGate = holdGate)
+            val controller = PlaybackController(engine)
+            val track = testTracks(1).single()
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitHoldEntered()
+            controller.play()
+            engine.clearEvents()
+
+            controller.setOccurrenceQueue(emptyList())
+            assertNull(controller.state.value.currentOccurrenceId)
+            engine.releaseHold()
+            assertEquals(
+                listOf(EngineEvent.Clear),
+                engine.awaitEvents(1),
+            )
+            repeat(20) { kotlinx.coroutines.yield() }
+            assertEquals(
+                emptyList(), engine.eventSnapshot(),
+                "the cancelled load must never autoplay after the clear",
+            )
+            assertNull(controller.state.value.error)
+            assertNull(controller.state.value.currentOccurrenceId)
+        }
+
+    /**
+     * A completion-driven terminal stop emits its Stopped checkpoint before a
+     * racing replacement's checkpoint, and a replacement never receives a
+     * stale Stopped checkpoint afterwards (audit: terminal stop ownership).
+     */
+    @Test
+    fun terminalStopCheckpointPrecedesRacingReplacement() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val checkpoints = Channel<PlaybackCheckpoint>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.checkpoints.collect(checkpoints::send)
+                }
+            val tracks = testTracks(2)
+            val track = tracks[0]
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitLoad()
+            checkpoints.receive()
+            controller.setRepeatMode(RepeatMode.StopAfterCurrent)
+            checkpoints.receive()
+            val generation = engine.activeGeneration
+
+            engine.listener?.onPlaybackCompleted(generation)
+
+            val stopped = checkpoints.receive()
+            assertTrue(stopped is PlaybackCheckpoint.Immediate)
+            assertEquals(track.id, stopped.snapshot.currentTrackId)
+            assertEquals(
+                track.durationMillis, stopped.snapshot.positionMillis)
+
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("winner", tracks[1])), "winner")
+            engine.awaitLoadCount(2)
+            withTimeout(5_000) {
+                while (controller.state.value.status !=
+                    PlaybackStatus.Paused) kotlinx.coroutines.yield()
+            }
+            val winnerCheckpoint = checkpoints.receive()
+            assertTrue(winnerCheckpoint is PlaybackCheckpoint.Immediate)
+            assertEquals(
+                "winner",
+                winnerCheckpoint.snapshot.currentOccurrenceId)
+            assertNull(checkpoints.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+
+    /**
      * Clearing the queue while a selection is loading cancels that request and
      * publishes the cleared session without stale effects: the cleared state
      * wins and the cancelled load never settles over it (request clear race).
@@ -1851,7 +2221,10 @@ class PlaybackControllerTest {
             assertEquals(emptyList(), controller.state.value.queue)
             // The cancelled retry never reached the engine; the clear did.
             assertEquals(
-                listOf(EngineEvent.Clear), engine.eventSnapshot())
+                listOf(EngineEvent.Clear),
+                engine.awaitEvents(1),
+                "the queue clear dispatches asynchronously and must be awaited",
+            )
         }
 
     /**
