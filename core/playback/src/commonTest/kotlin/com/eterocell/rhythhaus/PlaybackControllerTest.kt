@@ -1603,6 +1603,7 @@ class PlaybackControllerTest {
         runBlocking {
             val engine = RecordingPlaybackEngine()
             val controller = loadedController(engine, PlaybackStatus.Playing)
+            awaitState { controller.state.value.status == PlaybackStatus.Playing }
             val generation = engine.activeGeneration
             val before = controller.state.value
             engine.clearEvents()

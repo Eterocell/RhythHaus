@@ -1016,15 +1016,17 @@ public class PlaybackController(
                 // generation that loaded it. Re-tagging the state without
                 // reloading the engine would drop all subsequent callbacks
                 // (progress, status, and errors) from that engine session.
-                // An in-flight load is the exception: it is invalidated with
-                // a fresh token and settled to Paused, so its non-cancellable
-                // callbacks cannot apply to the reconciled state.
+                // Loading, Buffering, and Error states are invalidated with a
+                // fresh token so in-flight or trailing callbacks cannot apply
+                // to the reconciled state.
                 val published =
                     previous.copy(
                         currentOccurrenceId = current.id,
                         queue = reconciledQueue,
                         status =
-                            if (previous.status == PlaybackStatus.Loading) {
+                            if (previous.status == PlaybackStatus.Loading ||
+                                previous.status == PlaybackStatus.Buffering ||
+                                previous.status == PlaybackStatus.Error) {
                                 PlaybackStatus.Paused
                             } else {
                                 previous.status
@@ -1032,7 +1034,9 @@ public class PlaybackController(
                         error = null,
                         errorGeneration = null,
                         engineGeneration =
-                            if (previous.status == PlaybackStatus.Loading) {
+                            if (previous.status == PlaybackStatus.Loading ||
+                                previous.status == PlaybackStatus.Buffering ||
+                                previous.status == PlaybackStatus.Error) {
                                 nextGeneration()
                             } else {
                                 previous.engineGeneration
@@ -1163,8 +1167,11 @@ public class PlaybackController(
         autoPlay: Boolean,
         replacementQueue: List<QueueOccurrence>? = null,
         from: PlaybackState? = null,
+        requireCommandsEnabled: Boolean = false,
     ): Boolean = selectionGate.withLock {
-        if (!commandsEnabled.value) return@withLock false
+        if (requireCommandsEnabled && !commandsEnabled.value) {
+            return@withLock false
+        }
         val displaced = selectionRequest.value
         val generation = nextGeneration()
         val intent = MutableStateFlow(autoPlay)
@@ -1887,6 +1894,7 @@ public class PlaybackController(
 
     private fun skipOwner(generation: Long, previous: Boolean) {
         while (true) {
+            if (!commandsEnabled.value) return
             val state = _state.value
             if (state.engineGeneration != generation) return
             val wrap = state.repeatMode == RepeatMode.RepeatPlaylist
@@ -1897,7 +1905,12 @@ public class PlaybackController(
                     nextTrackFrom(state, wrap)
                 }
             if (target == null) return
-            if (loadSelectedFrom(state, target, autoPlay = true)) {
+            if (loadSelected(
+                    target,
+                    autoPlay = true,
+                    from = state,
+                    requireCommandsEnabled = true,
+                )) {
                 emitImmediateCheckpoint()
                 return
             }
