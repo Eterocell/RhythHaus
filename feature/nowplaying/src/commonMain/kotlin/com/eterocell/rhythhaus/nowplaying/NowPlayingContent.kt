@@ -573,13 +573,19 @@ private fun WideNowPlayingLayout(
             Box(
                 Modifier.fillMaxHeight().weight(0.52f),
                 contentAlignment = Alignment.Center) {
+                    val controlsModifier =
+                        if (playbackState.errorRecoveryVisible) {
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                        } else {
+                            Modifier.fillMaxWidth()
+                        }
                     NowPlayingControlsPane(
                         track,
                         playbackState,
                         playbackController,
                         labels,
                         uiState,
-                        Modifier.fillMaxWidth())
+                        controlsModifier)
                 }
         }
 }

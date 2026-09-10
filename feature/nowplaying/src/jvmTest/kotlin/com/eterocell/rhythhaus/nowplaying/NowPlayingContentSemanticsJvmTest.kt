@@ -233,6 +233,45 @@ public class NowPlayingContentSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    public fun splitErrorStateKeepsRecoveryAndTransportControlsReachableAtShortViewport():
+        Unit = withEnglishLocale {
+        runComposeUiTest {
+            val engine = RecoveryPlaybackEngine()
+            val controller = PlaybackController(engine)
+            engine.failLoadWith =
+                PlaybackError(
+                    "Unavailable locally",
+                    kind = PlaybackFailureKind.MissingFile,
+                )
+            controller.setQueue(playableTracks(), selectedTrackId = "second")
+            setContent {
+                mountedRecoveryNowPlaying(
+                    track = displayTrack(),
+                    playbackState = controller.state.collectAsState().value,
+                    controller = controller,
+                    width = 600.dp,
+                    height = 400.dp,
+                )
+            }
+            waitUntil(timeoutMillis = 5_000) {
+                controller.state.value.status == PlaybackStatus.Error
+            }
+            waitForIdle()
+            onNodeWithTag(NowPlayingSplitLayoutTestTag).assertExists()
+            onNodeWithTag(NowPlayingRetryFailureTestTag)
+                .performScrollTo()
+                .assertHasClickAction()
+            onNodeWithTag(NowPlayingNextTestTag)
+                .performScrollTo()
+                .assertHasClickAction()
+            onNodeWithTag(NowPlayingProgressTestTag)
+                .performScrollTo()
+                .assertExists()
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     public fun retryFailureRecoveryReloadsOnlyTheFailedOccurrenceAndClearsTheSection():
         Unit = withEnglishLocale {
         runComposeUiTest {
