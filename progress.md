@@ -1,4 +1,17 @@
-## Handoff - 2026-09-09 ios-files-import automated acceptance record
+## Handoff - 2026-09-09 Android notification-permission recovery
+
+Route: openspec+superpowers
+Owner: implementation / physical acceptance
+Input: approved `android-notification-permission-recovery` design and plan
+Output: Android 13+ notification permission is classified as unavailable, granted, requestable, or settings-required in a thin Android host adapter. Settings receives only an Android-free projection: denial explains that local/in-app playback remains available while Android notification and lock-screen controls need permission, then offers either re-request or application notification settings. The card is absent outside denial, its action stays independent of library mutation gates, and Android permission results/on-resume refresh the projection.
+Verification:
+- Focused Shared/Settings JVM and Android host suites passed; `:shared:jvmTest :feature:settings:jvmTest :androidApp:testDebugUnitTest :androidApp:assembleDebug --configuration-cache` passed.
+- `spotlessApply`, separate `spotlessCheck`, `detekt`, `architectureCheck`, and `./init.sh` passed. The thin-shared inventory retains 12 unrelated baseline drift paths; this change only approved its new Shared facade.
+- Android API 37.1 emulator physical permission UI: initial request, ordinary denial/re-request, permanent-denial Settings route, application notification settings, grant, and recovery-card disappearance after restart were observed. The Settings intent reached RhythHaus's notification page and its All RhythHaus notifications switch was enabled.
+Next owner: physical Android playback/system-media acceptance. A temporary WAV was visible in the SAF Music picker, but DocumentsUI did not return from source-consent completion before the verifier shut down. Exercise a playable track through denial and restored permission; verify in-app playback stays active and system media controls return. Then mark task 3.2 complete and archive.
+Blockers: Task 3.2 remains open; no audible in-app playback or recovered media-notification control is claimed.
+
+# Handoff - 2026-09-09 ios-files-import automated acceptance record
 
 Route: OpenSpec acceptance and evidence closeout (change `ios-files-import` remains active and unarchived; no commit)
 Owner: documentation/evidence closeout
