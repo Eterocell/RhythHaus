@@ -1,5 +1,9 @@
 # Playback Failure Recovery
 
+## Purpose
+
+Define platform-neutral playback failure evidence and safe listener recovery actions that retry, skip, or remove only the failed queue occurrence without deleting local-library content.
+
 ## ADDED Requirements
 
 ### Requirement: Structured playback failure state
