@@ -4337,3 +4337,18 @@ Next owner: release acceptance on a controllable Android target and iOS runtime,
 Blockers: no code-level or macOS recovery blocker; Android/iOS runtime evidence and the unrelated baseline timeout remain explicit release-evidence gaps.
 OpenSpec: the canonical capability is synchronized at `openspec/specs/playback-failure-recovery/spec.md`; the completed change is archived at `openspec/changes/archive/2026-09-10-playback-failure-recovery/`.
 Commits: `cab05bc4`, `6584be88`, `5c4967f3`; the lifecycle commit contains spec synchronization, archival, roadmap, and handoff records.
+
+## Handoff - 2026-09-10 integrated Phase 1 recovery branches
+
+Route: openspec+superpowers integration
+Owner: harness
+Input: user-directed integration of `feature/android-notification-permission-recovery` and `feature/playback-failure-recovery` into `main`.
+Output: `main` contains both feature branches, the iOS hidden-directory scanner repair, conflict-resolved additive handoff records, and Phase 1 roadmap statuses that distinguish completed implementation from remaining release-device evidence. Playback-failure recovery is archived; Android notification-permission recovery remains open solely for its physical playback-under-denial acceptance task.
+Verification:
+- `./gradlew :core:playback:jvmTest :core:playback:testAndroidHostTest :feature:nowplaying:jvmTest :feature:settings:jvmTest :androidApp:testDebugUnitTest :androidApp:assembleDebug :feature:library:impl:compileTestKotlinIosSimulatorArm64 --rerun-tasks --configuration-cache`: `BUILD SUCCESSFUL`, 422 tasks executed.
+- `spotlessApply`, standalone `spotlessCheck`, standalone `detekt`, and standalone `architectureCheck`: `BUILD SUCCESSFUL`. The first Spotless check saw only ignored `.worktrees/**/build/intermediates` Android manifests; applying the repository formatter to those disposable generated files cleared that environment-only condition without a source/configuration change.
+- `openspec validate --specs` and `openspec validate android-notification-permission-recovery --strict`: valid; `git diff --check`: passed before the handoff record.
+- `./init.sh`: stopped at the recorded `:shared:jvmTest` baseline timeout in `LibraryPlaybackSelectionTest.differentSelectionPreservesRepeatAndShuffleModes` (350 tests, 1 failure). The merged focused matrix above compiled and tested all changed feature paths; no full-suite success is claimed.
+Next owner: release/device acceptance for Android notification denial and the remaining three-platform system-media scenarios; separately diagnose the Shared selection-test timeout.
+Blockers: Android/iOS physical runtime evidence is unavailable to this harness; Xcode rejects `ios_simulator_arm64` test execution. The pre-integration Android planning copies remain preserved in `stash@{0}` and were not reapplied because the merged branch contains the later tracked change artifacts.
+Commits: `c745db63` (`fix: exclude hidden iOS library paths`), `7517d845` (`merge: integrate notification permission recovery`), and `e1830fce` (`merge: integrate playback failure recovery`).
