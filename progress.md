@@ -4270,3 +4270,23 @@ OpenSpec: delta requirements were synchronized into `openspec/specs/ios-files-im
 Next owner: Phase 1 playback acceptance or Android notification-denial work.
 Blockers: none.
 Commit: `feat: add iOS Files import`.
+
+## Follow-up - 2026-09-09 iPhone hidden-directory duplicate scan
+
+Route: systematic-debugging + RED/GREEN TDD
+Owner: implementation
+Input: User reported every track appeared twice in album pages after the iOS managed Documents source was enabled.
+Root cause: read-only extraction from the connected `EteroiDevClVier` iPhone (`com.eterocell.RhythHaus`) showed one `ios-app-local` source and 184 unique source-local keys/playback paths. The metadata-identical copies reported in album pages paired `Documents/.Trash/...` paths with their corresponding `Documents/Zemeth/...` paths. The iOS recursive scanner traversed dot-prefixed directories, so it added the Files-managed hidden copies as separate tracks. This was not a source duplication or database upsert failure.
+Fix: iOS recursive scanning now skips every dot-prefixed entry before directory descent or file classification. The existing hidden `.Trash` tracks remain persisted until the updated build rescans and the user applies the existing remove-missing action; this retains the established explicit deletion rule rather than treating all absent files as safe to delete automatically.
+Evidence: RED `PlatformSourceAccessIosTest.appLocalScanExcludesHiddenDirectoryContents` failed because `.Trash/duplicate.mp3` was scanned. GREEN passed after the one-line traversal guard; the full `:feature:library:impl:iosSimulatorArm64Test`, module Spotless, and module Detekt checks passed. Temporary read-only device database export was removed locally.
+Next owner: user updates the iPhone build, rescans the RhythHaus source, and chooses Remove missing to clear the stale `.Trash` rows; optionally re-export the database to confirm no `.Trash/` rows remain.
+Blockers: none.
+
+## Follow-up - 2026-09-09 Phase 1 playback acceptance inventory
+
+Route: release acceptance inventory
+Owner: harness
+Input: Phase 1 roadmap P0 three-platform playback acceptance.
+Output: The active `play-music-all-platforms` tasks still require Android 3.6, iOS 4.5, and macOS 5.9 physical/system-media acceptance. A production macOS RhythHaus window launched with the existing local library and visible persisted Now Playing state, but exited before a foreground-playback or system-control interaction could be observed; this is not playback acceptance evidence. The connected `EteroiDevClVier` iPhone can supply data-container evidence but no available automation can generate lock-screen, Bluetooth, wired-route, interruption, or route-loss events. No Android hardware target is currently connected.
+Next owner: user/manual QA with target hardware — Android foreground play/pause/seek; wired and Bluetooth play/pause; lock-screen/notification next/previous; noisy-route auto-pause; iOS foreground/system-control/interruption/route-loss/background behavior; macOS foreground/system-control/route-loss behavior.
+Blockers: physical peripheral, lock-screen, and route-interruption acceptance is unavailable to automated tooling. Do not close those OpenSpec tasks from compile, simulator, or accessibility evidence alone.

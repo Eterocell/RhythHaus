@@ -66,6 +66,7 @@ private fun scanIosFolder(
             ?.sortedBy { it.lowercase() }
             .orEmpty()
     children.forEach { name ->
+        if (name.startsWith('.')) return@forEach
         val path = "$folderPath/$name"
         if (isDirectory(path)) {
             yieldAll(scanIosFolder(source, path, pathSegments + name))

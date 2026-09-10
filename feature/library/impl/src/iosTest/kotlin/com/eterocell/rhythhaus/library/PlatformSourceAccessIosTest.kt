@@ -134,4 +134,58 @@ class PlatformSourceAccessIosTest {
             fileManager.removeItemAtPath(folder, error = null)
         }
     }
+
+    @Test
+    fun appLocalScanExcludesHiddenDirectoryContents() {
+        val fileManager = NSFileManager.defaultManager
+        val folder =
+            NSTemporaryDirectory() +
+                "rhythhaus-ios-hidden-scan-${Random.nextInt(0, Int.MAX_VALUE)}"
+        fileManager.createDirectoryAtPath(
+            path = "$folder/.Trash",
+            withIntermediateDirectories = true,
+            attributes = null,
+            error = null,
+        )
+        try {
+            assertTrue(
+                fileManager.createFileAtPath(
+                    path = "$folder/visible.mp3",
+                    contents = null,
+                    attributes = null,
+                ),
+            )
+            assertTrue(
+                fileManager.createFileAtPath(
+                    path = "$folder/.Trash/duplicate.mp3",
+                    contents = null,
+                    attributes = null,
+                ),
+            )
+            val source =
+                LibrarySource(
+                    id = "ios",
+                    platformKind = LibraryPlatformKind.IosAppLocal,
+                    displayName = "Music",
+                    handle = folder,
+                    createdAtEpochMillis = 1,
+                )
+
+            val events = createPlatformSourceAccess().scan(source).toList()
+
+            assertEquals(
+                listOf("visible.mp3"),
+                events
+                    .filterIsInstance<PlatformScanEvent.AudioCandidate>()
+                    .map { it.candidate.sourceLocalKey },
+            )
+            assertTrue(
+                events
+                    .filterIsInstance<PlatformScanEvent.FolderVisited>()
+                    .none { it.displayPath == ".Trash" },
+            )
+        } finally {
+            fileManager.removeItemAtPath(folder, error = null)
+        }
+    }
 }
