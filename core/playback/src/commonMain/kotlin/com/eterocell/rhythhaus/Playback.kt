@@ -981,8 +981,9 @@ public class PlaybackController(
                     engine.clear(fallback.engineGeneration)
                 }
             }
-            emitImmediateCheckpoint(
-                fallback.toSessionSnapshot(), fallback.checkpointRevision)
+            if (!emitImmediateCheckpointIfOwner(fallback)) {
+                return@withLock revisionedSessionSnapshot()
+            }
             return@withLock fallback.toRevisionedSessionSnapshot()
         }
         emitCheckpointIfOwner(generation)
@@ -1011,11 +1012,13 @@ public class PlaybackController(
                     reconciledQueue.firstOrNull { it.id == currentId }
                 }
             if (current != null) {
-                // The surviving current is republished with a fresh
-                // engine-generation token (and any in-flight Loading is
-                // settled to Paused) so a non-cancellable load cancelled by
-                // this reconcile can never pass its ownership check and settle
-                // or play against the reconciled state.
+                // A settled surviving current remains attached to the engine
+                // generation that loaded it. Re-tagging the state without
+                // reloading the engine would drop all subsequent callbacks
+                // (progress, status, and errors) from that engine session.
+                // An in-flight load is the exception: it is invalidated with
+                // a fresh token and settled to Paused, so its non-cancellable
+                // callbacks cannot apply to the reconciled state.
                 val published =
                     previous.copy(
                         currentOccurrenceId = current.id,
@@ -1028,7 +1031,12 @@ public class PlaybackController(
                             },
                         error = null,
                         errorGeneration = null,
-                        engineGeneration = nextGeneration(),
+                        engineGeneration =
+                            if (previous.status == PlaybackStatus.Loading) {
+                                nextGeneration()
+                            } else {
+                                previous.engineGeneration
+                            },
                         checkpointRevision = reserveCheckpointRevision(),
                     )
                 if (!_state.compareAndSet(previous, published)) continue
@@ -1125,10 +1133,9 @@ public class PlaybackController(
                             engine.clear(failSafe.engineGeneration)
                         }
                     }
-                    emitImmediateCheckpoint(
-                        failSafe.toSessionSnapshot(),
-                        failSafe.checkpointRevision,
-                    )
+                    if (!emitImmediateCheckpointIfOwner(failSafe)) {
+                        throw throwable
+                    }
                 }
                 throw throwable
             }
@@ -1157,6 +1164,7 @@ public class PlaybackController(
         replacementQueue: List<QueueOccurrence>? = null,
         from: PlaybackState? = null,
     ): Boolean = selectionGate.withLock {
+        if (!commandsEnabled.value) return@withLock false
         val displaced = selectionRequest.value
         val generation = nextGeneration()
         val intent = MutableStateFlow(autoPlay)
@@ -1480,6 +1488,15 @@ public class PlaybackController(
         emitImmediateCheckpoint(
             current.toSessionSnapshot(), revision ?: current.checkpointRevision)
     }
+
+    /** Emits [state]'s checkpoint only while that exact state remains current. */
+    private fun emitImmediateCheckpointIfOwner(state: PlaybackState): Boolean =
+        selectionGate.withLock {
+            if (_state.value !== state) return@withLock false
+            emitImmediateCheckpoint(
+                state.toSessionSnapshot(), state.checkpointRevision)
+            true
+        }
 
     private fun emitImmediateCheckpoint(
         snapshot: PlaybackSessionSnapshot,

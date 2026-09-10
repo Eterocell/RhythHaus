@@ -1598,6 +1598,23 @@ class PlaybackControllerTest {
             collection.cancelAndJoin()
         }
 
+    @Test
+    fun trailingSkipCallbackAfterCommandsDisabledCannotAdvanceQueue() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = loadedController(engine, PlaybackStatus.Playing)
+            val generation = engine.activeGeneration
+            val before = controller.state.value
+            engine.clearEvents()
+
+            controller.setCommandsEnabled(false)
+            engine.clearEvents()
+            engine.listener?.onSkipToNext(generation)
+
+            assertEquals(before, controller.state.value)
+            assertEquals(emptyList(), engine.eventSnapshot())
+        }
+
     /**
      * A stale load whose engine failure surfaces after a superseding claim
      * cannot publish an error against the winner's state (requirement C).
