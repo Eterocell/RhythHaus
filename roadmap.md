@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | P0 | iOS Files.app import | Completed: Files.app file/directory import, recursion, cancellation, duplicate handling, durable sandbox playback, default `Documents/RhythHaus` source, and scan-only handling of files already under that source. | Archived as [`2026-09-09-ios-files-import`](openspec/changes/archive/2026-09-09-ios-files-import/); no further Phase 1 work remains in this change. |
 | P0 | Three-platform playback acceptance | Automated coverage exists; real device/system-control acceptance remains open. | Validate foreground play/pause/seek, previous/next, lock-screen or notification controls, interruption handling, route loss, end-of-track advance, and background continuation where supported on Android, iOS, and macOS. |
-| P0 | Android notification denial | Not implemented. `POST_NOTIFICATIONS` is requested but denial has no product response. | Show current status and explanation; provide a Settings re-entry path; define the degraded media-control expectation. |
+| P0 | Android notification denial | Implemented and automated-accepted: denial now explains the non-blocking system-control degradation and offers re-request or app notification settings. | Complete Android 13+ playback-in-denial and recovered system-media-control acceptance, then archive `android-notification-permission-recovery`. |
 | P0 | Playback failure recovery | Error rendering exists; actionable recovery does not. | Classify missing files, lost access, unsupported formats, and decoder failures; offer retry, skip, and queue removal. |
 | P1 | First-run onboarding | Not implemented. | Explain local-first storage, platform-specific import, permissions, supported formats, scan behavior, and recovery limits. |
 

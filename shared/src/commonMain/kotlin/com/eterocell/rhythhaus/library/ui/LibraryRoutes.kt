@@ -39,12 +39,14 @@ import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.toPlayableTrack
+import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsHost
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsLabels
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.search.SearchContent
 import com.eterocell.rhythhaus.search.SearchSharedLabels
+import com.eterocell.rhythhaus.settings.MediaNotificationRecovery
 import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
 import com.eterocell.rhythhaus.settings.SettingsAboutScreen
 import com.eterocell.rhythhaus.settings.SettingsScreen
@@ -107,6 +109,23 @@ internal class QueueMutationDispatcher(
     }
 }
 
+/**
+ * Projects the shared media-notification permission state onto the Settings
+ * recovery surface. Only the two actionable denied states render a card;
+ * unavailable and granted permission stay absent so no card, action, or
+ * accessibility node is composed on non-Android or already-granted hosts.
+ */
+internal fun MediaNotificationPermissionState.toSettingsNotificationRecovery():
+    MediaNotificationRecovery? =
+    when (this) {
+        MediaNotificationPermissionState.Unavailable -> null
+        MediaNotificationPermissionState.Granted -> null
+        MediaNotificationPermissionState.Requestable ->
+            MediaNotificationRecovery.Requestable
+        MediaNotificationPermissionState.SettingsRequired ->
+            MediaNotificationRecovery.SettingsRequired
+    }
+
 @Composable
 internal fun LibraryRouteOverlays(
     route: LibraryRoute,
@@ -144,6 +163,10 @@ internal fun LibraryRouteOverlays(
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit = { _, _ -> },
     onRemoveSource: (LibrarySource) -> Unit,
     onCancelScan: () -> Unit,
+    mediaNotificationPermission: MediaNotificationPermissionState =
+        MediaNotificationPermissionState.Unavailable,
+    onRequestNotificationPermission: () -> Unit = {},
+    onOpenNotificationSettings: () -> Unit = {},
     onShowSettingsAbout: () -> Unit,
     onShowOpenSourceLibraries: () -> Unit,
     onDismiss: () -> Unit,
@@ -282,6 +305,9 @@ internal fun LibraryRouteOverlays(
                     } else {
                         null
                     },
+                notificationRecovery =
+                    mediaNotificationPermission
+                        .toSettingsNotificationRecovery(),
                 onThemeModeSelected = onThemeModeSelected,
                 onAddMusicFolder = folderPickerLauncher::launch,
                 onRescanSource = { id ->
@@ -305,6 +331,9 @@ internal fun LibraryRouteOverlays(
                     }
                 },
                 onAboutClick = onShowSettingsAbout,
+                onRequestNotificationPermission =
+                    onRequestNotificationPermission,
+                onOpenNotificationSettings = onOpenNotificationSettings,
                 onDismiss = {
                     showClearLibraryDialog = false
                     onDismiss()

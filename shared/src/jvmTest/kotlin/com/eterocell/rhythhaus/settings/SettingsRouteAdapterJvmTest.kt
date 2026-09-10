@@ -53,6 +53,7 @@ import com.eterocell.rhythhaus.library.ui.LibraryRouteOverlays
 import com.eterocell.rhythhaus.library.ui.PlaylistFeatureDestination
 import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.rememberPlaylistFeatureAppearanceSource
+import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupCounts
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupImportResult
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupPlaylistReport
@@ -845,6 +846,82 @@ class SettingsRouteAdapterJvmTest {
             }
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun unavailableOrGrantedPermissionRendersNoRecoverySurface() =
+        runComposeUiTest {
+            var requests = 0
+            var settings = 0
+            setContent {
+                Harness(
+                    mediaNotificationPermission =
+                        MediaNotificationPermissionState.Unavailable,
+                    onRequestNotificationPermission = { requests++ },
+                    onOpenNotificationSettings = { settings++ })
+            }
+            onNodeWithTag(
+                    "settings-notification-recovery", useUnmergedTree = true)
+                .assertDoesNotExist()
+            setContent {
+                Harness(
+                    mediaNotificationPermission =
+                        MediaNotificationPermissionState.Granted,
+                    onRequestNotificationPermission = { requests++ },
+                    onOpenNotificationSettings = { settings++ })
+            }
+            onNodeWithTag(
+                    "settings-notification-recovery", useUnmergedTree = true)
+                .assertDoesNotExist()
+            assertEquals(0, requests)
+            assertEquals(0, settings)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun requestableDenialRecoveryDispatchesOnlyPermissionRequest() =
+        runComposeUiTest {
+            var requests = 0
+            var settings = 0
+            setContent {
+                Harness(
+                    mediaNotificationPermission =
+                        MediaNotificationPermissionState.Requestable,
+                    onRequestNotificationPermission = { requests++ },
+                    onOpenNotificationSettings = { settings++ })
+            }
+            onAllNodesWithTag(
+                    "settings-notification-recovery", useUnmergedTree = true)
+                .assertCountEquals(1)
+            onNodeWithTag(
+                    "settings-notification-recovery", useUnmergedTree = true)
+                .performClick()
+            assertEquals(1, requests)
+            assertEquals(0, settings)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsRequiredDenialRecoveryDispatchesOnlyNotificationSettings() =
+        runComposeUiTest {
+            var requests = 0
+            var settings = 0
+            setContent {
+                Harness(
+                    mediaNotificationPermission =
+                        MediaNotificationPermissionState.SettingsRequired,
+                    onRequestNotificationPermission = { requests++ },
+                    onOpenNotificationSettings = { settings++ })
+            }
+            onAllNodesWithTag(
+                    "settings-notification-recovery", useUnmergedTree = true)
+                .assertCountEquals(1)
+            onNodeWithTag(
+                    "settings-notification-recovery", useUnmergedTree = true)
+                .performClick()
+            assertEquals(0, requests)
+            assertEquals(1, settings)
+        }
+
     @Composable
     private fun Harness(
         route: MutableState<LibraryRoute> =
@@ -856,6 +933,10 @@ class SettingsRouteAdapterJvmTest {
         scanErrors: List<ScanError> = emptyList(),
         scanJob: Job? = null,
         mutationsEnabled: Boolean = true,
+        mediaNotificationPermission: MediaNotificationPermissionState =
+            MediaNotificationPermissionState.Unavailable,
+        onRequestNotificationPermission: () -> Unit = {},
+        onOpenNotificationSettings: () -> Unit = {},
         folderPickerLauncher: PlatformFolderPickerLauncher = unavailablePicker,
         playlistBackupState: PlaylistBackupUiState = PlaylistBackupUiState(),
         onPlaylistBackupAction: (PlaylistBackupUiAction) -> Unit = {},
@@ -927,6 +1008,9 @@ class SettingsRouteAdapterJvmTest {
             scanErrors = scanErrors,
             scanJob = scanJob,
             mutationsEnabled = mutationsEnabled,
+            mediaNotificationPermission = mediaNotificationPermission,
+            onRequestNotificationPermission = onRequestNotificationPermission,
+            onOpenNotificationSettings = onOpenNotificationSettings,
             currentThemeMode = RhythHausThemeMode.System,
             onThemeModeSelected = {},
             onClearLibrary = onClear,

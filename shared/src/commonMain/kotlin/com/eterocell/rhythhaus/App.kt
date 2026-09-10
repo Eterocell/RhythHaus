@@ -36,6 +36,8 @@ import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.library.ui.reducePlaylistState
+import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionController
+import com.eterocell.rhythhaus.notificationpermission.UnavailableMediaNotificationPermissionController
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupController
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupRevisionGuard
@@ -76,7 +78,10 @@ import top.yukonga.miuix.kmp.theme.lightColorScheme
 
 @Composable
 @Preview
-fun App() {
+fun App(
+    notificationPermissionController: MediaNotificationPermissionController =
+        UnavailableMediaNotificationPermissionController,
+) {
     val controller = koinInject<PlaybackController>()
     val tagLibReader = koinInject<TagLibReader>()
     val repository = koinInject<LibraryRepository>()
@@ -137,6 +142,8 @@ fun App() {
     val selectedThemeMode by
         themePreferenceStore.selectedThemeMode.collectAsState(
             RhythHausThemeMode.System)
+    val notificationPermissionState by
+        notificationPermissionController.state.collectAsState()
 
     suspend fun updateLibraryContent(content: LibraryContentState) {
         val publication = libraryPublicationOwner.publish(content)
@@ -539,6 +546,14 @@ fun App() {
                 scanProgress = scanProgress,
                 scanErrors = scanErrors,
                 scanJob = scanJob,
+                mediaNotificationPermission = notificationPermissionState,
+                onRequestNotificationPermission = {
+                    notificationPermissionController.requestPermission()
+                },
+                onOpenNotificationSettings = {
+                    notificationPermissionController
+                        .openAppNotificationSettings()
+                },
                 coordinatorMutationsEnabled = mutationsEnabled,
                 currentThemeMode = selectedThemeMode,
                 onThemeModeSelected = { mode ->

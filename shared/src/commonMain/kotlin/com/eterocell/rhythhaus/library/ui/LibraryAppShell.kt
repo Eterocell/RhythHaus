@@ -63,6 +63,7 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.TrackArtwork
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
+import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarLabels
 import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
@@ -227,6 +228,10 @@ fun LibraryHomeScreen(
     onRemoveSource: (LibrarySource) -> Unit,
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit,
     onCancelScan: () -> Unit,
+    mediaNotificationPermission: MediaNotificationPermissionState =
+        MediaNotificationPermissionState.Unavailable,
+    onRequestNotificationPermission: () -> Unit = {},
+    onOpenNotificationSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val playbackState by playbackController.state.collectAsState()
@@ -446,6 +451,9 @@ fun LibraryHomeScreen(
             onRemoveMissingTracks = onRemoveMissingTracks,
             onRemoveSource = onRemoveSource,
             onCancelScan = onCancelScan,
+            mediaNotificationPermission = mediaNotificationPermission,
+            onRequestNotificationPermission = onRequestNotificationPermission,
+            onOpenNotificationSettings = onOpenNotificationSettings,
             onShowSettingsAbout = { pushRoute(LibraryRoute.SettingsAbout) },
             onShowOpenSourceLibraries = {
                 pushRoute(LibraryRoute.OpenSourceLibraries)
