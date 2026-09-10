@@ -882,9 +882,12 @@ class JvmPlaybackEngineTest {
                 )
                 assertEquals(
                     unavailable.track.id,
-                    recovered.queue.single {
-                        it.id == duplicateUnavailable.id
-                    }.track.id,
+                    recovered.queue
+                        .single {
+                            it.id == duplicateUnavailable.id
+                        }
+                        .track
+                        .id,
                 )
                 assertEquals(null, recovered.error)
                 assertTrue(Files.exists(successorPath))
