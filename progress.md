@@ -4270,3 +4270,14 @@ OpenSpec: delta requirements were synchronized into `openspec/specs/ios-files-im
 Next owner: Phase 1 playback acceptance or Android notification-denial work.
 Blockers: none.
 Commit: `feat: add iOS Files import`.
+
+## Handoff - 2026-09-10 playback failure recovery implementation
+
+Route: openspec+superpowers
+Owner: implementation and harness verification
+Input: approved `openspec/changes/playback-failure-recovery/` proposal, design, specification, and execution plan.
+Output: `core:playback` now carries structured `PlaybackFailureKind` evidence with fail-closed unknown mapping, and exposes retry, non-wrapping skip, and queue-only failed-occurrence removal. Selection generations, callback ownership, reconciliation, checkpoint publication, and disabled-command callbacks are serialized against stale loads and trailing platform events. Android, iOS, and JVM/macOS engines preserve platform-local failure evidence. Now Playing renders localized Retry, Skip, and Remove-from-queue actions only for an active error with a current occurrence; inactive states expose no recovery semantics.
+Evidence: focused `:core:playback:jvmTest`, `:core:playback:testAndroidHostTest`, `:core:playback:iosSimulatorArm64Test`, and `:feature:nowplaying:jvmTest` passed with `--rerun-tasks`; `spotlessApply`, standalone `spotlessCheck`, `detekt`, `architectureCheck`, `openspec validate playback-failure-recovery --strict`, and `git diff --check 5e8de4bd..HEAD` passed. Aggregate controller execution previously exposed a reconciliation-generation hang; the repair commits `52244a41` and `5d6d0401` add generation preservation/invalidation, owner-checked fail-safe checkpoints, and disabled skip callback regression coverage.
+Next owner: manual platform acceptance, then archive the OpenSpec change.
+Blockers: task 4.3 remains open because automated suites do not prove invalidating a real playable file and exercising audible retry/skip/remove behavior on Android, iOS, and macOS. No archive or completion claim is made.
+Commits: `86d32880`, `6c088e80`, `1376b8f2`, `cc4ccc2e`, `b6d495be`, `52244a41`, `5d6d0401`.

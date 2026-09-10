@@ -477,8 +477,7 @@ class AndroidPlaybackMediaSessionTest {
         }
     }
 
-    private class RecordingAndroidPlaybackListener :
-        PlaybackEngineListener {
+    private class RecordingAndroidPlaybackListener : PlaybackEngineListener {
         val events = mutableListOf<String>()
 
         override fun onPlaybackStatus(

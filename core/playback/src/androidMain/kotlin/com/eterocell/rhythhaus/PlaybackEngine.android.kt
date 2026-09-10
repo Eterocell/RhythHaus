@@ -491,11 +491,11 @@ internal class AndroidPlaybackRequestState {
     private var pending: AndroidPlaybackRequest? = null
     private var observable: AndroidObservablePlayback? = null
     /**
-     * Token of the observable request that reported a terminal player error,
-     * or null while that request may still publish ordinary status. Set
-     * atomically by [markTerminal] before the error is published and cleared
-     * whenever a replacement or cleared request replaces the failed one, so
-     * status callbacks trailing a Media3 error (for example
+     * Token of the observable request that reported a terminal player error, or
+     * null while that request may still publish ordinary status. Set atomically
+     * by [markTerminal] before the error is published and cleared whenever a
+     * replacement or cleared request replaces the failed one, so status
+     * callbacks trailing a Media3 error (for example
      * `onIsPlayingChanged(false)` after `onPlayerError`) stay suppressed until
      * a new observable request begins.
      */
@@ -671,8 +671,7 @@ internal class AndroidPlaybackEventRouter(
         failure: PlaybackError,
     ) {
         val generation =
-            requestState.observableGeneration(observedCurrentToken)
-                ?: return
+            requestState.observableGeneration(observedCurrentToken) ?: return
         if (!requestState.markTerminal(observedCurrentToken)) return
         requestState.failPending(
             observedCurrentToken,
@@ -697,8 +696,7 @@ internal class AndroidPlaybackEventRouter(
         if (requestState.isTerminal(observedCurrentToken)) return false
         listener?.onPlaybackStatus(
             generation,
-            if (isPlaying) PlaybackStatus.Playing
-            else PlaybackStatus.Paused,
+            if (isPlaying) PlaybackStatus.Playing else PlaybackStatus.Paused,
         )
         return true
     }
