@@ -20,5 +20,5 @@
 ## 4. Acceptance
 
 - [x] 4.1 Run focused core, Android host, iOS, macOS, and Now Playing regression suites with RED/GREEN records.
-- [x] 4.2 Run `spotlessApply`, `spotlessCheck`, `detekt`, `architectureCheck`, strict OpenSpec validation, and diff check.
+- [ ] 4.2 Run `spotlessApply`, `spotlessCheck`, `detekt`, `architectureCheck`, `./init.sh`, strict OpenSpec validation, and diff check. `./init.sh` remains blocked by the pre-existing `LibraryPlaybackSelectionTest.differentSelectionPreservesRepeatAndShuffleModes` timeout; the same selector fails on `main`.
 - [ ] 4.3 Exercise a known playable source, make its selected path unavailable, and confirm retry/skip/remove behavior on each available platform. Update `progress.md` and `roadmap.md`, then commit/archive.
