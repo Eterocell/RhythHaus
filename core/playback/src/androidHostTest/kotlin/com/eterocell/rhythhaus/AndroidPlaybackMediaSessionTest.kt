@@ -1,6 +1,8 @@
 package com.eterocell.rhythhaus
 
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
+import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -8,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
@@ -192,6 +195,133 @@ class AndroidPlaybackMediaSessionTest {
     }
 
     @Test
+    fun androidFileNotFoundMapsToMissingFile() {
+        val mapped =
+            androidPlaybackError(
+                errorCode = PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND,
+                message = "source file missing",
+            )
+
+        assertEquals(PlaybackFailureKind.MissingFile, mapped.kind)
+        assertEquals("Android could not play this audio file.", mapped.message)
+        assertEquals("source file missing", mapped.cause)
+    }
+
+    @Test
+    fun androidPermissionFailureMapsToAccessLost() {
+        val errorCode = PlaybackException.ERROR_CODE_IO_NO_PERMISSION
+
+        assertEquals(
+            PlaybackFailureKind.AccessLost, androidFailureKind(errorCode))
+        assertEquals(
+            PlaybackFailureKind.AccessLost,
+            androidPlaybackError(
+                    errorCode = errorCode,
+                    message = "no permission to read source",
+                )
+                .kind,
+        )
+    }
+
+    @Test
+    fun androidUnsupportedContainerMapsToUnsupportedFormat() {
+        val errorCode =
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED
+
+        assertEquals(
+            PlaybackFailureKind.UnsupportedFormat,
+            androidFailureKind(errorCode))
+    }
+
+    @Test
+    fun androidDecoderFailureMapsToDecoderFailure() {
+        val errorCode = PlaybackException.ERROR_CODE_DECODING_FAILED
+        val decoderErrorCodes =
+            listOf(
+                PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+                PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+                PlaybackException.ERROR_CODE_DECODING_FAILED,
+                PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+                PlaybackException
+                    .ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+                PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED,
+            )
+
+        decoderErrorCodes.forEach { code ->
+            assertEquals(
+                PlaybackFailureKind.DecoderFailure,
+                androidFailureKind(code),
+            )
+        }
+        assertEquals(
+            PlaybackFailureKind.DecoderFailure,
+            androidPlaybackError(
+                    errorCode = errorCode,
+                    message = "decoder could not decode samples",
+                )
+                .kind,
+        )
+    }
+
+    @Test
+    fun androidOpaquePlayerErrorRemainsUnknown() {
+        val errorCode = PlaybackException.ERROR_CODE_UNSPECIFIED
+
+        assertEquals(PlaybackFailureKind.Unknown, androidFailureKind(errorCode))
+        assertEquals(
+            PlaybackFailureKind.Unknown,
+            androidPlaybackError(
+                    errorCode = errorCode,
+                    message = "unidentified failure",
+                )
+                .kind,
+        )
+    }
+
+    @Test
+    fun androidAbsentLocalSourceFileMapsToMissingFile() {
+        val absent = Files.createTempFile("rhythhaus-absent-android", ".wav")
+        Files.deleteIfExists(absent)
+        try {
+            val mapped =
+                androidPlaybackError(
+                    errorCode = PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                    message = "opaque io failure",
+                    sourceFile = absent.toFile(),
+                )
+
+            assertEquals(PlaybackFailureKind.MissingFile, mapped.kind)
+        } finally {
+            Files.deleteIfExists(absent)
+        }
+    }
+
+    @Test
+    fun androidReadySourceKeepsLocalFileEvidenceForOpaquePlayerError() {
+        val absent = Files.createTempFile("rhythhaus-evidence-android", ".wav")
+        Files.deleteIfExists(absent)
+        try {
+            val requests = AndroidPlaybackRequestState()
+            val request = requests.begin(95L, absent.toFile())
+            assertTrue(requests.ready(request.token, durationMillis = 2_000L))
+
+            val evidence = requests.localFileFor(request.token)
+            assertNotNull(evidence)
+            assertEquals(
+                PlaybackFailureKind.MissingFile,
+                androidPlaybackError(
+                        errorCode = PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                        message = "opaque io failure while playing",
+                        sourceFile = evidence,
+                    )
+                    .kind,
+            )
+        } finally {
+            Files.deleteIfExists(absent)
+        }
+    }
+
+    @Test
     fun releaseIsSerializedAndSuppressesQueuedAndPostReleaseControllerWork() {
         val executor = RecordingAndroidControllerExecutor()
         val operations = AndroidControllerOperations(executor)
@@ -220,6 +350,118 @@ class AndroidPlaybackMediaSessionTest {
         assertEquals(0, executor.pendingCount)
     }
 
+    @Test
+    fun terminalPlayerErrorSuppressesTrailingIsPlayingFalsePaused() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val active = requests.begin(100L)
+        assertTrue(requests.ready(active.token, durationMillis = 60_000L))
+
+        // Media3 dispatches onPlayerError before onIsPlayingChanged(false).
+        router.playerError(
+            listener,
+            active.token,
+            PlaybackError(
+                message = "Android could not play this audio file.",
+                cause = "decoder failed",
+                kind = PlaybackFailureKind.DecoderFailure,
+            ),
+        )
+        router.isPlayingChanged(listener, active.token, isPlaying = false)
+
+        assertEquals(listOf("error:100"), listener.events)
+    }
+
+    @Test
+    fun ordinaryIsPlayingFalseStillPublishesPaused() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val active = requests.begin(200L)
+        assertTrue(requests.ready(active.token, durationMillis = 60_000L))
+
+        router.isPlayingChanged(listener, active.token, isPlaying = false)
+
+        assertEquals(listOf("status:200:Paused"), listener.events)
+    }
+
+    @Test
+    fun replacementRequestAfterTerminalFailurePublishesNormalStatuses() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val failed = requests.begin(300L)
+        assertTrue(requests.ready(failed.token, durationMillis = 60_000L))
+        router.playerError(
+            listener,
+            failed.token,
+            PlaybackError(message = "Android could not play this audio file."),
+        )
+        // A trailing is-playing callback for the failed request stays silent.
+        router.isPlayingChanged(listener, failed.token, isPlaying = false)
+
+        val replacement = requests.begin(301L)
+
+        router.isPlayingChanged(listener, replacement.token, isPlaying = false)
+        router.isPlayingChanged(listener, replacement.token, isPlaying = true)
+
+        assertEquals(
+            listOf(
+                "error:300",
+                "status:301:Paused",
+                "status:301:Playing",
+            ),
+            listener.events,
+        )
+    }
+
+    @Test
+    fun duplicatePlayerErrorDoesNotRepublishForTerminalRequest() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val active = requests.begin(400L)
+        assertTrue(requests.ready(active.token, durationMillis = 60_000L))
+
+        router.playerError(
+            listener,
+            active.token,
+            PlaybackError(message = "Android could not play this audio file."),
+        )
+        router.playerError(
+            listener,
+            active.token,
+            PlaybackError(message = "Android could not play this audio file."),
+        )
+
+        assertEquals(listOf("error:400"), listener.events)
+    }
+
+    @Test
+    fun obsoletePlayerErrorAfterReplacementDoesNotRepublish() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val failed = requests.begin(500L)
+        assertTrue(requests.ready(failed.token, durationMillis = 60_000L))
+        router.playerError(
+            listener,
+            failed.token,
+            PlaybackError(message = "Android could not play this audio file."),
+        )
+
+        val replacement = requests.begin(501L)
+        router.playerError(
+            listener,
+            failed.token,
+            PlaybackError(message = "Android could not play this audio file."),
+        )
+        router.isPlayingChanged(listener, replacement.token, isPlaying = true)
+
+        assertEquals(listOf("error:500", "status:501:Playing"), listener.events)
+    }
+
     private class RecordingAndroidControllerExecutor :
         AndroidControllerExecutor {
         private val pending = ArrayDeque<() -> Unit>()
@@ -233,5 +475,39 @@ class AndroidPlaybackMediaSessionTest {
         fun runAll() {
             while (pending.isNotEmpty()) pending.removeFirst().invoke()
         }
+    }
+
+    private class RecordingAndroidPlaybackListener : PlaybackEngineListener {
+        val events = mutableListOf<String>()
+
+        override fun onPlaybackStatus(
+            generation: Long,
+            status: PlaybackStatus,
+        ) {
+            events += "status:$generation:$status"
+        }
+
+        override fun onPlaybackProgress(
+            generation: Long,
+            positionMillis: Long,
+            durationMillis: Long?,
+        ) {
+            events += "progress:$generation"
+        }
+
+        override fun onPlaybackCompleted(generation: Long) {
+            events += "completed:$generation"
+        }
+
+        override fun onPlaybackError(
+            generation: Long,
+            error: PlaybackError,
+        ) {
+            events += "error:$generation"
+        }
+
+        override fun onSkipToNext(generation: Long) = Unit
+
+        override fun onSkipToPrevious(generation: Long) = Unit
     }
 }

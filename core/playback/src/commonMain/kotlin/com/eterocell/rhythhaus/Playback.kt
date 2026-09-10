@@ -12,6 +12,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -63,13 +65,37 @@ public enum class ShuffleMode {
     On,
 }
 
+/** Classifies a playback failure so callers can offer recovery actions. */
+public enum class PlaybackFailureKind {
+    /** The underlying media file can no longer be located. */
+    MissingFile,
+    /** Access to the media file was lost after it was located. */
+    AccessLost,
+    /** The media format is not supported by the active engine. */
+    UnsupportedFormat,
+    /** The decoder failed while preparing or decoding the media. */
+    DecoderFailure,
+    /** The failure does not map to a specific recoverable category. */
+    Unknown,
+}
+
 /** Describes an error reported while loading or playing audio. */
 public data class PlaybackError(
     /** User-visible summary of the playback failure. */
     public val message: String,
     /** Optional underlying failure detail. */
     public val cause: String? = null,
+    /** Failure category that gates recovery actions. */
+    public val kind: PlaybackFailureKind = PlaybackFailureKind.Unknown,
 )
+
+/**
+ * Thrown by engines to carry a structured [PlaybackError] to the controller.
+ */
+public class PlaybackFailureException(
+    /** Structured failure transported across the engine boundary. */
+    public val error: PlaybackError,
+) : IllegalStateException(error.message)
 
 /** Identifies one queue occurrence and its track, including duplicates. */
 public data class QueueOccurrence(
@@ -122,6 +148,14 @@ public data class PlaybackState(
     /** Most recent playback error, cleared after a successful state change. */
     public val error: PlaybackError? = null,
     internal val checkpointRevision: Long = 0L,
+    /**
+     * Generation that produced the current [error], recorded atomically with
+     * its publication so queue-only recovery can bind engine cleanup to the
+     * exact failed load instead of a concurrently advanced active generation.
+     */
+    internal val errorGeneration: Long? = null,
+    /** Generation token owned by the current engine selection. */
+    internal val engineGeneration: Long = 0L,
 ) {
     /** Selected queue occurrence, when its identifier resolves in [queue]. */
     public val currentOccurrence: QueueOccurrence?
@@ -155,6 +189,25 @@ private data class RevisionedShuffleOrder(
     internal val shuffleMode: ShuffleMode = ShuffleMode.Off,
     internal val occurrenceIds: List<String> = emptyList(),
 )
+
+private data class SelectionRequest(
+    val generation: Long,
+    val occurrenceId: String,
+    val playWhenLoaded: MutableStateFlow<Boolean>,
+    val job: Job,
+)
+
+/**
+ * Blocking mutual-exclusion lock for the selection-request ownership
+ * transaction. Common controller code runs request replacement, generation
+ * allocation, state claims and callback/settlement mutation inside [withLock];
+ * each platform supplies a real blocking mutex (JVM monitor, Foundation
+ * [platform.Foundation.NSLock]) because the common stdlib offers no portable
+ * `synchronized` on every target.
+ */
+internal expect class OwnershipLock() {
+    fun <T> withLock(block: () -> T): T
+}
 
 /**
  * Receives lifecycle and transport callbacks from a platform playback engine.
@@ -242,12 +295,19 @@ public class PlaybackController(
         CoroutineScope(SupervisorJob() + playbackEngineDispatcher)
     private val engineMutex = Mutex()
     private val sessionOperationMutex = Mutex()
+    // Serializes the selection-request ownership transaction: request-slot
+    // installation, generation allocation, the state Loading claim, and the
+    // job/autoplay ownership handoff, plus callback and settlement state
+    // mutation, happen atomically so a displaced request can never cancel or
+    // overwrite a winner. Leaf lock: never acquired while engineMutex or
+    // sessionOperationMutex is held, and engine calls always happen outside
+    // this critical section.
+    private val selectionGate = OwnershipLock()
     // These fields are mutated from the controller dispatcher, the session
     // coordinator actor, and platform engine callback threads. StateFlow
     // provides both atomic updates and cross-thread visibility; a plain field
     // would let a stale engine callback pass the active-generation guard.
-    private val loadJob = MutableStateFlow<Job?>(null)
-    private val playWhenLoaded = MutableStateFlow(false)
+    private val selectionRequest = MutableStateFlow<SelectionRequest?>(null)
     private val activeGeneration = MutableStateFlow(0L)
     private val shuffledOrder = MutableStateFlow(RevisionedShuffleOrder())
     private val commandsEnabled = MutableStateFlow(true)
@@ -328,34 +388,28 @@ public class PlaybackController(
             occurrences.firstOrNull { it.id == selectedOccurrenceId }
                 ?: occurrences.firstOrNull()
         if (selected == null) {
-            loadJob.value?.cancel()
-            playWhenLoaded.value = false
+            cancelSelectionRequest()
             val generation = nextGeneration()
             resetProgressCheckpointKey()
-            launchEngineAction { engine.clear(generation) }
+            launchEngineAction(generation) { engine.clear(generation) }
             val published = publishState { previous ->
                 PlaybackState(
                     queue = occurrences,
                     repeatMode = previous.repeatMode,
                     shuffleMode = previous.shuffleMode,
+                    engineGeneration = generation,
                 )
             }
             emitImmediateCheckpoint(
                 published.toSessionSnapshot(), published.checkpointRevision)
         } else {
-            val published = publishState { previous ->
-                PlaybackState(
-                    currentOccurrenceId = selected.id,
-                    queue = occurrences,
-                    status = PlaybackStatus.Loading,
-                    durationMillis = selected.track.durationMillis,
-                    repeatMode = previous.repeatMode,
-                    shuffleMode = previous.shuffleMode,
-                )
+            if (loadSelected(
+                selected,
+                autoPlay = false,
+                replacementQueue = occurrences,
+            )) {
+                emitImmediateCheckpoint()
             }
-            publishRuntimeShuffleOrder(published, selected.id)
-            loadSelected(selected, autoPlay = false)
-            emitImmediateCheckpoint()
         }
     }
 
@@ -375,8 +429,9 @@ public class PlaybackController(
         if (!commandsEnabled.value) return
         val occurrence = occurrenceById(occurrenceId) ?: return
         resetProgressCheckpointKey()
-        loadSelected(occurrence, autoPlay)
-        emitImmediateCheckpoint()
+        if (loadSelected(occurrence, autoPlay)) {
+            emitImmediateCheckpoint()
+        }
     }
 
     /** Changes the completion behavior and persists the updated session. */
@@ -438,7 +493,7 @@ public class PlaybackController(
         if (!commandsEnabled.value) return
         val current = _state.value.currentOccurrence ?: return
         if (_state.value.status == PlaybackStatus.Loading) {
-            playWhenLoaded.value = true
+            setPendingAutoplay(true)
             return
         }
         if (_state.value.status == PlaybackStatus.Idle ||
@@ -446,23 +501,23 @@ public class PlaybackController(
             loadSelected(current, autoPlay = true)
             return
         }
-        launchEngineAction { engine.play() }
+        launchEngineAction(_state.value.engineGeneration) { engine.play() }
     }
 
     /** Pauses media and emits a persistence checkpoint. */
     public fun pause() {
         if (!commandsEnabled.value) return
-        playWhenLoaded.value = false
-        launchEngineAction { engine.pause() }
+        setPendingAutoplay(false)
+        launchEngineAction(_state.value.engineGeneration) { engine.pause() }
         emitImmediateCheckpoint()
     }
 
     /** Stops media and emits a persistence checkpoint. */
     public fun stop() {
         if (!commandsEnabled.value) return
-        playWhenLoaded.value = false
+        setPendingAutoplay(false)
         resetProgressCheckpointKey()
-        launchEngineAction { engine.stop() }
+        launchEngineAction(_state.value.engineGeneration) { engine.stop() }
         emitImmediateCheckpoint()
     }
 
@@ -477,7 +532,9 @@ public class PlaybackController(
             it.copy(positionMillis = safePosition, error = null)
         }
         resetProgressCheckpointKey()
-        launchEngineAction { engine.seekTo(safePosition) }
+        launchEngineAction(_state.value.engineGeneration) {
+            engine.seekTo(safePosition)
+        }
         emitImmediateCheckpoint(
             published.toSessionSnapshot(), published.checkpointRevision)
     }
@@ -496,21 +553,74 @@ public class PlaybackController(
             it.copy(positionMillis = 0L, error = null)
         }
         resetProgressCheckpointKey()
-        when (_state.value.status) {
-            PlaybackStatus.Loading -> playWhenLoaded.value = true
-
+        when (published.status) {
+            // Restarting an idle or errored occurrence reloads it through the
+            // selection transaction. A concurrent replacement that claims
+            // before this admission aborts it, and no stale pre-replacement
+            // checkpoint is emitted; when admission succeeds the claimed
+            // Loading state is the intended restart checkpoint.
             PlaybackStatus.Idle,
             PlaybackStatus.Error,
-            -> loadSelected(current, autoPlay = true)
+            ->
+                if (loadSelected(current, autoPlay = true)) {
+                    emitImmediateCheckpoint()
+                }
+
+            PlaybackStatus.Loading ->
+                // Request autoplay on the loading request only while it still
+                // owns the reset state; a superseded reset emits nothing.
+                if (setPendingAutoplay(true, published.engineGeneration) &&
+                    emitPublishedIfStillCurrent(published)) {
+                    // The reset checkpoint was emitted under the ownership
+                    // lock only while the reset state is still current.
+                }
 
             else ->
-                launchEngineAction {
-                    engine.seekTo(0L)
-                    engine.play()
-                }
+                launchEngineAction(published.engineGeneration) {
+                        engine.seekTo(0L)
+                        engine.play()
+                    }
+                    .let {
+                        emitPublishedIfStillCurrent(published)
+                    }
         }
-        emitImmediateCheckpoint(
-            published.toSessionSnapshot(), published.checkpointRevision)
+    }
+
+    /**
+     * Emits the captured [published] checkpoint only while that state is still
+     * current, atomically under the ownership lock, so a superseded restart
+     * reset can never append a stale checkpoint after a replacement.
+     */
+    private fun emitPublishedIfStillCurrent(published: PlaybackState): Boolean =
+        selectionGate.withLock {
+            val current = _state.value
+            val stillCurrent =
+                current.checkpointRevision == published.checkpointRevision &&
+                    current.engineGeneration == published.engineGeneration &&
+                    current.currentOccurrenceId == published.currentOccurrenceId
+            if (stillCurrent) {
+                emitImmediateCheckpoint(
+                    published.toSessionSnapshot(),
+                    published.checkpointRevision,
+                )
+            }
+            stillCurrent
+        }
+
+    /**
+     * Emits an immediate checkpoint of the current state only while it still
+     * carries [generation], atomically under the ownership lock.
+     */
+    private fun emitCheckpointIfOwner(generation: Long) {
+        selectionGate.withLock {
+            val current = _state.value
+            if (current.engineGeneration == generation) {
+                emitImmediateCheckpoint(
+                    current.toSessionSnapshot(),
+                    current.checkpointRevision,
+                )
+            }
+        }
     }
 
     /** Loads the next occurrence, wrapping only for playlist repeat. */
@@ -518,8 +628,9 @@ public class PlaybackController(
         if (!commandsEnabled.value) return
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
         nextTrack(wrap)?.let {
-            loadSelected(it, autoPlay = true)
-            emitImmediateCheckpoint()
+            if (loadSelected(it, autoPlay = true)) {
+                emitImmediateCheckpoint()
+            }
         }
     }
 
@@ -528,8 +639,44 @@ public class PlaybackController(
         if (!commandsEnabled.value) return
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
         previousTrack(wrap)?.let {
-            loadSelected(it, autoPlay = true)
+            if (loadSelected(it, autoPlay = true)) {
+                emitImmediateCheckpoint()
+            }
+        }
+    }
+
+    /**
+     * Reloads the failed current occurrence with autoplay, clearing the
+     * reported error once the reload begins.
+     */
+    public fun retryFailedTrack() {
+        val captured =
+            _state.value.takeIf {
+                commandsEnabled.value &&
+                    it.status == PlaybackStatus.Error &&
+                    it.error != null
+            } ?: return
+        val occurrence = captured.currentOccurrence ?: return
+        if (loadSelectedFrom(captured, occurrence, autoPlay = true)) {
             emitImmediateCheckpoint()
+        }
+    }
+
+    /**
+     * Loads the effective successor of the failed current occurrence without
+     * repeat wrapping, leaving the failure visible at the effective end.
+     */
+    public fun skipFailedTrack() {
+        val captured =
+            _state.value.takeIf {
+                commandsEnabled.value &&
+                    it.status == PlaybackStatus.Error &&
+                    it.error != null
+            } ?: return
+        nextTrackFrom(captured, wrap = false)?.let {
+            if (loadSelectedFrom(captured, it, autoPlay = true)) {
+                emitImmediateCheckpoint()
+            }
         }
     }
 
@@ -612,6 +759,105 @@ public class PlaybackController(
             error("Unreachable queue mutation loop")
         }
 
+    /**
+     * Removes exactly the failed current occurrence and autoplays its
+     * pre-removal effective successor. When no successor remains, clears the
+     * engine and publishes an idle queue that retains every other occurrence.
+     *
+     * Rejected as [QueueMutationRejection.CommandsDisabled] while commands are
+     * disabled, or [QueueMutationRejection.StaleOccurrence] when the state has
+     * no enabled failed current occurrence.
+     */
+    public suspend fun removeFailedTrack(): QueueMutationResult =
+        sessionOperationMutex.withLock {
+            while (true) {
+                if (!commandsEnabled.value)
+                    return@withLock QueueMutationResult.Rejected(
+                        QueueMutationRejection.CommandsDisabled)
+                val previous = _state.value
+                val current = previous.currentOccurrence
+                if (previous.status != PlaybackStatus.Error ||
+                    previous.error == null ||
+                    current == null) {
+                    return@withLock QueueMutationResult.Rejected(
+                        QueueMutationRejection.StaleOccurrence)
+                }
+                val successor = nextTrack(wrap = false)
+                val remaining = previous.queue.filterNot { it.id == current.id }
+                if (successor != null) {
+                    // The prune publishes an engine token no live request owns
+                    // so late callbacks from the failed load (still carrying
+                    // the error generation) can never mutate the pruned state
+                    // before the successor's claim publishes its own token.
+                    val published =
+                        previous.copy(
+                            currentOccurrenceId = null,
+                            queue = remaining,
+                            positionMillis = 0L,
+                            durationMillis = null,
+                            error = null,
+                            errorGeneration = null,
+                            engineGeneration = nextGeneration(),
+                            checkpointRevision = reserveCheckpointRevision(),
+                        )
+                    if (!_state.compareAndSet(previous, published)) continue
+                    publishRuntimeShuffleOrder(published, successor.id)
+                    emitImmediateCheckpoint(
+                        published.toSessionSnapshot(),
+                        published.checkpointRevision,
+                    )
+                    loadSelected(successor, autoPlay = true)
+                    return@withLock QueueMutationResult.Applied
+                }
+                // No successor: clear the engine and publish an idle queue
+                // retaining every other occurrence. The idle transition
+                // claims the exact failed-load generation: it is CAS-published
+                // only from a state still carrying that token, so an aborted
+                // retry's unused generation allocation can never block the
+                // cleanup, and a replacement that already claimed the session
+                // supersedes the removal instead of being cleared.
+                val recorded =
+                    previous.errorGeneration ?: previous.engineGeneration
+                // The idle token is claimed from the allocation counter so it
+                // can never equal a concurrent replacement's later token.
+                val cleanupGeneration = nextGeneration()
+                val idle =
+                    previous.copy(
+                        currentOccurrenceId = null,
+                        queue = remaining,
+                        status = PlaybackStatus.Idle,
+                        positionMillis = 0L,
+                        durationMillis = null,
+                        error = null,
+                        errorGeneration = null,
+                        engineGeneration = cleanupGeneration,
+                        checkpointRevision = reserveCheckpointRevision(),
+                    )
+                if (!_state.compareAndSet(previous, idle)) continue
+                selectionGate.withLock {
+                    val failedRequest = selectionRequest.value
+                    if (failedRequest?.generation == recorded) {
+                        failedRequest.job.cancel()
+                        if (selectionRequest.value === failedRequest) {
+                            selectionRequest.value = null
+                        }
+                    }
+                }
+                setPendingAutoplay(false, recorded)
+                resetProgressCheckpointKey()
+                publishRuntimeShuffleOrder(idle)
+                emitImmediateCheckpoint(
+                    idle.toSessionSnapshot(), idle.checkpointRevision)
+                engineMutex.withLock {
+                    if (_state.value.engineGeneration == cleanupGeneration) {
+                        engine.clear(cleanupGeneration)
+                    }
+                }
+                return@withLock QueueMutationResult.Applied
+            }
+            error("Unreachable queue mutation loop")
+        }
+
     /** Releases controller resources and stops checkpoint delivery. */
     public fun release() {
         scope.cancel()
@@ -654,8 +900,7 @@ public class PlaybackController(
         snapshot: PlaybackSessionSnapshot,
         tracks: List<PlayableTrack>,
     ): RevisionedPlaybackSessionSnapshot = sessionOperationMutex.withLock {
-        loadJob.value?.cancel()
-        playWhenLoaded.value = false
+        cancelSelectionRequest()
         resetProgressCheckpointKey()
         val tracksById = tracks.distinctBy { it.id }.associateBy { it.id }
         val reconciledQueue =
@@ -672,32 +917,41 @@ public class PlaybackController(
             if (restoredCurrent?.id == snapshot.currentOccurrenceId)
                 snapshot.positionMillis.coerceAtLeast(0L)
             else 0L
-        applyModesAndQueue(
-            reconciledQueue,
-            restoredCurrent,
-            snapshot.repeatMode,
-            snapshot.shuffleMode)
+        val base = _state.value
+        val generation = nextGeneration()
+        val claimed =
+            claimPausedSessionState(
+                base,
+                reconciledQueue,
+                restoredCurrent,
+                snapshot.repeatMode,
+                snapshot.shuffleMode,
+                generation,
+            ) ?: return@withLock revisionedSessionSnapshot()
+        publishRuntimeShuffleOrder(claimed)
         if (restoredCurrent == null) {
-            clearPausedState(snapshot.repeatMode, snapshot.shuffleMode)
+            engineMutex.withLock {
+                if (_state.value.engineGeneration == generation) {
+                    engine.clear(generation)
+                }
+            }
             emitImmediateCheckpoint()
             return@withLock revisionedSessionSnapshot()
         }
         try {
             engineMutex.withLock {
-                val generation = nextGeneration()
                 val loaded =
                     engine.loadPaused(
                         restoredCurrent.track.withLazyArtwork(), generation)
                 check(loaded.generation == generation)
-                check(generation == activeGeneration.value)
                 val clamped =
                     loaded.durationMillis?.let {
                         restoredPosition.coerceIn(0L, it)
                     } ?: restoredPosition
                 engine.seekTo(clamped)
                 engine.pause()
-                publishState {
-                    it.copy(
+                mutateIfOwner(generation, advanceRevision = true) { state ->
+                    state.copy(
                         status = PlaybackStatus.Paused,
                         positionMillis = clamped,
                         durationMillis =
@@ -711,9 +965,39 @@ public class PlaybackController(
             throw cancelled
         } catch (throwable: Throwable) {
             playbackLog.e { throwable.stackTraceToString() }
-            clearPausedState(snapshot.repeatMode, snapshot.shuffleMode)
+            // Claim the empty paused fail-safe only while this restore still
+            // owns the session token; a concurrent winner must never be
+            // cleared or clobbered by the failed restore.
+            val fallback = selectionGate.withLock {
+                val current = _state.value
+                if (current.engineGeneration != generation) {
+                    return@withLock null
+                }
+                claimPausedSessionState(
+                    current,
+                    emptyList(),
+                    null,
+                    snapshot.repeatMode,
+                    snapshot.shuffleMode,
+                    nextGeneration(),
+                )
+            }
+            if (fallback == null) {
+                return@withLock revisionedSessionSnapshot()
+            }
+            publishRuntimeShuffleOrder(fallback)
+            engineMutex.withLock {
+                if (_state.value.engineGeneration ==
+                    fallback.engineGeneration) {
+                    engine.clear(fallback.engineGeneration)
+                }
+            }
+            if (!emitImmediateCheckpointIfOwner(fallback)) {
+                return@withLock revisionedSessionSnapshot()
+            }
+            return@withLock fallback.toRevisionedSessionSnapshot()
         }
-        emitImmediateCheckpoint()
+        emitCheckpointIfOwner(generation)
         revisionedSessionSnapshot()
     }
 
@@ -723,112 +1007,392 @@ public class PlaybackController(
     public override suspend fun reconcileSession(
         tracks: List<PlayableTrack>,
     ): RevisionedPlaybackSessionSnapshot = sessionOperationMutex.withLock {
-        loadJob.value?.cancel()
-        playWhenLoaded.value = false
+        cancelSelectionRequest()
         resetProgressCheckpointKey()
-        val previous = _state.value
         val tracksById = tracks.distinctBy { it.id }.associateBy { it.id }
-        val reconciledQueue =
-            previous.queue.mapNotNull { occurrence ->
-                tracksById[occurrence.track.id]?.let {
-                    occurrence.copy(track = it)
+        while (true) {
+            val previous = _state.value
+            val reconciledQueue =
+                previous.queue.mapNotNull { occurrence ->
+                    tracksById[occurrence.track.id]?.let {
+                        occurrence.copy(track = it)
+                    }
                 }
+            val current =
+                previous.currentOccurrenceId?.let { currentId ->
+                    reconciledQueue.firstOrNull { it.id == currentId }
+                }
+            if (current != null) {
+                // A surviving Error remains attached to the failed engine
+                // session. Clearing it here would remove the recovery UI and
+                // invent a generation that no platform load owns.
+                if (previous.status == PlaybackStatus.Error) {
+                    val published =
+                        previous.copy(
+                            currentOccurrenceId = current.id,
+                            queue = reconciledQueue,
+                            checkpointRevision = reserveCheckpointRevision(),
+                        )
+                    if (!_state.compareAndSet(previous, published)) continue
+                    publishRuntimeShuffleOrder(published)
+                    emitImmediateCheckpoint(
+                        published.toSessionSnapshot(),
+                        published.checkpointRevision,
+                    )
+                    return@withLock published.toRevisionedSessionSnapshot()
+                }
+                // Loading and Buffering need a real engine rebind. Claim a
+                // fresh token before loading so non-cancellable callbacks from
+                // displaced session cannot settle or autoplay this state.
+                if (previous.status == PlaybackStatus.Loading ||
+                    previous.status == PlaybackStatus.Buffering) {
+                    if (!loadSelectedFrom(
+                        previous,
+                        current,
+                        autoPlay = false,
+                        replacementQueue = reconciledQueue,
+                    ))
+                        continue
+                    val published = _state.value
+                    emitImmediateCheckpoint(
+                        published.toSessionSnapshot(),
+                        published.checkpointRevision,
+                    )
+                    return@withLock revisionedSessionSnapshot()
+                }
+                val published =
+                    previous.copy(
+                        currentOccurrenceId = current.id,
+                        queue = reconciledQueue,
+                        status = previous.status,
+                        error = previous.error,
+                        errorGeneration = previous.errorGeneration,
+                        engineGeneration = previous.engineGeneration,
+                        checkpointRevision = reserveCheckpointRevision(),
+                    )
+                if (!_state.compareAndSet(previous, published)) continue
+                publishRuntimeShuffleOrder(published)
+                emitImmediateCheckpoint(
+                    published.toSessionSnapshot(),
+                    published.checkpointRevision,
+                )
+                return@withLock published.toRevisionedSessionSnapshot()
             }
-        val current =
-            previous.currentOccurrenceId?.let { currentId ->
-                reconciledQueue.firstOrNull { it.id == currentId }
+            val replacement = reconciledQueue.firstOrNull()
+            if (replacement == null) {
+                // No available occurrence survives: clear the engine and
+                // publish an empty paused session from the captured state.
+                val generation = nextGeneration()
+                val cleared =
+                    claimPausedSessionState(
+                        previous,
+                        emptyList(),
+                        null,
+                        previous.repeatMode,
+                        previous.shuffleMode,
+                        generation,
+                    ) ?: continue
+                publishRuntimeShuffleOrder(cleared)
+                engineMutex.withLock {
+                    if (_state.value.engineGeneration == generation) {
+                        engine.clear(generation)
+                    }
+                }
+                emitImmediateCheckpoint()
+                return@withLock revisionedSessionSnapshot()
             }
-        if (current != null) {
-            val published = publishState { latest ->
-                latest.copy(
-                    currentOccurrenceId = current.id, queue = reconciledQueue)
+            // A survivor replaces the missing current: claim it paused with a
+            // fresh token, then load it; the settle is CAS-gated on that token
+            // so a concurrent replacement can never be overwritten or cleared.
+            val generation = nextGeneration()
+            val claimed =
+                claimPausedSessionState(
+                    previous,
+                    reconciledQueue,
+                    replacement,
+                    previous.repeatMode,
+                    previous.shuffleMode,
+                    generation,
+                ) ?: return@withLock revisionedSessionSnapshot()
+            publishRuntimeShuffleOrder(claimed, replacement.id)
+            try {
+                engineMutex.withLock {
+                    val loaded =
+                        engine.loadPaused(
+                            replacement.track.withLazyArtwork(), generation)
+                    check(loaded.generation == generation)
+                    engine.seekTo(0L)
+                    engine.pause()
+                    mutateIfOwner(generation, advanceRevision = true) { state ->
+                        state.copy(
+                            status = PlaybackStatus.Paused,
+                            positionMillis = 0L,
+                            durationMillis =
+                                loaded.durationMillis
+                                    ?: replacement.track.durationMillis,
+                            error = null,
+                        )
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                playbackLog.e { throwable.stackTraceToString() }
+                // Publish the empty paused fail-safe only while this reconcile
+                // still owns the session token; a concurrent winner must never
+                // be cleared or clobbered before the failure propagates.
+                val failSafe = selectionGate.withLock {
+                    val current = _state.value
+                    if (current.engineGeneration != generation) {
+                        return@withLock null
+                    }
+                    claimPausedSessionState(
+                        current,
+                        emptyList(),
+                        null,
+                        previous.repeatMode,
+                        previous.shuffleMode,
+                        nextGeneration(),
+                    )
+                }
+                if (failSafe != null) {
+                    publishRuntimeShuffleOrder(failSafe)
+                    engineMutex.withLock {
+                        if (_state.value.engineGeneration ==
+                            failSafe.engineGeneration) {
+                            engine.clear(failSafe.engineGeneration)
+                        }
+                    }
+                    if (!emitImmediateCheckpointIfOwner(failSafe)) {
+                        throw throwable
+                    }
+                }
+                throw throwable
             }
-            publishRuntimeShuffleOrder(published)
-            emitImmediateCheckpoint(
-                published.toSessionSnapshot(), published.checkpointRevision)
-            return@withLock published.toRevisionedSessionSnapshot()
-        }
-        val replacement = reconciledQueue.firstOrNull()
-        if (replacement == null) {
-            clearPausedState(previous.repeatMode, previous.shuffleMode)
-            emitImmediateCheckpoint()
+            emitCheckpointIfOwner(generation)
             return@withLock revisionedSessionSnapshot()
         }
-        applyModesAndQueue(
-            reconciledQueue,
-            replacement,
-            previous.repeatMode,
-            previous.shuffleMode)
-        try {
-            engineMutex.withLock {
-                val generation = nextGeneration()
-                val loaded =
-                    engine.loadPaused(
-                        replacement.track.withLazyArtwork(), generation)
-                check(loaded.generation == generation)
-                check(generation == activeGeneration.value)
-                engine.seekTo(0L)
-                engine.pause()
-                publishState {
-                    it.copy(
-                        status = PlaybackStatus.Paused,
-                        positionMillis = 0L,
-                        durationMillis =
-                            loaded.durationMillis
-                                ?: replacement.track.durationMillis,
-                        error = null,
-                    )
-                }
-            }
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (throwable: Throwable) {
-            playbackLog.e { throwable.stackTraceToString() }
-            clearPausedState(previous.repeatMode, previous.shuffleMode)
-            throw throwable
-        }
-        emitImmediateCheckpoint()
-        revisionedSessionSnapshot()
+        error("Unreachable reconcile loop")
     }
 
-    private fun loadSelected(occurrence: QueueOccurrence, autoPlay: Boolean) {
-        loadJob.value?.cancel()
-        val generation = nextGeneration()
-        resetProgressCheckpointKey()
-        playWhenLoaded.value = autoPlay
-        val published = publishState { previous ->
-            previous.copy(
-                currentOccurrenceId = occurrence.id,
-                status = PlaybackStatus.Loading,
-                positionMillis = 0L,
-                durationMillis = occurrence.track.durationMillis,
-                error = null,
-            )
+    /**
+     * Begins loading [occurrence] (autoplaying when [autoPlay] is set) and
+     * returns true when the selection was admitted. The whole ownership
+     * transfer is one critical section under [selectionGate]: request-slot
+     * replacement (capturing the displaced request), generation allocation, the
+     * Loading state claim that publishes the engine-generation token from the
+     * exact captured state, and the job/autoplay ownership handoff. A claim
+     * that loses restores the displaced request and cancels only its own lazy
+     * Job; a claim that wins cancels the captured displaced request (never a
+     * reread) and starts only its own Job. Engine calls happen on the lazy Job
+     * outside this lock, so engine re-entrant callbacks can never deadlock the
+     * ownership transaction.
+     */
+    private fun loadSelected(
+        occurrence: QueueOccurrence,
+        autoPlay: Boolean,
+        replacementQueue: List<QueueOccurrence>? = null,
+        from: PlaybackState? = null,
+        requireCommandsEnabled: Boolean = false,
+    ): Boolean = selectionGate.withLock {
+        if (requireCommandsEnabled && !commandsEnabled.value) {
+            return@withLock false
         }
-        publishRuntimeShuffleOrder(published, occurrence.id)
-        loadJob.value = scope.launch {
-            val trackWithArtwork = occurrence.track.withLazyArtwork()
-            runEngineAction {
-                if (_state.value.currentOccurrenceId != occurrence.id)
-                    return@runEngineAction
-                val loaded = engine.loadPaused(trackWithArtwork, generation)
-                check(loaded.generation == generation)
-                if (generation != activeGeneration.value) return@runEngineAction
-                _state.value =
-                    _state.value.copy(
-                        status = PlaybackStatus.Paused,
-                        durationMillis =
-                            loaded.durationMillis
-                                ?: _state.value.durationMillis,
-                    )
-                if (_state.value.currentOccurrenceId == occurrence.id &&
-                    (autoPlay || playWhenLoaded.value)) {
-                    playWhenLoaded.value = false
-                    engine.play()
-                }
+        val displaced = selectionRequest.value
+        val generation = nextGeneration()
+        val intent = MutableStateFlow(autoPlay)
+        // Lazy: nothing runs until the claim wins and starts the Job.
+        val job =
+            scope.launch(start = CoroutineStart.LAZY) {
+                settleLoad(occurrence, generation, intent)
             }
+        val request =
+            SelectionRequest(
+                generation,
+                occurrence.id,
+                intent,
+                job,
+            )
+        // Request replacement precedes the state claim so a concurrent
+        // transaction can always cancel the request it displaces.
+        selectionRequest.value = request
+        val claimed =
+            if (from == null) {
+                claimLoading(occurrence, replacementQueue, generation)
+            } else {
+                claimLoadingFrom(
+                    from,
+                    occurrence,
+                    generation,
+                    replacementQueue,
+                )
+            }
+        if (claimed == null) {
+            // The claim lost (the occurrence left the queue or the captured
+            // prior state moved). Restore the displaced request and cancel
+            // only this transaction's own lazy Job.
+            selectionRequest.value = displaced
+            request.job.cancel()
+            return@withLock false
+        }
+        resetProgressCheckpointKey()
+        publishRuntimeShuffleOrder(claimed, occurrence.id)
+        // Ownership transferred: supersede the captured displaced request.
+        displaced?.job?.cancel()
+        request.job.start()
+        true
+    }
+
+    /**
+     * Selects [occurrence] from the exact captured [PlaybackState]: the claim
+     * publishes only when that captured state is still current, so callers that
+     * derived a decision from it never commit against a newer state.
+     */
+    private fun loadSelectedFrom(
+        captured: PlaybackState,
+        occurrence: QueueOccurrence,
+        autoPlay: Boolean,
+        replacementQueue: List<QueueOccurrence>? = null,
+    ): Boolean =
+        loadSelected(
+            occurrence,
+            autoPlay,
+            replacementQueue = replacementQueue,
+            from = captured,
+        )
+
+    private fun claimLoadingFrom(
+        from: PlaybackState,
+        occurrence: QueueOccurrence,
+        generation: Long,
+        replacementQueue: List<QueueOccurrence>? = null,
+    ): PlaybackState? {
+        if (from.queue.none { it.id == occurrence.id }) return null
+        val updated =
+            (if (replacementQueue == null) from
+                else from.copy(queue = replacementQueue))
+                .copy(
+                    currentOccurrenceId = occurrence.id,
+                    status = PlaybackStatus.Loading,
+                    positionMillis = 0L,
+                    durationMillis = occurrence.track.durationMillis,
+                    error = null,
+                    engineGeneration = generation,
+                    checkpointRevision = reserveCheckpointRevision(),
+                )
+        return if (_state.compareAndSet(from, updated)) updated else null
+    }
+
+    /**
+     * CAS-publishes the Loading transition for [occurrence] from the exact
+     * captured state under [selectionGate], returning the published state or
+     * null when the state the transition would originate from no longer
+     * contains the occurrence. Retries against benign concurrent writers that
+     * are not selection claims (engine callbacks and transport publishes).
+     */
+    private fun claimLoading(
+        occurrence: QueueOccurrence,
+        replacementQueue: List<QueueOccurrence>?,
+        generation: Long,
+    ): PlaybackState? {
+        while (true) {
+            val previous = _state.value
+            if (replacementQueue == null &&
+                previous.queue.none { it.id == occurrence.id })
+                return null
+            val updated =
+                (if (replacementQueue == null) previous
+                    else previous.copy(queue = replacementQueue))
+                    .copy(
+                        currentOccurrenceId = occurrence.id,
+                        status = PlaybackStatus.Loading,
+                        positionMillis = 0L,
+                        durationMillis = occurrence.track.durationMillis,
+                        error = null,
+                        engineGeneration = generation,
+                        checkpointRevision = reserveCheckpointRevision(),
+                    )
+            if (_state.compareAndSet(previous, updated)) return updated
         }
     }
+
+    private suspend fun settleLoad(
+        occurrence: QueueOccurrence,
+        generation: Long,
+        intent: MutableStateFlow<Boolean>,
+    ) {
+        val trackWithArtwork = occurrence.track.withLazyArtwork()
+        runEngineAction(generation) {
+            if (!ownsSelection(generation, occurrence.id))
+                return@runEngineAction
+            val loaded = engine.loadPaused(trackWithArtwork, generation)
+            check(loaded.generation == generation)
+            // Settle only while this request still owns the state token.
+            mutateIfOwner(generation) { state ->
+                state.copy(
+                    status = PlaybackStatus.Paused,
+                    durationMillis =
+                        loaded.durationMillis ?: state.durationMillis,
+                )
+            } ?: return@runEngineAction
+            var shouldPlay = false
+            selectionGate.withLock {
+                val state = _state.value
+                if (ownsSelection(state, generation, occurrence.id) &&
+                    intent.value) {
+                    intent.value = false
+                    shouldPlay = true
+                }
+            }
+            // Autoplay after load: engine dispatch happens outside the
+            // ownership lock; the decision above was captured atomically.
+            if (shouldPlay) engine.play()
+        }
+    }
+
+    /**
+     * Applies [transform] under the ownership lock while the state still
+     * carries [generation], returning the applied state or null when a newer
+     * request superseded it. Called from engine callbacks and load settlement
+     * while the caller may hold the engine mutex; the ownership lock is a leaf
+     * lock, so this ordering can never deadlock a selection transaction.
+     */
+    private fun mutateIfOwner(
+        generation: Long,
+        advanceRevision: Boolean = false,
+        transform: (PlaybackState) -> PlaybackState,
+    ): PlaybackState? = selectionGate.withLock {
+        while (true) {
+            val previous = _state.value
+            if (previous.engineGeneration != generation) {
+                return@withLock null
+            }
+            val updated =
+                if (advanceRevision) {
+                    transform(previous)
+                        .copy(checkpointRevision = reserveCheckpointRevision())
+                } else {
+                    transform(previous)
+                }
+            if (_state.compareAndSet(previous, updated)) {
+                return@withLock updated
+            }
+        }
+        error("Unreachable ownership mutation")
+    }
+
+    private fun ownsSelection(
+        generation: Long,
+        occurrenceId: String,
+    ): Boolean = ownsSelection(_state.value, generation, occurrenceId)
+
+    private fun ownsSelection(
+        state: PlaybackState,
+        generation: Long,
+        occurrenceId: String,
+    ): Boolean =
+        state.engineGeneration == generation &&
+            state.currentOccurrenceId == occurrenceId
 
     private fun nextGeneration(): Long {
         while (true) {
@@ -838,39 +1402,35 @@ public class PlaybackController(
         }
     }
 
-    private fun applyModesAndQueue(
+    /**
+     * Claims [queue]/[current] and the repeat/shuffle modes as a paused session
+     * state carrying [generation], CAS-published from the exact captured
+     * [base]. Returns null when a concurrent transition superseded [base], in
+     * which case the caller must not apply any engine effect.
+     */
+    private fun claimPausedSessionState(
+        base: PlaybackState,
         queue: List<QueueOccurrence>,
         current: QueueOccurrence?,
         repeatMode: RepeatMode,
         shuffleMode: ShuffleMode,
-    ) {
-        val published = publishState {
-            PlaybackState(
+        generation: Long,
+    ): PlaybackState? {
+        val updated =
+            base.copy(
                 currentOccurrenceId = current?.id,
                 queue = queue,
                 status = PlaybackStatus.Paused,
+                positionMillis = 0L,
                 durationMillis = current?.track?.durationMillis,
                 repeatMode = repeatMode,
                 shuffleMode = shuffleMode,
+                error = null,
+                errorGeneration = null,
+                engineGeneration = generation,
+                checkpointRevision = reserveCheckpointRevision(),
             )
-        }
-        publishRuntimeShuffleOrder(published)
-    }
-
-    private suspend fun clearPausedState(
-        repeatMode: RepeatMode,
-        shuffleMode: ShuffleMode
-    ) {
-        val generation = nextGeneration()
-        engineMutex.withLock { engine.clear(generation) }
-        val published = publishState {
-            PlaybackState(
-                status = PlaybackStatus.Paused,
-                repeatMode = repeatMode,
-                shuffleMode = shuffleMode,
-            )
-        }
-        publishRuntimeShuffleOrder(published)
+        return if (_state.compareAndSet(base, updated)) updated else null
     }
 
     private fun publishRuntimeShuffleOrder(
@@ -979,6 +1539,17 @@ public class PlaybackController(
             current.toSessionSnapshot(), revision ?: current.checkpointRevision)
     }
 
+    /**
+     * Emits [state]'s checkpoint only while that exact state remains current.
+     */
+    private fun emitImmediateCheckpointIfOwner(state: PlaybackState): Boolean =
+        selectionGate.withLock {
+            if (_state.value !== state) return@withLock false
+            emitImmediateCheckpoint(
+                state.toSessionSnapshot(), state.checkpointRevision)
+            true
+        }
+
     private fun emitImmediateCheckpoint(
         snapshot: PlaybackSessionSnapshot,
         revision: Long? = null
@@ -997,19 +1568,61 @@ public class PlaybackController(
         lastProgressCheckpointKey.value = null
     }
 
+    private fun cancelSelectionRequest() {
+        selectionGate.withLock {
+            selectionRequest.value?.let { request ->
+                // Clear the request-owned autoplay intent (the per-request
+                // equivalent of the old shared playWhenLoaded=false) so a
+                // cancelled load that slips past cancellation can never start
+                // playback against a superseding session state.
+                request.playWhenLoaded.value = false
+                request.job.cancel()
+            }
+            selectionRequest.value = null
+        }
+    }
+
+    private fun setPendingAutoplay(
+        enabled: Boolean,
+        generation: Long? = null,
+    ): Boolean = selectionGate.withLock {
+        val request =
+            when {
+                generation == null -> selectionRequest.value
+                else ->
+                    selectionRequest.value?.takeIf {
+                        it.generation == generation
+                    }
+            } ?: return@withLock false
+        val state = _state.value
+        val owned =
+            state.status == PlaybackStatus.Loading &&
+                ownsSelection(state, request.generation, request.occurrenceId)
+        if (owned) {
+            request.playWhenLoaded.value = enabled
+        }
+        owned
+    }
+
     private fun PlayableTrack.withLazyArtwork(): PlayableTrack {
         if (artworkBytes != null) return this
         val loadedArtwork = artworkLoader(id) ?: return this
         return copy(artworkBytes = loadedArtwork)
     }
 
-    private fun launchEngineAction(action: suspend () -> Unit) {
+    private fun launchEngineAction(
+        errorGeneration: Long,
+        action: suspend () -> Unit,
+    ) {
         scope.launch {
-            runEngineAction(action)
+            runEngineAction(errorGeneration, action)
         }
     }
 
-    private suspend fun runEngineAction(action: suspend () -> Unit) {
+    private suspend fun runEngineAction(
+        errorGeneration: Long,
+        action: suspend () -> Unit,
+    ) {
         try {
             engineMutex.withLock {
                 action()
@@ -1017,12 +1630,16 @@ public class PlaybackController(
         } catch (throwable: Throwable) {
             if (throwable is CancellationException) throw throwable
             playbackLog.e { throwable.stackTraceToString() }
+            val failure =
+                (throwable as? PlaybackFailureException)?.error
+                    ?: PlaybackError(
+                        message = "Playback failed",
+                        cause =
+                            throwable.message ?: throwable::class.simpleName,
+                    )
             onPlaybackError(
-                activeGeneration.value,
-                PlaybackError(
-                    message = "Playback failed",
-                    cause = throwable.message ?: throwable::class.simpleName,
-                ),
+                errorGeneration,
+                failure,
             )
         }
     }
@@ -1077,122 +1694,268 @@ public class PlaybackController(
         return occurrenceById(previousId)
     }
 
-    private fun stopAtCurrentTrackEnd() {
-        val duration = _state.value.durationMillis
-        val published = publishState {
-            it.copy(
-                status = PlaybackStatus.Stopped,
-                positionMillis = duration ?: max(0L, it.positionMillis),
-                error = null,
-            )
-        }
-        resetProgressCheckpointKey()
-        emitImmediateCheckpoint(
-            published.toSessionSnapshot(), published.checkpointRevision)
+    /** Successor of the current occurrence within [state]'s effective order. */
+    private fun nextTrackFrom(
+        state: PlaybackState,
+        wrap: Boolean,
+    ): QueueOccurrence? {
+        val order = effectiveOrder(state)
+        if (order.isEmpty()) return null
+        val currentIndex = order.indexOf(state.currentOccurrenceId)
+        if (currentIndex < 0) return null
+        val nextId =
+            order.getOrNull(currentIndex + 1)
+                ?: if (wrap) order.firstOrNull() else null
+        return state.queue.firstOrNull { it.id == nextId }
     }
 
-    /** Applies a status callback when it belongs to the active generation. */
+    /** Predecessor of the current occurrence within [state]'s order. */
+    private fun previousTrackFrom(
+        state: PlaybackState,
+        wrap: Boolean,
+    ): QueueOccurrence? {
+        val order = effectiveOrder(state)
+        if (order.isEmpty()) return null
+        val currentIndex = order.indexOf(state.currentOccurrenceId)
+        if (currentIndex < 0) return null
+        val previousId =
+            order.getOrNull(currentIndex - 1)
+                ?: if (wrap) order.lastOrNull() else null
+        return state.queue.firstOrNull { it.id == previousId }
+    }
+
+    /**
+     * Returns the current occurrence only while recovery commands are enabled
+     * and the latest state reports an error with a structured cause.
+     */
+    private fun failedCurrentOccurrence(): QueueOccurrence? =
+        _state.value
+            .takeIf {
+                commandsEnabled.value &&
+                    it.status == PlaybackStatus.Error &&
+                    it.error != null
+            }
+            ?.currentOccurrence
+
+    /**
+     * Publishes the terminal Stopped state and its checkpoint as one critical
+     * section under the ownership lock, so a replacement claiming right after
+     * the mutation can never receive a stale Stopped checkpoint out of order.
+     */
+    private fun stopAtCurrentTrackEnd(generation: Long): Boolean =
+        selectionGate.withLock {
+            var published: PlaybackState? = null
+            while (published == null) {
+                val state = _state.value
+                if (state.engineGeneration != generation) return@withLock false
+                val candidate =
+                    state.copy(
+                        status = PlaybackStatus.Stopped,
+                        positionMillis =
+                            state.durationMillis
+                                ?: max(0L, state.positionMillis),
+                        error = null,
+                        checkpointRevision = reserveCheckpointRevision(),
+                    )
+                if (_state.compareAndSet(state, candidate)) {
+                    published = candidate
+                }
+            }
+            resetProgressCheckpointKey()
+            emitImmediateCheckpoint(
+                published.toSessionSnapshot(),
+                published.checkpointRevision,
+            )
+            true
+        }
+
+    /** Applies a status callback only while [generation] owns the state. */
     public override fun onPlaybackStatus(
         generation: Long,
         status: PlaybackStatus
     ) {
-        if (generation != activeGeneration.value) return
-        _state.value = _state.value.copy(status = status, error = null)
+        selectionGate.withLock {
+            _state.update { state ->
+                if (state.engineGeneration == generation) {
+                    state.copy(status = status, error = null)
+                } else {
+                    state
+                }
+            }
+        }
     }
 
     /**
-     * Applies progress and emits at most one checkpoint per playback second.
+     * Applies progress while [generation] owns the state and emits at most one
+     * checkpoint per playback second. The apply, the per-second key dedupe and
+     * the emission are one critical section under the ownership lock, so a
+     * stale or duplicate progress callback can neither mutate a replacement's
+     * state nor append a checkpoint after the replacement claimed.
      */
     public override fun onPlaybackProgress(
         generation: Long,
         positionMillis: Long,
         durationMillis: Long?
     ) {
-        if (generation != activeGeneration.value) return
-        val checkpointState = publishState {
-            it.copy(
-                positionMillis = max(0L, positionMillis),
-                durationMillis = durationMillis ?: it.durationMillis,
+        selectionGate.withLock {
+            var applied: PlaybackState? = null
+            while (applied == null) {
+                val state = _state.value
+                if (state.engineGeneration != generation) return@withLock
+                val candidate =
+                    state.copy(
+                        positionMillis = max(0L, positionMillis),
+                        durationMillis = durationMillis ?: state.durationMillis,
+                        checkpointRevision = reserveCheckpointRevision(),
+                    )
+                if (_state.compareAndSet(state, candidate)) {
+                    applied = candidate
+                }
+            }
+            val settled = checkNotNull(applied)
+            val currentId = settled.currentOccurrenceId ?: return@withLock
+            if (settled.status != PlaybackStatus.Playing) return@withLock
+            val key =
+                ProgressCheckpointKey(
+                    generation, currentId, max(0L, positionMillis) / 1_000L)
+            if (lastProgressCheckpointKey.value == key) return@withLock
+            lastProgressCheckpointKey.value = key
+            check(
+                checkpointChannel
+                    .trySend(
+                        CheckpointEnvelope.Checkpoint(
+                            PlaybackCheckpoint.PlayingProgress(
+                                key = key,
+                                snapshot = settled.toSessionSnapshot(),
+                                revision = settled.checkpointRevision,
+                            ),
+                        ),
+                    )
+                    .isSuccess,
             )
         }
-        val currentId = checkpointState.currentOccurrenceId ?: return
-        if (checkpointState.status != PlaybackStatus.Playing) return
-        val key =
-            ProgressCheckpointKey(
-                generation, currentId, max(0L, positionMillis) / 1_000L)
-        if (lastProgressCheckpointKey.value == key) return
-        lastProgressCheckpointKey.value = key
-        check(
-            checkpointChannel
-                .trySend(
-                    CheckpointEnvelope.Checkpoint(
-                        PlaybackCheckpoint.PlayingProgress(
-                            key = key,
-                            snapshot = checkpointState.toSessionSnapshot(),
-                            revision = checkpointState.checkpointRevision,
-                        ),
-                    ),
-                )
-                .isSuccess,
-        )
     }
 
-    /** Advances or stops the queue according to the selected repeat mode. */
+    /**
+     * Advances or stops the queue according to the selected repeat mode. Every
+     * decision derives from a state that still carries [generation] and is
+     * committed from that exact captured state, so a stale completion can
+     * neither advance a replacement's queue nor stop its session.
+     */
     public override fun onPlaybackCompleted(generation: Long) {
-        if (generation != activeGeneration.value) return
-        when (_state.value.repeatMode) {
-            RepeatMode.RepeatOne -> {
-                val current =
-                    _state.value.currentOccurrence
-                        ?: return stopAtCurrentTrackEnd()
-                loadSelected(current, autoPlay = true)
-                emitImmediateCheckpoint()
-            }
+        while (true) {
+            val state = _state.value
+            if (state.engineGeneration != generation) return
+            val committed =
+                when (state.repeatMode) {
+                    RepeatMode.RepeatOne -> {
+                        val current = state.currentOccurrence
+                        if (current == null) {
+                            stopAtCurrentTrackEnd(generation)
+                        } else if (loadSelectedFrom(
+                            state, current, autoPlay = true)) {
+                            emitImmediateCheckpoint()
+                            true
+                        } else {
+                            false
+                        }
+                    }
 
-            RepeatMode.RepeatPlaylist -> {
-                val next = nextTrack(wrap = true)
-                if (next != null) {
-                    loadSelected(next, autoPlay = true)
-                    emitImmediateCheckpoint()
-                } else {
-                    stopAtCurrentTrackEnd()
+                    RepeatMode.RepeatPlaylist -> {
+                        val next = nextTrackFrom(state, wrap = true)
+                        if (next == null) {
+                            stopAtCurrentTrackEnd(generation)
+                        } else if (loadSelectedFrom(
+                            state, next, autoPlay = true)) {
+                            emitImmediateCheckpoint()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+
+                    RepeatMode.StopAfterCurrent ->
+                        stopAtCurrentTrackEnd(generation)
+
+                    RepeatMode.StopAfterQueue -> {
+                        val next = nextTrackFrom(state, wrap = false)
+                        if (next == null) {
+                            stopAtCurrentTrackEnd(generation)
+                        } else if (loadSelectedFrom(
+                            state, next, autoPlay = true)) {
+                            emitImmediateCheckpoint()
+                            true
+                        } else {
+                            false
+                        }
+                    }
                 }
-            }
-
-            RepeatMode.StopAfterCurrent -> stopAtCurrentTrackEnd()
-
-            RepeatMode.StopAfterQueue -> {
-                val next = nextTrack(wrap = false)
-                if (next != null) {
-                    loadSelected(next, autoPlay = true)
-                    emitImmediateCheckpoint()
-                } else {
-                    stopAtCurrentTrackEnd()
-                }
-            }
+            if (committed) return
+            // The claim or stop lost to a benign concurrent writer; re-derive
+            // from the latest state. A superseding claim exits at the top.
         }
     }
 
-    /** Publishes an engine error for the active generation. */
+    /** Publishes an engine error only while [generation] owns the state. */
     public override fun onPlaybackError(
         generation: Long,
         error: PlaybackError
     ) {
-        if (generation != activeGeneration.value) return
-        _state.value =
-            _state.value.copy(status = PlaybackStatus.Error, error = error)
+        selectionGate.withLock {
+            _state.update { state ->
+                if (state.engineGeneration == generation) {
+                    state.copy(
+                        status = PlaybackStatus.Error,
+                        error = error,
+                        errorGeneration = generation,
+                    )
+                } else {
+                    state
+                }
+            }
+        }
     }
 
-    /** Handles an engine request to advance the active queue. */
+    /**
+     * Handles an engine request to advance the active queue. The skip derives
+     * from a state that still carries [generation] and is committed from that
+     * exact captured state, so a stale transport request can never advance a
+     * replacement's queue.
+     */
     public override fun onSkipToNext(generation: Long) {
-        if (generation != activeGeneration.value) return
-        skipToNext()
+        skipOwner(generation, previous = false)
     }
 
     /** Handles an engine request to return to the previous occurrence. */
     public override fun onSkipToPrevious(generation: Long) {
-        if (generation != activeGeneration.value) return
-        skipToPrevious()
+        skipOwner(generation, previous = true)
+    }
+
+    private fun skipOwner(generation: Long, previous: Boolean) {
+        while (true) {
+            if (!commandsEnabled.value) return
+            val state = _state.value
+            if (state.engineGeneration != generation) return
+            val wrap = state.repeatMode == RepeatMode.RepeatPlaylist
+            val target =
+                if (previous) {
+                    previousTrackFrom(state, wrap)
+                } else {
+                    nextTrackFrom(state, wrap)
+                }
+            if (target == null) return
+            if (loadSelected(
+                target,
+                autoPlay = true,
+                from = state,
+                requireCommandsEnabled = true,
+            )) {
+                emitImmediateCheckpoint()
+                return
+            }
+            // The claim lost to a benign writer; re-derive from the latest
+            // state. A superseding claim exits at the top of the loop.
+        }
     }
 
     private fun freshOccurrenceId(): String {

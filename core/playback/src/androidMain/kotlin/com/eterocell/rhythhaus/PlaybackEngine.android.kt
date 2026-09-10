@@ -121,6 +121,7 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     private var progressJob: Job? = null
     private var activeGeneration: Long = 0L
     private val requestState = AndroidPlaybackRequestState()
+    private val eventRouter = AndroidPlaybackEventRouter(requestState)
 
     /**
      * True once [release] has run; guards async connection callbacks from
@@ -174,15 +175,15 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
                     try {
                         future.get()
                     } catch (t: Throwable) {
-                        requestState.failActive(t)
-                        listener?.onPlaybackError(
-                            activeGeneration,
+                        val failure =
                             PlaybackError(
                                 message =
                                     "Android could not start the playback service.",
                                 cause = t.message ?: t::class.simpleName,
-                            ),
-                        )
+                            )
+                        requestState.failActive(
+                            PlaybackFailureException(failure))
+                        listener?.onPlaybackError(activeGeneration, failure)
                         controllerFuture = null
                         pendingActions.clear()
                         return@addListener
@@ -205,7 +206,8 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         track: PlayableTrack,
         generation: Long
     ): LoadedPlayback {
-        val request = requestState.begin(generation)
+        val request =
+            requestState.begin(generation, track.source.androidLocalFile())
         activeGeneration = generation
         listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
         loadedTrackDurationMillis = track.durationMillis
@@ -361,34 +363,81 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             val c = controller ?: return
-            val generation =
-                requestState.observableGeneration(currentRequestToken(c))
-                    ?: return
-            listener?.onPlaybackStatus(
-                generation,
-                if (isPlaying) PlaybackStatus.Playing
-                else PlaybackStatus.Paused)
-            publishProgress(c)
+            val observed = currentRequestToken(c)
+            if (eventRouter.isPlayingChanged(listener, observed, isPlaying)) {
+                publishProgress(c)
+            }
         }
 
         override fun onPlayerError(error: PlaybackException) {
             val c = controller ?: return
             val observed = currentRequestToken(c)
-            val generation =
-                requestState.observableGeneration(observed) ?: return
-            val cause =
-                IllegalStateException(error.message ?: error.errorCodeName)
-            requestState.failPending(observed, cause)
-            listener?.onPlaybackError(
-                generation,
-                PlaybackError(
-                    message = "Android could not play this audio file.",
-                    cause = error.message ?: error.errorCodeName,
-                ),
-            )
+            val failure =
+                androidPlaybackError(
+                    error,
+                    sourceFile = requestState.localFileFor(observed),
+                )
+            eventRouter.playerError(listener, observed, failure)
         }
     }
 }
+
+/**
+ * Maps a Media3 [PlaybackException] into the structured playback contract.
+ *
+ * Classification uses only documented Media3 error codes. When the load
+ * references a concrete local file that no longer exists, that direct absence
+ * evidence takes precedence so an opaque IO code cannot hide a missing file.
+ * Service-connection and other unrelated failures fall through to
+ * [PlaybackFailureKind.Unknown].
+ */
+internal fun androidPlaybackError(
+    error: PlaybackException,
+    sourceFile: java.io.File? = null,
+): PlaybackError =
+    androidPlaybackError(error.errorCode, error.message, sourceFile)
+
+/**
+ * Pure classification entry point used by the engine-facing overload and by
+ * host tests (constructing a Media3 [PlaybackException] requires the Android
+ * framework clock).
+ */
+internal fun androidPlaybackError(
+    errorCode: Int,
+    message: String?,
+    sourceFile: java.io.File? = null,
+): PlaybackError {
+    val kind =
+        if (sourceFile != null && !sourceFile.exists()) {
+            PlaybackFailureKind.MissingFile
+        } else {
+            androidFailureKind(errorCode)
+        }
+    return PlaybackError(
+        message = "Android could not play this audio file.",
+        cause = message ?: PlaybackException.getErrorCodeName(errorCode),
+        kind = kind,
+    )
+}
+
+/** Maps a documented Media3 error code to a playback failure kind. */
+internal fun androidFailureKind(errorCode: Int): PlaybackFailureKind =
+    when (errorCode) {
+        PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
+            PlaybackFailureKind.MissingFile
+        PlaybackException.ERROR_CODE_IO_NO_PERMISSION ->
+            PlaybackFailureKind.AccessLost
+        PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ->
+            PlaybackFailureKind.UnsupportedFormat
+        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+        PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+        PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED ->
+            PlaybackFailureKind.DecoderFailure
+        else -> PlaybackFailureKind.Unknown
+    }
 
 internal data class Media3RequestToken(val generation: Long, val nonce: Long) {
     fun encode(): String = "$generation:$nonce"
@@ -429,15 +478,34 @@ internal data class AndroidPlaybackRequest(
 internal data class AndroidObservablePlayback(
     val token: Media3RequestToken,
     val generation: Long,
+    /**
+     * Concrete local source file evidence for the observable request. Retained
+     * past [AndroidPlaybackRequestState.ready] so a later player error over the
+     * same media can still classify a vanished local file.
+     */
+    val localFile: java.io.File? = null,
 )
 
 internal class AndroidPlaybackRequestState {
     private var nonce: Long = 0L
     private var pending: AndroidPlaybackRequest? = null
     private var observable: AndroidObservablePlayback? = null
+    /**
+     * Token of the observable request that reported a terminal player error, or
+     * null while that request may still publish ordinary status. Set atomically
+     * by [markTerminal] before the error is published and cleared whenever a
+     * replacement or cleared request replaces the failed one, so status
+     * callbacks trailing a Media3 error (for example
+     * `onIsPlayingChanged(false)` after `onPlayerError`) stay suppressed until
+     * a new observable request begins.
+     */
+    private var terminalErrorToken: Media3RequestToken? = null
 
     @Synchronized
-    fun begin(generation: Long): AndroidPlaybackRequest {
+    fun begin(
+        generation: Long,
+        localFile: java.io.File? = null,
+    ): AndroidPlaybackRequest {
         pending
             ?.result
             ?.cancel(CancellationException("Superseded Android playback load"))
@@ -447,7 +515,9 @@ internal class AndroidPlaybackRequestState {
             )
             .also {
                 pending = it
-                observable = AndroidObservablePlayback(it.token, generation)
+                observable =
+                    AndroidObservablePlayback(it.token, generation, localFile)
+                terminalErrorToken = null
             }
     }
 
@@ -492,10 +562,39 @@ internal class AndroidPlaybackRequestState {
     }
 
     @Synchronized
+    fun localFileFor(observedCurrentToken: Media3RequestToken?): java.io.File? =
+        observable?.takeIf { it.token == observedCurrentToken }?.localFile
+
+    /**
+     * Atomically marks the current observable request terminal when
+     * [observedCurrentToken] is exactly that request and it is not already
+     * terminal. Returns true only for the first error of the current request,
+     * so duplicate and obsolete player errors never republish.
+     */
+    @Synchronized
+    fun markTerminal(observedCurrentToken: Media3RequestToken?): Boolean {
+        if (terminalErrorToken != null) return false
+        val current = observable ?: return false
+        if (current.token != observedCurrentToken) return false
+        terminalErrorToken = observedCurrentToken
+        return true
+    }
+
+    /**
+     * True when [observedCurrentToken] is the observable request that already
+     * reported a terminal player error; status publications for that request
+     * stay suppressed until a replacement request begins.
+     */
+    @Synchronized
+    fun isTerminal(observedCurrentToken: Media3RequestToken?): Boolean =
+        terminalErrorToken == observedCurrentToken
+
+    @Synchronized
     fun failActive(error: Throwable): Boolean {
         val request = pending ?: return false
         pending = null
         observable = null
+        terminalErrorToken = null
         return request.result.completeExceptionally(error)
     }
 
@@ -506,7 +605,10 @@ internal class AndroidPlaybackRequestState {
     ): Boolean {
         val request = pending?.takeIf { it.token == token } ?: return false
         pending = null
-        if (observable?.token == token) observable = null
+        if (observable?.token == token) {
+            observable = null
+            terminalErrorToken = null
+        }
         request.result.cancel(cause)
         return true
     }
@@ -516,6 +618,7 @@ internal class AndroidPlaybackRequestState {
         val request = pending
         pending = null
         observable = null
+        terminalErrorToken = null
         request?.result?.cancel(cause)
     }
 
@@ -541,6 +644,62 @@ internal class AndroidPlaybackRequestState {
         observedCurrentToken: Media3RequestToken?
     ): Boolean =
         observable == captured && captured.token == observedCurrentToken
+}
+
+/**
+ * Narrow request/listener boundary that translates the Media3 player callbacks
+ * carrying terminal-error ordering constraints into [PlaybackEngineListener]
+ * publications. [AndroidPlayerListener] supplies the observed request token and
+ * the classified failure; this router decides whether a callback may publish
+ * and drives the outstanding load settlement, keeping Media3 types out of the
+ * observable-request state machine and making the ordering contract directly
+ * testable at the listener boundary.
+ */
+internal class AndroidPlaybackEventRouter(
+    private val requestState: AndroidPlaybackRequestState,
+) {
+    /**
+     * Publishes a terminal player [failure] for the observable request denoted
+     * by [observedCurrentToken]. The request is marked terminal before the
+     * error is published and its outstanding paused load is settled, so
+     * duplicate or obsolete errors never republish and any status callback
+     * trailing the error for the same request is suppressed.
+     */
+    fun playerError(
+        listener: PlaybackEngineListener?,
+        observedCurrentToken: Media3RequestToken?,
+        failure: PlaybackError,
+    ) {
+        val generation =
+            requestState.observableGeneration(observedCurrentToken) ?: return
+        if (!requestState.markTerminal(observedCurrentToken)) return
+        requestState.failPending(
+            observedCurrentToken,
+            PlaybackFailureException(failure),
+        )
+        listener?.onPlaybackError(generation, failure)
+    }
+
+    /**
+     * Publishes the ordinary playing/paused [status] for the observable request
+     * denoted by [observedCurrentToken] unless that request already reported a
+     * terminal player error. Returns true when the status was published.
+     */
+    fun isPlayingChanged(
+        listener: PlaybackEngineListener?,
+        observedCurrentToken: Media3RequestToken?,
+        isPlaying: Boolean,
+    ): Boolean {
+        val generation =
+            requestState.observableGeneration(observedCurrentToken)
+                ?: return false
+        if (requestState.isTerminal(observedCurrentToken)) return false
+        listener?.onPlaybackStatus(
+            generation,
+            if (isPlaying) PlaybackStatus.Playing else PlaybackStatus.Paused,
+        )
+        return true
+    }
 }
 
 private fun currentRequestToken(
@@ -582,4 +741,20 @@ private fun AudioSource.androidUri(): Uri =
         is AudioSource.FileDescriptor ->
             error(
                 "File descriptor audio sources are metadata-only and cannot be played")
+    }
+
+/**
+ * Returns the concrete local file backing this source, or null when the source
+ * is not an ordinary local file (content URIs, descriptors, remote locations).
+ */
+private fun AudioSource.androidLocalFile(): java.io.File? =
+    when (this) {
+        is AudioSource.FilePath -> java.io.File(path)
+        is AudioSource.Uri ->
+            if (value.startsWith("file:")) {
+                runCatching { java.io.File(java.net.URI(value)) }.getOrNull()
+            } else {
+                null
+            }
+        is AudioSource.FileDescriptor -> null
     }

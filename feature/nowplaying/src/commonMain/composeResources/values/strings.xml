@@ -1,7 +1,11 @@
 <resources>
     <string name="mini_player_empty_subtitle">Add music in Settings to start listening</string>
     <string name="next_track">Next track</string>
-    <string name="previous_track">Previous track</string>
+    <string name="playback_error_access_lost">Access to this media file was lost</string>
+    <string name="playback_error_decoder_failure">The decoder could not play this file</string>
+    <string name="playback_error_missing_file">This media file is missing</string>
+    <string name="playback_error_unknown">Playback failed</string>
+    <string name="playback_error_unsupported_format">This audio format is not supported</string>
     <string name="playback_status_buffering">Buffering</string>
     <string name="playback_status_error">Needs a local file</string>
     <string name="playback_status_loading">Loading</string>
@@ -9,6 +13,10 @@
     <string name="playback_status_playing">Playing</string>
     <string name="playback_status_ready">Ready</string>
     <string name="playback_status_stopped">Stopped</string>
+    <string name="previous_track">Previous track</string>
+    <string name="recovery_remove_from_queue">Remove from queue</string>
+    <string name="recovery_retry">Retry</string>
+    <string name="recovery_skip">Skip</string>
     <string name="repeat_mode_repeat_one">Repeat mode: single track repeat</string>
     <string name="repeat_mode_repeat_playlist">Repeat mode: playlist repeat</string>
     <string name="repeat_mode_stop_after_current">Repeat mode: play current song then stop</string>

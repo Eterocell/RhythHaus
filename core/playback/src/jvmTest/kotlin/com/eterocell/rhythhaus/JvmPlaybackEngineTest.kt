@@ -18,6 +18,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 
 class JvmPlaybackEngineTest {
     @Test
@@ -679,6 +681,225 @@ class JvmPlaybackEngineTest {
     }
 
     @Test
+    fun missingMacPathMapsToMissingFile() {
+        val absent = Files.createTempFile("rhythhaus-mac-absent", ".wav")
+        Files.deleteIfExists(absent)
+        val engine = createJvmPlaybackEngine()
+        try {
+            val failure =
+                assertFailsWith<PlaybackFailureException> {
+                    runBlocking {
+                        engine.loadPaused(
+                            PlayableTrack(
+                                id = "missing-mac",
+                                title = "Missing Mac",
+                                artist = "Test",
+                                album = null,
+                                durationMillis = null,
+                                source =
+                                    AudioSource.FilePath(absent.toString()),
+                            ),
+                            generation = 90L,
+                        )
+                    }
+                }
+
+            assertEquals(PlaybackFailureKind.MissingFile, failure.error.kind)
+        } finally {
+            engine.release()
+            Files.deleteIfExists(absent)
+        }
+    }
+
+    @Test
+    fun opaqueMacNativeLoadFailureRemainsUnknown() {
+        // An existing but empty file is a valid managed path that the native
+        // macOS audio player cannot decode, so the bridge reports a bare
+        // Boolean failure with no reliable native reason.
+        val undecodable = Files.createTempFile("rhythhaus-mac-opaque", ".wav")
+        val engine = createJvmPlaybackEngine()
+        try {
+            val failure =
+                assertFailsWith<PlaybackFailureException> {
+                    runBlocking {
+                        engine.loadPaused(
+                            PlayableTrack(
+                                id = "opaque-mac",
+                                title = "Opaque Mac",
+                                artist = "Test",
+                                album = null,
+                                durationMillis = null,
+                                source =
+                                    AudioSource.FilePath(
+                                        undecodable.toString()),
+                            ),
+                            generation = 91L,
+                        )
+                    }
+                }
+
+            assertEquals(PlaybackFailureKind.Unknown, failure.error.kind)
+        } finally {
+            engine.release()
+            Files.deleteIfExists(undecodable)
+        }
+    }
+
+    @Test
+    fun nativeMacControllerRecoversWhenPlayingFileBecomesUnavailable() =
+        runBlocking {
+            val unavailablePath = createSilentWavFile(durationMillis = 2_000)
+            val successorPath = createSilentWavFile(durationMillis = 2_000)
+            val tailPath = createSilentWavFile(durationMillis = 2_000)
+            val engine = createJvmPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val unavailable =
+                QueueOccurrence(
+                    id = "unavailable-occurrence",
+                    track =
+                        PlayableTrack(
+                            id = "unavailable-track",
+                            title = "Unavailable Track",
+                            artist = "Test",
+                            album = null,
+                            durationMillis = null,
+                            source =
+                                AudioSource.FilePath(
+                                    unavailablePath.toString()),
+                        ),
+                )
+            val successor =
+                QueueOccurrence(
+                    id = "successor-occurrence",
+                    track =
+                        PlayableTrack(
+                            id = "successor-track",
+                            title = "Successor Track",
+                            artist = "Test",
+                            album = null,
+                            durationMillis = null,
+                            source =
+                                AudioSource.FilePath(successorPath.toString()),
+                        ),
+                )
+            val duplicateUnavailable =
+                QueueOccurrence(
+                    id = "duplicate-unavailable-occurrence",
+                    track = unavailable.track,
+                )
+            val tail =
+                QueueOccurrence(
+                    id = "tail-occurrence",
+                    track =
+                        PlayableTrack(
+                            id = "tail-track",
+                            title = "Tail Track",
+                            artist = "Test",
+                            album = null,
+                            durationMillis = null,
+                            source = AudioSource.FilePath(tailPath.toString()),
+                        ),
+                )
+
+            try {
+                controller.setOccurrenceQueue(
+                    listOf(
+                        unavailable,
+                        successor,
+                        duplicateUnavailable,
+                        tail,
+                    ),
+                    unavailable.id,
+                )
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Paused &&
+                        it.currentOccurrenceId == unavailable.id
+                }
+                controller.play()
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Playing &&
+                        it.currentOccurrenceId == unavailable.id
+                }
+
+                assertTrue(unavailablePath.deleteIfExists())
+                controller.selectOccurrence(unavailable.id, autoPlay = true)
+                val firstError =
+                    awaitPlaybackState(controller) {
+                        it.status == PlaybackStatus.Error &&
+                            it.error?.kind == PlaybackFailureKind.MissingFile &&
+                            it.currentOccurrenceId == unavailable.id
+                    }
+
+                controller.retryFailedTrack()
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Error &&
+                        it.error?.kind == PlaybackFailureKind.MissingFile &&
+                        it.currentOccurrenceId == unavailable.id &&
+                        it.engineGeneration != firstError.engineGeneration
+                }
+
+                controller.skipFailedTrack()
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Playing &&
+                        it.currentOccurrenceId == successor.id &&
+                        it.error == null
+                }
+
+                controller.selectOccurrence(tail.id, autoPlay = true)
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Playing &&
+                        it.currentOccurrenceId == tail.id
+                }
+                assertTrue(tailPath.deleteIfExists())
+                controller.selectOccurrence(tail.id, autoPlay = true)
+                val tailError =
+                    awaitPlaybackState(controller) {
+                        it.status == PlaybackStatus.Error &&
+                            it.error?.kind == PlaybackFailureKind.MissingFile &&
+                            it.currentOccurrenceId == tail.id
+                    }
+                controller.skipFailedTrack()
+                assertEquals(tailError, controller.state.value)
+
+                controller.selectOccurrence(unavailable.id, autoPlay = true)
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Error &&
+                        it.currentOccurrenceId == unavailable.id
+                }
+                assertEquals(
+                    QueueMutationResult.Applied,
+                    controller.removeFailedTrack(),
+                )
+                val recovered =
+                    awaitPlaybackState(controller) {
+                        it.status == PlaybackStatus.Playing &&
+                            it.currentOccurrenceId == successor.id
+                    }
+
+                assertEquals(
+                    listOf(successor.id, duplicateUnavailable.id, tail.id),
+                    recovered.queue.map { it.id },
+                )
+                assertEquals(
+                    unavailable.track.id,
+                    recovered.queue
+                        .single {
+                            it.id == duplicateUnavailable.id
+                        }
+                        .track
+                        .id,
+                )
+                assertEquals(null, recovered.error)
+                assertTrue(Files.exists(successorPath))
+            } finally {
+                controller.release()
+                unavailablePath.deleteIfExists()
+                successorPath.deleteIfExists()
+                tailPath.deleteIfExists()
+            }
+        }
+
+    @Test
     fun controllerAutoAdvancesToNextTrackOnCompletion() {
         val engine = FakePlaybackEngine()
         val controller = PlaybackController(engine)
@@ -934,6 +1155,19 @@ class JvmPlaybackEngineTest {
         }
         return controller.state.value.status == status
     }
+
+    private suspend fun awaitPlaybackState(
+        controller: PlaybackController,
+        predicate: (PlaybackState) -> Boolean,
+    ): PlaybackState =
+        withTimeout(5_000) {
+            while (true) {
+                val state = controller.state.value
+                if (predicate(state)) return@withTimeout state
+                yield()
+            }
+            error("Unreachable playback-state wait")
+        }
 
     private companion object {
         @JvmStatic

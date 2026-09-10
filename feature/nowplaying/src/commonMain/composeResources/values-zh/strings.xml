@@ -1,7 +1,11 @@
 <resources>
     <string name="mini_player_empty_subtitle">在设置中添加音乐即可开始聆听</string>
     <string name="next_track">下一首</string>
-    <string name="previous_track">上一首</string>
+    <string name="playback_error_access_lost">无法再访问此媒体文件</string>
+    <string name="playback_error_decoder_failure">解码器无法播放此文件</string>
+    <string name="playback_error_missing_file">此媒体文件缺失</string>
+    <string name="playback_error_unknown">播放失败</string>
+    <string name="playback_error_unsupported_format">不支持此音频格式</string>
     <string name="playback_status_buffering">缓冲中</string>
     <string name="playback_status_error">需要本地文件</string>
     <string name="playback_status_loading">加载中</string>
@@ -9,6 +13,10 @@
     <string name="playback_status_playing">播放中</string>
     <string name="playback_status_ready">就绪</string>
     <string name="playback_status_stopped">已停止</string>
+    <string name="previous_track">上一首</string>
+    <string name="recovery_remove_from_queue">从队列移除</string>
+    <string name="recovery_retry">重试</string>
+    <string name="recovery_skip">跳过</string>
     <string name="repeat_mode_repeat_one">重复模式：单曲循环</string>
     <string name="repeat_mode_repeat_playlist">重复模式：列表循环</string>
     <string name="repeat_mode_stop_after_current">重复模式：播放当前歌曲后停止</string>
