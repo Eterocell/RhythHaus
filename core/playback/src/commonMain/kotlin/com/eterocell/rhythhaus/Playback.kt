@@ -650,11 +650,12 @@ public class PlaybackController(
      * reported error once the reload begins.
      */
     public fun retryFailedTrack() {
-        val captured = _state.value.takeIf {
-            commandsEnabled.value &&
-                it.status == PlaybackStatus.Error &&
-                it.error != null
-        } ?: return
+        val captured =
+            _state.value.takeIf {
+                commandsEnabled.value &&
+                    it.status == PlaybackStatus.Error &&
+                    it.error != null
+            } ?: return
         val occurrence = captured.currentOccurrence ?: return
         if (loadSelectedFrom(captured, occurrence, autoPlay = true)) {
             emitImmediateCheckpoint()
@@ -666,11 +667,12 @@ public class PlaybackController(
      * repeat wrapping, leaving the failure visible at the effective end.
      */
     public fun skipFailedTrack() {
-        val captured = _state.value.takeIf {
-            commandsEnabled.value &&
-                it.status == PlaybackStatus.Error &&
-                it.error != null
-        } ?: return
+        val captured =
+            _state.value.takeIf {
+                commandsEnabled.value &&
+                    it.status == PlaybackStatus.Error &&
+                    it.error != null
+            } ?: return
         nextTrackFrom(captured, wrap = false)?.let {
             if (loadSelectedFrom(captured, it, autoPlay = true)) {
                 emitImmediateCheckpoint()
@@ -1045,12 +1047,11 @@ public class PlaybackController(
                 if (previous.status == PlaybackStatus.Loading ||
                     previous.status == PlaybackStatus.Buffering) {
                     if (!loadSelectedFrom(
-                            previous,
-                            current,
-                            autoPlay = false,
-                            replacementQueue = reconciledQueue,
-                        )
-                    )
+                        previous,
+                        current,
+                        autoPlay = false,
+                        replacementQueue = reconciledQueue,
+                    ))
                         continue
                     val published = _state.value
                     emitImmediateCheckpoint(
@@ -1063,8 +1064,7 @@ public class PlaybackController(
                     previous.copy(
                         currentOccurrenceId = current.id,
                         queue = reconciledQueue,
-                        status =
-                            previous.status,
+                        status = previous.status,
                         error = previous.error,
                         errorGeneration = previous.errorGeneration,
                         engineGeneration = previous.engineGeneration,
@@ -1253,12 +1253,13 @@ public class PlaybackController(
         occurrence: QueueOccurrence,
         autoPlay: Boolean,
         replacementQueue: List<QueueOccurrence>? = null,
-    ): Boolean = loadSelected(
-        occurrence,
-        autoPlay,
-        replacementQueue = replacementQueue,
-        from = captured,
-    )
+    ): Boolean =
+        loadSelected(
+            occurrence,
+            autoPlay,
+            replacementQueue = replacementQueue,
+            from = captured,
+        )
 
     private fun claimLoadingFrom(
         from: PlaybackState,
@@ -1269,15 +1270,16 @@ public class PlaybackController(
         if (from.queue.none { it.id == occurrence.id }) return null
         val updated =
             (if (replacementQueue == null) from
-            else from.copy(queue = replacementQueue)).copy(
-                currentOccurrenceId = occurrence.id,
-                status = PlaybackStatus.Loading,
-                positionMillis = 0L,
-                durationMillis = occurrence.track.durationMillis,
-                error = null,
-                engineGeneration = generation,
-                checkpointRevision = reserveCheckpointRevision(),
-            )
+                else from.copy(queue = replacementQueue))
+                .copy(
+                    currentOccurrenceId = occurrence.id,
+                    status = PlaybackStatus.Loading,
+                    positionMillis = 0L,
+                    durationMillis = occurrence.track.durationMillis,
+                    error = null,
+                    engineGeneration = generation,
+                    checkpointRevision = reserveCheckpointRevision(),
+                )
         return if (_state.compareAndSet(from, updated)) updated else null
     }
 

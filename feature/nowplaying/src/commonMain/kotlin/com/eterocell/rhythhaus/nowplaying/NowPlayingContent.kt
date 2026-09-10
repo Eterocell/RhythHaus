@@ -575,7 +575,8 @@ private fun WideNowPlayingLayout(
                 contentAlignment = Alignment.Center) {
                     val controlsModifier =
                         if (playbackState.errorRecoveryVisible) {
-                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                            Modifier.fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
                         } else {
                             Modifier.fillMaxWidth()
                         }

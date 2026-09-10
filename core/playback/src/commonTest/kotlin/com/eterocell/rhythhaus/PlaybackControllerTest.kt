@@ -2089,7 +2089,9 @@ class PlaybackControllerTest {
             // completed its engine load and attempted its settlement.
             engine.awaitLoad()
             engine.awaitLoadCount(2)
-            awaitState { controller.state.value.status == PlaybackStatus.Paused }
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Paused
+            }
             assertEquals(
                 "current-a", controller.state.value.currentOccurrenceId)
             assertEquals(PlaybackStatus.Paused, controller.state.value.status)
