@@ -750,6 +750,7 @@ class JvmPlaybackEngineTest {
         runBlocking {
             val unavailablePath = createSilentWavFile(durationMillis = 2_000)
             val successorPath = createSilentWavFile(durationMillis = 2_000)
+            val tailPath = createSilentWavFile(durationMillis = 2_000)
             val engine = createJvmPlaybackEngine()
             val controller = PlaybackController(engine)
             val unavailable =
@@ -781,10 +782,35 @@ class JvmPlaybackEngineTest {
                                 AudioSource.FilePath(successorPath.toString()),
                         ),
                 )
+            val duplicateUnavailable =
+                QueueOccurrence(
+                    id = "duplicate-unavailable-occurrence",
+                    track = unavailable.track,
+                )
+            val tail =
+                QueueOccurrence(
+                    id = "tail-occurrence",
+                    track =
+                        PlayableTrack(
+                            id = "tail-track",
+                            title = "Tail Track",
+                            artist = "Test",
+                            album = null,
+                            durationMillis = null,
+                            source = AudioSource.FilePath(tailPath.toString()),
+                        ),
+                )
 
             try {
                 controller.setOccurrenceQueue(
-                    listOf(unavailable, successor), unavailable.id)
+                    listOf(
+                        unavailable,
+                        successor,
+                        duplicateUnavailable,
+                        tail,
+                    ),
+                    unavailable.id,
+                )
                 awaitPlaybackState(controller) {
                     it.status == PlaybackStatus.Paused &&
                         it.currentOccurrenceId == unavailable.id
@@ -800,13 +826,15 @@ class JvmPlaybackEngineTest {
                 val firstError =
                     awaitPlaybackState(controller) {
                         it.status == PlaybackStatus.Error &&
-                            it.error?.kind == PlaybackFailureKind.MissingFile
+                            it.error?.kind == PlaybackFailureKind.MissingFile &&
+                            it.currentOccurrenceId == unavailable.id
                     }
 
                 controller.retryFailedTrack()
                 awaitPlaybackState(controller) {
                     it.status == PlaybackStatus.Error &&
                         it.error?.kind == PlaybackFailureKind.MissingFile &&
+                        it.currentOccurrenceId == unavailable.id &&
                         it.engineGeneration != firstError.engineGeneration
                 }
 
@@ -816,6 +844,22 @@ class JvmPlaybackEngineTest {
                         it.currentOccurrenceId == successor.id &&
                         it.error == null
                 }
+
+                controller.selectOccurrence(tail.id, autoPlay = true)
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Playing &&
+                        it.currentOccurrenceId == tail.id
+                }
+                assertTrue(tailPath.deleteIfExists())
+                controller.selectOccurrence(tail.id, autoPlay = true)
+                val tailError =
+                    awaitPlaybackState(controller) {
+                        it.status == PlaybackStatus.Error &&
+                            it.error?.kind == PlaybackFailureKind.MissingFile &&
+                            it.currentOccurrenceId == tail.id
+                    }
+                controller.skipFailedTrack()
+                assertEquals(tailError, controller.state.value)
 
                 controller.selectOccurrence(unavailable.id, autoPlay = true)
                 awaitPlaybackState(controller) {
@@ -832,13 +876,23 @@ class JvmPlaybackEngineTest {
                             it.currentOccurrenceId == successor.id
                     }
 
-                assertEquals(listOf(successor.id), recovered.queue.map { it.id })
+                assertEquals(
+                    listOf(successor.id, duplicateUnavailable.id, tail.id),
+                    recovered.queue.map { it.id },
+                )
+                assertEquals(
+                    unavailable.track.id,
+                    recovered.queue.single {
+                        it.id == duplicateUnavailable.id
+                    }.track.id,
+                )
                 assertEquals(null, recovered.error)
                 assertTrue(Files.exists(successorPath))
             } finally {
                 controller.release()
                 unavailablePath.deleteIfExists()
                 successorPath.deleteIfExists()
+                tailPath.deleteIfExists()
             }
         }
 
