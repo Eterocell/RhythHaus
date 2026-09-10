@@ -2081,20 +2081,21 @@ class PlaybackControllerTest {
             reconcile.await()
             assertEquals(
                 "current-a", controller.state.value.currentOccurrenceId)
-            assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+            assertEquals(PlaybackStatus.Loading, controller.state.value.status)
             assertEquals("Updated", controller.state.value.currentTrack?.title)
 
             engine.releaseHold()
             // Wait until the cancelled (non-cancellable) load has actually
             // completed its engine load and attempted its settlement.
             engine.awaitLoad()
-            kotlinx.coroutines.yield()
+            engine.awaitLoadCount(2)
+            awaitState { controller.state.value.status == PlaybackStatus.Paused }
             assertEquals(
                 "current-a", controller.state.value.currentOccurrenceId)
             assertEquals(PlaybackStatus.Paused, controller.state.value.status)
             assertEquals("Updated", controller.state.value.currentTrack?.title)
             assertEquals(
-                emptyList(),
+                listOf(EngineEvent.Load("track-1")),
                 engine.eventSnapshot(),
                 "the cancelled load must neither settle nor autoplay",
             )
@@ -2576,6 +2577,26 @@ class PlaybackControllerTest {
             assertEquals(PlaybackStatus.Playing, controller.state.value.status)
             assertEquals(emptyList(), engine.eventSnapshot())
         }
+
+    @Test
+    fun reconcilePreservesSurvivingErrorAndItsEngineGeneration() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = loadedController(engine, PlaybackStatus.Error)
+        val generation = engine.activeGeneration
+        val error = controller.state.value.error
+        assertNotNull(error)
+        assertEquals(PlaybackStatus.Error, controller.state.value.status)
+        val track = testTracks(1).single()
+        engine.clearEvents()
+
+        controller.reconcileSession(listOf(track.copy(title = "Updated")))
+
+        assertEquals(PlaybackStatus.Error, controller.state.value.status)
+        assertEquals(error, controller.state.value.error)
+        assertEquals(generation, controller.state.value.engineGeneration)
+        assertEquals("Updated", controller.state.value.currentTrack?.title)
+        assertEquals(emptyList(), engine.eventSnapshot())
+    }
 
     @Test
     fun reconcileMissingCurrentLoadsFirstSurvivorPausedAndNoSurvivorsClear() =

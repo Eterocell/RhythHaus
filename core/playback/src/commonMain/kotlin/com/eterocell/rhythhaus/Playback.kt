@@ -650,8 +650,13 @@ public class PlaybackController(
      * reported error once the reload begins.
      */
     public fun retryFailedTrack() {
-        val occurrence = failedCurrentOccurrence() ?: return
-        if (loadSelected(occurrence, autoPlay = true)) {
+        val captured = _state.value.takeIf {
+            commandsEnabled.value &&
+                it.status == PlaybackStatus.Error &&
+                it.error != null
+        } ?: return
+        val occurrence = captured.currentOccurrence ?: return
+        if (loadSelectedFrom(captured, occurrence, autoPlay = true)) {
             emitImmediateCheckpoint()
         }
     }
@@ -661,9 +666,13 @@ public class PlaybackController(
      * repeat wrapping, leaving the failure visible at the effective end.
      */
     public fun skipFailedTrack() {
-        if (failedCurrentOccurrence() == null) return
-        nextTrack(wrap = false)?.let {
-            if (loadSelected(it, autoPlay = true)) {
+        val captured = _state.value.takeIf {
+            commandsEnabled.value &&
+                it.status == PlaybackStatus.Error &&
+                it.error != null
+        } ?: return
+        nextTrackFrom(captured, wrap = false)?.let {
+            if (loadSelectedFrom(captured, it, autoPlay = true)) {
                 emitImmediateCheckpoint()
             }
         }
@@ -1012,35 +1021,53 @@ public class PlaybackController(
                     reconciledQueue.firstOrNull { it.id == currentId }
                 }
             if (current != null) {
-                // A settled surviving current remains attached to the engine
-                // generation that loaded it. Re-tagging the state without
-                // reloading the engine would drop all subsequent callbacks
-                // (progress, status, and errors) from that engine session.
-                // Loading, Buffering, and Error states are invalidated with a
-                // fresh token so in-flight or trailing callbacks cannot apply
-                // to the reconciled state.
+                // A surviving Error remains attached to the failed engine
+                // session. Clearing it here would remove the recovery UI and
+                // invent a generation that no platform load owns.
+                if (previous.status == PlaybackStatus.Error) {
+                    val published =
+                        previous.copy(
+                            currentOccurrenceId = current.id,
+                            queue = reconciledQueue,
+                            checkpointRevision = reserveCheckpointRevision(),
+                        )
+                    if (!_state.compareAndSet(previous, published)) continue
+                    publishRuntimeShuffleOrder(published)
+                    emitImmediateCheckpoint(
+                        published.toSessionSnapshot(),
+                        published.checkpointRevision,
+                    )
+                    return@withLock published.toRevisionedSessionSnapshot()
+                }
+                // Loading and Buffering need a real engine rebind. Claim a
+                // fresh token before loading so non-cancellable callbacks from
+                // displaced session cannot settle or autoplay this state.
+                if (previous.status == PlaybackStatus.Loading ||
+                    previous.status == PlaybackStatus.Buffering) {
+                    if (!loadSelectedFrom(
+                            previous,
+                            current,
+                            autoPlay = false,
+                            replacementQueue = reconciledQueue,
+                        )
+                    )
+                        continue
+                    val published = _state.value
+                    emitImmediateCheckpoint(
+                        published.toSessionSnapshot(),
+                        published.checkpointRevision,
+                    )
+                    return@withLock revisionedSessionSnapshot()
+                }
                 val published =
                     previous.copy(
                         currentOccurrenceId = current.id,
                         queue = reconciledQueue,
                         status =
-                            if (previous.status == PlaybackStatus.Loading ||
-                                previous.status == PlaybackStatus.Buffering ||
-                                previous.status == PlaybackStatus.Error) {
-                                PlaybackStatus.Paused
-                            } else {
-                                previous.status
-                            },
-                        error = null,
-                        errorGeneration = null,
-                        engineGeneration =
-                            if (previous.status == PlaybackStatus.Loading ||
-                                previous.status == PlaybackStatus.Buffering ||
-                                previous.status == PlaybackStatus.Error) {
-                                nextGeneration()
-                            } else {
-                                previous.engineGeneration
-                            },
+                            previous.status,
+                        error = previous.error,
+                        errorGeneration = previous.errorGeneration,
+                        engineGeneration = previous.engineGeneration,
                         checkpointRevision = reserveCheckpointRevision(),
                     )
                 if (!_state.compareAndSet(previous, published)) continue
@@ -1193,7 +1220,12 @@ public class PlaybackController(
             if (from == null) {
                 claimLoading(occurrence, replacementQueue, generation)
             } else {
-                claimLoadingFrom(from, occurrence, generation)
+                claimLoadingFrom(
+                    from,
+                    occurrence,
+                    generation,
+                    replacementQueue,
+                )
             }
         if (claimed == null) {
             // The claim lost (the occurrence left the queue or the captured
@@ -1220,16 +1252,24 @@ public class PlaybackController(
         captured: PlaybackState,
         occurrence: QueueOccurrence,
         autoPlay: Boolean,
-    ): Boolean = loadSelected(occurrence, autoPlay, from = captured)
+        replacementQueue: List<QueueOccurrence>? = null,
+    ): Boolean = loadSelected(
+        occurrence,
+        autoPlay,
+        replacementQueue = replacementQueue,
+        from = captured,
+    )
 
     private fun claimLoadingFrom(
         from: PlaybackState,
         occurrence: QueueOccurrence,
         generation: Long,
+        replacementQueue: List<QueueOccurrence>? = null,
     ): PlaybackState? {
         if (from.queue.none { it.id == occurrence.id }) return null
         val updated =
-            from.copy(
+            (if (replacementQueue == null) from
+            else from.copy(queue = replacementQueue)).copy(
                 currentOccurrenceId = occurrence.id,
                 status = PlaybackStatus.Loading,
                 positionMillis = 0L,
