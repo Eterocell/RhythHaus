@@ -4386,3 +4386,14 @@ RED evidence: `LibraryAppShellJvmTest.settingsReviewRestoresDestinationScrollSta
 GREEN evidence: the focused onboarding, Settings, preference-store, shell, navigation, and adapter matrix passed (`167 actionable tasks`); iOS Kotlin compilation, desktop compilation, and Android Debug assembly passed (`478 actionable tasks`); Spotless, Detekt, and architecture checks passed (`289 actionable tasks`); all 13 canonical specs, the strict change, and `git diff --check` passed.
 Next owner: independent final re-review, then archive and integration.
 Blockers: Android/iOS device presentation and audible Review continuity remain external release evidence, not code-level blockers.
+
+## Final review repair - 2026-09-11 first-run onboarding
+
+Route: systematic-debugging+tdd within openspec+superpowers
+Owner: implementation and final review
+Input: independent re-review of `e3e51c6c..a41d1df6`.
+Output: repaired both remaining Important defects and closed the explicit lifecycle-coverage gaps. Wrong-typed `completed_schema_version` values now fail safe to Required and are replaced by the current integer schema on completion. Settings terminal-report expansion now uses saveable destination state and survives Review without composing inactive Settings. App onboarding eligibility/completion was extracted into the narrow `AppOnboardingGate`; production and JVM lifecycle tests share that exact boundary. Shell regressions now prove exclusive onboarding composition at compact and wide widths and prove a playing controller's complete state/queue is unchanged when Review opens.
+RED evidence: wrong-typed marker replacement failed with `ClassCastException`; expanded terminal report collapsed after Review; the App lifecycle test initially could not compile because the production boundary did not exist. Each regression was observed failing before its root fix.
+GREEN evidence: focused App lifecycle, preference, shell, feature, Settings, navigation, and adapter tests passed in the final changed-path matrix (`371 actionable tasks`); Android Debug was rebuilt from dependencies (`331 actionable tasks`) after concurrent Gradle invocations temporarily exposed incomplete intermediate classpaths, then the complete Android/desktop/iOS compilation matrix passed (`478 actionable tasks`). Spotless, Detekt, architecture, canonical spec, strict change, and diff gates remained green.
+Next owner: final independent acceptance re-review, then archive and integration.
+Blockers: no code-level blocker; Android/iOS presentation and audible real-device continuity remain release evidence gaps.
