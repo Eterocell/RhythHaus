@@ -232,10 +232,17 @@ fun LibraryHomeScreen(
         MediaNotificationPermissionState.Unavailable,
     onRequestNotificationPermission: () -> Unit = {},
     onOpenNotificationSettings: () -> Unit = {},
+    initialOnboarding: OnboardingLaunchMode? = null,
+    onboardingSaving: Boolean = false,
+    onboardingCompletionError: String? = null,
+    onCompleteOnboarding: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val playbackState by playbackController.state.collectAsState()
-    val appState = rememberLibraryAppState(snapshot = snapshot)
+    val appState = rememberLibraryAppState(
+        snapshot = snapshot,
+        initialOnboarding = initialOnboarding,
+    )
     val activePlaylistDestination =
         remember(appState.activeDestinationId) {
             PlaylistFeatureDestination(
@@ -454,6 +461,12 @@ fun LibraryHomeScreen(
             mediaNotificationPermission = mediaNotificationPermission,
             onRequestNotificationPermission = onRequestNotificationPermission,
             onOpenNotificationSettings = onOpenNotificationSettings,
+            onboardingSaving = onboardingSaving,
+            onboardingCompletionError = onboardingCompletionError,
+            onCompleteOnboarding = onCompleteOnboarding,
+            onReplaceTop = appState::replaceTopRoute,
+            onRejectInvalidOnboarding = appState::popRoute,
+            onCloseOnboarding = appState::popRoute,
             onShowSettingsAbout = { pushRoute(LibraryRoute.SettingsAbout) },
             onShowOpenSourceLibraries = {
                 pushRoute(LibraryRoute.OpenSourceLibraries)
@@ -586,6 +599,15 @@ fun LibraryHomeScreen(
         )
     }
 
+    @Composable
+    fun RenderEntry(entry: LibraryNavigationEntry) {
+        if (entry.route is LibraryRoute.Onboarding) {
+            RouteOverlays(route = entry.route)
+        } else {
+            RouteContent(entry = entry)
+        }
+    }
+
     BoxWithConstraints(
         modifier =
             modifier
@@ -713,7 +735,7 @@ fun LibraryHomeScreen(
             }
         } else {
             if (predictiveBackProgress > 0f && previousEntry != null) {
-                RouteContent(entry = previousEntry)
+                RenderEntry(entry = previousEntry)
             }
             AnimatedContent(
                 targetState = appState.navigation.currentEntry,
@@ -726,7 +748,7 @@ fun LibraryHomeScreen(
                         .recordRhythHausBackdrop(rootBackdrop)
                         .offset(x = predictiveBackOffset.value.dp),
             ) { currentEntry ->
-                RouteContent(entry = currentEntry)
+                RenderEntry(entry = currentEntry)
             }
         }
 

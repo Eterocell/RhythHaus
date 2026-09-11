@@ -15,6 +15,52 @@ import kotlin.test.assertTrue
 
 class LibraryNavigationTest {
     @Test
+    fun firstRunPageZeroSuppressesRouteBack() {
+        val state = LibraryAppState(null, OnboardingLaunchMode.FirstRun)
+        assertEquals(LibraryBackBeginResult.Suppressed, state.beginBack())
+    }
+
+    @Test
+    fun firstRunLaterPageBackReplacesTopWithPreviousPage() {
+        val state = LibraryAppState(null, OnboardingLaunchMode.FirstRun)
+        state.replaceTopRoute(LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 1))
+        val session = assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
+        assertEquals(
+            LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0),
+            session.routePreview?.nextNavigation?.current,
+        )
+    }
+
+    @Test
+    fun reviewPageZeroPopsToExactSettingsEntry() {
+        val state = LibraryAppState(null)
+        state.pushRoute(LibraryRoute.Settings)
+        val settings = state.navigation.currentEntry
+        state.pushRoute(LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0))
+        val session = assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
+        assertEquals(settings, session.routePreview?.incomingEntry)
+    }
+
+    @Test
+    fun onboardingNeverPermitsNowPlayingBar() {
+        assertFalse(routePermitsNowPlayingBar(LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0)))
+    }
+
+    @Test
+    fun onboardingRendersAsActiveOverlayInCompactAndWideModes() {
+        val route = LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0)
+        assertTrue(libraryRouteRendersAsActiveOverlay(route, LibraryAdaptiveLayoutMode.Compact))
+        assertTrue(libraryRouteRendersAsActiveOverlay(route, LibraryAdaptiveLayoutMode.ListDetail))
+    }
+
+    @Test
+    fun invalidPagePayloadIsRejectedBeforeComposition() {
+        assertFalse(isValidOnboardingPageIndex(-1))
+        assertFalse(isValidOnboardingPageIndex(Int.MAX_VALUE))
+        assertTrue(isValidOnboardingPageIndex(0))
+    }
+
+    @Test
     fun pushingTheCurrentRouteIsANoOpAndPreservesItsEntryIdentity() {
         val stack =
             LibraryNavigationStack().push(LibraryRoute.AlbumDetail("Night"))

@@ -189,6 +189,18 @@ public fun OnboardingScreen(
                                 !saving,
                                 OnboardingCloseTestTag,
                                 stringResource(Res.string.action_close))
+                            if (page > 0)
+                                action(
+                                    onBack,
+                                    !saving,
+                                    OnboardingBackTestTag,
+                                    stringResource(Res.string.action_back))
+                            if (page < onboardingPages.lastIndex)
+                                action(
+                                    onNext,
+                                    !saving,
+                                    OnboardingNextTestTag,
+                                    stringResource(Res.string.action_next))
                         } else {
                             action(
                                 onBack,

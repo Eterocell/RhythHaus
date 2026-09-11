@@ -40,6 +40,9 @@ import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
+import com.eterocell.rhythhaus.onboarding.OnboardingScreen
+import com.eterocell.rhythhaus.onboarding.currentOnboardingPlatform
+import com.eterocell.rhythhaus.onboarding.toGuidance
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsHost
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsLabels
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
@@ -167,6 +170,12 @@ internal fun LibraryRouteOverlays(
         MediaNotificationPermissionState.Unavailable,
     onRequestNotificationPermission: () -> Unit = {},
     onOpenNotificationSettings: () -> Unit = {},
+    onboardingSaving: Boolean = false,
+    onboardingCompletionError: String? = null,
+    onCompleteOnboarding: () -> Unit = {},
+    onReplaceTop: (LibraryRoute) -> Unit = {},
+    onRejectInvalidOnboarding: () -> Unit = {},
+    onCloseOnboarding: (() -> Unit)? = null,
     onShowSettingsAbout: () -> Unit,
     onShowOpenSourceLibraries: () -> Unit,
     onDismiss: () -> Unit,
@@ -420,6 +429,32 @@ internal fun LibraryRouteOverlays(
         LibraryRoute.PlaylistHub,
         is LibraryRoute.PlaylistDetail,
         -> Unit
+
+        is LibraryRoute.Onboarding -> if (isValidOnboardingPageIndex(route.pageIndex)) {
+            OnboardingScreen(
+                pageIndex = route.pageIndex,
+                platform = currentOnboardingPlatform().toGuidance(),
+                saving = onboardingSaving,
+                completionError = onboardingCompletionError,
+                reviewMode = route.launchMode == OnboardingLaunchMode.Review,
+                onBack = {
+                    if (route.pageIndex > 0) {
+                        onReplaceTop(LibraryRoute.Onboarding(route.launchMode, route.pageIndex - 1))
+                    } else if (route.launchMode == OnboardingLaunchMode.Review) onDismiss()
+                },
+                onNext = {
+                    if (route.pageIndex < OnboardingPageCount - 1) {
+                        onReplaceTop(LibraryRoute.Onboarding(route.launchMode, route.pageIndex + 1))
+                    }
+                },
+                onSkip = onCompleteOnboarding,
+                onFinish = onCompleteOnboarding,
+                onClose = onCloseOnboarding ?: onDismiss,
+            )
+        } else {
+            LaunchedEffect(route) { onRejectInvalidOnboarding() }
+            Box(modifier = Modifier.fillMaxSize())
+        }
     }
 }
 
@@ -777,6 +812,8 @@ internal fun LibraryRouteContent(
             LaunchedEffect(route) { onBack() }
             Box(modifier = Modifier.fillMaxSize())
         }
+
+        is LibraryRoute.Onboarding -> Unit
     }
 }
 

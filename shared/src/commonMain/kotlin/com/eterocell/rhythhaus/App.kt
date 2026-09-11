@@ -10,6 +10,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
+import top.yukonga.miuix.kmp.basic.Text
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.LibrarySource
@@ -31,6 +36,9 @@ import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
+import com.eterocell.rhythhaus.library.ui.OnboardingLaunchMode
+import com.eterocell.rhythhaus.onboarding.OnboardingEligibility
+import com.eterocell.rhythhaus.onboarding.OnboardingPreferenceStore
 import com.eterocell.rhythhaus.library.ui.LocalTrackArtworkLoader
 import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
@@ -75,6 +83,7 @@ import rhythhaus.shared.generated.resources.scan_complete_format
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
+import rhythhaus.shared.generated.resources.playlist_loading
 
 @Composable
 @Preview
@@ -89,6 +98,7 @@ fun App(
     val platformAccess = koinInject<PlatformSourceAccess>()
     val scanner = koinInject<LibraryScanner>()
     val themePreferenceStore = koinInject<ThemePreferenceStore>()
+    val onboardingPreferenceStore = koinInject<OnboardingPreferenceStore>()
     val playbackLifecycle = koinInject<PlaybackProcessLifecycle>()
     val playbackReconciler = koinInject<PlaybackSessionReconciler>()
     val initialLibraryContent = remember {
@@ -144,6 +154,27 @@ fun App(
             RhythHausThemeMode.System)
     val notificationPermissionState by
         notificationPermissionController.state.collectAsState()
+    val onboardingEligibility by onboardingPreferenceStore.eligibility.collectAsState(
+        OnboardingEligibility.Loading)
+    var onboardingSaving by remember { mutableStateOf(false) }
+    var onboardingCompletionError by remember { mutableStateOf<String?>(null) }
+
+    fun persistOnboardingCompletion() {
+        if (onboardingSaving) return
+        onboardingSaving = true
+        onboardingCompletionError = null
+        scope.launch {
+            try {
+                onboardingPreferenceStore.markCurrentVersionCompleted()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (failure: Throwable) {
+                onboardingCompletionError = failure.message ?: "Unable to save onboarding"
+            } finally {
+                onboardingSaving = false
+            }
+        }
+    }
 
     suspend fun updateLibraryContent(content: LibraryContentState) {
         val publication = libraryPublicationOwner.publish(content)
@@ -513,7 +544,9 @@ fun App(
                     repository.artworkForTrack(trackId)
                 },
         ) {
-            LibraryHomeScreen(
+            if (onboardingEligibility == OnboardingEligibility.Loading) {
+                OnboardingLoadingSurface()
+            } else LibraryHomeScreen(
                 snapshot = snapshot,
                 libraryTracks = libraryTracks,
                 tagLibReader = tagLibReader,
@@ -554,6 +587,12 @@ fun App(
                     notificationPermissionController
                         .openAppNotificationSettings()
                 },
+                initialOnboarding = OnboardingLaunchMode.FirstRun.takeIf {
+                    onboardingEligibility == OnboardingEligibility.Required
+                },
+                onboardingSaving = onboardingSaving,
+                onboardingCompletionError = onboardingCompletionError,
+                onCompleteOnboarding = ::persistOnboardingCompletion,
                 coordinatorMutationsEnabled = mutationsEnabled,
                 currentThemeMode = selectedThemeMode,
                 onThemeModeSelected = { mode ->
@@ -724,6 +763,16 @@ fun App(
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun OnboardingLoadingSurface() {
+    Box(
+        modifier = androidx.compose.ui.Modifier.fillMaxSize().testTag("onboarding-loading"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(stringResource(Res.string.playlist_loading))
     }
 }
 
