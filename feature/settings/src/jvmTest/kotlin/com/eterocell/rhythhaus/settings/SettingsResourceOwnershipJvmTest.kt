@@ -220,6 +220,7 @@ public class SettingsResourceOwnershipJvmTest {
                 "remove_folder",
                 "remove_folder_message",
                 "about",
+                "review_onboarding",
                 "about_app_name",
                 "about_logo_description",
                 "about_version_format",
