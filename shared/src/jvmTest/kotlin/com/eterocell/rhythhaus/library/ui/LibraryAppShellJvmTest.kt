@@ -3,6 +3,9 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
@@ -193,6 +196,47 @@ class LibraryAppShellJvmTest {
                 reviewAction.assertIsDisplayed().performClick()
                 onNodeWithTag(OnboardingCloseTestTag).performClick()
                 reviewAction.assertIsDisplayed()
+                onNodeWithTag("settings-list", useUnmergedTree = true)
+                    .performScrollToNode(hasText("Hide scan report"))
+                onNode(hasText("Hide scan report"), useUnmergedTree = true)
+                    .assertIsDisplayed()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsReviewRestoresStateAcrossAdaptiveWidthChange() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                var width by mutableStateOf(420.dp)
+                mount(
+                    width = { width },
+                    height = 400.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "adaptive-review",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                )
+                onNodeWithTag("NowPlayingBarSettings", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onNode(hasText("View scan report"), useUnmergedTree = true)
+                    .performClick()
+                onNodeWithTag("settings-list", useUnmergedTree = true)
+                    .performScrollToNode(hasText("Review onboarding"))
+                onNode(hasText("Review onboarding"), useUnmergedTree = true)
+                    .performClick()
+
+                width = 1200.dp
+                waitForIdle()
+                onNodeWithTag(OnboardingCloseTestTag).performClick()
+
                 onNodeWithTag("settings-list", useUnmergedTree = true)
                     .performScrollToNode(hasText("Hide scan report"))
                 onNode(hasText("Hide scan report"), useUnmergedTree = true)
@@ -430,12 +474,38 @@ class LibraryAppShellJvmTest {
         playbackController: PlaybackController =
             PlaybackController(FakePlaybackEngine()),
     ) {
+        mount(
+            width = { width },
+            height = height,
+            source = source,
+            scanSession = scanSession,
+            scanErrors = scanErrors,
+            tracks = tracks,
+            picker = picker,
+            callbacks = callbacks,
+            playbackController = playbackController,
+        )
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    private fun androidx.compose.ui.test.ComposeUiTest.mount(
+        width: () -> Dp,
+        height: Dp = 900.dp,
+        source: LibrarySource,
+        scanSession: ScanSession,
+        scanErrors: List<ScanError> = emptyList(),
+        tracks: List<Track> = emptyList(),
+        picker: CountingPicker,
+        callbacks: CallbackRecorder,
+        playbackController: PlaybackController =
+            PlaybackController(FakePlaybackEngine()),
+    ) {
         setContent {
             CompositionLocalProvider(
                 LocalNavigationEventDispatcherOwner provides
                     TestNavigationOwner,
             ) {
-                Box(Modifier.size(width, height)) {
+                Box(Modifier.size(width(), height)) {
                     LibraryHomeScreen(
                         snapshot = LibrarySnapshot("Library", "", tracks, null),
                         libraryTracks = emptyList(),

@@ -15,6 +15,17 @@ import kotlin.test.assertTrue
 
 class LibraryNavigationTest {
     @Test
+    fun completingFirstRunPreservesSelectedPlaybackTrack() {
+        val state = LibraryAppState(null, OnboardingLaunchMode.FirstRun)
+        state.syncSelectedTrackWithPlayback("playing-track")
+
+        state.reconcileInitialOnboarding(null)
+
+        assertEquals("playing-track", state.selectedTrackId)
+        assertEquals(LibraryRoute.Home, state.navigation.current)
+    }
+
+    @Test
     fun firstRunPageZeroSuppressesRouteBack() {
         val state = LibraryAppState(null, OnboardingLaunchMode.FirstRun)
         assertEquals(LibraryBackBeginResult.Suppressed, state.beginBack())

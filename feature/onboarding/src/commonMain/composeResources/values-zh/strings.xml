@@ -10,11 +10,11 @@
     <string name="page_formats">格式</string>
     <string name="page_recovery">恢复</string>
     <string name="body_local_first">RhythHaus 仅播放本地文件，不会串流或上传你的音乐。</string>
-    <string name="body_add_music">添加文件夹，并确保其中的文件可供 RhythHaus 使用。</string>
+    <string name="body_add_music">通过当前平台提供的方式添加本地音频。</string>
     <string name="body_formats">我们会扫描 WAV、AIFF、AU、MP3、M4A/AAC、FLAC 和 OGG 的元数据与封面。不支持或无法读取的项目可能会被跳过，并会记录在报告中。</string>
     <string name="body_recovery">如果音乐被移动、删除或失去访问权限，请重新扫描来源。仅在来源恢复流程中移除缺失曲目。</string>
     <string name="guidance_android">Android 通过系统文件夹选择器授予并保留文件夹访问权限。</string>
-    <string name="guidance_ios">iOS 会将文件复制到 Documents/RhythHaus，或直接扫描其中已有的文件。</string>
+    <string name="guidance_ios">在 iOS 上，请在“文件”中选择音频文件或文件夹。RhythHaus 会将外部所选内容复制到 Documents/RhythHaus，并直接扫描其中已有的文件。</string>
     <string name="guidance_macos">macOS 保留所选文件夹的引用，文件仍位于原处。</string>
     <string name="action_back">返回</string>
     <string name="action_next">下一步</string>

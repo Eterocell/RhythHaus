@@ -4397,3 +4397,14 @@ RED evidence: wrong-typed marker replacement failed with `ClassCastException`; e
 GREEN evidence: focused App lifecycle, preference, shell, feature, Settings, navigation, and adapter tests passed in the final changed-path matrix (`371 actionable tasks`); Android Debug was rebuilt from dependencies (`331 actionable tasks`) after concurrent Gradle invocations temporarily exposed incomplete intermediate classpaths, then the complete Android/desktop/iOS compilation matrix passed (`478 actionable tasks`). Spotless, Detekt, architecture, canonical spec, strict change, and diff gates remained green.
 Next owner: final independent acceptance re-review, then archive and integration.
 Blockers: no code-level blocker; Android/iOS presentation and audible real-device continuity remain release evidence gaps.
+
+## Final acceptance repair - 2026-09-11 first-run onboarding
+
+Route: systematic-debugging+tdd within openspec+superpowers
+Owner: implementation and final acceptance
+Input: independent acceptance review of `e3e51c6c..6dddd1e1`.
+Output: preserved the existing `LibraryAppState` while onboarding eligibility changes, popping only the first-run route so the selected/restored playback track remains authoritative. Corrected iOS onboarding to explicitly name Files audio/folder selection, external copy into `Documents/RhythHaus`, and managed-path scan-in-place behavior in EN/ZH. Hoisted Settings lazy-list and terminal-report state by destination above adaptive rendering so Review can cross compact/wide thresholds without positional saveable-state loss.
+RED evidence: the completion-state regression initially could not compile because no reconciliation seam existed; exact iOS Files workflow copy was absent; compact-to-wide Review restoration collapsed the expanded report. Each passed after the root fix.
+GREEN evidence: final focused onboarding/App/store/shell/navigation/Settings/Android-host matrix passed (`362 actionable tasks`); complete iOS Kotlin, desktop, and Android assembly matrix passed (`478 actionable tasks`); Spotless, Detekt, and architecture checks passed (`289 actionable tasks`); 13 canonical specs, the strict change, and `git diff --check` passed.
+Next owner: independent final acceptance re-review, then archive and integration.
+Blockers: no code-level blocker; Android/iOS device presentation and audible real-device continuity remain release evidence gaps.

@@ -36,7 +36,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -245,7 +244,17 @@ fun LibraryHomeScreen(
             snapshot = snapshot,
             initialOnboarding = initialOnboarding,
         )
-    val settingsStateHolder = rememberSaveableStateHolder()
+    val settingsDestinationToken =
+        appState.navigation.entries
+            .lastOrNull { it.route == LibraryRoute.Settings }
+            ?.destinationId
+            ?.instanceToken
+    val settingsListState =
+        remember(settingsDestinationToken) { LazyListState() }
+    var settingsReportVisible by
+        remember(settingsDestinationToken, scanProgress?.session?.id) {
+            mutableStateOf(false)
+        }
     val activePlaylistDestination =
         remember(appState.activeDestinationId) {
             PlaylistFeatureDestination(
@@ -464,6 +473,11 @@ fun LibraryHomeScreen(
             mediaNotificationPermission = mediaNotificationPermission,
             onRequestNotificationPermission = onRequestNotificationPermission,
             onOpenNotificationSettings = onOpenNotificationSettings,
+            settingsListState = settingsListState,
+            settingsReportVisible = settingsReportVisible,
+            onSettingsReportVisibleChanged = {
+                settingsReportVisible = it
+            },
             onboardingSaving = onboardingSaving,
             onboardingCompletionError = onboardingCompletionError,
             onCompleteOnboarding = onCompleteOnboarding,
@@ -607,11 +621,6 @@ fun LibraryHomeScreen(
     fun RenderEntry(entry: LibraryNavigationEntry) {
         if (entry.route is LibraryRoute.Onboarding) {
             RouteOverlays(route = entry.route)
-        } else if (entry.route == LibraryRoute.Settings) {
-            settingsStateHolder.SaveableStateProvider(
-                entry.destinationId.instanceToken) {
-                    RouteContent(entry = entry)
-                }
         } else {
             RouteContent(entry = entry)
         }
@@ -744,15 +753,7 @@ fun LibraryHomeScreen(
                     route = appState.navigation.current,
                     mode = adaptiveLayoutMode,
                 )) {
-                    val currentEntry = appState.navigation.currentEntry
-                    if (currentEntry.route == LibraryRoute.Settings) {
-                        settingsStateHolder.SaveableStateProvider(
-                            currentEntry.destinationId.instanceToken) {
-                                RouteOverlays(route = currentEntry.route)
-                            }
-                    } else {
-                        RouteOverlays(route = currentEntry.route)
-                    }
+                    RouteOverlays(route = appState.navigation.current)
                 }
             }
         } else {

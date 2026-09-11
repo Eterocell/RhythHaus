@@ -61,6 +61,38 @@ class OnboardingScreenJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun iosGuidanceNamesFilesSelectionCopyAndManagedScan() {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.ENGLISH)
+            runComposeUiTest {
+                setContent {
+                    OnboardingScreen(
+                        1,
+                        OnboardingPlatformGuidance.IOS,
+                        false,
+                        null,
+                        false,
+                        {},
+                        {},
+                        {},
+                        {},
+                        {},
+                        Modifier,
+                    )
+                }
+                onNodeWithText(
+                        "On iOS, select audio files or folders in Files. RhythHaus copies external selections into Documents/RhythHaus and scans files already there in place.",
+                    )
+                    .assertIsDisplayed()
+            }
+        } finally {
+            Locale.setDefault(previous)
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun activePageHeadingIsAnnouncedAsHeading() = runComposeUiTest {
         setContent {
             OnboardingScreen(
@@ -258,7 +290,7 @@ class OnboardingScreenJvmTest {
                             OnboardingPlatformGuidance.Android ->
                                 "Android folder access is granted and retained through the system folder picker."
                             OnboardingPlatformGuidance.IOS ->
-                                "iOS copies files into Documents/RhythHaus, or scans files already there in place."
+                                "On iOS, select audio files or folders in Files. RhythHaus copies external selections into Documents/RhythHaus and scans files already there in place."
                             OnboardingPlatformGuidance.MacOS ->
                                 "macOS keeps a reference to the folder you choose; files remain where they are."
                         }
@@ -274,7 +306,7 @@ class OnboardingScreenJvmTest {
                                     OnboardingPlatformGuidance.Android ->
                                         "Android folder access is granted and retained through the system folder picker."
                                     OnboardingPlatformGuidance.IOS ->
-                                        "iOS copies files into Documents/RhythHaus, or scans files already there in place."
+                                        "On iOS, select audio files or folders in Files. RhythHaus copies external selections into Documents/RhythHaus and scans files already there in place."
                                     OnboardingPlatformGuidance.MacOS ->
                                         "macOS keeps a reference to the folder you choose; files remain where they are."
                                 }

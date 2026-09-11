@@ -7,12 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -171,6 +171,9 @@ internal fun LibraryRouteOverlays(
         MediaNotificationPermissionState.Unavailable,
     onRequestNotificationPermission: () -> Unit = {},
     onOpenNotificationSettings: () -> Unit = {},
+    settingsListState: LazyListState? = null,
+    settingsReportVisible: Boolean? = null,
+    onSettingsReportVisibleChanged: (Boolean) -> Unit = {},
     onboardingSaving: Boolean = false,
     onboardingCompletionError: String? = null,
     onCompleteOnboarding: () -> Unit = {},
@@ -192,10 +195,9 @@ internal fun LibraryRouteOverlays(
                 remember(destinationId, playlistAppearanceSource) {
                     mutableStateOf(false)
                 }
-            var reportVisible by
-                rememberSaveable(scanProgress?.session?.id) {
-                    mutableStateOf(false)
-                }
+            var localReportVisible by
+                remember(scanProgress?.session?.id) { mutableStateOf(false) }
+            val reportVisible = settingsReportVisible ?: localReportVisible
             val terminalSession =
                 scanProgress?.session?.takeIf { session ->
                     session.status in
@@ -217,7 +219,14 @@ internal fun LibraryRouteOverlays(
                             errors = scanErrors,
                             reportVisible = reportVisible,
                             mutationsEnabled = mutationsEnabled,
-                            onToggleReport = { reportVisible = !reportVisible },
+                            onToggleReport = {
+                                val next = !reportVisible
+                                if (settingsReportVisible == null) {
+                                    localReportVisible = next
+                                } else {
+                                    onSettingsReportVisibleChanged(next)
+                                }
+                            },
                             onRescanSource = onRescanSource,
                             onRemoveMissingTracks = onRemoveMissingTracks,
                         )
@@ -354,6 +363,7 @@ internal fun LibraryRouteOverlays(
                 onRequestNotificationPermission =
                     onRequestNotificationPermission,
                 onOpenNotificationSettings = onOpenNotificationSettings,
+                listState = settingsListState,
                 onDismiss = {
                     showClearLibraryDialog = false
                     onDismiss()
