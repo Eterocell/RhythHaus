@@ -11,9 +11,9 @@
     <string name="page_recovery">Recovery</string>
     <string name="body_local_first">RhythHaus plays local files only. It does not stream or upload your music.</string>
     <string name="body_add_music">Add a folder and keep its files available to RhythHaus.</string>
-    <string name="body_formats">We scan metadata and artwork for WAV, AIFF, AU, MP3, M4A/AAC, FLAC, and OGG files. Skipped items are reported.</string>
+    <string name="body_formats">We scan metadata and artwork for WAV, AIFF, AU, MP3, M4A/AAC, FLAC, and OGG files. Unsupported or unreadable items may be skipped and are reported.</string>
     <string name="body_recovery">If music is moved, deleted, or access is lost, rescan the source. Remove missing tracks only from the source recovery flow.</string>
-    <string name="guidance_android">Android folder access is granted through the system folder picker.</string>
+    <string name="guidance_android">Android folder access is granted and retained through the system folder picker.</string>
     <string name="guidance_ios">iOS copies files into Documents/RhythHaus, or scans files already there in place.</string>
     <string name="guidance_macos">macOS keeps a reference to the folder you choose; files remain where they are.</string>
     <string name="action_back">Back</string>

@@ -6,8 +6,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onStart
 
 internal const val CurrentOnboardingSchemaVersion: Int = 1
@@ -29,19 +30,22 @@ public interface OnboardingPreferenceStore {
 internal class DataStoreOnboardingPreferenceStore(
     private val dataStore: DataStore<Preferences>,
 ) : OnboardingPreferenceStore {
+    private val completionConfirmed = MutableStateFlow(false)
+
     override val eligibility: Flow<OnboardingEligibility> =
         dataStore.data
-            .map { preferences ->
-                if ((preferences[CompletedSchemaVersionKey] ?: 0) >=
-                    CurrentOnboardingSchemaVersion) {
+            .catch { failure ->
+                if (failure is CancellationException) throw failure
+                emit(androidx.datastore.preferences.core.emptyPreferences())
+            }
+            .combine(completionConfirmed) { preferences, completed ->
+                if (completed ||
+                    (preferences[CompletedSchemaVersionKey] ?: 0) >=
+                        CurrentOnboardingSchemaVersion) {
                     OnboardingEligibility.Completed
                 } else {
                     OnboardingEligibility.Required
                 }
-            }
-            .catch { failure ->
-                if (failure is CancellationException) throw failure
-                emit(OnboardingEligibility.Required)
             }
             .onStart { emit(OnboardingEligibility.Loading) }
 
@@ -53,6 +57,7 @@ internal class DataStoreOnboardingPreferenceStore(
                     CurrentOnboardingSchemaVersion
             }
         }
+        completionConfirmed.value = true
     }
 }
 
