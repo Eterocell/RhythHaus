@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import java.io.File
 import java.nio.file.Files
@@ -118,6 +119,36 @@ class OnboardingPreferenceStoreJvmTest {
             DataStoreOnboardingPreferenceStore(failing).eligibility.first {
                 it != OnboardingEligibility.Loading
             })
+    }
+
+    @Test
+    fun successfulCompletionRemainsObservableAfterReadFailure() = runBlocking {
+        var stored = emptyPreferences()
+        val failingReadWritableStore =
+            object : DataStore<Preferences> {
+                override val data: Flow<Preferences> = flow {
+                    throw IllegalStateException("read")
+                }
+
+                override suspend fun updateData(
+                    transform: suspend (t: Preferences) -> Preferences
+                ): Preferences {
+                    stored = transform(stored)
+                    return stored
+                }
+            }
+        val store = DataStoreOnboardingPreferenceStore(failingReadWritableStore)
+
+        assertEquals(
+            OnboardingEligibility.Required,
+            store.eligibility.first { it != OnboardingEligibility.Loading },
+        )
+        store.markCurrentVersionCompleted()
+
+        assertEquals(
+            OnboardingEligibility.Completed,
+            store.eligibility.first { it != OnboardingEligibility.Loading },
+        )
     }
 
     @Test

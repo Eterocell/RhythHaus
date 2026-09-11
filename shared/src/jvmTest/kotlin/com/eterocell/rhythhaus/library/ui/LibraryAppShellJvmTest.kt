@@ -6,12 +6,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -35,6 +37,7 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.onboarding.OnboardingCloseTestTag
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
@@ -44,6 +47,38 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class LibraryAppShellJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsReviewRestoresDestinationScrollState() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                mount(
+                    width = 420.dp,
+                    height = 400.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "settings-review",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                )
+                onNodeWithTag("NowPlayingBarSettings", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onNodeWithTag("settings-list", useUnmergedTree = true)
+                    .performScrollToNode(hasText("Review onboarding"))
+                val reviewAction =
+                    onNode(hasText("Review onboarding"), useUnmergedTree = true)
+                reviewAction.assertIsDisplayed().performClick()
+                onNodeWithTag(OnboardingCloseTestTag).performClick()
+                reviewAction.assertIsDisplayed()
+            }
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun compactAndWideBranchesRenderEquivalentHomeImportAndScanStates() =
@@ -264,6 +299,7 @@ class LibraryAppShellJvmTest {
     @OptIn(ExperimentalTestApi::class)
     private fun androidx.compose.ui.test.ComposeUiTest.mount(
         width: Dp,
+        height: Dp = 900.dp,
         source: LibrarySource,
         scanSession: ScanSession,
         scanErrors: List<ScanError> = emptyList(),
@@ -276,7 +312,7 @@ class LibraryAppShellJvmTest {
                 LocalNavigationEventDispatcherOwner provides
                     TestNavigationOwner,
             ) {
-                Box(Modifier.size(width, 900.dp)) {
+                Box(Modifier.size(width, height)) {
                     LibraryHomeScreen(
                         snapshot = LibrarySnapshot("Library", "", tracks, null),
                         libraryTracks = emptyList(),

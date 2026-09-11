@@ -11,8 +11,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.theme.HausColors
@@ -69,6 +72,8 @@ internal fun previousOnboardingPage(index: Int) = (index - 1).coerceAtLeast(0)
 public const val OnboardingRootTestTag: String = "onboarding-root"
 /** Stable semantics tag for the current page. */
 public const val OnboardingPageTestTag: String = "onboarding-page"
+/** Stable semantics tag for the announced current page heading. */
+public const val OnboardingHeadingTestTag: String = "onboarding-heading"
 /** Stable semantics tag for page progress. */
 public const val OnboardingProgressTestTag: String = "onboarding-progress"
 /** Stable semantics tag for completion errors. */
@@ -118,6 +123,7 @@ public fun OnboardingScreen(
     modifier: Modifier = Modifier,
 ) {
     val page = pageIndex.coerceIn(0, onboardingPages.lastIndex)
+    val backAvailable = reviewMode || page > 0
     val title = stringResource(Res.string.onboarding_title)
     Surface(
         color = HausColors.current.paper,
@@ -126,7 +132,12 @@ public fun OnboardingScreen(
                 modifier = Modifier.fillMaxSize().safeContentPadding(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                item { RhythHausTopAppBar(title, onBack = onBack) }
+                item {
+                    RhythHausTopAppBar(
+                        title,
+                        onBack = onBack.takeIf { backAvailable },
+                    )
+                }
                 item {
                     Column(
                         Modifier.fillMaxWidth()
@@ -140,7 +151,12 @@ public fun OnboardingScreen(
                                 Modifier.testTag(OnboardingProgressTestTag))
                             Text(
                                 pageHeading(page),
-                                Modifier.padding(top = 16.dp))
+                                Modifier.padding(top = 16.dp)
+                                    .testTag(OnboardingHeadingTestTag)
+                                    .semantics {
+                                        heading()
+                                        liveRegion = LiveRegionMode.Polite
+                                    })
                             Text(
                                 pageBody(page, platform),
                                 Modifier.padding(top = 10.dp))
@@ -201,11 +217,12 @@ public fun OnboardingScreen(
                                     OnboardingNextTestTag,
                                     stringResource(Res.string.action_next))
                         } else {
-                            action(
-                                onBack,
-                                true,
-                                OnboardingBackTestTag,
-                                stringResource(Res.string.action_back))
+                            if (page > 0)
+                                action(
+                                    onBack,
+                                    true,
+                                    OnboardingBackTestTag,
+                                    stringResource(Res.string.action_back))
                             if (page < onboardingPages.lastIndex)
                                 action(
                                     onNext,

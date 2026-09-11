@@ -4375,3 +4375,14 @@ Aggregate limitation: `./init.sh` and the aggregate `:shared:jvmTest` leg still 
 OpenSpec: synchronized to `openspec/specs/first-run-onboarding/spec.md`; archived at `openspec/changes/archive/2026-09-11-first-run-onboarding/` after final review.
 Next owner: integrate the completed feature branch, then continue Phase 1 physical playback/system-control acceptance.
 Blockers: no code-level onboarding blocker; Android/iOS presentation and audible Review continuity remain release-device evidence gaps.
+
+## Review repair - 2026-09-11 first-run onboarding
+
+Route: systematic-debugging+tdd within openspec+superpowers
+Owner: implementation and final review
+Input: final independent review of `e3e51c6c..2088a648`.
+Output: repaired all five Important findings. Settings now retains destination-keyed saveable composition state while the modal onboarding Review route is exclusively composed, so Close returns to the same Settings scroll position without exposing inactive Settings semantics. A successful completion write now publishes `Completed` even when the preference read flow previously failed and entered fail-safe onboarding. First-run page zero exposes no no-op Back controls; later pages and Review retain valid Back behavior. The active page heading has heading and polite live-region semantics. English and Simplified Chinese copy now explicitly names unsupported/unreadable skipped items and Android retained folder access.
+RED evidence: `LibraryAppShellJvmTest.settingsReviewRestoresDestinationScrollState`, `OnboardingPreferenceStoreJvmTest.successfulCompletionRemainsObservableAfterReadFailure`, `OnboardingScreenJvmTest.firstRunFirstPageOmitsInactiveBackActions`, `OnboardingScreenJvmTest.activePageHeadingIsAnnouncedAsHeading`, and the copy regressions each failed for the reviewed production defect before its fix.
+GREEN evidence: the focused onboarding, Settings, preference-store, shell, navigation, and adapter matrix passed (`167 actionable tasks`); iOS Kotlin compilation, desktop compilation, and Android Debug assembly passed (`478 actionable tasks`); Spotless, Detekt, and architecture checks passed (`289 actionable tasks`); all 13 canonical specs, the strict change, and `git diff --check` passed.
+Next owner: independent final re-review, then archive and integration.
+Blockers: Android/iOS device presentation and audible Review continuity remain external release evidence, not code-level blockers.

@@ -5,14 +5,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -21,6 +27,96 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class OnboardingScreenJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun scanGuidanceNamesUnsupportedAndUnreadableItems() {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.ENGLISH)
+            runComposeUiTest {
+                setContent {
+                    OnboardingScreen(
+                        2,
+                        OnboardingPlatformGuidance.Android,
+                        false,
+                        null,
+                        false,
+                        {},
+                        {},
+                        {},
+                        {},
+                        {},
+                        Modifier,
+                    )
+                }
+                onNodeWithText(
+                        "We scan metadata and artwork for WAV, AIFF, AU, MP3, M4A/AAC, FLAC, and OGG files. Unsupported or unreadable items may be skipped and are reported.",
+                    )
+                    .assertIsDisplayed()
+            }
+        } finally {
+            Locale.setDefault(previous)
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun activePageHeadingIsAnnouncedAsHeading() = runComposeUiTest {
+        setContent {
+            OnboardingScreen(
+                1,
+                OnboardingPlatformGuidance.Android,
+                false,
+                null,
+                false,
+                {},
+                {},
+                {},
+                {},
+                {},
+                Modifier,
+            )
+        }
+
+        onNodeWithTag(OnboardingHeadingTestTag)
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.Heading,
+                    Unit,
+                ),
+            )
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.LiveRegion,
+                    LiveRegionMode.Polite,
+                ),
+            )
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun firstRunFirstPageOmitsInactiveBackActions() = runComposeUiTest {
+        setContent {
+            OnboardingScreen(
+                0,
+                OnboardingPlatformGuidance.Android,
+                false,
+                null,
+                false,
+                {},
+                {},
+                {},
+                {},
+                {},
+                Modifier,
+            )
+        }
+
+        onAllNodesWithTag(OnboardingBackTestTag).assertCountEquals(0)
+        onAllNodes(hasContentDescription("Back"), useUnmergedTree = true)
+            .assertCountEquals(0)
+    }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun inactivePagesExposeNoSemantics() = runComposeUiTest {
@@ -160,7 +256,7 @@ class OnboardingScreenJvmTest {
                     val text =
                         when (platform) {
                             OnboardingPlatformGuidance.Android ->
-                                "Android folder access is granted through the system folder picker."
+                                "Android folder access is granted and retained through the system folder picker."
                             OnboardingPlatformGuidance.IOS ->
                                 "iOS copies files into Documents/RhythHaus, or scans files already there in place."
                             OnboardingPlatformGuidance.MacOS ->
@@ -176,7 +272,7 @@ class OnboardingScreenJvmTest {
                             val otherText =
                                 when (other) {
                                     OnboardingPlatformGuidance.Android ->
-                                        "Android folder access is granted through the system folder picker."
+                                        "Android folder access is granted and retained through the system folder picker."
                                     OnboardingPlatformGuidance.IOS ->
                                         "iOS copies files into Documents/RhythHaus, or scans files already there in place."
                                     OnboardingPlatformGuidance.MacOS ->
