@@ -15,6 +15,7 @@ import com.eterocell.rhythhaus.LibrarySnapshot
 
 internal class LibraryAppState(
     initialSelectedTrackId: String?,
+    initialOnboarding: OnboardingLaunchMode? = null,
 ) {
     private var selectedTrackIdState by mutableStateOf(initialSelectedTrackId)
     val selectedTrackId: String?
@@ -34,6 +35,13 @@ internal class LibraryAppState(
 
     var navigation by mutableStateOf(LibraryNavigationStack())
         private set
+
+    init {
+        if (initialOnboarding == OnboardingLaunchMode.FirstRun) {
+            navigation = navigation.push(
+                LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0))
+        }
+    }
 
     var lastNavigationTransition by
         mutableStateOf(LibraryNavigationTransition.None)
@@ -122,6 +130,9 @@ internal class LibraryAppState(
                             "now-playing-$nowPlayingAppearanceToken"),
                 ),
             )
+        if (resolution is LibraryBackResolution.Suppressed) {
+            return LibraryBackBeginResult.Suppressed
+        }
         val target =
             (resolution as? LibraryBackResolution.Started)?.target
                 ?: return LibraryBackBeginResult.Unhandled
@@ -146,7 +157,7 @@ internal class LibraryAppState(
             acceptedBackSurface
                 ?.takeIf { it.port.destinationId == destination }
                 ?.port
-        return resolveLibraryBack(
+        val resolution = resolveLibraryBack(
             LibraryBackResolutionInput(
                 activeDestinationId = destination,
                 backSurfacePorts = listOfNotNull(surface),
@@ -158,8 +169,9 @@ internal class LibraryAppState(
                     LibraryBackTargetId(
                         destination, "now-playing-$nowPlayingAppearanceToken"),
             ),
-        ) is
-            LibraryBackResolution.Started
+        )
+        return resolution is LibraryBackResolution.Started ||
+            resolution is LibraryBackResolution.Suppressed
     }
 
     /**
@@ -552,7 +564,11 @@ internal constructor(
 @Composable
 internal fun rememberLibraryAppState(
     snapshot: LibrarySnapshot,
+    initialOnboarding: OnboardingLaunchMode? = null,
 ): LibraryAppState =
-    remember(snapshot.nowPlayingTrackId) {
-        LibraryAppState(initialSelectedTrackId = snapshot.nowPlayingTrackId)
+    remember(snapshot.nowPlayingTrackId, initialOnboarding) {
+        LibraryAppState(
+            initialSelectedTrackId = snapshot.nowPlayingTrackId,
+            initialOnboarding = initialOnboarding,
+        )
     }
