@@ -239,10 +239,11 @@ fun LibraryHomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val playbackState by playbackController.state.collectAsState()
-    val appState = rememberLibraryAppState(
-        snapshot = snapshot,
-        initialOnboarding = initialOnboarding,
-    )
+    val appState =
+        rememberLibraryAppState(
+            snapshot = snapshot,
+            initialOnboarding = initialOnboarding,
+        )
     val activePlaylistDestination =
         remember(appState.activeDestinationId) {
             PlaylistFeatureDestination(
@@ -628,7 +629,12 @@ fun LibraryHomeScreen(
                 route = route, adaptiveLayoutMode = adaptiveLayoutMode)
         }
 
-        if (adaptiveLayoutMode == LibraryAdaptiveLayoutMode.ListDetail) {
+        if (appState.navigation.current is LibraryRoute.Onboarding) {
+            // Do not compose the library base beneath onboarding: an opaque
+            // visual overlay alone still leaves its semantics and pointer
+            // targets reachable in wide layouts.
+            RenderEntry(entry = appState.navigation.currentEntry)
+        } else if (adaptiveLayoutMode == LibraryAdaptiveLayoutMode.ListDetail) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier =
