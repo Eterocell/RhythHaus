@@ -85,6 +85,60 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
 
+internal data class AppOnboardingPresentation(
+    val initialOnboarding: OnboardingLaunchMode?,
+    val saving: Boolean,
+    val completionError: String?,
+    val completeOnboarding: () -> Unit,
+)
+
+@Composable
+internal fun AppOnboardingGate(
+    onboardingPreferenceStore: OnboardingPreferenceStore,
+    loadingContent: @Composable () -> Unit,
+    content: @Composable (AppOnboardingPresentation) -> Unit,
+) {
+    val eligibility by
+        onboardingPreferenceStore.eligibility.collectAsState(
+            OnboardingEligibility.Loading)
+    var saving by remember { mutableStateOf(false) }
+    var completionError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val completeOnboarding: () -> Unit = {
+        if (!saving) {
+            saving = true
+            completionError = null
+            scope.launch {
+                try {
+                    onboardingPreferenceStore.markCurrentVersionCompleted()
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (failure: Throwable) {
+                    completionError =
+                        failure.message ?: "Unable to save onboarding"
+                } finally {
+                    saving = false
+                }
+            }
+        }
+    }
+    if (eligibility == OnboardingEligibility.Loading) {
+        loadingContent()
+    } else {
+        content(
+            AppOnboardingPresentation(
+                initialOnboarding =
+                    OnboardingLaunchMode.FirstRun.takeIf {
+                        eligibility == OnboardingEligibility.Required
+                    },
+                saving = saving,
+                completionError = completionError,
+                completeOnboarding = completeOnboarding,
+            ),
+        )
+    }
+}
+
 @Composable
 @Preview
 fun App(
@@ -154,30 +208,6 @@ fun App(
             RhythHausThemeMode.System)
     val notificationPermissionState by
         notificationPermissionController.state.collectAsState()
-    val onboardingEligibility by
-        onboardingPreferenceStore.eligibility.collectAsState(
-            OnboardingEligibility.Loading)
-    var onboardingSaving by remember { mutableStateOf(false) }
-    var onboardingCompletionError by remember { mutableStateOf<String?>(null) }
-
-    fun persistOnboardingCompletion() {
-        if (onboardingSaving) return
-        onboardingSaving = true
-        onboardingCompletionError = null
-        scope.launch {
-            try {
-                onboardingPreferenceStore.markCurrentVersionCompleted()
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (failure: Throwable) {
-                onboardingCompletionError =
-                    failure.message ?: "Unable to save onboarding"
-            } finally {
-                onboardingSaving = false
-            }
-        }
-    }
-
     suspend fun updateLibraryContent(content: LibraryContentState) {
         val publication = libraryPublicationOwner.publish(content)
         withContext(Dispatchers.Main) {
@@ -546,9 +576,10 @@ fun App(
                     repository.artworkForTrack(trackId)
                 },
         ) {
-            if (onboardingEligibility == OnboardingEligibility.Loading) {
-                OnboardingLoadingSurface()
-            } else
+            AppOnboardingGate(
+                onboardingPreferenceStore = onboardingPreferenceStore,
+                loadingContent = { OnboardingLoadingSurface() },
+            ) { onboarding ->
                 LibraryHomeScreen(
                     snapshot = snapshot,
                     libraryTracks = libraryTracks,
@@ -592,14 +623,10 @@ fun App(
                         notificationPermissionController
                             .openAppNotificationSettings()
                     },
-                    initialOnboarding =
-                        OnboardingLaunchMode.FirstRun.takeIf {
-                            onboardingEligibility ==
-                                OnboardingEligibility.Required
-                        },
-                    onboardingSaving = onboardingSaving,
-                    onboardingCompletionError = onboardingCompletionError,
-                    onCompleteOnboarding = ::persistOnboardingCompletion,
+                    initialOnboarding = onboarding.initialOnboarding,
+                    onboardingSaving = onboarding.saving,
+                    onboardingCompletionError = onboarding.completionError,
+                    onCompleteOnboarding = onboarding.completeOnboarding,
                     coordinatorMutationsEnabled = mutationsEnabled,
                     currentThemeMode = selectedThemeMode,
                     onThemeModeSelected = { mode ->
@@ -782,6 +809,7 @@ fun App(
                         scanProgress = scanProgress.requestScanCancellation()
                     },
                 )
+            }
         }
     }
 }

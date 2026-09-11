@@ -15,6 +15,12 @@ internal const val CurrentOnboardingSchemaVersion: Int = 1
 private val CompletedSchemaVersionKey =
     intPreferencesKey("completed_schema_version")
 
+private fun Preferences.completedSchemaVersion(): Int =
+    asMap()
+        .entries
+        .firstOrNull { it.key.name == CompletedSchemaVersionKey.name }
+        ?.value as? Int ?: 0
+
 public enum class OnboardingEligibility {
     Loading,
     Required,
@@ -40,7 +46,7 @@ internal class DataStoreOnboardingPreferenceStore(
             }
             .combine(completionConfirmed) { preferences, completed ->
                 if (completed ||
-                    (preferences[CompletedSchemaVersionKey] ?: 0) >=
+                    preferences.completedSchemaVersion() >=
                         CurrentOnboardingSchemaVersion) {
                     OnboardingEligibility.Completed
                 } else {
@@ -51,7 +57,7 @@ internal class DataStoreOnboardingPreferenceStore(
 
     override suspend fun markCurrentVersionCompleted() {
         dataStore.edit { preferences ->
-            val existing = preferences[CompletedSchemaVersionKey] ?: 0
+            val existing = preferences.completedSchemaVersion()
             if (existing < CurrentOnboardingSchemaVersion) {
                 preferences[CompletedSchemaVersionKey] =
                     CurrentOnboardingSchemaVersion

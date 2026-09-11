@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
@@ -70,6 +71,40 @@ class OnboardingPreferenceStoreJvmTest {
                 1,
                 dataStore.data
                     .first()[intPreferencesKey("completed_schema_version")])
+        }
+    }
+
+    @Test
+    fun markCompletedReplacesWrongTypedCompletionValue() = runBlocking {
+        withStore { store, dataStore ->
+            dataStore.edit {
+                it[stringPreferencesKey("completed_schema_version")] =
+                    "not-an-int"
+            }
+            assertEquals(
+                OnboardingEligibility.Required,
+                store.eligibility.first {
+                    it != OnboardingEligibility.Loading
+                },
+            )
+
+            store.markCurrentVersionCompleted()
+
+            assertEquals(
+                1,
+                dataStore.data
+                    .first()
+                    .asMap()
+                    .entries
+                    .single { it.key.name == "completed_schema_version" }
+                    .value,
+            )
+            assertEquals(
+                OnboardingEligibility.Completed,
+                store.eligibility.first {
+                    it != OnboardingEligibility.Loading
+                },
+            )
         }
     }
 
