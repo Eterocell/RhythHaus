@@ -4352,3 +4352,13 @@ Verification:
 Next owner: release/device acceptance for Android notification denial and the remaining three-platform system-media scenarios; separately diagnose the Shared selection-test timeout.
 Blockers: Android/iOS physical runtime evidence is unavailable to this harness; Xcode rejects `ios_simulator_arm64` test execution. The pre-integration Android planning copies remain preserved in `stash@{0}` and were not reapplied because the merged branch contains the later tracked change artifacts.
 Commits: `c745db63` (`fix: exclude hidden iOS library paths`), `7517d845` (`merge: integrate notification permission recovery`), and `e1830fce` (`merge: integrate playback failure recovery`).
+## Handoff - 2026-09-11 first-run onboarding planning
+
+Route: openspec+superpowers
+Owner: OpenSpec planning
+Input: next actionable product item in `roadmap.md` after completed or hardware-blocked Phase 1 P0 work.
+Output: `openspec/changes/first-run-onboarding/` now contains a proposal, a new capability delta specification, a cross-module design, and an evidence-bearing task ledger. `docs/superpowers/plans/2026-09-11-first-run-onboarding.md` provides the executable TDD plan. The selected direction is a one-time, skippable, four-page shared onboarding flow with platform-accurate local import guidance, schema-versioned completion persistence, canonical Shared Back/navigation ownership, and Settings re-entry. Onboarding never requests permissions, launches a picker, mutates library state, or changes playback.
+Verification: `openspec validate first-run-onboarding --strict` passed; planning placeholder scan and `git diff --check` passed.
+Next owner: implementation through the OpenSpec apply plus subagent-driven-development workflow, beginning with the isolated `:feature:onboarding` stateless UI module.
+Blockers: none for implementation planning. Android/iOS physical acceptance remains a later release-evidence gate.
+Commit: not created; the OpenSpec proposal workflow ends at planning review and does not start implementation in the same response.
