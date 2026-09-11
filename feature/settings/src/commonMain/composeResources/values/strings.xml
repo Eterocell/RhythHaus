@@ -3,5 +3,5 @@
 <string name="notification_permission_title">Notification permission needed</string>
 <string name="notification_permission_body">In-app playback keeps working, but Android notification and lock-screen media controls need notification permission.</string>
 <string name="notification_permission_request">Allow notifications</string>
-<string name="notification_permission_settings">Open notification settings</string>
+<string name="notification_permission_settings">Open notification settings</string><string name="review_onboarding">Review onboarding</string>
 </resources>

@@ -301,6 +301,7 @@ class SearchRouteAdapterJvmTest {
             onRescanSource = {},
             onRemoveSource = {},
             onCancelScan = {},
+            pushRoute = {},
             onShowSettingsAbout = {},
             onShowOpenSourceLibraries = {},
             onDismiss = {},

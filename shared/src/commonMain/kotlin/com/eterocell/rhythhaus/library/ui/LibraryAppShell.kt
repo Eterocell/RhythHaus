@@ -232,10 +232,29 @@ fun LibraryHomeScreen(
         MediaNotificationPermissionState.Unavailable,
     onRequestNotificationPermission: () -> Unit = {},
     onOpenNotificationSettings: () -> Unit = {},
+    initialOnboarding: OnboardingLaunchMode? = null,
+    onboardingSaving: Boolean = false,
+    onboardingCompletionError: String? = null,
+    onCompleteOnboarding: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val playbackState by playbackController.state.collectAsState()
-    val appState = rememberLibraryAppState(snapshot = snapshot)
+    val appState =
+        rememberLibraryAppState(
+            snapshot = snapshot,
+            initialOnboarding = initialOnboarding,
+        )
+    val settingsDestinationToken =
+        appState.navigation.entries
+            .lastOrNull { it.route == LibraryRoute.Settings }
+            ?.destinationId
+            ?.instanceToken
+    val settingsListState =
+        remember(settingsDestinationToken) { LazyListState() }
+    var settingsReportVisible by
+        remember(settingsDestinationToken, scanProgress?.session?.id) {
+            mutableStateOf(false)
+        }
     val activePlaylistDestination =
         remember(appState.activeDestinationId) {
             PlaylistFeatureDestination(
@@ -454,6 +473,18 @@ fun LibraryHomeScreen(
             mediaNotificationPermission = mediaNotificationPermission,
             onRequestNotificationPermission = onRequestNotificationPermission,
             onOpenNotificationSettings = onOpenNotificationSettings,
+            settingsListState = settingsListState,
+            settingsReportVisible = settingsReportVisible,
+            onSettingsReportVisibleChanged = {
+                settingsReportVisible = it
+            },
+            onboardingSaving = onboardingSaving,
+            onboardingCompletionError = onboardingCompletionError,
+            onCompleteOnboarding = onCompleteOnboarding,
+            onReplaceTop = appState::replaceTopRoute,
+            onRejectInvalidOnboarding = appState::popRoute,
+            onCloseOnboarding = appState::popRoute,
+            pushRoute = ::pushRoute,
             onShowSettingsAbout = { pushRoute(LibraryRoute.SettingsAbout) },
             onShowOpenSourceLibraries = {
                 pushRoute(LibraryRoute.OpenSourceLibraries)
@@ -586,6 +617,15 @@ fun LibraryHomeScreen(
         )
     }
 
+    @Composable
+    fun RenderEntry(entry: LibraryNavigationEntry) {
+        if (entry.route is LibraryRoute.Onboarding) {
+            RouteOverlays(route = entry.route)
+        } else {
+            RouteContent(entry = entry)
+        }
+    }
+
     BoxWithConstraints(
         modifier =
             modifier
@@ -605,7 +645,12 @@ fun LibraryHomeScreen(
                 route = route, adaptiveLayoutMode = adaptiveLayoutMode)
         }
 
-        if (adaptiveLayoutMode == LibraryAdaptiveLayoutMode.ListDetail) {
+        if (appState.navigation.current is LibraryRoute.Onboarding) {
+            // Do not compose the library base beneath onboarding: an opaque
+            // visual overlay alone still leaves its semantics and pointer
+            // targets reachable in wide layouts.
+            RenderEntry(entry = appState.navigation.currentEntry)
+        } else if (adaptiveLayoutMode == LibraryAdaptiveLayoutMode.ListDetail) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier =
@@ -713,7 +758,7 @@ fun LibraryHomeScreen(
             }
         } else {
             if (predictiveBackProgress > 0f && previousEntry != null) {
-                RouteContent(entry = previousEntry)
+                RenderEntry(entry = previousEntry)
             }
             AnimatedContent(
                 targetState = appState.navigation.currentEntry,
@@ -726,7 +771,7 @@ fun LibraryHomeScreen(
                         .recordRhythHausBackdrop(rootBackdrop)
                         .offset(x = predictiveBackOffset.value.dp),
             ) { currentEntry ->
-                RouteContent(entry = currentEntry)
+                RenderEntry(entry = currentEntry)
             }
         }
 

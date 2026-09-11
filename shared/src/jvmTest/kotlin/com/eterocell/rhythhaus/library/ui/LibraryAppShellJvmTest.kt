@@ -3,15 +3,20 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -22,6 +27,7 @@ import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
@@ -35,15 +41,209 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.onboarding.OnboardingCloseTestTag
+import com.eterocell.rhythhaus.onboarding.OnboardingRootTestTag
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.toPlayableTrack
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class LibraryAppShellJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun onboardingReviewPreservesPlayingStateAndQueue() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val track =
+                    Track(
+                        "playing-track",
+                        "Playing track",
+                        "Artist",
+                        "Album",
+                        1_000,
+                        TrackAccent(0, 0),
+                        AudioSource.FilePath("/playing.mp3"),
+                    )
+                val controller = PlaybackController(FakePlaybackEngine())
+                controller.setQueue(
+                    listOf(track.toPlayableTrack()),
+                    selectedTrackId = track.id,
+                )
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.state.value.status == PlaybackStatus.Paused
+                }
+                controller.play()
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.state.value.status == PlaybackStatus.Playing
+                }
+                val beforeReview = controller.state.value
+
+                mount(
+                    width = 420.dp,
+                    height = 400.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "playing-review",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    tracks = listOf(track),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                    playbackController = controller,
+                )
+                onNodeWithTag("NowPlayingBarSettings", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onNodeWithTag("settings-list", useUnmergedTree = true)
+                    .performScrollToNode(hasText("Review onboarding"))
+                onNode(hasText("Review onboarding"), useUnmergedTree = true)
+                    .performClick()
+                onNodeWithTag(OnboardingRootTestTag).assertIsDisplayed()
+
+                assertEquals(beforeReview, controller.state.value)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun onboardingReviewExclusivelyComposesOverSettingsAtAllWidths() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                listOf(420.dp, 1200.dp).forEach { width ->
+                    mount(
+                        width = width,
+                        height = 400.dp,
+                        source = source(),
+                        scanSession =
+                            ScanSession(
+                                id = "review-isolation-$width",
+                                sourceId = "source",
+                                status = ScanStatus.Completed,
+                                startedAtEpochMillis = 1L,
+                            ),
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                    )
+                    onNodeWithTag(
+                            "NowPlayingBarSettings",
+                            useUnmergedTree = true,
+                        )
+                        .performClick()
+                    waitForIdle()
+                    onNodeWithTag("settings-list", useUnmergedTree = true)
+                        .performScrollToNode(hasText("Review onboarding"))
+                    onNode(
+                            hasText("Review onboarding"),
+                            useUnmergedTree = true,
+                        )
+                        .performClick()
+
+                    onNodeWithTag(OnboardingRootTestTag).assertIsDisplayed()
+                    onAllNodesWithTag(
+                            "settings-root",
+                            useUnmergedTree = true,
+                        )
+                        .assertCountEquals(0)
+                    onAllNodesWithTag(
+                            "settings-list",
+                            useUnmergedTree = true,
+                        )
+                        .assertCountEquals(0)
+                    onAllNodesWithTag(
+                            "NowPlayingBarSettings",
+                            useUnmergedTree = true,
+                        )
+                        .assertCountEquals(0)
+                }
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsReviewRestoresDestinationScrollState() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                mount(
+                    width = 420.dp,
+                    height = 400.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "settings-review",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                )
+                onNodeWithTag("NowPlayingBarSettings", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onNode(hasText("View scan report"), useUnmergedTree = true)
+                    .performClick()
+                onNodeWithTag("settings-list", useUnmergedTree = true)
+                    .performScrollToNode(hasText("Review onboarding"))
+                val reviewAction =
+                    onNode(hasText("Review onboarding"), useUnmergedTree = true)
+                reviewAction.assertIsDisplayed().performClick()
+                onNodeWithTag(OnboardingCloseTestTag).performClick()
+                reviewAction.assertIsDisplayed()
+                onNodeWithTag("settings-list", useUnmergedTree = true)
+                    .performScrollToNode(hasText("Hide scan report"))
+                onNode(hasText("Hide scan report"), useUnmergedTree = true)
+                    .assertIsDisplayed()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsReviewRestoresStateAcrossAdaptiveWidthChange() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                var width by mutableStateOf(420.dp)
+                mount(
+                    width = { width },
+                    height = 400.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "adaptive-review",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                )
+                onNodeWithTag("NowPlayingBarSettings", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onNode(hasText("View scan report"), useUnmergedTree = true)
+                    .performClick()
+                onNodeWithTag("settings-list", useUnmergedTree = true)
+                    .performScrollToNode(hasText("Review onboarding"))
+                onNode(hasText("Review onboarding"), useUnmergedTree = true)
+                    .performClick()
+
+                width = 1200.dp
+                waitForIdle()
+                onNodeWithTag(OnboardingCloseTestTag).performClick()
+
+                onNodeWithTag("settings-list", useUnmergedTree = true)
+                    .performScrollToNode(hasText("Hide scan report"))
+                onNode(hasText("Hide scan report"), useUnmergedTree = true)
+                    .assertIsDisplayed()
+            }
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun compactAndWideBranchesRenderEquivalentHomeImportAndScanStates() =
@@ -264,25 +464,53 @@ class LibraryAppShellJvmTest {
     @OptIn(ExperimentalTestApi::class)
     private fun androidx.compose.ui.test.ComposeUiTest.mount(
         width: Dp,
+        height: Dp = 900.dp,
         source: LibrarySource,
         scanSession: ScanSession,
         scanErrors: List<ScanError> = emptyList(),
         tracks: List<Track> = emptyList(),
         picker: CountingPicker,
         callbacks: CallbackRecorder,
+        playbackController: PlaybackController =
+            PlaybackController(FakePlaybackEngine()),
+    ) {
+        mount(
+            width = { width },
+            height = height,
+            source = source,
+            scanSession = scanSession,
+            scanErrors = scanErrors,
+            tracks = tracks,
+            picker = picker,
+            callbacks = callbacks,
+            playbackController = playbackController,
+        )
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    private fun androidx.compose.ui.test.ComposeUiTest.mount(
+        width: () -> Dp,
+        height: Dp = 900.dp,
+        source: LibrarySource,
+        scanSession: ScanSession,
+        scanErrors: List<ScanError> = emptyList(),
+        tracks: List<Track> = emptyList(),
+        picker: CountingPicker,
+        callbacks: CallbackRecorder,
+        playbackController: PlaybackController =
+            PlaybackController(FakePlaybackEngine()),
     ) {
         setContent {
             CompositionLocalProvider(
                 LocalNavigationEventDispatcherOwner provides
                     TestNavigationOwner,
             ) {
-                Box(Modifier.size(width, 900.dp)) {
+                Box(Modifier.size(width(), height)) {
                     LibraryHomeScreen(
                         snapshot = LibrarySnapshot("Library", "", tracks, null),
                         libraryTracks = emptyList(),
                         tagLibReader = UnusedTagLibReader,
-                        playbackController =
-                            PlaybackController(FakePlaybackEngine()),
+                        playbackController = playbackController,
                         playlistRepository = EmptyPlaylistRepository,
                         playlistState = PlaylistState(),
                         playlistBackupState = PlaylistBackupUiState(),

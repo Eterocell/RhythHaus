@@ -7,6 +7,8 @@ import com.eterocell.rhythhaus.createPlatformPlaybackEngine
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.libraryImplementationModule
 import com.eterocell.rhythhaus.library.playlistsImplementationModule
+import com.eterocell.rhythhaus.onboarding.OnboardingPreferenceStore
+import com.eterocell.rhythhaus.onboarding.createOnboardingPreferenceStore
 import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionCoordinator
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
@@ -53,6 +55,7 @@ fun rhythHausModule(): Module = module {
         PlaybackProcessLifecycle(coordinator = get(), processScope = get())
     }
     single<ThemePreferenceStore> { createThemePreferenceStore() }
+    single<OnboardingPreferenceStore> { createOnboardingPreferenceStore() }
 }
 
 fun startRhythHausKoin() {
