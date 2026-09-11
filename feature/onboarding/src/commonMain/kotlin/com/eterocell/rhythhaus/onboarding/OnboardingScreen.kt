@@ -163,8 +163,7 @@ public fun OnboardingScreen(
                                 .padding(horizontal = 20.dp)
                                 .testTag(OnboardingErrorTestTag)) {
                                 Text(stringResource(Res.string.error_save))
-                                if (completionError != null)
-                                    Text(completionError)
+                                Text(completionError)
                                 Button(
                                     onClick = onFinish,
                                     enabled = !saving,

@@ -23,8 +23,10 @@ class LibraryNavigationTest {
     @Test
     fun firstRunLaterPageBackReplacesTopWithPreviousPage() {
         val state = LibraryAppState(null, OnboardingLaunchMode.FirstRun)
-        state.replaceTopRoute(LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 1))
-        val session = assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
+        state.replaceTopRoute(
+            LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 1))
+        val session =
+            assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
         assertEquals(
             LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0),
             session.routePreview?.nextNavigation?.current,
@@ -37,20 +39,27 @@ class LibraryNavigationTest {
         state.pushRoute(LibraryRoute.Settings)
         val settings = state.navigation.currentEntry
         state.pushRoute(LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0))
-        val session = assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
+        val session =
+            assertIs<LibraryBackBeginResult.Started>(state.beginBack()).session
         assertEquals(settings, session.routePreview?.incomingEntry)
     }
 
     @Test
     fun onboardingNeverPermitsNowPlayingBar() {
-        assertFalse(routePermitsNowPlayingBar(LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0)))
+        assertFalse(
+            routePermitsNowPlayingBar(
+                LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0)))
     }
 
     @Test
     fun onboardingRendersAsActiveOverlayInCompactAndWideModes() {
         val route = LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0)
-        assertTrue(libraryRouteRendersAsActiveOverlay(route, LibraryAdaptiveLayoutMode.Compact))
-        assertTrue(libraryRouteRendersAsActiveOverlay(route, LibraryAdaptiveLayoutMode.ListDetail))
+        assertTrue(
+            libraryRouteRendersAsActiveOverlay(
+                route, LibraryAdaptiveLayoutMode.Compact))
+        assertTrue(
+            libraryRouteRendersAsActiveOverlay(
+                route, LibraryAdaptiveLayoutMode.ListDetail))
     }
 
     @Test

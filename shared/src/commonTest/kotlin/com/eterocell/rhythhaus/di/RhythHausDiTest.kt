@@ -80,7 +80,9 @@ class RhythHausDiTest {
         try {
             val koin = application.koin
             assertNotNull(koin.get<OnboardingPreferenceStore>())
-            assertSame(koin.get<OnboardingPreferenceStore>(), koin.get<OnboardingPreferenceStore>())
+            assertSame(
+                koin.get<OnboardingPreferenceStore>(),
+                koin.get<OnboardingPreferenceStore>())
         } finally {
             stopKoin()
         }

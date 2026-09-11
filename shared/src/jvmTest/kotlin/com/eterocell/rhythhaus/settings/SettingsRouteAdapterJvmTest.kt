@@ -20,7 +20,6 @@ import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
@@ -50,13 +49,13 @@ import com.eterocell.rhythhaus.library.ui.LibraryAppState
 import com.eterocell.rhythhaus.library.ui.LibraryBackBeginResult
 import com.eterocell.rhythhaus.library.ui.LibraryBackTarget
 import com.eterocell.rhythhaus.library.ui.LibraryRoute
-import com.eterocell.rhythhaus.library.ui.OnboardingLaunchMode
 import com.eterocell.rhythhaus.library.ui.LibraryRouteOverlays
+import com.eterocell.rhythhaus.library.ui.OnboardingLaunchMode
 import com.eterocell.rhythhaus.library.ui.PlaylistFeatureDestination
 import com.eterocell.rhythhaus.library.ui.PlaylistState
-import com.eterocell.rhythhaus.onboarding.OnboardingCloseTestTag
 import com.eterocell.rhythhaus.library.ui.rememberPlaylistFeatureAppearanceSource
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
+import com.eterocell.rhythhaus.onboarding.OnboardingCloseTestTag
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupCounts
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupImportResult
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupPlaylistReport
@@ -94,13 +93,13 @@ class SettingsRouteAdapterJvmTest {
         state.pushRoute(LibraryRoute.Settings)
         setContent {
             Harness(
-                route = route,
-                appState = state,
-                pushRoute = state::pushRoute)
+                route = route, appState = state, pushRoute = state::pushRoute)
         }
         onNodeWithTag("settings-review-onboarding", useUnmergedTree = true)
             .performClick()
-        assertEquals(LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0), state.navigation.current)
+        assertEquals(
+            LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0),
+            state.navigation.current)
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -122,12 +121,17 @@ class SettingsRouteAdapterJvmTest {
                 },
                 onCoreBackLabelResolved = { backLabel = it })
         }
-        onNodeWithTag("settings-review-onboarding", useUnmergedTree = true).performClick()
+        onNodeWithTag("settings-review-onboarding", useUnmergedTree = true)
+            .performClick()
         route.value = state.navigation.current
-        assertEquals(LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0), route.value)
-        onNodeWithTag(OnboardingCloseTestTag, useUnmergedTree = true).performClick()
+        assertEquals(
+            LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0),
+            route.value)
+        onNodeWithTag(OnboardingCloseTestTag, useUnmergedTree = true)
+            .performClick()
         assertEquals(originalEntry, state.navigation.currentEntry)
     }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun projectsSourcesAndSuppliesPickerScanningPlaylistAndClearSlots() =

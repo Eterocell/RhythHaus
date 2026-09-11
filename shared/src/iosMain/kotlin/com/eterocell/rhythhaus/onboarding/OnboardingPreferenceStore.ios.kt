@@ -30,14 +30,21 @@ public actual fun createOnboardingPreferenceStore(): OnboardingPreferenceStore =
 @OptIn(ExperimentalForeignApi::class)
 private fun onboardingPreferencePath(): String {
     val fileManager = NSFileManager.defaultManager
-    val applicationSupport = fileManager.URLForDirectory(
-        directory = NSApplicationSupportDirectory,
-        inDomain = NSUserDomainMask,
-        appropriateForURL = null,
-        create = true,
-        error = null,
-    )?.path ?: error("Could not resolve application support directory")
+    val applicationSupport =
+        fileManager
+            .URLForDirectory(
+                directory = NSApplicationSupportDirectory,
+                inDomain = NSUserDomainMask,
+                appropriateForURL = null,
+                create = true,
+                error = null,
+            )
+            ?.path ?: error("Could not resolve application support directory")
     val folder = "$applicationSupport/$ApplicationSupportFolderName"
-    fileManager.createDirectoryAtPath(folder, withIntermediateDirectories = true, attributes = null, error = null)
+    fileManager.createDirectoryAtPath(
+        folder,
+        withIntermediateDirectories = true,
+        attributes = null,
+        error = null)
     return "$folder/$OnboardingPreferenceFileName"
 }

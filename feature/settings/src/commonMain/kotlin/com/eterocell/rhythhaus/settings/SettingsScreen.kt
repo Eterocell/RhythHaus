@@ -68,8 +68,8 @@ import rhythhaus.feature.settings.generated.resources.recover_source_format
 import rhythhaus.feature.settings.generated.resources.remove_folder
 import rhythhaus.feature.settings.generated.resources.remove_folder_message
 import rhythhaus.feature.settings.generated.resources.remove_source_format
-import rhythhaus.feature.settings.generated.resources.review_onboarding
 import rhythhaus.feature.settings.generated.resources.rescan_source_format
+import rhythhaus.feature.settings.generated.resources.review_onboarding
 import rhythhaus.feature.settings.generated.resources.source_access_available
 import rhythhaus.feature.settings.generated.resources.source_access_lost
 import rhythhaus.feature.settings.generated.resources.source_last_scanned
@@ -180,7 +180,8 @@ internal val CompactSettingsLayoutPolicy =
 internal const val SettingsPickerTestTag = "settings-picker"
 internal const val SettingsClearTestTag = "settings-clear"
 internal const val SettingsAboutTestTag = "settings-about"
-internal const val SettingsReviewOnboardingTestTag = "settings-review-onboarding"
+internal const val SettingsReviewOnboardingTestTag =
+    "settings-review-onboarding"
 internal const val SettingsRescanPrefix = "settings-rescan-"
 internal const val SettingsRecoverPrefix = "settings-recover-"
 internal const val SettingsRemovePrefix = "settings-remove-"

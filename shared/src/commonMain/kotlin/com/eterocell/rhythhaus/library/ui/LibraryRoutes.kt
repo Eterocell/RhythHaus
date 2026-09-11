@@ -346,8 +346,7 @@ internal fun LibraryRouteOverlays(
                         LibraryRoute.Onboarding(
                             OnboardingLaunchMode.Review,
                             pageIndex = 0,
-                        )
-                    )
+                        ))
                 },
                 onRequestNotificationPermission =
                     onRequestNotificationPermission,
@@ -439,31 +438,39 @@ internal fun LibraryRouteOverlays(
         is LibraryRoute.PlaylistDetail,
         -> Unit
 
-        is LibraryRoute.Onboarding -> if (isValidOnboardingPageIndex(route.pageIndex)) {
-            OnboardingScreen(
-                pageIndex = route.pageIndex,
-                platform = currentOnboardingPlatform().toGuidance(),
-                saving = onboardingSaving,
-                completionError = onboardingCompletionError,
-                reviewMode = route.launchMode == OnboardingLaunchMode.Review,
-                onBack = {
-                    if (route.pageIndex > 0) {
-                        onReplaceTop(LibraryRoute.Onboarding(route.launchMode, route.pageIndex - 1))
-                    } else if (route.launchMode == OnboardingLaunchMode.Review) onDismiss()
-                },
-                onNext = {
-                    if (route.pageIndex < OnboardingPageCount - 1) {
-                        onReplaceTop(LibraryRoute.Onboarding(route.launchMode, route.pageIndex + 1))
-                    }
-                },
-                onSkip = onCompleteOnboarding,
-                onFinish = onCompleteOnboarding,
-                onClose = onCloseOnboarding ?: onDismiss,
-            )
-        } else {
-            LaunchedEffect(route) { onRejectInvalidOnboarding() }
-            Box(modifier = Modifier.fillMaxSize())
-        }
+        is LibraryRoute.Onboarding ->
+            if (isValidOnboardingPageIndex(route.pageIndex)) {
+                OnboardingScreen(
+                    pageIndex = route.pageIndex,
+                    platform = currentOnboardingPlatform().toGuidance(),
+                    saving = onboardingSaving,
+                    completionError = onboardingCompletionError,
+                    reviewMode =
+                        route.launchMode == OnboardingLaunchMode.Review,
+                    onBack = {
+                        if (route.pageIndex > 0) {
+                            onReplaceTop(
+                                LibraryRoute.Onboarding(
+                                    route.launchMode, route.pageIndex - 1))
+                        } else if (route.launchMode ==
+                            OnboardingLaunchMode.Review)
+                            onDismiss()
+                    },
+                    onNext = {
+                        if (route.pageIndex < OnboardingPageCount - 1) {
+                            onReplaceTop(
+                                LibraryRoute.Onboarding(
+                                    route.launchMode, route.pageIndex + 1))
+                        }
+                    },
+                    onSkip = onCompleteOnboarding,
+                    onFinish = onCompleteOnboarding,
+                    onClose = onCloseOnboarding ?: onDismiss,
+                )
+            } else {
+                LaunchedEffect(route) { onRejectInvalidOnboarding() }
+                Box(modifier = Modifier.fillMaxSize())
+            }
     }
 }
 

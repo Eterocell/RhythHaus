@@ -71,7 +71,9 @@ public object ArchitectureAllowList {
 
     public fun isAllowed(from: String, configuration: String, to: String): Boolean =
         when {
-            from == ":shared" && to in setOf(":feature:search", ":feature:settings") -> configuration == "commonMainImplementation"
+            from == ":shared" &&
+                to in setOf(":feature:onboarding", ":feature:search", ":feature:settings") ->
+                configuration == "commonMainImplementation"
             else -> to in allowList[from].orEmpty()
         }
 

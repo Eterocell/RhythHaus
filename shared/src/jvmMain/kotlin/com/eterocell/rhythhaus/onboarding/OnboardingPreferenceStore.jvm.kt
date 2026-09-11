@@ -15,11 +15,13 @@ internal class JvmOnboardingPreferenceStoreFactory(
     rootDirectory: File = defaultHomeDirectory(),
     produceFile: (() -> File)? = null,
     scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
- ) {
-    val fileProducer = produceFile ?: { onboardingPreferenceFile(rootDirectory) }
+) {
+    val fileProducer =
+        produceFile ?: { onboardingPreferenceFile(rootDirectory) }
     private val dataStore by lazy {
         PreferenceDataStoreFactory.createWithPath(
-            corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+            corruptionHandler =
+                ReplaceFileCorruptionHandler { emptyPreferences() },
             migrations = emptyList(),
             scope = scope,
             produceFile = { fileProducer().toOkioPath() },
@@ -35,9 +37,11 @@ internal fun createJvmOnboardingPreferenceStore(
     produceFile: (() -> File)? = null,
     scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
 ): OnboardingPreferenceStore =
-    JvmOnboardingPreferenceStoreFactory(rootDirectory, produceFile, scope).createStore()
+    JvmOnboardingPreferenceStoreFactory(rootDirectory, produceFile, scope)
+        .createStore()
 
-private val onboardingPreferenceStoreFactory = JvmOnboardingPreferenceStoreFactory()
+private val onboardingPreferenceStoreFactory =
+    JvmOnboardingPreferenceStoreFactory()
 
 public actual fun createOnboardingPreferenceStore(): OnboardingPreferenceStore =
     onboardingPreferenceStoreFactory.createStore()
@@ -45,5 +49,7 @@ public actual fun createOnboardingPreferenceStore(): OnboardingPreferenceStore =
 private fun defaultHomeDirectory(): File = File(System.getProperty("user.home"))
 
 private fun onboardingPreferenceFile(rootDirectory: File): File =
-    File(rootDirectory, "Library/Application Support/RhythHaus/$OnboardingPreferenceFileName")
+    File(
+            rootDirectory,
+            "Library/Application Support/RhythHaus/$OnboardingPreferenceFileName")
         .also { it.parentFile?.mkdirs() }

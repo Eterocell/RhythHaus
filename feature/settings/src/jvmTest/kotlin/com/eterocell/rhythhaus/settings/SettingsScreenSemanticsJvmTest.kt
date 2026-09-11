@@ -17,15 +17,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
@@ -79,12 +79,14 @@ public class SettingsScreenSemanticsJvmTest {
                 label = stringResource(SettingsRes.string.review_onboarding)
                 content(onReviewOnboarding = { dispatches++ })
             }
-            onNodeWithTag(SettingsReviewOnboardingTestTag, useUnmergedTree = true)
+            onNodeWithTag(
+                    SettingsReviewOnboardingTestTag, useUnmergedTree = true)
                 .assertHasClickAction()
                 .assert(hasContentDescription(label))
                 .assert(
                     SemanticsMatcher("button role") { node ->
-                        node.config.getOrNull(SemanticsProperties.Role) == Role.Button
+                        node.config.getOrNull(SemanticsProperties.Role) ==
+                            Role.Button
                     })
                 .performClick()
             assertEquals(1, dispatches)
@@ -104,8 +106,10 @@ public class SettingsScreenSemanticsJvmTest {
                 }
             }
             onNodeWithTag(SettingsListTestTag, useUnmergedTree = true)
-                .performScrollToNode(hasTestTag(SettingsReviewOnboardingTestTag))
-            onNodeWithTag(SettingsReviewOnboardingTestTag, useUnmergedTree = true)
+                .performScrollToNode(
+                    hasTestTag(SettingsReviewOnboardingTestTag))
+            onNodeWithTag(
+                    SettingsReviewOnboardingTestTag, useUnmergedTree = true)
                 .assertExists()
                 .assertHasClickAction()
         }
