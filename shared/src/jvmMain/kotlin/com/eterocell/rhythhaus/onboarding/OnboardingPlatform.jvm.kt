@@ -1,3 +1,4 @@
 package com.eterocell.rhythhaus.onboarding
 
-internal actual fun currentOnboardingPlatform(): OnboardingPlatform = OnboardingPlatform.MacOS
+internal actual fun currentOnboardingPlatform(): OnboardingPlatform =
+    OnboardingPlatform.MacOS

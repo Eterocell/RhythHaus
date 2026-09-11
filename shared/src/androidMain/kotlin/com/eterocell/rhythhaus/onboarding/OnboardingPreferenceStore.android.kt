@@ -13,7 +13,10 @@ import okio.Path.Companion.toOkioPath
 private const val OnboardingPreferenceFileName = "onboarding.preferences_pb"
 
 private val onboardingDataStore by lazy {
-    val file = File(LibraryDatabaseContext.applicationContext.filesDir, OnboardingPreferenceFileName)
+    val file =
+        File(
+            LibraryDatabaseContext.applicationContext.filesDir,
+            OnboardingPreferenceFileName)
     PreferenceDataStoreFactory.createWithPath(
         corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
         migrations = emptyList(),

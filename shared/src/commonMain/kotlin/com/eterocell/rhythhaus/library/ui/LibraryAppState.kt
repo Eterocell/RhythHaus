@@ -38,8 +38,9 @@ internal class LibraryAppState(
 
     init {
         if (initialOnboarding == OnboardingLaunchMode.FirstRun) {
-            navigation = navigation.push(
-                LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0))
+            navigation =
+                navigation.push(
+                    LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0))
         }
     }
 
@@ -157,19 +158,21 @@ internal class LibraryAppState(
             acceptedBackSurface
                 ?.takeIf { it.port.destinationId == destination }
                 ?.port
-        val resolution = resolveLibraryBack(
-            LibraryBackResolutionInput(
-                activeDestinationId = destination,
-                backSurfacePorts = listOfNotNull(surface),
-                browseMode = browseMode,
-                isNowPlayingExpanded = showNowPlaying,
-                navigation = navigation,
-                selectionPort = selectionPort ?: activeSelectionPort,
-                nowPlayingTargetId =
-                    LibraryBackTargetId(
-                        destination, "now-playing-$nowPlayingAppearanceToken"),
-            ),
-        )
+        val resolution =
+            resolveLibraryBack(
+                LibraryBackResolutionInput(
+                    activeDestinationId = destination,
+                    backSurfacePorts = listOfNotNull(surface),
+                    browseMode = browseMode,
+                    isNowPlayingExpanded = showNowPlaying,
+                    navigation = navigation,
+                    selectionPort = selectionPort ?: activeSelectionPort,
+                    nowPlayingTargetId =
+                        LibraryBackTargetId(
+                            destination,
+                            "now-playing-$nowPlayingAppearanceToken"),
+                ),
+            )
         return resolution is LibraryBackResolution.Started ||
             resolution is LibraryBackResolution.Suppressed
     }

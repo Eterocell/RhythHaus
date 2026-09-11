@@ -31,8 +31,13 @@ sealed interface LibraryRoute {
     ) : LibraryRoute
 }
 
-enum class OnboardingLaunchMode { FirstRun, Review }
+enum class OnboardingLaunchMode {
+    FirstRun,
+    Review
+}
+
 internal const val OnboardingPageCount = 4
+
 internal fun isValidOnboardingPageIndex(pageIndex: Int): Boolean =
     pageIndex in 0 until OnboardingPageCount
 
@@ -391,28 +396,37 @@ internal fun resolveLibraryBack(
 
     val onboarding = activeDestination.route as? LibraryRoute.Onboarding
     if (onboarding != null) {
-        if (!isValidOnboardingPageIndex(onboarding.pageIndex)) return LibraryBackResolution.Unhandled
-        if (onboarding.pageIndex == 0 && onboarding.launchMode == OnboardingLaunchMode.FirstRun) {
+        if (!isValidOnboardingPageIndex(onboarding.pageIndex))
+            return LibraryBackResolution.Unhandled
+        if (onboarding.pageIndex == 0 &&
+            onboarding.launchMode == OnboardingLaunchMode.FirstRun) {
             return LibraryBackResolution.Suppressed
         }
-        val preview = if (onboarding.pageIndex > 0) {
-            val previous = onboarding.copy(pageIndex = onboarding.pageIndex - 1)
-            LibraryRoutePreview(
-                input.navigation.currentEntry,
-                LibraryNavigationEntry(previous),
-                input.navigation.replaceTop(previous),
-                transitionForNavigationAction(input.navigation, LibraryNavigationAction.ReplaceTop(previous)),
-            )
-        } else if (input.navigation.canPop) {
-            LibraryRoutePreview(
-                input.navigation.currentEntry,
-                input.navigation.entries[input.navigation.entries.lastIndex - 1],
-                input.navigation.pop(),
-                LibraryNavigationTransition.Pop,
-            )
-        } else return LibraryBackResolution.Unhandled
+        val preview =
+            if (onboarding.pageIndex > 0) {
+                val previous =
+                    onboarding.copy(pageIndex = onboarding.pageIndex - 1)
+                LibraryRoutePreview(
+                    input.navigation.currentEntry,
+                    LibraryNavigationEntry(previous),
+                    input.navigation.replaceTop(previous),
+                    transitionForNavigationAction(
+                        input.navigation,
+                        LibraryNavigationAction.ReplaceTop(previous)),
+                )
+            } else if (input.navigation.canPop) {
+                LibraryRoutePreview(
+                    input.navigation.currentEntry,
+                    input.navigation.entries[
+                            input.navigation.entries.lastIndex - 1],
+                    input.navigation.pop(),
+                    LibraryNavigationTransition.Pop,
+                )
+            } else return LibraryBackResolution.Unhandled
         return LibraryBackResolution.Started(
-            LibraryBackTarget.Route(LibraryBackTargetId(activeDestination, "onboarding-back"), preview))
+            LibraryBackTarget.Route(
+                LibraryBackTargetId(activeDestination, "onboarding-back"),
+                preview))
     }
 
     if (input.navigation.canPop &&

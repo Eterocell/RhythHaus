@@ -1,5 +1,7 @@
 package com.eterocell.rhythhaus
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -9,12 +11,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
-import top.yukonga.miuix.kmp.basic.Text
+import androidx.compose.ui.tooling.preview.Preview
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.LibrarySource
@@ -36,16 +35,16 @@ import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
-import com.eterocell.rhythhaus.library.ui.OnboardingLaunchMode
-import com.eterocell.rhythhaus.onboarding.OnboardingEligibility
-import com.eterocell.rhythhaus.onboarding.OnboardingPreferenceStore
 import com.eterocell.rhythhaus.library.ui.LocalTrackArtworkLoader
+import com.eterocell.rhythhaus.library.ui.OnboardingLaunchMode
 import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.library.ui.reducePlaylistState
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionController
 import com.eterocell.rhythhaus.notificationpermission.UnavailableMediaNotificationPermissionController
+import com.eterocell.rhythhaus.onboarding.OnboardingEligibility
+import com.eterocell.rhythhaus.onboarding.OnboardingPreferenceStore
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupController
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupOperation
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupRevisionGuard
@@ -79,11 +78,12 @@ import org.koin.compose.koinInject
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.ios_import_summary_format
 import rhythhaus.shared.generated.resources.playlist_backup_imported_suffix
+import rhythhaus.shared.generated.resources.playlist_loading
 import rhythhaus.shared.generated.resources.scan_complete_format
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
-import rhythhaus.shared.generated.resources.playlist_loading
 
 @Composable
 @Preview
@@ -154,8 +154,9 @@ fun App(
             RhythHausThemeMode.System)
     val notificationPermissionState by
         notificationPermissionController.state.collectAsState()
-    val onboardingEligibility by onboardingPreferenceStore.eligibility.collectAsState(
-        OnboardingEligibility.Loading)
+    val onboardingEligibility by
+        onboardingPreferenceStore.eligibility.collectAsState(
+            OnboardingEligibility.Loading)
     var onboardingSaving by remember { mutableStateOf(false) }
     var onboardingCompletionError by remember { mutableStateOf<String?>(null) }
 
@@ -169,7 +170,8 @@ fun App(
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (failure: Throwable) {
-                onboardingCompletionError = failure.message ?: "Unable to save onboarding"
+                onboardingCompletionError =
+                    failure.message ?: "Unable to save onboarding"
             } finally {
                 onboardingSaving = false
             }
@@ -546,222 +548,240 @@ fun App(
         ) {
             if (onboardingEligibility == OnboardingEligibility.Loading) {
                 OnboardingLoadingSurface()
-            } else LibraryHomeScreen(
-                snapshot = snapshot,
-                libraryTracks = libraryTracks,
-                tagLibReader = tagLibReader,
-                playbackController = controller,
-                playlistRepository = playlistRepository,
-                playlistState = playlistState,
-                playlistBackupState = playlistBackupState,
-                backupDocumentAvailable = backupDocumentLauncher.isAvailable,
-                onPlaylistStateAction = { action ->
-                    playlistState = reducePlaylistState(playlistState, action)
-                },
-                onRefreshPlaylists = ::refreshPlaylists,
-                onPlaylistMutation = ::launchPlaylistMutation,
-                onExportPlaylists = ::exportPlaylists,
-                onOpenPlaylistBackup = ::openPlaylistBackup,
-                onConfirmPlaylistBackup = ::confirmPlaylistBackup,
-                onPlaylistBackupAction = { action ->
-                    playlistBackupState =
-                        backupController.reduce(playlistBackupState, action)
-                },
-                sources = librarySources,
-                folderPickerLauncher = folderPickerLauncher,
-                sourcePickerActionVisible =
-                    sourcePickerActionVisible(
-                        supportsAdditionalSources =
-                            folderPickerLauncher.supportsAdditionalSources,
-                        sourceCount = librarySources.size,
-                    ),
-                importMessage = importMessage,
-                scanProgress = scanProgress,
-                scanErrors = scanErrors,
-                scanJob = scanJob,
-                mediaNotificationPermission = notificationPermissionState,
-                onRequestNotificationPermission = {
-                    notificationPermissionController.requestPermission()
-                },
-                onOpenNotificationSettings = {
-                    notificationPermissionController
-                        .openAppNotificationSettings()
-                },
-                initialOnboarding = OnboardingLaunchMode.FirstRun.takeIf {
-                    onboardingEligibility == OnboardingEligibility.Required
-                },
-                onboardingSaving = onboardingSaving,
-                onboardingCompletionError = onboardingCompletionError,
-                onCompleteOnboarding = ::persistOnboardingCompletion,
-                coordinatorMutationsEnabled = mutationsEnabled,
-                currentThemeMode = selectedThemeMode,
-                onThemeModeSelected = { mode ->
-                    scope.launch {
-                        themePreferenceStore.setSelectedThemeMode(mode)
-                    }
-                },
-                onClearLibrary = {
-                    if (mutationsEnabled) {
+            } else
+                LibraryHomeScreen(
+                    snapshot = snapshot,
+                    libraryTracks = libraryTracks,
+                    tagLibReader = tagLibReader,
+                    playbackController = controller,
+                    playlistRepository = playlistRepository,
+                    playlistState = playlistState,
+                    playlistBackupState = playlistBackupState,
+                    backupDocumentAvailable =
+                        backupDocumentLauncher.isAvailable,
+                    onPlaylistStateAction = { action ->
+                        playlistState =
+                            reducePlaylistState(playlistState, action)
+                    },
+                    onRefreshPlaylists = ::refreshPlaylists,
+                    onPlaylistMutation = ::launchPlaylistMutation,
+                    onExportPlaylists = ::exportPlaylists,
+                    onOpenPlaylistBackup = ::openPlaylistBackup,
+                    onConfirmPlaylistBackup = ::confirmPlaylistBackup,
+                    onPlaylistBackupAction = { action ->
+                        playlistBackupState =
+                            backupController.reduce(playlistBackupState, action)
+                    },
+                    sources = librarySources,
+                    folderPickerLauncher = folderPickerLauncher,
+                    sourcePickerActionVisible =
+                        sourcePickerActionVisible(
+                            supportsAdditionalSources =
+                                folderPickerLauncher.supportsAdditionalSources,
+                            sourceCount = librarySources.size,
+                        ),
+                    importMessage = importMessage,
+                    scanProgress = scanProgress,
+                    scanErrors = scanErrors,
+                    scanJob = scanJob,
+                    mediaNotificationPermission = notificationPermissionState,
+                    onRequestNotificationPermission = {
+                        notificationPermissionController.requestPermission()
+                    },
+                    onOpenNotificationSettings = {
+                        notificationPermissionController
+                            .openAppNotificationSettings()
+                    },
+                    initialOnboarding =
+                        OnboardingLaunchMode.FirstRun.takeIf {
+                            onboardingEligibility ==
+                                OnboardingEligibility.Required
+                        },
+                    onboardingSaving = onboardingSaving,
+                    onboardingCompletionError = onboardingCompletionError,
+                    onCompleteOnboarding = ::persistOnboardingCompletion,
+                    coordinatorMutationsEnabled = mutationsEnabled,
+                    currentThemeMode = selectedThemeMode,
+                    onThemeModeSelected = { mode ->
                         scope.launch {
-                            libraryOrchestrator.launch(
-                                LibraryOperationKind.Clear) { token ->
-                                    clearLibraryInBackground(
-                                        repository = repository,
-                                        platformAccess = platformAccess,
-                                        reconciler = playbackReconciler,
-                                        ioDispatcher = Dispatchers.Default,
-                                        ownerIsActive = {
-                                            currentCoroutineContext().isActive
-                                        },
-                                        playlistStateOwner = playlistStateOwner,
-                                        publish = { publication ->
-                                            libraryOrchestrator
-                                                .publishIfCurrent(token) {
-                                                    withContext(
-                                                        Dispatchers.Main) {
-                                                            publication.content
-                                                                ?.let {
-                                                                    updateLibraryContent(
-                                                                        it)
-                                                                }
-                                                            scanErrors =
-                                                                emptyList()
-                                                            publication
-                                                                .playlists
-                                                                ?.let { action
-                                                                    ->
-                                                                    playlistState =
-                                                                        reducePlaylistState(
-                                                                            playlistState,
-                                                                            action
-                                                                                .requireSuccessfulPublication(),
-                                                                        )
-                                                                }
-                                                            publication
-                                                                .errorMessage
-                                                                ?.let(
-                                                                    ::
-                                                                        mutationError)
-                                                        }
-                                                }
-                                        },
-                                    )
-                                }
+                            themePreferenceStore.setSelectedThemeMode(mode)
                         }
-                    }
-                },
-                onRescanSource = ::launchSourceScan,
-                onRemoveSource = { source ->
-                    if (mutationsEnabled) {
-                        scope.launch {
-                            libraryOrchestrator.launch(
-                                LibraryOperationKind.RemoveSource) { token ->
-                                    removeSourceInBackground(
-                                        sourceId = source.id,
-                                        repository = repository,
-                                        platformAccess = platformAccess,
-                                        reconciler = playbackReconciler,
-                                        ioDispatcher = Dispatchers.Default,
-                                        ownerIsActive = {
-                                            currentCoroutineContext().isActive
-                                        },
-                                        playlistStateOwner = playlistStateOwner,
-                                        publish = { publication ->
-                                            libraryOrchestrator
-                                                .publishIfCurrent(token) {
-                                                    withContext(
-                                                        Dispatchers.Main) {
-                                                            publication.content
-                                                                ?.let {
-                                                                    updateLibraryContent(
-                                                                        it)
-                                                                }
-                                                            scanErrors =
-                                                                emptyList()
-                                                            publication
-                                                                .playlists
-                                                                ?.let { action
-                                                                    ->
-                                                                    playlistState =
-                                                                        reducePlaylistState(
-                                                                            playlistState,
-                                                                            action
-                                                                                .requireSuccessfulPublication(),
-                                                                        )
-                                                                }
-                                                            publication
-                                                                .errorMessage
-                                                                ?.let(
-                                                                    ::
-                                                                        mutationError)
-                                                        }
-                                                }
-                                        },
-                                    )
-                                }
+                    },
+                    onClearLibrary = {
+                        if (mutationsEnabled) {
+                            scope.launch {
+                                libraryOrchestrator.launch(
+                                    LibraryOperationKind.Clear) { token ->
+                                        clearLibraryInBackground(
+                                            repository = repository,
+                                            platformAccess = platformAccess,
+                                            reconciler = playbackReconciler,
+                                            ioDispatcher = Dispatchers.Default,
+                                            ownerIsActive = {
+                                                currentCoroutineContext()
+                                                    .isActive
+                                            },
+                                            playlistStateOwner =
+                                                playlistStateOwner,
+                                            publish = { publication ->
+                                                libraryOrchestrator
+                                                    .publishIfCurrent(token) {
+                                                        withContext(
+                                                            Dispatchers.Main) {
+                                                                publication
+                                                                    .content
+                                                                    ?.let {
+                                                                        updateLibraryContent(
+                                                                            it)
+                                                                    }
+                                                                scanErrors =
+                                                                    emptyList()
+                                                                publication
+                                                                    .playlists
+                                                                    ?.let {
+                                                                        action
+                                                                        ->
+                                                                        playlistState =
+                                                                            reducePlaylistState(
+                                                                                playlistState,
+                                                                                action
+                                                                                    .requireSuccessfulPublication(),
+                                                                            )
+                                                                    }
+                                                                publication
+                                                                    .errorMessage
+                                                                    ?.let(
+                                                                        ::
+                                                                            mutationError)
+                                                            }
+                                                    }
+                                            },
+                                        )
+                                    }
+                            }
                         }
-                    }
-                },
-                onRemoveMissingTracks = { source, session ->
-                    if (mutationsEnabled) {
-                        scope.launch {
-                            libraryOrchestrator.launch(
-                                LibraryOperationKind.RemoveMissingTracks) {
-                                    token ->
-                                    removeMissingTracksInBackground(
-                                        sourceId = source.id,
-                                        latestScanId = session.id,
-                                        repository = repository,
-                                        platformAccess = platformAccess,
-                                        reconciler = playbackReconciler,
-                                        ioDispatcher = Dispatchers.Default,
-                                        ownerIsActive = {
-                                            currentCoroutineContext().isActive
-                                        },
-                                        playlistStateOwner = playlistStateOwner,
-                                        publish = { publication ->
-                                            libraryOrchestrator
-                                                .publishIfCurrent(token) {
-                                                    withContext(
-                                                        Dispatchers.Main) {
-                                                            publication.content
-                                                                ?.let {
-                                                                    updateLibraryContent(
-                                                                        it)
-                                                                }
-                                                            scanErrors =
-                                                                resolveMutationScanErrors(
-                                                                    scanErrors,
-                                                                    publication)
-                                                            publication
-                                                                .playlists
-                                                                ?.let { action
-                                                                    ->
-                                                                    playlistState =
-                                                                        reducePlaylistState(
-                                                                            playlistState,
-                                                                            action
-                                                                                .requireSuccessfulPublication(),
-                                                                        )
-                                                                }
-                                                            publication
-                                                                .errorMessage
-                                                                ?.let(
-                                                                    ::
-                                                                        mutationError)
-                                                        }
-                                                }
-                                        },
-                                    )
-                                }
+                    },
+                    onRescanSource = ::launchSourceScan,
+                    onRemoveSource = { source ->
+                        if (mutationsEnabled) {
+                            scope.launch {
+                                libraryOrchestrator.launch(
+                                    LibraryOperationKind.RemoveSource) { token
+                                        ->
+                                        removeSourceInBackground(
+                                            sourceId = source.id,
+                                            repository = repository,
+                                            platformAccess = platformAccess,
+                                            reconciler = playbackReconciler,
+                                            ioDispatcher = Dispatchers.Default,
+                                            ownerIsActive = {
+                                                currentCoroutineContext()
+                                                    .isActive
+                                            },
+                                            playlistStateOwner =
+                                                playlistStateOwner,
+                                            publish = { publication ->
+                                                libraryOrchestrator
+                                                    .publishIfCurrent(token) {
+                                                        withContext(
+                                                            Dispatchers.Main) {
+                                                                publication
+                                                                    .content
+                                                                    ?.let {
+                                                                        updateLibraryContent(
+                                                                            it)
+                                                                    }
+                                                                scanErrors =
+                                                                    emptyList()
+                                                                publication
+                                                                    .playlists
+                                                                    ?.let {
+                                                                        action
+                                                                        ->
+                                                                        playlistState =
+                                                                            reducePlaylistState(
+                                                                                playlistState,
+                                                                                action
+                                                                                    .requireSuccessfulPublication(),
+                                                                            )
+                                                                    }
+                                                                publication
+                                                                    .errorMessage
+                                                                    ?.let(
+                                                                        ::
+                                                                            mutationError)
+                                                            }
+                                                    }
+                                            },
+                                        )
+                                    }
+                            }
                         }
-                    }
-                },
-                onCancelScan = {
-                    scanCancellationRequested.value = true
-                    scanProgress = scanProgress.requestScanCancellation()
-                },
-            )
+                    },
+                    onRemoveMissingTracks = { source, session ->
+                        if (mutationsEnabled) {
+                            scope.launch {
+                                libraryOrchestrator.launch(
+                                    LibraryOperationKind.RemoveMissingTracks) {
+                                        token ->
+                                        removeMissingTracksInBackground(
+                                            sourceId = source.id,
+                                            latestScanId = session.id,
+                                            repository = repository,
+                                            platformAccess = platformAccess,
+                                            reconciler = playbackReconciler,
+                                            ioDispatcher = Dispatchers.Default,
+                                            ownerIsActive = {
+                                                currentCoroutineContext()
+                                                    .isActive
+                                            },
+                                            playlistStateOwner =
+                                                playlistStateOwner,
+                                            publish = { publication ->
+                                                libraryOrchestrator
+                                                    .publishIfCurrent(token) {
+                                                        withContext(
+                                                            Dispatchers.Main) {
+                                                                publication
+                                                                    .content
+                                                                    ?.let {
+                                                                        updateLibraryContent(
+                                                                            it)
+                                                                    }
+                                                                scanErrors =
+                                                                    resolveMutationScanErrors(
+                                                                        scanErrors,
+                                                                        publication)
+                                                                publication
+                                                                    .playlists
+                                                                    ?.let {
+                                                                        action
+                                                                        ->
+                                                                        playlistState =
+                                                                            reducePlaylistState(
+                                                                                playlistState,
+                                                                                action
+                                                                                    .requireSuccessfulPublication(),
+                                                                            )
+                                                                    }
+                                                                publication
+                                                                    .errorMessage
+                                                                    ?.let(
+                                                                        ::
+                                                                            mutationError)
+                                                            }
+                                                    }
+                                            },
+                                        )
+                                    }
+                            }
+                        }
+                    },
+                    onCancelScan = {
+                        scanCancellationRequested.value = true
+                        scanProgress = scanProgress.requestScanCancellation()
+                    },
+                )
         }
     }
 }
@@ -769,7 +789,9 @@ fun App(
 @Composable
 private fun OnboardingLoadingSurface() {
     Box(
-        modifier = androidx.compose.ui.Modifier.fillMaxSize().testTag("onboarding-loading"),
+        modifier =
+            androidx.compose.ui.Modifier.fillMaxSize()
+                .testTag("onboarding-loading"),
         contentAlignment = Alignment.Center,
     ) {
         Text(stringResource(Res.string.playlist_loading))

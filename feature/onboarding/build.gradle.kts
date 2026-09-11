@@ -2,7 +2,6 @@ import com.eterocell.gradle.architecture.ControlledComposeResourcesExtension
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("build-logic.build-info")
     id("build-logic.kmp.feature.impl")
     id("build-logic.android.kmp.library")
     id("build-logic.compose-resources")
