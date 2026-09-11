@@ -9,7 +9,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -169,7 +169,7 @@ class OnboardingScreenJvmTest {
                     onNodeWithTag(
                             OnboardingGuidanceTestTag, useUnmergedTree = true)
                         .assertExists()
-                        .assertTextContains(text, substring = true)
+                        .assertTextEquals(text)
                     OnboardingPlatformGuidance.entries
                         .filter { it != platform }
                         .forEach { other ->
