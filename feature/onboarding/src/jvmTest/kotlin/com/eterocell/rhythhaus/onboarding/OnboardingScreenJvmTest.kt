@@ -133,51 +133,32 @@ class OnboardingScreenJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun androidIosAndMacGuidanceAreDistinct() = runComposeUiTest {
-        val guidance = mutableListOf<String>()
-        var currentPlatform by
-            mutableStateOf(OnboardingPlatformGuidance.Android)
-        setContent {
-            OnboardingScreen(
-                1,
-                currentPlatform,
-                false,
-                null,
-                false,
-                {},
-                {},
-                {},
-                {},
-                {},
-                Modifier)
-        }
-        for (platform in OnboardingPlatformGuidance.entries) {
-            currentPlatform = platform
-            waitForIdle()
-            val text =
-                when (platform) {
-                    OnboardingPlatformGuidance.Android ->
-                        "Android folder access is granted through the system folder picker."
-                    OnboardingPlatformGuidance.IOS ->
-                        "iOS copies files into Documents/RhythHaus, or scans files already there in place."
-                    OnboardingPlatformGuidance.MacOS ->
-                        "macOS keeps a reference to the folder you choose; files remain where they are."
+    fun androidIosAndMacGuidanceAreDistinct() {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.ENGLISH)
+            runComposeUiTest {
+                var currentPlatform by
+                    mutableStateOf(OnboardingPlatformGuidance.Android)
+                setContent {
+                    OnboardingScreen(
+                        1,
+                        currentPlatform,
+                        false,
+                        null,
+                        false,
+                        {},
+                        {},
+                        {},
+                        {},
+                        {},
+                        Modifier)
                 }
-            guidance += text
-            onNodeWithTag(OnboardingGuidanceTestTag, useUnmergedTree = true)
-                .assertExists()
-                .assertTextContains(
-                    when (platform) {
-                        OnboardingPlatformGuidance.Android -> "Android"
-                        OnboardingPlatformGuidance.IOS -> "iOS"
-                        OnboardingPlatformGuidance.MacOS -> "macOS"
-                    },
-                    substring = true)
-            OnboardingPlatformGuidance.entries
-                .filter { it != platform }
-                .forEach { other ->
-                    val otherText =
-                        when (other) {
+                for (platform in OnboardingPlatformGuidance.entries) {
+                    currentPlatform = platform
+                    waitForIdle()
+                    val text =
+                        when (platform) {
                             OnboardingPlatformGuidance.Android ->
                                 "Android folder access is granted through the system folder picker."
                             OnboardingPlatformGuidance.IOS ->
@@ -185,11 +166,30 @@ class OnboardingScreenJvmTest {
                             OnboardingPlatformGuidance.MacOS ->
                                 "macOS keeps a reference to the folder you choose; files remain where they are."
                         }
-                    onAllNodesWithText(otherText, substring = true)
-                        .assertCountEquals(0)
+                    onNodeWithTag(
+                            OnboardingGuidanceTestTag, useUnmergedTree = true)
+                        .assertExists()
+                        .assertTextContains(text, substring = true)
+                    OnboardingPlatformGuidance.entries
+                        .filter { it != platform }
+                        .forEach { other ->
+                            val otherText =
+                                when (other) {
+                                    OnboardingPlatformGuidance.Android ->
+                                        "Android folder access is granted through the system folder picker."
+                                    OnboardingPlatformGuidance.IOS ->
+                                        "iOS copies files into Documents/RhythHaus, or scans files already there in place."
+                                    OnboardingPlatformGuidance.MacOS ->
+                                        "macOS keeps a reference to the folder you choose; files remain where they are."
+                                }
+                            onAllNodesWithText(otherText, substring = true)
+                                .assertCountEquals(0)
+                        }
                 }
+            }
+        } finally {
+            Locale.setDefault(previous)
         }
-        assertEquals(3, guidance.toSet().size)
     }
 
     @OptIn(ExperimentalTestApi::class)
