@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -84,6 +85,8 @@ public const val OnboardingFinishTestTag: String = "onboarding-finish"
 public const val OnboardingCloseTestTag: String = "onboarding-close"
 /** Stable semantics tag for retry. */
 public const val OnboardingRetryTestTag: String = "onboarding-retry"
+/** Stable semantics tag for rendered platform guidance. */
+public const val OnboardingGuidanceTestTag: String = "onboarding-guidance"
 
 /**
  * Renders one stateless onboarding page and its host-owned action callbacks.
@@ -141,6 +144,16 @@ public fun OnboardingScreen(
                             Text(
                                 pageBody(page, platform),
                                 Modifier.padding(top = 10.dp))
+                            if (onboardingPages[page] ==
+                                OnboardingPage.AddMusic) {
+                                val guidance = platformGuidance(platform)
+                                Text(
+                                    guidance,
+                                    Modifier.testTag(OnboardingGuidanceTestTag)
+                                        .semantics {
+                                            contentDescription = guidance
+                                        })
+                            }
                         }
                 }
                 if (completionError != null) {
@@ -250,7 +263,7 @@ private fun pageBody(page: Int, platform: OnboardingPlatformGuidance): String {
             OnboardingPage.ScanAndFormats -> Res.string.body_formats
             OnboardingPage.Recovery -> Res.string.body_recovery
         }
-    return stringResource(body, platformGuidance(platform))
+    return stringResource(body)
 }
 
 @Composable

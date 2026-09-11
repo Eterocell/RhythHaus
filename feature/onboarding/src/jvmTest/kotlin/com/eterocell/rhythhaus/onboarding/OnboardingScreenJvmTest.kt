@@ -1,11 +1,15 @@
 package com.eterocell.rhythhaus.onboarding
 
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -80,8 +84,8 @@ class OnboardingScreenJvmTest {
                 Modifier)
         }
         onNodeWithTag(OnboardingCloseTestTag).assertIsDisplayed()
-        onAllNodesWithText("Skip").assertCountEquals(0)
-        onAllNodesWithText("Finish").assertCountEquals(0)
+        onAllNodesWithTag(OnboardingSkipTestTag).assertCountEquals(0)
+        onAllNodesWithTag(OnboardingFinishTestTag).assertCountEquals(0)
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -130,21 +134,25 @@ class OnboardingScreenJvmTest {
     @Test
     fun androidIosAndMacGuidanceAreDistinct() = runComposeUiTest {
         val guidance = mutableListOf<String>()
+        var currentPlatform by
+            mutableStateOf(OnboardingPlatformGuidance.Android)
+        setContent {
+            OnboardingScreen(
+                1,
+                currentPlatform,
+                false,
+                null,
+                false,
+                {},
+                {},
+                {},
+                {},
+                {},
+                Modifier)
+        }
         for (platform in OnboardingPlatformGuidance.entries) {
-            setContent {
-                OnboardingScreen(
-                    1,
-                    platform,
-                    false,
-                    null,
-                    false,
-                    {},
-                    {},
-                    {},
-                    {},
-                    {},
-                    Modifier)
-            }
+            currentPlatform = platform
+            waitForIdle()
             val text =
                 when (platform) {
                     OnboardingPlatformGuidance.Android ->
@@ -155,7 +163,23 @@ class OnboardingScreenJvmTest {
                         "macOS keeps a reference to the folder you choose; files remain where they are."
                 }
             guidance += text
-            onNodeWithTag(OnboardingPageTestTag).assertIsDisplayed()
+            onNodeWithTag(OnboardingGuidanceTestTag, useUnmergedTree = true)
+                .assertExists()
+            OnboardingPlatformGuidance.entries
+                .filter { it != platform }
+                .forEach { other ->
+                    val otherText =
+                        when (other) {
+                            OnboardingPlatformGuidance.Android ->
+                                "Android folder access is granted through the system folder picker."
+                            OnboardingPlatformGuidance.IOS ->
+                                "iOS copies files into Documents/RhythHaus, or scans files already there in place."
+                            OnboardingPlatformGuidance.MacOS ->
+                                "macOS keeps a reference to the folder you choose; files remain where they are."
+                        }
+                    onAllNodesWithText(otherText, substring = true)
+                        .assertCountEquals(0)
+                }
         }
         assertEquals(3, guidance.toSet().size)
     }
