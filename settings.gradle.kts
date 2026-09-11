@@ -65,6 +65,8 @@ include(":feature:search")
 
 include(":feature:settings")
 
+include(":feature:onboarding")
+
 include(":taglib")
 
 include(":architecture-processor")

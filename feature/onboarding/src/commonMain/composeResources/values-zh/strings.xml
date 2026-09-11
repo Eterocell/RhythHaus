@@ -1,0 +1,26 @@
+<resources>
+    <string name="onboarding_title">欢迎使用 RhythHaus</string>
+    <string name="page_progress">第 %1$d 页，共 %2$d 页</string>
+    <string name="heading_local_first">音乐始终保存在本地</string>
+    <string name="heading_add_music">添加音乐</string>
+    <string name="heading_formats">扫描与整理</string>
+    <string name="heading_recovery">恢复音乐库</string>
+    <string name="page_local_first">本地优先</string>
+    <string name="page_add_music">添加音乐</string>
+    <string name="page_formats">格式</string>
+    <string name="page_recovery">恢复</string>
+    <string name="body_local_first">RhythHaus 仅播放本地文件，不会串流或上传你的音乐。</string>
+    <string name="body_add_music">%1$s 添加文件夹，并确保其中的文件可供 RhythHaus 使用。</string>
+    <string name="body_formats">我们会扫描 WAV、AIFF、AU、MP3、M4A/AAC、FLAC 和 OGG 的元数据与封面，并报告跳过的项目。</string>
+    <string name="body_recovery">如果音乐被移动、删除或失去访问权限，请重新扫描来源。仅在来源恢复流程中移除缺失曲目。</string>
+    <string name="guidance_android">Android 文件夹访问通过系统文件夹选择器授予。</string>
+    <string name="guidance_ios">iOS 会将文件复制到 Documents/RhythHaus，或直接扫描其中已有的文件。</string>
+    <string name="guidance_macos">macOS 保留所选文件夹的引用，文件仍位于原处。</string>
+    <string name="action_back">返回</string>
+    <string name="action_next">下一步</string>
+    <string name="action_skip">跳过</string>
+    <string name="action_finish">完成</string>
+    <string name="action_close">关闭</string>
+    <string name="action_retry">重试</string>
+    <string name="error_save">无法保存你的选择，请重试。</string>
+</resources>

@@ -15,6 +15,7 @@ public object ArchitectureAllowList {
             ":feature:nowplaying" to setOf(":core:playback", ":core:ui"),
             ":feature:search" to setOf(":feature:library:api", ":core:ui"),
             ":feature:settings" to setOf(":core:ui"),
+            ":feature:onboarding" to setOf(":core:ui"),
             ":feature:library:impl" to setOf(":feature:library:api", ":core:model", ":core:ui", ":core:database", ":core:platform", ":taglib"),
             ":feature:playlists:impl" to setOf(":feature:playlists:api", ":feature:library:api", ":core:model", ":core:playback", ":core:ui", ":core:platform", ":core:database"),
             ":feature:library:api" to setOf(":core:model"),
@@ -60,6 +61,11 @@ public object ArchitectureAllowList {
                 packageRoots = setOf("com.eterocell.rhythhaus.settings"),
                 androidNamespace = "com.eterocell.rhythhaus.settings",
                 composeNamespace = "rhythhaus.feature.settings.generated.resources",
+            ),
+            ":feature:onboarding" to ModulePolicy(
+                packageRoots = setOf("com.eterocell.rhythhaus.onboarding"),
+                androidNamespace = "com.eterocell.rhythhaus.onboarding",
+                composeNamespace = "rhythhaus.feature.onboarding.generated.resources",
             ),
         )
 
