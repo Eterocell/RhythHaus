@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -198,6 +199,18 @@ internal class LibraryAppState(
     fun syncSelectedTrackWithPlayback(playbackTrackId: String?) {
         selectedTrackIdState =
             selectedTrackIdForPlaybackChange(selectedTrackId, playbackTrackId)
+    }
+
+    fun reconcileInitialOnboarding(initialOnboarding: OnboardingLaunchMode?) {
+        val current = navigation.current
+        if (initialOnboarding == null &&
+            current is LibraryRoute.Onboarding &&
+            current.launchMode == OnboardingLaunchMode.FirstRun) {
+            popRoute()
+        } else if (initialOnboarding == OnboardingLaunchMode.FirstRun &&
+            current !is LibraryRoute.Onboarding) {
+            pushRoute(LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0))
+        }
     }
 
     fun setBrowseMode(mode: BrowseMode) {
@@ -569,9 +582,14 @@ internal fun rememberLibraryAppState(
     snapshot: LibrarySnapshot,
     initialOnboarding: OnboardingLaunchMode? = null,
 ): LibraryAppState =
-    remember(snapshot.nowPlayingTrackId, initialOnboarding) {
-        LibraryAppState(
-            initialSelectedTrackId = snapshot.nowPlayingTrackId,
-            initialOnboarding = initialOnboarding,
-        )
-    }
+    remember(snapshot.nowPlayingTrackId) {
+            LibraryAppState(
+                initialSelectedTrackId = snapshot.nowPlayingTrackId,
+                initialOnboarding = initialOnboarding,
+            )
+        }
+        .also { state ->
+            LaunchedEffect(initialOnboarding) {
+                state.reconcileInitialOnboarding(initialOnboarding)
+            }
+        }

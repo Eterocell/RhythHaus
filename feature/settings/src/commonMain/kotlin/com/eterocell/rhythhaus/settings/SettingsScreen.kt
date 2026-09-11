@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -259,11 +261,13 @@ public fun SettingsScreen(
     onOpenNotificationSettings: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    listState: LazyListState? = null,
 ) {
     var sourcePendingRemoval by remember {
         mutableStateOf<SettingsSourceItem?>(null)
     }
     val policy = CompactSettingsLayoutPolicy
+    val effectiveListState = listState ?: rememberLazyListState()
     Box(
         modifier
             .fillMaxSize()
@@ -291,6 +295,7 @@ public fun SettingsScreen(
                         containerColor = HausColors.current.paper,
                         contentWindowInsets = WindowInsets(0.dp)) {
                             LazyColumn(
+                                state = effectiveListState,
                                 modifier =
                                     Modifier.fillMaxSize()
                                         .testTag(SettingsListTestTag)
