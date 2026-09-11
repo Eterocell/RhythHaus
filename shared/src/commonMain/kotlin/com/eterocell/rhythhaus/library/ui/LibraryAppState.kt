@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +16,7 @@ import com.eterocell.rhythhaus.LibrarySnapshot
 
 internal class LibraryAppState(
     initialSelectedTrackId: String?,
+    initialOnboarding: OnboardingLaunchMode? = null,
 ) {
     private var selectedTrackIdState by mutableStateOf(initialSelectedTrackId)
     val selectedTrackId: String?
@@ -34,6 +36,14 @@ internal class LibraryAppState(
 
     var navigation by mutableStateOf(LibraryNavigationStack())
         private set
+
+    init {
+        if (initialOnboarding == OnboardingLaunchMode.FirstRun) {
+            navigation =
+                navigation.push(
+                    LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0))
+        }
+    }
 
     var lastNavigationTransition by
         mutableStateOf(LibraryNavigationTransition.None)
@@ -122,6 +132,9 @@ internal class LibraryAppState(
                             "now-playing-$nowPlayingAppearanceToken"),
                 ),
             )
+        if (resolution is LibraryBackResolution.Suppressed) {
+            return LibraryBackBeginResult.Suppressed
+        }
         val target =
             (resolution as? LibraryBackResolution.Started)?.target
                 ?: return LibraryBackBeginResult.Unhandled
@@ -146,20 +159,23 @@ internal class LibraryAppState(
             acceptedBackSurface
                 ?.takeIf { it.port.destinationId == destination }
                 ?.port
-        return resolveLibraryBack(
-            LibraryBackResolutionInput(
-                activeDestinationId = destination,
-                backSurfacePorts = listOfNotNull(surface),
-                browseMode = browseMode,
-                isNowPlayingExpanded = showNowPlaying,
-                navigation = navigation,
-                selectionPort = selectionPort ?: activeSelectionPort,
-                nowPlayingTargetId =
-                    LibraryBackTargetId(
-                        destination, "now-playing-$nowPlayingAppearanceToken"),
-            ),
-        ) is
-            LibraryBackResolution.Started
+        val resolution =
+            resolveLibraryBack(
+                LibraryBackResolutionInput(
+                    activeDestinationId = destination,
+                    backSurfacePorts = listOfNotNull(surface),
+                    browseMode = browseMode,
+                    isNowPlayingExpanded = showNowPlaying,
+                    navigation = navigation,
+                    selectionPort = selectionPort ?: activeSelectionPort,
+                    nowPlayingTargetId =
+                        LibraryBackTargetId(
+                            destination,
+                            "now-playing-$nowPlayingAppearanceToken"),
+                ),
+            )
+        return resolution is LibraryBackResolution.Started ||
+            resolution is LibraryBackResolution.Suppressed
     }
 
     /**
@@ -183,6 +199,18 @@ internal class LibraryAppState(
     fun syncSelectedTrackWithPlayback(playbackTrackId: String?) {
         selectedTrackIdState =
             selectedTrackIdForPlaybackChange(selectedTrackId, playbackTrackId)
+    }
+
+    fun reconcileInitialOnboarding(initialOnboarding: OnboardingLaunchMode?) {
+        val current = navigation.current
+        if (initialOnboarding == null &&
+            current is LibraryRoute.Onboarding &&
+            current.launchMode == OnboardingLaunchMode.FirstRun) {
+            popRoute()
+        } else if (initialOnboarding == OnboardingLaunchMode.FirstRun &&
+            current !is LibraryRoute.Onboarding) {
+            pushRoute(LibraryRoute.Onboarding(OnboardingLaunchMode.FirstRun, 0))
+        }
     }
 
     fun setBrowseMode(mode: BrowseMode) {
@@ -552,7 +580,16 @@ internal constructor(
 @Composable
 internal fun rememberLibraryAppState(
     snapshot: LibrarySnapshot,
+    initialOnboarding: OnboardingLaunchMode? = null,
 ): LibraryAppState =
     remember(snapshot.nowPlayingTrackId) {
-        LibraryAppState(initialSelectedTrackId = snapshot.nowPlayingTrackId)
-    }
+            LibraryAppState(
+                initialSelectedTrackId = snapshot.nowPlayingTrackId,
+                initialOnboarding = initialOnboarding,
+            )
+        }
+        .also { state ->
+            LaunchedEffect(initialOnboarding) {
+                state.reconcileInitialOnboarding(initialOnboarding)
+            }
+        }

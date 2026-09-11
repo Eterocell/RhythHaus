@@ -50,10 +50,12 @@ import com.eterocell.rhythhaus.library.ui.LibraryBackBeginResult
 import com.eterocell.rhythhaus.library.ui.LibraryBackTarget
 import com.eterocell.rhythhaus.library.ui.LibraryRoute
 import com.eterocell.rhythhaus.library.ui.LibraryRouteOverlays
+import com.eterocell.rhythhaus.library.ui.OnboardingLaunchMode
 import com.eterocell.rhythhaus.library.ui.PlaylistFeatureDestination
 import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.rememberPlaylistFeatureAppearanceSource
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
+import com.eterocell.rhythhaus.onboarding.OnboardingCloseTestTag
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupCounts
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupImportResult
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupPlaylistReport
@@ -83,6 +85,53 @@ import rhythhaus.shared.generated.resources.remove as sharedRemove
 import rhythhaus.shared.generated.resources.settings as sharedSettings
 
 class SettingsRouteAdapterJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun settingsAdapterPushesReviewPageZero() = runComposeUiTest {
+        val route = mutableStateOf<LibraryRoute>(LibraryRoute.Settings)
+        val state = LibraryAppState(null)
+        state.pushRoute(LibraryRoute.Settings)
+        setContent {
+            Harness(
+                route = route, appState = state, pushRoute = state::pushRoute)
+        }
+        onNodeWithTag("settings-review-onboarding", useUnmergedTree = true)
+            .performClick()
+        assertEquals(
+            LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0),
+            state.navigation.current)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun closingReviewReturnsToSameSettingsDestination() = runComposeUiTest {
+        val state = LibraryAppState(null)
+        state.pushRoute(LibraryRoute.Settings)
+        val originalEntry = state.navigation.currentEntry
+        val route = mutableStateOf<LibraryRoute>(LibraryRoute.Settings)
+        var backLabel = ""
+        setContent {
+            Harness(
+                route = route,
+                appState = state,
+                pushRoute = state::pushRoute,
+                onDismiss = {
+                    state.popRoute()
+                    route.value = state.navigation.current
+                },
+                onCoreBackLabelResolved = { backLabel = it })
+        }
+        onNodeWithTag("settings-review-onboarding", useUnmergedTree = true)
+            .performClick()
+        route.value = state.navigation.current
+        assertEquals(
+            LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0),
+            route.value)
+        onNodeWithTag(OnboardingCloseTestTag, useUnmergedTree = true)
+            .performClick()
+        assertEquals(originalEntry, state.navigation.currentEntry)
+    }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun projectsSourcesAndSuppliesPickerScanningPlaylistAndClearSlots() =
@@ -344,6 +393,7 @@ class SettingsRouteAdapterJvmTest {
                     aboutCalls++
                     route.value = LibraryRoute.SettingsAbout
                 },
+                pushRoute = {},
                 onShowOpenSourceLibraries = {
                     librariesCalls++
                     route.value = LibraryRoute.OpenSourceLibraries
@@ -460,6 +510,7 @@ class SettingsRouteAdapterJvmTest {
                         appState.pushRoute(LibraryRoute.SettingsAbout)
                         route.value = appState.navigation.current
                     },
+                    pushRoute = {},
                     onDismiss = {
                         when (route.value) {
                             LibraryRoute.Settings -> settingsDismissCalls++
@@ -540,6 +591,7 @@ class SettingsRouteAdapterJvmTest {
                     appState.pushRoute(LibraryRoute.SettingsAbout)
                     synchronizeRouteFromState()
                 },
+                pushRoute = {},
                 onShowOpenSourceLibraries = {
                     librariesCalls++
                     appState.pushRoute(LibraryRoute.OpenSourceLibraries)
@@ -946,6 +998,7 @@ class SettingsRouteAdapterJvmTest {
         },
         onRemove: (LibrarySource) -> Unit = {},
         onCancelScan: () -> Unit = {},
+        pushRoute: (LibraryRoute) -> Unit = {},
         onShowSettingsAbout: () -> Unit = {
             route.value = LibraryRoute.SettingsAbout
         },
@@ -1018,6 +1071,7 @@ class SettingsRouteAdapterJvmTest {
             onRemoveMissingTracks = onRemoveMissingTracks,
             onRemoveSource = onRemove,
             onCancelScan = onCancelScan,
+            pushRoute = pushRoute,
             onShowSettingsAbout = onShowSettingsAbout,
             onShowOpenSourceLibraries = onShowOpenSourceLibraries,
             onDismiss = onDismiss,

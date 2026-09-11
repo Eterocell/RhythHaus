@@ -4352,3 +4352,61 @@ Verification:
 Next owner: release/device acceptance for Android notification denial and the remaining three-platform system-media scenarios; separately diagnose the Shared selection-test timeout.
 Blockers: Android/iOS physical runtime evidence is unavailable to this harness; Xcode rejects `ios_simulator_arm64` test execution. The pre-integration Android planning copies remain preserved in `stash@{0}` and were not reapplied because the merged branch contains the later tracked change artifacts.
 Commits: `c745db63` (`fix: exclude hidden iOS library paths`), `7517d845` (`merge: integrate notification permission recovery`), and `e1830fce` (`merge: integrate playback failure recovery`).
+## Handoff - 2026-09-11 first-run onboarding planning
+
+Route: openspec+superpowers
+Owner: OpenSpec planning
+Input: next actionable product item in `roadmap.md` after completed or hardware-blocked Phase 1 P0 work.
+Output: `openspec/changes/first-run-onboarding/` now contains a proposal, a new capability delta specification, a cross-module design, and an evidence-bearing task ledger. `docs/superpowers/plans/2026-09-11-first-run-onboarding.md` provides the executable TDD plan. The selected direction is a one-time, skippable, four-page shared onboarding flow with platform-accurate local import guidance, schema-versioned completion persistence, canonical Shared Back/navigation ownership, and Settings re-entry. Onboarding never requests permissions, launches a picker, mutates library state, or changes playback.
+Verification: `openspec validate first-run-onboarding --strict` passed; planning placeholder scan and `git diff --check` passed.
+Next owner: implementation through the OpenSpec apply plus subagent-driven-development workflow, beginning with the isolated `:feature:onboarding` stateless UI module.
+Blockers: none for implementation planning. Android/iOS physical acceptance remains a later release-evidence gate.
+Commit: not created; the OpenSpec proposal workflow ends at planning review and does not start implementation in the same response.
+
+## Closeout - 2026-09-11 first-run onboarding
+
+Route: openspec+superpowers
+Owner: implementation and harness verification
+Input: approved `first-run-onboarding` change and `docs/superpowers/plans/2026-09-11-first-run-onboarding.md`.
+Output: RhythHaus now presents a stateless four-page first-run flow backed by an isolated schema-versioned `onboarding.preferences_pb`. Fresh, old, unreadable, and corrupt state requires onboarding; current and newer completion values suppress it. Skip and Finish persist before Home becomes active. Android, iOS, and macOS receive closed platform-specific guidance without exposing platform APIs to the feature. Shared owns the canonical onboarding route, Back suppression on first-run page zero, bounded page replacement, retryable completion failure, and Settings review re-entry. Review Close restores the exact Settings entry. While onboarding is topmost, the shell does not compose underlying Library or Settings interaction targets; playback and startup state remain owned above the presentation branch.
+Evidence: focused `:feature:onboarding:jvmTest`, `:feature:settings:jvmTest`, `:androidApp:testDebugUnitTest`, and Shared onboarding/navigation/Settings adapter selectors passed. iOS simulator Kotlin compilation, desktop compilation, Android Debug assembly, and the generic iOS Simulator Xcode build including the Swift `Shared.framework` consumer passed. Standalone Spotless, Detekt, and architecture gates passed after removing the accidentally copied build-info plugin from `:feature:onboarding` and allowing only the approved Shared `commonMainImplementation` composition edge. Strict change validation, all-spec validation, and `git diff --check` passed.
+Manual desktop evidence: isolated fresh EN and ZH profiles displayed only onboarding accessibility nodes; Next reached all four pages; Finish and Skip each entered Home and remained suppressed after process restart; Settings opened Review at page zero and Close returned to Settings. The runtime check caught and repaired the initial wide-shell accessibility leak of underlying Library controls. The 600×400 action-reachability boundary is covered by Compose UI tests because the available native automation cannot resize the window. Playback continuity during Review is covered by state/controller regressions; the disposable isolated desktop profile had no playable media, so no audible continuity claim is made. Android/iOS device presentation was not exercised.
+Aggregate limitation: `./init.sh` and the aggregate `:shared:jvmTest` leg still stop at the independently recorded baseline timeout in `LibraryPlaybackSelectionTest.differentSelectionPreservesRepeatAndShuffleModes`; focused changed-path tests and all target compilations are green. No full-suite success is claimed.
+OpenSpec: synchronized to `openspec/specs/first-run-onboarding/spec.md`; archived at `openspec/changes/archive/2026-09-12-first-run-onboarding/` after final review.
+Next owner: integrate the completed feature branch, then continue Phase 1 physical playback/system-control acceptance.
+Blockers: no code-level onboarding blocker; Android/iOS presentation and audible Review continuity remain release-device evidence gaps.
+
+## Review repair - 2026-09-11 first-run onboarding
+
+Route: systematic-debugging+tdd within openspec+superpowers
+Owner: implementation and final review
+Input: final independent review of `e3e51c6c..2088a648`.
+Output: repaired all five Important findings. Settings now retains destination-keyed saveable composition state while the modal onboarding Review route is exclusively composed, so Close returns to the same Settings scroll position without exposing inactive Settings semantics. A successful completion write now publishes `Completed` even when the preference read flow previously failed and entered fail-safe onboarding. First-run page zero exposes no no-op Back controls; later pages and Review retain valid Back behavior. The active page heading has heading and polite live-region semantics. English and Simplified Chinese copy now explicitly names unsupported/unreadable skipped items and Android retained folder access.
+RED evidence: `LibraryAppShellJvmTest.settingsReviewRestoresDestinationScrollState`, `OnboardingPreferenceStoreJvmTest.successfulCompletionRemainsObservableAfterReadFailure`, `OnboardingScreenJvmTest.firstRunFirstPageOmitsInactiveBackActions`, `OnboardingScreenJvmTest.activePageHeadingIsAnnouncedAsHeading`, and the copy regressions each failed for the reviewed production defect before its fix.
+GREEN evidence: the focused onboarding, Settings, preference-store, shell, navigation, and adapter matrix passed (`167 actionable tasks`); iOS Kotlin compilation, desktop compilation, and Android Debug assembly passed (`478 actionable tasks`); Spotless, Detekt, and architecture checks passed (`289 actionable tasks`); all 13 canonical specs, the strict change, and `git diff --check` passed.
+Next owner: independent final re-review, then archive and integration.
+Blockers: Android/iOS device presentation and audible Review continuity remain external release evidence, not code-level blockers.
+
+## Final review repair - 2026-09-11 first-run onboarding
+
+Route: systematic-debugging+tdd within openspec+superpowers
+Owner: implementation and final review
+Input: independent re-review of `e3e51c6c..a41d1df6`.
+Output: repaired both remaining Important defects and closed the explicit lifecycle-coverage gaps. Wrong-typed `completed_schema_version` values now fail safe to Required and are replaced by the current integer schema on completion. Settings terminal-report expansion now uses saveable destination state and survives Review without composing inactive Settings. App onboarding eligibility/completion was extracted into the narrow `AppOnboardingGate`; production and JVM lifecycle tests share that exact boundary. Shell regressions now prove exclusive onboarding composition at compact and wide widths and prove a playing controller's complete state/queue is unchanged when Review opens.
+RED evidence: wrong-typed marker replacement failed with `ClassCastException`; expanded terminal report collapsed after Review; the App lifecycle test initially could not compile because the production boundary did not exist. Each regression was observed failing before its root fix.
+GREEN evidence: focused App lifecycle, preference, shell, feature, Settings, navigation, and adapter tests passed in the final changed-path matrix (`371 actionable tasks`); Android Debug was rebuilt from dependencies (`331 actionable tasks`) after concurrent Gradle invocations temporarily exposed incomplete intermediate classpaths, then the complete Android/desktop/iOS compilation matrix passed (`478 actionable tasks`). Spotless, Detekt, architecture, canonical spec, strict change, and diff gates remained green.
+Next owner: final independent acceptance re-review, then archive and integration.
+Blockers: no code-level blocker; Android/iOS presentation and audible real-device continuity remain release evidence gaps.
+
+## Final acceptance repair - 2026-09-11 first-run onboarding
+
+Route: systematic-debugging+tdd within openspec+superpowers
+Owner: implementation and final acceptance
+Input: independent acceptance review of `e3e51c6c..6dddd1e1`.
+Output: preserved the existing `LibraryAppState` while onboarding eligibility changes, popping only the first-run route so the selected/restored playback track remains authoritative. Corrected iOS onboarding to explicitly name Files audio/folder selection, external copy into `Documents/RhythHaus`, and managed-path scan-in-place behavior in EN/ZH. Hoisted Settings lazy-list and terminal-report state by destination above adaptive rendering so Review can cross compact/wide thresholds without positional saveable-state loss.
+RED evidence: the completion-state regression initially could not compile because no reconciliation seam existed; exact iOS Files workflow copy was absent; compact-to-wide Review restoration collapsed the expanded report. Each passed after the root fix.
+GREEN evidence: final focused onboarding/App/store/shell/navigation/Settings/Android-host matrix passed (`362 actionable tasks`); complete iOS Kotlin, desktop, and Android assembly matrix passed (`478 actionable tasks`); Spotless, Detekt, and architecture checks passed (`289 actionable tasks`); 13 canonical specs, the strict change, and `git diff --check` passed.
+Next owner: archive and integration.
+Blockers: no code-level blocker; Android/iOS device presentation and audible real-device continuity remain release evidence gaps.
+
+Independent acceptance: conclusive specification and code reviews of `e3e51c6c..12b01fde` both returned PASS with no Critical or Important findings. Review confirmed fail-safe/wrong-type preference recovery, persist-before-dismiss ordering, retained LibraryAppState/playback selection, exact platform copy, navigation/accessibility, destination-lifetime Settings state across adaptive Review, exclusive modal composition, and onboarding mutation isolation.

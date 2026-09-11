@@ -80,6 +80,7 @@ kotlin {
             implementation(projects.feature.nowplaying)
             implementation(projects.feature.search)
             implementation(projects.feature.settings)
+            implementation(projects.feature.onboarding)
             implementation(projects.taglib)
             implementation(libs.aboutlibraries.compose.m3)
             implementation(libs.coil.compose)
