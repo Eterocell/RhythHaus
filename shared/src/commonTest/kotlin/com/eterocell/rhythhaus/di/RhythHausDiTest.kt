@@ -17,6 +17,7 @@ import com.eterocell.rhythhaus.library.impl.AudioMetadataReader
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
 import com.eterocell.rhythhaus.library.libraryImplementationModule
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
+import com.eterocell.rhythhaus.onboarding.OnboardingPreferenceStore
 import com.eterocell.rhythhaus.session.PlaybackCheckpoint
 import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionCoordinator
@@ -67,6 +68,19 @@ class RhythHausDiTest {
                 koin.get<PlaylistRepository>(), koin.get<PlaylistRepository>())
             assertSame(
                 koin.get<PlaylistStateOwner>(), koin.get<PlaylistStateOwner>())
+        } finally {
+            stopKoin()
+        }
+    }
+
+    @Test
+    fun sharedCompositionResolvesOnboardingPreferenceStoreAsSingleton() {
+        stopKoin()
+        val application = startKoin { modules(rhythHausModule()) }
+        try {
+            val koin = application.koin
+            assertNotNull(koin.get<OnboardingPreferenceStore>())
+            assertSame(koin.get<OnboardingPreferenceStore>(), koin.get<OnboardingPreferenceStore>())
         } finally {
             stopKoin()
         }
