@@ -28,6 +28,7 @@ import rhythhaus.feature.onboarding.generated.resources.body_add_music
 import rhythhaus.feature.onboarding.generated.resources.body_formats
 import rhythhaus.feature.onboarding.generated.resources.body_local_first
 import rhythhaus.feature.onboarding.generated.resources.body_recovery
+import rhythhaus.feature.onboarding.generated.resources.error_save
 import rhythhaus.feature.onboarding.generated.resources.guidance_android
 import rhythhaus.feature.onboarding.generated.resources.guidance_ios
 import rhythhaus.feature.onboarding.generated.resources.guidance_macos
@@ -111,7 +112,7 @@ public fun OnboardingScreen(
     onSkip: () -> Unit,
     onFinish: () -> Unit,
     onClose: () -> Unit,
-    modifier: Modifier,
+    modifier: Modifier = Modifier,
 ) {
     val page = pageIndex.coerceIn(0, onboardingPages.lastIndex)
     val title = stringResource(Res.string.onboarding_title)
@@ -148,7 +149,9 @@ public fun OnboardingScreen(
                             Modifier.fillMaxWidth()
                                 .padding(horizontal = 20.dp)
                                 .testTag(OnboardingErrorTestTag)) {
-                                Text(completionError)
+                                Text(stringResource(Res.string.error_save))
+                                if (completionError != null)
+                                    Text(completionError)
                                 Button(
                                     onClick = onFinish,
                                     enabled = !saving,
