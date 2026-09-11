@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -17,12 +18,14 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
@@ -56,6 +59,7 @@ import rhythhaus.feature.settings.generated.resources.notification_permission_bo
 import rhythhaus.feature.settings.generated.resources.notification_permission_request
 import rhythhaus.feature.settings.generated.resources.notification_permission_settings
 import rhythhaus.feature.settings.generated.resources.notification_permission_title
+import rhythhaus.feature.settings.generated.resources.review_onboarding
 import rhythhaus.feature.settings.generated.resources.source_access_available
 import rhythhaus.feature.settings.generated.resources.source_access_lost
 import rhythhaus.feature.settings.generated.resources.source_last_scanned
@@ -65,6 +69,47 @@ import rhythhaus.feature.settings.generated.resources.theme_dark_label
 import rhythhaus.feature.settings.generated.resources.unnamed_folder
 
 public class SettingsScreenSemanticsJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun reviewOnboardingRowIsAccessibleAndDispatchesExactlyOnce(): Unit =
+        runComposeUiTest {
+            var dispatches = 0
+            lateinit var label: String
+            setContent {
+                label = stringResource(SettingsRes.string.review_onboarding)
+                content(onReviewOnboarding = { dispatches++ })
+            }
+            onNodeWithTag(SettingsReviewOnboardingTestTag, useUnmergedTree = true)
+                .assertHasClickAction()
+                .assert(hasContentDescription(label))
+                .assert(
+                    SemanticsMatcher("button role") { node ->
+                        node.config.getOrNull(SemanticsProperties.Role) == Role.Button
+                    })
+                .performClick()
+            assertEquals(1, dispatches)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun reviewOnboardingRowIsReachableInCompactHeight(): Unit =
+        runComposeUiTest {
+            setContent {
+                Box(Modifier.size(400.dp, 600.dp)) {
+                    content(
+                        playlistSlot = {
+                            BasicText("large-content", Modifier.height(1600.dp))
+                        },
+                        onReviewOnboarding = {})
+                }
+            }
+            onNodeWithTag(SettingsListTestTag, useUnmergedTree = true)
+                .performScrollToNode(hasTestTag(SettingsReviewOnboardingTestTag))
+            onNodeWithTag(SettingsReviewOnboardingTestTag, useUnmergedTree = true)
+                .assertExists()
+                .assertHasClickAction()
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun settingsRootConsumesCoveredPointerWithoutClickOrFocusSemantics():
@@ -582,6 +627,7 @@ private fun content(
     onRecover: (String) -> Unit = {},
     onRemove: (String) -> Unit = {},
     onAbout: () -> Unit = {},
+    onReviewOnboarding: () -> Unit = {},
     onRequestNotificationPermission: () -> Unit = {},
     onOpenNotificationSettings: () -> Unit = {},
     onDismiss: () -> Unit = {},
@@ -607,6 +653,7 @@ private fun content(
         onRemoveSource = onRemove,
         onRequestClearLibrary = onClear,
         onAboutClick = onAbout,
+        onReviewOnboarding = onReviewOnboarding,
         onRequestNotificationPermission = onRequestNotificationPermission,
         onOpenNotificationSettings = onOpenNotificationSettings,
         onDismiss = onDismiss)

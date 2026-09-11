@@ -176,6 +176,7 @@ internal fun LibraryRouteOverlays(
     onReplaceTop: (LibraryRoute) -> Unit = {},
     onRejectInvalidOnboarding: () -> Unit = {},
     onCloseOnboarding: (() -> Unit)? = null,
+    pushRoute: (LibraryRoute) -> Unit,
     onShowSettingsAbout: () -> Unit,
     onShowOpenSourceLibraries: () -> Unit,
     onDismiss: () -> Unit,
@@ -340,6 +341,14 @@ internal fun LibraryRouteOverlays(
                     }
                 },
                 onAboutClick = onShowSettingsAbout,
+                onReviewOnboarding = {
+                    pushRoute(
+                        LibraryRoute.Onboarding(
+                            OnboardingLaunchMode.Review,
+                            pageIndex = 0,
+                        )
+                    )
+                },
                 onRequestNotificationPermission =
                     onRequestNotificationPermission,
                 onOpenNotificationSettings = onOpenNotificationSettings,

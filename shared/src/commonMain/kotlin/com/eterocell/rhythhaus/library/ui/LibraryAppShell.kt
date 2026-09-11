@@ -467,6 +467,7 @@ fun LibraryHomeScreen(
             onReplaceTop = appState::replaceTopRoute,
             onRejectInvalidOnboarding = appState::popRoute,
             onCloseOnboarding = appState::popRoute,
+            pushRoute = ::pushRoute,
             onShowSettingsAbout = { pushRoute(LibraryRoute.SettingsAbout) },
             onShowOpenSourceLibraries = {
                 pushRoute(LibraryRoute.OpenSourceLibraries)

@@ -3,5 +3,5 @@
 <string name="notification_permission_title">需要通知权限</string>
 <string name="notification_permission_body">应用内播放不受影响，但 Android 通知与锁屏媒体控制需要通知权限。</string>
 <string name="notification_permission_request">允许通知</string>
-<string name="notification_permission_settings">打开通知设置</string>
+<string name="notification_permission_settings">打开通知设置</string><string name="review_onboarding">查看使用指南</string>
 </resources>

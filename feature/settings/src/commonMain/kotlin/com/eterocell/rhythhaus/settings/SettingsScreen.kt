@@ -68,6 +68,7 @@ import rhythhaus.feature.settings.generated.resources.recover_source_format
 import rhythhaus.feature.settings.generated.resources.remove_folder
 import rhythhaus.feature.settings.generated.resources.remove_folder_message
 import rhythhaus.feature.settings.generated.resources.remove_source_format
+import rhythhaus.feature.settings.generated.resources.review_onboarding
 import rhythhaus.feature.settings.generated.resources.rescan_source_format
 import rhythhaus.feature.settings.generated.resources.source_access_available
 import rhythhaus.feature.settings.generated.resources.source_access_lost
@@ -179,6 +180,7 @@ internal val CompactSettingsLayoutPolicy =
 internal const val SettingsPickerTestTag = "settings-picker"
 internal const val SettingsClearTestTag = "settings-clear"
 internal const val SettingsAboutTestTag = "settings-about"
+internal const val SettingsReviewOnboardingTestTag = "settings-review-onboarding"
 internal const val SettingsRescanPrefix = "settings-rescan-"
 internal const val SettingsRecoverPrefix = "settings-recover-"
 internal const val SettingsRemovePrefix = "settings-remove-"
@@ -221,6 +223,7 @@ internal const val SettingsThemeTestTag = "settings-theme"
  * @param onRemoveSource dispatches a removal with the source id.
  * @param onRequestClearLibrary requests the Shared clear-library confirmation.
  * @param onAboutClick navigates to the feature-owned About page.
+ * @param onReviewOnboarding navigates to the onboarding review page.
  * @param onRequestNotificationPermission re-requests host notification
  *   permission for the [MediaNotificationRecovery.Requestable] variant.
  * @param onOpenNotificationSettings opens the host notification settings for
@@ -250,6 +253,7 @@ public fun SettingsScreen(
     onRemoveSource: (String) -> Unit,
     onRequestClearLibrary: () -> Unit,
     onAboutClick: () -> Unit,
+    onReviewOnboarding: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onDismiss: () -> Unit,
@@ -548,6 +552,7 @@ public fun SettingsScreen(
                                                             FontWeight.Bold)
                                                 }
                                     }
+                                item { ReviewOnboardingRow(onReviewOnboarding) }
                                 item { AboutRow(onAboutClick) }
                             }
                         }
@@ -564,6 +569,41 @@ public fun SettingsScreen(
                     }
             }
         }
+}
+
+@Composable
+private fun ReviewOnboardingRow(onClick: () -> Unit) {
+    val label = stringResource(Res.string.review_onboarding)
+    Row(
+        Modifier.fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(onClick = onClick)
+            .testTag(SettingsReviewOnboardingTestTag)
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription = label
+            }
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.Info,
+            null,
+            tint = HausColors.current.ink,
+            modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(
+            label,
+            Modifier.weight(1f),
+            HausColors.current.ink,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold)
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            null,
+            tint = HausColors.current.muted,
+            modifier = Modifier.size(22.dp))
+    }
 }
 
 @Composable
