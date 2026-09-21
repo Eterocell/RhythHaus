@@ -153,6 +153,31 @@ class ExistingDatabaseMigrationTest {
     }
 
     @Test
+    fun unversionedPreFavoritesDatabaseBootstrapsAtVersionTwoBeforeMigrating() {
+        val databaseFile = copyVersionTwoDatabase()
+        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("PRAGMA user_version = 0")
+            }
+        }
+
+        val libraryDatabase = LibraryDatabase(databaseFile)
+        try {
+            assertEquals(
+                RhythHausDatabase.Schema.version,
+                driverUserVersion(libraryDatabase.driver))
+            assertTrue(
+                libraryDatabase.database.trackFavoriteQueries
+                    .selectFavoriteTrackIds()
+                    .executeAsList()
+                    .isEmpty())
+        } finally {
+            libraryDatabase.driver.close()
+            databaseFile.delete()
+        }
+    }
+
+    @Test
     fun generatedDatabaseIdentityAndFilenameRemainStable() {
         val generatedType: RhythHausDatabase? = null
 
