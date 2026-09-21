@@ -1,0 +1,24 @@
+CREATE TABLE track_favorite (
+    trackId TEXT NOT NULL PRIMARY KEY REFERENCES library_track(id) ON DELETE CASCADE,
+    favoritedAtEpochMillis INTEGER NOT NULL
+);
+
+selectFavoriteTrackIds:
+SELECT trackId
+FROM track_favorite
+ORDER BY trackId;
+
+selectFavoriteTrack:
+SELECT trackId, favoritedAtEpochMillis
+FROM track_favorite
+WHERE trackId = ?;
+
+setTrackFavorite:
+INSERT INTO track_favorite(trackId, favoritedAtEpochMillis)
+SELECT :trackId, :favoritedAtEpochMillis
+WHERE EXISTS (SELECT 1 FROM library_track WHERE id = :trackId)
+ON CONFLICT(trackId) DO NOTHING;
+
+unsetTrackFavorite:
+DELETE FROM track_favorite
+WHERE trackId = ?;

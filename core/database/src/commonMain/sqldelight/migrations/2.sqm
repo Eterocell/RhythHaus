@@ -1,0 +1,4 @@
+CREATE TABLE track_favorite (
+    trackId TEXT NOT NULL PRIMARY KEY REFERENCES library_track(id) ON DELETE CASCADE,
+    favoritedAtEpochMillis INTEGER NOT NULL
+);
