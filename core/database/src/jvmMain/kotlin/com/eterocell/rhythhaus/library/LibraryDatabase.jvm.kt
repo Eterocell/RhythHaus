@@ -49,10 +49,10 @@ private fun bootstrapLegacyVersionZeroDatabase(
         if (driver.userVersion() != 0L) return
         val tables = driver.userTables()
         val legacyVersion =
-            when (tables) {
-                libraryTables -> 1L
-                libraryTables + playlistTables,
-                libraryTables + playlistTables + favoriteTables ->
+            when {
+                tables == libraryTables -> 1L
+                tables == libraryTables + playlistTables -> 2L
+                tables == libraryTables + playlistTables + favoriteTables ->
                     RhythHausDatabase.Schema.version
                 else -> return
             }
