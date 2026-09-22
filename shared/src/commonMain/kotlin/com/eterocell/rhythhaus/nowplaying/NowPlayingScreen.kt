@@ -28,6 +28,8 @@ public fun NowPlayingScreen(
     currentLibraryTrack: LibraryTrack?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    favoriteTrackIds: Set<String> = emptySet(),
+    onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
 ): Unit {
     val artworkLoader = LocalTrackArtworkLoader.current
     NowPlayingContent(
@@ -48,16 +50,8 @@ public fun NowPlayingScreen(
         artworkLoader = { trackId -> artworkLoader(trackId)?.bytes },
         onBack = onBack,
         modifier = modifier,
+        favoriteTrackIds = favoriteTrackIds,
+        onSetTrackFavorite = onSetTrackFavorite,
+        isCurrentTrackAvailableInLibrary = currentLibraryTrack != null,
     )
 }
-
-/** Favorite-aware composition seam owned by Shared. */
-@Composable
-public fun NowPlayingScreen(
-    track: Track, playbackState: PlaybackState, playbackController: PlaybackController,
-    tagLibReader: TagLibReader, currentLibraryTrack: LibraryTrack?, onBack: () -> Unit,
-    modifier: Modifier = Modifier, favoriteTrackIds: Set<String>,
-    onSetTrackFavorite: (String, Boolean) -> Unit,
-): Unit = NowPlayingScreen(
-    track, playbackState, playbackController, tagLibReader, currentLibraryTrack,
-    onBack, modifier)

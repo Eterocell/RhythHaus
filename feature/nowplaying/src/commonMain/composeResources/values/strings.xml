@@ -1,6 +1,8 @@
 <resources>
     <string name="mini_player_empty_subtitle">Add music in Settings to start listening</string>
     <string name="next_track">Next track</string>
+    <string name="favorite_checked">Favorite, selected</string>
+    <string name="favorite_unchecked">Favorite, not selected</string>
     <string name="playback_error_access_lost">Access to this media file was lost</string>
     <string name="playback_error_decoder_failure">The decoder could not play this file</string>
     <string name="playback_error_missing_file">This media file is missing</string>
