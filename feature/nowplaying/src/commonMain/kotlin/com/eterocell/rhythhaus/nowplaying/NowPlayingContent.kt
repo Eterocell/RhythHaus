@@ -210,6 +210,17 @@ public fun NowPlayingContent(
         }
 }
 
+/** Favorite-aware composition seam; the projection is inert at this layer. */
+@Composable
+public fun NowPlayingContent(
+    track: Track, playbackState: PlaybackState, playbackController: PlaybackController,
+    labels: NowPlayingScreenLabels, artworkLoader: suspend (String) -> ByteArray?,
+    onBack: () -> Unit, modifier: Modifier = Modifier,
+    favoriteTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
+): Unit = NowPlayingContent(
+    track, playbackState, playbackController, labels, artworkLoader, onBack, modifier)
+
 @Composable
 private fun NowPlayingArtworkPane(
     track: Track,

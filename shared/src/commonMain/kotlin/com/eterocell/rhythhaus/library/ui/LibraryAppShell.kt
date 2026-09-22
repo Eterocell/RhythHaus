@@ -236,6 +236,8 @@ fun LibraryHomeScreen(
     onboardingSaving: Boolean = false,
     onboardingCompletionError: String? = null,
     onCompleteOnboarding: () -> Unit = {},
+    favoriteTrackIds: Set<String> = emptySet(),
+    onSetTrackFavorite: (trackId: String, favorite: Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val playbackState by playbackController.state.collectAsState()
@@ -562,6 +564,8 @@ fun LibraryHomeScreen(
                             TrackSelectionPageKey.HomeSongs)
                             trackSelectionState.selectedTrackIds
                         else emptySet(),
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = onSetTrackFavorite,
                     labels = librarySharedLabels(),
                     homeBackdrop = rememberRhythHausBackdrop(),
                     artworkLoader = { id -> artworkLoader(id)?.bytes },
@@ -682,6 +686,8 @@ fun LibraryHomeScreen(
                                     TrackSelectionPageKey.HomeSongs)
                                     trackSelectionState.selectedTrackIds
                                 else emptySet(),
+                            favoriteTrackIds = favoriteTrackIds,
+                            onSetTrackFavorite = onSetTrackFavorite,
                             labels = librarySharedLabels(),
                             homeBackdrop = rememberRhythHausBackdrop(),
                             artworkLoader = { id -> artworkLoader(id)?.bytes },
@@ -857,6 +863,8 @@ fun LibraryHomeScreen(
             isVisible = appState.showNowPlaying,
             expandProgress = expandProgress,
             onBack = requestLibraryBack,
+            favoriteTrackIds = favoriteTrackIds,
+            onSetTrackFavorite = onSetTrackFavorite,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -1073,6 +1081,8 @@ private fun NowPlayingExpandOverlay(
     isVisible: Boolean,
     expandProgress: Animatable<Float, AnimationVector1D>,
     onBack: () -> Unit,
+    favoriteTrackIds: Set<String> = emptySet(),
+    onSetTrackFavorite: (trackId: String, favorite: Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val gestureScope = rememberCoroutineScope()
@@ -1110,6 +1120,8 @@ private fun NowPlayingExpandOverlay(
                     tagLibReader = tagLibReader,
                     currentLibraryTrack = currentLibraryTrack,
                     onBack = onBack,
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = onSetTrackFavorite,
                 )
             }
         }

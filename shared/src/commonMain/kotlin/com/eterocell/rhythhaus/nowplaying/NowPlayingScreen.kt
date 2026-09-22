@@ -50,3 +50,14 @@ public fun NowPlayingScreen(
         modifier = modifier,
     )
 }
+
+/** Favorite-aware composition seam owned by Shared. */
+@Composable
+public fun NowPlayingScreen(
+    track: Track, playbackState: PlaybackState, playbackController: PlaybackController,
+    tagLibReader: TagLibReader, currentLibraryTrack: LibraryTrack?, onBack: () -> Unit,
+    modifier: Modifier = Modifier, favoriteTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
+): Unit = NowPlayingScreen(
+    track, playbackState, playbackController, tagLibReader, currentLibraryTrack,
+    onBack, modifier)
