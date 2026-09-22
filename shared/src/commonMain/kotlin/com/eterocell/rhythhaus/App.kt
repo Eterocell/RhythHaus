@@ -210,14 +210,19 @@ fun App(
             RhythHausThemeMode.System)
     val notificationPermissionState by
         notificationPermissionController.state.collectAsState()
-    suspend fun updateLibraryContent(content: LibraryContentState) {
-        val publication = libraryPublicationOwner.publish(content)
+    suspend fun applyLibraryPublication(
+        publication: AuthoritativeLibraryPublication,
+    ) {
         withContext(Dispatchers.Main) {
             librarySources = publication.content.sources
             libraryTracks = publication.content.tracks
             favoriteTrackIds = publication.content.favoriteTrackIds
             libraryRevision = publication.revision
         }
+    }
+    suspend fun updateLibraryContent(content: LibraryContentState) {
+        val publication = libraryPublicationOwner.publish(content)
+        applyLibraryPublication(publication)
     }
 
     fun refreshPlaylists() {
@@ -643,9 +648,7 @@ fun App(
                                 expectedRevision = libraryRevision,
                                 ioDispatcher = Dispatchers.Default,
                                 publish = { publication ->
-                                    withContext(Dispatchers.Main) {
-                                        updateLibraryContent(publication.content)
-                                    }
+                                    applyLibraryPublication(publication)
                                 },
                             )
                         }
