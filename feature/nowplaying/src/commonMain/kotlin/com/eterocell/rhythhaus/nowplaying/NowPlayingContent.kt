@@ -319,7 +319,7 @@ private fun NowPlayingControlsPane(
                     contentAlignment = Alignment.Center) {
                         Icon(
                             if (checked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                            description,
+                            null,
                             tint = HausColors.current.pulse,
                             modifier = Modifier.size(26.dp))
                     }
@@ -564,6 +564,7 @@ private fun CompactNowPlayingLayout(
         Modifier.testTag(NowPlayingCompactLayoutTestTag)
             .safeContentPadding()
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(18.dp))
             NowPlayingArtworkPane(
