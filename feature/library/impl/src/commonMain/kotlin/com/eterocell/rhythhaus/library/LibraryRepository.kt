@@ -10,6 +10,7 @@ package com.eterocell.rhythhaus.library
 class InMemoryLibraryRepository : LibraryRepository {
     private val sources = linkedMapOf<String, LibrarySource>()
     private val tracks = linkedMapOf<String, LibraryTrack>()
+    private val favoriteIds = linkedSetOf<String>()
     private val scanSessions = linkedMapOf<String, ScanSession>()
     private val scanErrors = mutableListOf<ScanError>()
 
@@ -60,6 +61,18 @@ class InMemoryLibraryRepository : LibraryRepository {
                     .thenBy { it.artist.lowercase() },
             )
             .map { it.withoutArtwork() }
+
+    override fun favoriteTrackIds(): Set<String> = favoriteIds.toSet()
+
+    override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean {
+        if (!tracks.containsKey(trackId)) return false
+        if (favorite) {
+            favoriteIds += trackId
+        } else {
+            favoriteIds -= trackId
+        }
+        return true
+    }
 
     /**
      * Returns tracks belonging to the given source.
@@ -187,7 +200,10 @@ class InMemoryLibraryRepository : LibraryRepository {
                         it.lastSeenScanId != requestedScanId
                 }
                 .map { it.id }
-        ids.forEach { tracks.remove(it) }
+        ids.forEach {
+            tracks.remove(it)
+            favoriteIds.remove(it)
+        }
         return RemoveMissingTracksResult.Removed(ids.size)
     }
 
@@ -212,6 +228,7 @@ class InMemoryLibraryRepository : LibraryRepository {
                 .mapTo(mutableSetOf()) { it.id }
         scanErrors.removeAll { it.scanId in scanIds }
         scanIds.forEach { scanSessions.remove(it) }
+        favoriteIds.removeAll { trackId -> tracks[trackId]?.sourceId == sourceId }
         tracks.entries.removeAll { it.value.sourceId == sourceId }
         sources.remove(sourceId)
     }
@@ -220,6 +237,7 @@ class InMemoryLibraryRepository : LibraryRepository {
     override fun clearAll() {
         sources.clear()
         tracks.clear()
+        favoriteIds.clear()
         scanSessions.clear()
         scanErrors.clear()
     }
