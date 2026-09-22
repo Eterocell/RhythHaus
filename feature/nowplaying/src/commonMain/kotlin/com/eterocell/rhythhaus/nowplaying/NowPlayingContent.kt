@@ -484,7 +484,7 @@ private fun TransportButton(
         contentAlignment = Alignment.Center) {
             Icon(
                 icon,
-                null,
+                description,
                 tint = tint,
                 modifier = Modifier.size(iconSize))
         }
