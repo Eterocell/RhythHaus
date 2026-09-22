@@ -14,6 +14,8 @@
     <string name="browse_mode_albums">Albums</string>
     <string name="browse_mode_artists">Artists</string>
     <string name="browse_mode_songs">Songs</string>
+    <string name="browse_mode_favorites">Favorites</string>
+    <string name="favorites_empty">No favorite tracks yet.</string>
     <string name="scanning">Scanning…</string>
     <string name="scan_progress_format">%1$d folders • %2$d files • %3$d tracks</string>
     <string name="import_card_title">Add music folder</string>

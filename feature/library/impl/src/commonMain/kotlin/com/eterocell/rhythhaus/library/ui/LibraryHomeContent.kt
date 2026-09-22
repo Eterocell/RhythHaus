@@ -30,9 +30,13 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.RhythHausBackdrop
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.feature.library.generated.resources.Res
+import rhythhaus.feature.library.generated.resources.favorites_empty
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.basic.Text
 
 /**
  * Resolves the home list top content padding from the system bar inset.
@@ -60,8 +64,6 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  * @param currentTrackId the current playback track ID, or null.
  * @param selectionModeActive whether songs currently select rather than play.
  * @param selectedTrackIds immutable selected IDs effective for the home page.
- * @param favoriteTrackIds immutable authoritative favorite IDs.
- * @param onSetTrackFavorite requests a desired favorite state for a track.
  * @param labels Shared-owned localized wording.
  * @param homeBackdrop the recorded root backdrop for liquid-glass chrome.
  * @param artworkLoader lazily resolves artwork bytes for a track ID.
@@ -81,6 +83,8 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  *   offset.
  * @param bottomContentPadding reserved trailing list space for Shared shell
  *   chrome.
+ * @param favoriteTrackIds immutable authoritative favorite IDs.
+ * @param onSetTrackFavorite requests a desired favorite state for a track.
  */
 @Composable
 public fun LibraryHomeContent(
@@ -112,9 +116,17 @@ public fun LibraryHomeContent(
     onScrollPositionChanged:
         (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
     bottomContentPadding: Dp,
+    favoriteTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
 ) {
-    val albums = remember(tracks) { groupTracksByAlbum(tracks) }
-    val artists = remember(tracks) { groupTracksByArtist(tracks) }
+    // Keep filtering at the presentation boundary so the existing grouping,
+    // ordering, and playback callback all consume the same visible queue.
+    val visibleTracks =
+        remember(tracks, browseMode, favoriteTrackIds) {
+            visibleTracksForBrowseMode(tracks, browseMode, favoriteTrackIds)
+        }
+    val albums = remember(visibleTracks) { groupTracksByAlbum(visibleTracks) }
+    val artists = remember(visibleTracks) { groupTracksByArtist(visibleTracks) }
     val homeListState = rememberLazyListState()
     Box(modifier = Modifier.fillMaxSize()) {
         val homeTopContentPadding =
@@ -137,7 +149,9 @@ public fun LibraryHomeContent(
                         item {
                             HeaderSection(title = title, subtitle = subtitle)
                         }
-                        if (tracks.isEmpty() && sourcePickerActionVisible) {
+                        if (visibleTracks.isEmpty() &&
+                            browseMode != BrowseMode.Favorites &&
+                            sourcePickerActionVisible) {
                             item {
                                 ImportAudioCard(
                                     folderPickerLauncher = folderPickerLauncher,
@@ -149,7 +163,8 @@ public fun LibraryHomeContent(
                                 )
                             }
                         }
-                        if (tracks.isEmpty() &&
+                        if (visibleTracks.isEmpty() &&
+                            browseMode != BrowseMode.Favorites &&
                             scanProgress?.isActive == true) {
                             item {
                                 val sp = scanProgress
@@ -200,6 +215,21 @@ public fun LibraryHomeContent(
                                 labels = labels,
                                 onModeChange = onBrowseModeChange,
                             )
+                        }
+                        if (browseMode == BrowseMode.Favorites &&
+                            visibleTracks.isEmpty()) {
+                            item {
+                                Text(
+                                    text =
+                                        stringResource(
+                                            Res.string.favorites_empty),
+                                    color = HausColors.current.muted,
+                                    fontSize = 15.sp,
+                                    modifier =
+                                        Modifier.fillMaxWidth()
+                                            .padding(vertical = 24.dp),
+                                )
+                            }
                         }
                         when (browseMode) {
                             BrowseMode.Albums -> {
@@ -277,8 +307,10 @@ public fun LibraryHomeContent(
                                 }
                             }
 
-                            BrowseMode.Songs -> {
-                                items(tracks, key = { it.id }) { track ->
+                            BrowseMode.Songs,
+                            BrowseMode.Favorites,
+                            -> {
+                                items(visibleTracks, key = { it.id }) { track ->
                                     TrackRow(
                                         track = track,
                                         isNowPlaying =
@@ -290,7 +322,7 @@ public fun LibraryHomeContent(
                                         labels = labels,
                                         artworkLoader = artworkLoader,
                                         onPlay = {
-                                            onPlayTrack(tracks, track)
+                                            onPlayTrack(visibleTracks, track)
                                         },
                                         onToggleSelection = {
                                             onToggleSelection(track.id)
@@ -314,66 +346,7 @@ public fun LibraryHomeContent(
                 homeListState.firstVisibleItemIndex,
                 homeListState.firstVisibleItemScrollOffset)
         }
-    LaunchedEffect(tracks) {
-        onVisibleTrackIdsChanged(tracks.map { it.id })
+    LaunchedEffect(visibleTracks) {
+        onVisibleTrackIdsChanged(visibleTracks.map { it.id })
     }
 }
-
-/** Favorite-aware composition seam; state is intentionally inert until the
- * library presentation owns favorite controls.
- * @param title header title
- * @param subtitle header subtitle
- * @param tracks display tracks
- * @param browseMode active browse mode
- * @param folderPickerLauncher source picker
- * @param sourcePickerActionVisible source action visibility
- * @param importMessage import status
- * @param scanProgress scan status
- * @param mutationsEnabled mutation availability
- * @param currentTrackId current track
- * @param selectionModeActive selection mode
- * @param selectedTrackIds selected IDs
- * @param labels localized labels
- * @param homeBackdrop backdrop
- * @param artworkLoader artwork loader
- * @param onBrowseModeChange browse callback
- * @param onClearLibrary clear callback
- * @param onCancelScan cancel callback
- * @param onOpenAlbum album callback
- * @param onOpenArtist artist callback
- * @param onShowPlaylists playlist callback
- * @param onPlayTrack playback callback
- * @param onToggleSelection selection callback
- * @param onStartSelection selection start callback
- * @param onVisibleTrackIdsChanged visible IDs callback
- * @param onScrollPositionChanged scroll callback
- * @param bottomContentPadding trailing padding
- * @param favoriteTrackIds authoritative favorite IDs
- * @param onSetTrackFavorite favorite callback
- */
-@Composable
-public fun LibraryHomeContent(
-    title: String, subtitle: String, tracks: List<Track>, browseMode: BrowseMode,
-    folderPickerLauncher: PlatformFolderPickerLauncher,
-    sourcePickerActionVisible: Boolean, importMessage: String?,
-    scanProgress: ScanProgress?, mutationsEnabled: Boolean, currentTrackId: String?,
-    selectionModeActive: Boolean, selectedTrackIds: Set<String>,
-    labels: LibrarySharedLabels, homeBackdrop: RhythHausBackdrop?,
-    artworkLoader: suspend (String) -> ByteArray?,
-    onBrowseModeChange: (BrowseMode) -> Unit, onClearLibrary: () -> Unit,
-    onCancelScan: () -> Unit, onOpenAlbum: (String) -> Unit,
-    onOpenArtist: (String) -> Unit, onShowPlaylists: () -> Unit,
-    onPlayTrack: (List<Track>, Track) -> Unit,
-    onToggleSelection: (String) -> Unit, onStartSelection: (String) -> Unit,
-    onVisibleTrackIdsChanged: (List<String>) -> Unit,
-    onScrollPositionChanged: (Int, Int) -> Unit, bottomContentPadding: Dp,
-    favoriteTrackIds: Set<String>,
-    onSetTrackFavorite: (String, Boolean) -> Unit,
-) = LibraryHomeContent(
-    title, subtitle, tracks, browseMode, folderPickerLauncher,
-    sourcePickerActionVisible, importMessage, scanProgress, mutationsEnabled,
-    currentTrackId, selectionModeActive, selectedTrackIds, labels, homeBackdrop,
-    artworkLoader, onBrowseModeChange, onClearLibrary, onCancelScan, onOpenAlbum,
-    onOpenArtist, onShowPlaylists, onPlayTrack, onToggleSelection, onStartSelection,
-    onVisibleTrackIdsChanged, onScrollPositionChanged, bottomContentPadding,
-)

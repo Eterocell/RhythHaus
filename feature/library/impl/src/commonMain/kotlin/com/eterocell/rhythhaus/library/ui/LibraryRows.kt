@@ -57,6 +57,7 @@ import rhythhaus.feature.library.generated.resources.artist_album_tracks_format
 import rhythhaus.feature.library.generated.resources.artist_artwork
 import rhythhaus.feature.library.generated.resources.browse_mode_albums
 import rhythhaus.feature.library.generated.resources.browse_mode_artists
+import rhythhaus.feature.library.generated.resources.browse_mode_favorites
 import rhythhaus.feature.library.generated.resources.browse_mode_songs
 import rhythhaus.feature.library.generated.resources.hide_scan_report
 import rhythhaus.feature.library.generated.resources.import_card_description
@@ -491,6 +492,7 @@ private fun BrowseMode.displayLabelResource() =
         BrowseMode.Albums -> Res.string.browse_mode_albums
         BrowseMode.Artists -> Res.string.browse_mode_artists
         BrowseMode.Songs -> Res.string.browse_mode_songs
+        BrowseMode.Favorites -> Res.string.browse_mode_favorites
     }
 
 @Composable
