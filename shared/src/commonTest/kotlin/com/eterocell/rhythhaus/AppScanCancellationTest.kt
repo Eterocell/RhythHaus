@@ -38,6 +38,7 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -1166,6 +1167,107 @@ class AppScanCancellationTest {
     }
 
     @Test
+    fun staleFavoriteMutationDoesNotPersistRepositoryChange() = runBlocking {
+        val repository =
+            InMemoryLibraryRepository().apply {
+                upsertSource(testSource())
+                upsertTrack(testTrack("favorite"))
+            }
+        val owner = AuthoritativeLibraryPublicationOwner()
+        val initial =
+            owner.publish(
+                loadLibraryContent(repository, EmptyPlatformSourceAccess))
+        val newer =
+            owner.publish(
+                LibraryContentState(
+                    sources = emptyList(),
+                    tracks = listOf(testTrack("newer")),
+                    favoriteTrackIds = setOf("newer"),
+                ),
+            )
+        val orchestrator =
+            AppLibraryOrchestrator(
+                coordinator = AppLibraryOperationCoordinator {},
+                publishError = {},
+            )
+        var publicationCalls = 0
+
+        assertFalse(
+            setTrackFavoriteAndPublish(
+                orchestrator = orchestrator,
+                publicationOwner = owner,
+                repository = repository,
+                platformAccess = EmptyPlatformSourceAccess,
+                trackId = "favorite",
+                favorite = true,
+                expectedRevision = initial.revision,
+                ioDispatcher = Dispatchers.Default,
+                publish = { publicationCalls++ },
+            ),
+        )
+
+        assertEquals(emptySet(), repository.favoriteTrackIds())
+        assertEquals(newer.revision, owner.revision)
+        assertEquals(0, publicationCalls)
+    }
+
+    @Test
+    fun cancellationAfterFavoriteWritePublishesAuthoritativeStateBeforeRethrow() =
+        runBlocking {
+            val backingRepository =
+                InMemoryLibraryRepository().apply {
+                    upsertSource(testSource())
+                    upsertTrack(testTrack("favorite"))
+                }
+            val repository =
+                CancellationAfterFavoriteWriteRepository(backingRepository)
+            val owner = AuthoritativeLibraryPublicationOwner()
+            val initial =
+                owner.publish(
+                    loadLibraryContent(repository, EmptyPlatformSourceAccess))
+            val coordinator = AppLibraryOperationCoordinator {}
+            val orchestrator = AppLibraryOrchestrator(coordinator, publishError = {})
+            val cancellation = CancellationException("cancel after favorite write")
+            val completionCause = CompletableDeferred<Throwable?>()
+            var visible = initial.content
+
+            coroutineScope {
+                lateinit var mutation: kotlinx.coroutines.Deferred<Boolean>
+                repository.cancelMutation = { mutation.cancel(cancellation) }
+                mutation =
+                    async(start = CoroutineStart.LAZY) {
+                        setTrackFavoriteAndPublish(
+                            orchestrator = orchestrator,
+                            publicationOwner = owner,
+                            repository = repository,
+                            platformAccess = EmptyPlatformSourceAccess,
+                            trackId = "favorite",
+                            favorite = true,
+                            expectedRevision = initial.revision,
+                            ioDispatcher = Dispatchers.Default,
+                            publish = { visible = it.content },
+                        )
+                    }
+                mutation.invokeOnCompletion(completionCause::complete)
+
+                mutation.start()
+                assertSame(
+                    cancellation,
+                    completionCause.await(),
+                )
+                assertFailsWith<CancellationException> { mutation.await() }
+            }
+
+            assertEquals(setOf("favorite"), backingRepository.favoriteTrackIds())
+            assertEquals(
+                setOf("favorite"),
+                visible.favoriteTrackIds,
+            )
+            assertEquals(initial.revision + 1, owner.revision)
+            assertEquals(LibraryOperationState.Idle, coordinator.state.value)
+        }
+
+    @Test
     fun favoriteMutationIsSerializedWithDestructiveLibraryOperations() =
         runBlocking {
             val repository =
@@ -1284,6 +1386,19 @@ private object FailingPlaylistRepository : PlaylistRepository {
 
     override fun reorder(playlistId: String, entryIds: List<String>) =
         error("Not used by this test")
+}
+
+private class CancellationAfterFavoriteWriteRepository(
+    private val delegate: LibraryRepository,
+) : LibraryRepository by delegate {
+    var cancelMutation: () -> Unit = {
+        error("Cancellation callback was not configured")
+    }
+
+    override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean =
+        delegate.setTrackFavorite(trackId, favorite).also { accepted ->
+            if (accepted) cancelMutation()
+        }
 }
 
 private class BarrierRecordingLibraryRepository : LibraryRepository {
