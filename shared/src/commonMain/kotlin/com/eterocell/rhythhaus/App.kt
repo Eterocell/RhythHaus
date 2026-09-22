@@ -67,6 +67,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -884,6 +885,29 @@ internal class AuthoritativeLibraryPublicationOwner {
             }
         }
 
+    /**
+     * Keeps an accepted persistence mutation and its visible authoritative
+     * publication in one revision-guarded critical section. Returning null
+     * from [mutation] leaves the current publication unchanged.
+     */
+    suspend fun mutateAndPublishIfCurrentRevision(
+        expectedRevision: Long,
+        mutation: suspend () -> LibraryContentState?,
+        publish: suspend (AuthoritativeLibraryPublication) -> Unit,
+    ): AuthoritativeRevisionResult<AuthoritativeLibraryPublication?> =
+        mutex.withLock {
+            if (revision != expectedRevision) {
+                AuthoritativeRevisionResult.Stale
+            } else {
+                val content = mutation()
+                    ?: return@withLock AuthoritativeRevisionResult.Current(
+                        null)
+                val publication = nextPublication(content)
+                publish(publication)
+                AuthoritativeRevisionResult.Current(publication)
+            }
+        }
+
     private fun nextPublication(
         content: LibraryContentState
     ): AuthoritativeLibraryPublication =
@@ -1070,25 +1094,28 @@ internal suspend fun setTrackFavoriteAndPublish(
 ): Boolean {
     var published = false
     orchestrator.launch(LibraryOperationKind.SetTrackFavorite) { token ->
-        val content =
-            withContext(ioDispatcher) {
-                if (!repository.setTrackFavorite(trackId, favorite)) {
-                    null
-                } else {
-                    loadLibraryContent(repository, platformAccess)
-                }
-            } ?: return@launch
-        val publication =
-            orchestrator.publishIfCurrent(token) {
-                publicationOwner.publishIfCurrentRevision(
+        orchestrator.publishIfCurrent(token) {
+            currentCoroutineContext().ensureActive()
+        } ?: return@launch
+        val result =
+            withContext(NonCancellable) {
+                publicationOwner.mutateAndPublishIfCurrentRevision(
                     expectedRevision = expectedRevision,
-                    content = content,
+                    mutation = {
+                        withContext(ioDispatcher) {
+                            if (!repository.setTrackFavorite(trackId, favorite)) {
+                                null
+                            } else {
+                                loadLibraryContent(repository, platformAccess)
+                            }
+                        }
+                    },
+                    publish = publish,
                 )
-            } ?: return@launch
-        if (publication is AuthoritativeRevisionResult.Current) {
-            publish(publication.value)
-            published = true
-        }
+            }
+        published =
+            result is AuthoritativeRevisionResult.Current &&
+                result.value != null
     }
     return published
 }
