@@ -87,6 +87,8 @@ import rhythhaus.shared.generated.resources.album_artwork
 import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.clear_library
 import rhythhaus.shared.generated.resources.folder_picker_unavailable
+import rhythhaus.shared.generated.resources.library_favorite_add
+import rhythhaus.shared.generated.resources.library_favorite_remove
 import rhythhaus.shared.generated.resources.library
 import rhythhaus.shared.generated.resources.library_queue
 import rhythhaus.shared.generated.resources.now_playing_badge
@@ -132,6 +134,12 @@ internal fun librarySharedLabels(): LibrarySharedLabels =
         },
         trackArtistAlbum = { artist, album ->
             stringResource(Res.string.track_artist_album_format, artist, album)
+        },
+        addFavorite = { title ->
+            stringResource(Res.string.library_favorite_add, title)
+        },
+        removeFavorite = { title ->
+            stringResource(Res.string.library_favorite_remove, title)
         },
     )
 

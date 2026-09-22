@@ -105,6 +105,8 @@ internal fun shouldApplyDrillDownOverscroll(
  *   offset.
  * @param bottomContentPadding reserved trailing list space for Shared shell
  *   chrome.
+ * @param favoriteTrackIds immutable authoritative favorite IDs.
+ * @param onSetTrackFavorite requests a desired favorite state.
  */
 @Composable
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
@@ -127,6 +129,8 @@ public fun DrillDownView(
     onScrollPositionChanged:
         (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
     bottomContentPadding: Dp,
+    favoriteTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
 ) {
     val subtitle =
         when (summary) {
@@ -312,6 +316,10 @@ public fun DrillDownView(
                                         onPlayTrack = onPlayTrack,
                                         onToggleSelection = onToggleSelection,
                                         onStartSelection = onStartSelection,
+                                        favorite = track.id in favoriteTrackIds,
+                                        onSetFavorite = { favorite ->
+                                            onSetTrackFavorite(track.id, favorite)
+                                        },
                                     )
                                 }
                             }
@@ -335,6 +343,10 @@ public fun DrillDownView(
                                     onPlayTrack = onPlayTrack,
                                     onToggleSelection = onToggleSelection,
                                     onStartSelection = onStartSelection,
+                                    favorite = track.id in favoriteTrackIds,
+                                    onSetFavorite = { favorite ->
+                                        onSetTrackFavorite(track.id, favorite)
+                                    },
                                 )
                             }
                             item {
@@ -396,6 +408,8 @@ private fun DrillDownTrackRow(
     onPlayTrack: (List<Track>, Track) -> Unit,
     onToggleSelection: (String) -> Unit,
     onStartSelection: (String) -> Unit,
+    favorite: Boolean,
+    onSetFavorite: (Boolean) -> Unit,
 ) {
     TrackRow(
         track = track,
@@ -414,5 +428,7 @@ private fun DrillDownTrackRow(
         },
         onToggleSelection = { onToggleSelection(track.id) },
         onStartSelection = { onStartSelection(track.id) },
+        favorite = favorite,
+        onSetFavorite = onSetFavorite,
     )
 }

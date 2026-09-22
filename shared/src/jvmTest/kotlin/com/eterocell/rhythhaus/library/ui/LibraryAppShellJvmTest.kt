@@ -7,7 +7,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
@@ -53,6 +57,94 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class LibraryAppShellJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun favoriteProjectionUpdatesHomeAndAlbumDetailsAtCompactAndWideWidths() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val track =
+                    Track(
+                        id = "favorite-track",
+                        title = "Favorite track",
+                        artist = "Favorite artist",
+                        album = "Favorite album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF000000, 0xFFFFFFFF),
+                        source = AudioSource.FilePath("/favorite.mp3"),
+                    )
+                listOf(420.dp, 1200.dp).forEach { width ->
+                    var favoriteTrackIds by mutableStateOf(emptySet<String>())
+                    val requests = mutableListOf<Pair<String, Boolean>>()
+                    mount(
+                        width = width,
+                        source = source(),
+                        scanSession =
+                            ScanSession(
+                                id = "favorite-$width",
+                                sourceId = "source",
+                                status = ScanStatus.Completed,
+                                startedAtEpochMillis = 1L,
+                            ),
+                        tracks = listOf(track),
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                        favoriteTrackIds = { favoriteTrackIds },
+                        onSetTrackFavorite = { id, favorite ->
+                            requests += id to favorite
+                            favoriteTrackIds =
+                                if (favorite) favoriteTrackIds + id
+                                else favoriteTrackIds - id
+                        },
+                    )
+
+                    onAllNodes(hasText("Songs"))[0].performClick()
+                    waitForIdle()
+                    onNode(
+                            hasContentDescription(
+                                "Add Favorite track to favorites") and
+                                SemanticsMatcher.expectValue(
+                                    SemanticsProperties.ToggleableState,
+                                    ToggleableState.Off,
+                                ),
+                        )
+                        .performClick()
+                    waitForIdle()
+                    assertEquals(
+                        listOf("favorite-track" to true),
+                        requests,
+                    )
+
+                    onAllNodes(hasText("Albums"))[0].performClick()
+                    waitForIdle()
+                    onNode(
+                            hasContentDescription("Album Favorite album"),
+                        )
+                        .performClick()
+                    waitForIdle()
+
+                    onNode(
+                            hasContentDescription(
+                                "Remove Favorite track from favorites") and
+                                SemanticsMatcher.expectValue(
+                                    SemanticsProperties.ToggleableState,
+                                    ToggleableState.On,
+                                ),
+                        )
+                        .assertExists()
+
+                    if (width == 1200.dp) {
+                        onAllNodes(hasText("Songs"))[0].performClick()
+                        waitForIdle()
+                        onAllNodes(
+                                hasContentDescription(
+                                    "Remove Favorite track from favorites"),
+                            )
+                            .assertCountEquals(2)
+                    }
+                }
+            }
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun onboardingReviewPreservesPlayingStateAndQueue() =
@@ -473,6 +565,8 @@ class LibraryAppShellJvmTest {
         callbacks: CallbackRecorder,
         playbackController: PlaybackController =
             PlaybackController(FakePlaybackEngine()),
+        favoriteTrackIds: () -> Set<String> = { emptySet() },
+        onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
     ) {
         mount(
             width = { width },
@@ -484,6 +578,8 @@ class LibraryAppShellJvmTest {
             picker = picker,
             callbacks = callbacks,
             playbackController = playbackController,
+            favoriteTrackIds = favoriteTrackIds,
+            onSetTrackFavorite = onSetTrackFavorite,
         )
     }
 
@@ -499,6 +595,8 @@ class LibraryAppShellJvmTest {
         callbacks: CallbackRecorder,
         playbackController: PlaybackController =
             PlaybackController(FakePlaybackEngine()),
+        favoriteTrackIds: () -> Set<String> = { emptySet() },
+        onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
     ) {
         setContent {
             CompositionLocalProvider(
@@ -537,6 +635,8 @@ class LibraryAppShellJvmTest {
                         onRemoveSource = {},
                         onRemoveMissingTracks = { _, _ -> },
                         onCancelScan = { callbacks.cancelCalls++ },
+                        favoriteTrackIds = favoriteTrackIds(),
+                        onSetTrackFavorite = onSetTrackFavorite,
                     )
                 }
             }

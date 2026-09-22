@@ -330,6 +330,10 @@ public fun LibraryHomeContent(
                                         onStartSelection = {
                                             onStartSelection(track.id)
                                         },
+                                        favorite = track.id in favoriteTrackIds,
+                                        onSetFavorite = { favorite ->
+                                            onSetTrackFavorite(track.id, favorite)
+                                        },
                                     )
                                 }
                             }
