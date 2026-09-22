@@ -9,8 +9,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
@@ -129,7 +129,8 @@ class DrillDownViewJvmTest {
                     )
             onNode(uncheckedFavorite).assertIsDisplayed()
 
-            summary = LibraryDetailSummary.Artist(albumCount = 2, trackCount = 3)
+            summary =
+                LibraryDetailSummary.Artist(albumCount = 2, trackCount = 3)
             waitForIdle()
             onNode(uncheckedFavorite).assertIsDisplayed()
 

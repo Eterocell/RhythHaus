@@ -228,8 +228,8 @@ internal class SqlDelightLibraryRepository(
      * Stores the requested favorite state when [trackId] identifies a current
      * library track.
      *
-     * Existence validation and the requested mutation share a transaction so
-     * an absent track cannot acquire a favorite relationship between them.
+     * Existence validation and the requested mutation share a transaction so an
+     * absent track cannot acquire a favorite relationship between them.
      */
     override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean {
         var accepted = false

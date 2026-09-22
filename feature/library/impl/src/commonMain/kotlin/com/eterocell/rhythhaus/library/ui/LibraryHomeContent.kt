@@ -332,7 +332,8 @@ public fun LibraryHomeContent(
                                         },
                                         favorite = track.id in favoriteTrackIds,
                                         onSetFavorite = { favorite ->
-                                            onSetTrackFavorite(track.id, favorite)
+                                            onSetTrackFavorite(
+                                                track.id, favorite)
                                         },
                                     )
                                 }

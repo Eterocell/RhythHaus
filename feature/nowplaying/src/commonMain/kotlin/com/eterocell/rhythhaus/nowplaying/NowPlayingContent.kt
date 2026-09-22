@@ -22,9 +22,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Filter1
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Filter1
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -68,10 +68,10 @@ import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.nowplaying.generated.resources.Res
-import rhythhaus.feature.nowplaying.generated.resources.next_track
 import rhythhaus.feature.nowplaying.generated.resources.favorite_action
 import rhythhaus.feature.nowplaying.generated.resources.favorite_selected
 import rhythhaus.feature.nowplaying.generated.resources.favorite_unselected
+import rhythhaus.feature.nowplaying.generated.resources.next_track
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_access_lost
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_decoder_failure
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_missing_file
@@ -313,14 +313,16 @@ private fun NowPlayingControlsPane(
                             contentDescription = actionLabel
                             stateDescription = stateLabel
                             toggleableState =
-                                if (checked) ToggleableState.On else ToggleableState.Off
+                                if (checked) ToggleableState.On
+                                else ToggleableState.Off
                         }
                         .hausClickable {
                             onSetTrackFavorite(track.id, !checked)
                         },
                     contentAlignment = Alignment.Center) {
                         Icon(
-                            if (checked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            if (checked) Icons.Filled.Favorite
+                            else Icons.Filled.FavoriteBorder,
                             null,
                             tint = HausColors.current.pulse,
                             modifier = Modifier.size(26.dp))

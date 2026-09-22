@@ -390,17 +390,16 @@ public fun TrackRow(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Black,
                     )
-            }
                 }
+            }
         if (!selectionModeActive) {
             val favoriteDescription =
                 if (favorite) labels.removeFavorite(track.title)
                 else labels.addFavorite(track.title)
             Button(
                 onClick = { onSetFavorite(!favorite) },
-                modifier = Modifier
-                    .size(44.dp)
-                    .semantics {
+                modifier =
+                    Modifier.size(44.dp).semantics {
                         contentDescription = favoriteDescription
                         toggleableState =
                             if (favorite) ToggleableState.On
@@ -408,14 +407,15 @@ public fun TrackRow(
                     },
                 cornerRadius = 22.dp,
                 insideMargin = PaddingValues(0.dp),
-                colors = ButtonDefaults.buttonColors(
-                    color = HausColors.current.panel,
-                    contentColor = HausColors.current.ink,
-                ),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color = HausColors.current.panel,
+                        contentColor = HausColors.current.ink,
+                    ),
             ) {
                 Text(if (favorite) "♥" else "♡", fontSize = 20.sp)
             }
-            }
+        }
         Text(
             text = formatDuration(track.durationSeconds),
             color =

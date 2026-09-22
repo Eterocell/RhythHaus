@@ -5,14 +5,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -41,13 +42,12 @@ import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import androidx.compose.ui.state.ToggleableState
 
 public class NowPlayingContentSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
-    public fun favoriteActionExposesCheckedStateAndOnlyMutatesFavoriteCallback(): Unit =
-        runComposeUiTest {
+    public fun favoriteActionExposesCheckedStateAndOnlyMutatesFavoriteCallback():
+        Unit = runComposeUiTest {
         val controller = PlaybackController(ImmediatePlaybackEngine())
         val requests = mutableListOf<Pair<String, Boolean>>()
         setContent {
@@ -60,19 +60,23 @@ public class NowPlayingContentSemanticsJvmTest {
                     artworkLoader = { null },
                     onBack = {},
                     favoriteTrackIds = emptySet(),
-                    onSetTrackFavorite = { id, favorite -> requests += id to favorite },
+                    onSetTrackFavorite = { id, favorite ->
+                        requests += id to favorite
+                    },
                     isCurrentTrackAvailableInLibrary = true,
                 )
             }
         }
         onNode(
-            hasTestTag(NowPlayingFavoriteTestTag) and
-                SemanticsMatcher.expectValue(
-                    SemanticsProperties.ToggleableState,
-                    ToggleableState.Off,
-                ),
-            useUnmergedTree = true,
-        ).assertHasClickAction().performClick()
+                hasTestTag(NowPlayingFavoriteTestTag) and
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.ToggleableState,
+                        ToggleableState.Off,
+                    ),
+                useUnmergedTree = true,
+            )
+            .assertHasClickAction()
+            .performClick()
         waitForIdle()
         assertEquals(listOf(displayTrack().id to true), requests)
         assertEquals(null, controller.state.value.currentTrack)
@@ -87,19 +91,22 @@ public class NowPlayingContentSemanticsJvmTest {
                     artworkLoader = { null },
                     onBack = {},
                     favoriteTrackIds = setOf(displayTrack().id),
-                    onSetTrackFavorite = { id, favorite -> requests += id to favorite },
+                    onSetTrackFavorite = { id, favorite ->
+                        requests += id to favorite
+                    },
                     isCurrentTrackAvailableInLibrary = true,
                 )
             }
         }
         onNode(
-            hasTestTag(NowPlayingFavoriteTestTag) and
-                SemanticsMatcher.expectValue(
-                    SemanticsProperties.ToggleableState,
-                    ToggleableState.On,
-                ),
-            useUnmergedTree = true,
-        ).performClick()
+                hasTestTag(NowPlayingFavoriteTestTag) and
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.ToggleableState,
+                        ToggleableState.On,
+                    ),
+                useUnmergedTree = true,
+            )
+            .performClick()
         waitForIdle()
         assertEquals(
             listOf(displayTrack().id to true, displayTrack().id to false),
@@ -111,23 +118,26 @@ public class NowPlayingContentSemanticsJvmTest {
     @Test
     public fun favoriteActionIsAbsentForUnavailableCurrentTrack(): Unit =
         runComposeUiTest {
-        setContent {
-            Box(Modifier.size(390.dp, 844.dp)) {
-                NowPlayingContent(
-                    track = displayTrack(),
-                    playbackState = PlaybackState(),
-                    playbackController = PlaybackController(ImmediatePlaybackEngine()),
-                    labels = recoveryLabels,
-                    artworkLoader = { null },
-                    onBack = {},
-                    favoriteTrackIds = setOf(displayTrack().id),
-                    onSetTrackFavorite = { _, _ -> error("unavailable action invoked") },
-                    isCurrentTrackAvailableInLibrary = false,
-                )
+            setContent {
+                Box(Modifier.size(390.dp, 844.dp)) {
+                    NowPlayingContent(
+                        track = displayTrack(),
+                        playbackState = PlaybackState(),
+                        playbackController =
+                            PlaybackController(ImmediatePlaybackEngine()),
+                        labels = recoveryLabels,
+                        artworkLoader = { null },
+                        onBack = {},
+                        favoriteTrackIds = setOf(displayTrack().id),
+                        onSetTrackFavorite = { _, _ ->
+                            error("unavailable action invoked")
+                        },
+                        isCurrentTrackAvailableInLibrary = false,
+                    )
+                }
             }
+            onNodeWithTag(NowPlayingFavoriteTestTag).assertDoesNotExist()
         }
-        onNodeWithTag(NowPlayingFavoriteTestTag).assertDoesNotExist()
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test

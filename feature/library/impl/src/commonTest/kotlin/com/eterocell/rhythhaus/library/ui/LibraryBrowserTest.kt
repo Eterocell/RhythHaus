@@ -1,10 +1,10 @@
 package com.eterocell.rhythhaus.library.ui
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class LibraryBrowserTest {
     @Test
@@ -27,10 +27,11 @@ class LibraryBrowserTest {
         assertEquals(
             listOf("first", "third"),
             visibleTracksForBrowseMode(
-                tracks,
-                BrowseMode.Favorites,
-                setOf("third", "first"),
-            ).map { it.id },
+                    tracks,
+                    BrowseMode.Favorites,
+                    setOf("third", "first"),
+                )
+                .map { it.id },
         )
     }
 
