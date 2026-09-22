@@ -414,13 +414,15 @@ class LibrarySourceManagementTest {
     }
 
     @Test
-    fun sourceRemovalRefreshesBothSourcesAndTracks() = runBlocking {
+    fun sourceRemovalRefreshesSourcesTracksAndFavoriteIds() = runBlocking {
         val repository =
             InMemoryLibraryRepository().apply {
                 upsertSource(source("remove"))
                 upsertSource(source("keep"))
                 upsertTrack(track("remove-track", "remove"))
                 upsertTrack(track("keep-track", "keep"))
+                setTrackFavorite("remove-track", favorite = true)
+                setTrackFavorite("keep-track", favorite = true)
             }
         var refreshedState: LibraryContentState? = null
 
@@ -442,6 +444,57 @@ class LibrarySourceManagementTest {
         assertEquals(listOf("keep"), refreshedState?.sources?.map { it.id })
         assertEquals(
             listOf("keep-track"), refreshedState?.tracks?.map { it.id })
+        assertEquals(setOf("keep-track"), refreshedState?.favoriteTrackIds)
+    }
+
+    @Test
+    fun acceptedMissingTrackRemovalRefreshesFavoriteIds() = runBlocking {
+        val repository =
+            InMemoryLibraryRepository().apply {
+                upsertSource(source("source"))
+                upsertTrack(
+                    track("missing-track", "source")
+                        .copy(lastSeenScanId = "previous-scan"),
+                )
+                upsertTrack(
+                    track("kept-track", "source")
+                        .copy(lastSeenScanId = "latest-scan"),
+                )
+                setTrackFavorite("missing-track", favorite = true)
+                setTrackFavorite("kept-track", favorite = true)
+                insertScanSession(
+                    ScanSession(
+                        id = "latest-scan",
+                        sourceId = "source",
+                        status = ScanStatus.Completed,
+                        startedAtEpochMillis = 1L,
+                        completedAtEpochMillis = 2L,
+                    ),
+                )
+            }
+        var refreshedState: LibraryContentState? = null
+
+        removeMissingTracksInBackground(
+            sourceId = "source",
+            latestScanId = "latest-scan",
+            repository = repository,
+            platformAccess = FakePlatformSourceAccess(),
+            reconciler =
+                PlaybackSessionReconciler {
+                    PlaybackSessionReconcileResult.Applied
+                },
+            ioDispatcher = Dispatchers.Default,
+            playlistStateOwner = testPlaylistStateOwner(),
+            publish =
+                testLibraryMutationPublication(
+                    updateLibrary = { refreshedState = it }),
+        )
+
+        assertEquals(
+            listOf("kept-track"),
+            refreshedState?.tracks?.map { it.id },
+        )
+        assertEquals(setOf("kept-track"), refreshedState?.favoriteTrackIds)
     }
 
     @Test
@@ -588,6 +641,33 @@ class LibrarySourceManagementTest {
                 listOf("source"), platformAccess.releasedSources.map { it.id })
             assertEquals(false, platformAccess.sourceWasPresentWhenReleased)
         }
+
+    @Test
+    fun clearLibraryRefreshesFavoriteIdsAsEmpty() = runBlocking {
+        val repository =
+            InMemoryLibraryRepository().apply {
+                upsertSource(source("source"))
+                upsertTrack(track("favorite", "source"))
+                setTrackFavorite("favorite", favorite = true)
+            }
+        var refreshedState: LibraryContentState? = null
+
+        clearLibraryInBackground(
+            repository = repository,
+            platformAccess = FakePlatformSourceAccess(),
+            reconciler =
+                PlaybackSessionReconciler {
+                    PlaybackSessionReconcileResult.Applied
+                },
+            ioDispatcher = Dispatchers.Default,
+            playlistStateOwner = testPlaylistStateOwner(),
+            publish =
+                testLibraryMutationPublication(
+                    updateLibrary = { refreshedState = it }),
+        )
+
+        assertEquals(emptySet(), refreshedState?.favoriteTrackIds)
+    }
 
     @Test
     fun clearLibraryGoneOwnerCancellationDoesNotPublishOrReportError() =
