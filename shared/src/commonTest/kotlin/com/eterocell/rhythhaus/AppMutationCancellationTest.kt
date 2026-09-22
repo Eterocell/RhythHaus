@@ -199,6 +199,11 @@ private class MutationLibraryRepository : LibraryRepository {
 
     override fun tracks(): List<LibraryTrack> = emptyList()
 
+    override fun favoriteTrackIds(): Set<String> = emptySet()
+
+    override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean =
+        false
+
     override fun tracksForSource(sourceId: String): List<LibraryTrack> =
         emptyList()
 
