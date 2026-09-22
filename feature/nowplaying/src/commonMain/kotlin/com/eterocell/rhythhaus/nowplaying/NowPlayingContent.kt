@@ -69,8 +69,9 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.nowplaying.generated.resources.Res
 import rhythhaus.feature.nowplaying.generated.resources.next_track
-import rhythhaus.feature.nowplaying.generated.resources.favorite_checked
-import rhythhaus.feature.nowplaying.generated.resources.favorite_unchecked
+import rhythhaus.feature.nowplaying.generated.resources.favorite_action
+import rhythhaus.feature.nowplaying.generated.resources.favorite_selected
+import rhythhaus.feature.nowplaying.generated.resources.favorite_unselected
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_access_lost
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_decoder_failure
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_missing_file
@@ -301,15 +302,16 @@ private fun NowPlayingControlsPane(
             }
             if (isCurrentTrackAvailableInLibrary) {
                 val checked = track.id in favoriteTrackIds
-                val description =
-                    if (checked) stringResource(Res.string.favorite_checked)
-                    else stringResource(Res.string.favorite_unchecked)
+                val actionLabel = stringResource(Res.string.favorite_action)
+                val stateLabel =
+                    if (checked) stringResource(Res.string.favorite_selected)
+                    else stringResource(Res.string.favorite_unselected)
                 Box(
                     Modifier.size(48.dp)
                         .testTag(NowPlayingFavoriteTestTag)
                         .semantics {
-                            contentDescription = description
-                            stateDescription = description
+                            contentDescription = actionLabel
+                            stateDescription = stateLabel
                             toggleableState =
                                 if (checked) ToggleableState.On else ToggleableState.Off
                         }
@@ -482,7 +484,7 @@ private fun TransportButton(
         contentAlignment = Alignment.Center) {
             Icon(
                 icon,
-                description,
+                null,
                 tint = tint,
                 modifier = Modifier.size(iconSize))
         }

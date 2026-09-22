@@ -71,6 +71,7 @@ public class NowPlayingContentSemanticsJvmTest {
                     SemanticsProperties.ToggleableState,
                     ToggleableState.Off,
                 ),
+            useUnmergedTree = true,
         ).assertHasClickAction().performClick()
         waitForIdle()
         assertEquals(listOf(displayTrack().id to true), requests)
@@ -97,6 +98,7 @@ public class NowPlayingContentSemanticsJvmTest {
                     SemanticsProperties.ToggleableState,
                     ToggleableState.On,
                 ),
+            useUnmergedTree = true,
         ).performClick()
         waitForIdle()
         assertEquals(
