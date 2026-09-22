@@ -52,6 +52,7 @@ public fun NowPlayingScreen(
         modifier = modifier,
         favoriteTrackIds = favoriteTrackIds,
         onSetTrackFavorite = onSetTrackFavorite,
-        isCurrentTrackAvailableInLibrary = currentLibraryTrack != null,
+        isCurrentTrackAvailableInLibrary =
+            currentLibraryTrack?.id == playbackState.currentTrack?.id,
     )
 }
