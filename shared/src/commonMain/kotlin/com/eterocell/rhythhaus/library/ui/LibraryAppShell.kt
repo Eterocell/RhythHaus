@@ -556,6 +556,8 @@ fun LibraryHomeScreen(
             trackSelectionState = trackSelectionState,
             onTrackSelectionAction = ::dispatchTrackSelection,
             bottomContentPadding = activeBottomBarClearance,
+            favoriteTrackIds = favoriteTrackIds,
+            onSetTrackFavorite = onSetTrackFavorite,
             homeContent = { onOpenDetailRoute ->
                 LibraryHomeContent(
                     title = snapshot.title,

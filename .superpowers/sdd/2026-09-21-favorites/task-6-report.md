@@ -7,10 +7,9 @@
 - Suppressed favorite controls and their click/toggle semantics while selection mode is active; existing row playback, click selection, and long-press selection remain intact.
 - Added EN/ZH accessibility strings and preserved feature resource ownership boundaries.
 - Preserved and completed the focused Compose/JVM behavior and resource tests.
+- Fixed the Shared production route-content call chain so album/artist detail receives the same favorite projection and callback as home.
 
 ## Verification
-
-Command:
 
 ```text
 ./gradlew :feature:library:impl:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryHomeContentJvmTest' --tests 'com.eterocell.rhythhaus.library.ui.DrillDownViewJvmTest' --tests 'com.eterocell.rhythhaus.library.LibraryResourceOwnershipJvmTest'
@@ -18,8 +17,14 @@ Command:
 
 Result: `BUILD SUCCESSFUL`; 32 focused tests completed successfully.
 
-The change was committed as:
-
 ```text
-feat(library): add accessible favorite controls
+./gradlew :shared:compileKotlinJvm
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryAppShellJvmTest'
 ```
+
+Both Shared commands completed successfully.
+
+## Commits
+
+- `6d914554 feat(library): add accessible favorite controls`
+- `969f1222 fix(library): wire detail favorite projection`
