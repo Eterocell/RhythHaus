@@ -15,6 +15,12 @@ import rhythhaus.shared.generated.resources.pause
 import rhythhaus.shared.generated.resources.play
 import rhythhaus.shared.generated.resources.track_artist_album_format
 
+internal fun nowPlayingFavoriteAvailable(
+    authoritativeTrackId: String?,
+    playbackTrackId: String?,
+): Boolean =
+    authoritativeTrackId != null && authoritativeTrackId == playbackTrackId
+
 /**
  * Preserves the shared-facing Now Playing signature while delegating UI to the
  * feature module.
@@ -53,6 +59,9 @@ public fun NowPlayingScreen(
         favoriteTrackIds = favoriteTrackIds,
         onSetTrackFavorite = onSetTrackFavorite,
         isCurrentTrackAvailableInLibrary =
-            currentLibraryTrack?.id == playbackState.currentTrack?.id,
+            nowPlayingFavoriteAvailable(
+                currentLibraryTrack?.id,
+                playbackState.currentTrack?.id,
+            ),
     )
 }
