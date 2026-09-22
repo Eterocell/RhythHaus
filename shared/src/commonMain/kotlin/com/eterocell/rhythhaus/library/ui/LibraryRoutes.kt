@@ -562,6 +562,8 @@ internal fun LibraryRouteContent(
     trackSelectionState: TrackSelectionState = TrackSelectionState(),
     onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
     bottomContentPadding: Dp = 0.dp,
+    favoriteTrackIds: Set<String> = emptySet(),
+    onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     val playlistDestinationId =
         destinationId ?: LibraryDestinationId(route, "unpresented")
