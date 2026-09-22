@@ -630,6 +630,26 @@ fun App(
                     onboardingSaving = onboarding.saving,
                     onboardingCompletionError = onboarding.completionError,
                     onCompleteOnboarding = onboarding.completeOnboarding,
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = { trackId, favorite ->
+                        scope.launch {
+                            setTrackFavoriteAndPublish(
+                                orchestrator = libraryOrchestrator,
+                                publicationOwner = libraryPublicationOwner,
+                                repository = repository,
+                                platformAccess = platformAccess,
+                                trackId = trackId,
+                                favorite = favorite,
+                                expectedRevision = libraryRevision,
+                                ioDispatcher = Dispatchers.Default,
+                                publish = { publication ->
+                                    withContext(Dispatchers.Main) {
+                                        updateLibraryContent(publication.content)
+                                    }
+                                },
+                            )
+                        }
+                    },
                     coordinatorMutationsEnabled = mutationsEnabled,
                     currentThemeMode = selectedThemeMode,
                     onThemeModeSelected = { mode ->
