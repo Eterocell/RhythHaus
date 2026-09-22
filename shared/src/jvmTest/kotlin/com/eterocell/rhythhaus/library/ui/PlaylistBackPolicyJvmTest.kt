@@ -147,6 +147,8 @@ class PlaylistBackPolicyJvmTest {
                     onScrollPositionChanged = {},
                     artworkLoader = { null },
                     homeContent = { _ -> },
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
             waitForIdle()

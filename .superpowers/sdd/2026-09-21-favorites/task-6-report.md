@@ -28,3 +28,9 @@ Both Shared commands completed successfully.
 
 - `6d914554 feat(library): add accessible favorite controls`
 - `969f1222 fix(library): wire detail favorite projection`
+
+## Follow-up hardening
+
+Removed production defaults for `favoriteTrackIds` and `onSetTrackFavorite` from `LibraryRouteContent`; the production shell must now provide both values. Only direct JVM test adapters pass explicit empty/no-op values.
+
+Verification: `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryAppShellJvmTest'` completed successfully.
