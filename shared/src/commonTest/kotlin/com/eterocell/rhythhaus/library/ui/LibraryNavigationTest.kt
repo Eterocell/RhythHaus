@@ -976,6 +976,10 @@ class LibraryNavigationTest {
             trackSelectionPageKeyFor(LibraryRoute.Home, BrowseMode.Songs),
         )
         assertEquals(
+            TrackSelectionPageKey.HomeSongs,
+            trackSelectionPageKeyFor(LibraryRoute.Home, BrowseMode.Favorites),
+        )
+        assertEquals(
             null,
             trackSelectionPageKeyFor(LibraryRoute.Home, BrowseMode.Albums))
         assertEquals(

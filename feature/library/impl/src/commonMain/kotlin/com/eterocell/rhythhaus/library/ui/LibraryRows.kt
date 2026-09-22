@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -451,36 +452,48 @@ internal fun BrowseModePicker(
     labels: LibrarySharedLabels,
     onModeChange: (BrowseMode) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        BrowseMode.entries.forEach { mode ->
-            val isSelected = browseMode == mode
-            Button(
-                onClick = { onModeChange(mode) },
-                modifier = Modifier.weight(1f).height(40.dp),
-                cornerRadius = 20.dp,
-                insideMargin =
-                    PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-                colors =
-                    if (isSelected) {
-                        ButtonDefaults.buttonColors(
-                            color = HausColors.current.ink,
-                            contentColor = HausColors.current.paper,
-                        )
-                    } else {
-                        ButtonDefaults.buttonColors(
-                            color = HausColors.current.panel,
-                            contentColor = HausColors.current.ink,
-                        )
-                    },
-            ) {
-                Text(
-                    stringResource(mode.displayLabelResource()),
-                    fontSize = 14.sp,
-                    fontWeight =
-                        if (isSelected) FontWeight.Bold else FontWeight.Medium)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val compact = maxWidth < 440.dp
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            BrowseMode.entries.forEach { mode ->
+                val isSelected = browseMode == mode
+                Button(
+                    onClick = { onModeChange(mode) },
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    cornerRadius = 20.dp,
+                    insideMargin =
+                        PaddingValues(
+                            horizontal = if (compact) 4.dp else 12.dp,
+                            vertical = 10.dp,
+                        ),
+                    colors =
+                        if (isSelected) {
+                            ButtonDefaults.buttonColors(
+                                color = HausColors.current.ink,
+                                contentColor = HausColors.current.paper,
+                            )
+                        } else {
+                            ButtonDefaults.buttonColors(
+                                color = HausColors.current.panel,
+                                contentColor = HausColors.current.ink,
+                            )
+                        },
+                ) {
+                    Text(
+                        stringResource(mode.displayLabelResource()),
+                        fontSize = if (compact) 12.sp else 14.sp,
+                        fontWeight =
+                            if (isSelected) {
+                                FontWeight.Bold
+                            } else {
+                                FontWeight.Medium
+                            },
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }
