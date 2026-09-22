@@ -13,6 +13,13 @@ SELECT trackId, favoritedAtEpochMillis
 FROM track_favorite
 WHERE trackId = ?;
 
+selectTrackExists:
+SELECT EXISTS(
+    SELECT 1
+    FROM library_track
+    WHERE id = :trackId
+);
+
 setTrackFavorite:
 INSERT INTO track_favorite(trackId, favoritedAtEpochMillis)
 SELECT :trackId, :favoritedAtEpochMillis

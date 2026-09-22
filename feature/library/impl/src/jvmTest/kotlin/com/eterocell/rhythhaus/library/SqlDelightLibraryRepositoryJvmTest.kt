@@ -12,8 +12,10 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SqlDelightLibraryRepositoryJvmTest {
     @Test
@@ -114,6 +116,122 @@ class SqlDelightLibraryRepositoryJvmTest {
             assertEquals(
                 listOf("track-a", "track-b"),
                 secondOpen.repository.tracksForSource("source-1").map { it.id })
+        }
+    }
+
+    @Test
+    fun favoriteTrackIdsAreEmptyForNewDatabase() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-favorites-empty", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            assertEquals(emptySet(), open.repository.favoriteTrackIds())
+        }
+    }
+
+    @Test
+    fun setTrackFavoriteIsIdempotentForExistingTrack() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-favorites-idempotent", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(
+                testTrack(
+                    id = "track-1",
+                    sourceLocalKey = "one.mp3",
+                    title = "One",
+                    artist = "Artist"))
+
+            assertTrue(open.repository.setTrackFavorite("track-1", favorite = true))
+            assertTrue(open.repository.setTrackFavorite("track-1", favorite = true))
+            assertEquals(setOf("track-1"), open.repository.favoriteTrackIds())
+
+            assertTrue(open.repository.setTrackFavorite("track-1", favorite = false))
+            assertTrue(open.repository.setTrackFavorite("track-1", favorite = false))
+            assertEquals(emptySet(), open.repository.favoriteTrackIds())
+        }
+    }
+
+    @Test
+    fun setTrackFavoriteRejectsMissingTrackWithoutLeavingFavoriteRow() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-favorites-missing", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            assertFalse(open.repository.setTrackFavorite("missing-track", favorite = true))
+            assertFalse(open.repository.setTrackFavorite("missing-track", favorite = false))
+
+            assertEquals(emptySet(), open.repository.favoriteTrackIds())
+            assertEquals(
+                emptyList(),
+                open.database.trackFavoriteQueries
+                    .selectFavoriteTrackIds()
+                    .executeAsList(),
+            )
+        }
+    }
+
+    @Test
+    fun favoriteStateSurvivesDatabaseReopen() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-favorites-reopen", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(
+                testTrack(
+                    id = "track-1",
+                    sourceLocalKey = "one.mp3",
+                    title = "One",
+                    artist = "Artist"))
+            assertTrue(open.repository.setTrackFavorite("track-1", favorite = true))
+        }
+
+        openRepository(databaseFile).use { reopened ->
+            assertEquals(setOf("track-1"), reopened.repository.favoriteTrackIds())
+        }
+    }
+
+    @Test
+    fun favoriteStateCascadesWhenSourceIsRemoved() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-favorites-cascade", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource(id = "source-1"))
+            open.repository.upsertSource(testSource(id = "source-2"))
+            open.repository.upsertTrack(
+                testTrack(
+                    id = "track-1",
+                    sourceId = "source-1",
+                    sourceLocalKey = "one.mp3",
+                    title = "One",
+                    artist = "Artist"))
+            open.repository.upsertTrack(
+                testTrack(
+                    id = "track-2",
+                    sourceId = "source-2",
+                    sourceLocalKey = "two.mp3",
+                    title = "Two",
+                    artist = "Artist"))
+            assertTrue(open.repository.setTrackFavorite("track-1", favorite = true))
+            assertTrue(open.repository.setTrackFavorite("track-2", favorite = true))
+
+            open.repository.removeSource("source-1")
+
+            assertEquals(listOf("track-2"), open.repository.tracks().map { it.id })
+            assertEquals(setOf("track-2"), open.repository.favoriteTrackIds())
         }
     }
 

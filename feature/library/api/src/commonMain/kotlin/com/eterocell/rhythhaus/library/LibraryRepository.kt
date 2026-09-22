@@ -16,6 +16,20 @@ public interface LibraryRepository {
     /** Returns all tracks. */
     public fun tracks(): List<LibraryTrack>
 
+    /** Returns the IDs of currently favorited tracks. */
+    public fun favoriteTrackIds(): Set<String>
+
+    /**
+     * Stores the requested favorite state for an existing track.
+     *
+     * Repeating a request for the already-stored state is accepted without
+     * changing the resulting favorite membership.
+     *
+     * @return `true` when [trackId] identifies an existing track; `false`
+     *   when no such track exists and no favorite state is stored.
+     */
+    public fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean
+
     /** Returns tracks belonging to a source. */
     public fun tracksForSource(sourceId: String): List<LibraryTrack>
 
