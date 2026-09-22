@@ -293,7 +293,9 @@ internal fun SectionLabel(title: String, subtitle: String?) {
  * @param artworkLoader lazily resolves artwork bytes for a track ID.
  * @param onPlay requests playback of this row's track.
  * @param onToggleSelection requests toggling this row's selection.
- * @param onStartSelection requests beginning selection with this row's track.
+ * @param onStartSelection requests beginning selection with this row.
+ * @param favorite whether this track is currently favorited.
+ * @param onSetFavorite requests the desired favorite state.
  */
 @Composable
 public fun TrackRow(
@@ -306,6 +308,8 @@ public fun TrackRow(
     onPlay: () -> Unit,
     onToggleSelection: () -> Unit,
     onStartSelection: () -> Unit,
+    favorite: Boolean,
+    onSetFavorite: (Boolean) -> Unit,
 ) {
     val selectTrackContentDescription = labels.selectTrack(track.title)
     val nowPlayingDescription = labels.nowPlayingBadge
@@ -386,7 +390,31 @@ public fun TrackRow(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Black,
                     )
+            }
                 }
+        if (!selectionModeActive) {
+            val favoriteDescription =
+                if (favorite) labels.removeFavorite(track.title)
+                else labels.addFavorite(track.title)
+            Button(
+                onClick = { onSetFavorite(!favorite) },
+                modifier = Modifier
+                    .size(44.dp)
+                    .semantics {
+                        contentDescription = favoriteDescription
+                        toggleableState =
+                            if (favorite) ToggleableState.On
+                            else ToggleableState.Off
+                    },
+                cornerRadius = 22.dp,
+                insideMargin = PaddingValues(0.dp),
+                colors = ButtonDefaults.buttonColors(
+                    color = HausColors.current.panel,
+                    contentColor = HausColors.current.ink,
+                ),
+            ) {
+                Text(if (favorite) "♥" else "♡", fontSize = 20.sp)
+            }
             }
         Text(
             text = formatDuration(track.durationSeconds),

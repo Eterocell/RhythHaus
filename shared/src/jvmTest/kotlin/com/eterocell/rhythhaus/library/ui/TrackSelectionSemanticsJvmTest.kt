@@ -62,6 +62,8 @@ class TrackSelectionSemanticsJvmTest {
                     onPlay = { playCount += 1 },
                     onToggleSelection = {},
                     onStartSelection = { selectionStartCount += 1 },
+                    favorite = false,
+                    onSetFavorite = {},
                 )
             }
 
@@ -99,6 +101,8 @@ class TrackSelectionSemanticsJvmTest {
                 onPlay = {},
                 onToggleSelection = {},
                 onStartSelection = {},
+                favorite = false,
+                onSetFavorite = {},
             )
         }
 
@@ -138,6 +142,8 @@ class TrackSelectionSemanticsJvmTest {
                     onPlay = { playCount += 1 },
                     onToggleSelection = { toggleCount += 1 },
                     onStartSelection = {},
+                    favorite = false,
+                    onSetFavorite = {},
                 )
             }
 
@@ -174,6 +180,8 @@ class TrackSelectionSemanticsJvmTest {
                     onPlay = { playCount += 1 },
                     onToggleSelection = { toggleCount += 1 },
                     onStartSelection = {},
+                    favorite = false,
+                    onSetFavorite = {},
                 )
             }
 

@@ -231,6 +231,14 @@ public data class LibrarySharedLabels(
     public val selectTrack: @Composable (String) -> String,
     /** Composably resolves the localized artist-album subtitle. */
     public val trackArtistAlbum: @Composable (String, String) -> String,
+    /** Composably resolves the add-favorite action description. */
+    public val addFavorite: @Composable (String) -> String = { title ->
+        "Add $title to favorites"
+    },
+    /** Composably resolves the remove-favorite action description. */
+    public val removeFavorite: @Composable (String) -> String = { title ->
+        "Remove $title from favorites"
+    },
 )
 
 // ----- Private helpers -----

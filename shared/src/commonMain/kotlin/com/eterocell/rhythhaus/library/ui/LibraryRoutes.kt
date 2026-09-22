@@ -633,6 +633,8 @@ internal fun LibraryRouteContent(
                             LibraryScrollPosition(index, offset))
                     },
                     bottomContentPadding = bottomContentPadding,
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = onSetTrackFavorite,
                 )
             }
         }
@@ -700,6 +702,8 @@ internal fun LibraryRouteContent(
                             LibraryScrollPosition(index, offset))
                     },
                     bottomContentPadding = bottomContentPadding,
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = onSetTrackFavorite,
                 )
             }
         }
