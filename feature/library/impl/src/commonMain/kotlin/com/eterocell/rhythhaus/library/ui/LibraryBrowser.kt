@@ -14,8 +14,22 @@ public enum class BrowseMode {
     /** Grouped artist browsing. */
     Artists,
     /** Flat authoritative song list. */
-    Songs
+    Songs,
+    /** Flat authoritative favorite-track list. */
+    Favorites,
 }
+
+/** Returns the authoritative tracks visible in the selected browse mode. */
+internal fun visibleTracksForBrowseMode(
+    tracks: List<Track>,
+    browseMode: BrowseMode,
+    favoriteTrackIds: Set<String>,
+): List<Track> =
+    if (browseMode == BrowseMode.Favorites) {
+        tracks.filter { it.id in favoriteTrackIds }
+    } else {
+        tracks
+    }
 
 /**
  * Returns the album grid column count for the given available width.

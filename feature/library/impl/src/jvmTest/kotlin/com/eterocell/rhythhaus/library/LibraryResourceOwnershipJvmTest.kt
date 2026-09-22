@@ -33,6 +33,8 @@ class LibraryResourceOwnershipJvmTest {
             "browse_mode_albums",
             "browse_mode_artists",
             "browse_mode_songs",
+            "browse_mode_favorites",
+            "favorites_empty",
             "scanning",
             "scan_progress_format",
             "import_card_title",

@@ -76,6 +76,8 @@ class LibraryHomeContentJvmTest {
                             scrolls += index to offset
                         },
                         bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -93,6 +95,109 @@ class LibraryHomeContentJvmTest {
             waitForIdle()
             assertEquals(tracks(), plays.last().first)
             assertEquals(tracks()[0].id, plays.last().second.id)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun favoritesRenderOnlyMembersAndPlayTheVisibleQueueAtCompactWidth() =
+        runComposeUiTest {
+            val visibleReports = mutableListOf<List<String>>()
+            val plays = mutableListOf<Pair<List<Track>, Track>>()
+            setContent {
+                Box(Modifier.size(420.dp, 900.dp)) {
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = tracks(),
+                        browseMode = BrowseMode.Favorites,
+                        folderPickerLauncher = StubPicker,
+                        sourcePickerActionVisible = true,
+                        importMessage = null,
+                        scanProgress = null,
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { ordered, selected ->
+                            plays += ordered to selected
+                        },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = { visibleReports += it },
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                        favoriteTrackIds = setOf("t-2", "t-3"),
+                        onSetTrackFavorite = { _, _ -> },
+                    )
+                }
+            }
+            waitForIdle()
+
+            assertEquals(listOf("t-2", "t-3"), visibleReports.last())
+            onAllNodes(hasText("One")).assertCountEquals(1)
+            onAllNodes(hasText("Solo")).assertCountEquals(1)
+            onAllNodes(hasText("Two")).assertCountEquals(0)
+
+            onAllNodes(hasContentDescription("Select One"))[0].performClick()
+            waitForIdle()
+            assertEquals(listOf("t-2", "t-3"), plays.single().first.map { it.id })
+            assertEquals("t-2", plays.single().second.id)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun emptyFavoritesShowDedicatedStateWithoutImportAtWideWidth() =
+        runComposeUiTest {
+            val visibleReports = mutableListOf<List<String>>()
+            setContent {
+                Box(Modifier.size(1000.dp, 700.dp)) {
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = tracks(),
+                        browseMode = BrowseMode.Favorites,
+                        folderPickerLauncher = StubPicker,
+                        sourcePickerActionVisible = true,
+                        importMessage = null,
+                        scanProgress = null,
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = { visibleReports += it },
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
+                    )
+                }
+            }
+            waitForIdle()
+
+            assertEquals(emptyList(), visibleReports.last())
+            onAllNodes(hasText("No favorite tracks yet.")).assertCountEquals(1)
+            onAllNodes(hasText("Add music folder")).assertCountEquals(0)
         }
 
     @OptIn(ExperimentalTestApi::class)
@@ -131,6 +236,8 @@ class LibraryHomeContentJvmTest {
                         scrolls += index to offset
                     },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -175,6 +282,8 @@ class LibraryHomeContentJvmTest {
                     onVisibleTrackIdsChanged = {},
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -235,6 +344,8 @@ class LibraryHomeContentJvmTest {
                     onVisibleTrackIdsChanged = {},
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -284,6 +395,8 @@ class LibraryHomeContentJvmTest {
                     onVisibleTrackIdsChanged = {},
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -330,6 +443,8 @@ class LibraryHomeContentJvmTest {
                         onVisibleTrackIdsChanged = {},
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -376,6 +491,8 @@ class LibraryHomeContentJvmTest {
                     onVisibleTrackIdsChanged = {},
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -421,6 +538,8 @@ class LibraryHomeContentJvmTest {
                         onVisibleTrackIdsChanged = {},
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -466,6 +585,8 @@ class LibraryHomeContentJvmTest {
                         onVisibleTrackIdsChanged = { visibleReports += it },
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
