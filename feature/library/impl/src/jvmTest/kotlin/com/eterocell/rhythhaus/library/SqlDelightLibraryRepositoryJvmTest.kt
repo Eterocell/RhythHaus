@@ -134,7 +134,8 @@ class SqlDelightLibraryRepositoryJvmTest {
     @Test
     fun setTrackFavoriteIsIdempotentForExistingTrack() {
         val databaseFile =
-            Files.createTempFile("rhythhaus-library-favorites-idempotent", ".db")
+            Files.createTempFile(
+                    "rhythhaus-library-favorites-idempotent", ".db")
                 .toFile()
         databaseFile.deleteOnExit()
 
@@ -147,12 +148,16 @@ class SqlDelightLibraryRepositoryJvmTest {
                     title = "One",
                     artist = "Artist"))
 
-            assertTrue(open.repository.setTrackFavorite("track-1", favorite = true))
-            assertTrue(open.repository.setTrackFavorite("track-1", favorite = true))
+            assertTrue(
+                open.repository.setTrackFavorite("track-1", favorite = true))
+            assertTrue(
+                open.repository.setTrackFavorite("track-1", favorite = true))
             assertEquals(setOf("track-1"), open.repository.favoriteTrackIds())
 
-            assertTrue(open.repository.setTrackFavorite("track-1", favorite = false))
-            assertTrue(open.repository.setTrackFavorite("track-1", favorite = false))
+            assertTrue(
+                open.repository.setTrackFavorite("track-1", favorite = false))
+            assertTrue(
+                open.repository.setTrackFavorite("track-1", favorite = false))
             assertEquals(emptySet(), open.repository.favoriteTrackIds())
         }
     }
@@ -165,8 +170,12 @@ class SqlDelightLibraryRepositoryJvmTest {
         databaseFile.deleteOnExit()
 
         openRepository(databaseFile).use { open ->
-            assertFalse(open.repository.setTrackFavorite("missing-track", favorite = true))
-            assertFalse(open.repository.setTrackFavorite("missing-track", favorite = false))
+            assertFalse(
+                open.repository.setTrackFavorite(
+                    "missing-track", favorite = true))
+            assertFalse(
+                open.repository.setTrackFavorite(
+                    "missing-track", favorite = false))
 
             assertEquals(emptySet(), open.repository.favoriteTrackIds())
             assertEquals(
@@ -193,11 +202,13 @@ class SqlDelightLibraryRepositoryJvmTest {
                     sourceLocalKey = "one.mp3",
                     title = "One",
                     artist = "Artist"))
-            assertTrue(open.repository.setTrackFavorite("track-1", favorite = true))
+            assertTrue(
+                open.repository.setTrackFavorite("track-1", favorite = true))
         }
 
         openRepository(databaseFile).use { reopened ->
-            assertEquals(setOf("track-1"), reopened.repository.favoriteTrackIds())
+            assertEquals(
+                setOf("track-1"), reopened.repository.favoriteTrackIds())
         }
     }
 
@@ -225,12 +236,15 @@ class SqlDelightLibraryRepositoryJvmTest {
                     sourceLocalKey = "two.mp3",
                     title = "Two",
                     artist = "Artist"))
-            assertTrue(open.repository.setTrackFavorite("track-1", favorite = true))
-            assertTrue(open.repository.setTrackFavorite("track-2", favorite = true))
+            assertTrue(
+                open.repository.setTrackFavorite("track-1", favorite = true))
+            assertTrue(
+                open.repository.setTrackFavorite("track-2", favorite = true))
 
             open.repository.removeSource("source-1")
 
-            assertEquals(listOf("track-2"), open.repository.tracks().map { it.id })
+            assertEquals(
+                listOf("track-2"), open.repository.tracks().map { it.id })
             assertEquals(setOf("track-2"), open.repository.favoriteTrackIds())
         }
     }

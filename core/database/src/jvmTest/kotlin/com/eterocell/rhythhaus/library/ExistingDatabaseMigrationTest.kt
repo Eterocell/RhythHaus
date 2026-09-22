@@ -155,11 +155,12 @@ class ExistingDatabaseMigrationTest {
     @Test
     fun unversionedPreFavoritesDatabaseBootstrapsAtVersionTwoBeforeMigrating() {
         val databaseFile = copyVersionTwoDatabase()
-        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}").use { connection ->
-            connection.createStatement().use { statement ->
-                statement.execute("PRAGMA user_version = 0")
+        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
+            .use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("PRAGMA user_version = 0")
+                }
             }
-        }
 
         val libraryDatabase = LibraryDatabase(databaseFile)
         try {

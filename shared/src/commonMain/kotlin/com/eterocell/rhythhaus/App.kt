@@ -910,8 +910,8 @@ internal class AuthoritativeLibraryPublicationOwner {
 
     /**
      * Keeps an accepted persistence mutation and its visible authoritative
-     * publication in one revision-guarded critical section. Returning null
-     * from [mutation] leaves the current publication unchanged.
+     * publication in one revision-guarded critical section. Returning null from
+     * [mutation] leaves the current publication unchanged.
      */
     suspend fun mutateAndPublishIfCurrentRevision(
         expectedRevision: Long,
@@ -922,9 +922,10 @@ internal class AuthoritativeLibraryPublicationOwner {
             if (revision != expectedRevision) {
                 AuthoritativeRevisionResult.Stale
             } else {
-                val content = mutation()
-                    ?: return@withLock AuthoritativeRevisionResult.Current(
-                        null)
+                val content =
+                    mutation()
+                        ?: return@withLock AuthoritativeRevisionResult.Current(
+                            null)
                 val publication = nextPublication(content)
                 publish(publication)
                 AuthoritativeRevisionResult.Current(publication)
@@ -1126,7 +1127,8 @@ internal suspend fun setTrackFavoriteAndPublish(
                     expectedRevision = expectedRevision,
                     mutation = {
                         withContext(ioDispatcher) {
-                            if (!repository.setTrackFavorite(trackId, favorite)) {
+                            if (!repository.setTrackFavorite(
+                                trackId, favorite)) {
                                 null
                             } else {
                                 loadLibraryContent(repository, platformAccess)

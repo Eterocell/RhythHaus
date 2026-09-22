@@ -25,8 +25,8 @@ public interface LibraryRepository {
      * Repeating a request for the already-stored state is accepted without
      * changing the resulting favorite membership.
      *
-     * @return `true` when [trackId] identifies an existing track; `false`
-     *   when no such track exists and no favorite state is stored.
+     * @return `true` when [trackId] identifies an existing track; `false` when
+     *   no such track exists and no favorite state is stored.
      */
     public fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean
 

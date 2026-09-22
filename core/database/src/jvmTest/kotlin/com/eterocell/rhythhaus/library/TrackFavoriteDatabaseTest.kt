@@ -85,7 +85,8 @@ class TrackFavoriteDatabaseTest {
 
     @Test
     fun deletingTracksCascadesFavoriteRelationships() {
-        val databaseFile = temporaryDatabaseFile("rhythhaus-favorite-track-delete")
+        val databaseFile =
+            temporaryDatabaseFile("rhythhaus-favorite-track-delete")
         val libraryDatabase = LibraryDatabase(databaseFile)
         try {
             val database = libraryDatabase.database
@@ -107,7 +108,8 @@ class TrackFavoriteDatabaseTest {
 
     @Test
     fun deletingSourcesCascadesFavoriteRelationshipsThroughTracks() {
-        val databaseFile = temporaryDatabaseFile("rhythhaus-favorite-source-delete")
+        val databaseFile =
+            temporaryDatabaseFile("rhythhaus-favorite-source-delete")
         val libraryDatabase = LibraryDatabase(databaseFile)
         try {
             val database = libraryDatabase.database

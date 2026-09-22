@@ -7,7 +7,8 @@ class HomeSelectionPoliciesJvmTest {
     @Test
     fun leavingAFlatHomeSurfaceForAGroupedModeClearsSelectionExactlyOnce() {
         listOf(BrowseMode.Songs, BrowseMode.Favorites).forEach { source ->
-            listOf(BrowseMode.Albums, BrowseMode.Artists).forEach { destination ->
+            listOf(BrowseMode.Albums, BrowseMode.Artists).forEach { destination
+                ->
                 val actions = mutableListOf<TrackSelectionAction>()
                 val browseModes = mutableListOf<BrowseMode>()
                 dispatchHomeBrowseModeChange(
@@ -29,12 +30,14 @@ class HomeSelectionPoliciesJvmTest {
     @Test
     fun movingBetweenFlatHomeSurfacesKeepsSelection() {
         listOf(
-            BrowseMode.Songs to BrowseMode.Favorites,
-            BrowseMode.Favorites to BrowseMode.Songs,
-        ).forEach { (source, destination) ->
-            val actions = mutableListOf<TrackSelectionAction>()
-            dispatchHomeBrowseModeChange(source, destination, actions::add) {}
-            assertEquals(emptyList(), actions)
-        }
+                BrowseMode.Songs to BrowseMode.Favorites,
+                BrowseMode.Favorites to BrowseMode.Songs,
+            )
+            .forEach { (source, destination) ->
+                val actions = mutableListOf<TrackSelectionAction>()
+                dispatchHomeBrowseModeChange(
+                    source, destination, actions::add) {}
+                assertEquals(emptyList(), actions)
+            }
     }
 }

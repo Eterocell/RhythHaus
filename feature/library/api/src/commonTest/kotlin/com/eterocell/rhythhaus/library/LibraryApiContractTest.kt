@@ -38,7 +38,8 @@ class LibraryApiContractTest {
         assertEquals(setOf(track.id), repository.favoriteTrackIds())
         assertTrue(repository.setTrackFavorite(track.id, favorite = false))
         assertEquals(emptySet(), repository.favoriteTrackIds())
-        assertFalse(repository.setTrackFavorite("missing-track", favorite = true))
+        assertFalse(
+            repository.setTrackFavorite("missing-track", favorite = true))
         assertEquals(listOf(track), repository.tracksForSource(source.id))
         assertEquals(
             TrackArtwork(byteArrayOf(1), "image/jpeg"),

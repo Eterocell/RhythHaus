@@ -11,9 +11,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
-
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
@@ -84,8 +82,8 @@ class LibraryHomeContentJvmTest {
                             scrolls += index to offset
                         },
                         bottomContentPadding = 0.dp,
-                    favoriteTrackIds = emptySet(),
-                    onSetTrackFavorite = { _, _ -> },
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -204,7 +202,9 @@ class LibraryHomeContentJvmTest {
                     onOpenAlbum = {},
                     onOpenArtist = {},
                     onShowPlaylists = {},
-                    onPlayTrack = { ordered, selected -> plays += ordered to selected },
+                    onPlayTrack = { ordered, selected ->
+                        plays += ordered to selected
+                    },
                     onToggleSelection = {},
                     onStartSelection = { selectionStarts += it },
                     onVisibleTrackIdsChanged = {},
@@ -231,8 +231,9 @@ class LibraryHomeContentJvmTest {
         assertEquals(listOf("t-1"), plays.single().first.map(Track::id))
         assertEquals("t-1", plays.single().second.id)
 
-        onNode(hasContentDescription("Select Two"))
-            .performTouchInput { longClick() }
+        onNode(hasContentDescription("Select Two")).performTouchInput {
+            longClick()
+        }
         waitForIdle()
         assertEquals(listOf("t-1"), selectionStarts)
     }
@@ -277,7 +278,8 @@ class LibraryHomeContentJvmTest {
             }
         }
         waitForIdle()
-        onNode(hasContentDescription("Remove Two from favorites")).assertIsDisplayed()
+        onNode(hasContentDescription("Remove Two from favorites"))
+            .assertIsDisplayed()
 
         selectionModeActive = true
         waitForIdle()
@@ -339,7 +341,8 @@ class LibraryHomeContentJvmTest {
 
             onAllNodes(hasContentDescription("Select One"))[0].performClick()
             waitForIdle()
-            assertEquals(listOf("t-2", "t-3"), plays.single().first.map { it.id })
+            assertEquals(
+                listOf("t-2", "t-3"), plays.single().first.map { it.id })
             assertEquals("t-2", plays.single().second.id)
         }
 
@@ -616,10 +619,10 @@ class LibraryHomeContentJvmTest {
             listOf(375.dp, 353.dp, 840.dp).forEach { testedWidth ->
                 width = testedWidth
                 waitForIdle()
-                listOf("Albums", "Artists", "Songs", "Favorites")
-                    .forEach { label ->
-                        onNode(hasText(label)).assertIsDisplayed()
-                    }
+                listOf("Albums", "Artists", "Songs", "Favorites").forEach {
+                    label ->
+                    onNode(hasText(label)).assertIsDisplayed()
+                }
             }
 
             onNode(hasText("Favorites")).performClick()
@@ -663,8 +666,8 @@ class LibraryHomeContentJvmTest {
                         onVisibleTrackIdsChanged = {},
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
-                    favoriteTrackIds = emptySet(),
-                    onSetTrackFavorite = { _, _ -> },
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -758,8 +761,8 @@ class LibraryHomeContentJvmTest {
                         onVisibleTrackIdsChanged = {},
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
-                    favoriteTrackIds = emptySet(),
-                    onSetTrackFavorite = { _, _ -> },
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -805,8 +808,8 @@ class LibraryHomeContentJvmTest {
                         onVisibleTrackIdsChanged = { visibleReports += it },
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
-                    favoriteTrackIds = emptySet(),
-                    onSetTrackFavorite = { _, _ -> },
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }

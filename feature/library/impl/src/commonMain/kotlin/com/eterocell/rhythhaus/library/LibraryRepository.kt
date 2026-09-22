@@ -228,7 +228,9 @@ class InMemoryLibraryRepository : LibraryRepository {
                 .mapTo(mutableSetOf()) { it.id }
         scanErrors.removeAll { it.scanId in scanIds }
         scanIds.forEach { scanSessions.remove(it) }
-        favoriteIds.removeAll { trackId -> tracks[trackId]?.sourceId == sourceId }
+        favoriteIds.removeAll { trackId ->
+            tracks[trackId]?.sourceId == sourceId
+        }
         tracks.entries.removeAll { it.value.sourceId == sourceId }
         sources.remove(sourceId)
     }

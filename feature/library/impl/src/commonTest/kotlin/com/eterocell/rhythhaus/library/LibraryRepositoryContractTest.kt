@@ -31,7 +31,8 @@ class LibraryRepositoryContractTest {
     fun inMemoryFavoriteStateRejectsMissingTracksAndCascadesWithSourceRemoval() {
         val repository = InMemoryLibraryRepository()
 
-        assertFalse(repository.setTrackFavorite("missing-track", favorite = true))
+        assertFalse(
+            repository.setTrackFavorite("missing-track", favorite = true))
 
         repository.upsertSource(testSource())
         repository.upsertTrack(
