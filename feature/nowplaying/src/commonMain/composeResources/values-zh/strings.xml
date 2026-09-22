@@ -1,6 +1,8 @@
 <resources>
     <string name="mini_player_empty_subtitle">在设置中添加音乐即可开始聆听</string>
     <string name="next_track">下一首</string>
+    <string name="favorite_checked">收藏，已选中</string>
+    <string name="favorite_unchecked">收藏，未选中</string>
     <string name="playback_error_access_lost">无法再访问此媒体文件</string>
     <string name="playback_error_decoder_failure">解码器无法播放此文件</string>
     <string name="playback_error_missing_file">此媒体文件缺失</string>

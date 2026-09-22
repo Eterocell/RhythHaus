@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Filter1
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -43,6 +45,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,6 +69,8 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.nowplaying.generated.resources.Res
 import rhythhaus.feature.nowplaying.generated.resources.next_track
+import rhythhaus.feature.nowplaying.generated.resources.favorite_checked
+import rhythhaus.feature.nowplaying.generated.resources.favorite_unchecked
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_access_lost
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_decoder_failure
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_missing_file
@@ -108,6 +115,7 @@ internal const val NowPlayingSubtitleTestTag = "NowPlayingSubtitle"
 internal const val NowPlayingRetryFailureTestTag = "NowPlayingRetryFailure"
 internal const val NowPlayingSkipFailureTestTag = "NowPlayingSkipFailure"
 internal const val NowPlayingRemoveFailureTestTag = "NowPlayingRemoveFailure"
+internal const val NowPlayingFavoriteTestTag = "NowPlayingFavorite"
 
 /** Immutable shared-resolved labels used by [NowPlayingContent]. */
 public data class NowPlayingScreenLabels(
@@ -155,6 +163,9 @@ public fun NowPlayingContent(
     artworkLoader: suspend (String) -> ByteArray?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    favoriteTrackIds: Set<String> = emptySet(),
+    onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
+    isCurrentTrackAvailableInLibrary: Boolean = false,
 ): Unit {
     val brush =
         Brush.linearGradient(
@@ -195,7 +206,10 @@ public fun NowPlayingContent(
                             labels,
                             artworkLoader,
                             uiState,
-                            brush)
+                            brush,
+                            favoriteTrackIds,
+                            onSetTrackFavorite,
+                            isCurrentTrackAvailableInLibrary)
                     NowPlayingAdaptiveLayoutMode.Split ->
                         WideNowPlayingLayout(
                             track,
@@ -204,22 +218,14 @@ public fun NowPlayingContent(
                             labels,
                             artworkLoader,
                             uiState,
-                            brush)
+                            brush,
+                            favoriteTrackIds,
+                            onSetTrackFavorite,
+                            isCurrentTrackAvailableInLibrary)
                 }
             }
         }
 }
-
-/** Favorite-aware composition seam; the projection is inert at this layer. */
-@Composable
-public fun NowPlayingContent(
-    track: Track, playbackState: PlaybackState, playbackController: PlaybackController,
-    labels: NowPlayingScreenLabels, artworkLoader: suspend (String) -> ByteArray?,
-    onBack: () -> Unit, modifier: Modifier = Modifier,
-    favoriteTrackIds: Set<String>,
-    onSetTrackFavorite: (String, Boolean) -> Unit,
-): Unit = NowPlayingContent(
-    track, playbackState, playbackController, labels, artworkLoader, onBack, modifier)
 
 @Composable
 private fun NowPlayingArtworkPane(
@@ -262,7 +268,10 @@ private fun NowPlayingControlsPane(
     playbackController: PlaybackController,
     labels: NowPlayingScreenLabels,
     uiState: NowPlayingUiState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    favoriteTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
+    isCurrentTrackAvailableInLibrary: Boolean,
 ) {
     Column(modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -289,6 +298,31 @@ private fun NowPlayingControlsPane(
                     color = HausColors.current.muted,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium)
+            }
+            if (isCurrentTrackAvailableInLibrary) {
+                val checked = track.id in favoriteTrackIds
+                val description =
+                    if (checked) stringResource(Res.string.favorite_checked)
+                    else stringResource(Res.string.favorite_unchecked)
+                Box(
+                    Modifier.size(48.dp)
+                        .testTag(NowPlayingFavoriteTestTag)
+                        .semantics {
+                            contentDescription = description
+                            stateDescription = description
+                            toggleableState =
+                                if (checked) ToggleableState.On else ToggleableState.Off
+                        }
+                        .hausClickable {
+                            onSetTrackFavorite(track.id, !checked)
+                        },
+                    contentAlignment = Alignment.Center) {
+                        Icon(
+                            if (checked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            description,
+                            tint = HausColors.current.pulse,
+                            modifier = Modifier.size(26.dp))
+                    }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -521,7 +555,10 @@ private fun CompactNowPlayingLayout(
     labels: NowPlayingScreenLabels,
     artworkLoader: suspend (String) -> ByteArray?,
     uiState: NowPlayingUiState,
-    brush: Brush
+    brush: Brush,
+    favoriteTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
+    isCurrentTrackAvailableInLibrary: Boolean
 ) {
     Column(
         Modifier.testTag(NowPlayingCompactLayoutTestTag)
@@ -550,7 +587,10 @@ private fun CompactNowPlayingLayout(
                 playbackController,
                 labels,
                 uiState,
-                controlsModifier)
+                controlsModifier,
+                favoriteTrackIds,
+                onSetTrackFavorite,
+                isCurrentTrackAvailableInLibrary)
         }
 }
 
@@ -562,7 +602,10 @@ private fun WideNowPlayingLayout(
     labels: NowPlayingScreenLabels,
     artworkLoader: suspend (String) -> ByteArray?,
     uiState: NowPlayingUiState,
-    brush: Brush
+    brush: Brush,
+    favoriteTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
+    isCurrentTrackAvailableInLibrary: Boolean
 ) {
     Row(
         Modifier.testTag(NowPlayingSplitLayoutTestTag)
@@ -597,7 +640,10 @@ private fun WideNowPlayingLayout(
                         playbackController,
                         labels,
                         uiState,
-                        controlsModifier)
+                        controlsModifier,
+                        favoriteTrackIds,
+                        onSetTrackFavorite,
+                        isCurrentTrackAvailableInLibrary)
                 }
         }
 }

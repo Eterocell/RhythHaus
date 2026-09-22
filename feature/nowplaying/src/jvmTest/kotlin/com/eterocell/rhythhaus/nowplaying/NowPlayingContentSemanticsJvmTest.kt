@@ -11,6 +11,8 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -39,8 +41,92 @@ import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import androidx.compose.ui.state.ToggleableState
 
 public class NowPlayingContentSemanticsJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun favoriteActionExposesCheckedStateAndOnlyMutatesFavoriteCallback(): Unit =
+        runComposeUiTest {
+        val controller = PlaybackController(ImmediatePlaybackEngine())
+        val requests = mutableListOf<Pair<String, Boolean>>()
+        setContent {
+            Box(Modifier.size(390.dp, 844.dp)) {
+                NowPlayingContent(
+                    track = displayTrack(),
+                    playbackState = PlaybackState(),
+                    playbackController = controller,
+                    labels = recoveryLabels,
+                    artworkLoader = { null },
+                    onBack = {},
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { id, favorite -> requests += id to favorite },
+                    isCurrentTrackAvailableInLibrary = true,
+                )
+            }
+        }
+        onNode(
+            hasTestTag(NowPlayingFavoriteTestTag) and
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.ToggleableState,
+                    ToggleableState.Off,
+                ),
+        ).assertHasClickAction().performClick()
+        waitForIdle()
+        assertEquals(listOf(displayTrack().id to true), requests)
+        assertEquals(null, controller.state.value.currentTrack)
+
+        setContent {
+            Box(Modifier.size(390.dp, 844.dp)) {
+                NowPlayingContent(
+                    track = displayTrack(),
+                    playbackState = PlaybackState(),
+                    playbackController = controller,
+                    labels = recoveryLabels,
+                    artworkLoader = { null },
+                    onBack = {},
+                    favoriteTrackIds = setOf(displayTrack().id),
+                    onSetTrackFavorite = { id, favorite -> requests += id to favorite },
+                    isCurrentTrackAvailableInLibrary = true,
+                )
+            }
+        }
+        onNode(
+            hasTestTag(NowPlayingFavoriteTestTag) and
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.ToggleableState,
+                    ToggleableState.On,
+                ),
+        ).performClick()
+        waitForIdle()
+        assertEquals(
+            listOf(displayTrack().id to true, displayTrack().id to false),
+            requests,
+        )
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun favoriteActionIsAbsentForUnavailableCurrentTrack(): Unit =
+        runComposeUiTest {
+        setContent {
+            Box(Modifier.size(390.dp, 844.dp)) {
+                NowPlayingContent(
+                    track = displayTrack(),
+                    playbackState = PlaybackState(),
+                    playbackController = PlaybackController(ImmediatePlaybackEngine()),
+                    labels = recoveryLabels,
+                    artworkLoader = { null },
+                    onBack = {},
+                    favoriteTrackIds = setOf(displayTrack().id),
+                    onSetTrackFavorite = { _, _ -> error("unavailable action invoked") },
+                    isCurrentTrackAvailableInLibrary = false,
+                )
+            }
+        }
+        onNodeWithTag(NowPlayingFavoriteTestTag).assertDoesNotExist()
+    }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun expandedContentRendersErrorAndDispatchesModeAndTransportControls():
