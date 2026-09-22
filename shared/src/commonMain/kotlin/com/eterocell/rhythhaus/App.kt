@@ -169,6 +169,7 @@ fun App(
         mutableStateOf(emptyList<LibrarySource>())
     }
     var libraryTracks by remember { mutableStateOf(emptyList<LibraryTrack>()) }
+    var favoriteTrackIds by remember { mutableStateOf(emptySet<String>()) }
     var libraryRevision by remember { mutableStateOf(0L) }
     var playlistState by remember {
         mutableStateOf(PlaylistState(isLoading = true))
@@ -213,6 +214,7 @@ fun App(
         withContext(Dispatchers.Main) {
             librarySources = publication.content.sources
             libraryTracks = publication.content.tracks
+            favoriteTrackIds = publication.content.favoriteTrackIds
             libraryRevision = publication.revision
         }
     }
@@ -850,6 +852,7 @@ internal suspend fun <T> runPlaylistBackupOperation(
 internal data class LibraryContentState(
     val sources: List<LibrarySource>,
     val tracks: List<LibraryTrack>,
+    val favoriteTrackIds: Set<String> = emptySet(),
 )
 
 internal data class AuthoritativeLibraryPublication(
@@ -866,8 +869,25 @@ internal class AuthoritativeLibraryPublicationOwner {
     suspend fun publish(
         content: LibraryContentState
     ): AuthoritativeLibraryPublication = mutex.withLock {
-        AuthoritativeLibraryPublication(content, ++revision)
+        nextPublication(content)
     }
+
+    suspend fun publishIfCurrentRevision(
+        expectedRevision: Long,
+        content: LibraryContentState,
+    ): AuthoritativeRevisionResult<AuthoritativeLibraryPublication> =
+        mutex.withLock {
+            if (revision != expectedRevision) {
+                AuthoritativeRevisionResult.Stale
+            } else {
+                AuthoritativeRevisionResult.Current(nextPublication(content))
+            }
+        }
+
+    private fun nextPublication(
+        content: LibraryContentState
+    ): AuthoritativeLibraryPublication =
+        AuthoritativeLibraryPublication(content, ++revision)
 
     suspend fun <T> withCurrentRevision(
         expectedRevision: Long,
@@ -1029,7 +1049,49 @@ internal fun loadLibraryContent(
                 source.copy(accessStatus = platformAccess.accessStatus(source))
             },
         tracks = repository.tracks(),
+        favoriteTrackIds = repository.favoriteTrackIds().toSet(),
     )
+
+/**
+ * Applies a desired favorite state through the App-owned mutation coordinator
+ * and republishes the combined library projection only while its revision is
+ * still current.
+ */
+internal suspend fun setTrackFavoriteAndPublish(
+    orchestrator: AppLibraryOrchestrator,
+    publicationOwner: AuthoritativeLibraryPublicationOwner,
+    repository: LibraryRepository,
+    platformAccess: PlatformSourceAccess,
+    trackId: String,
+    favorite: Boolean,
+    expectedRevision: Long,
+    ioDispatcher: CoroutineDispatcher,
+    publish: suspend (AuthoritativeLibraryPublication) -> Unit,
+): Boolean {
+    var published = false
+    orchestrator.launch(LibraryOperationKind.SetTrackFavorite) { token ->
+        val content =
+            withContext(ioDispatcher) {
+                if (!repository.setTrackFavorite(trackId, favorite)) {
+                    null
+                } else {
+                    loadLibraryContent(repository, platformAccess)
+                }
+            } ?: return@launch
+        val publication =
+            orchestrator.publishIfCurrent(token) {
+                publicationOwner.publishIfCurrentRevision(
+                    expectedRevision = expectedRevision,
+                    content = content,
+                )
+            } ?: return@launch
+        if (publication is AuthoritativeRevisionResult.Current) {
+            publish(publication.value)
+            published = true
+        }
+    }
+    return published
+}
 
 internal suspend fun removeSourceInBackground(
     sourceId: String,
