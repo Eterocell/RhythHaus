@@ -142,8 +142,9 @@ private fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition =
     )
 
 /**
- * Applies a home browse-mode change, clearing the songs selection through the
- * route-change reducer exactly when leaving the songs browse mode.
+ * Applies a home browse-mode change, clearing flat-list selection through the
+ * route-change reducer exactly when leaving songs or favorites for a grouped
+ * browse mode.
  */
 internal fun dispatchHomeBrowseModeChange(
     currentMode: BrowseMode,
@@ -151,7 +152,11 @@ internal fun dispatchHomeBrowseModeChange(
     onTrackSelectionAction: (TrackSelectionAction) -> Unit,
     onBrowseModeChange: (BrowseMode) -> Unit,
 ) {
-    if (currentMode == BrowseMode.Songs && nextMode != BrowseMode.Songs) {
+    val currentModeIsFlat =
+        currentMode == BrowseMode.Songs || currentMode == BrowseMode.Favorites
+    val nextModeIsFlat =
+        nextMode == BrowseMode.Songs || nextMode == BrowseMode.Favorites
+    if (currentModeIsFlat && !nextModeIsFlat) {
         onTrackSelectionAction(TrackSelectionAction.RouteChanged(null))
     }
     onBrowseModeChange(nextMode)

@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
@@ -406,6 +407,36 @@ class LibraryHomeContentJvmTest {
         waitForIdle()
         assertEquals(listOf(BrowseMode.Albums), changed)
     }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun fourModePickerKeepsEveryLabelVisibleAtCompactSplitAndWideWidths() =
+        runComposeUiTest {
+            var width by mutableStateOf(375.dp)
+            val changed = mutableListOf<BrowseMode>()
+            setContent {
+                Box(Modifier.size(width, 40.dp)) {
+                    BrowseModePicker(
+                        browseMode = BrowseMode.Songs,
+                        labels = labels(),
+                        onModeChange = { changed += it },
+                    )
+                }
+            }
+
+            listOf(375.dp, 353.dp, 840.dp).forEach { testedWidth ->
+                width = testedWidth
+                waitForIdle()
+                listOf("Albums", "Artists", "Songs", "Favorites")
+                    .forEach { label ->
+                        onNode(hasText(label)).assertIsDisplayed()
+                    }
+            }
+
+            onNode(hasText("Favorites")).performClick()
+            waitForIdle()
+            assertEquals(listOf(BrowseMode.Favorites), changed)
+        }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
