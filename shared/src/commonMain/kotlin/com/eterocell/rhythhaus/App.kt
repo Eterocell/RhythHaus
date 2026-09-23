@@ -27,6 +27,7 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.library.defaultPlatformLibrarySource
 import com.eterocell.rhythhaus.library.iosImportSummaryMessage
 import com.eterocell.rhythhaus.library.normalizePickedSource
@@ -69,6 +70,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -222,15 +224,39 @@ fun App(
     }
     suspend fun updateLibraryContent(content: LibraryContentState) {
         val publication =
-            libraryPublicationOwner.publishWithFavoriteReconciliation(
-                content = content,
-                favoriteTrackIds = {
-                    withContext(Dispatchers.Default) {
+            withContext(Dispatchers.Default) {
+                libraryPublicationOwner.publishWithFavoriteReconciliation(
+                    content = content,
+                    favoriteTrackIds = {
                         repository.favoriteTrackIds().toSet()
-                    }
+                    },
+                    playHistory = { repository.playHistory().toMap() },
+                    createdAtByTrackId = {
+                        repository.tracks().associate { track ->
+                            track.id to track.createdAtEpochMillis
+                        }
+                    },
+                )
+            }
+        applyLibraryPublication(publication)
+    }
+
+    LaunchedEffect(controller) {
+        controller.playbackStarted.collect { event ->
+            val playedAtEpochMillis =
+                com.eterocell.rhythhaus.library.currentTimeMillis()
+            recordPlaybackHistoryAndPublish(
+                event = event,
+                publicationOwner = libraryPublicationOwner,
+                repository = repository,
+                platformAccess = platformAccess,
+                playedAtEpochMillis = playedAtEpochMillis,
+                ioDispatcher = Dispatchers.Default,
+                publish = { publication ->
+                    applyLibraryPublication(publication)
                 },
             )
-        applyLibraryPublication(publication)
+        }
     }
 
     fun refreshPlaylists() {
@@ -884,6 +910,8 @@ internal data class LibraryContentState(
     val sources: List<LibrarySource>,
     val tracks: List<LibraryTrack>,
     val favoriteTrackIds: Set<String> = emptySet(),
+    val playHistory: Map<String, TrackPlayHistory> = emptyMap(),
+    val createdAtByTrackId: Map<String, Long> = emptyMap(),
 )
 
 internal data class AuthoritativeLibraryPublication(
@@ -906,9 +934,19 @@ internal class AuthoritativeLibraryPublicationOwner {
     suspend fun publishWithFavoriteReconciliation(
         content: LibraryContentState,
         favoriteTrackIds: suspend () -> Set<String>,
+        playHistory: suspend () -> Map<String, TrackPlayHistory> = {
+            content.playHistory
+        },
+        createdAtByTrackId: suspend () -> Map<String, Long> = {
+            content.createdAtByTrackId
+        },
     ): AuthoritativeLibraryPublication = mutex.withLock {
         nextPublication(
-            content.copy(favoriteTrackIds = favoriteTrackIds()),
+            content.copy(
+                favoriteTrackIds = favoriteTrackIds(),
+                playHistory = playHistory().toMap(),
+                createdAtByTrackId = createdAtByTrackId().toMap(),
+            ),
         )
     }
 
@@ -1119,15 +1157,56 @@ internal suspend fun publishScanContentAfterReconcile(
 internal fun loadLibraryContent(
     repository: LibraryRepository,
     platformAccess: PlatformSourceAccess,
-): LibraryContentState =
-    LibraryContentState(
+): LibraryContentState {
+    val tracks = repository.tracks()
+    return LibraryContentState(
         sources =
             repository.sources().map { source ->
                 source.copy(accessStatus = platformAccess.accessStatus(source))
             },
-        tracks = repository.tracks(),
+        tracks = tracks,
         favoriteTrackIds = repository.favoriteTrackIds().toSet(),
+        playHistory = repository.playHistory().toMap(),
+        createdAtByTrackId =
+            tracks.associate { track ->
+                track.id to track.createdAtEpochMillis
+            },
     )
+}
+
+/**
+ * Records an admitted playback event and publishes its fresh library snapshot
+ * under publication ownership. A rejected write means the track was removed,
+ * so it leaves the current publication unchanged without entering scan
+ * admission.
+ */
+internal suspend fun recordPlaybackHistoryAndPublish(
+    event: PlaybackStarted,
+    publicationOwner: AuthoritativeLibraryPublicationOwner,
+    repository: LibraryRepository,
+    platformAccess: PlatformSourceAccess,
+    playedAtEpochMillis: Long,
+    ioDispatcher: CoroutineDispatcher,
+    publish: suspend (AuthoritativeLibraryPublication) -> Unit,
+) {
+    publicationOwner.mutateAndPublish(
+        mutation = {
+            withContext(ioDispatcher) {
+                if (
+                    !repository.recordTrackPlayed(
+                        event.trackId,
+                        playedAtEpochMillis,
+                    )
+                ) {
+                    null
+                } else {
+                    loadLibraryContent(repository, platformAccess)
+                }
+            }
+        },
+        publish = publish,
+    )
+}
 
 /**
  * Applies a desired favorite state through the App-owned mutation coordinator
