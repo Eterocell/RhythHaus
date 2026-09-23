@@ -1054,6 +1054,26 @@ class AppScanCancellationTest {
         }
 
     @Test
+    fun startupContentCarriesHistoryAndCreatedTimeSnapshots() = runBlocking {
+        val repository =
+            InMemoryLibraryRepository().apply {
+                upsertSource(testSource())
+                upsertTrack(testTrack("history"))
+                recordTrackPlayed("history", 100L)
+            }
+
+        val content =
+            loadLibraryContent(repository, EmptyPlatformSourceAccess)
+        repository.recordTrackPlayed("history", 200L)
+
+        assertEquals(
+            mapOf("history" to TrackPlayHistory("history", 1L, 100L)),
+            content.playHistory,
+        )
+        assertEquals(mapOf("history" to 1L), content.createdAtByTrackId)
+    }
+
+    @Test
     fun scanPublicationCarriesFavoriteIdsLoadedFromRepository() = runBlocking {
         val repository =
             InMemoryLibraryRepository().apply {
@@ -1226,6 +1246,75 @@ class AppScanCancellationTest {
                 repository.favoriteTrackIds(),
                 publication.content.favoriteTrackIds)
         }
+
+    @Test
+    fun scanPublicationCannotOverwriteAcceptedHistory() = runBlocking {
+        val repository =
+            InMemoryLibraryRepository().apply {
+                upsertSource(testSource())
+                upsertTrack(testTrack("history"))
+            }
+        val owner = AuthoritativeLibraryPublicationOwner()
+        owner.publish(loadLibraryContent(repository, EmptyPlatformSourceAccess))
+        val scanContent =
+            loadLibraryContent(repository, EmptyPlatformSourceAccess)
+        val historyPublications = mutableListOf<AuthoritativeLibraryPublication>()
+
+        recordPlaybackHistoryAndPublish(
+            event = PlaybackStarted(1L, "history-occurrence", "history"),
+            publicationOwner = owner,
+            repository = repository,
+            platformAccess = EmptyPlatformSourceAccess,
+            playedAtEpochMillis = 100L,
+            ioDispatcher = Dispatchers.Default,
+            publish = historyPublications::add,
+        )
+        val scanPublication =
+            owner.publishWithFavoriteReconciliation(
+                content = scanContent,
+                favoriteTrackIds = repository::favoriteTrackIds,
+                playHistory = repository::playHistory,
+                createdAtByTrackId = repository::currentCreatedAtByTrackId,
+            )
+
+        val expectedHistory =
+            mapOf("history" to TrackPlayHistory("history", 1L, 100L))
+        assertEquals(expectedHistory, historyPublications.single().content.playHistory)
+        assertEquals(expectedHistory, scanPublication.content.playHistory)
+        assertEquals(
+            mapOf("history" to 1L),
+            scanPublication.content.createdAtByTrackId,
+        )
+    }
+
+    @Test
+    fun destructivePublicationDropsHistoryForRemovedTracks() = runBlocking {
+        val repository =
+            InMemoryLibraryRepository().apply {
+                upsertSource(testSource())
+                upsertTrack(testTrack("history"))
+                recordTrackPlayed("history", 100L)
+            }
+        val owner = AuthoritativeLibraryPublicationOwner()
+        owner.publish(loadLibraryContent(repository, EmptyPlatformSourceAccess))
+
+        repository.removeSource("source")
+        val publication =
+            owner.publishWithFavoriteReconciliation(
+                content =
+                    LibraryContentState(
+                        sources = emptyList(),
+                        tracks = emptyList(),
+                    ),
+                favoriteTrackIds = repository::favoriteTrackIds,
+                playHistory = repository::playHistory,
+                createdAtByTrackId = repository::currentCreatedAtByTrackId,
+            )
+
+        assertEquals(emptyList(), publication.content.tracks)
+        assertEquals(emptyMap(), publication.content.playHistory)
+        assertEquals(emptyMap(), publication.content.createdAtByTrackId)
+    }
 
     @Test
     fun staleFavoritePublicationCannotOverwriteNewerLibraryState() =
@@ -1619,6 +1708,9 @@ private fun testTrack(id: String) =
         createdAtEpochMillis = 1L,
         updatedAtEpochMillis = 1L,
     )
+
+private fun LibraryRepository.currentCreatedAtByTrackId(): Map<String, Long> =
+    tracks().associate { track -> track.id to track.createdAtEpochMillis }
 
 private fun testScanError() =
     com.eterocell.rhythhaus.library.ScanError(
