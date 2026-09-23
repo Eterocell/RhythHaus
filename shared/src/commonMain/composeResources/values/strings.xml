@@ -1,8 +1,7 @@
 <resources>
     <string name="library">Library</string>
     <string name="library_queue">Library queue</string>
-    <string name="library_favorite_add">Add %1$s to favorites</string>
-    <string name="library_favorite_remove">Remove %1$s from favorites</string>
+
     <string name="search">Search</string>
     <string name="settings">Settings</string>
     <string name="clear_library">Clear Library</string>

@@ -1171,7 +1171,7 @@ class AppScanCancellationTest {
         }
 
     @Test
-    fun staleFavoriteMutationDoesNotPersistRepositoryChange() = runBlocking {
+    fun favoriteMutationResolvesCurrentRevisionAtExecution() = runBlocking {
         val repository =
             InMemoryLibraryRepository().apply {
                 upsertSource(testSource())
@@ -1196,7 +1196,7 @@ class AppScanCancellationTest {
             )
         var publicationCalls = 0
 
-        assertFalse(
+        assertTrue(
             setTrackFavoriteAndPublish(
                 orchestrator = orchestrator,
                 publicationOwner = owner,
@@ -1210,9 +1210,10 @@ class AppScanCancellationTest {
             ),
         )
 
-        assertEquals(emptySet(), repository.favoriteTrackIds())
-        assertEquals(newer.revision, owner.revision)
-        assertEquals(0, publicationCalls)
+        assertEquals(setOf("favorite"), repository.favoriteTrackIds())
+        assertEquals(newer.revision + 1, owner.revision)
+        assertEquals(1, publicationCalls)
+
     }
 
     @Test
