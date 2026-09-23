@@ -14,5 +14,6 @@ Base: `3fda5ec3`
 - `./gradlew :shared:compileKotlinJvm --configuration-cache` passed.
 - `./gradlew :shared:compileTestKotlinJvm --configuration-cache` passed.
 - `git diff --check` passed.
+- The focused JVM test command for `AppScanCancellationTest` and Now Playing semantics was launched but hung without output and was cancelled; no focused test pass is claimed.
 
-Focused JVM tests were launched for `AppScanCancellationTest` and Now Playing semantics; the Gradle test process was still running during report generation. No formatter, linter, or broad quality gate was run.
+No formatter, linter, or broad quality gate was run.
