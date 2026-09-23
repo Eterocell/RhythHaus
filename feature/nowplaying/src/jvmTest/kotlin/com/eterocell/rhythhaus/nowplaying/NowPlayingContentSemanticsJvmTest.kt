@@ -54,7 +54,7 @@ public class NowPlayingContentSemanticsJvmTest {
             Box(Modifier.size(390.dp, 844.dp)) {
                 NowPlayingContent(
                     track = displayTrack(),
-                    playbackState = PlaybackState(),
+                    playbackState = displayPlaybackState(),
                     playbackController = controller,
                     labels = recoveryLabels,
                     artworkLoader = { null },
@@ -85,7 +85,7 @@ public class NowPlayingContentSemanticsJvmTest {
             Box(Modifier.size(390.dp, 844.dp)) {
                 NowPlayingContent(
                     track = displayTrack(),
-                    playbackState = PlaybackState(),
+                    playbackState = displayPlaybackState(),
                     playbackController = controller,
                     labels = recoveryLabels,
                     artworkLoader = { null },
@@ -761,7 +761,13 @@ public class NowPlayingContentSemanticsJvmTest {
         }
     }
 
-    private fun displayTrack(): Track =
+    private fun displayPlaybackState(): PlaybackState =
+    PlaybackState(
+        currentOccurrenceId = "display",
+        queue = listOf(QueueOccurrence("display", playableTracks()[0])),
+    )
+
+private fun displayTrack(): Track =
         Track(
             id = "first",
             title =
