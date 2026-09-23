@@ -1,6 +1,10 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.runtime.Composable
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.feature.library.generated.resources.Res
+import rhythhaus.feature.library.generated.resources.favorite_add
+import rhythhaus.feature.library.generated.resources.favorite_remove
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryTrack
@@ -233,11 +237,11 @@ public data class LibrarySharedLabels(
     public val trackArtistAlbum: @Composable (String, String) -> String,
     /** Composably resolves the add-favorite action description. */
     public val addFavorite: @Composable (String) -> String = { title ->
-        "Add $title to favorites"
+        stringResource(Res.string.favorite_add, title)
     },
     /** Composably resolves the remove-favorite action description. */
     public val removeFavorite: @Composable (String) -> String = { title ->
-        "Remove $title from favorites"
+        stringResource(Res.string.favorite_remove, title)
     },
 )
 

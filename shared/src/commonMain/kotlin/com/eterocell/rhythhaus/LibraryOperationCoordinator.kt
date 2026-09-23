@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
@@ -19,6 +20,8 @@ internal class AppLibraryOperationCoordinator(
     private val mutex = Mutex()
     private var nextOperationId = 0L
     private var current: LibraryOperationToken? = null
+    private val favoriteSlot = Semaphore(1)
+    private val activeFavoriteTokens = mutableSetOf<LibraryOperationToken>()
     private val _state: MutableStateFlow<LibraryOperationState> =
         MutableStateFlow(LibraryOperationState.Idle)
 
@@ -35,6 +38,13 @@ internal class AppLibraryOperationCoordinator(
     suspend fun admitMutation(
         kind: LibraryOperationKind
     ): LibraryOperationAdmission {
+        if (kind == LibraryOperationKind.SetTrackFavorite) {
+            favoriteSlot.acquire()
+            val token = mutex.withLock {
+                token(kind).also { activeFavoriteTokens += it }
+            }
+            return LibraryOperationAdmission.Admitted(token)
+        }
         val scan = mutex.withLock {
             when (val active = current) {
                 null -> null
@@ -82,6 +92,11 @@ internal class AppLibraryOperationCoordinator(
 
     suspend fun complete(token: LibraryOperationToken) {
         mutex.withLock {
+            if (token.kind == LibraryOperationKind.SetTrackFavorite) {
+                activeFavoriteTokens.remove(token)
+                favoriteSlot.release()
+                return@withLock
+            }
             if (current == token) {
                 current = null
                 _state.value = LibraryOperationState.Idle
@@ -93,10 +108,11 @@ internal class AppLibraryOperationCoordinator(
         token: LibraryOperationToken,
         publication: suspend () -> T,
     ): T? = mutex.withLock {
-        if (current == token) publication() else null
+        if (current == token || token in activeFavoriteTokens) publication() else null
     }
 
-    fun isCurrent(token: LibraryOperationToken): Boolean = current == token
+    fun isCurrent(token: LibraryOperationToken): Boolean =
+        current == token || token in activeFavoriteTokens
 
     private fun token(kind: LibraryOperationKind) =
         LibraryOperationToken(++nextOperationId, kind)

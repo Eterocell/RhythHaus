@@ -34,7 +34,9 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -168,6 +170,12 @@ public fun NowPlayingContent(
     onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
     isCurrentTrackAvailableInLibrary: Boolean = false,
 ): Unit {
+    val latestPlaybackState by rememberUpdatedState(playbackState)
+    val guardedOnSetTrackFavorite: (String, Boolean) -> Unit = { id, value ->
+        if (latestPlaybackState.currentTrack?.id == id) {
+            onSetTrackFavorite(id, value)
+        }
+    }
     val brush =
         Brush.linearGradient(
             listOf(Color(track.accent.start), Color(track.accent.end)))
@@ -209,7 +217,7 @@ public fun NowPlayingContent(
                             uiState,
                             brush,
                             favoriteTrackIds,
-                            onSetTrackFavorite,
+                            guardedOnSetTrackFavorite,
                             isCurrentTrackAvailableInLibrary)
                     NowPlayingAdaptiveLayoutMode.Split ->
                         WideNowPlayingLayout(
@@ -221,7 +229,7 @@ public fun NowPlayingContent(
                             uiState,
                             brush,
                             favoriteTrackIds,
-                            onSetTrackFavorite,
+                            guardedOnSetTrackFavorite,
                             isCurrentTrackAvailableInLibrary)
                 }
             }

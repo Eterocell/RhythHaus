@@ -645,7 +645,6 @@ fun App(
                                 platformAccess = platformAccess,
                                 trackId = trackId,
                                 favorite = favorite,
-                                expectedRevision = libraryRevision,
                                 ioDispatcher = Dispatchers.Default,
                                 publish = { publication ->
                                     applyLibraryPublication(publication)
@@ -932,6 +931,19 @@ internal class AuthoritativeLibraryPublicationOwner {
             }
         }
 
+    suspend fun mutateAndPublish(
+        mutation: suspend () -> LibraryContentState?,
+        publish: suspend (AuthoritativeLibraryPublication) -> Unit,
+    ): AuthoritativeRevisionResult<AuthoritativeLibraryPublication?> =
+        mutex.withLock {
+            val content =
+                mutation()
+                    ?: return@withLock AuthoritativeRevisionResult.Current(null)
+            val publication = nextPublication(content)
+            publish(publication)
+            AuthoritativeRevisionResult.Current(publication)
+        }
+
     private fun nextPublication(
         content: LibraryContentState
     ): AuthoritativeLibraryPublication =
@@ -1112,7 +1124,7 @@ internal suspend fun setTrackFavoriteAndPublish(
     platformAccess: PlatformSourceAccess,
     trackId: String,
     favorite: Boolean,
-    expectedRevision: Long,
+    expectedRevision: Long? = null,
     ioDispatcher: CoroutineDispatcher,
     publish: suspend (AuthoritativeLibraryPublication) -> Unit,
 ): Boolean {
@@ -1123,8 +1135,7 @@ internal suspend fun setTrackFavoriteAndPublish(
         } ?: return@launch
         val result =
             withContext(NonCancellable) {
-                publicationOwner.mutateAndPublishIfCurrentRevision(
-                    expectedRevision = expectedRevision,
+                publicationOwner.mutateAndPublish(
                     mutation = {
                         withContext(ioDispatcher) {
                             if (!repository.setTrackFavorite(

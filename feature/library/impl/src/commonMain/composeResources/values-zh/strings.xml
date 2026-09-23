@@ -15,7 +15,7 @@
     <string name="browse_mode_artists">艺术家</string>
     <string name="browse_mode_songs">歌曲</string>
     <string name="browse_mode_favorites">收藏</string>
-    <string name="favorites_empty">还没有收藏的曲目。</string>
+    <string name="favorites_empty">暂无收藏曲目。</string>
     <string name="favorite_add">将 %1$s 添加到收藏</string>
     <string name="favorite_remove">将 %1$s 从收藏中移除</string>
     <string name="scanning">扫描中…</string>
