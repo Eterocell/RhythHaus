@@ -1315,13 +1315,17 @@ class AppScanCancellationTest {
 
                 publicationStarted.await()
                 var destructiveMutationRan = false
-                orchestrator.launch(LibraryOperationKind.Clear) {
+                val destructiveMutation = async {
+                    orchestrator.launch(LibraryOperationKind.Clear) {
                     destructiveMutationRan = true
+                    }
                 }
 
                 assertFalse(destructiveMutationRan)
                 releasePublication.complete(Unit)
                 assertTrue(favoriteMutation.await())
+                destructiveMutation.await()
+                assertTrue(destructiveMutationRan)
             }
         }
 }
