@@ -18,6 +18,7 @@ internal fun artworkChunkCount(byteLength: Long): Int {
 /** SQLDelight-backed [LibraryRepository] persisting library records. */
 internal class SqlDelightLibraryRepository(
     private val libraryDatabase: LibraryDatabase,
+    private val now: () -> Long = ::currentTimeMillis,
 ) : LibraryRepository {
     private val database = libraryDatabase.database
 
@@ -215,6 +216,39 @@ internal class SqlDelightLibraryRepository(
                 )
             }
             .executeAsList()
+
+    /** Returns the IDs of currently favorited tracks. */
+    override fun favoriteTrackIds(): Set<String> =
+        database.trackFavoriteQueries
+            .selectFavoriteTrackIds()
+            .executeAsList()
+            .toSet()
+
+    /**
+     * Stores the requested favorite state when [trackId] identifies a current
+     * library track.
+     *
+     * Existence validation and the requested mutation share a transaction so an
+     * absent track cannot acquire a favorite relationship between them.
+     */
+    override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean {
+        var accepted = false
+        database.transaction {
+            val trackExists =
+                database.trackFavoriteQueries
+                    .selectTrackExists(trackId)
+                    .executeAsOne()
+            if (!trackExists) return@transaction
+
+            if (favorite) {
+                database.trackFavoriteQueries.setTrackFavorite(trackId, now())
+            } else {
+                database.trackFavoriteQueries.unsetTrackFavorite(trackId)
+            }
+            accepted = true
+        }
+        return accepted
+    }
 
     /**
      * Returns tracks belonging to the given source.

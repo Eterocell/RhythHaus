@@ -4,6 +4,10 @@ import androidx.compose.runtime.Composable
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryTrack
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.feature.library.generated.resources.Res
+import rhythhaus.feature.library.generated.resources.favorite_add
+import rhythhaus.feature.library.generated.resources.favorite_remove
 
 /**
  * Selects internally grouped album, artist, or authoritative song rendering.
@@ -14,8 +18,22 @@ public enum class BrowseMode {
     /** Grouped artist browsing. */
     Artists,
     /** Flat authoritative song list. */
-    Songs
+    Songs,
+    /** Flat authoritative favorite-track list. */
+    Favorites,
 }
+
+/** Returns the authoritative tracks visible in the selected browse mode. */
+internal fun visibleTracksForBrowseMode(
+    tracks: List<Track>,
+    browseMode: BrowseMode,
+    favoriteTrackIds: Set<String>,
+): List<Track> =
+    if (browseMode == BrowseMode.Favorites) {
+        tracks.filter { it.id in favoriteTrackIds }
+    } else {
+        tracks
+    }
 
 /**
  * Returns the album grid column count for the given available width.
@@ -217,6 +235,14 @@ public data class LibrarySharedLabels(
     public val selectTrack: @Composable (String) -> String,
     /** Composably resolves the localized artist-album subtitle. */
     public val trackArtistAlbum: @Composable (String, String) -> String,
+    /** Composably resolves the add-favorite action description. */
+    public val addFavorite: @Composable (String) -> String = { title ->
+        stringResource(Res.string.favorite_add, title)
+    },
+    /** Composably resolves the remove-favorite action description. */
+    public val removeFavorite: @Composable (String) -> String = { title ->
+        stringResource(Res.string.favorite_remove, title)
+    },
 )
 
 // ----- Private helpers -----

@@ -1,6 +1,7 @@
 <resources><string name="playlist_load_failed">无法加载播放列表</string><string name="playlist_retry">重试</string><string name="playlist_changed">播放列表已更改，请重新选择。</string><string name="playlist_mutation_failed">无法保存播放列表更改</string>
     <string name="library">资料库</string>
     <string name="library_queue">资料库队列</string>
+
     <string name="search">搜索</string>
     <string name="settings">设置</string>
     <string name="clear_library">清空资料库</string>

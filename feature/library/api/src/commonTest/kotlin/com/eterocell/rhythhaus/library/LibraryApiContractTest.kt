@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.library
 import com.eterocell.rhythhaus.AudioSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -32,6 +33,13 @@ class LibraryApiContractTest {
 
         assertEquals(listOf(source), repository.sources())
         assertEquals(listOf(track), repository.tracks())
+        assertEquals(emptySet(), repository.favoriteTrackIds())
+        assertTrue(repository.setTrackFavorite(track.id, favorite = true))
+        assertEquals(setOf(track.id), repository.favoriteTrackIds())
+        assertTrue(repository.setTrackFavorite(track.id, favorite = false))
+        assertEquals(emptySet(), repository.favoriteTrackIds())
+        assertFalse(
+            repository.setTrackFavorite("missing-track", favorite = true))
         assertEquals(listOf(track), repository.tracksForSource(source.id))
         assertEquals(
             TrackArtwork(byteArrayOf(1), "image/jpeg"),
@@ -90,6 +98,8 @@ private enum class LibraryRepositoryMethod {
     Sources,
     UpsertTrack,
     Tracks,
+    FavoriteTrackIds,
+    SetTrackFavorite,
     TracksForSource,
     ArtworkForTrack,
     InsertScanSession,
@@ -107,6 +117,7 @@ private class RecordingLibraryRepository : LibraryRepository {
     private lateinit var source: LibrarySource
     private lateinit var track: LibraryTrack
     private lateinit var error: ScanError
+    private val favoriteIds = linkedSetOf<String>()
 
     override fun upsertSource(source: LibrarySource) {
         calls += LibraryRepositoryMethod.UpsertSource
@@ -127,6 +138,22 @@ private class RecordingLibraryRepository : LibraryRepository {
     override fun tracks(): List<LibraryTrack> {
         calls += LibraryRepositoryMethod.Tracks
         return listOf(track)
+    }
+
+    override fun favoriteTrackIds(): Set<String> {
+        calls += LibraryRepositoryMethod.FavoriteTrackIds
+        return favoriteIds.toSet()
+    }
+
+    override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean {
+        calls += LibraryRepositoryMethod.SetTrackFavorite
+        if (!::track.isInitialized || track.id != trackId) return false
+        if (favorite) {
+            favoriteIds += trackId
+        } else {
+            favoriteIds -= trackId
+        }
+        return true
     }
 
     override fun tracksForSource(sourceId: String): List<LibraryTrack> {

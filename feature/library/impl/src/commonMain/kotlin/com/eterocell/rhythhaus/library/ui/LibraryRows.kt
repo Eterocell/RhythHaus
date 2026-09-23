@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -57,6 +58,7 @@ import rhythhaus.feature.library.generated.resources.artist_album_tracks_format
 import rhythhaus.feature.library.generated.resources.artist_artwork
 import rhythhaus.feature.library.generated.resources.browse_mode_albums
 import rhythhaus.feature.library.generated.resources.browse_mode_artists
+import rhythhaus.feature.library.generated.resources.browse_mode_favorites
 import rhythhaus.feature.library.generated.resources.browse_mode_songs
 import rhythhaus.feature.library.generated.resources.hide_scan_report
 import rhythhaus.feature.library.generated.resources.import_card_description
@@ -291,7 +293,9 @@ internal fun SectionLabel(title: String, subtitle: String?) {
  * @param artworkLoader lazily resolves artwork bytes for a track ID.
  * @param onPlay requests playback of this row's track.
  * @param onToggleSelection requests toggling this row's selection.
- * @param onStartSelection requests beginning selection with this row's track.
+ * @param onStartSelection requests beginning selection with this row.
+ * @param favorite whether this track is currently favorited.
+ * @param onSetFavorite requests the desired favorite state.
  */
 @Composable
 public fun TrackRow(
@@ -304,6 +308,8 @@ public fun TrackRow(
     onPlay: () -> Unit,
     onToggleSelection: () -> Unit,
     onStartSelection: () -> Unit,
+    favorite: Boolean,
+    onSetFavorite: (Boolean) -> Unit,
 ) {
     val selectTrackContentDescription = labels.selectTrack(track.title)
     val nowPlayingDescription = labels.nowPlayingBadge
@@ -386,6 +392,30 @@ public fun TrackRow(
                     )
                 }
             }
+        if (!selectionModeActive) {
+            val favoriteDescription =
+                if (favorite) labels.removeFavorite(track.title)
+                else labels.addFavorite(track.title)
+            Button(
+                onClick = { onSetFavorite(!favorite) },
+                modifier =
+                    Modifier.size(44.dp).semantics {
+                        contentDescription = favoriteDescription
+                        toggleableState =
+                            if (favorite) ToggleableState.On
+                            else ToggleableState.Off
+                    },
+                cornerRadius = 22.dp,
+                insideMargin = PaddingValues(0.dp),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color = HausColors.current.panel,
+                        contentColor = HausColors.current.ink,
+                    ),
+            ) {
+                Text(if (favorite) "♥" else "♡", fontSize = 20.sp)
+            }
+        }
         Text(
             text = formatDuration(track.durationSeconds),
             color =
@@ -450,36 +480,48 @@ internal fun BrowseModePicker(
     labels: LibrarySharedLabels,
     onModeChange: (BrowseMode) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        BrowseMode.entries.forEach { mode ->
-            val isSelected = browseMode == mode
-            Button(
-                onClick = { onModeChange(mode) },
-                modifier = Modifier.weight(1f).height(40.dp),
-                cornerRadius = 20.dp,
-                insideMargin =
-                    PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-                colors =
-                    if (isSelected) {
-                        ButtonDefaults.buttonColors(
-                            color = HausColors.current.ink,
-                            contentColor = HausColors.current.paper,
-                        )
-                    } else {
-                        ButtonDefaults.buttonColors(
-                            color = HausColors.current.panel,
-                            contentColor = HausColors.current.ink,
-                        )
-                    },
-            ) {
-                Text(
-                    stringResource(mode.displayLabelResource()),
-                    fontSize = 14.sp,
-                    fontWeight =
-                        if (isSelected) FontWeight.Bold else FontWeight.Medium)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val compact = maxWidth < 440.dp
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            BrowseMode.entries.forEach { mode ->
+                val isSelected = browseMode == mode
+                Button(
+                    onClick = { onModeChange(mode) },
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    cornerRadius = 20.dp,
+                    insideMargin =
+                        PaddingValues(
+                            horizontal = if (compact) 4.dp else 12.dp,
+                            vertical = 10.dp,
+                        ),
+                    colors =
+                        if (isSelected) {
+                            ButtonDefaults.buttonColors(
+                                color = HausColors.current.ink,
+                                contentColor = HausColors.current.paper,
+                            )
+                        } else {
+                            ButtonDefaults.buttonColors(
+                                color = HausColors.current.panel,
+                                contentColor = HausColors.current.ink,
+                            )
+                        },
+                ) {
+                    Text(
+                        stringResource(mode.displayLabelResource()),
+                        fontSize = if (compact) 12.sp else 14.sp,
+                        fontWeight =
+                            if (isSelected) {
+                                FontWeight.Bold
+                            } else {
+                                FontWeight.Medium
+                            },
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }
@@ -491,6 +533,7 @@ private fun BrowseMode.displayLabelResource() =
         BrowseMode.Albums -> Res.string.browse_mode_albums
         BrowseMode.Artists -> Res.string.browse_mode_artists
         BrowseMode.Songs -> Res.string.browse_mode_songs
+        BrowseMode.Favorites -> Res.string.browse_mode_favorites
     }
 
 @Composable

@@ -142,8 +142,9 @@ private fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition =
     )
 
 /**
- * Applies a home browse-mode change, clearing the songs selection through the
- * route-change reducer exactly when leaving the songs browse mode.
+ * Applies a home browse-mode change, clearing flat-list selection through the
+ * route-change reducer exactly when leaving songs or favorites for a grouped
+ * browse mode.
  */
 internal fun dispatchHomeBrowseModeChange(
     currentMode: BrowseMode,
@@ -151,7 +152,11 @@ internal fun dispatchHomeBrowseModeChange(
     onTrackSelectionAction: (TrackSelectionAction) -> Unit,
     onBrowseModeChange: (BrowseMode) -> Unit,
 ) {
-    if (currentMode == BrowseMode.Songs && nextMode != BrowseMode.Songs) {
+    val currentModeIsFlat =
+        currentMode == BrowseMode.Songs || currentMode == BrowseMode.Favorites
+    val nextModeIsFlat =
+        nextMode == BrowseMode.Songs || nextMode == BrowseMode.Favorites
+    if (currentModeIsFlat && !nextModeIsFlat) {
         onTrackSelectionAction(TrackSelectionAction.RouteChanged(null))
     }
     onBrowseModeChange(nextMode)
@@ -236,6 +241,9 @@ fun LibraryHomeScreen(
     onboardingSaving: Boolean = false,
     onboardingCompletionError: String? = null,
     onCompleteOnboarding: () -> Unit = {},
+    favoriteTrackIds: Set<String> = emptySet(),
+    onSetTrackFavorite: (trackId: String, favorite: Boolean) -> Unit = { _, _ ->
+    },
     modifier: Modifier = Modifier,
 ) {
     val playbackState by playbackController.state.collectAsState()
@@ -541,6 +549,8 @@ fun LibraryHomeScreen(
             trackSelectionState = trackSelectionState,
             onTrackSelectionAction = ::dispatchTrackSelection,
             bottomContentPadding = activeBottomBarClearance,
+            favoriteTrackIds = favoriteTrackIds,
+            onSetTrackFavorite = onSetTrackFavorite,
             homeContent = { onOpenDetailRoute ->
                 LibraryHomeContent(
                     title = snapshot.title,
@@ -562,6 +572,8 @@ fun LibraryHomeScreen(
                             TrackSelectionPageKey.HomeSongs)
                             trackSelectionState.selectedTrackIds
                         else emptySet(),
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = onSetTrackFavorite,
                     labels = librarySharedLabels(),
                     homeBackdrop = rememberRhythHausBackdrop(),
                     artworkLoader = { id -> artworkLoader(id)?.bytes },
@@ -682,6 +694,8 @@ fun LibraryHomeScreen(
                                     TrackSelectionPageKey.HomeSongs)
                                     trackSelectionState.selectedTrackIds
                                 else emptySet(),
+                            favoriteTrackIds = favoriteTrackIds,
+                            onSetTrackFavorite = onSetTrackFavorite,
                             labels = librarySharedLabels(),
                             homeBackdrop = rememberRhythHausBackdrop(),
                             artworkLoader = { id -> artworkLoader(id)?.bytes },
@@ -857,6 +871,8 @@ fun LibraryHomeScreen(
             isVisible = appState.showNowPlaying,
             expandProgress = expandProgress,
             onBack = requestLibraryBack,
+            favoriteTrackIds = favoriteTrackIds,
+            onSetTrackFavorite = onSetTrackFavorite,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -1073,6 +1089,9 @@ private fun NowPlayingExpandOverlay(
     isVisible: Boolean,
     expandProgress: Animatable<Float, AnimationVector1D>,
     onBack: () -> Unit,
+    favoriteTrackIds: Set<String> = emptySet(),
+    onSetTrackFavorite: (trackId: String, favorite: Boolean) -> Unit = { _, _ ->
+    },
     modifier: Modifier = Modifier,
 ) {
     val gestureScope = rememberCoroutineScope()
@@ -1110,6 +1129,8 @@ private fun NowPlayingExpandOverlay(
                     tagLibReader = tagLibReader,
                     currentLibraryTrack = currentLibraryTrack,
                     onBack = onBack,
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = onSetTrackFavorite,
                 )
             }
         }

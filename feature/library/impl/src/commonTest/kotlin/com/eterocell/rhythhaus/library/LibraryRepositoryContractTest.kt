@@ -3,6 +3,8 @@ package com.eterocell.rhythhaus.library
 import com.eterocell.rhythhaus.AudioSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class LibraryRepositoryContractTest {
     @Test
@@ -23,6 +25,28 @@ class LibraryRepositoryContractTest {
         assertEquals("track-1", tracks.single().id)
         assertEquals("Second", tracks.single().title)
         assertEquals(1L, tracks.single().createdAtEpochMillis)
+    }
+
+    @Test
+    fun inMemoryFavoriteStateRejectsMissingTracksAndCascadesWithSourceRemoval() {
+        val repository = InMemoryLibraryRepository()
+
+        assertFalse(
+            repository.setTrackFavorite("missing-track", favorite = true))
+
+        repository.upsertSource(testSource())
+        repository.upsertTrack(
+            testTrack(
+                id = "track-1",
+                sourceLocalKey = "one.mp3",
+            ),
+        )
+        assertTrue(repository.setTrackFavorite("track-1", favorite = true))
+        assertEquals(setOf("track-1"), repository.favoriteTrackIds())
+
+        repository.removeSource("source-1")
+
+        assertEquals(emptySet(), repository.favoriteTrackIds())
     }
 
     @Test

@@ -7,13 +7,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
@@ -76,6 +82,8 @@ class LibraryHomeContentJvmTest {
                             scrolls += index to offset
                         },
                         bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -93,6 +101,296 @@ class LibraryHomeContentJvmTest {
             waitForIdle()
             assertEquals(tracks(), plays.last().first)
             assertEquals(tracks()[0].id, plays.last().second.id)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun favoriteToggleRequestsDesiredStateAndRendersProjectionState() =
+        runComposeUiTest {
+            var favoriteTrackIds by mutableStateOf(emptySet<String>())
+            val requests = mutableListOf<Pair<String, Boolean>>()
+            setContent {
+                Box(Modifier.size(420.dp, 900.dp)) {
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = tracks().take(1),
+                        browseMode = BrowseMode.Songs,
+                        folderPickerLauncher = StubPicker,
+                        sourcePickerActionVisible = false,
+                        importMessage = null,
+                        scanProgress = null,
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = {},
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                        favoriteTrackIds = favoriteTrackIds,
+                        onSetTrackFavorite = { id, favorite ->
+                            requests += id to favorite
+                            favoriteTrackIds =
+                                if (favorite) favoriteTrackIds + id
+                                else favoriteTrackIds - id
+                        },
+                    )
+                }
+            }
+            waitForIdle()
+
+            onNode(
+                    hasContentDescription("Add Two to favorites") and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.ToggleableState,
+                            ToggleableState.Off,
+                        ),
+                )
+                .performClick()
+            waitForIdle()
+
+            assertEquals(listOf("t-1" to true), requests)
+            onNode(
+                    hasContentDescription("Remove Two from favorites") and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.ToggleableState,
+                            ToggleableState.On,
+                        ),
+                )
+                .assertIsDisplayed()
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun favoriteControlDoesNotBlockTrackRowGestures() = runComposeUiTest {
+        var favoriteTrackIds by mutableStateOf(emptySet<String>())
+        val plays = mutableListOf<Pair<List<Track>, Track>>()
+        val selectionStarts = mutableListOf<String>()
+        setContent {
+            Box(Modifier.size(420.dp, 900.dp)) {
+                LibraryHomeContent(
+                    title = "Library",
+                    subtitle = "",
+                    tracks = tracks().take(1),
+                    browseMode = BrowseMode.Songs,
+                    folderPickerLauncher = StubPicker,
+                    sourcePickerActionVisible = false,
+                    importMessage = null,
+                    scanProgress = null,
+                    mutationsEnabled = true,
+                    currentTrackId = null,
+                    selectionModeActive = false,
+                    selectedTrackIds = emptySet(),
+                    labels = labels(),
+                    homeBackdrop = null,
+                    artworkLoader = { null },
+                    onBrowseModeChange = {},
+                    onClearLibrary = {},
+                    onCancelScan = {},
+                    onOpenAlbum = {},
+                    onOpenArtist = {},
+                    onShowPlaylists = {},
+                    onPlayTrack = { ordered, selected ->
+                        plays += ordered to selected
+                    },
+                    onToggleSelection = {},
+                    onStartSelection = { selectionStarts += it },
+                    onVisibleTrackIdsChanged = {},
+                    onScrollPositionChanged = { _, _ -> },
+                    bottomContentPadding = 0.dp,
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = { id, favorite ->
+                        favoriteTrackIds =
+                            if (favorite) favoriteTrackIds + id
+                            else favoriteTrackIds - id
+                    },
+                )
+            }
+        }
+        waitForIdle()
+
+        onNode(hasContentDescription("Add Two to favorites")).performClick()
+        waitForIdle()
+        assertEquals(emptyList(), plays)
+        assertEquals(emptyList(), selectionStarts)
+
+        onNode(hasContentDescription("Select Two")).performClick()
+        waitForIdle()
+        assertEquals(listOf("t-1"), plays.single().first.map(Track::id))
+        assertEquals("t-1", plays.single().second.id)
+
+        onNode(hasContentDescription("Select Two")).performTouchInput {
+            longClick()
+        }
+        waitForIdle()
+        assertEquals(listOf("t-1"), selectionStarts)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun favoriteControlIsAbsentDuringSelectionMode() = runComposeUiTest {
+        var selectionModeActive by mutableStateOf(false)
+        setContent {
+            Box(Modifier.size(420.dp, 900.dp)) {
+                LibraryHomeContent(
+                    title = "Library",
+                    subtitle = "",
+                    tracks = tracks().take(1),
+                    browseMode = BrowseMode.Songs,
+                    folderPickerLauncher = StubPicker,
+                    sourcePickerActionVisible = false,
+                    importMessage = null,
+                    scanProgress = null,
+                    mutationsEnabled = true,
+                    currentTrackId = null,
+                    selectionModeActive = selectionModeActive,
+                    selectedTrackIds = emptySet(),
+                    labels = labels(),
+                    homeBackdrop = null,
+                    artworkLoader = { null },
+                    onBrowseModeChange = {},
+                    onClearLibrary = {},
+                    onCancelScan = {},
+                    onOpenAlbum = {},
+                    onOpenArtist = {},
+                    onShowPlaylists = {},
+                    onPlayTrack = { _, _ -> },
+                    onToggleSelection = {},
+                    onStartSelection = {},
+                    onVisibleTrackIdsChanged = {},
+                    onScrollPositionChanged = { _, _ -> },
+                    bottomContentPadding = 0.dp,
+                    favoriteTrackIds = setOf("t-1"),
+                    onSetTrackFavorite = { _, _ -> },
+                )
+            }
+        }
+        waitForIdle()
+        onNode(hasContentDescription("Remove Two from favorites"))
+            .assertIsDisplayed()
+
+        selectionModeActive = true
+        waitForIdle()
+        onAllNodes(hasContentDescription("Add Two to favorites"))
+            .assertCountEquals(0)
+        onAllNodes(hasContentDescription("Remove Two from favorites"))
+            .assertCountEquals(0)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun favoritesRenderOnlyMembersAndPlayTheVisibleQueueAtCompactWidth() =
+        runComposeUiTest {
+            val visibleReports = mutableListOf<List<String>>()
+            val plays = mutableListOf<Pair<List<Track>, Track>>()
+            setContent {
+                Box(Modifier.size(420.dp, 900.dp)) {
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = tracks(),
+                        browseMode = BrowseMode.Favorites,
+                        folderPickerLauncher = StubPicker,
+                        sourcePickerActionVisible = true,
+                        importMessage = null,
+                        scanProgress = null,
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { ordered, selected ->
+                            plays += ordered to selected
+                        },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = { visibleReports += it },
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                        favoriteTrackIds = setOf("t-2", "t-3"),
+                        onSetTrackFavorite = { _, _ -> },
+                    )
+                }
+            }
+            waitForIdle()
+
+            assertEquals(listOf("t-2", "t-3"), visibleReports.last())
+            onAllNodes(hasText("One")).assertCountEquals(1)
+            onAllNodes(hasText("Solo")).assertCountEquals(1)
+            onAllNodes(hasText("Two")).assertCountEquals(0)
+
+            onAllNodes(hasContentDescription("Select One"))[0].performClick()
+            waitForIdle()
+            assertEquals(
+                listOf("t-2", "t-3"), plays.single().first.map { it.id })
+            assertEquals("t-2", plays.single().second.id)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun emptyFavoritesShowDedicatedStateWithoutImportAtWideWidth() =
+        runComposeUiTest {
+            val visibleReports = mutableListOf<List<String>>()
+            setContent {
+                Box(Modifier.size(1000.dp, 700.dp)) {
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = tracks(),
+                        browseMode = BrowseMode.Favorites,
+                        folderPickerLauncher = StubPicker,
+                        sourcePickerActionVisible = true,
+                        importMessage = null,
+                        scanProgress = null,
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = { visibleReports += it },
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
+                    )
+                }
+            }
+            waitForIdle()
+
+            assertEquals(emptyList(), visibleReports.last())
+            onAllNodes(hasText("No favorite tracks yet.")).assertCountEquals(1)
+            onAllNodes(hasText("Add music folder")).assertCountEquals(0)
         }
 
     @OptIn(ExperimentalTestApi::class)
@@ -131,6 +429,8 @@ class LibraryHomeContentJvmTest {
                         scrolls += index to offset
                     },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -175,6 +475,8 @@ class LibraryHomeContentJvmTest {
                     onVisibleTrackIdsChanged = {},
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -235,6 +537,8 @@ class LibraryHomeContentJvmTest {
                     onVisibleTrackIdsChanged = {},
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -284,6 +588,8 @@ class LibraryHomeContentJvmTest {
                     onVisibleTrackIdsChanged = {},
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -293,6 +599,36 @@ class LibraryHomeContentJvmTest {
         waitForIdle()
         assertEquals(listOf(BrowseMode.Albums), changed)
     }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun fourModePickerKeepsEveryLabelVisibleAtCompactSplitAndWideWidths() =
+        runComposeUiTest {
+            var width by mutableStateOf(375.dp)
+            val changed = mutableListOf<BrowseMode>()
+            setContent {
+                Box(Modifier.size(width, 40.dp)) {
+                    BrowseModePicker(
+                        browseMode = BrowseMode.Songs,
+                        labels = labels(),
+                        onModeChange = { changed += it },
+                    )
+                }
+            }
+
+            listOf(375.dp, 353.dp, 840.dp).forEach { testedWidth ->
+                width = testedWidth
+                waitForIdle()
+                listOf("Albums", "Artists", "Songs", "Favorites").forEach {
+                    label ->
+                    onNode(hasText(label)).assertIsDisplayed()
+                }
+            }
+
+            onNode(hasText("Favorites")).performClick()
+            waitForIdle()
+            assertEquals(listOf(BrowseMode.Favorites), changed)
+        }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -330,13 +666,15 @@ class LibraryHomeContentJvmTest {
                         onVisibleTrackIdsChanged = {},
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
             waitForIdle()
 
             onAllNodes(hasText("Add music folder")).assertCountEquals(2)
-            onNode(hasText("Scanning…")).assertExists()
+            onNode(hasText("Scanning…")).assertIsDisplayed()
             onNode(hasText("Cancel")).performClick()
             waitForIdle()
 
@@ -376,6 +714,8 @@ class LibraryHomeContentJvmTest {
                     onVisibleTrackIdsChanged = {},
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -421,6 +761,8 @@ class LibraryHomeContentJvmTest {
                         onVisibleTrackIdsChanged = {},
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -466,6 +808,8 @@ class LibraryHomeContentJvmTest {
                         onVisibleTrackIdsChanged = { visibleReports += it },
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }

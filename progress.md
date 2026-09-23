@@ -4410,3 +4410,19 @@ Next owner: archive and integration.
 Blockers: no code-level blocker; Android/iOS device presentation and audible real-device continuity remain release evidence gaps.
 
 Independent acceptance: conclusive specification and code reviews of `e3e51c6c..12b01fde` both returned PASS with no Critical or Important findings. Review confirmed fail-safe/wrong-type preference recovery, persist-before-dismiss ordering, retained LibraryAppState/playback selection, exact platform copy, navigation/accessibility, destination-lifetime Settings state across adaptive Review, exclusive modal composition, and onboarding mutation isolation.
+## Handoff - 2026-09-23 favorites implementation
+
+Route: openspec+superpowers
+Owner: documentation/evidence closeout
+Input: approved `favorites` OpenSpec change and implementation plan.
+Output: Durable track favorites are persisted through SQLDelight migration/repository APIs, published through Shared's authoritative library state, browsable in Library, actionable from song/detail rows and Now Playing, and localized in English/Simplified Chinese. Favorite mutations preserve playback state, do not cancel scans, serialize with destructive operations, reconcile publication snapshots, and reject stale Now Playing actions at invocation time.
+Verification:
+- `:core:database:jvmTest --tests ExistingDatabaseMigrationTest --tests TrackFavoriteDatabaseTest`: BUILD SUCCESSFUL.
+- Library focused JVM selectors (`LibraryHomeContentJvmTest`, `DrillDownViewJvmTest`, `LibraryResourceOwnershipJvmTest`): BUILD SUCCESSFUL.
+- `:shared:jvmTest --tests AppScanCancellationTest`: BUILD SUCCESSFUL, including scan/favorite, destructive/favorite, concurrent-favorite, revision, and cancellation-publication regressions.
+- `:feature:nowplaying:jvmTest --tests NowPlayingContentSemanticsJvmTest`: BUILD SUCCESSFUL, including retained-node stale-action coverage.
+- `:shared:compileTestKotlinIosSimulatorArm64`: BUILD SUCCESSFUL.
+- Standalone `spotlessApply`, `spotlessCheck`, `detekt`, `architectureCheck`, strict OpenSpec validation, and `git diff --check`: passed.
+- Independent final review of `6fd6f0c2..bfe19fe3`: Ready; no Critical, Important, or Minor findings.
+Blockers: Android assembly could not start because the environment lacks NDK `30.0.15729638` and `android.toolchain.cmake`; no Android assembly claim is made. Physical-device playback/system-control acceptance remains outside this change.
+Next owner: none; archived as `openspec/changes/archive/2026-09-23-favorites/`.

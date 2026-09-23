@@ -562,6 +562,8 @@ internal fun LibraryRouteContent(
     trackSelectionState: TrackSelectionState = TrackSelectionState(),
     onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
     bottomContentPadding: Dp = 0.dp,
+    favoriteTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
 ) {
     val playlistDestinationId =
         destinationId ?: LibraryDestinationId(route, "unpresented")
@@ -633,6 +635,8 @@ internal fun LibraryRouteContent(
                             LibraryScrollPosition(index, offset))
                     },
                     bottomContentPadding = bottomContentPadding,
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = onSetTrackFavorite,
                 )
             }
         }
@@ -700,6 +704,8 @@ internal fun LibraryRouteContent(
                             LibraryScrollPosition(index, offset))
                     },
                     bottomContentPadding = bottomContentPadding,
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = onSetTrackFavorite,
                 )
             }
         }

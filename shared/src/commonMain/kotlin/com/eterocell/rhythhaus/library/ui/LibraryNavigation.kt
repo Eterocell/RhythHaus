@@ -208,7 +208,8 @@ fun trackSelectionPageKeyFor(
     when (route) {
         LibraryRoute.Home ->
             TrackSelectionPageKey.HomeSongs.takeIf {
-                browseMode == BrowseMode.Songs
+                browseMode == BrowseMode.Songs ||
+                    browseMode == BrowseMode.Favorites
             }
         is LibraryRoute.AlbumDetail -> TrackSelectionPageKey.Album(route.album)
         is LibraryRoute.ArtistDetail ->
