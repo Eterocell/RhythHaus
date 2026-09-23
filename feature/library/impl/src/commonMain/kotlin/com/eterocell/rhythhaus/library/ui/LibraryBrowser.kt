@@ -1,13 +1,13 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.runtime.Composable
+import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.library.LibraryTrack
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.library.generated.resources.Res
 import rhythhaus.feature.library.generated.resources.favorite_add
 import rhythhaus.feature.library.generated.resources.favorite_remove
-import com.eterocell.rhythhaus.Track
-import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.library.LibraryTrack
 
 /**
  * Selects internally grouped album, artist, or authoritative song rendering.

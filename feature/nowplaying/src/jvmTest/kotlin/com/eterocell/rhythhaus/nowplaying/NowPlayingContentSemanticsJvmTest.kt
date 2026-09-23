@@ -144,33 +144,33 @@ public class NowPlayingContentSemanticsJvmTest {
     @Test
     public fun retainedFavoriteActionDoesNothingAfterPlaybackAdvances(): Unit =
         runComposeUiTest {
-        val controller = PlaybackController(ImmediatePlaybackEngine())
-        controller.setQueue(playableTracks(), selectedTrackId = "first")
-        val requests = mutableListOf<Pair<String, Boolean>>()
-        setContent {
-            Box(Modifier.size(390.dp, 844.dp)) {
-                NowPlayingContent(
-                    track = displayTrack(),
-                    playbackState = controller.state.value,
-                    playbackController = controller,
-                    labels = recoveryLabels,
-                    artworkLoader = { null },
-                    onBack = {},
-                    favoriteTrackIds = emptySet(),
-                    onSetTrackFavorite = { id, favorite ->
-                        requests += id to favorite
-                    },
-                    isCurrentTrackAvailableInLibrary = true,
-                )
+            val controller = PlaybackController(ImmediatePlaybackEngine())
+            controller.setQueue(playableTracks(), selectedTrackId = "first")
+            val requests = mutableListOf<Pair<String, Boolean>>()
+            setContent {
+                Box(Modifier.size(390.dp, 844.dp)) {
+                    NowPlayingContent(
+                        track = displayTrack(),
+                        playbackState = controller.state.value,
+                        playbackController = controller,
+                        labels = recoveryLabels,
+                        artworkLoader = { null },
+                        onBack = {},
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { id, favorite ->
+                            requests += id to favorite
+                        },
+                        isCurrentTrackAvailableInLibrary = true,
+                    )
+                }
             }
+
+            controller.setQueue(playableTracks(), selectedTrackId = "second")
+            onNodeWithTag(NowPlayingFavoriteTestTag).performClick()
+            waitForIdle()
+
+            assertEquals(emptyList(), requests)
         }
-
-        controller.setQueue(playableTracks(), selectedTrackId = "second")
-        onNodeWithTag(NowPlayingFavoriteTestTag).performClick()
-        waitForIdle()
-
-        assertEquals(emptyList(), requests)
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -795,12 +795,12 @@ public class NowPlayingContentSemanticsJvmTest {
     }
 
     private fun displayPlaybackState(): PlaybackState =
-    PlaybackState(
-        currentOccurrenceId = "display",
-        queue = listOf(QueueOccurrence("display", playableTracks()[0])),
-    )
+        PlaybackState(
+            currentOccurrenceId = "display",
+            queue = listOf(QueueOccurrence("display", playableTracks()[0])),
+        )
 
-private fun displayTrack(): Track =
+    private fun displayTrack(): Track =
         Track(
             id = "first",
             title =

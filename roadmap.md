@@ -13,6 +13,7 @@
 | P0 | Android notification denial | Completed implementation: Android 13+ denial now explains the non-blocking system-control degradation and offers re-request or app notification settings. | Complete Android 13+ in-app playback-under-denial and restored system-media-control acceptance, then archive `android-notification-permission-recovery`. |
 | P0 | Playback failure recovery | Completed implementation: structured fail-closed platform errors, retry, non-wrapping skip, queue-only removal, generation-safe reconciliation, and error-only localized Now Playing actions. | Native macOS disposable-file recovery acceptance is automated. Android device and iOS runtime interaction remain release-evidence gaps because no safe controllable target was available; archived as [`2026-09-10-playback-failure-recovery`](openspec/changes/archive/2026-09-10-playback-failure-recovery/). |
 | P1 | First-run onboarding | Completed: durable one-time Skip/Finish flow, platform-accurate EN/ZH guidance, canonical Back/navigation, compact scrolling, and Settings re-entry. | Archived as [`2026-09-12-first-run-onboarding`](openspec/changes/archive/2026-09-12-first-run-onboarding/); Android/iOS device presentation remains release evidence rather than an implementation blocker. |
+| P1 | Favorites | Completed: durable track favorites, authoritative cross-surface state, Favorites browsing, accessible Library/Now Playing actions, and EN/ZH localization. | Archived as [`2026-09-23-favorites`](openspec/changes/archive/2026-09-23-favorites/); physical Android/iOS and system-media acceptance remains general release evidence, not a Favorites implementation blocker. |
 
 ### iOS import decision and constraints
 
@@ -29,7 +30,7 @@
 
 | Phase | Goal | Ordered deliverables |
 | --- | --- | --- |
-| Phase 2 — daily use | Make the existing library and player efficient to use every day. | Favorites; play history/recently played/recently added; sorting and filtering; sleep timer; save Queue as playlist; smart playlists. |
+| Phase 2 — daily use | Make the existing library and player efficient to use every day. | ~~Favorites~~; play history/recently played/recently added; sorting and filtering; sleep timer; save Queue as playlist; smart playlists. |
 | Phase 3 — library management | Give users safe control over imported metadata and sources. | App-local metadata overrides; M3U/PLS import/export; Android MediaStore source; incremental-scan UX; desktop drag-and-drop and remaining cross-platform import policy. |
 | Phase 4 — advanced playback | Improve listening quality without adding network dependence. | ReplayGain/normalization; crossfade; basic EQ; gapless playback; local and embedded lyrics. |
 
