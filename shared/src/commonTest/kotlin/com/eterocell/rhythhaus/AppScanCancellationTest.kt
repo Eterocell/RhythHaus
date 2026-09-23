@@ -1132,25 +1132,32 @@ class AppScanCancellationTest {
         }
 
     @Test
-    fun scanPublicationReconcilesFavoritesWrittenWhileScanWasActive() = runBlocking {
-        val repository =
-            InMemoryLibraryRepository().apply {
-                upsertSource(testSource())
-                upsertTrack(testTrack("favorite"))
-            }
-        val owner = AuthoritativeLibraryPublicationOwner()
-        owner.publish(loadLibraryContent(repository, EmptyPlatformSourceAccess))
-        repository.setTrackFavorite("favorite", favorite = true)
+    fun scanPublicationReconcilesFavoritesWrittenWhileScanWasActive() =
+        runBlocking {
+            val repository =
+                InMemoryLibraryRepository().apply {
+                    upsertSource(testSource())
+                    upsertTrack(testTrack("favorite"))
+                }
+            val owner = AuthoritativeLibraryPublicationOwner()
+            owner.publish(
+                loadLibraryContent(repository, EmptyPlatformSourceAccess))
+            repository.setTrackFavorite("favorite", favorite = true)
 
-        val publication =
-            owner.publishWithFavoriteReconciliation(
-                content = LibraryContentState(emptyList(), listOf(testTrack("favorite"))),
-                favoriteTrackIds = { repository.favoriteTrackIds() },
-            )
+            val publication =
+                owner.publishWithFavoriteReconciliation(
+                    content =
+                        LibraryContentState(
+                            emptyList(), listOf(testTrack("favorite"))),
+                    favoriteTrackIds = { repository.favoriteTrackIds() },
+                )
 
-        assertEquals(setOf("favorite"), publication.content.favoriteTrackIds)
-        assertEquals(repository.favoriteTrackIds(), publication.content.favoriteTrackIds)
-    }
+            assertEquals(
+                setOf("favorite"), publication.content.favoriteTrackIds)
+            assertEquals(
+                repository.favoriteTrackIds(),
+                publication.content.favoriteTrackIds)
+        }
 
     @Test
     fun concurrentFavoriteWritesPublishBothIdsInRevisionOrder() = runBlocking {
@@ -1163,51 +1170,61 @@ class AppScanCancellationTest {
         val owner = AuthoritativeLibraryPublicationOwner()
         owner.publish(loadLibraryContent(repository, EmptyPlatformSourceAccess))
         val orchestrator =
-            AppLibraryOrchestrator(AppLibraryOperationCoordinator {}, publishError = {})
+            AppLibraryOrchestrator(
+                AppLibraryOperationCoordinator {}, publishError = {})
         val publications = mutableListOf<AuthoritativeLibraryPublication>()
 
         coroutineScope {
-            listOf("first", "second").map { id ->
-                async {
-                    setTrackFavoriteAndPublish(
-                        orchestrator = orchestrator,
-                        publicationOwner = owner,
-                        repository = repository,
-                        platformAccess = EmptyPlatformSourceAccess,
-                        trackId = id,
-                        favorite = true,
-                        ioDispatcher = Dispatchers.Default,
-                        publish = { publications += it },
-                    )
+            listOf("first", "second")
+                .map { id ->
+                    async {
+                        setTrackFavoriteAndPublish(
+                            orchestrator = orchestrator,
+                            publicationOwner = owner,
+                            repository = repository,
+                            platformAccess = EmptyPlatformSourceAccess,
+                            trackId = id,
+                            favorite = true,
+                            ioDispatcher = Dispatchers.Default,
+                            publish = { publications += it },
+                        )
+                    }
                 }
-            }.forEach { it.await() }
+                .forEach { it.await() }
         }
 
         assertEquals(setOf("first", "second"), repository.favoriteTrackIds())
-        assertEquals(setOf("first", "second"), publications.last().content.favoriteTrackIds)
+        assertEquals(
+            setOf("first", "second"),
+            publications.last().content.favoriteTrackIds)
         assertEquals(3L, publications.last().revision)
     }
 
     @Test
-    fun destructivePublicationCannotOverwriteFavoriteProjection() = runBlocking {
-        val repository =
-            InMemoryLibraryRepository().apply {
-                upsertSource(testSource())
-                upsertTrack(testTrack("favorite"))
-            }
-        val owner = AuthoritativeLibraryPublicationOwner()
-        owner.publish(loadLibraryContent(repository, EmptyPlatformSourceAccess))
-        repository.setTrackFavorite("favorite", favorite = true)
+    fun destructivePublicationCannotOverwriteFavoriteProjection() =
+        runBlocking {
+            val repository =
+                InMemoryLibraryRepository().apply {
+                    upsertSource(testSource())
+                    upsertTrack(testTrack("favorite"))
+                }
+            val owner = AuthoritativeLibraryPublicationOwner()
+            owner.publish(
+                loadLibraryContent(repository, EmptyPlatformSourceAccess))
+            repository.setTrackFavorite("favorite", favorite = true)
 
-        val publication =
-            owner.publishWithFavoriteReconciliation(
-                content = LibraryContentState(emptyList(), emptyList()),
-                favoriteTrackIds = { repository.favoriteTrackIds() },
-            )
+            val publication =
+                owner.publishWithFavoriteReconciliation(
+                    content = LibraryContentState(emptyList(), emptyList()),
+                    favoriteTrackIds = { repository.favoriteTrackIds() },
+                )
 
-        assertEquals(setOf("favorite"), publication.content.favoriteTrackIds)
-        assertEquals(repository.favoriteTrackIds(), publication.content.favoriteTrackIds)
-    }
+            assertEquals(
+                setOf("favorite"), publication.content.favoriteTrackIds)
+            assertEquals(
+                repository.favoriteTrackIds(),
+                publication.content.favoriteTrackIds)
+        }
 
     @Test
     fun staleFavoritePublicationCannotOverwriteNewerLibraryState() =
@@ -1291,7 +1308,6 @@ class AppScanCancellationTest {
         assertEquals(setOf("favorite"), repository.favoriteTrackIds())
         assertEquals(newer.revision + 1, owner.revision)
         assertEquals(1, publicationCalls)
-
     }
 
     @Test
@@ -1395,7 +1411,7 @@ class AppScanCancellationTest {
                 var destructiveMutationRan = false
                 val destructiveMutation = async {
                     orchestrator.launch(LibraryOperationKind.Clear) {
-                    destructiveMutationRan = true
+                        destructiveMutationRan = true
                     }
                 }
 

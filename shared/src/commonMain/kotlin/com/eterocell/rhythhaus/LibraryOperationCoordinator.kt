@@ -108,7 +108,8 @@ internal class AppLibraryOperationCoordinator(
         token: LibraryOperationToken,
         publication: suspend () -> T,
     ): T? = mutex.withLock {
-        if (current == token || token in activeFavoriteTokens) publication() else null
+        if (current == token || token in activeFavoriteTokens) publication()
+        else null
     }
 
     fun isCurrent(token: LibraryOperationToken): Boolean =
