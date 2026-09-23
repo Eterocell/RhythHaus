@@ -6,9 +6,13 @@ import kotlin.test.assertEquals
 class HomeSelectionPoliciesJvmTest {
     @Test
     fun leavingAFlatHomeSurfaceForAGroupedModeClearsSelectionExactlyOnce() {
-        listOf(BrowseMode.Songs, BrowseMode.Favorites).forEach { source ->
-            listOf(BrowseMode.Albums, BrowseMode.Artists).forEach { destination
-                ->
+        listOf(
+            BrowseMode.Songs,
+            BrowseMode.Favorites,
+            BrowseMode.RecentlyPlayed,
+            BrowseMode.RecentlyAdded,
+        ).forEach { source ->
+            listOf(BrowseMode.Albums, BrowseMode.Artists).forEach { destination ->
                 val actions = mutableListOf<TrackSelectionAction>()
                 val browseModes = mutableListOf<BrowseMode>()
                 dispatchHomeBrowseModeChange(
@@ -18,13 +22,38 @@ class HomeSelectionPoliciesJvmTest {
                     { browseModes += it },
                 )
                 assertEquals(
-                    listOf<TrackSelectionAction>(
-                        TrackSelectionAction.RouteChanged(null)),
+                    listOf<TrackSelectionAction>(TrackSelectionAction.RouteChanged(null)),
                     actions,
                 )
                 assertEquals(listOf(destination), browseModes)
             }
         }
+    }
+
+    @Test
+    fun movingBetweenRecentFlatHomeSurfacesKeepsSelection() {
+        listOf(
+            BrowseMode.Songs to BrowseMode.RecentlyPlayed,
+            BrowseMode.RecentlyPlayed to BrowseMode.RecentlyAdded,
+            BrowseMode.RecentlyAdded to BrowseMode.Favorites,
+            BrowseMode.Favorites to BrowseMode.RecentlyPlayed,
+        ).forEach { (source, destination) ->
+            val actions = mutableListOf<TrackSelectionAction>()
+            dispatchHomeBrowseModeChange(source, destination, actions::add) {}
+            assertEquals(emptyList(), actions)
+        }
+    }
+
+    @Test
+    fun recentModesUseTheFlatHomeSelectionPageAndBackPolicy() {
+        assertEquals(
+            TrackSelectionPageKey.HomeSongs,
+            trackSelectionPageKeyFor(LibraryRoute.Home, BrowseMode.RecentlyPlayed),
+        )
+        assertEquals(
+            TrackSelectionPageKey.HomeSongs,
+            trackSelectionPageKeyFor(LibraryRoute.Home, BrowseMode.RecentlyAdded),
+        )
     }
 
     @Test
@@ -35,8 +64,7 @@ class HomeSelectionPoliciesJvmTest {
             )
             .forEach { (source, destination) ->
                 val actions = mutableListOf<TrackSelectionAction>()
-                dispatchHomeBrowseModeChange(
-                    source, destination, actions::add) {}
+                dispatchHomeBrowseModeChange(source, destination, actions::add) {}
                 assertEquals(emptyList(), actions)
             }
     }

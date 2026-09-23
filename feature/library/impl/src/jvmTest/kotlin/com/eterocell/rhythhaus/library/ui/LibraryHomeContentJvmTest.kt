@@ -29,6 +29,7 @@ import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.TrackPlayHistory
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -348,6 +349,105 @@ class LibraryHomeContentJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun recentModeTapQueuesOnlyDisplayedOrderedTracks() = runComposeUiTest {
+        val plays = mutableListOf<Pair<List<Track>, Track>>()
+        val history =
+            mapOf(
+                "t-1" to TrackPlayHistory("t-1", 1L, 100L),
+                "t-2" to TrackPlayHistory("t-2", 1L, 300L),
+                "t-3" to TrackPlayHistory("t-3", 1L, 200L),
+            )
+        setContent {
+            Box(Modifier.size(420.dp, 900.dp)) {
+                LibraryHomeContent(
+                    title = "Library",
+                    subtitle = "",
+                    tracks = tracks(),
+                    browseMode = BrowseMode.RecentlyPlayed,
+                    playHistory = history,
+                    createdAtByTrackId = tracks().associate { it.id to it.id.length.toLong() },
+                    folderPickerLauncher = StubPicker,
+                    sourcePickerActionVisible = false,
+                    importMessage = null,
+                    scanProgress = null,
+                    mutationsEnabled = true,
+                    currentTrackId = null,
+                    selectionModeActive = false,
+                    selectedTrackIds = emptySet(),
+                    labels = labels(),
+                    homeBackdrop = null,
+                    artworkLoader = { null },
+                    onBrowseModeChange = {},
+                    onClearLibrary = {},
+                    onCancelScan = {},
+                    onOpenAlbum = {},
+                    onOpenArtist = {},
+                    onShowPlaylists = {},
+                    onPlayTrack = { ordered, selected -> plays += ordered to selected },
+                    onToggleSelection = {},
+                    onStartSelection = {},
+                    onVisibleTrackIdsChanged = {},
+                    onScrollPositionChanged = { _, _ -> },
+                    bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
+                )
+            }
+        }
+        waitForIdle()
+        onNode(hasContentDescription("Select Two")).performClick()
+        waitForIdle()
+        assertEquals(listOf("t-2", "t-3", "t-1"), plays.single().first.map { it.id })
+        assertEquals("t-2", plays.single().second.id)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun emptyRecentlyPlayedShowsLocalizedMessageWithoutImportAction() = runComposeUiTest {
+        setContent {
+            Box(Modifier.size(420.dp, 900.dp)) {
+                LibraryHomeContent(
+                    title = "Library",
+                    subtitle = "",
+                    tracks = tracks(),
+                    browseMode = BrowseMode.RecentlyPlayed,
+                    playHistory = emptyMap(),
+                    createdAtByTrackId = tracks().associate { it.id to 1L },
+                    folderPickerLauncher = AvailableStubPicker,
+                    sourcePickerActionVisible = true,
+                    importMessage = null,
+                    scanProgress = null,
+                    mutationsEnabled = true,
+                    currentTrackId = null,
+                    selectionModeActive = false,
+                    selectedTrackIds = emptySet(),
+                    labels = labels(),
+                    homeBackdrop = null,
+                    artworkLoader = { null },
+                    onBrowseModeChange = {},
+                    onClearLibrary = {},
+                    onCancelScan = {},
+                    onOpenAlbum = {},
+                    onOpenArtist = {},
+                    onShowPlaylists = {},
+                    onPlayTrack = { _, _ -> },
+                    onToggleSelection = {},
+                    onStartSelection = {},
+                    onVisibleTrackIdsChanged = {},
+                    onScrollPositionChanged = { _, _ -> },
+                    bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
+                )
+            }
+        }
+        waitForIdle()
+        onNode(hasText("No recently played tracks yet.")).assertIsDisplayed()
+        onAllNodes(hasText("Add music folder")).assertCountEquals(0)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun emptyFavoritesShowDedicatedStateWithoutImportAtWideWidth() =
         runComposeUiTest {
             val visibleReports = mutableListOf<List<String>>()
@@ -629,6 +729,28 @@ class LibraryHomeContentJvmTest {
             waitForIdle()
             assertEquals(listOf(BrowseMode.Favorites), changed)
         }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun compactRecentModeControlsExposeAllModesAndSelectedSemantics() = runComposeUiTest {
+        setContent {
+            Box(Modifier.size(400.dp, 40.dp)) {
+                BrowseModePicker(
+                    browseMode = BrowseMode.RecentlyPlayed,
+                    labels = labels(),
+                    onModeChange = {},
+                )
+            }
+        }
+        waitForIdle()
+        listOf("Albums", "Artists", "Songs", "Favorites", "Recently played", "Recently added")
+            .forEach { onNode(hasText(it)).assertIsDisplayed() }
+        onNode(
+                hasText("Recently played") and
+                    SemanticsMatcher.expectValue(SemanticsProperties.Selected, true),
+            )
+            .assertIsDisplayed()
+    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
