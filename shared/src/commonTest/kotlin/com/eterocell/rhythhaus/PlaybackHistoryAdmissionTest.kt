@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus
 
 import com.eterocell.rhythhaus.library.InMemoryLibraryRepository
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
+import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
@@ -9,7 +10,10 @@ import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 
 class PlaybackHistoryAdmissionTest {
@@ -113,6 +117,130 @@ class PlaybackHistoryAdmissionTest {
         assertEquals(0, publicationCalls)
         assertEquals(initial.revision, owner.revision)
     }
+
+    @Test
+    fun appLibraryContentStateReplacesHistoryProjectionsFromPublication() {
+        val state = AppLibraryContentState()
+        val initial =
+            LibraryContentState(
+                sources = listOf(historySource()),
+                tracks = listOf(historyTrack("history")),
+                favoriteTrackIds = setOf("history"),
+                playHistory =
+                    mapOf(
+                        "history" to TrackPlayHistory("history", 1L, 100L),
+                    ),
+                createdAtByTrackId = mapOf("history" to 10L),
+            )
+        val current =
+            initial.copy(
+                playHistory =
+                    mapOf(
+                        "history" to TrackPlayHistory("history", 2L, 200L),
+                    ),
+                createdAtByTrackId = mapOf("history" to 20L),
+            )
+
+        state.apply(AuthoritativeLibraryPublication(initial, revision = 1L))
+        state.apply(AuthoritativeLibraryPublication(current, revision = 2L))
+
+        assertEquals(current.playHistory, state.content.playHistory)
+        assertEquals(current.createdAtByTrackId, state.content.createdAtByTrackId)
+    }
+
+    @Test
+    fun historyCollectorReportsFailureAndContinuesWithLaterEvents() =
+        runBlocking {
+            val repository =
+                FailFirstHistoryRecordRepository(
+                    InMemoryLibraryRepository().apply {
+                        upsertSource(historySource())
+                        upsertTrack(historyTrack("history"))
+                    },
+                )
+            val owner = AuthoritativeLibraryPublicationOwner()
+            owner.publish(
+                loadLibraryContent(repository, HistoryPlatformSourceAccess))
+            val reports = mutableListOf<String>()
+            val publications = mutableListOf<AuthoritativeLibraryPublication>()
+
+            collectPlaybackHistoryAndPublish(
+                playbackStarted =
+                    flowOf(
+                        PlaybackStarted(1L, "failed-occurrence", "history"),
+                        PlaybackStarted(2L, "accepted-occurrence", "history"),
+                    ),
+                publicationOwner = owner,
+                repository = repository,
+                platformAccess = HistoryPlatformSourceAccess,
+                playedAtEpochMillis = { 100L },
+                ioDispatcher = Dispatchers.Default,
+                reportFailure = reports::add,
+                publish = publications::add,
+            )
+
+            assertEquals(listOf("history write failed"), reports)
+            assertEquals(
+                mapOf("history" to TrackPlayHistory("history", 1L, 100L)),
+                repository.playHistory(),
+            )
+            assertEquals(1, publications.size)
+        }
+
+    @Test
+    fun historyCollectorRethrowsCancellation() = runBlocking {
+        val repository =
+            CancellationHistoryRecordRepository(
+                InMemoryLibraryRepository().apply {
+                    upsertSource(historySource())
+                    upsertTrack(historyTrack("history"))
+                },
+            )
+        val reports = mutableListOf<String>()
+
+        assertFailsWith<CancellationException> {
+            collectPlaybackHistoryAndPublish(
+                playbackStarted =
+                    flowOf(PlaybackStarted(1L, "cancelled-occurrence", "history")),
+                publicationOwner = AuthoritativeLibraryPublicationOwner(),
+                repository = repository,
+                platformAccess = HistoryPlatformSourceAccess,
+                playedAtEpochMillis = { 100L },
+                ioDispatcher = Dispatchers.Default,
+                reportFailure = reports::add,
+                publish = {},
+            )
+        }
+
+        assertEquals(emptyList(), reports)
+    }
+}
+
+private class FailFirstHistoryRecordRepository(
+    private val delegate: LibraryRepository,
+) : LibraryRepository by delegate {
+    private var shouldFail = true
+
+    override fun recordTrackPlayed(
+        trackId: String,
+        playedAtEpochMillis: Long,
+    ): Boolean =
+        if (shouldFail) {
+            shouldFail = false
+            error("history write failed")
+        } else {
+            delegate.recordTrackPlayed(trackId, playedAtEpochMillis)
+        }
+}
+
+private class CancellationHistoryRecordRepository(
+    delegate: LibraryRepository,
+) : LibraryRepository by delegate {
+    override fun recordTrackPlayed(
+        trackId: String,
+        playedAtEpochMillis: Long,
+    ): Boolean =
+        throw CancellationException("history collection cancelled")
 }
 
 private object HistoryPlatformSourceAccess : PlatformSourceAccess {
