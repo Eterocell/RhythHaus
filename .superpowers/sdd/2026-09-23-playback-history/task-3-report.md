@@ -35,3 +35,91 @@ The tests pin these internal Shared seams for the Green implementation:
 - Lifecycle publication reconciliation reloads the current favorite, history, and created-time maps while the publication owner is locked, so a delayed scan cannot replace an accepted history value and source deletion removes all dependent projections.
 
 No Gradle task, formatter, linter, or test/verification command was run.
+
+## Green implementation and race handling
+
+`LibraryContentState` now captures immutable play-history and created-time maps
+alongside sources, tracks, and favorites. `loadLibraryContent` obtains both
+projections for startup, scans, favorite changes, source removal,
+remove-missing, clear, and default-source refreshes.
+
+`AuthoritativeLibraryPublicationOwner.publishWithFavoriteReconciliation` now
+reloads favorites, history, and created-time projections while holding its
+publication mutex. Therefore, a lifecycle content value assembled before an
+accepted history event cannot publish its stale history or created-time map:
+the lifecycle publication re-reads those projections once it owns the mutex.
+If it publishes first, the subsequent history mutation takes the same mutex
+and publishes the accepted reload afterward.
+
+App installs one `LaunchedEffect(controller)` collector for
+`PlaybackController.playbackStarted`. It captures the epoch timestamp in
+Shared, then calls `recordPlaybackHistoryAndPublish`. That helper performs
+`recordTrackPlayed`, content reload, and publication inside
+`mutateAndPublish`; it never consults the scan coordinator, requests scan
+cancellation, or acquires operation admission. A false repository write
+(including a track deleted before the atomic write) returns `null` from the
+mutation, so it advances no revision and produces no stale publication.
+
+The intended Green selector is:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.PlaybackHistoryAdmissionTest' \
+  --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' \
+  --tests 'com.eterocell.rhythhaus.di.RhythHausDiTest' \
+  --configuration-cache
+```
+
+Per task constraints, this selector was not run by this dispatch.
+
+## Review follow-up: App retention and collector resilience
+
+Review found two production-boundary gaps: `applyLibraryPublication` discarded
+the new history projections after the authoritative owner had published them,
+and an ordinary repository/reload exception escaped the sole
+`playbackStarted` collector and terminated it for that App lifetime.
+
+`AppLibraryContentState` is now remembered by App and stores the complete
+`LibraryContentState`; `applyLibraryPublication` applies each authoritative
+publication to it before updating the revision. All existing downstream App
+consumers read the retained content projection, preserving the history and
+created-time maps for downstream library consumers as they are added.
+
+`collectPlaybackHistoryAndPublish` is the sole collector run from App's
+`LaunchedEffect(controller)`. It timestamps each event in Shared, catches and
+reports ordinary event-local persistence/reload failures with
+`appFailureMessage()`, and rethrows `CancellationException`. That keeps the
+stream available for later events without changing scan admission or history
+publication serialization.
+
+New Shared regressions prove that App-owned content replaces both authoritative
+history projections, that a failed write is reported while the next event is
+still recorded and published, and that cancellation remains propagated.
+
+The added regressions first failed at `:shared:compileTestKotlinJvm` because
+the App state projection and resilient collector seam did not exist. After the
+minimal implementation, the requested selector completed successfully:
+
+```bash
+./gradlew :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.PlaybackHistoryAdmissionTest' \
+  --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' \
+  --configuration-cache
+```
+
+`BUILD SUCCESSFUL in 7s` (146 actionable tasks: 28 executed, 118 up-to-date).
+
+## Final focused verification
+
+Command:
+
+```bash
+./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.PlaybackHistoryAdmissionTest' --tests 'com.eterocell.rhythhaus.AppScanCancellationTest' --configuration-cache
+```
+
+Result:
+
+```text
+BUILD SUCCESSFUL in 571ms
+146 actionable tasks: 24 executed, 122 up-to-date
+```
