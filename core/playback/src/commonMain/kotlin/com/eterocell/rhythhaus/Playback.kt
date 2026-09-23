@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -183,6 +184,16 @@ public data class PlaybackState(
         }
 }
 
+/** Records an occurrence whose generation reached actual playback. */
+public data class PlaybackStarted(
+    /** Generation that owns the playing occurrence. */
+    public val generation: Long,
+    /** Queue occurrence that reached actual playback. */
+    public val occurrenceId: String,
+    /** Track assigned to [occurrenceId]. */
+    public val trackId: String,
+)
+
 private data class RevisionedShuffleOrder(
     internal val revision: Long = 0L,
     internal val sourceQueueIds: List<String> = emptyList(),
@@ -195,6 +206,11 @@ private data class SelectionRequest(
     val occurrenceId: String,
     val playWhenLoaded: MutableStateFlow<Boolean>,
     val job: Job,
+)
+
+private data class PlaybackStartedKey(
+    val generation: Long,
+    val occurrenceId: String,
 )
 
 /**
@@ -319,6 +335,15 @@ public class PlaybackController(
     private val _state = MutableStateFlow(PlaybackState())
     /** Publishes immutable playback state to observers. */
     public val state: StateFlow<PlaybackState> = _state.asStateFlow()
+
+    // Unlimited buffering preserves events while keeping platform callbacks
+    // non-blocking.
+    private val playbackStartedChannel =
+        Channel<PlaybackStarted>(Channel.UNLIMITED)
+    private var lastPlaybackStartedKey: PlaybackStartedKey? = null
+    /** Emits each generation and queue occurrence that reaches actual playback once. */
+    public val playbackStarted: Flow<PlaybackStarted> =
+        playbackStartedChannel.receiveAsFlow()
 
     // One process-owned persistence coordinator is the sole consumer. Unlimited
     // buffering keeps
@@ -863,6 +888,7 @@ public class PlaybackController(
         scope.cancel()
         engine.listener = null
         engine.release()
+        playbackStartedChannel.close()
         checkpointChannel.close()
         _state.value = _state.value.copy(status = PlaybackStatus.Stopped)
     }
@@ -1775,13 +1801,31 @@ public class PlaybackController(
         status: PlaybackStatus
     ) {
         selectionGate.withLock {
-            _state.update { state ->
-                if (state.engineGeneration == generation) {
-                    state.copy(status = status, error = null)
-                } else {
-                    state
+            var published: PlaybackState? = null
+            while (published == null) {
+                val state = _state.value
+                if (state.engineGeneration != generation) return@withLock
+                val updated = state.copy(status = status, error = null)
+                if (_state.compareAndSet(state, updated)) {
+                    published = updated
                 }
             }
+            emitPlaybackStartedIfNew(checkNotNull(published))
+        }
+    }
+
+    /** Buffers a new actual-playing event after its state claim is committed. */
+    private fun emitPlaybackStartedIfNew(state: PlaybackState) {
+        if (state.status != PlaybackStatus.Playing) return
+        val occurrence = state.currentOccurrence ?: return
+        val key = PlaybackStartedKey(state.engineGeneration, occurrence.id)
+        if (lastPlaybackStartedKey == key) return
+        if (
+            playbackStartedChannel.trySend(
+                PlaybackStarted(key.generation, key.occurrenceId, occurrence.track.id),
+            ).isSuccess
+        ) {
+            lastPlaybackStartedKey = key
         }
     }
 
