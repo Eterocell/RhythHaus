@@ -170,9 +170,8 @@ public fun NowPlayingContent(
     onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
     isCurrentTrackAvailableInLibrary: Boolean = false,
 ): Unit {
-    val latestPlaybackState by rememberUpdatedState(playbackState)
     val guardedOnSetTrackFavorite: (String, Boolean) -> Unit = { id, value ->
-        if (latestPlaybackState.currentTrack?.id == id) {
+        if (playbackController.state.value.currentTrack?.id == id) {
             onSetTrackFavorite(id, value)
         }
     }
