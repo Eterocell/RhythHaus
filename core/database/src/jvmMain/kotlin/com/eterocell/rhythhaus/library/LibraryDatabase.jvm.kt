@@ -35,6 +35,7 @@ public actual class LibraryDatabase(
 private val libraryTables =
     setOf("library_source", "library_track", "scan_session", "scan_error")
 private val playlistTables = setOf("playlist", "playlist_entry")
+private val favoriteTables = setOf("track_favorite")
 
 private fun foreignKeyProperties(): Properties =
     Properties().apply { put("foreign_keys", "true") }
@@ -48,9 +49,10 @@ private fun bootstrapLegacyVersionZeroDatabase(
         if (driver.userVersion() != 0L) return
         val tables = driver.userTables()
         val legacyVersion =
-            when (tables) {
-                libraryTables -> 1L
-                libraryTables + playlistTables ->
+            when {
+                tables == libraryTables -> 1L
+                tables == libraryTables + playlistTables -> 2L
+                tables == libraryTables + playlistTables + favoriteTables ->
                     RhythHausDatabase.Schema.version
                 else -> return
             }

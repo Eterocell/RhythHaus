@@ -10,8 +10,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
@@ -65,6 +69,8 @@ class DrillDownViewJvmTest {
                         scrolls += index to offset
                     },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -75,6 +81,64 @@ class DrillDownViewJvmTest {
         assertEquals(tracks().map(Track::id), visibleReports.last())
         assertEquals(listOf(0, 0), scrolls.first().toList())
     }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun albumAndArtistFavoriteControlsAreAbsentWhileSelecting() =
+        runComposeUiTest {
+            var summary by
+                mutableStateOf<LibraryDetailSummary>(
+                    LibraryDetailSummary.Album(
+                        trackCount = 3,
+                        artist = "Artist",
+                    ),
+                )
+            var selectionModeActive by mutableStateOf(false)
+            setContent {
+                Box(Modifier.size(420.dp, 520.dp)) {
+                    DrillDownView(
+                        title = "Album B",
+                        summary = summary,
+                        tracks = tracks(),
+                        topBarArtworkTrack = null,
+                        currentTrackId = null,
+                        selectionPage = LibrarySelectionPage.Album("Album B"),
+                        selectionModeActive = selectionModeActive,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        artworkLoader = { null },
+                        onBack = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = {},
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
+                    )
+                }
+            }
+            waitForIdle()
+
+            val uncheckedFavorite =
+                hasContentDescription("Add Two to favorites") and
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.ToggleableState,
+                        ToggleableState.Off,
+                    )
+            onNode(uncheckedFavorite).assertIsDisplayed()
+
+            summary =
+                LibraryDetailSummary.Artist(albumCount = 2, trackCount = 3)
+            waitForIdle()
+            onNode(uncheckedFavorite).assertIsDisplayed()
+
+            selectionModeActive = true
+            waitForIdle()
+            onAllNodes(hasContentDescription("Add Two to favorites"))
+                .assertCountEquals(0)
+        }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -102,6 +166,8 @@ class DrillDownViewJvmTest {
                         onVisibleTrackIdsChanged = {},
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -141,6 +207,8 @@ class DrillDownViewJvmTest {
                         onVisibleTrackIdsChanged = {},
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -185,6 +253,8 @@ class DrillDownViewJvmTest {
                         onVisibleTrackIdsChanged = {},
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }
@@ -278,6 +348,8 @@ class DrillDownViewJvmTest {
                         scrolls += index to offset
                     },
                     bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
                 )
             }
         }
@@ -320,6 +392,8 @@ class DrillDownViewJvmTest {
                         onVisibleTrackIdsChanged = { visibleReports += it },
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
                     )
                 }
             }

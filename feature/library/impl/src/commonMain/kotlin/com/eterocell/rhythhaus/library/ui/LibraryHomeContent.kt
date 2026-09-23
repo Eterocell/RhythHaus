@@ -30,9 +30,13 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.RhythHausBackdrop
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
+import org.jetbrains.compose.resources.stringResource
+import rhythhaus.feature.library.generated.resources.Res
+import rhythhaus.feature.library.generated.resources.favorites_empty
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.basic.Text
 
 /**
  * Resolves the home list top content padding from the system bar inset.
@@ -79,6 +83,8 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  *   offset.
  * @param bottomContentPadding reserved trailing list space for Shared shell
  *   chrome.
+ * @param favoriteTrackIds immutable authoritative favorite IDs.
+ * @param onSetTrackFavorite requests a desired favorite state for a track.
  */
 @Composable
 public fun LibraryHomeContent(
@@ -110,9 +116,17 @@ public fun LibraryHomeContent(
     onScrollPositionChanged:
         (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
     bottomContentPadding: Dp,
+    favoriteTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
 ) {
-    val albums = remember(tracks) { groupTracksByAlbum(tracks) }
-    val artists = remember(tracks) { groupTracksByArtist(tracks) }
+    // Keep filtering at the presentation boundary so the existing grouping,
+    // ordering, and playback callback all consume the same visible queue.
+    val visibleTracks =
+        remember(tracks, browseMode, favoriteTrackIds) {
+            visibleTracksForBrowseMode(tracks, browseMode, favoriteTrackIds)
+        }
+    val albums = remember(visibleTracks) { groupTracksByAlbum(visibleTracks) }
+    val artists = remember(visibleTracks) { groupTracksByArtist(visibleTracks) }
     val homeListState = rememberLazyListState()
     Box(modifier = Modifier.fillMaxSize()) {
         val homeTopContentPadding =
@@ -135,7 +149,9 @@ public fun LibraryHomeContent(
                         item {
                             HeaderSection(title = title, subtitle = subtitle)
                         }
-                        if (tracks.isEmpty() && sourcePickerActionVisible) {
+                        if (visibleTracks.isEmpty() &&
+                            browseMode != BrowseMode.Favorites &&
+                            sourcePickerActionVisible) {
                             item {
                                 ImportAudioCard(
                                     folderPickerLauncher = folderPickerLauncher,
@@ -147,7 +163,8 @@ public fun LibraryHomeContent(
                                 )
                             }
                         }
-                        if (tracks.isEmpty() &&
+                        if (visibleTracks.isEmpty() &&
+                            browseMode != BrowseMode.Favorites &&
                             scanProgress?.isActive == true) {
                             item {
                                 val sp = scanProgress
@@ -198,6 +215,21 @@ public fun LibraryHomeContent(
                                 labels = labels,
                                 onModeChange = onBrowseModeChange,
                             )
+                        }
+                        if (browseMode == BrowseMode.Favorites &&
+                            visibleTracks.isEmpty()) {
+                            item {
+                                Text(
+                                    text =
+                                        stringResource(
+                                            Res.string.favorites_empty),
+                                    color = HausColors.current.muted,
+                                    fontSize = 15.sp,
+                                    modifier =
+                                        Modifier.fillMaxWidth()
+                                            .padding(vertical = 24.dp),
+                                )
+                            }
                         }
                         when (browseMode) {
                             BrowseMode.Albums -> {
@@ -275,8 +307,10 @@ public fun LibraryHomeContent(
                                 }
                             }
 
-                            BrowseMode.Songs -> {
-                                items(tracks, key = { it.id }) { track ->
+                            BrowseMode.Songs,
+                            BrowseMode.Favorites,
+                            -> {
+                                items(visibleTracks, key = { it.id }) { track ->
                                     TrackRow(
                                         track = track,
                                         isNowPlaying =
@@ -288,13 +322,18 @@ public fun LibraryHomeContent(
                                         labels = labels,
                                         artworkLoader = artworkLoader,
                                         onPlay = {
-                                            onPlayTrack(tracks, track)
+                                            onPlayTrack(visibleTracks, track)
                                         },
                                         onToggleSelection = {
                                             onToggleSelection(track.id)
                                         },
                                         onStartSelection = {
                                             onStartSelection(track.id)
+                                        },
+                                        favorite = track.id in favoriteTrackIds,
+                                        onSetFavorite = { favorite ->
+                                            onSetTrackFavorite(
+                                                track.id, favorite)
                                         },
                                     )
                                 }
@@ -312,7 +351,7 @@ public fun LibraryHomeContent(
                 homeListState.firstVisibleItemIndex,
                 homeListState.firstVisibleItemScrollOffset)
         }
-    LaunchedEffect(tracks) {
-        onVisibleTrackIdsChanged(tracks.map { it.id })
+    LaunchedEffect(visibleTracks) {
+        onVisibleTrackIdsChanged(visibleTracks.map { it.id })
     }
 }

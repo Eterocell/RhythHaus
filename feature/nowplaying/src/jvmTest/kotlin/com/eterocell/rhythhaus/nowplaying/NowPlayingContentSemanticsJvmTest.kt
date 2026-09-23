@@ -5,7 +5,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.click
@@ -41,6 +44,134 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 public class NowPlayingContentSemanticsJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun favoriteActionExposesCheckedStateAndOnlyMutatesFavoriteCallback():
+        Unit = runComposeUiTest {
+        val controller = PlaybackController(ImmediatePlaybackEngine())
+        controller.setQueue(playableTracks(), selectedTrackId = "first")
+        val requests = mutableListOf<Pair<String, Boolean>>()
+        setContent {
+            Box(Modifier.size(390.dp, 844.dp)) {
+                NowPlayingContent(
+                    track = displayTrack(),
+                    playbackState = displayPlaybackState(),
+                    playbackController = controller,
+                    labels = recoveryLabels,
+                    artworkLoader = { null },
+                    onBack = {},
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { id, favorite ->
+                        requests += id to favorite
+                    },
+                    isCurrentTrackAvailableInLibrary = true,
+                )
+            }
+        }
+        onNode(
+                hasTestTag(NowPlayingFavoriteTestTag) and
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.ToggleableState,
+                        ToggleableState.Off,
+                    ),
+                useUnmergedTree = true,
+            )
+            .assertHasClickAction()
+            .performClick()
+        waitForIdle()
+        assertEquals(listOf(displayTrack().id to true), requests)
+        assertEquals(displayTrack().id, controller.state.value.currentTrack?.id)
+
+        setContent {
+            Box(Modifier.size(390.dp, 844.dp)) {
+                NowPlayingContent(
+                    track = displayTrack(),
+                    playbackState = displayPlaybackState(),
+                    playbackController = controller,
+                    labels = recoveryLabels,
+                    artworkLoader = { null },
+                    onBack = {},
+                    favoriteTrackIds = setOf(displayTrack().id),
+                    onSetTrackFavorite = { id, favorite ->
+                        requests += id to favorite
+                    },
+                    isCurrentTrackAvailableInLibrary = true,
+                )
+            }
+        }
+        onNode(
+                hasTestTag(NowPlayingFavoriteTestTag) and
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.ToggleableState,
+                        ToggleableState.On,
+                    ),
+                useUnmergedTree = true,
+            )
+            .performClick()
+        waitForIdle()
+        assertEquals(
+            listOf(displayTrack().id to true, displayTrack().id to false),
+            requests,
+        )
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun favoriteActionIsAbsentForUnavailableCurrentTrack(): Unit =
+        runComposeUiTest {
+            setContent {
+                Box(Modifier.size(390.dp, 844.dp)) {
+                    NowPlayingContent(
+                        track = displayTrack(),
+                        playbackState = PlaybackState(),
+                        playbackController =
+                            PlaybackController(ImmediatePlaybackEngine()),
+                        labels = recoveryLabels,
+                        artworkLoader = { null },
+                        onBack = {},
+                        favoriteTrackIds = setOf(displayTrack().id),
+                        onSetTrackFavorite = { _, _ ->
+                            error("unavailable action invoked")
+                        },
+                        isCurrentTrackAvailableInLibrary = false,
+                    )
+                }
+            }
+            onNodeWithTag(NowPlayingFavoriteTestTag).assertDoesNotExist()
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun retainedFavoriteActionDoesNothingAfterPlaybackAdvances(): Unit =
+        runComposeUiTest {
+            val controller = PlaybackController(ImmediatePlaybackEngine())
+            controller.setQueue(playableTracks(), selectedTrackId = "first")
+            val requests = mutableListOf<Pair<String, Boolean>>()
+            setContent {
+                Box(Modifier.size(390.dp, 844.dp)) {
+                    NowPlayingContent(
+                        track = displayTrack(),
+                        playbackState = controller.state.value,
+                        playbackController = controller,
+                        labels = recoveryLabels,
+                        artworkLoader = { null },
+                        onBack = {},
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { id, favorite ->
+                            requests += id to favorite
+                        },
+                        isCurrentTrackAvailableInLibrary = true,
+                    )
+                }
+            }
+
+            controller.setQueue(playableTracks(), selectedTrackId = "second")
+            onNodeWithTag(NowPlayingFavoriteTestTag).performClick()
+            waitForIdle()
+
+            assertEquals(emptyList(), requests)
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun expandedContentRendersErrorAndDispatchesModeAndTransportControls():
@@ -662,6 +793,12 @@ public class NowPlayingContentSemanticsJvmTest {
             assertEquals(1_000L, scrubEngine.seekPositions.last())
         }
     }
+
+    private fun displayPlaybackState(): PlaybackState =
+        PlaybackState(
+            currentOccurrenceId = "display",
+            queue = listOf(QueueOccurrence("display", playableTracks()[0])),
+        )
 
     private fun displayTrack(): Track =
         Track(

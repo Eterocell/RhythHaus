@@ -36,7 +36,7 @@ class ExistingDatabaseMigrationTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(RhythHausDatabase.Schema.version, 2L)
+            assertEquals(RhythHausDatabase.Schema.version, 3L)
 
             database.playlistQueries.insertPlaylist(
                 "playlist-1", "Migrated", 1, 1)
@@ -57,6 +57,47 @@ class ExistingDatabaseMigrationTest {
             assertTrue(
                 database.playlistQueries
                     .selectEntries("playlist-1")
+                    .executeAsList()
+                    .isEmpty())
+            assertTrue(
+                database.trackFavoriteQueries
+                    .selectFavoriteTrackIds()
+                    .executeAsList()
+                    .isEmpty())
+        } finally {
+            libraryDatabase.driver.close()
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun versionTwoFixtureMigratesWithoutLosingTrackAndPlaylistRows() {
+        val databaseFile = copyVersionTwoDatabase()
+        assertEquals(2L, jdbcUserVersion(databaseFile))
+        seedVersionTwoLibrary(databaseFile)
+
+        val libraryDatabase = LibraryDatabase(databaseFile)
+        try {
+            val database = libraryDatabase.database
+            assertEquals(
+                RhythHausDatabase.Schema.version,
+                driverUserVersion(libraryDatabase.driver))
+            assertEquals(3L, RhythHausDatabase.Schema.version)
+            assertEquals(
+                "legacy-track",
+                database.libraryTrackQueries
+                    .selectAllTracks()
+                    .executeAsOne()
+                    .id)
+            assertEquals(
+                "legacy-track",
+                database.playlistQueries
+                    .selectEntries("playlist-1")
+                    .executeAsOne()
+                    .trackId)
+            assertTrue(
+                database.trackFavoriteQueries
+                    .selectFavoriteTrackIds()
                     .executeAsList()
                     .isEmpty())
         } finally {
@@ -112,6 +153,32 @@ class ExistingDatabaseMigrationTest {
     }
 
     @Test
+    fun unversionedPreFavoritesDatabaseBootstrapsAtVersionTwoBeforeMigrating() {
+        val databaseFile = copyVersionTwoDatabase()
+        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
+            .use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("PRAGMA user_version = 0")
+                }
+            }
+
+        val libraryDatabase = LibraryDatabase(databaseFile)
+        try {
+            assertEquals(
+                RhythHausDatabase.Schema.version,
+                driverUserVersion(libraryDatabase.driver))
+            assertTrue(
+                libraryDatabase.database.trackFavoriteQueries
+                    .selectFavoriteTrackIds()
+                    .executeAsList()
+                    .isEmpty())
+        } finally {
+            libraryDatabase.driver.close()
+            databaseFile.delete()
+        }
+    }
+
+    @Test
     fun generatedDatabaseIdentityAndFilenameRemainStable() {
         val generatedType: RhythHausDatabase? = null
 
@@ -129,6 +196,16 @@ class ExistingDatabaseMigrationTest {
         return target
     }
 
+    private fun copyVersionTwoDatabase(): File {
+        val target = Files.createTempFile("rhythhaus-v2", ".db").toFile()
+        Files.copy(
+            File("src/commonMain/sqldelight/databases/2.db").toPath(),
+            target.toPath(),
+            StandardCopyOption.REPLACE_EXISTING,
+        )
+        return target
+    }
+
     private fun seedVersionOneLibrary(databaseFile: File) {
         DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
             .use { connection ->
@@ -139,6 +216,27 @@ class ExistingDatabaseMigrationTest {
                     )
                     statement.execute(
                         "INSERT INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, createdAtEpochMillis, updatedAtEpochMillis) VALUES ('legacy-track', 'source-1', 'legacy.mp3', 'FilePath', '/Music/legacy.mp3', 'legacy.mp3', 'Legacy', 'Artist', 'Album', 1, 2)",
+                    )
+                }
+            }
+    }
+
+    private fun seedVersionTwoLibrary(databaseFile: File) {
+        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
+            .use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("PRAGMA foreign_keys = ON")
+                    statement.execute(
+                        "INSERT INTO library_source(id, platformKind, displayName, handle, createdAtEpochMillis, accessStatus) VALUES ('source-1', 'JvmFolder', 'Music', '/Music', 1, 'Available')",
+                    )
+                    statement.execute(
+                        "INSERT INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue, displayName, title, artist, album, createdAtEpochMillis, updatedAtEpochMillis) VALUES ('legacy-track', 'source-1', 'legacy.mp3', 'FilePath', '/Music/legacy.mp3', 'legacy.mp3', 'Legacy', 'Artist', 'Album', 1, 2)",
+                    )
+                    statement.execute(
+                        "INSERT INTO playlist(id, name, createdAtEpochMillis, updatedAtEpochMillis) VALUES ('playlist-1', 'Migrated', 1, 1)",
+                    )
+                    statement.execute(
+                        "INSERT INTO playlist_entry(id, playlistId, trackId, position, createdAtEpochMillis) VALUES ('entry-1', 'playlist-1', 'legacy-track', 0, 1)",
                     )
                 }
             }

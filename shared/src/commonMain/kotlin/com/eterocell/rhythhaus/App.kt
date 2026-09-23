@@ -67,6 +67,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -169,6 +170,7 @@ fun App(
         mutableStateOf(emptyList<LibrarySource>())
     }
     var libraryTracks by remember { mutableStateOf(emptyList<LibraryTrack>()) }
+    var favoriteTrackIds by remember { mutableStateOf(emptySet<String>()) }
     var libraryRevision by remember { mutableStateOf(0L) }
     var playlistState by remember {
         mutableStateOf(PlaylistState(isLoading = true))
@@ -208,13 +210,27 @@ fun App(
             RhythHausThemeMode.System)
     val notificationPermissionState by
         notificationPermissionController.state.collectAsState()
-    suspend fun updateLibraryContent(content: LibraryContentState) {
-        val publication = libraryPublicationOwner.publish(content)
+    suspend fun applyLibraryPublication(
+        publication: AuthoritativeLibraryPublication,
+    ) {
         withContext(Dispatchers.Main) {
             librarySources = publication.content.sources
             libraryTracks = publication.content.tracks
+            favoriteTrackIds = publication.content.favoriteTrackIds
             libraryRevision = publication.revision
         }
+    }
+    suspend fun updateLibraryContent(content: LibraryContentState) {
+        val publication =
+            libraryPublicationOwner.publishWithFavoriteReconciliation(
+                content = content,
+                favoriteTrackIds = {
+                    withContext(Dispatchers.Default) {
+                        repository.favoriteTrackIds().toSet()
+                    }
+                },
+            )
+        applyLibraryPublication(publication)
     }
 
     fun refreshPlaylists() {
@@ -627,6 +643,23 @@ fun App(
                     onboardingSaving = onboarding.saving,
                     onboardingCompletionError = onboarding.completionError,
                     onCompleteOnboarding = onboarding.completeOnboarding,
+                    favoriteTrackIds = favoriteTrackIds,
+                    onSetTrackFavorite = { trackId, favorite ->
+                        scope.launch {
+                            setTrackFavoriteAndPublish(
+                                orchestrator = libraryOrchestrator,
+                                publicationOwner = libraryPublicationOwner,
+                                repository = repository,
+                                platformAccess = platformAccess,
+                                trackId = trackId,
+                                favorite = favorite,
+                                ioDispatcher = Dispatchers.Default,
+                                publish = { publication ->
+                                    applyLibraryPublication(publication)
+                                },
+                            )
+                        }
+                    },
                     coordinatorMutationsEnabled = mutationsEnabled,
                     currentThemeMode = selectedThemeMode,
                     onThemeModeSelected = { mode ->
@@ -850,6 +883,7 @@ internal suspend fun <T> runPlaylistBackupOperation(
 internal data class LibraryContentState(
     val sources: List<LibrarySource>,
     val tracks: List<LibraryTrack>,
+    val favoriteTrackIds: Set<String> = emptySet(),
 )
 
 internal data class AuthoritativeLibraryPublication(
@@ -866,8 +900,71 @@ internal class AuthoritativeLibraryPublicationOwner {
     suspend fun publish(
         content: LibraryContentState
     ): AuthoritativeLibraryPublication = mutex.withLock {
-        AuthoritativeLibraryPublication(content, ++revision)
+        nextPublication(content)
     }
+
+    suspend fun publishWithFavoriteReconciliation(
+        content: LibraryContentState,
+        favoriteTrackIds: suspend () -> Set<String>,
+    ): AuthoritativeLibraryPublication = mutex.withLock {
+        nextPublication(
+            content.copy(favoriteTrackIds = favoriteTrackIds()),
+        )
+    }
+
+    suspend fun publishIfCurrentRevision(
+        expectedRevision: Long,
+        content: LibraryContentState,
+    ): AuthoritativeRevisionResult<AuthoritativeLibraryPublication> =
+        mutex.withLock {
+            if (revision != expectedRevision) {
+                AuthoritativeRevisionResult.Stale
+            } else {
+                AuthoritativeRevisionResult.Current(nextPublication(content))
+            }
+        }
+
+    /**
+     * Keeps an accepted persistence mutation and its visible authoritative
+     * publication in one revision-guarded critical section. Returning null from
+     * [mutation] leaves the current publication unchanged.
+     */
+    suspend fun mutateAndPublishIfCurrentRevision(
+        expectedRevision: Long,
+        mutation: suspend () -> LibraryContentState?,
+        publish: suspend (AuthoritativeLibraryPublication) -> Unit,
+    ): AuthoritativeRevisionResult<AuthoritativeLibraryPublication?> =
+        mutex.withLock {
+            if (revision != expectedRevision) {
+                AuthoritativeRevisionResult.Stale
+            } else {
+                val content =
+                    mutation()
+                        ?: return@withLock AuthoritativeRevisionResult.Current(
+                            null)
+                val publication = nextPublication(content)
+                publish(publication)
+                AuthoritativeRevisionResult.Current(publication)
+            }
+        }
+
+    suspend fun mutateAndPublish(
+        mutation: suspend () -> LibraryContentState?,
+        publish: suspend (AuthoritativeLibraryPublication) -> Unit,
+    ): AuthoritativeRevisionResult<AuthoritativeLibraryPublication?> =
+        mutex.withLock {
+            val content =
+                mutation()
+                    ?: return@withLock AuthoritativeRevisionResult.Current(null)
+            val publication = nextPublication(content)
+            publish(publication)
+            AuthoritativeRevisionResult.Current(publication)
+        }
+
+    private fun nextPublication(
+        content: LibraryContentState
+    ): AuthoritativeLibraryPublication =
+        AuthoritativeLibraryPublication(content, ++revision)
 
     suspend fun <T> withCurrentRevision(
         expectedRevision: Long,
@@ -1029,7 +1126,52 @@ internal fun loadLibraryContent(
                 source.copy(accessStatus = platformAccess.accessStatus(source))
             },
         tracks = repository.tracks(),
+        favoriteTrackIds = repository.favoriteTrackIds().toSet(),
     )
+
+/**
+ * Applies a desired favorite state through the App-owned mutation coordinator
+ * and republishes the combined library projection only while its revision is
+ * still current.
+ */
+internal suspend fun setTrackFavoriteAndPublish(
+    orchestrator: AppLibraryOrchestrator,
+    publicationOwner: AuthoritativeLibraryPublicationOwner,
+    repository: LibraryRepository,
+    platformAccess: PlatformSourceAccess,
+    trackId: String,
+    favorite: Boolean,
+    expectedRevision: Long? = null,
+    ioDispatcher: CoroutineDispatcher,
+    publish: suspend (AuthoritativeLibraryPublication) -> Unit,
+): Boolean {
+    var published = false
+    orchestrator.launch(LibraryOperationKind.SetTrackFavorite) { token ->
+        orchestrator.publishIfCurrent(token) {
+            currentCoroutineContext().ensureActive()
+        } ?: return@launch
+        val result =
+            withContext(NonCancellable) {
+                publicationOwner.mutateAndPublish(
+                    mutation = {
+                        withContext(ioDispatcher) {
+                            if (!repository.setTrackFavorite(
+                                trackId, favorite)) {
+                                null
+                            } else {
+                                loadLibraryContent(repository, platformAccess)
+                            }
+                        }
+                    },
+                    publish = publish,
+                )
+            }
+        published =
+            result is AuthoritativeRevisionResult.Current &&
+                result.value != null
+    }
+    return published
+}
 
 internal suspend fun removeSourceInBackground(
     sourceId: String,

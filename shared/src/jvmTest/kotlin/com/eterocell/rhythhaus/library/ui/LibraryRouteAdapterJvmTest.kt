@@ -237,6 +237,8 @@ class LibraryRouteAdapterJvmTest {
             onScrollPositionChanged = {},
             artworkLoader = { null },
             homeContent = { _ -> },
+            favoriteTrackIds = emptySet(),
+            onSetTrackFavorite = { _, _ -> },
             trackSelectionState = TrackSelectionState(),
             onTrackSelectionAction = {},
             bottomContentPadding = 0.dp,

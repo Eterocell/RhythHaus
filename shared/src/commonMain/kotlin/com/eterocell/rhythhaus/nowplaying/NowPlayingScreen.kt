@@ -15,6 +15,12 @@ import rhythhaus.shared.generated.resources.pause
 import rhythhaus.shared.generated.resources.play
 import rhythhaus.shared.generated.resources.track_artist_album_format
 
+internal fun nowPlayingFavoriteAvailable(
+    authoritativeTrackId: String?,
+    playbackTrackId: String?,
+): Boolean =
+    authoritativeTrackId != null && authoritativeTrackId == playbackTrackId
+
 /**
  * Preserves the shared-facing Now Playing signature while delegating UI to the
  * feature module.
@@ -28,6 +34,8 @@ public fun NowPlayingScreen(
     currentLibraryTrack: LibraryTrack?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    favoriteTrackIds: Set<String> = emptySet(),
+    onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
 ): Unit {
     val artworkLoader = LocalTrackArtworkLoader.current
     NowPlayingContent(
@@ -48,5 +56,12 @@ public fun NowPlayingScreen(
         artworkLoader = { trackId -> artworkLoader(trackId)?.bytes },
         onBack = onBack,
         modifier = modifier,
+        favoriteTrackIds = favoriteTrackIds,
+        onSetTrackFavorite = onSetTrackFavorite,
+        isCurrentTrackAvailableInLibrary =
+            nowPlayingFavoriteAvailable(
+                currentLibraryTrack?.id,
+                playbackState.currentTrack?.id,
+            ),
     )
 }
