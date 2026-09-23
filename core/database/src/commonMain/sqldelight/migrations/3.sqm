@@ -1,0 +1,5 @@
+CREATE TABLE track_play_history (
+    trackId TEXT NOT NULL PRIMARY KEY REFERENCES library_track(id) ON DELETE CASCADE,
+    playCount INTEGER NOT NULL,
+    lastPlayedAtEpochMillis INTEGER NOT NULL
+);

@@ -224,6 +224,37 @@ internal class SqlDelightLibraryRepository(
             .executeAsList()
             .toSet()
 
+    /** Returns persisted playback history keyed by track identifier. */
+    override fun playHistory(): Map<String, TrackPlayHistory> =
+        database.trackPlayHistoryQueries
+            .selectPlayHistory {
+                trackId,
+                playCount,
+                lastPlayedAtEpochMillis ->
+                TrackPlayHistory(
+                    trackId = trackId,
+                    playCount = playCount,
+                    lastPlayedAtEpochMillis = lastPlayedAtEpochMillis,
+                )
+            }
+            .executeAsList()
+            .associateBy { it.trackId }
+
+    /** Records one play atomically when [trackId] identifies a current track. */
+    override fun recordTrackPlayed(
+        trackId: String,
+        playedAtEpochMillis: Long,
+    ): Boolean {
+        var accepted = false
+        database.transaction {
+            accepted =
+                database.trackPlayHistoryQueries
+                    .recordTrackPlayed(trackId, playedAtEpochMillis)
+                    .value > 0L
+        }
+        return accepted
+    }
+
     /**
      * Stores the requested favorite state when [trackId] identifies a current
      * library track.

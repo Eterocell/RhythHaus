@@ -1,0 +1,18 @@
+CREATE TABLE track_play_history (
+    trackId TEXT NOT NULL PRIMARY KEY REFERENCES library_track(id) ON DELETE CASCADE,
+    playCount INTEGER NOT NULL,
+    lastPlayedAtEpochMillis INTEGER NOT NULL
+);
+
+selectPlayHistory:
+SELECT trackId, playCount, lastPlayedAtEpochMillis
+FROM track_play_history
+ORDER BY trackId;
+
+recordTrackPlayed:
+INSERT INTO track_play_history(trackId, playCount, lastPlayedAtEpochMillis)
+SELECT :trackId, 1, :playedAtEpochMillis
+WHERE EXISTS(SELECT 1 FROM library_track WHERE id = :trackId)
+ON CONFLICT(trackId) DO UPDATE SET
+    playCount = playCount + 1,
+    lastPlayedAtEpochMillis = excluded.lastPlayedAtEpochMillis;
