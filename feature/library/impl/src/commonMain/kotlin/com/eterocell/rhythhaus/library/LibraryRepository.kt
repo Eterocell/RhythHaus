@@ -11,6 +11,7 @@ class InMemoryLibraryRepository : LibraryRepository {
     private val sources = linkedMapOf<String, LibrarySource>()
     private val tracks = linkedMapOf<String, LibraryTrack>()
     private val favoriteIds = linkedSetOf<String>()
+    private val playHistory = linkedMapOf<String, TrackPlayHistory>()
     private val scanSessions = linkedMapOf<String, ScanSession>()
     private val scanErrors = mutableListOf<ScanError>()
 
@@ -63,6 +64,23 @@ class InMemoryLibraryRepository : LibraryRepository {
             .map { it.withoutArtwork() }
 
     override fun favoriteTrackIds(): Set<String> = favoriteIds.toSet()
+
+    override fun playHistory(): Map<String, TrackPlayHistory> = playHistory.toMap()
+
+    override fun recordTrackPlayed(
+        trackId: String,
+        playedAtEpochMillis: Long,
+    ): Boolean {
+        if (!tracks.containsKey(trackId)) return false
+        val existing = playHistory[trackId]
+        playHistory[trackId] =
+            TrackPlayHistory(
+                trackId = trackId,
+                playCount = (existing?.playCount ?: 0L) + 1L,
+                lastPlayedAtEpochMillis = playedAtEpochMillis,
+            )
+        return true
+    }
 
     override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean {
         if (!tracks.containsKey(trackId)) return false
@@ -203,6 +221,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         ids.forEach {
             tracks.remove(it)
             favoriteIds.remove(it)
+            playHistory.remove(it)
         }
         return RemoveMissingTracksResult.Removed(ids.size)
     }
@@ -231,6 +250,9 @@ class InMemoryLibraryRepository : LibraryRepository {
         favoriteIds.removeAll { trackId ->
             tracks[trackId]?.sourceId == sourceId
         }
+        playHistory.keys.removeAll { trackId ->
+            tracks[trackId]?.sourceId == sourceId
+        }
         tracks.entries.removeAll { it.value.sourceId == sourceId }
         sources.remove(sourceId)
     }
@@ -240,6 +262,7 @@ class InMemoryLibraryRepository : LibraryRepository {
         sources.clear()
         tracks.clear()
         favoriteIds.clear()
+        playHistory.clear()
         scanSessions.clear()
         scanErrors.clear()
     }

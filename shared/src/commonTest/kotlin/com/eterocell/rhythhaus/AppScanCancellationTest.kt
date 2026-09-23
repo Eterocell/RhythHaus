@@ -14,6 +14,7 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.TrackArtwork
+import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.library.TrackUpsertResult
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
 import com.eterocell.rhythhaus.library.toPlayableTrack
@@ -1525,6 +1526,13 @@ private class BarrierRecordingLibraryRepository : LibraryRepository {
 
     override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean =
         false
+
+    override fun playHistory(): Map<String, TrackPlayHistory> = emptyMap()
+
+    override fun recordTrackPlayed(
+        trackId: String,
+        playedAtEpochMillis: Long,
+    ): Boolean = false
 
     override fun tracksForSource(sourceId: String): List<LibraryTrack> =
         emptyList()
