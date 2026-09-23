@@ -17,3 +17,19 @@ Base: `3fda5ec3`
 - The focused JVM test command for `AppScanCancellationTest` and Now Playing semantics was launched but hung without output and was cancelled; no focused test pass is claimed.
 
 No formatter, linter, or broad quality gate was run.
+
+## Remaining repair evidence
+
+- `AppLibraryOperationCoordinator` publication ordering is preserved while
+  `AuthoritativeLibraryPublicationOwner.publishWithFavoriteReconciliation`
+  reloads repository favorite IDs inside the publication mutex. Scan and
+  destructive snapshots therefore cannot overwrite a favorite projection
+  committed before their publication boundary.
+- Now Playing favorite actions compare the requested ID with
+  `playbackController.state.value.currentTrack?.id` at invocation time;
+  retained nodes do not dispatch after playback advances.
+- `./gradlew :shared:jvmTest --tests com.eterocell.rhythhaus.AppScanCancellationTest.scanPublicationReconcilesFavoritesWrittenWhileScanWasActive --tests com.eterocell.rhythhaus.AppScanCancellationTest.concurrentFavoriteWritesPublishBothIdsInRevisionOrder --tests com.eterocell.rhythhaus.AppScanCancellationTest.destructivePublicationCannotOverwriteFavoriteProjection --configuration-cache --configuration-cache-problems=fail` passed.
+- `./gradlew :shared:jvmTest --tests com.eterocell.rhythhaus.AppScanCancellationTest --configuration-cache --configuration-cache-problems=fail` passed.
+- `./gradlew :feature:nowplaying:jvmTest --tests com.eterocell.rhythhaus.nowplaying.NowPlayingContentSemanticsJvmTest --configuration-cache --configuration-cache-problems=fail` passed.
+- `./gradlew :shared:compileKotlinJvm --configuration-cache --configuration-cache-problems=fail` passed.
+- `git diff --check` passed.

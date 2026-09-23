@@ -221,7 +221,15 @@ fun App(
         }
     }
     suspend fun updateLibraryContent(content: LibraryContentState) {
-        val publication = libraryPublicationOwner.publish(content)
+        val publication =
+            libraryPublicationOwner.publishWithFavoriteReconciliation(
+                content = content,
+                favoriteTrackIds = {
+                    withContext(Dispatchers.Default) {
+                        repository.favoriteTrackIds().toSet()
+                    }
+                },
+            )
         applyLibraryPublication(publication)
     }
 
@@ -893,6 +901,15 @@ internal class AuthoritativeLibraryPublicationOwner {
         content: LibraryContentState
     ): AuthoritativeLibraryPublication = mutex.withLock {
         nextPublication(content)
+    }
+
+    suspend fun publishWithFavoriteReconciliation(
+        content: LibraryContentState,
+        favoriteTrackIds: suspend () -> Set<String>,
+    ): AuthoritativeLibraryPublication = mutex.withLock {
+        nextPublication(
+            content.copy(favoriteTrackIds = favoriteTrackIds()),
+        )
     }
 
     suspend fun publishIfCurrentRevision(

@@ -49,6 +49,7 @@ public class NowPlayingContentSemanticsJvmTest {
     public fun favoriteActionExposesCheckedStateAndOnlyMutatesFavoriteCallback():
         Unit = runComposeUiTest {
         val controller = PlaybackController(ImmediatePlaybackEngine())
+        controller.setQueue(playableTracks(), selectedTrackId = "first")
         val requests = mutableListOf<Pair<String, Boolean>>()
         setContent {
             Box(Modifier.size(390.dp, 844.dp)) {
@@ -79,7 +80,7 @@ public class NowPlayingContentSemanticsJvmTest {
             .performClick()
         waitForIdle()
         assertEquals(listOf(displayTrack().id to true), requests)
-        assertEquals(null, controller.state.value.currentTrack)
+        assertEquals(displayTrack().id, controller.state.value.currentTrack?.id)
 
         setContent {
             Box(Modifier.size(390.dp, 844.dp)) {
@@ -138,6 +139,38 @@ public class NowPlayingContentSemanticsJvmTest {
             }
             onNodeWithTag(NowPlayingFavoriteTestTag).assertDoesNotExist()
         }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun retainedFavoriteActionDoesNothingAfterPlaybackAdvances(): Unit =
+        runComposeUiTest {
+        val controller = PlaybackController(ImmediatePlaybackEngine())
+        controller.setQueue(playableTracks(), selectedTrackId = "first")
+        val requests = mutableListOf<Pair<String, Boolean>>()
+        setContent {
+            Box(Modifier.size(390.dp, 844.dp)) {
+                NowPlayingContent(
+                    track = displayTrack(),
+                    playbackState = controller.state.value,
+                    playbackController = controller,
+                    labels = recoveryLabels,
+                    artworkLoader = { null },
+                    onBack = {},
+                    favoriteTrackIds = emptySet(),
+                    onSetTrackFavorite = { id, favorite ->
+                        requests += id to favorite
+                    },
+                    isCurrentTrackAvailableInLibrary = true,
+                )
+            }
+        }
+
+        controller.setQueue(playableTracks(), selectedTrackId = "second")
+        onNodeWithTag(NowPlayingFavoriteTestTag).performClick()
+        waitForIdle()
+
+        assertEquals(emptyList(), requests)
+    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
