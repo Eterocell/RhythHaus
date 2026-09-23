@@ -50,6 +50,121 @@ class LibraryRepositoryContractTest {
     }
 
     @Test
+    fun inMemoryPlayHistoryIncrementsExistingTrackAndUpdatesTimestamp() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        repository.upsertTrack(testTrack())
+
+        assertTrue(repository.recordTrackPlayed("track-1", 10L))
+        assertTrue(repository.recordTrackPlayed("track-1", 20L))
+
+        assertEquals(
+            mapOf("track-1" to TrackPlayHistory("track-1", 2L, 20L)),
+            repository.playHistory())
+    }
+
+    @Test
+    fun inMemoryPlayHistoryRejectsMissingTracksWithoutMutation() {
+        val repository = InMemoryLibraryRepository()
+
+        assertFalse(repository.recordTrackPlayed("missing-track", 10L))
+
+        assertEquals(emptyMap(), repository.playHistory())
+    }
+
+    @Test
+    fun inMemoryPlayHistorySurvivesMetadataUpsertForTheSameTrackIdentity() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        val first =
+            testTrack(
+                id = "track-1",
+                sourceLocalKey = "one.mp3",
+                title = "Before rescan",
+            )
+        repository.upsertTrack(first)
+        assertTrue(repository.recordTrackPlayed("track-1", 10L))
+
+        assertEquals(
+            TrackUpsertResult.Updated,
+            repository.upsertTrack(
+                first.copy(
+                    id = "replacement-id",
+                    title = "After rescan",
+                    updatedAtEpochMillis = 20L,
+                ),
+            ),
+        )
+
+        assertEquals(
+            mapOf("track-1" to TrackPlayHistory("track-1", 1L, 10L)),
+            repository.playHistory())
+    }
+
+    @Test
+    fun inMemoryPlayHistoryCascadesWhenRemoveMissingDeletesATrack() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        repository.upsertTrack(
+            testTrack(
+                id = "missing",
+                sourceLocalKey = "missing.mp3",
+                lastSeenScanId = "old-scan",
+            ),
+        )
+        repository.insertScanSession(
+            ScanSession(
+                id = "latest-scan",
+                sourceId = "source-1",
+                status = ScanStatus.Completed,
+                startedAtEpochMillis = 1L,
+                completedAtEpochMillis = 2L,
+            ),
+        )
+        assertTrue(repository.recordTrackPlayed("missing", 10L))
+
+        assertEquals(
+            RemoveMissingTracksResult.Removed(1),
+            repository.removeMissingTracks("source-1", "latest-scan"),
+        )
+
+        assertEquals(emptyMap(), repository.playHistory())
+    }
+
+    @Test
+    fun inMemoryPlayHistoryCascadesWithSourceRemovalAndClearAll() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource(id = "source-1"))
+        repository.upsertSource(testSource(id = "source-2"))
+        repository.upsertTrack(
+            testTrack(
+                id = "track-1",
+                sourceId = "source-1",
+                sourceLocalKey = "one.mp3",
+            ),
+        )
+        repository.upsertTrack(
+            testTrack(
+                id = "track-2",
+                sourceId = "source-2",
+                sourceLocalKey = "two.mp3",
+            ),
+        )
+        assertTrue(repository.recordTrackPlayed("track-1", 10L))
+        assertTrue(repository.recordTrackPlayed("track-2", 20L))
+
+        repository.removeSource("source-1")
+
+        assertEquals(
+            mapOf("track-2" to TrackPlayHistory("track-2", 1L, 20L)),
+            repository.playHistory())
+
+        repository.clearAll()
+
+        assertEquals(emptyMap(), repository.playHistory())
+    }
+
+    @Test
     fun removeMissingDeletesTracksNotSeenInLatestScan() {
         val repository = InMemoryLibraryRepository()
         val source = testSource()
