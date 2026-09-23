@@ -250,6 +250,140 @@ class SqlDelightLibraryRepositoryJvmTest {
     }
 
     @Test
+    fun playHistoryIsEmptyForNewDatabase() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-play-history-empty", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            assertEquals(emptyMap(), open.repository.playHistory())
+        }
+    }
+
+    @Test
+    fun recordTrackPlayedIncrementsAndUpdatesTimestampAtomically() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-play-history", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(
+                testTrack(
+                    id = "track-1",
+                    sourceLocalKey = "one.mp3",
+                    title = "One",
+                    artist = "Artist",
+                ),
+            )
+
+            assertTrue(open.repository.recordTrackPlayed("track-1", 10L))
+            assertTrue(open.repository.recordTrackPlayed("track-1", 20L))
+
+            assertEquals(
+                mapOf(
+                    "track-1" to
+                        TrackPlayHistory("track-1", 2L, 20L),
+                ),
+                open.repository.playHistory(),
+            )
+        }
+    }
+
+    @Test
+    fun recordTrackPlayedRejectsMissingTrackWithoutLeavingHistoryRow() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-play-history-missing", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            assertFalse(open.repository.recordTrackPlayed("missing-track", 10L))
+
+            assertEquals(emptyMap(), open.repository.playHistory())
+            assertEquals(
+                emptyList(),
+                open.database.trackPlayHistoryQueries
+                    .selectPlayHistory()
+                    .executeAsList(),
+            )
+        }
+    }
+
+    @Test
+    fun playHistorySurvivesDatabaseReopen() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-play-history-reopen", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(
+                testTrack(
+                    id = "track-1",
+                    sourceLocalKey = "one.mp3",
+                    title = "One",
+                    artist = "Artist",
+                ),
+            )
+            assertTrue(open.repository.recordTrackPlayed("track-1", 10L))
+        }
+
+        openRepository(databaseFile).use { reopened ->
+            assertEquals(
+                mapOf(
+                    "track-1" to
+                        TrackPlayHistory("track-1", 1L, 10L),
+                ),
+                reopened.repository.playHistory(),
+            )
+        }
+    }
+
+    @Test
+    fun metadataUpsertPreservesPlayHistoryForTheSameTrackIdentity() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-play-history-upsert", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            val first =
+                testTrack(
+                    id = "track-1",
+                    sourceLocalKey = "one.mp3",
+                    title = "Before rescan",
+                    artist = "Artist",
+                )
+            open.repository.upsertTrack(first)
+            assertTrue(open.repository.recordTrackPlayed("track-1", 10L))
+
+            assertEquals(
+                TrackUpsertResult.Updated,
+                open.repository.upsertTrack(
+                    first.copy(
+                        id = "replacement-id",
+                        title = "After rescan",
+                        updatedAtEpochMillis = 20L,
+                    ),
+                ),
+            )
+
+            assertEquals(
+                mapOf(
+                    "track-1" to
+                        TrackPlayHistory("track-1", 1L, 10L),
+                ),
+                open.repository.playHistory(),
+            )
+        }
+    }
+
+    @Test
     fun oversizedArtworkIsNotLoadedWithTrackRows() {
         val databaseFile =
             Files.createTempFile("rhythhaus-library-large-artwork", ".db")
@@ -470,6 +604,8 @@ class SqlDelightLibraryRepositoryJvmTest {
                     title = "Two",
                     artist = "Artist",
                     lastSeenScanId = "scan-2"))
+            assertTrue(open.repository.recordTrackPlayed("track-1", 10L))
+            assertTrue(open.repository.recordTrackPlayed("track-2", 20L))
             open.repository.insertScanSession(
                 testScanSession(id = "scan-1", sourceId = "source-1"))
             open.repository.insertScanSession(
@@ -485,6 +621,13 @@ class SqlDelightLibraryRepositoryJvmTest {
                 listOf("source-2"), open.repository.sources().map { it.id })
             assertEquals(
                 listOf("track-2"), open.repository.tracks().map { it.id })
+            assertEquals(
+                mapOf(
+                    "track-2" to
+                        TrackPlayHistory("track-2", 1L, 20L),
+                ),
+                open.repository.playHistory(),
+            )
             assertEquals(
                 null,
                 open.database.scanSessionQueries
@@ -518,6 +661,7 @@ class SqlDelightLibraryRepositoryJvmTest {
                     sourceLocalKey = "one.mp3",
                     title = "One",
                     artist = "Artist"))
+            assertTrue(open.repository.recordTrackPlayed("track-1", 10L))
             open.repository.insertScanSession(
                 testScanSession(id = "scan-1", sourceId = "source-1"))
             open.repository.insertScanError(
@@ -527,6 +671,7 @@ class SqlDelightLibraryRepositoryJvmTest {
 
             assertEquals(emptyList(), open.repository.sources())
             assertEquals(emptyList(), open.repository.tracks())
+            assertEquals(emptyMap(), open.repository.playHistory())
             assertEquals(
                 null,
                 open.database.scanSessionQueries
@@ -551,6 +696,7 @@ class SqlDelightLibraryRepositoryJvmTest {
                     sourceLocalKey = "one.mp3",
                     title = "One",
                     artist = "Artist"))
+            assertTrue(open.repository.recordTrackPlayed("track-1", 10L))
             open.repository.insertScanSession(
                 testScanSession(id = "scan-1", sourceId = "source-1"))
             open.repository.insertScanError(
@@ -568,6 +714,13 @@ class SqlDelightLibraryRepositoryJvmTest {
                 listOf("source-1"), open.repository.sources().map { it.id })
             assertEquals(
                 listOf("track-1"), open.repository.tracks().map { it.id })
+            assertEquals(
+                mapOf(
+                    "track-1" to
+                        TrackPlayHistory("track-1", 1L, 10L),
+                ),
+                open.repository.playHistory(),
+            )
             assertEquals(
                 "scan-1",
                 open.database.scanSessionQueries
@@ -647,6 +800,7 @@ class SqlDelightLibraryRepositoryJvmTest {
                     "Missing",
                     "Artist",
                     "old"))
+            assertTrue(open.repository.recordTrackPlayed("missing", 10L))
             val sessions =
                 listOf(
                     testScanSession(
@@ -735,12 +889,20 @@ class SqlDelightLibraryRepositoryJvmTest {
                 assertEquals(
                     listOf("missing"),
                     open.repository.tracksForSource("source-1").map { it.id })
+                assertEquals(
+                    mapOf(
+                        "missing" to
+                            TrackPlayHistory("missing", 1L, 10L),
+                    ),
+                    open.repository.playHistory(),
+                )
             }
             assertEquals(
                 RemoveMissingTracksResult.Removed(1),
                 open.repository.removeMissingTracks("source-1", "latest"))
             assertEquals(
                 emptyList(), open.repository.tracksForSource("source-1"))
+            assertEquals(emptyMap(), open.repository.playHistory())
         }
     }
 
