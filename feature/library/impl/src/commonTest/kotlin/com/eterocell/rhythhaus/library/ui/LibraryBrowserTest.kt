@@ -72,12 +72,17 @@ class LibraryBrowserTest {
         assertEquals(
             listOf("new", "same-a", "same-z", "old"),
             visibleTracksForBrowseMode(
-                tracks,
-                BrowseMode.RecentlyPlayed,
-                emptySet(),
-                history,
-                mapOf("new" to 1L, "same-a" to 2L, "same-z" to 3L, "old" to 4L),
-            ).map { it.id },
+                    tracks,
+                    BrowseMode.RecentlyPlayed,
+                    emptySet(),
+                    history,
+                    mapOf(
+                        "new" to 1L,
+                        "same-a" to 2L,
+                        "same-z" to 3L,
+                        "old" to 4L),
+                )
+                .map { it.id },
         )
     }
 
@@ -94,12 +99,17 @@ class LibraryBrowserTest {
         assertEquals(
             listOf("same-a", "same-z", "new", "old"),
             visibleTracksForBrowseMode(
-                tracks,
-                BrowseMode.RecentlyAdded,
-                emptySet(),
-                emptyMap(),
-                mapOf("same-z" to 200L, "old" to 100L, "same-a" to 200L, "new" to 150L),
-            ).map { it.id },
+                    tracks,
+                    BrowseMode.RecentlyAdded,
+                    emptySet(),
+                    emptyMap(),
+                    mapOf(
+                        "same-z" to 200L,
+                        "old" to 100L,
+                        "same-a" to 200L,
+                        "new" to 150L),
+                )
+                .map { it.id },
         )
     }
 
@@ -121,7 +131,11 @@ class LibraryBrowserTest {
         assertEquals(4, albumGridColumnsForWidth(1400f))
     }
 
-    private fun testTrack(id: String, title: String, artist: String = "Artist") =
+    private fun testTrack(
+        id: String,
+        title: String,
+        artist: String = "Artist"
+    ) =
         Track(
             id = id,
             title = title,

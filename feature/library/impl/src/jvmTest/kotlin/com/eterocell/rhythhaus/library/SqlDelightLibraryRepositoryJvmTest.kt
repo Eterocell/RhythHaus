@@ -284,8 +284,7 @@ class SqlDelightLibraryRepositoryJvmTest {
 
             assertEquals(
                 mapOf(
-                    "track-1" to
-                        TrackPlayHistory("track-1", 2L, 20L),
+                    "track-1" to TrackPlayHistory("track-1", 2L, 20L),
                 ),
                 open.repository.playHistory(),
             )
@@ -295,7 +294,8 @@ class SqlDelightLibraryRepositoryJvmTest {
     @Test
     fun recordTrackPlayedRejectsMissingTrackWithoutLeavingHistoryRow() {
         val databaseFile =
-            Files.createTempFile("rhythhaus-library-play-history-missing", ".db")
+            Files.createTempFile(
+                    "rhythhaus-library-play-history-missing", ".db")
                 .toFile()
         databaseFile.deleteOnExit()
 
@@ -335,8 +335,7 @@ class SqlDelightLibraryRepositoryJvmTest {
         openRepository(databaseFile).use { reopened ->
             assertEquals(
                 mapOf(
-                    "track-1" to
-                        TrackPlayHistory("track-1", 1L, 10L),
+                    "track-1" to TrackPlayHistory("track-1", 1L, 10L),
                 ),
                 reopened.repository.playHistory(),
             )
@@ -375,8 +374,7 @@ class SqlDelightLibraryRepositoryJvmTest {
 
             assertEquals(
                 mapOf(
-                    "track-1" to
-                        TrackPlayHistory("track-1", 1L, 10L),
+                    "track-1" to TrackPlayHistory("track-1", 1L, 10L),
                 ),
                 open.repository.playHistory(),
             )
@@ -623,8 +621,7 @@ class SqlDelightLibraryRepositoryJvmTest {
                 listOf("track-2"), open.repository.tracks().map { it.id })
             assertEquals(
                 mapOf(
-                    "track-2" to
-                        TrackPlayHistory("track-2", 1L, 20L),
+                    "track-2" to TrackPlayHistory("track-2", 1L, 20L),
                 ),
                 open.repository.playHistory(),
             )
@@ -716,8 +713,7 @@ class SqlDelightLibraryRepositoryJvmTest {
                 listOf("track-1"), open.repository.tracks().map { it.id })
             assertEquals(
                 mapOf(
-                    "track-1" to
-                        TrackPlayHistory("track-1", 1L, 10L),
+                    "track-1" to TrackPlayHistory("track-1", 1L, 10L),
                 ),
                 open.repository.playHistory(),
             )
@@ -891,8 +887,7 @@ class SqlDelightLibraryRepositoryJvmTest {
                     open.repository.tracksForSource("source-1").map { it.id })
                 assertEquals(
                     mapOf(
-                        "missing" to
-                            TrackPlayHistory("missing", 1L, 10L),
+                        "missing" to TrackPlayHistory("missing", 1L, 10L),
                     ),
                     open.repository.playHistory(),
                 )

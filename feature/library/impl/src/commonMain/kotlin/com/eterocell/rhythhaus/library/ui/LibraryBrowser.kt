@@ -43,8 +43,8 @@ internal fun visibleTracksForBrowseMode(
                 .filter { it.id in playHistory }
                 .sortedWith(
                     compareByDescending<Track> {
-                        playHistory.getValue(it.id).lastPlayedAtEpochMillis
-                    }
+                            playHistory.getValue(it.id).lastPlayedAtEpochMillis
+                        }
                         .thenBy { it.title.lowercase() }
                         .thenBy { it.artist.lowercase() },
                 )
@@ -53,7 +53,9 @@ internal fun visibleTracksForBrowseMode(
                 "Recently added requires a created-time projection for every displayed track."
             }
             tracks.sortedWith(
-                compareByDescending<Track> { createdAtByTrackId.getValue(it.id) }
+                compareByDescending<Track> {
+                        createdAtByTrackId.getValue(it.id)
+                    }
                     .thenBy { it.title.lowercase() }
                     .thenBy { it.artist.lowercase() },
             )

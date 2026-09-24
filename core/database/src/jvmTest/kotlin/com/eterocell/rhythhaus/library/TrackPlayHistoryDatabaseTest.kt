@@ -38,12 +38,14 @@ class TrackPlayHistoryDatabaseTest {
 
     @Test
     fun recordTrackPlayedRejectsMissingTracksWithoutCreatingHistory() {
-        val databaseFile = temporaryDatabaseFile("rhythhaus-play-history-missing")
+        val databaseFile =
+            temporaryDatabaseFile("rhythhaus-play-history-missing")
         val libraryDatabase = LibraryDatabase(databaseFile)
         try {
             val database = libraryDatabase.database
 
-            database.trackPlayHistoryQueries.recordTrackPlayed("missing-track", 10L)
+            database.trackPlayHistoryQueries.recordTrackPlayed(
+                "missing-track", 10L)
 
             assertTrue(
                 database.trackPlayHistoryQueries
@@ -58,7 +60,8 @@ class TrackPlayHistoryDatabaseTest {
 
     @Test
     fun metadataUpsertPreservesPlayHistoryForTheSameTrackIdentity() {
-        val databaseFile = temporaryDatabaseFile("rhythhaus-play-history-upsert")
+        val databaseFile =
+            temporaryDatabaseFile("rhythhaus-play-history-upsert")
         val libraryDatabase = LibraryDatabase(databaseFile)
         try {
             val database = libraryDatabase.database
@@ -178,7 +181,8 @@ class TrackPlayHistoryDatabaseTest {
                 sql = "PRAGMA user_version",
                 mapper = { cursor ->
                     QueryResult.Value(
-                        if (cursor.next().value) cursor.getLong(0) ?: 0L else 0L)
+                        if (cursor.next().value) cursor.getLong(0) ?: 0L
+                        else 0L)
                 },
                 parameters = 0,
             )

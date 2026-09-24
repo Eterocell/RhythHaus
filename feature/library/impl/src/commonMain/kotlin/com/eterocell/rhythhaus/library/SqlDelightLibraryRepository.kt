@@ -227,10 +227,7 @@ internal class SqlDelightLibraryRepository(
     /** Returns persisted playback history keyed by track identifier. */
     override fun playHistory(): Map<String, TrackPlayHistory> =
         database.trackPlayHistoryQueries
-            .selectPlayHistory {
-                trackId,
-                playCount,
-                lastPlayedAtEpochMillis ->
+            .selectPlayHistory { trackId, playCount, lastPlayedAtEpochMillis ->
                 TrackPlayHistory(
                     trackId = trackId,
                     playCount = playCount,
@@ -240,7 +237,9 @@ internal class SqlDelightLibraryRepository(
             .executeAsList()
             .associateBy { it.trackId }
 
-    /** Records one play atomically when [trackId] identifies a current track. */
+    /**
+     * Records one play atomically when [trackId] identifies a current track.
+     */
     override fun recordTrackPlayed(
         trackId: String,
         playedAtEpochMillis: Long,

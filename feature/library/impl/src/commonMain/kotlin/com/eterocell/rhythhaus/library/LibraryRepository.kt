@@ -65,7 +65,8 @@ class InMemoryLibraryRepository : LibraryRepository {
 
     override fun favoriteTrackIds(): Set<String> = favoriteIds.toSet()
 
-    override fun playHistory(): Map<String, TrackPlayHistory> = playHistory.toMap()
+    override fun playHistory(): Map<String, TrackPlayHistory> =
+        playHistory.toMap()
 
     override fun recordTrackPlayed(
         trackId: String,

@@ -375,7 +375,8 @@ class LibraryHomeContentJvmTest {
                     tracks = tracks(),
                     browseMode = BrowseMode.RecentlyPlayed,
                     playHistory = history,
-                    createdAtByTrackId = tracks().associate { it.id to it.id.length.toLong() },
+                    createdAtByTrackId =
+                        tracks().associate { it.id to it.id.length.toLong() },
                     folderPickerLauncher = StubPicker,
                     sourcePickerActionVisible = false,
                     importMessage = null,
@@ -393,7 +394,9 @@ class LibraryHomeContentJvmTest {
                     onOpenAlbum = {},
                     onOpenArtist = {},
                     onShowPlaylists = {},
-                    onPlayTrack = { ordered, selected -> plays += ordered to selected },
+                    onPlayTrack = { ordered, selected ->
+                        plays += ordered to selected
+                    },
                     onToggleSelection = {},
                     onStartSelection = {},
                     onVisibleTrackIdsChanged = {},
@@ -407,54 +410,57 @@ class LibraryHomeContentJvmTest {
         waitForIdle()
         onNode(hasContentDescription("Select One")).performClick()
         waitForIdle()
-        assertEquals(listOf("t-2", "t-3", "t-1"), plays.single().first.map { it.id })
+        assertEquals(
+            listOf("t-2", "t-3", "t-1"), plays.single().first.map { it.id })
         assertEquals("t-2", plays.single().second.id)
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun emptyRecentlyPlayedShowsLocalizedMessageWithoutImportAction() = runComposeUiTest {
-        setContent {
-            Box(Modifier.size(420.dp, 900.dp)) {
-                LibraryHomeContent(
-                    title = "Library",
-                    subtitle = "",
-                    tracks = tracks(),
-                    browseMode = BrowseMode.RecentlyPlayed,
-                    playHistory = emptyMap(),
-                    createdAtByTrackId = tracks().associate { it.id to 1L },
-                    folderPickerLauncher = AvailableStubPicker,
-                    sourcePickerActionVisible = true,
-                    importMessage = null,
-                    scanProgress = null,
-                    mutationsEnabled = true,
-                    currentTrackId = null,
-                    selectionModeActive = false,
-                    selectedTrackIds = emptySet(),
-                    labels = labels(),
-                    homeBackdrop = null,
-                    artworkLoader = { null },
-                    onBrowseModeChange = {},
-                    onClearLibrary = {},
-                    onCancelScan = {},
-                    onOpenAlbum = {},
-                    onOpenArtist = {},
-                    onShowPlaylists = {},
-                    onPlayTrack = { _, _ -> },
-                    onToggleSelection = {},
-                    onStartSelection = {},
-                    onVisibleTrackIdsChanged = {},
-                    onScrollPositionChanged = { _, _ -> },
-                    bottomContentPadding = 0.dp,
-                    favoriteTrackIds = emptySet(),
-                    onSetTrackFavorite = { _, _ -> },
-                )
+    fun emptyRecentlyPlayedShowsLocalizedMessageWithoutImportAction() =
+        runComposeUiTest {
+            setContent {
+                Box(Modifier.size(420.dp, 900.dp)) {
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = tracks(),
+                        browseMode = BrowseMode.RecentlyPlayed,
+                        playHistory = emptyMap(),
+                        createdAtByTrackId = tracks().associate { it.id to 1L },
+                        folderPickerLauncher = AvailableStubPicker,
+                        sourcePickerActionVisible = true,
+                        importMessage = null,
+                        scanProgress = null,
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = {},
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
+                    )
+                }
             }
+            waitForIdle()
+            onNode(hasText("No recently played tracks yet."))
+                .assertIsDisplayed()
+            onAllNodes(hasText("Add music folder")).assertCountEquals(0)
         }
-        waitForIdle()
-        onNode(hasText("No recently played tracks yet.")).assertIsDisplayed()
-        onAllNodes(hasText("Add music folder")).assertCountEquals(0)
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -752,25 +758,33 @@ class LibraryHomeContentJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun compactRecentModeControlsExposeAllModesAndSelectedSemantics() = runComposeUiTest {
-        setContent {
-            Box(Modifier.size(400.dp, 40.dp)) {
-                BrowseModePicker(
-                    browseMode = BrowseMode.RecentlyPlayed,
-                    labels = labels(),
-                    onModeChange = {},
-                )
+    fun compactRecentModeControlsExposeAllModesAndSelectedSemantics() =
+        runComposeUiTest {
+            setContent {
+                Box(Modifier.size(400.dp, 40.dp)) {
+                    BrowseModePicker(
+                        browseMode = BrowseMode.RecentlyPlayed,
+                        labels = labels(),
+                        onModeChange = {},
+                    )
+                }
             }
+            waitForIdle()
+            listOf(
+                    "Albums",
+                    "Artists",
+                    "Songs",
+                    "Favorites",
+                    "Recently played",
+                    "Recently added")
+                .forEach { onNode(hasText(it)).assertIsDisplayed() }
+            onNode(
+                    hasText("Recently played") and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.Selected, true),
+                )
+                .assertIsDisplayed()
         }
-        waitForIdle()
-        listOf("Albums", "Artists", "Songs", "Favorites", "Recently played", "Recently added")
-            .forEach { onNode(hasText(it)).assertIsDisplayed() }
-        onNode(
-                hasText("Recently played") and
-                    SemanticsMatcher.expectValue(SemanticsProperties.Selected, true),
-            )
-            .assertIsDisplayed()
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
