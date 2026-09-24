@@ -13,6 +13,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.performClick
@@ -54,7 +55,13 @@ class LibraryBrowseControlsJvmTest {
             Box(Modifier.size(1_200.dp, 1_200.dp)) {
                 LibraryBrowseControls(
                     query = LibraryBrowseQuery(),
-                    sourceIds = listOf("source-a"),
+                    sourceOptions =
+                        listOf(
+                            LibraryBrowseSourceOption(
+                                id = "source-a",
+                                displayName = "Library A",
+                            ),
+                        ),
                     onSortChange = sortChanges::add,
                     onSortDirectionChange = directionChanges::add,
                     onFavoriteOnlyChange = {},
@@ -114,7 +121,13 @@ class LibraryBrowseControlsJvmTest {
             Box(Modifier.size(1_200.dp, 1_200.dp)) {
                 LibraryBrowseControls(
                     query = query,
-                    sourceIds = listOf("source-a"),
+                    sourceOptions =
+                        listOf(
+                            LibraryBrowseSourceOption(
+                                id = "source-a",
+                                displayName = "Library A",
+                            ),
+                        ),
                     onSortChange = {},
                     onSortDirectionChange = {},
                     onFavoriteOnlyChange = { enabled ->
@@ -136,12 +149,20 @@ class LibraryBrowseControlsJvmTest {
                 SemanticsMatcher.expectValue(
                     SemanticsProperties.ToggleableState,
                     ToggleableState.Off,
+                ) and
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.StateDescription,
+                    "Not selected",
                 )
         val artworkOff =
             hasText("Artwork only", substring = false) and
                 SemanticsMatcher.expectValue(
                     SemanticsProperties.ToggleableState,
                     ToggleableState.Off,
+                ) and
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.StateDescription,
+                    "Not selected",
                 )
         onNode(favoriteOff).performClick()
         onNode(artworkOff).performClick()
@@ -173,14 +194,24 @@ class LibraryBrowseControlsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun sourceSelectionAndClearAreExposedOnlyWhenSourcesExist() = runComposeUiTest {
+    fun sourceChoicesUseDisplayNamesAndClearStaleSelections() = runComposeUiTest {
         val sourceChanges = mutableListOf<String?>()
         var query by mutableStateOf(LibraryBrowseQuery(sourceId = "source-a"))
         setContent {
             Box(Modifier.size(1_200.dp, 1_200.dp)) {
                 LibraryBrowseControls(
                     query = query,
-                    sourceIds = listOf("source-a", "source-b"),
+                    sourceOptions =
+                        listOf(
+                            LibraryBrowseSourceOption(
+                                id = "source-a",
+                                displayName = "Listening room",
+                            ),
+                            LibraryBrowseSourceOption(
+                                id = "source-b",
+                                displayName = "Archive",
+                            ),
+                        ),
                     onSortChange = {},
                     onSortDirectionChange = {},
                     onFavoriteOnlyChange = {},
@@ -195,23 +226,57 @@ class LibraryBrowseControlsJvmTest {
         waitForIdle()
 
         onNode(
-                hasText("source-a", substring = false) and
+                hasText("Listening room", substring = false) and
                     SemanticsMatcher.expectValue(
                         SemanticsProperties.Selected,
                         true,
                     ),
             )
             .assertIsDisplayed()
-        onNode(hasText("source-b", substring = false)).performClick()
+        onAllNodes(hasText("source-a", substring = false)).assertCountEquals(0)
+        onNode(hasText("Archive", substring = false)).performClick()
         onNode(hasText("All sources", substring = false)).performClick()
         waitForIdle()
         assertEquals(listOf("source-b", null), sourceChanges)
 
+        val staleSourceChanges = mutableListOf<String?>()
+        var staleQuery by mutableStateOf(LibraryBrowseQuery(sourceId = "removed"))
         setContent {
             Box(Modifier.size(1_200.dp, 260.dp)) {
                 LibraryBrowseControls(
+                    query = staleQuery,
+                    sourceOptions = emptyList(),
+                    onSortChange = {},
+                    onSortDirectionChange = {},
+                    onFavoriteOnlyChange = {},
+                    onArtworkOnlyChange = {},
+                    onSourceIdChange = { sourceId ->
+                        staleSourceChanges += sourceId
+                        staleQuery = staleQuery.copy(sourceId = sourceId)
+                    },
+                )
+            }
+        }
+        waitForIdle()
+        onNode(hasText("All sources", substring = false)).performClick()
+        waitForIdle()
+        assertEquals(listOf<String?>(null), staleSourceChanges)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun controlsProvideFortyEightDpMinimumTouchTargets() = runComposeUiTest {
+        setContent {
+            Box(Modifier.size(420.dp, 900.dp)) {
+                LibraryBrowseControls(
                     query = LibraryBrowseQuery(),
-                    sourceIds = emptyList(),
+                    sourceOptions =
+                        listOf(
+                            LibraryBrowseSourceOption(
+                                id = "source-a",
+                                displayName = "Long-form listening archive",
+                            ),
+                        ),
                     onSortChange = {},
                     onSortDirectionChange = {},
                     onFavoriteOnlyChange = {},
@@ -221,8 +286,90 @@ class LibraryBrowseControlsJvmTest {
             }
         }
         waitForIdle()
-        onAllNodes(hasText("All sources", substring = false)).assertCountEquals(0)
-        onAllNodes(hasText("source-a", substring = false)).assertCountEquals(0)
+
+        val favoriteControl =
+            onNode(hasContentDescription("Favorites only")).fetchSemanticsNode()
+        val minimumHeight =
+            48.dp.value * favoriteControl.layoutInfo.density.density
+        assertTrue(
+            favoriteControl.boundsInRoot.height >= minimumHeight,
+            "favorites-only target must be at least 48dp tall",
+        )
+        onNode(hasText("Long-form listening archive", substring = false))
+            .assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun groupedModesHideFlatBrowseControls() = runComposeUiTest {
+        listOf(BrowseMode.Albums, BrowseMode.Artists).forEach { browseMode ->
+            setContent {
+                Box(Modifier.size(420.dp, 900.dp)) {
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = listOf(testTrack()),
+                        browseMode = browseMode,
+                        playHistory = emptyMap(),
+                        createdAtByTrackId = emptyMap(),
+                        folderPickerLauncher = AvailablePicker,
+                        sourcePickerActionVisible = false,
+                        importMessage = null,
+                        scanProgress = null,
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = testLabels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = {},
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
+                        browseQuery =
+                            LibraryBrowseQuery(
+                                favoriteOnly = true,
+                                sourceId = "source-a",
+                            ),
+                        sourceIdByTrackId = mapOf("track" to "source-a"),
+                        sourceOptions =
+                            listOf(
+                                LibraryBrowseSourceOption(
+                                    id = "source-a",
+                                    displayName = "Listening room",
+                                ),
+                            ),
+                        modifiedAtByTrackId = emptyMap(),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
+                    )
+                }
+            }
+            waitForIdle()
+
+            onAllNodes(hasText("Sort and filter", substring = false))
+                .assertCountEquals(0)
+            onAllNodes(hasText("Favorites only", substring = false))
+                .assertCountEquals(0)
+            onAllNodes(hasText("Artwork only", substring = false))
+                .assertCountEquals(0)
+            onAllNodes(hasText("All sources", substring = false))
+                .assertCountEquals(0)
+        }
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -265,6 +412,13 @@ class LibraryBrowseControlsJvmTest {
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery = LibraryBrowseQuery(favoriteOnly = true),
                         sourceIdByTrackId = mapOf("track" to "source-a"),
+                        sourceOptions =
+                            listOf(
+                                LibraryBrowseSourceOption(
+                                    id = "source-a",
+                                    displayName = "Listening room",
+                                ),
+                            ),
                         modifiedAtByTrackId = emptyMap(),
                         onBrowseSortChange = {},
                         onBrowseSortDirectionChange = {},

@@ -658,6 +658,43 @@ class LibraryAppShellJvmTest {
             }
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun configuredZeroTrackSourceUsesDisplayNameInHomeFilters() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val source =
+                    LibrarySource(
+                        id = "opaque-source-id",
+                        platformKind = LibraryPlatformKind.JvmFolder,
+                        displayName = "Listening room",
+                        handle = "/music",
+                        createdAtEpochMillis = 1L,
+                    )
+                mount(
+                    width = 420.dp,
+                    source = source,
+                    scanSession =
+                        ScanSession(
+                            id = "zero-track-source",
+                            sourceId = source.id,
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                )
+
+                onAllNodes(hasText("Songs"))[0].performClick()
+                waitForIdle()
+
+                onNode(hasContentDescription("Source Listening room"))
+                    .assertIsDisplayed()
+                onAllNodes(hasText("opaque-source-id", substring = false))
+                    .assertCountEquals(0)
+            }
+        }
+
     private inline fun <T> withDefaultLocale(
         locale: Locale,
         block: () -> T,

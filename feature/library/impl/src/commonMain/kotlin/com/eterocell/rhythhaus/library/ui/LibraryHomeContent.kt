@@ -64,6 +64,8 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  * @param playHistory immutable latest-play projections keyed by track ID.
  * @param createdAtByTrackId immutable creation-time projections keyed by track
  *   ID. Recently added requires an entry for every displayed track.
+ * @param sourceOptions immutable configured source identities and display names
+ *   available to the source filter.
  * @param sourceIdByTrackId immutable authoritative source IDs keyed by track ID.
  * @param modifiedAtByTrackId immutable file modification times keyed by track
  *   ID; tracks without a known time have a null value.
@@ -137,6 +139,7 @@ public fun LibraryHomeContent(
     favoriteTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
     browseQuery: LibraryBrowseQuery,
+    sourceOptions: List<LibraryBrowseSourceOption>,
     sourceIdByTrackId: Map<String, String?>,
     modifiedAtByTrackId: Map<String, Long?>,
     onBrowseSortChange: (LibrarySort) -> Unit,
@@ -171,10 +174,6 @@ public fun LibraryHomeContent(
         }
     val albums = remember(visibleTracks) { groupTracksByAlbum(visibleTracks) }
     val artists = remember(visibleTracks) { groupTracksByArtist(visibleTracks) }
-    val sourceIds =
-        remember(sourceIdByTrackId) {
-            sourceIdByTrackId.values.filterNotNull().distinct().sorted()
-        }
     val hasActiveFilter =
         browseQuery.favoriteOnly ||
             browseQuery.artworkOnly ||
@@ -285,18 +284,21 @@ public fun LibraryHomeContent(
                                 onModeChange = onBrowseModeChange,
                             )
                         }
-                        item {
-                            LibraryBrowseControls(
-                                query = browseQuery,
-                                sourceIds = sourceIds,
-                                onSortChange = onBrowseSortChange,
-                                onSortDirectionChange =
-                                    onBrowseSortDirectionChange,
-                                onFavoriteOnlyChange =
-                                    onBrowseFavoriteOnlyChange,
-                                onArtworkOnlyChange = onBrowseArtworkOnlyChange,
-                                onSourceIdChange = onBrowseSourceIdChange,
-                            )
+                        if (browseMode.isFlatHomeBrowseMode()) {
+                            item {
+                                LibraryBrowseControls(
+                                    query = browseQuery,
+                                    sourceOptions = sourceOptions,
+                                    onSortChange = onBrowseSortChange,
+                                    onSortDirectionChange =
+                                        onBrowseSortDirectionChange,
+                                    onFavoriteOnlyChange =
+                                        onBrowseFavoriteOnlyChange,
+                                    onArtworkOnlyChange =
+                                        onBrowseArtworkOnlyChange,
+                                    onSourceIdChange = onBrowseSourceIdChange,
+                                )
+                            }
                         }
                         if (emptyBrowseMessage != null) {
                             item {

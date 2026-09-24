@@ -39,8 +39,6 @@
     <string name="browse_filter_all_sources">All sources</string>
     <string name="browse_selected_state">Selected</string>
     <string name="browse_unselected_state">Not selected</string>
-    <string name="browse_enabled_state">Enabled</string>
-    <string name="browse_disabled_state">Disabled</string>
     <string name="browse_source_format">Source %1$s</string>
     <string name="filtered_empty">No tracks match the current filters.</string>
     <string name="scanning">Scanning…</string>

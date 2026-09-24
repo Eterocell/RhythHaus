@@ -50,6 +50,19 @@ public data class LibraryBrowseQuery(
 )
 
 /**
+ * One configured source choice available to the Library Home source filter.
+ *
+ * [id] stays internal to query callbacks; [displayName] is the authoritative
+ * user-visible label supplied by the configured source.
+ */
+public data class LibraryBrowseSourceOption(
+    /** Stable configured source identifier used by the filter callback. */
+    public val id: String,
+    /** User-visible configured source name. */
+    public val displayName: String,
+)
+
+/**
  * Projects authoritative tracks into the visible flat Home sequence.
  *
  * Mode membership and query filters are resolved before sorting. A default

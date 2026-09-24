@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -83,8 +84,6 @@ import rhythhaus.feature.library.generated.resources.browse_sort_modified
 import rhythhaus.feature.library.generated.resources.browse_sort_play_count
 import rhythhaus.feature.library.generated.resources.browse_sort_title
 import rhythhaus.feature.library.generated.resources.browse_unselected_state
-import rhythhaus.feature.library.generated.resources.browse_enabled_state
-import rhythhaus.feature.library.generated.resources.browse_disabled_state
 import rhythhaus.feature.library.generated.resources.browse_source_format
 import rhythhaus.feature.library.generated.resources.hide_scan_report
 import rhythhaus.feature.library.generated.resources.import_card_description
@@ -536,7 +535,7 @@ internal fun BrowseModePicker(
 @Composable
 internal fun LibraryBrowseControls(
     query: LibraryBrowseQuery,
-    sourceIds: List<String>,
+    sourceOptions: List<LibraryBrowseSourceOption>,
     onSortChange: (LibrarySort) -> Unit,
     onSortDirectionChange: (LibrarySortDirection) -> Unit,
     onFavoriteOnlyChange: (Boolean) -> Unit,
@@ -545,9 +544,6 @@ internal fun LibraryBrowseControls(
 ) {
     val selectedState = stringResource(Res.string.browse_selected_state)
     val unselectedState = stringResource(Res.string.browse_unselected_state)
-    val enabledState = stringResource(Res.string.browse_enabled_state)
-    val disabledState = stringResource(Res.string.browse_disabled_state)
-    val distinctSourceIds = remember(sourceIds) { sourceIds.distinct().sorted() }
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -593,18 +589,18 @@ internal fun LibraryBrowseControls(
                 label = stringResource(Res.string.browse_filter_favorite),
                 checked = query.favoriteOnly,
                 stateDescription =
-                    if (query.favoriteOnly) enabledState else disabledState,
+                    if (query.favoriteOnly) selectedState else unselectedState,
                 onClick = { onFavoriteOnlyChange(!query.favoriteOnly) },
             )
             BrowseToggleButton(
                 label = stringResource(Res.string.browse_filter_artwork),
                 checked = query.artworkOnly,
                 stateDescription =
-                    if (query.artworkOnly) enabledState else disabledState,
+                    if (query.artworkOnly) selectedState else unselectedState,
                 onClick = { onArtworkOnlyChange(!query.artworkOnly) },
             )
         }
-        if (distinctSourceIds.isNotEmpty()) {
+        if (sourceOptions.isNotEmpty() || query.sourceId != null) {
             Text(
                 text = stringResource(Res.string.browse_filter_source),
                 color = HausColors.current.muted,
@@ -620,19 +616,19 @@ internal fun LibraryBrowseControls(
                         else unselectedState,
                     onClick = { onSourceIdChange(null) },
                 )
-                distinctSourceIds.forEach { sourceId ->
+                sourceOptions.forEach { sourceOption ->
                     BrowseChoiceButton(
-                        label = sourceId,
+                        label = sourceOption.displayName,
                         contentDescription =
                             stringResource(
                                 Res.string.browse_source_format,
-                                sourceId,
+                                sourceOption.displayName,
                             ),
-                        selected = query.sourceId == sourceId,
+                        selected = query.sourceId == sourceOption.id,
                         stateDescription =
-                            if (query.sourceId == sourceId) selectedState
+                            if (query.sourceId == sourceOption.id) selectedState
                             else unselectedState,
-                        onClick = { onSourceIdChange(sourceId) },
+                        onClick = { onSourceIdChange(sourceOption.id) },
                     )
                 }
             }
@@ -661,7 +657,7 @@ private fun BrowseChoiceButton(
     Button(
         onClick = onClick,
         modifier =
-            Modifier.height(40.dp).semantics {
+            Modifier.heightIn(min = 48.dp).semantics {
                 this.contentDescription = contentDescription
                 this.selected = selected
                 this.stateDescription = stateDescription
@@ -685,8 +681,6 @@ private fun BrowseChoiceButton(
             text = label,
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -701,7 +695,7 @@ private fun BrowseToggleButton(
     Button(
         onClick = onClick,
         modifier =
-            Modifier.height(40.dp).semantics {
+            Modifier.heightIn(min = 48.dp).semantics {
                 this.contentDescription = label
                 toggleableState =
                     if (checked) ToggleableState.On else ToggleableState.Off
@@ -726,8 +720,6 @@ private fun BrowseToggleButton(
             text = label,
             fontSize = 12.sp,
             fontWeight = if (checked) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
     }
 }

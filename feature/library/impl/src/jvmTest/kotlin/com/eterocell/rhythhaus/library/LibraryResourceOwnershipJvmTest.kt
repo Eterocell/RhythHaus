@@ -58,8 +58,6 @@ class LibraryResourceOwnershipJvmTest {
             "browse_filter_all_sources",
             "browse_selected_state",
             "browse_unselected_state",
-            "browse_enabled_state",
-            "browse_disabled_state",
             "browse_source_format",
             "filtered_empty",
             "scanning",

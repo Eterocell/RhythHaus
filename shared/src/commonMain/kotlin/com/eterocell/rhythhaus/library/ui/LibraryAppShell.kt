@@ -255,6 +255,15 @@ fun LibraryHomeScreen(
             snapshot = snapshot,
             initialOnboarding = initialOnboarding,
         )
+    val sourceOptions =
+        remember(sources) {
+            sources.map { source ->
+                LibraryBrowseSourceOption(
+                    id = source.id,
+                    displayName = source.displayName,
+                )
+            }
+        }
     val settingsDestinationToken =
         appState.navigation.entries
             .lastOrNull { it.route == LibraryRoute.Settings }
@@ -589,6 +598,7 @@ fun LibraryHomeScreen(
                     playHistory = playHistory,
                     createdAtByTrackId = createdAtByTrackId,
                     browseQuery = appState.browseQuery,
+                    sourceOptions = sourceOptions,
                     sourceIdByTrackId = sourceIdByTrackId,
                     modifiedAtByTrackId = modifiedAtByTrackId,
                     onSetTrackFavorite = onSetTrackFavorite,
@@ -723,6 +733,7 @@ fun LibraryHomeScreen(
                             playHistory = playHistory,
                             createdAtByTrackId = createdAtByTrackId,
                             browseQuery = appState.browseQuery,
+                            sourceOptions = sourceOptions,
                             sourceIdByTrackId = sourceIdByTrackId,
                             modifiedAtByTrackId = modifiedAtByTrackId,
                             onSetTrackFavorite = onSetTrackFavorite,

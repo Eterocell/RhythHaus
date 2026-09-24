@@ -39,8 +39,6 @@
     <string name="browse_filter_all_sources">所有来源</string>
     <string name="browse_selected_state">已选择</string>
     <string name="browse_unselected_state">未选择</string>
-    <string name="browse_enabled_state">已启用</string>
-    <string name="browse_disabled_state">未启用</string>
     <string name="browse_source_format">来源 %1$s</string>
     <string name="filtered_empty">没有符合当前筛选条件的曲目。</string>
     <string name="scanning">扫描中…</string>
