@@ -484,52 +484,63 @@ internal fun BrowseModePicker(
     onModeChange: (BrowseMode) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val compact = maxWidth < 440.dp
+        val compact = maxWidth < 720.dp
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             BrowseMode.entries.forEach { mode ->
-                val isSelected = browseMode == mode
-                Button(
-                    onClick = { onModeChange(mode) },
-                    modifier =
-                        Modifier.weight(1f)
-                            .height(40.dp)
-                            .semantics { selected = isSelected },
-                    cornerRadius = 20.dp,
-                    insideMargin =
-                        PaddingValues(
-                            horizontal = if (compact) 4.dp else 12.dp,
-                            vertical = 10.dp,
-                        ),
-                    colors =
-                        if (isSelected) {
-                            ButtonDefaults.buttonColors(
-                                color = HausColors.current.ink,
-                                contentColor = HausColors.current.paper,
-                            )
-                        } else {
-                            ButtonDefaults.buttonColors(
-                                color = HausColors.current.panel,
-                                contentColor = HausColors.current.ink,
-                            )
-                        },
-                ) {
-                    Text(
-                        stringResource(mode.displayLabelResource()),
-                        fontSize = if (compact) 12.sp else 14.sp,
-                        fontWeight =
-                            if (isSelected) {
-                                FontWeight.Bold
-                            } else {
-                                FontWeight.Medium
-                            },
-                        maxLines = 1,
-                    )
-                }
+                BrowseModeButton(
+                    mode = mode,
+                    isSelected = browseMode == mode,
+                    compact = compact,
+                    modifier = Modifier.weight(1f),
+                    onModeChange = onModeChange,
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun BrowseModeButton(
+    mode: BrowseMode,
+    isSelected: Boolean,
+    compact: Boolean,
+    modifier: Modifier,
+    onModeChange: (BrowseMode) -> Unit,
+) {
+    Button(
+        onClick = { onModeChange(mode) },
+        modifier =
+            modifier
+                .height(40.dp)
+                .semantics { selected = isSelected },
+        cornerRadius = 20.dp,
+        insideMargin =
+            PaddingValues(
+                horizontal = if (compact) 0.dp else 12.dp,
+                vertical = 10.dp,
+            ),
+        colors =
+            if (isSelected) {
+                ButtonDefaults.buttonColors(
+                    color = HausColors.current.ink,
+                    contentColor = HausColors.current.paper,
+                )
+            } else {
+                ButtonDefaults.buttonColors(
+                    color = HausColors.current.panel,
+                    contentColor = HausColors.current.ink,
+                )
+            },
+    ) {
+        Text(
+            stringResource(mode.displayLabelResource()),
+            fontSize = if (compact) 8.sp else 14.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1,
+        )
     }
 }
 
