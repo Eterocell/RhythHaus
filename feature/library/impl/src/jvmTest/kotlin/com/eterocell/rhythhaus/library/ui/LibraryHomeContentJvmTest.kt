@@ -42,11 +42,19 @@ class LibraryHomeContentJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun songsRenderInOrderPreservingDuplicatesAndReportPrimitiveCallbacks() =
+    fun songsApplyQueryProjectionsAndReportPrimitiveCallbacks() =
         runComposeUiTest {
             val visibleReports = mutableListOf<List<String>>()
             val scrolls = mutableListOf<Pair<Int, Int>>()
             val plays = mutableListOf<Pair<List<Track>, Track>>()
+            var browseQuery by mutableStateOf(LibraryBrowseQuery())
+            val expectedTracks =
+                listOf(
+                    tracks()[1],
+                    tracks()[2],
+                    tracks()[0],
+                    tracks()[3],
+                )
             setContent {
                 Box(Modifier.size(420.dp, 900.dp)) {
                     LibraryHomeContent(
@@ -87,6 +95,26 @@ class LibraryHomeContentJvmTest {
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
+                        browseQuery = browseQuery,
+                        sourceIdByTrackId =
+                            mapOf(
+                                "t-1" to "source-a",
+                                "t-2" to "source-a",
+                                "t-3" to "source-b",
+                                "t-4" to "source-a",
+                            ),
+                        modifiedAtByTrackId =
+                            mapOf(
+                                "t-1" to 20L,
+                                "t-2" to 10L,
+                                "t-3" to 30L,
+                                "t-4" to null,
+                            ),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
                     )
                 }
             }
@@ -94,16 +122,34 @@ class LibraryHomeContentJvmTest {
 
             assertEquals(listOf(0, 0), scrolls.first().toList())
             assertEquals(
-                tracks().map(Track::id),
+                expectedTracks.map(Track::id),
                 visibleReports.last(),
             )
             onAllNodes(hasText("Two")).assertCountEquals(2)
             onAllNodes(hasText("Now playing")).assertCountEquals(1)
 
+            browseQuery =
+                LibraryBrowseQuery(
+                    sort = LibrarySort.Modified,
+                    direction = LibrarySortDirection.Descending,
+                    sourceId = "source-a",
+                )
+            waitForIdle()
+            val queryProjectedTracks =
+                listOf(
+                    tracks()[3],
+                    tracks()[0],
+                    tracks()[1],
+                )
+            assertEquals(
+                queryProjectedTracks.map(Track::id),
+                visibleReports.last(),
+            )
+
             onAllNodes(hasContentDescription("Select Two"))[0].performClick()
             waitForIdle()
-            assertEquals(tracks(), plays.last().first)
-            assertEquals(tracks()[0].id, plays.last().second.id)
+            assertEquals(queryProjectedTracks, plays.last().first)
+            assertEquals(tracks()[3].id, plays.last().second.id)
         }
 
     @OptIn(ExperimentalTestApi::class)
@@ -151,6 +197,14 @@ class LibraryHomeContentJvmTest {
                                 if (favorite) favoriteTrackIds + id
                                 else favoriteTrackIds - id
                         },
+                        browseQuery = LibraryBrowseQuery(),
+                        sourceIdByTrackId = emptyMap(),
+                        modifiedAtByTrackId = emptyMap(),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
                     )
                 }
             }
@@ -223,6 +277,14 @@ class LibraryHomeContentJvmTest {
                             if (favorite) favoriteTrackIds + id
                             else favoriteTrackIds - id
                     },
+                    browseQuery = LibraryBrowseQuery(),
+                    sourceIdByTrackId = emptyMap(),
+                    modifiedAtByTrackId = emptyMap(),
+                    onBrowseSortChange = {},
+                    onBrowseSortDirectionChange = {},
+                    onBrowseFavoriteOnlyChange = {},
+                    onBrowseArtworkOnlyChange = {},
+                    onBrowseSourceIdChange = {},
                 )
             }
         }
@@ -283,6 +345,14 @@ class LibraryHomeContentJvmTest {
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = setOf("t-1"),
                     onSetTrackFavorite = { _, _ -> },
+                    browseQuery = LibraryBrowseQuery(),
+                    sourceIdByTrackId = emptyMap(),
+                    modifiedAtByTrackId = emptyMap(),
+                    onBrowseSortChange = {},
+                    onBrowseSortDirectionChange = {},
+                    onBrowseFavoriteOnlyChange = {},
+                    onBrowseArtworkOnlyChange = {},
+                    onBrowseSourceIdChange = {},
                 )
             }
         }
@@ -340,6 +410,14 @@ class LibraryHomeContentJvmTest {
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = setOf("t-2", "t-3"),
                         onSetTrackFavorite = { _, _ -> },
+                        browseQuery = LibraryBrowseQuery(),
+                        sourceIdByTrackId = emptyMap(),
+                        modifiedAtByTrackId = emptyMap(),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
                     )
                 }
             }
@@ -404,6 +482,14 @@ class LibraryHomeContentJvmTest {
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
+                    browseQuery = LibraryBrowseQuery(),
+                    sourceIdByTrackId = emptyMap(),
+                    modifiedAtByTrackId = emptyMap(),
+                    onBrowseSortChange = {},
+                    onBrowseSortDirectionChange = {},
+                    onBrowseFavoriteOnlyChange = {},
+                    onBrowseArtworkOnlyChange = {},
+                    onBrowseSourceIdChange = {},
                 )
             }
         }
@@ -453,6 +539,14 @@ class LibraryHomeContentJvmTest {
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
+                        browseQuery = LibraryBrowseQuery(),
+                        sourceIdByTrackId = emptyMap(),
+                        modifiedAtByTrackId = emptyMap(),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
                     )
                 }
             }
@@ -501,6 +595,14 @@ class LibraryHomeContentJvmTest {
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
+                        browseQuery = LibraryBrowseQuery(),
+                        sourceIdByTrackId = emptyMap(),
+                        modifiedAtByTrackId = emptyMap(),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
                     )
                 }
             }
@@ -551,6 +653,14 @@ class LibraryHomeContentJvmTest {
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
+                    browseQuery = LibraryBrowseQuery(),
+                    sourceIdByTrackId = emptyMap(),
+                    modifiedAtByTrackId = emptyMap(),
+                    onBrowseSortChange = {},
+                    onBrowseSortDirectionChange = {},
+                    onBrowseFavoriteOnlyChange = {},
+                    onBrowseArtworkOnlyChange = {},
+                    onBrowseSourceIdChange = {},
                 )
             }
         }
@@ -599,6 +709,14 @@ class LibraryHomeContentJvmTest {
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
+                    browseQuery = LibraryBrowseQuery(),
+                    sourceIdByTrackId = emptyMap(),
+                    modifiedAtByTrackId = emptyMap(),
+                    onBrowseSortChange = {},
+                    onBrowseSortDirectionChange = {},
+                    onBrowseFavoriteOnlyChange = {},
+                    onBrowseArtworkOnlyChange = {},
+                    onBrowseSourceIdChange = {},
                 )
             }
         }
@@ -663,6 +781,14 @@ class LibraryHomeContentJvmTest {
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
+                    browseQuery = LibraryBrowseQuery(),
+                    sourceIdByTrackId = emptyMap(),
+                    modifiedAtByTrackId = emptyMap(),
+                    onBrowseSortChange = {},
+                    onBrowseSortDirectionChange = {},
+                    onBrowseFavoriteOnlyChange = {},
+                    onBrowseArtworkOnlyChange = {},
+                    onBrowseSourceIdChange = {},
                 )
             }
         }
@@ -716,6 +842,14 @@ class LibraryHomeContentJvmTest {
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
+                    browseQuery = LibraryBrowseQuery(),
+                    sourceIdByTrackId = emptyMap(),
+                    modifiedAtByTrackId = emptyMap(),
+                    onBrowseSortChange = {},
+                    onBrowseSortDirectionChange = {},
+                    onBrowseFavoriteOnlyChange = {},
+                    onBrowseArtworkOnlyChange = {},
+                    onBrowseSourceIdChange = {},
                 )
             }
         }
@@ -826,6 +960,14 @@ class LibraryHomeContentJvmTest {
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
+                        browseQuery = LibraryBrowseQuery(),
+                        sourceIdByTrackId = emptyMap(),
+                        modifiedAtByTrackId = emptyMap(),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
                     )
                 }
             }
@@ -876,6 +1018,14 @@ class LibraryHomeContentJvmTest {
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
+                    browseQuery = LibraryBrowseQuery(),
+                    sourceIdByTrackId = emptyMap(),
+                    modifiedAtByTrackId = emptyMap(),
+                    onBrowseSortChange = {},
+                    onBrowseSortDirectionChange = {},
+                    onBrowseFavoriteOnlyChange = {},
+                    onBrowseArtworkOnlyChange = {},
+                    onBrowseSourceIdChange = {},
                 )
             }
         }
@@ -925,6 +1075,14 @@ class LibraryHomeContentJvmTest {
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
+                        browseQuery = LibraryBrowseQuery(),
+                        sourceIdByTrackId = emptyMap(),
+                        modifiedAtByTrackId = emptyMap(),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
                     )
                 }
             }
@@ -974,6 +1132,14 @@ class LibraryHomeContentJvmTest {
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
+                        browseQuery = LibraryBrowseQuery(),
+                        sourceIdByTrackId = emptyMap(),
+                        modifiedAtByTrackId = emptyMap(),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
                     )
                 }
             }
@@ -981,7 +1147,23 @@ class LibraryHomeContentJvmTest {
 
             onNode(hasScrollToIndexAction()).performScrollToIndex(10)
             waitForIdle()
-            assertEquals(twelveTracks().map(Track::id), visibleReports.last())
+            assertEquals(
+                listOf(
+                    "t-1",
+                    "t-10",
+                    "t-11",
+                    "t-12",
+                    "t-2",
+                    "t-3",
+                    "t-4",
+                    "t-5",
+                    "t-6",
+                    "t-7",
+                    "t-8",
+                    "t-9",
+                ),
+                visibleReports.last(),
+            )
         }
 
     private fun session(status: ScanStatus, id: String = "scan"): ScanSession =

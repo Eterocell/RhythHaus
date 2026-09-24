@@ -59,9 +59,13 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  * @param subtitle the library header subtitle.
  * @param tracks the authoritative display/playback track sequence.
  * @param browseMode the current library browse mode.
+ * @param browseQuery the active ephemeral flat-Home sorting and filtering state.
  * @param playHistory immutable latest-play projections keyed by track ID.
  * @param createdAtByTrackId immutable creation-time projections keyed by track
  *   ID. Recently added requires an entry for every displayed track.
+ * @param sourceIdByTrackId immutable authoritative source IDs keyed by track ID.
+ * @param modifiedAtByTrackId immutable file modification times keyed by track
+ *   ID; tracks without a known time have a null value.
  * @param folderPickerLauncher launches the platform folder picker.
  * @param sourcePickerActionVisible whether the import source action is visible.
  * @param importMessage a transient import message, if any.
@@ -91,6 +95,11 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  *   chrome.
  * @param favoriteTrackIds immutable authoritative favorite IDs.
  * @param onSetTrackFavorite requests a desired favorite state for a track.
+ * @param onBrowseSortChange requests a new flat-Home sort field.
+ * @param onBrowseSortDirectionChange requests a new flat-Home sort direction.
+ * @param onBrowseFavoriteOnlyChange requests favorite-only filter state.
+ * @param onBrowseArtworkOnlyChange requests artwork-only filter state.
+ * @param onBrowseSourceIdChange requests the source filter or all sources.
  */
 @Composable
 public fun LibraryHomeContent(
@@ -126,6 +135,14 @@ public fun LibraryHomeContent(
     bottomContentPadding: Dp,
     favoriteTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
+    browseQuery: LibraryBrowseQuery,
+    sourceIdByTrackId: Map<String, String?>,
+    modifiedAtByTrackId: Map<String, Long?>,
+    onBrowseSortChange: (LibrarySort) -> Unit,
+    onBrowseSortDirectionChange: (LibrarySortDirection) -> Unit,
+    onBrowseFavoriteOnlyChange: (Boolean) -> Unit,
+    onBrowseArtworkOnlyChange: (Boolean) -> Unit,
+    onBrowseSourceIdChange: (String?) -> Unit,
 ) {
     // Keep projection at the presentation boundary so grouping, ordering, and
     // playback consume the same visible queue.
@@ -133,16 +150,22 @@ public fun LibraryHomeContent(
         remember(
             tracks,
             browseMode,
+            browseQuery,
             favoriteTrackIds,
             playHistory,
             createdAtByTrackId,
+            sourceIdByTrackId,
+            modifiedAtByTrackId,
         ) {
-            visibleTracksForBrowseMode(
+            visibleTracksForBrowseQuery(
                 tracks = tracks,
                 browseMode = browseMode,
+                query = browseQuery,
                 favoriteTrackIds = favoriteTrackIds,
+                sourceIdByTrackId = sourceIdByTrackId,
                 playHistory = playHistory,
                 createdAtByTrackId = createdAtByTrackId,
+                modifiedAtByTrackId = modifiedAtByTrackId,
             )
         }
     val albums = remember(visibleTracks) { groupTracksByAlbum(visibleTracks) }

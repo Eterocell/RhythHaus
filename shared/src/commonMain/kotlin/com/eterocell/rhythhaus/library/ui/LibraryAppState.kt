@@ -26,6 +26,10 @@ internal class LibraryAppState(
     val browseMode: BrowseMode
         get() = browseModeState
 
+    private var browseQueryState by mutableStateOf(LibraryBrowseQuery())
+    val browseQuery: LibraryBrowseQuery
+        get() = browseQueryState
+
     var showNowPlaying by mutableStateOf(false)
         private set
 
@@ -219,6 +223,26 @@ internal class LibraryAppState(
             activeSelectionPort = null
         }
         reconcileBackSession()
+    }
+
+    fun setBrowseSort(sort: LibrarySort) {
+        browseQueryState = browseQueryState.copy(sort = sort)
+    }
+
+    fun setBrowseSortDirection(direction: LibrarySortDirection) {
+        browseQueryState = browseQueryState.copy(direction = direction)
+    }
+
+    fun setBrowseFavoriteOnly(favoriteOnly: Boolean) {
+        browseQueryState = browseQueryState.copy(favoriteOnly = favoriteOnly)
+    }
+
+    fun setBrowseArtworkOnly(artworkOnly: Boolean) {
+        browseQueryState = browseQueryState.copy(artworkOnly = artworkOnly)
+    }
+
+    fun setBrowseSourceId(sourceId: String?) {
+        browseQueryState = browseQueryState.copy(sourceId = sourceId)
     }
 
     internal fun recoverStalePlaylistDetail(

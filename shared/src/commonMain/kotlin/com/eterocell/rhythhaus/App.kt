@@ -671,6 +671,8 @@ fun App(
                     favoriteTrackIds = libraryContent.favoriteTrackIds,
                     playHistory = libraryContent.playHistory,
                     createdAtByTrackId = libraryContent.createdAtByTrackId,
+                    sourceIdByTrackId = libraryContent.sourceIdByTrackId,
+                    modifiedAtByTrackId = libraryContent.modifiedAtByTrackId,
                     onSetTrackFavorite = { trackId, favorite ->
                         scope.launch {
                             setTrackFavoriteAndPublish(
@@ -913,6 +915,8 @@ internal data class LibraryContentState(
     val favoriteTrackIds: Set<String> = emptySet(),
     val playHistory: Map<String, TrackPlayHistory> = emptyMap(),
     val createdAtByTrackId: Map<String, Long> = emptyMap(),
+    val sourceIdByTrackId: Map<String, String> = emptyMap(),
+    val modifiedAtByTrackId: Map<String, Long?> = emptyMap(),
 )
 
 /** Compose-owned projection consumed by the App's downstream library routes. */
@@ -1191,6 +1195,12 @@ internal fun loadLibraryContent(
         createdAtByTrackId =
             tracks.associate { track ->
                 track.id to track.createdAtEpochMillis
+            },
+        sourceIdByTrackId =
+            tracks.associate { track -> track.id to track.sourceId },
+        modifiedAtByTrackId =
+            tracks.associate { track ->
+                track.id to track.modifiedAtEpochMillis
             },
     )
 }

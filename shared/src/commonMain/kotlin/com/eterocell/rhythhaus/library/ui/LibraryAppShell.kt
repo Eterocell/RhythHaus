@@ -232,6 +232,8 @@ fun LibraryHomeScreen(
     onRemoveSource: (LibrarySource) -> Unit,
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit,
     onCancelScan: () -> Unit,
+    sourceIdByTrackId: Map<String, String>,
+    modifiedAtByTrackId: Map<String, Long?>,
     mediaNotificationPermission: MediaNotificationPermissionState =
         MediaNotificationPermissionState.Unavailable,
     onRequestNotificationPermission: () -> Unit = {},
@@ -586,7 +588,17 @@ fun LibraryHomeScreen(
                     favoriteTrackIds = favoriteTrackIds,
                     playHistory = playHistory,
                     createdAtByTrackId = createdAtByTrackId,
+                    browseQuery = appState.browseQuery,
+                    sourceIdByTrackId = sourceIdByTrackId,
+                    modifiedAtByTrackId = modifiedAtByTrackId,
                     onSetTrackFavorite = onSetTrackFavorite,
+                    onBrowseSortChange = appState::setBrowseSort,
+                    onBrowseSortDirectionChange =
+                        appState::setBrowseSortDirection,
+                    onBrowseFavoriteOnlyChange =
+                        appState::setBrowseFavoriteOnly,
+                    onBrowseArtworkOnlyChange = appState::setBrowseArtworkOnly,
+                    onBrowseSourceIdChange = appState::setBrowseSourceId,
                     labels = librarySharedLabels(),
                     homeBackdrop = rememberRhythHausBackdrop(),
                     artworkLoader = { id -> artworkLoader(id)?.bytes },
@@ -710,7 +722,18 @@ fun LibraryHomeScreen(
                             favoriteTrackIds = favoriteTrackIds,
                             playHistory = playHistory,
                             createdAtByTrackId = createdAtByTrackId,
+                            browseQuery = appState.browseQuery,
+                            sourceIdByTrackId = sourceIdByTrackId,
+                            modifiedAtByTrackId = modifiedAtByTrackId,
                             onSetTrackFavorite = onSetTrackFavorite,
+                            onBrowseSortChange = appState::setBrowseSort,
+                            onBrowseSortDirectionChange =
+                                appState::setBrowseSortDirection,
+                            onBrowseFavoriteOnlyChange =
+                                appState::setBrowseFavoriteOnly,
+                            onBrowseArtworkOnlyChange =
+                                appState::setBrowseArtworkOnly,
+                            onBrowseSourceIdChange = appState::setBrowseSourceId,
                             labels = librarySharedLabels(),
                             homeBackdrop = rememberRhythHausBackdrop(),
                             artworkLoader = { id -> artworkLoader(id)?.bytes },

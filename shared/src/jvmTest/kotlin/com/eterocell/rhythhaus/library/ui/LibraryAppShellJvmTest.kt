@@ -762,6 +762,8 @@ class LibraryAppShellJvmTest {
                         onRemoveSource = {},
                         onRemoveMissingTracks = { _, _ -> },
                         onCancelScan = { callbacks.cancelCalls++ },
+                        sourceIdByTrackId = emptyMap(),
+                        modifiedAtByTrackId = emptyMap(),
                         favoriteTrackIds = favoriteTrackIds(),
                         playHistory = playHistory,
                         createdAtByTrackId = createdAtByTrackId,
