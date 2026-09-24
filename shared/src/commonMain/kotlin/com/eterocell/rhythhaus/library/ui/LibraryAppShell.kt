@@ -302,6 +302,9 @@ fun LibraryHomeScreen(
     var trackSelectionState by remember {
         mutableStateOf(TrackSelectionState())
     }
+    var homeVisibleTrackIds by remember {
+        mutableStateOf(emptyList<String>())
+    }
     var searchVisibleTrackIds by remember {
         mutableStateOf(emptyList<String>())
     }
@@ -322,9 +325,16 @@ fun LibraryHomeScreen(
                 .toDp()
         }
     fun dispatchTrackSelection(action: TrackSelectionAction) {
-        if (action is TrackSelectionAction.ReconcileVisible &&
-            action.pageKey == TrackSelectionPageKey.Search) {
-            searchVisibleTrackIds = action.visibleTrackIds
+        if (action is TrackSelectionAction.ReconcileVisible) {
+            when (action.pageKey) {
+                TrackSelectionPageKey.HomeSongs ->
+                    homeVisibleTrackIds = action.visibleTrackIds
+
+                TrackSelectionPageKey.Search ->
+                    searchVisibleTrackIds = action.visibleTrackIds
+
+                else -> Unit
+            }
         }
         trackSelectionState = reduceTrackSelection(trackSelectionState, action)
     }
@@ -370,7 +380,7 @@ fun LibraryHomeScreen(
     }
     fun pageTrackIds(pageKey: TrackSelectionPageKey): List<String> =
         when (pageKey) {
-            TrackSelectionPageKey.HomeSongs -> snapshot.tracks.map(Track::id)
+            TrackSelectionPageKey.HomeSongs -> homeVisibleTrackIds
             is TrackSelectionPageKey.Album ->
                 albums.filter { it.album == pageKey.album }.map(Track::id)
             is TrackSelectionPageKey.Artist ->

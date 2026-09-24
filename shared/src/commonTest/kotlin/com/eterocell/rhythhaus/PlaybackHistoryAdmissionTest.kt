@@ -153,6 +153,34 @@ class PlaybackHistoryAdmissionTest {
     }
 
     @Test
+    fun appLibraryContentStateRejectsOlderPublicationAfterNewerHistory() {
+        val state = AppLibraryContentState()
+        val older =
+            LibraryContentState(
+                sources = listOf(historySource()),
+                tracks = listOf(historyTrack("history")),
+                playHistory =
+                    mapOf(
+                        "history" to TrackPlayHistory("history", 1L, 100L),
+                    ),
+                createdAtByTrackId = mapOf("history" to 10L),
+            )
+        val newer =
+            older.copy(
+                playHistory =
+                    mapOf(
+                        "history" to TrackPlayHistory("history", 2L, 200L),
+                    ),
+                createdAtByTrackId = mapOf("history" to 20L),
+            )
+
+        state.apply(AuthoritativeLibraryPublication(newer, revision = 2L))
+        state.apply(AuthoritativeLibraryPublication(older, revision = 1L))
+
+        assertEquals(newer, state.content)
+    }
+
+    @Test
     fun historyCollectorReportsFailureAndContinuesWithLaterEvents() =
         runBlocking {
             val repository =
