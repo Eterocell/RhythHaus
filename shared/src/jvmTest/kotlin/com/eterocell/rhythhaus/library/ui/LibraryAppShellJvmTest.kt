@@ -267,7 +267,7 @@ class LibraryAppShellJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun queryChangesReconcileHomeSelectionInProjectedOrderWithoutMutatingPlayback() =
+    fun queryAndModeChangesReconcileSelectionAcrossAdaptiveHomeRoutesWithoutMutatingPlayback() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
                 fun track(id: String, title: String) =
@@ -284,103 +284,158 @@ class LibraryAppShellJvmTest {
                 val playing = track("playing", "Zed")
                 val filtered = track("filtered", "Alpha")
                 val retained = track("retained", "Bravo")
-                val tracks = listOf(playing, filtered, retained)
-                val controller = PlaybackController(FakePlaybackEngine())
-                controller.setQueue(
-                    tracks.map { it.toPlayableTrack() },
-                    selectedTrackId = playing.id,
+                val favoritePeer = track("favorite-peer", "Echo")
+                val tracks = listOf(playing, filtered, retained, favoritePeer)
+
+                data class PlaybackInvariant(
+                    val currentTrackId: String?,
+                    val queueTrackIds: List<String>,
+                    val engineGeneration: Long,
+                    val repeatMode: RepeatMode,
+                    val shuffleMode: ShuffleMode,
+                    val status: PlaybackStatus,
+                    val positionMillis: Long,
+                    val durationMillis: Long?,
+                    val progressFraction: Float,
                 )
-                waitUntil(timeoutMillis = 5_000) {
-                    controller.state.value.status == PlaybackStatus.Paused
-                }
-                controller.setRepeatMode(RepeatMode.RepeatOne)
-                controller.setShuffleMode(ShuffleMode.On)
-                controller.play()
-                waitUntil(timeoutMillis = 5_000) {
-                    controller.state.value.status == PlaybackStatus.Playing
-                }
-                val playbackBeforeQuery = controller.state.value
-                val playlistActions = mutableListOf<PlaylistStateAction>()
-                mount(
-                    width = 1200.dp,
-                    source = source(),
-                    scanSession =
-                        ScanSession(
-                            id = "query-selection",
-                            sourceId = "source",
-                            status = ScanStatus.Completed,
-                            startedAtEpochMillis = 1L,
+
+                listOf(420.dp, 1200.dp).forEach { width ->
+                    val engine = FakePlaybackEngine()
+                    val controller = PlaybackController(engine)
+                    controller.setQueue(
+                        tracks.map { it.toPlayableTrack() },
+                        selectedTrackId = playing.id,
+                    )
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.status == PlaybackStatus.Paused
+                    }
+                    controller.setRepeatMode(RepeatMode.RepeatOne)
+                    controller.setShuffleMode(ShuffleMode.On)
+                    controller.play()
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.status == PlaybackStatus.Playing
+                    }
+                    controller.seekTo(45_000L)
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.positionMillis == 45_000L
+                    }
+
+                    fun playbackInvariant() =
+                        controller.state.value.let { state ->
+                            PlaybackInvariant(
+                                currentTrackId = state.currentTrack?.id,
+                                queueTrackIds = state.queue.map { it.track.id },
+                                engineGeneration = engine.activeGenerationForTest(),
+                                repeatMode = state.repeatMode,
+                                shuffleMode = state.shuffleMode,
+                                status = state.status,
+                                positionMillis = state.positionMillis,
+                                durationMillis = state.durationMillis,
+                                progressFraction = state.progressFraction,
+                            )
+                        }
+
+                    val playbackBeforeQuery = playbackInvariant()
+                    val playlistActions = mutableListOf<PlaylistStateAction>()
+                    mount(
+                        width = width,
+                        source = source(),
+                        scanSession =
+                            ScanSession(
+                                id = "query-selection-$width",
+                                sourceId = "source",
+                                status = ScanStatus.Completed,
+                                startedAtEpochMillis = 1L,
+                            ),
+                        tracks = tracks,
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                        playbackController = controller,
+                        favoriteTrackIds = { setOf(retained.id, favoritePeer.id) },
+                        onPlaylistStateAction = playlistActions::add,
+                    )
+                    onNode(hasText("Songs", substring = false)).performClick()
+                    waitForIdle()
+
+                    onNode(hasContentDescription("Select track Alpha"))
+                        .performSemanticsAction(SemanticsActions.OnLongClick)
+                    waitForIdle()
+                    onNode(
+                            hasContentDescription("Select track Alpha") and
+                                SemanticsMatcher.expectValue(
+                                    SemanticsProperties.ToggleableState,
+                                    ToggleableState.On,
+                                ),
+                        )
+                        .assertIsDisplayed()
+                    onNode(hasContentDescription("Select track Bravo"))
+                        .performSemanticsAction(SemanticsActions.OnLongClick)
+                    waitForIdle()
+                    onNode(
+                            hasContentDescription("Select track Bravo") and
+                                SemanticsMatcher.expectValue(
+                                    SemanticsProperties.ToggleableState,
+                                    ToggleableState.On,
+                                ),
+                        )
+                        .assertIsDisplayed()
+                    onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
+
+                    onNode(hasContentDescription("Descending")).performClick()
+                    waitForIdle()
+                    onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
+                    onNode(hasContentDescription("Add selected tracks to playlist"))
+                        .performClick()
+                    waitForIdle()
+                    assertEquals(
+                        PlaylistStateAction.OpenPicker(
+                            PlaylistPickerState(listOf(retained.id, filtered.id)),
                         ),
-                    tracks = tracks,
-                    picker = CountingPicker(),
-                    callbacks = CallbackRecorder(),
-                    playbackController = controller,
-                    favoriteTrackIds = { setOf(retained.id) },
-                    onPlaylistStateAction = playlistActions::add,
-                )
-                onAllNodes(hasText("Songs"))[0].performClick()
-                waitForIdle()
-
-                onNode(hasContentDescription("Select track Alpha"))
-                    .performSemanticsAction(SemanticsActions.OnLongClick)
-                waitForIdle()
-                onNode(
-                        hasContentDescription("Select track Alpha") and
-                            SemanticsMatcher.expectValue(
-                                SemanticsProperties.ToggleableState,
-                                ToggleableState.On,
-                            ),
+                        playlistActions.last(),
                     )
-                    .assertIsDisplayed()
-                onNode(hasContentDescription("Select track Bravo"))
-                    .performSemanticsAction(SemanticsActions.OnLongClick)
-                waitForIdle()
-                onNode(
-                        hasContentDescription("Select track Bravo") and
-                            SemanticsMatcher.expectValue(
-                                SemanticsProperties.ToggleableState,
-                                ToggleableState.On,
-                            ),
+                    assertEquals(playbackBeforeQuery, playbackInvariant())
+
+                    onNode(hasContentDescription("Favorites only")).performClick()
+                    waitForIdle()
+                    onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
+                    onNode(hasContentDescription("Add selected tracks to playlist"))
+                        .performClick()
+                    waitForIdle()
+                    assertEquals(
+                        PlaylistStateAction.OpenPicker(
+                            PlaylistPickerState(listOf(retained.id)),
+                        ),
+                        playlistActions.last(),
                     )
-                    .assertIsDisplayed()
-                onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
+                    assertEquals(playbackBeforeQuery, playbackInvariant())
 
-                onNode(hasContentDescription("Descending")).performClick()
-                waitForIdle()
-                onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
-                onNode(hasContentDescription("Add selected tracks to playlist"))
-                    .performClick()
-                waitForIdle()
-                assertEquals(
-                    PlaylistStateAction.OpenPicker(
-                        PlaylistPickerState(listOf(retained.id, filtered.id)),
-                    ),
-                    playlistActions.last(),
-                )
-                assertEquals(playbackBeforeQuery, controller.state.value)
+                    onNode(hasText("Favorites", substring = false)).performClick()
+                    waitForIdle()
+                    onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
+                    onNode(hasContentDescription("Add selected tracks to playlist"))
+                        .performClick()
+                    waitForIdle()
+                    assertEquals(
+                        PlaylistStateAction.OpenPicker(
+                            PlaylistPickerState(listOf(retained.id)),
+                        ),
+                        playlistActions.last(),
+                    )
+                    assertEquals(playbackBeforeQuery, playbackInvariant())
 
-                onNode(hasContentDescription("Favorites only")).performClick()
-                waitForIdle()
-                onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
-                onNode(hasContentDescription("Add selected tracks to playlist"))
-                    .performClick()
-                waitForIdle()
-                assertEquals(
-                    PlaylistStateAction.OpenPicker(PlaylistPickerState(listOf(retained.id))),
-                    playlistActions.last(),
-                )
-                assertEquals(playbackBeforeQuery, controller.state.value)
-
-                onNode(hasContentDescription("Cancel selection")).performClick()
-                waitForIdle()
-                onNode(hasContentDescription("Select track Bravo")).performClick()
-                waitUntil(timeoutMillis = 5_000) {
-                    controller.state.value.currentTrack?.id == retained.id
+                    onNode(hasContentDescription("Cancel selection")).performClick()
+                    waitForIdle()
+                    onNode(hasContentDescription("Select track Echo")).performClick()
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.currentTrack?.id == favoritePeer.id
+                    }
+                    assertEquals(
+                        listOf(favoritePeer.id, retained.id),
+                        controller.state.value.queue.map { it.track.id },
+                    )
+                    assertEquals(favoritePeer.id, controller.state.value.currentTrack?.id)
+                    controller.release()
                 }
-                assertEquals(
-                    listOf(retained.id),
-                    controller.state.value.queue.map { it.track.id },
-                )
             }
         }
 
