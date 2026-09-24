@@ -341,7 +341,10 @@ public class PlaybackController(
     private val playbackStartedChannel =
         Channel<PlaybackStarted>(Channel.UNLIMITED)
     private var lastPlaybackStartedKey: PlaybackStartedKey? = null
-    /** Emits each generation and queue occurrence that reaches actual playback once. */
+    /**
+     * Emits each generation and queue occurrence that reaches actual playback
+     * once.
+     */
     public val playbackStarted: Flow<PlaybackStarted> =
         playbackStartedChannel.receiveAsFlow()
 
@@ -1814,17 +1817,20 @@ public class PlaybackController(
         }
     }
 
-    /** Buffers a new actual-playing event after its state claim is committed. */
+    /**
+     * Buffers a new actual-playing event after its state claim is committed.
+     */
     private fun emitPlaybackStartedIfNew(state: PlaybackState) {
         if (state.status != PlaybackStatus.Playing) return
         val occurrence = state.currentOccurrence ?: return
         val key = PlaybackStartedKey(state.engineGeneration, occurrence.id)
         if (lastPlaybackStartedKey == key) return
-        if (
-            playbackStartedChannel.trySend(
-                PlaybackStarted(key.generation, key.occurrenceId, occurrence.track.id),
-            ).isSuccess
-        ) {
+        if (playbackStartedChannel
+            .trySend(
+                PlaybackStarted(
+                    key.generation, key.occurrenceId, occurrence.track.id),
+            )
+            .isSuccess) {
             lastPlaybackStartedKey = key
         }
     }

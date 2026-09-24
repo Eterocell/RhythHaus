@@ -150,7 +150,8 @@ public fun LibraryHomeContent(
     val emptyBrowseMessage =
         if (visibleTracks.isEmpty()) {
             when (browseMode) {
-                BrowseMode.Favorites -> stringResource(Res.string.favorites_empty)
+                BrowseMode.Favorites ->
+                    stringResource(Res.string.favorites_empty)
                 BrowseMode.RecentlyPlayed ->
                     stringResource(Res.string.recently_played_empty)
                 BrowseMode.RecentlyAdded ->

@@ -652,8 +652,10 @@ class PlaybackControllerTest {
                 }
             val generation = engine.activeGeneration
 
-            engine.listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
-            engine.listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
+            engine.listener?.onPlaybackStatus(
+                generation, PlaybackStatus.Playing)
+            engine.listener?.onPlaybackStatus(
+                generation, PlaybackStatus.Playing)
 
             assertEquals(
                 PlaybackStarted(generation, occurrence.id, occurrence.track.id),
@@ -678,7 +680,8 @@ class PlaybackControllerTest {
                 controller.playbackStarted.collect(events::send)
             }
         val staleGeneration = engine.activeGeneration
-        engine.listener?.onPlaybackStatus(staleGeneration, PlaybackStatus.Loading)
+        engine.listener?.onPlaybackStatus(
+            staleGeneration, PlaybackStatus.Loading)
         engine.listener?.onPlaybackError(
             staleGeneration,
             PlaybackError("load failed"),
@@ -687,7 +690,8 @@ class PlaybackControllerTest {
         val replacement = QueueOccurrence("replacement", testTracks(2)[1])
         controller.setOccurrenceQueue(listOf(replacement), replacement.id)
         engine.awaitLoadCount(2)
-        engine.listener?.onPlaybackStatus(staleGeneration, PlaybackStatus.Playing)
+        engine.listener?.onPlaybackStatus(
+            staleGeneration, PlaybackStatus.Playing)
 
         kotlinx.coroutines.yield()
         assertNull(events.tryReceive().getOrNull())
@@ -708,9 +712,11 @@ class PlaybackControllerTest {
                 controller.playbackStarted.collect(events::send)
             }
         val firstGeneration = engine.activeGeneration
-        engine.listener?.onPlaybackStatus(firstGeneration, PlaybackStatus.Playing)
+        engine.listener?.onPlaybackStatus(
+            firstGeneration, PlaybackStatus.Playing)
         assertEquals(
-            PlaybackStarted(firstGeneration, occurrence.id, occurrence.track.id),
+            PlaybackStarted(
+                firstGeneration, occurrence.id, occurrence.track.id),
             events.receive(),
         )
 
@@ -722,10 +728,12 @@ class PlaybackControllerTest {
         engine.awaitLoadCount(2)
         val secondGeneration = engine.activeGeneration
         assertTrue(firstGeneration != secondGeneration)
-        engine.listener?.onPlaybackStatus(secondGeneration, PlaybackStatus.Playing)
+        engine.listener?.onPlaybackStatus(
+            secondGeneration, PlaybackStatus.Playing)
 
         assertEquals(
-            PlaybackStarted(secondGeneration, occurrence.id, occurrence.track.id),
+            PlaybackStarted(
+                secondGeneration, occurrence.id, occurrence.track.id),
             events.receive(),
         )
         kotlinx.coroutines.yield()

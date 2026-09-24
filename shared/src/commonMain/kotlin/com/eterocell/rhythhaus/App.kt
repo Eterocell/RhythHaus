@@ -605,9 +605,10 @@ fun App(
             importActive = folderPickerLauncher.isImportActive,
             followUpScanPending = followUpScanPending,
         )
-    val snapshot = remember(libraryContent.tracks) {
-        librarySnapshot(libraryContent.tracks)
-    }
+    val snapshot =
+        remember(libraryContent.tracks) {
+            librarySnapshot(libraryContent.tracks)
+        }
     RhythHausTheme(selectedThemeMode = selectedThemeMode) {
         CompositionLocalProvider(
             LocalTrackArtworkLoader provides
@@ -1185,9 +1186,8 @@ internal fun loadLibraryContent(
 
 /**
  * Records an admitted playback event and publishes its fresh library snapshot
- * under publication ownership. A rejected write means the track was removed,
- * so it leaves the current publication unchanged without entering scan
- * admission.
+ * under publication ownership. A rejected write means the track was removed, so
+ * it leaves the current publication unchanged without entering scan admission.
  */
 internal suspend fun recordPlaybackHistoryAndPublish(
     event: PlaybackStarted,
@@ -1201,12 +1201,10 @@ internal suspend fun recordPlaybackHistoryAndPublish(
     publicationOwner.mutateAndPublish(
         mutation = {
             withContext(ioDispatcher) {
-                if (
-                    !repository.recordTrackPlayed(
-                        event.trackId,
-                        playedAtEpochMillis,
-                    )
-                ) {
+                if (!repository.recordTrackPlayed(
+                    event.trackId,
+                    playedAtEpochMillis,
+                )) {
                     null
                 } else {
                     loadLibraryContent(repository, platformAccess)

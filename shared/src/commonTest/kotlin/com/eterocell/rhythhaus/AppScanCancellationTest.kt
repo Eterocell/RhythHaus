@@ -1062,8 +1062,7 @@ class AppScanCancellationTest {
                 recordTrackPlayed("history", 100L)
             }
 
-        val content =
-            loadLibraryContent(repository, EmptyPlatformSourceAccess)
+        val content = loadLibraryContent(repository, EmptyPlatformSourceAccess)
         repository.recordTrackPlayed("history", 200L)
 
         assertEquals(
@@ -1258,7 +1257,8 @@ class AppScanCancellationTest {
         owner.publish(loadLibraryContent(repository, EmptyPlatformSourceAccess))
         val scanContent =
             loadLibraryContent(repository, EmptyPlatformSourceAccess)
-        val historyPublications = mutableListOf<AuthoritativeLibraryPublication>()
+        val historyPublications =
+            mutableListOf<AuthoritativeLibraryPublication>()
 
         recordPlaybackHistoryAndPublish(
             event = PlaybackStarted(1L, "history-occurrence", "history"),
@@ -1279,7 +1279,8 @@ class AppScanCancellationTest {
 
         val expectedHistory =
             mapOf("history" to TrackPlayHistory("history", 1L, 100L))
-        assertEquals(expectedHistory, historyPublications.single().content.playHistory)
+        assertEquals(
+            expectedHistory, historyPublications.single().content.playHistory)
         assertEquals(expectedHistory, scanPublication.content.playHistory)
         assertEquals(
             mapOf("history" to 1L),

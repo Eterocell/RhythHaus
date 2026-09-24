@@ -30,8 +30,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
@@ -512,10 +512,7 @@ private fun BrowseModeButton(
 ) {
     Button(
         onClick = { onModeChange(mode) },
-        modifier =
-            modifier
-                .height(40.dp)
-                .semantics { selected = isSelected },
+        modifier = modifier.height(40.dp).semantics { selected = isSelected },
         cornerRadius = 20.dp,
         insideMargin =
             PaddingValues(

@@ -46,7 +46,8 @@ class PlaybackHistoryAdmissionTest {
             assertEquals(expectedHistory, repository.playHistory())
             assertEquals(1, publications.size)
             assertEquals(initial.revision + 1L, publications.single().revision)
-            assertEquals(expectedHistory, publications.single().content.playHistory)
+            assertEquals(
+                expectedHistory, publications.single().content.playHistory)
             assertEquals(
                 mapOf("history" to 10L),
                 publications.single().content.createdAtByTrackId,
@@ -61,12 +62,13 @@ class PlaybackHistoryAdmissionTest {
                 upsertTrack(historyTrack("history"))
             }
         val owner = AuthoritativeLibraryPublicationOwner()
-        owner.publish(loadLibraryContent(repository, HistoryPlatformSourceAccess))
+        owner.publish(
+            loadLibraryContent(repository, HistoryPlatformSourceAccess))
         var scanCancellationRequests = 0
-        val coordinator =
-            AppLibraryOperationCoordinator { scanCancellationRequests++ }
-        val scan =
-            coordinator.admitScan() as LibraryOperationAdmission.Admitted
+        val coordinator = AppLibraryOperationCoordinator {
+            scanCancellationRequests++
+        }
+        val scan = coordinator.admitScan() as LibraryOperationAdmission.Admitted
         val publications = mutableListOf<AuthoritativeLibraryPublication>()
 
         recordPlaybackHistoryAndPublish(
@@ -80,7 +82,8 @@ class PlaybackHistoryAdmissionTest {
         )
 
         assertEquals(0, scanCancellationRequests)
-        assertEquals(LibraryOperationState.Running(scan.token), coordinator.state.value)
+        assertEquals(
+            LibraryOperationState.Running(scan.token), coordinator.state.value)
         assertEquals(
             mapOf("history" to TrackPlayHistory("history", 1L, 100L)),
             publications.single().content.playHistory,
@@ -145,7 +148,8 @@ class PlaybackHistoryAdmissionTest {
         state.apply(AuthoritativeLibraryPublication(current, revision = 2L))
 
         assertEquals(current.playHistory, state.content.playHistory)
-        assertEquals(current.createdAtByTrackId, state.content.createdAtByTrackId)
+        assertEquals(
+            current.createdAtByTrackId, state.content.createdAtByTrackId)
     }
 
     @Test
@@ -201,7 +205,8 @@ class PlaybackHistoryAdmissionTest {
         assertFailsWith<CancellationException> {
             collectPlaybackHistoryAndPublish(
                 playbackStarted =
-                    flowOf(PlaybackStarted(1L, "cancelled-occurrence", "history")),
+                    flowOf(
+                        PlaybackStarted(1L, "cancelled-occurrence", "history")),
                 publicationOwner = AuthoritativeLibraryPublicationOwner(),
                 repository = repository,
                 platformAccess = HistoryPlatformSourceAccess,
@@ -239,8 +244,7 @@ private class CancellationHistoryRecordRepository(
     override fun recordTrackPlayed(
         trackId: String,
         playedAtEpochMillis: Long,
-    ): Boolean =
-        throw CancellationException("history collection cancelled")
+    ): Boolean = throw CancellationException("history collection cancelled")
 }
 
 private object HistoryPlatformSourceAccess : PlatformSourceAccess {
