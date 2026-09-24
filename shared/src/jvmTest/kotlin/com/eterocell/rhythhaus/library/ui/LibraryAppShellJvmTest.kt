@@ -19,9 +19,9 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -247,8 +247,7 @@ class LibraryAppShellJvmTest {
                 selectAllAndOpenPicker(
                     mode = "Recently played",
                     selectedTitle = "Recent latest",
-                    expectedTrackIds =
-                        listOf("recent-latest", "favorite-last"),
+                    expectedTrackIds = listOf("recent-latest", "favorite-last"),
                 )
                 selectAllAndOpenPicker(
                     mode = "Recently added",

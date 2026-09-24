@@ -923,9 +923,9 @@ internal class AppLibraryContentState {
     private var appliedRevision: Long = 0L
 
     /**
-     * Keeps delayed Main-thread application from replacing a newer authoritative
-     * snapshot that was published after this one left its owner critical
-     * section.
+     * Keeps delayed Main-thread application from replacing a newer
+     * authoritative snapshot that was published after this one left its owner
+     * critical section.
      */
     fun apply(publication: AuthoritativeLibraryPublication): Boolean {
         if (publication.revision <= appliedRevision) return false
