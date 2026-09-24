@@ -95,3 +95,44 @@ not run by this dispatch.
 BUILD SUCCESSFUL in 3s
 152 actionable tasks: 28 executed, 124 up-to-date
 ```
+
+## Resource-ownership regression repair
+
+### Root cause
+
+Task 4 added four feature-owned resource keys to both locale catalogs, but the
+hard-coded `libraryKeys` ownership ledger in
+`LibraryResourceOwnershipJvmTest` was not updated. The ownership test therefore
+reported the catalogs as containing unexpected keys; this was a test-boundary
+maintenance omission, not a production resource or behavior defect.
+
+### Changed ledger
+
+Added the following keys in catalog order to `libraryKeys`:
+
+- `browse_mode_recently_played`
+- `browse_mode_recently_added`
+- `recently_played_empty`
+- `recently_added_empty`
+
+### Verification
+
+Direct reproducer:
+
+```text
+./gradlew :feature:library:impl:jvmTest --tests 'com.eterocell.rhythhaus.library.LibraryResourceOwnershipJvmTest.featureOwnsExactlyTheExpectedLibraryKeysInBothLocales' --configuration-cache
+BUILD SUCCESSFUL in 4s
+57 actionable tasks: 13 executed, 44 up-to-date
+```
+
+Exact Task 4 selector:
+
+```text
+./gradlew :feature:library:impl:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryBrowserTest' --tests 'com.eterocell.rhythhaus.library.ui.LibraryHomeContentJvmTest' :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryAppShellJvmTest' --tests 'com.eterocell.rhythhaus.library.ui.HomeSelectionPoliciesJvmTest' --configuration-cache
+BUILD SUCCESSFUL in 3s
+152 actionable tasks: 26 executed, 1 from cache, 125 up-to-date
+```
+
+### Commit
+
+`5fe266b4` (`test(library): update recent resource ownership ledger`)
