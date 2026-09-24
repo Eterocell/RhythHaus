@@ -135,4 +135,4 @@ BUILD SUCCESSFUL in 3s
 
 ### Commit
 
-`5fe266b4` (`test(library): update recent resource ownership ledger`)
+The repair is committed as `52eb72f4` (`test(library): update recent resource ownership ledger`).
