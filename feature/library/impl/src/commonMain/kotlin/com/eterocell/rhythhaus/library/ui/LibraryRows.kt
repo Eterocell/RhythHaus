@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
@@ -59,6 +60,8 @@ import rhythhaus.feature.library.generated.resources.artist_artwork
 import rhythhaus.feature.library.generated.resources.browse_mode_albums
 import rhythhaus.feature.library.generated.resources.browse_mode_artists
 import rhythhaus.feature.library.generated.resources.browse_mode_favorites
+import rhythhaus.feature.library.generated.resources.browse_mode_recently_added
+import rhythhaus.feature.library.generated.resources.browse_mode_recently_played
 import rhythhaus.feature.library.generated.resources.browse_mode_songs
 import rhythhaus.feature.library.generated.resources.hide_scan_report
 import rhythhaus.feature.library.generated.resources.import_card_description
@@ -490,7 +493,10 @@ internal fun BrowseModePicker(
                 val isSelected = browseMode == mode
                 Button(
                     onClick = { onModeChange(mode) },
-                    modifier = Modifier.weight(1f).height(40.dp),
+                    modifier =
+                        Modifier.weight(1f)
+                            .height(40.dp)
+                            .semantics { selected = isSelected },
                     cornerRadius = 20.dp,
                     insideMargin =
                         PaddingValues(
@@ -534,6 +540,8 @@ private fun BrowseMode.displayLabelResource() =
         BrowseMode.Artists -> Res.string.browse_mode_artists
         BrowseMode.Songs -> Res.string.browse_mode_songs
         BrowseMode.Favorites -> Res.string.browse_mode_favorites
+        BrowseMode.RecentlyPlayed -> Res.string.browse_mode_recently_played
+        BrowseMode.RecentlyAdded -> Res.string.browse_mode_recently_added
     }
 
 @Composable
