@@ -214,8 +214,9 @@ fun App(
         publication: AuthoritativeLibraryPublication,
     ) {
         withContext(Dispatchers.Main) {
-            appLibraryContentState.apply(publication)
-            libraryRevision = publication.revision
+            if (appLibraryContentState.apply(publication)) {
+                libraryRevision = publication.revision
+            }
         }
     }
     suspend fun updateLibraryContent(content: LibraryContentState) {
@@ -919,8 +920,18 @@ internal class AppLibraryContentState {
     var content by mutableStateOf(LibraryContentState(emptyList(), emptyList()))
         private set
 
-    fun apply(publication: AuthoritativeLibraryPublication) {
+    private var appliedRevision: Long = 0L
+
+    /**
+     * Keeps delayed Main-thread application from replacing a newer authoritative
+     * snapshot that was published after this one left its owner critical
+     * section.
+     */
+    fun apply(publication: AuthoritativeLibraryPublication): Boolean {
+        if (publication.revision <= appliedRevision) return false
         content = publication.content
+        appliedRevision = publication.revision
+        return true
     }
 }
 

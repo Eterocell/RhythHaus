@@ -247,7 +247,9 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     override fun play() {
         withController { controller ->
             controller.play()
-            listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
+            // MediaController.play() is non-blocking. The Media3 listener's
+            // onIsPlayingChanged(true) callback is the sole actual-playing
+            // confirmation and therefore the sole Android Playing publisher.
             publishProgress(controller)
             startProgressLoop()
         }
