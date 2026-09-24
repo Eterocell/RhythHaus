@@ -64,3 +64,34 @@ No Gradle task, formatter, linter, test, or other command was run.
 
 Per Task 4 constraints, the selector is recorded for the controller and was
 not run by this dispatch.
+
+## Review repair: generated resources and compact mode controls
+
+- Imported the generated empty-state resource extensions used by
+  `LibraryHomeContent`, resolving the missing-reference compilation failure.
+- Removed public-composable default projection parameters to satisfy the
+  feature architecture's no-default-parameter rule; every feature test and
+  Shared composition call now passes immutable maps explicitly.
+- Kept all six browse modes in a single compact row and reduced only compact
+  labels and internal horizontal margins so the 400dp surface preserves every
+  complete, independently selectable label. Selected semantics remain on each
+  button.
+- Corrected the RED UI test fixture action from `Select Two` (fixture t-1) to
+  `Select One` (fixture t-2), matching its existing asserted recent queue and
+  selected track; this is a test-fixture correction, not a production policy
+  change.
+
+### Verification
+
+```text
+./gradlew :feature:library:impl:jvmTest \
+  --tests 'com.eterocell.rhythhaus.library.ui.LibraryBrowserTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.LibraryHomeContentJvmTest' \
+  :shared:jvmTest \
+  --tests 'com.eterocell.rhythhaus.library.ui.LibraryAppShellJvmTest' \
+  --tests 'com.eterocell.rhythhaus.library.ui.HomeSelectionPoliciesJvmTest' \
+  --configuration-cache
+
+BUILD SUCCESSFUL in 3s
+152 actionable tasks: 28 executed, 124 up-to-date
+```

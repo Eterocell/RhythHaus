@@ -33,6 +33,9 @@ import com.eterocell.rhythhaus.ui.RhythHausBackdrop
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.library.generated.resources.Res
+import rhythhaus.feature.library.generated.resources.favorites_empty
+import rhythhaus.feature.library.generated.resources.recently_added_empty
+import rhythhaus.feature.library.generated.resources.recently_played_empty
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Surface
@@ -95,8 +98,8 @@ public fun LibraryHomeContent(
     subtitle: String,
     tracks: List<Track>,
     browseMode: BrowseMode,
-    playHistory: Map<String, TrackPlayHistory> = emptyMap(),
-    createdAtByTrackId: Map<String, Long> = emptyMap(),
+    playHistory: Map<String, TrackPlayHistory>,
+    createdAtByTrackId: Map<String, Long>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
     sourcePickerActionVisible: Boolean,
     importMessage: String?,
