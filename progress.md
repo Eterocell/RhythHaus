@@ -4453,3 +4453,14 @@ Review: final independent review found three Important issues (Android optimisti
 OpenSpec: canonical specs are `openspec/specs/playback-history/spec.md` and `openspec/specs/local-library-scanning/spec.md`; archived change is `openspec/changes/archive/2026-09-24-playback-history/`.
 Next owner: select the next Phase 2 roadmap change, beginning with sorting and filtering.
 Blockers: the recorded Shared full-suite timeout and TagLib Android native toolchain configuration remain environment/baseline verification limits; no playback-history code blocker.
+
+## Planning - 2026-09-24 sorting and filtering
+
+Route: openspec+superpowers planning
+Owner: OpenSpec planning
+Input: next ordered Phase 2 daily-use deliverable after completed playback history.
+Output: `openspec/changes/sorting-filtering/` contains the proposal, `library-sorting-filtering` capability delta, design, and task ledger. `docs/superpowers/specs/2026-09-24-sorting-filtering-design.md` records the shared-owned ephemeral query direction; `docs/superpowers/plans/2026-09-24-sorting-filtering.md` provides the executable TDD plan.
+Decision: add a pure Library browse query for title, artist, album, added time, modified time, play count, and favorite sorting plus favorite/artwork/source filters. Query state resets with the Library shell, applies only to flat Home results, and feeds the exact visible order to selection and playback without schema, media, source, or playback mutation.
+Verification: `openspec validate sorting-filtering --strict` passed; plan placeholder scan and `git diff --check` passed.
+Next owner: isolated OpenSpec apply plus subagent-driven implementation, beginning with the pure query projection task.
+Blockers: none for implementation planning.
