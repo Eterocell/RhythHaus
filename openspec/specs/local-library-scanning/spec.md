@@ -49,21 +49,21 @@ The iOS local-library workflow SHALL register and scan the managed `Documents/Rh
 
 ### Requirement: Persistent local library database
 
-The system SHALL persist library sources, tracks, scan sessions, scan errors, and track-favorite relationships in a shared KMP database.
+The system SHALL persist library sources, tracks, scan sessions, scan errors, track-favorite relationships, and listener-owned per-track play history in a shared KMP database.
 
 #### Scenario: Scanned tracks survive restart
-- **WHEN** tracks and their favorite relationships have been discovered and stored during a scan
-- **THEN** reopening the app restores the tracks and favorite state from the database without requiring a new scan first
+- **WHEN** tracks, their favorite relationships, and their play histories have been discovered and stored
+- **THEN** reopening the app restores tracks, favorite state, and play history without requiring a new scan first
 
 #### Scenario: Rescan updates existing tracks
 - **WHEN** a source is scanned again
 - **THEN** existing tracks are updated by source-local identity rather than duplicated
-- **AND** a favorite relationship for an existing track remains associated with that track
+- **AND** favorite relationships and play history for an existing track remain associated with that track
 
 #### Scenario: Missing files can be removed
 - **WHEN** a rescan no longer sees previously stored tracks for that source
 - **THEN** the user can remove or mark those missing tracks through the library manager
-- **AND** removal also removes their favorite relationships
+- **AND** removal also removes their favorite relationships and play history
 
 #### Scenario: Remove-missing requires the authoritative completed scan
 - **WHEN** remove-missing is requested with a source and scan id
@@ -82,6 +82,11 @@ The system SHALL persist library sources, tracks, scan sessions, scan errors, an
 - **WHEN** source removal, clear-library, or an accepted remove-missing operation deletes a library track
 - **THEN** the associated favorite relationship is deleted as part of the same database lifecycle
 - **AND** the mutation cannot leave an orphaned favorite visible to the application
+
+#### Scenario: Track deletion cascades play history state
+- **WHEN** source removal, clear-library, or an accepted remove-missing operation deletes a library track
+- **THEN** the associated play-history record is deleted as part of the same database lifecycle
+- **AND** the mutation cannot leave an orphaned history record visible to the application
 
 ### Requirement: Scan progress and management
 
