@@ -7,6 +7,7 @@ import com.eterocell.rhythhaus.library.RemoveMissingTracksResult
 import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.TrackArtwork
+import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.library.TrackUpsertResult
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.session.PlaybackSessionReconcileResult
@@ -113,6 +114,13 @@ private class ThreadCapturingRepository : LibraryRepository {
 
     override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean =
         false
+
+    override fun playHistory(): Map<String, TrackPlayHistory> = emptyMap()
+
+    override fun recordTrackPlayed(
+        trackId: String,
+        playedAtEpochMillis: Long,
+    ): Boolean = false
 
     override fun tracksForSource(sourceId: String): List<LibraryTrack> =
         emptyList()

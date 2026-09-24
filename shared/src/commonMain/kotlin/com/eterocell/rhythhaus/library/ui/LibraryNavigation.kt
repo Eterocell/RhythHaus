@@ -208,8 +208,7 @@ fun trackSelectionPageKeyFor(
     when (route) {
         LibraryRoute.Home ->
             TrackSelectionPageKey.HomeSongs.takeIf {
-                browseMode == BrowseMode.Songs ||
-                    browseMode == BrowseMode.Favorites
+                browseMode.isFlatHomeBrowseMode()
             }
         is LibraryRoute.AlbumDetail -> TrackSelectionPageKey.Album(route.album)
         is LibraryRoute.ArtistDetail ->
@@ -217,6 +216,12 @@ fun trackSelectionPageKeyFor(
         LibraryRoute.Search -> TrackSelectionPageKey.Search
         else -> null
     }
+
+internal fun BrowseMode.isFlatHomeBrowseMode(): Boolean =
+    this == BrowseMode.Songs ||
+        this == BrowseMode.Favorites ||
+        this == BrowseMode.RecentlyPlayed ||
+        this == BrowseMode.RecentlyAdded
 
 /**
  * The presented route plus its shell-created instance token. Route equality

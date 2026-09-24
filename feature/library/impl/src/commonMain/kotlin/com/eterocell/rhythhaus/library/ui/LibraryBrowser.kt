@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryTrack
+import com.eterocell.rhythhaus.library.TrackPlayHistory
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.library.generated.resources.Res
 import rhythhaus.feature.library.generated.resources.favorite_add
@@ -21,6 +22,10 @@ public enum class BrowseMode {
     Songs,
     /** Flat authoritative favorite-track list. */
     Favorites,
+    /** Flat tracks ordered by their latest recorded playback. */
+    RecentlyPlayed,
+    /** Flat tracks ordered by their library creation time. */
+    RecentlyAdded,
 }
 
 /** Returns the authoritative tracks visible in the selected browse mode. */
@@ -28,11 +33,37 @@ internal fun visibleTracksForBrowseMode(
     tracks: List<Track>,
     browseMode: BrowseMode,
     favoriteTrackIds: Set<String>,
+    playHistory: Map<String, TrackPlayHistory> = emptyMap(),
+    createdAtByTrackId: Map<String, Long> = emptyMap(),
 ): List<Track> =
-    if (browseMode == BrowseMode.Favorites) {
-        tracks.filter { it.id in favoriteTrackIds }
-    } else {
-        tracks
+    when (browseMode) {
+        BrowseMode.Favorites -> tracks.filter { it.id in favoriteTrackIds }
+        BrowseMode.RecentlyPlayed ->
+            tracks
+                .filter { it.id in playHistory }
+                .sortedWith(
+                    compareByDescending<Track> {
+                            playHistory.getValue(it.id).lastPlayedAtEpochMillis
+                        }
+                        .thenBy { it.title.lowercase() }
+                        .thenBy { it.artist.lowercase() },
+                )
+        BrowseMode.RecentlyAdded -> {
+            require(tracks.all { it.id in createdAtByTrackId }) {
+                "Recently added requires a created-time projection for every displayed track."
+            }
+            tracks.sortedWith(
+                compareByDescending<Track> {
+                        createdAtByTrackId.getValue(it.id)
+                    }
+                    .thenBy { it.title.lowercase() }
+                    .thenBy { it.artist.lowercase() },
+            )
+        }
+        BrowseMode.Albums,
+        BrowseMode.Artists,
+        BrowseMode.Songs,
+        -> tracks
     }
 
 /**

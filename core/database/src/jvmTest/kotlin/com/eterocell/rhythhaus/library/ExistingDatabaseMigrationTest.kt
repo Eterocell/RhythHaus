@@ -36,7 +36,7 @@ class ExistingDatabaseMigrationTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(RhythHausDatabase.Schema.version, 3L)
+            assertEquals(RhythHausDatabase.Schema.version, 4L)
 
             database.playlistQueries.insertPlaylist(
                 "playlist-1", "Migrated", 1, 1)
@@ -82,7 +82,7 @@ class ExistingDatabaseMigrationTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(3L, RhythHausDatabase.Schema.version)
+            assertEquals(4L, RhythHausDatabase.Schema.version)
             assertEquals(
                 "legacy-track",
                 database.libraryTrackQueries
@@ -98,6 +98,36 @@ class ExistingDatabaseMigrationTest {
             assertTrue(
                 database.trackFavoriteQueries
                     .selectFavoriteTrackIds()
+                    .executeAsList()
+                    .isEmpty())
+        } finally {
+            libraryDatabase.driver.close()
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun migrationFromVersionThreePreservesTracksAndStartsWithNoHistory() {
+        val databaseFile = copyVersionThreeDatabase()
+        assertEquals(3L, jdbcUserVersion(databaseFile))
+        seedVersionTwoLibrary(databaseFile)
+
+        val libraryDatabase = LibraryDatabase(databaseFile)
+        try {
+            val database = libraryDatabase.database
+            assertEquals(
+                RhythHausDatabase.Schema.version,
+                driverUserVersion(libraryDatabase.driver))
+            assertEquals(4L, RhythHausDatabase.Schema.version)
+            assertEquals(
+                "legacy-track",
+                database.libraryTrackQueries
+                    .selectAllTracks()
+                    .executeAsOne()
+                    .id)
+            assertTrue(
+                database.trackPlayHistoryQueries
+                    .selectPlayHistory()
                     .executeAsList()
                     .isEmpty())
         } finally {
@@ -179,6 +209,32 @@ class ExistingDatabaseMigrationTest {
     }
 
     @Test
+    fun unversionedPrePlayHistoryDatabaseBootstrapsAtVersionThreeBeforeMigrating() {
+        val databaseFile = copyVersionThreeDatabase()
+        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
+            .use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("PRAGMA user_version = 0")
+                }
+            }
+
+        val libraryDatabase = LibraryDatabase(databaseFile)
+        try {
+            assertEquals(
+                RhythHausDatabase.Schema.version,
+                driverUserVersion(libraryDatabase.driver))
+            assertTrue(
+                libraryDatabase.database.trackPlayHistoryQueries
+                    .selectPlayHistory()
+                    .executeAsList()
+                    .isEmpty())
+        } finally {
+            libraryDatabase.driver.close()
+            databaseFile.delete()
+        }
+    }
+
+    @Test
     fun generatedDatabaseIdentityAndFilenameRemainStable() {
         val generatedType: RhythHausDatabase? = null
 
@@ -200,6 +256,16 @@ class ExistingDatabaseMigrationTest {
         val target = Files.createTempFile("rhythhaus-v2", ".db").toFile()
         Files.copy(
             File("src/commonMain/sqldelight/databases/2.db").toPath(),
+            target.toPath(),
+            StandardCopyOption.REPLACE_EXISTING,
+        )
+        return target
+    }
+
+    private fun copyVersionThreeDatabase(): File {
+        val target = Files.createTempFile("rhythhaus-v3", ".db").toFile()
+        Files.copy(
+            File("src/commonMain/sqldelight/databases/3.db").toPath(),
             target.toPath(),
             StandardCopyOption.REPLACE_EXISTING,
         )

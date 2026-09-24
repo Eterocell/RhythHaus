@@ -40,6 +40,12 @@ class LibraryApiContractTest {
         assertEquals(emptySet(), repository.favoriteTrackIds())
         assertFalse(
             repository.setTrackFavorite("missing-track", favorite = true))
+        assertEquals(emptyMap(), repository.playHistory())
+        assertTrue(repository.recordTrackPlayed(track.id, 3L))
+        assertEquals(
+            mapOf(track.id to TrackPlayHistory(track.id, 1L, 3L)),
+            repository.playHistory())
+        assertFalse(repository.recordTrackPlayed("missing-track", 4L))
         assertEquals(listOf(track), repository.tracksForSource(source.id))
         assertEquals(
             TrackArtwork(byteArrayOf(1), "image/jpeg"),
@@ -100,6 +106,8 @@ private enum class LibraryRepositoryMethod {
     Tracks,
     FavoriteTrackIds,
     SetTrackFavorite,
+    PlayHistory,
+    RecordTrackPlayed,
     TracksForSource,
     ArtworkForTrack,
     InsertScanSession,
@@ -118,6 +126,7 @@ private class RecordingLibraryRepository : LibraryRepository {
     private lateinit var track: LibraryTrack
     private lateinit var error: ScanError
     private val favoriteIds = linkedSetOf<String>()
+    private val playHistory = linkedMapOf<String, TrackPlayHistory>()
 
     override fun upsertSource(source: LibrarySource) {
         calls += LibraryRepositoryMethod.UpsertSource
@@ -153,6 +162,27 @@ private class RecordingLibraryRepository : LibraryRepository {
         } else {
             favoriteIds -= trackId
         }
+        return true
+    }
+
+    override fun playHistory(): Map<String, TrackPlayHistory> {
+        calls += LibraryRepositoryMethod.PlayHistory
+        return playHistory.toMap()
+    }
+
+    override fun recordTrackPlayed(
+        trackId: String,
+        playedAtEpochMillis: Long,
+    ): Boolean {
+        calls += LibraryRepositoryMethod.RecordTrackPlayed
+        if (!::track.isInitialized || track.id != trackId) return false
+        val existing = playHistory[trackId]
+        playHistory[trackId] =
+            TrackPlayHistory(
+                trackId = trackId,
+                playCount = (existing?.playCount ?: 0L) + 1L,
+                lastPlayedAtEpochMillis = playedAtEpochMillis,
+            )
         return true
     }
 

@@ -637,6 +637,111 @@ class PlaybackControllerTest {
     }
 
     @Test
+    fun playingStatusEmitsOneEventForCurrentGenerationAndOccurrence() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val occurrence = QueueOccurrence("one", testTracks(1).single())
+            controller.setOccurrenceQueue(listOf(occurrence), occurrence.id)
+            engine.awaitLoad()
+
+            val events = Channel<PlaybackStarted>(Channel.UNLIMITED)
+            val collection =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.playbackStarted.collect(events::send)
+                }
+            val generation = engine.activeGeneration
+
+            engine.listener?.onPlaybackStatus(
+                generation, PlaybackStatus.Playing)
+            engine.listener?.onPlaybackStatus(
+                generation, PlaybackStatus.Playing)
+
+            assertEquals(
+                PlaybackStarted(generation, occurrence.id, occurrence.track.id),
+                events.receive(),
+            )
+            kotlinx.coroutines.yield()
+            assertNull(events.tryReceive().getOrNull())
+            collection.cancelAndJoin()
+        }
+
+    @Test
+    fun loadingFailureAndStaleGenerationEmitNoPlayStartedEvent() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val first = QueueOccurrence("one", testTracks(1).single())
+        controller.setOccurrenceQueue(listOf(first), first.id)
+        engine.awaitLoad()
+
+        val events = Channel<PlaybackStarted>(Channel.UNLIMITED)
+        val collection =
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                controller.playbackStarted.collect(events::send)
+            }
+        val staleGeneration = engine.activeGeneration
+        engine.listener?.onPlaybackStatus(
+            staleGeneration, PlaybackStatus.Loading)
+        engine.listener?.onPlaybackError(
+            staleGeneration,
+            PlaybackError("load failed"),
+        )
+
+        val replacement = QueueOccurrence("replacement", testTracks(2)[1])
+        controller.setOccurrenceQueue(listOf(replacement), replacement.id)
+        engine.awaitLoadCount(2)
+        engine.listener?.onPlaybackStatus(
+            staleGeneration, PlaybackStatus.Playing)
+
+        kotlinx.coroutines.yield()
+        assertNull(events.tryReceive().getOrNull())
+        collection.cancelAndJoin()
+    }
+
+    @Test
+    fun retryOrNewSelectionPlayingCountsNewGeneration() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = PlaybackController(engine)
+        val occurrence = QueueOccurrence("one", testTracks(1).single())
+        controller.setOccurrenceQueue(listOf(occurrence), occurrence.id)
+        engine.awaitLoad()
+
+        val events = Channel<PlaybackStarted>(Channel.UNLIMITED)
+        val collection =
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                controller.playbackStarted.collect(events::send)
+            }
+        val firstGeneration = engine.activeGeneration
+        engine.listener?.onPlaybackStatus(
+            firstGeneration, PlaybackStatus.Playing)
+        assertEquals(
+            PlaybackStarted(
+                firstGeneration, occurrence.id, occurrence.track.id),
+            events.receive(),
+        )
+
+        engine.listener?.onPlaybackError(
+            firstGeneration,
+            PlaybackError("retry me"),
+        )
+        controller.retryFailedTrack()
+        engine.awaitLoadCount(2)
+        val secondGeneration = engine.activeGeneration
+        assertTrue(firstGeneration != secondGeneration)
+        engine.listener?.onPlaybackStatus(
+            secondGeneration, PlaybackStatus.Playing)
+
+        assertEquals(
+            PlaybackStarted(
+                secondGeneration, occurrence.id, occurrence.track.id),
+            events.receive(),
+        )
+        kotlinx.coroutines.yield()
+        assertNull(events.tryReceive().getOrNull())
+        collection.cancelAndJoin()
+    }
+
+    @Test
     fun playbackLoadsLazyArtworkBeforeHandingTrackToEngine() = runBlocking {
         val engine = RecordingPlaybackEngine()
         val lazyArtwork = byteArrayOf(9, 8, 7, 6)

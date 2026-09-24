@@ -5,13 +5,12 @@ import app.cash.sqldelight.db.SqlDriver
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class TrackFavoriteDatabaseTest {
+class TrackPlayHistoryDatabaseTest {
     @Test
-    fun currentDatabaseSupportsIdempotentFavoriteMembershipAndAbsentTrackRejection() {
-        val databaseFile = temporaryDatabaseFile("rhythhaus-favorites")
+    fun currentDatabaseIncrementsPlayHistoryAndUpdatesTheTimestamp() {
+        val databaseFile = temporaryDatabaseFile("rhythhaus-play-history")
         val libraryDatabase = LibraryDatabase(databaseFile)
         try {
             val database = libraryDatabase.database
@@ -21,33 +20,16 @@ class TrackFavoriteDatabaseTest {
             assertEquals(4L, RhythHausDatabase.Schema.version)
             seedTrack(database)
 
-            database.trackFavoriteQueries.setTrackFavorite("missing-track", 10)
-            assertTrue(
-                database.trackFavoriteQueries
-                    .selectFavoriteTrackIds()
-                    .executeAsList()
-                    .isEmpty())
+            database.trackPlayHistoryQueries.recordTrackPlayed("track-1", 10L)
+            database.trackPlayHistoryQueries.recordTrackPlayed("track-1", 20L)
 
-            database.trackFavoriteQueries.setTrackFavorite("track-1", 10)
-            database.trackFavoriteQueries.setTrackFavorite("track-1", 20)
-            assertEquals(
-                listOf("track-1"),
-                database.trackFavoriteQueries
-                    .selectFavoriteTrackIds()
-                    .executeAsList())
-            assertEquals(
-                10L,
-                database.trackFavoriteQueries
-                    .selectFavoriteTrack("track-1")
+            val history =
+                database.trackPlayHistoryQueries
+                    .selectPlayHistory()
                     .executeAsOne()
-                    .favoritedAtEpochMillis)
-
-            database.trackFavoriteQueries.unsetTrackFavorite("track-1")
-            database.trackFavoriteQueries.unsetTrackFavorite("track-1")
-            assertNull(
-                database.trackFavoriteQueries
-                    .selectFavoriteTrack("track-1")
-                    .executeAsOneOrNull())
+            assertEquals("track-1", history.trackId)
+            assertEquals(2L, history.playCount)
+            assertEquals(20L, history.lastPlayedAtEpochMillis)
         } finally {
             libraryDatabase.driver.close()
             databaseFile.delete()
@@ -55,15 +37,38 @@ class TrackFavoriteDatabaseTest {
     }
 
     @Test
-    fun metadataUpsertPreservesFavoriteForTheSameTrackIdentity() {
-        val databaseFile = temporaryDatabaseFile("rhythhaus-favorite-upsert")
+    fun recordTrackPlayedRejectsMissingTracksWithoutCreatingHistory() {
+        val databaseFile =
+            temporaryDatabaseFile("rhythhaus-play-history-missing")
+        val libraryDatabase = LibraryDatabase(databaseFile)
+        try {
+            val database = libraryDatabase.database
+
+            database.trackPlayHistoryQueries.recordTrackPlayed(
+                "missing-track", 10L)
+
+            assertTrue(
+                database.trackPlayHistoryQueries
+                    .selectPlayHistory()
+                    .executeAsList()
+                    .isEmpty())
+        } finally {
+            libraryDatabase.driver.close()
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun metadataUpsertPreservesPlayHistoryForTheSameTrackIdentity() {
+        val databaseFile =
+            temporaryDatabaseFile("rhythhaus-play-history-upsert")
         val libraryDatabase = LibraryDatabase(databaseFile)
         try {
             val database = libraryDatabase.database
             seedTrack(database, title = "Before rescan")
-            database.trackFavoriteQueries.setTrackFavorite("track-1", 10)
+            database.trackPlayHistoryQueries.recordTrackPlayed("track-1", 10L)
 
-            seedTrack(database, title = "After rescan", updatedAt = 20)
+            seedTrack(database, title = "After rescan", updatedAt = 20L)
 
             assertEquals(
                 "After rescan",
@@ -73,8 +78,8 @@ class TrackFavoriteDatabaseTest {
                     .title)
             assertEquals(
                 "track-1",
-                database.trackFavoriteQueries
-                    .selectFavoriteTrack("track-1")
+                database.trackPlayHistoryQueries
+                    .selectPlayHistory()
                     .executeAsOne()
                     .trackId)
         } finally {
@@ -84,20 +89,20 @@ class TrackFavoriteDatabaseTest {
     }
 
     @Test
-    fun deletingTracksCascadesFavoriteRelationships() {
+    fun deletingTracksCascadesPlayHistoryRelationships() {
         val databaseFile =
-            temporaryDatabaseFile("rhythhaus-favorite-track-delete")
+            temporaryDatabaseFile("rhythhaus-play-history-track-delete")
         val libraryDatabase = LibraryDatabase(databaseFile)
         try {
             val database = libraryDatabase.database
             seedTrack(database)
-            database.trackFavoriteQueries.setTrackFavorite("track-1", 10)
+            database.trackPlayHistoryQueries.recordTrackPlayed("track-1", 10L)
 
             database.libraryTrackQueries.removeTracksForSource("source-1")
 
             assertTrue(
-                database.trackFavoriteQueries
-                    .selectFavoriteTrackIds()
+                database.trackPlayHistoryQueries
+                    .selectPlayHistory()
                     .executeAsList()
                     .isEmpty())
         } finally {
@@ -107,20 +112,20 @@ class TrackFavoriteDatabaseTest {
     }
 
     @Test
-    fun deletingSourcesCascadesFavoriteRelationshipsThroughTracks() {
+    fun deletingSourcesCascadesPlayHistoryRelationshipsThroughTracks() {
         val databaseFile =
-            temporaryDatabaseFile("rhythhaus-favorite-source-delete")
+            temporaryDatabaseFile("rhythhaus-play-history-source-delete")
         val libraryDatabase = LibraryDatabase(databaseFile)
         try {
             val database = libraryDatabase.database
             seedTrack(database)
-            database.trackFavoriteQueries.setTrackFavorite("track-1", 10)
+            database.trackPlayHistoryQueries.recordTrackPlayed("track-1", 10L)
 
             database.librarySourceQueries.removeSource("source-1")
 
             assertTrue(
-                database.trackFavoriteQueries
-                    .selectFavoriteTrackIds()
+                database.trackPlayHistoryQueries
+                    .selectPlayHistory()
                     .executeAsList()
                     .isEmpty())
         } finally {
@@ -132,14 +137,14 @@ class TrackFavoriteDatabaseTest {
     private fun seedTrack(
         database: RhythHausDatabase,
         title: String = "Track",
-        updatedAt: Long = 2,
+        updatedAt: Long = 2L,
     ) {
         database.librarySourceQueries.upsertSource(
             id = "source-1",
             platformKind = "JvmFolder",
             displayName = "Music",
             handle = "/Music",
-            createdAtEpochMillis = 1,
+            createdAtEpochMillis = 1L,
             lastScanAtEpochMillis = null,
             accessStatus = "Available",
         )
@@ -157,7 +162,7 @@ class TrackFavoriteDatabaseTest {
             sizeBytes = null,
             modifiedAtEpochMillis = null,
             lastSeenScanId = null,
-            createdAtEpochMillis = 1,
+            createdAtEpochMillis = 1L,
             updatedAtEpochMillis = updatedAt,
             trackNumber = null,
             discNumber = null,
@@ -176,7 +181,8 @@ class TrackFavoriteDatabaseTest {
                 sql = "PRAGMA user_version",
                 mapper = { cursor ->
                     QueryResult.Value(
-                        if (cursor.next().value) cursor.getLong(0) ?: 0 else 0)
+                        if (cursor.next().value) cursor.getLong(0) ?: 0L
+                        else 0L)
                 },
                 parameters = 0,
             )

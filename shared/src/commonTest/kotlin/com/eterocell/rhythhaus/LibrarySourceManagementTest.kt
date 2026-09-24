@@ -10,6 +10,7 @@ import com.eterocell.rhythhaus.library.RemoveMissingTracksResult
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.library.androidSafSourceId
 import com.eterocell.rhythhaus.library.emptyLibrarySourceMutationsAllowed
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
@@ -965,6 +966,13 @@ private class FailingMutationRepository(
 
     override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean =
         false
+
+    override fun playHistory(): Map<String, TrackPlayHistory> = emptyMap()
+
+    override fun recordTrackPlayed(
+        trackId: String,
+        playedAtEpochMillis: Long,
+    ): Boolean = false
 
     override fun tracksForSource(sourceId: String): List<LibraryTrack> =
         emptyList()
