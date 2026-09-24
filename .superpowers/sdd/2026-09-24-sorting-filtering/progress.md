@@ -33,4 +33,7 @@ Task 3: complete
 - Focused controls/Home/resource tests passed.
 - Review: pending.
 
-Task 4: in progress
+Task 4: complete
+- Commit: e5add1b0.
+- Focused tests: LibraryHomeContentJvmTest and Shared AppShell/selection/query-state selectors passed.
+- Existing Home-to-Shared callback already published the complete visible projection; Task 4 adds boundary regressions without a production-source change.
