@@ -53,13 +53,14 @@ internal fun visibleTracksForBrowseMode(
         BrowseMode.Favorites,
         BrowseMode.RecentlyPlayed,
         BrowseMode.RecentlyAdded,
-        -> visibleTracksForBrowseQuery(
-            tracks = tracks,
-            browseMode = browseMode,
-            favoriteTrackIds = favoriteTrackIds,
-            playHistory = playHistory,
-            createdAtByTrackId = createdAtByTrackId,
-        )
+        ->
+            visibleTracksForBrowseQuery(
+                tracks = tracks,
+                browseMode = browseMode,
+                favoriteTrackIds = favoriteTrackIds,
+                playHistory = playHistory,
+                createdAtByTrackId = createdAtByTrackId,
+            )
         BrowseMode.Albums,
         BrowseMode.Artists,
         BrowseMode.Songs,

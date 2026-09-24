@@ -162,7 +162,8 @@ class LibraryHomeContentJvmTest {
             var browseQuery by mutableStateOf(LibraryBrowseQuery())
             setContent {
                 // The controls alone exceed this viewport, so any IDs reported
-                // here must come from the full projection rather than laid-out rows.
+                // here must come from the full projection rather than laid-out
+                // rows.
                 Box(Modifier.size(420.dp, 160.dp)) {
                     LibraryHomeContent(
                         title = "Library",
@@ -212,12 +213,14 @@ class LibraryHomeContentJvmTest {
             }
             waitForIdle()
 
-            assertEquals(listOf("t-2", "t-3", "t-1", "t-4"), visibleReports.last())
+            assertEquals(
+                listOf("t-2", "t-3", "t-1", "t-4"), visibleReports.last())
 
             browseQuery =
                 LibraryBrowseQuery(direction = LibrarySortDirection.Descending)
             waitForIdle()
-            assertEquals(listOf("t-4", "t-1", "t-3", "t-2"), visibleReports.last())
+            assertEquals(
+                listOf("t-4", "t-1", "t-3", "t-2"), visibleReports.last())
 
             browseMode = BrowseMode.Favorites
             waitForIdle()

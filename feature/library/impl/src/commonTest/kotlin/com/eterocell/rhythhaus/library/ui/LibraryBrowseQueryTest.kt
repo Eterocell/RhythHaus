@@ -30,7 +30,8 @@ class LibraryBrowseQueryTest {
                 testTrack("x", "Alpha", "Gamma", "Red"),
                 testTrack("y", "Bravo", "Alpha", "Green"),
             )
-        val sourceIds = mapOf("z" to "source-2", "x" to "source-1", "y" to "source-1")
+        val sourceIds =
+            mapOf("z" to "source-2", "x" to "source-1", "y" to "source-1")
         val createdAt = mapOf("z" to 30L, "x" to 10L, "y" to 20L)
         val modifiedAt = mapOf("z" to 300L, "x" to 100L, "y" to 200L)
         val history =
@@ -160,7 +161,9 @@ class LibraryBrowseQueryTest {
                 tracks = tracks,
                 query = LibraryBrowseQuery(sort = LibrarySort.PlayCount),
                 playHistory =
-                    mapOf("known" to TrackPlayHistory("known", 2L, 1L), "zero" to TrackPlayHistory("zero", 0L, 1L)),
+                    mapOf(
+                        "known" to TrackPlayHistory("known", 2L, 1L),
+                        "zero" to TrackPlayHistory("zero", 0L, 1L)),
             ),
         )
     }
@@ -228,7 +231,10 @@ class LibraryBrowseQueryTest {
                 testTrack("two", "Two", "Ada"),
                 testTrack("three", "Three", "Moe"),
             )
-        val history = mapOf("two" to TrackPlayHistory("two", 1L, 2L), "three" to TrackPlayHistory("three", 4L, 1L))
+        val history =
+            mapOf(
+                "two" to TrackPlayHistory("two", 1L, 2L),
+                "three" to TrackPlayHistory("three", 4L, 1L))
 
         assertEquals(
             listOf("two"),
@@ -274,7 +280,8 @@ class LibraryBrowseQueryTest {
                 tracks = tracks,
                 browseMode = BrowseMode.RecentlyAdded,
                 query = LibraryBrowseQuery(sort = LibrarySort.Added),
-                createdAtByTrackId = mapOf("one" to 1L, "two" to 2L, "three" to 3L),
+                createdAtByTrackId =
+                    mapOf("one" to 1L, "two" to 2L, "three" to 3L),
                 playHistory = history,
             ),
         )
@@ -284,7 +291,8 @@ class LibraryBrowseQueryTest {
                 tracks = tracks,
                 browseMode = BrowseMode.RecentlyAdded,
                 query = LibraryBrowseQuery(),
-                createdAtByTrackId = mapOf("one" to 1L, "two" to 2L, "three" to 3L),
+                createdAtByTrackId =
+                    mapOf("one" to 1L, "two" to 2L, "three" to 3L),
                 playHistory = history,
             ),
         )
@@ -337,15 +345,16 @@ class LibraryBrowseQueryTest {
         playHistory: Map<String, TrackPlayHistory> = emptyMap(),
     ): List<String> =
         visibleTracksForBrowseQuery(
-            tracks = tracks,
-            browseMode = browseMode,
-            query = query,
-            favoriteTrackIds = favoriteTrackIds,
-            sourceIdByTrackId = sourceIdByTrackId,
-            createdAtByTrackId = createdAtByTrackId,
-            modifiedAtByTrackId = modifiedAtByTrackId,
-            playHistory = playHistory,
-        ).map { it.id }
+                tracks = tracks,
+                browseMode = browseMode,
+                query = query,
+                favoriteTrackIds = favoriteTrackIds,
+                sourceIdByTrackId = sourceIdByTrackId,
+                createdAtByTrackId = createdAtByTrackId,
+                modifiedAtByTrackId = modifiedAtByTrackId,
+                playHistory = playHistory,
+            )
+            .map { it.id }
 
     private fun testTrack(
         id: String,

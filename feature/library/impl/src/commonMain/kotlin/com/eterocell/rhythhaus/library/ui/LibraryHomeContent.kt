@@ -60,13 +60,15 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  * @param subtitle the library header subtitle.
  * @param tracks the authoritative display/playback track sequence.
  * @param browseMode the current library browse mode.
- * @param browseQuery the active ephemeral flat-Home sorting and filtering state.
+ * @param browseQuery the active ephemeral flat-Home sorting and filtering
+ *   state.
  * @param playHistory immutable latest-play projections keyed by track ID.
  * @param createdAtByTrackId immutable creation-time projections keyed by track
  *   ID. Recently added requires an entry for every displayed track.
  * @param sourceOptions immutable configured source identities and display names
  *   available to the source filter.
- * @param sourceIdByTrackId immutable authoritative source IDs keyed by track ID.
+ * @param sourceIdByTrackId immutable authoritative source IDs keyed by track
+ *   ID.
  * @param modifiedAtByTrackId immutable file modification times keyed by track
  *   ID; tracks without a known time have a null value.
  * @param folderPickerLauncher launches the platform folder picker.
@@ -183,7 +185,8 @@ public fun LibraryHomeContent(
             stringResource(Res.string.filtered_empty)
         } else if (visibleTracks.isEmpty()) {
             when (browseMode) {
-                BrowseMode.Favorites -> stringResource(Res.string.favorites_empty)
+                BrowseMode.Favorites ->
+                    stringResource(Res.string.favorites_empty)
                 BrowseMode.RecentlyPlayed ->
                     stringResource(Res.string.recently_played_empty)
                 BrowseMode.RecentlyAdded ->

@@ -744,7 +744,8 @@ fun LibraryHomeScreen(
                                 appState::setBrowseFavoriteOnly,
                             onBrowseArtworkOnlyChange =
                                 appState::setBrowseArtworkOnly,
-                            onBrowseSourceIdChange = appState::setBrowseSourceId,
+                            onBrowseSourceIdChange =
+                                appState::setBrowseSourceId,
                             labels = librarySharedLabels(),
                             homeBackdrop = rememberRhythHausBackdrop(),
                             artworkLoader = { id -> artworkLoader(id)?.bytes },

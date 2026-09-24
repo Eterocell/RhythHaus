@@ -5,13 +5,13 @@ import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
-import com.eterocell.rhythhaus.loadLibraryContent
 import com.eterocell.rhythhaus.library.InMemoryLibraryRepository
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
+import com.eterocell.rhythhaus.loadLibraryContent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

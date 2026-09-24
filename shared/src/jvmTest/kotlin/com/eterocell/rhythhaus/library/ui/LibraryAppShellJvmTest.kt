@@ -325,7 +325,8 @@ class LibraryAppShellJvmTest {
                             PlaybackInvariant(
                                 currentTrackId = state.currentTrack?.id,
                                 queueTrackIds = state.queue.map { it.track.id },
-                                engineGeneration = engine.activeGenerationForTest(),
+                                engineGeneration =
+                                    engine.activeGenerationForTest(),
                                 repeatMode = state.repeatMode,
                                 shuffleMode = state.shuffleMode,
                                 status = state.status,
@@ -351,7 +352,9 @@ class LibraryAppShellJvmTest {
                         picker = CountingPicker(),
                         callbacks = CallbackRecorder(),
                         playbackController = controller,
-                        favoriteTrackIds = { setOf(retained.id, favoritePeer.id) },
+                        favoriteTrackIds = {
+                            setOf(retained.id, favoritePeer.id)
+                        },
                         onPlaylistStateAction = playlistActions::add,
                     )
                     onNode(hasText("Songs", substring = false)).performClick()
@@ -379,40 +382,35 @@ class LibraryAppShellJvmTest {
                                 ),
                         )
                         .assertIsDisplayed()
-                    onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
+                    onNode(hasContentDescription("Cancel selection"))
+                        .assertIsDisplayed()
 
                     onNode(hasContentDescription("Descending")).performClick()
                     waitForIdle()
-                    onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
-                    onNode(hasContentDescription("Add selected tracks to playlist"))
+                    onNode(hasContentDescription("Cancel selection"))
+                        .assertIsDisplayed()
+                    onNode(
+                            hasContentDescription(
+                                "Add selected tracks to playlist"))
                         .performClick()
                     waitForIdle()
                     assertEquals(
                         PlaylistStateAction.OpenPicker(
-                            PlaylistPickerState(listOf(retained.id, filtered.id)),
+                            PlaylistPickerState(
+                                listOf(retained.id, filtered.id)),
                         ),
                         playlistActions.last(),
                     )
                     assertEquals(playbackBeforeQuery, playbackInvariant())
 
-                    onNode(hasContentDescription("Favorites only")).performClick()
-                    waitForIdle()
-                    onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
-                    onNode(hasContentDescription("Add selected tracks to playlist"))
+                    onNode(hasContentDescription("Favorites only"))
                         .performClick()
                     waitForIdle()
-                    assertEquals(
-                        PlaylistStateAction.OpenPicker(
-                            PlaylistPickerState(listOf(retained.id)),
-                        ),
-                        playlistActions.last(),
-                    )
-                    assertEquals(playbackBeforeQuery, playbackInvariant())
-
-                    onNode(hasText("Favorites", substring = false)).performClick()
-                    waitForIdle()
-                    onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
-                    onNode(hasContentDescription("Add selected tracks to playlist"))
+                    onNode(hasContentDescription("Cancel selection"))
+                        .assertIsDisplayed()
+                    onNode(
+                            hasContentDescription(
+                                "Add selected tracks to playlist"))
                         .performClick()
                     waitForIdle()
                     assertEquals(
@@ -423,17 +421,40 @@ class LibraryAppShellJvmTest {
                     )
                     assertEquals(playbackBeforeQuery, playbackInvariant())
 
-                    onNode(hasContentDescription("Cancel selection")).performClick()
+                    onNode(hasText("Favorites", substring = false))
+                        .performClick()
                     waitForIdle()
-                    onNode(hasContentDescription("Select track Echo")).performClick()
+                    onNode(hasContentDescription("Cancel selection"))
+                        .assertIsDisplayed()
+                    onNode(
+                            hasContentDescription(
+                                "Add selected tracks to playlist"))
+                        .performClick()
+                    waitForIdle()
+                    assertEquals(
+                        PlaylistStateAction.OpenPicker(
+                            PlaylistPickerState(listOf(retained.id)),
+                        ),
+                        playlistActions.last(),
+                    )
+                    assertEquals(playbackBeforeQuery, playbackInvariant())
+
+                    onNode(hasContentDescription("Cancel selection"))
+                        .performClick()
+                    waitForIdle()
+                    onNode(hasContentDescription("Select track Echo"))
+                        .performClick()
                     waitUntil(timeoutMillis = 5_000) {
-                        controller.state.value.currentTrack?.id == favoritePeer.id
+                        controller.state.value.currentTrack?.id ==
+                            favoritePeer.id
                     }
                     assertEquals(
                         listOf(favoritePeer.id, retained.id),
                         controller.state.value.queue.map { it.track.id },
                     )
-                    assertEquals(favoritePeer.id, controller.state.value.currentTrack?.id)
+                    assertEquals(
+                        favoritePeer.id,
+                        controller.state.value.currentTrack?.id)
                     controller.release()
                 }
             }

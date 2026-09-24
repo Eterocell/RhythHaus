@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,7 +21,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -61,17 +61,17 @@ import rhythhaus.feature.library.generated.resources.album_track_count_format
 import rhythhaus.feature.library.generated.resources.artist_accessibility_format
 import rhythhaus.feature.library.generated.resources.artist_album_tracks_format
 import rhythhaus.feature.library.generated.resources.artist_artwork
+import rhythhaus.feature.library.generated.resources.browse_controls_heading
+import rhythhaus.feature.library.generated.resources.browse_filter_all_sources
+import rhythhaus.feature.library.generated.resources.browse_filter_artwork
+import rhythhaus.feature.library.generated.resources.browse_filter_favorite
+import rhythhaus.feature.library.generated.resources.browse_filter_source
 import rhythhaus.feature.library.generated.resources.browse_mode_albums
 import rhythhaus.feature.library.generated.resources.browse_mode_artists
 import rhythhaus.feature.library.generated.resources.browse_mode_favorites
 import rhythhaus.feature.library.generated.resources.browse_mode_recently_added
 import rhythhaus.feature.library.generated.resources.browse_mode_recently_played
 import rhythhaus.feature.library.generated.resources.browse_mode_songs
-import rhythhaus.feature.library.generated.resources.browse_controls_heading
-import rhythhaus.feature.library.generated.resources.browse_filter_all_sources
-import rhythhaus.feature.library.generated.resources.browse_filter_artwork
-import rhythhaus.feature.library.generated.resources.browse_filter_favorite
-import rhythhaus.feature.library.generated.resources.browse_filter_source
 import rhythhaus.feature.library.generated.resources.browse_selected_state
 import rhythhaus.feature.library.generated.resources.browse_sort_added
 import rhythhaus.feature.library.generated.resources.browse_sort_album
@@ -83,8 +83,8 @@ import rhythhaus.feature.library.generated.resources.browse_sort_favorite
 import rhythhaus.feature.library.generated.resources.browse_sort_modified
 import rhythhaus.feature.library.generated.resources.browse_sort_play_count
 import rhythhaus.feature.library.generated.resources.browse_sort_title
-import rhythhaus.feature.library.generated.resources.browse_unselected_state
 import rhythhaus.feature.library.generated.resources.browse_source_format
+import rhythhaus.feature.library.generated.resources.browse_unselected_state
 import rhythhaus.feature.library.generated.resources.hide_scan_report
 import rhythhaus.feature.library.generated.resources.import_card_description
 import rhythhaus.feature.library.generated.resources.import_card_title
@@ -529,8 +529,8 @@ internal fun BrowseModePicker(
  *
  * Each control row scrolls horizontally so the complete choice set remains
  * reachable at compact widths without forcing the Home list to measure an
- * unbounded row. Choice buttons expose selected semantics, while filter
- * buttons expose checked semantics through [ToggleableState].
+ * unbounded row. Choice buttons expose selected semantics, while filter buttons
+ * expose checked semantics through [ToggleableState].
  */
 @Composable
 internal fun LibraryBrowseControls(
@@ -609,7 +609,8 @@ internal fun LibraryBrowseControls(
             )
             BrowseControlScrollRow {
                 BrowseChoiceButton(
-                    label = stringResource(Res.string.browse_filter_all_sources),
+                    label =
+                        stringResource(Res.string.browse_filter_all_sources),
                     selected = query.sourceId == null,
                     stateDescription =
                         if (query.sourceId == null) selectedState

@@ -33,8 +33,8 @@ public enum class LibrarySortDirection {
  * Ephemeral sorting and filtering preferences for the Library Home surface.
  *
  * The value is feature-owned and intentionally contains no persistence or
- * repository state. A new Library shell starts with [Title] in ascending
- * order and all filters disabled.
+ * repository state. A new Library shell starts with [Title] in ascending order
+ * and all filters disabled.
  */
 public data class LibraryBrowseQuery(
     /** The field used for flat-track ordering. */
@@ -45,7 +45,9 @@ public data class LibraryBrowseQuery(
     public val favoriteOnly: Boolean = false,
     /** Whether only tracks with non-empty artwork bytes are eligible. */
     public val artworkOnly: Boolean = false,
-    /** The authoritative source identifier to match, or null for all sources. */
+    /**
+     * The authoritative source identifier to match, or null for all sources.
+     */
     public val sourceId: String? = null,
 )
 
@@ -66,13 +68,13 @@ public data class LibraryBrowseSourceOption(
  * Projects authoritative tracks into the visible flat Home sequence.
  *
  * Mode membership and query filters are resolved before sorting. A default
- * query preserves the established Favorites, RecentlyPlayed, and
- * RecentlyAdded order; changing the sort key or direction applies the query
- * comparator to that mode's eligible tracks. Albums and Artists are grouped
- * surfaces, so they pass through unchanged; their grouping and detail
- * ordering remain owned by the existing browser helpers.
- * Missing optional map entries remain eligible and sort after known values in
- * ascending order (before them when the complete comparator is reversed).
+ * query preserves the established Favorites, RecentlyPlayed, and RecentlyAdded
+ * order; changing the sort key or direction applies the query comparator to
+ * that mode's eligible tracks. Albums and Artists are grouped surfaces, so they
+ * pass through unchanged; their grouping and detail ordering remain owned by
+ * the existing browser helpers. Missing optional map entries remain eligible
+ * and sort after known values in ascending order (before them when the complete
+ * comparator is reversed).
  */
 internal fun visibleTracksForBrowseQuery(
     tracks: List<Track>,
@@ -99,12 +101,12 @@ internal fun visibleTracksForBrowseQuery(
             -> tracks
         }
 
-    val filteredTracks =
-        modeTracks.filter { track ->
-            (!query.favoriteOnly || track.id in favoriteTrackIds) &&
-                (!query.artworkOnly || track.artworkBytes?.isNotEmpty() == true) &&
-                (query.sourceId == null || sourceIdByTrackId[track.id] == query.sourceId)
-        }
+    val filteredTracks = modeTracks.filter { track ->
+        (!query.favoriteOnly || track.id in favoriteTrackIds) &&
+            (!query.artworkOnly || track.artworkBytes?.isNotEmpty() == true) &&
+            (query.sourceId == null ||
+                sourceIdByTrackId[track.id] == query.sourceId)
+    }
 
     val preservesModeOrder =
         browseMode != BrowseMode.Songs &&
@@ -116,7 +118,8 @@ internal fun visibleTracksForBrowseQuery(
             BrowseMode.RecentlyPlayed ->
                 filteredTracks.sortedWith(recentlyPlayedComparator(playHistory))
             BrowseMode.RecentlyAdded ->
-                filteredTracks.sortedWith(recentlyAddedComparator(createdAtByTrackId))
+                filteredTracks.sortedWith(
+                    recentlyAddedComparator(createdAtByTrackId))
             BrowseMode.Albums,
             BrowseMode.Artists,
             BrowseMode.Songs,
@@ -145,16 +148,15 @@ private fun queryComparator(
     val ascendingComparator =
         Comparator<Track> { left, right ->
             comparePrimaryValues(
-                left = left,
-                right = right,
-                sort = query.sort,
-                favoriteTrackIds = favoriteTrackIds,
-                createdAtByTrackId = createdAtByTrackId,
-                modifiedAtByTrackId = modifiedAtByTrackId,
-                playHistory = playHistory,
-            )
-                .takeUnless { it == 0 }
-                ?: compareTieBreakers(left, right)
+                    left = left,
+                    right = right,
+                    sort = query.sort,
+                    favoriteTrackIds = favoriteTrackIds,
+                    createdAtByTrackId = createdAtByTrackId,
+                    modifiedAtByTrackId = modifiedAtByTrackId,
+                    playHistory = playHistory,
+                )
+                .takeUnless { it == 0 } ?: compareTieBreakers(left, right)
         }
 
     return if (query.direction == LibrarySortDirection.Ascending) {
@@ -215,7 +217,10 @@ private fun compareTieBreakers(left: Track, right: Track): Int {
     return left.id.compareTo(right.id)
 }
 
-private fun compareFavorites(leftIsFavorite: Boolean, rightIsFavorite: Boolean): Int =
+private fun compareFavorites(
+    leftIsFavorite: Boolean,
+    rightIsFavorite: Boolean
+): Int =
     when {
         leftIsFavorite == rightIsFavorite -> 0
         leftIsFavorite -> -1
@@ -235,28 +240,26 @@ private fun compareIgnoreCase(left: String, right: String): Int =
 
 private fun recentlyPlayedComparator(
     playHistory: Map<String, TrackPlayHistory>,
-): Comparator<Track> =
-    Comparator { left, right ->
-        var comparison =
-            compareOptionalLong(
-                playHistory[right.id]?.lastPlayedAtEpochMillis,
-                playHistory[left.id]?.lastPlayedAtEpochMillis,
-            )
-        if (comparison != 0) return@Comparator comparison
-        comparison = compareTieBreakers(left, right)
-        comparison
-    }
+): Comparator<Track> = Comparator { left, right ->
+    var comparison =
+        compareOptionalLong(
+            playHistory[right.id]?.lastPlayedAtEpochMillis,
+            playHistory[left.id]?.lastPlayedAtEpochMillis,
+        )
+    if (comparison != 0) return@Comparator comparison
+    comparison = compareTieBreakers(left, right)
+    comparison
+}
 
 private fun recentlyAddedComparator(
     createdAtByTrackId: Map<String, Long?>,
-): Comparator<Track> =
-    Comparator { left, right ->
-        var comparison =
-            compareOptionalLong(
-                createdAtByTrackId[right.id],
-                createdAtByTrackId[left.id],
-            )
-        if (comparison != 0) return@Comparator comparison
-        comparison = compareTieBreakers(left, right)
-        comparison
-    }
+): Comparator<Track> = Comparator { left, right ->
+    var comparison =
+        compareOptionalLong(
+            createdAtByTrackId[right.id],
+            createdAtByTrackId[left.id],
+        )
+    if (comparison != 0) return@Comparator comparison
+    comparison = compareTieBreakers(left, right)
+    comparison
+}

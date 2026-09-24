@@ -15,15 +15,13 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
-import com.eterocell.rhythhaus.library.ScanProgress
-import com.eterocell.rhythhaus.library.TrackPlayHistory
 import java.io.File
 import java.util.Locale
 import kotlin.test.AfterTest
@@ -194,74 +192,78 @@ class LibraryBrowseControlsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun sourceChoicesUseDisplayNamesAndClearStaleSelections() = runComposeUiTest {
-        val sourceChanges = mutableListOf<String?>()
-        var query by mutableStateOf(LibraryBrowseQuery(sourceId = "source-a"))
-        setContent {
-            Box(Modifier.size(1_200.dp, 1_200.dp)) {
-                LibraryBrowseControls(
-                    query = query,
-                    sourceOptions =
-                        listOf(
-                            LibraryBrowseSourceOption(
-                                id = "source-a",
-                                displayName = "Listening room",
+    fun sourceChoicesUseDisplayNamesAndClearStaleSelections() =
+        runComposeUiTest {
+            val sourceChanges = mutableListOf<String?>()
+            var query by
+                mutableStateOf(LibraryBrowseQuery(sourceId = "source-a"))
+            setContent {
+                Box(Modifier.size(1_200.dp, 1_200.dp)) {
+                    LibraryBrowseControls(
+                        query = query,
+                        sourceOptions =
+                            listOf(
+                                LibraryBrowseSourceOption(
+                                    id = "source-a",
+                                    displayName = "Listening room",
+                                ),
+                                LibraryBrowseSourceOption(
+                                    id = "source-b",
+                                    displayName = "Archive",
+                                ),
                             ),
-                            LibraryBrowseSourceOption(
-                                id = "source-b",
-                                displayName = "Archive",
-                            ),
+                        onSortChange = {},
+                        onSortDirectionChange = {},
+                        onFavoriteOnlyChange = {},
+                        onArtworkOnlyChange = {},
+                        onSourceIdChange = { sourceId ->
+                            sourceChanges += sourceId
+                            query = query.copy(sourceId = sourceId)
+                        },
+                    )
+                }
+            }
+            waitForIdle()
+
+            onNode(
+                    hasText("Listening room", substring = false) and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.Selected,
+                            true,
                         ),
-                    onSortChange = {},
-                    onSortDirectionChange = {},
-                    onFavoriteOnlyChange = {},
-                    onArtworkOnlyChange = {},
-                    onSourceIdChange = { sourceId ->
-                        sourceChanges += sourceId
-                        query = query.copy(sourceId = sourceId)
-                    },
                 )
-            }
-        }
-        waitForIdle()
+                .assertIsDisplayed()
+            onAllNodes(hasText("source-a", substring = false))
+                .assertCountEquals(0)
+            onNode(hasText("Archive", substring = false)).performClick()
+            onNode(hasText("All sources", substring = false)).performClick()
+            waitForIdle()
+            assertEquals(listOf("source-b", null), sourceChanges)
 
-        onNode(
-                hasText("Listening room", substring = false) and
-                    SemanticsMatcher.expectValue(
-                        SemanticsProperties.Selected,
-                        true,
-                    ),
-            )
-            .assertIsDisplayed()
-        onAllNodes(hasText("source-a", substring = false)).assertCountEquals(0)
-        onNode(hasText("Archive", substring = false)).performClick()
-        onNode(hasText("All sources", substring = false)).performClick()
-        waitForIdle()
-        assertEquals(listOf("source-b", null), sourceChanges)
-
-        val staleSourceChanges = mutableListOf<String?>()
-        var staleQuery by mutableStateOf(LibraryBrowseQuery(sourceId = "removed"))
-        setContent {
-            Box(Modifier.size(1_200.dp, 260.dp)) {
-                LibraryBrowseControls(
-                    query = staleQuery,
-                    sourceOptions = emptyList(),
-                    onSortChange = {},
-                    onSortDirectionChange = {},
-                    onFavoriteOnlyChange = {},
-                    onArtworkOnlyChange = {},
-                    onSourceIdChange = { sourceId ->
-                        staleSourceChanges += sourceId
-                        staleQuery = staleQuery.copy(sourceId = sourceId)
-                    },
-                )
+            val staleSourceChanges = mutableListOf<String?>()
+            var staleQuery by
+                mutableStateOf(LibraryBrowseQuery(sourceId = "removed"))
+            setContent {
+                Box(Modifier.size(1_200.dp, 260.dp)) {
+                    LibraryBrowseControls(
+                        query = staleQuery,
+                        sourceOptions = emptyList(),
+                        onSortChange = {},
+                        onSortDirectionChange = {},
+                        onFavoriteOnlyChange = {},
+                        onArtworkOnlyChange = {},
+                        onSourceIdChange = { sourceId ->
+                            staleSourceChanges += sourceId
+                            staleQuery = staleQuery.copy(sourceId = sourceId)
+                        },
+                    )
+                }
             }
+            waitForIdle()
+            onNode(hasText("All sources", substring = false)).performClick()
+            waitForIdle()
+            assertEquals(listOf<String?>(null), staleSourceChanges)
         }
-        waitForIdle()
-        onNode(hasText("All sources", substring = false)).performClick()
-        waitForIdle()
-        assertEquals(listOf<String?>(null), staleSourceChanges)
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -430,7 +432,10 @@ class LibraryBrowseControlsJvmTest {
             }
             waitForIdle()
 
-            onNode(hasText("No tracks match the current filters.", substring = false))
+            onNode(
+                    hasText(
+                        "No tracks match the current filters.",
+                        substring = false))
                 .assertExists()
             onAllNodes(hasText("Add music folder", substring = false))
                 .assertCountEquals(0)
@@ -467,7 +472,8 @@ class LibraryBrowseControlsJvmTest {
             assertTrue(zh != null && zh.isNotBlank(), "missing ZH $key")
             assertTrue(en != zh, "$key must be localized")
         }
-        assertEquals("Sort and filter", english.getValue("browse_controls_heading"))
+        assertEquals(
+            "Sort and filter", english.getValue("browse_controls_heading"))
         assertEquals("排序和筛选", chinese.getValue("browse_controls_heading"))
         assertEquals(
             "No tracks match the current filters.",
@@ -485,7 +491,10 @@ class LibraryBrowseControlsJvmTest {
         return directory
     }
 
-    private fun resourceCatalog(root: File, localeDirectory: String): Map<String, String> {
+    private fun resourceCatalog(
+        root: File,
+        localeDirectory: String
+    ): Map<String, String> {
         val file =
             File(
                 root,
