@@ -108,7 +108,7 @@ kotlin {
             implementation(libs.kotlin.test)
         }
         jvmTest.dependencies {
-            implementation("org.jetbrains.compose.ui:ui-test:1.12.0")
+            implementation("org.jetbrains.compose.ui:ui-test:1.12.1")
             implementation(compose.desktop.currentOs)
         }
     }
