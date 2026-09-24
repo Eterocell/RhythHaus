@@ -667,6 +667,8 @@ fun App(
                     onboardingCompletionError = onboarding.completionError,
                     onCompleteOnboarding = onboarding.completeOnboarding,
                     favoriteTrackIds = libraryContent.favoriteTrackIds,
+                    playHistory = libraryContent.playHistory,
+                    createdAtByTrackId = libraryContent.createdAtByTrackId,
                     onSetTrackFavorite = { trackId, favorite ->
                         scope.launch {
                             setTrackFavoriteAndPublish(
