@@ -27,12 +27,15 @@ import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanProgress
+import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.RhythHausBackdrop
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.library.generated.resources.Res
 import rhythhaus.feature.library.generated.resources.favorites_empty
+import rhythhaus.feature.library.generated.resources.recently_added_empty
+import rhythhaus.feature.library.generated.resources.recently_played_empty
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Surface
@@ -55,7 +58,10 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  * @param title the library header title.
  * @param subtitle the library header subtitle.
  * @param tracks the authoritative display/playback track sequence.
- * @param browseMode the current album/artist/song browse mode.
+ * @param browseMode the current library browse mode.
+ * @param playHistory immutable latest-play projections keyed by track ID.
+ * @param createdAtByTrackId immutable creation-time projections keyed by track
+ *   ID. Recently added requires an entry for every displayed track.
  * @param folderPickerLauncher launches the platform folder picker.
  * @param sourcePickerActionVisible whether the import source action is visible.
  * @param importMessage a transient import message, if any.
@@ -92,6 +98,8 @@ public fun LibraryHomeContent(
     subtitle: String,
     tracks: List<Track>,
     browseMode: BrowseMode,
+    playHistory: Map<String, TrackPlayHistory>,
+    createdAtByTrackId: Map<String, Long>,
     folderPickerLauncher: PlatformFolderPickerLauncher,
     sourcePickerActionVisible: Boolean,
     importMessage: String?,
@@ -119,14 +127,40 @@ public fun LibraryHomeContent(
     favoriteTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
 ) {
-    // Keep filtering at the presentation boundary so the existing grouping,
-    // ordering, and playback callback all consume the same visible queue.
+    // Keep projection at the presentation boundary so grouping, ordering, and
+    // playback consume the same visible queue.
     val visibleTracks =
-        remember(tracks, browseMode, favoriteTrackIds) {
-            visibleTracksForBrowseMode(tracks, browseMode, favoriteTrackIds)
+        remember(
+            tracks,
+            browseMode,
+            favoriteTrackIds,
+            playHistory,
+            createdAtByTrackId,
+        ) {
+            visibleTracksForBrowseMode(
+                tracks = tracks,
+                browseMode = browseMode,
+                favoriteTrackIds = favoriteTrackIds,
+                playHistory = playHistory,
+                createdAtByTrackId = createdAtByTrackId,
+            )
         }
     val albums = remember(visibleTracks) { groupTracksByAlbum(visibleTracks) }
     val artists = remember(visibleTracks) { groupTracksByArtist(visibleTracks) }
+    val emptyBrowseMessage =
+        if (visibleTracks.isEmpty()) {
+            when (browseMode) {
+                BrowseMode.Favorites ->
+                    stringResource(Res.string.favorites_empty)
+                BrowseMode.RecentlyPlayed ->
+                    stringResource(Res.string.recently_played_empty)
+                BrowseMode.RecentlyAdded ->
+                    stringResource(Res.string.recently_added_empty)
+                else -> null
+            }
+        } else {
+            null
+        }
     val homeListState = rememberLazyListState()
     Box(modifier = Modifier.fillMaxSize()) {
         val homeTopContentPadding =
@@ -150,7 +184,7 @@ public fun LibraryHomeContent(
                             HeaderSection(title = title, subtitle = subtitle)
                         }
                         if (visibleTracks.isEmpty() &&
-                            browseMode != BrowseMode.Favorites &&
+                            browseMode.showsLibraryActionsWhenEmpty() &&
                             sourcePickerActionVisible) {
                             item {
                                 ImportAudioCard(
@@ -164,7 +198,7 @@ public fun LibraryHomeContent(
                             }
                         }
                         if (visibleTracks.isEmpty() &&
-                            browseMode != BrowseMode.Favorites &&
+                            browseMode.showsLibraryActionsWhenEmpty() &&
                             scanProgress?.isActive == true) {
                             item {
                                 val sp = scanProgress
@@ -216,13 +250,10 @@ public fun LibraryHomeContent(
                                 onModeChange = onBrowseModeChange,
                             )
                         }
-                        if (browseMode == BrowseMode.Favorites &&
-                            visibleTracks.isEmpty()) {
+                        if (emptyBrowseMessage != null) {
                             item {
                                 Text(
-                                    text =
-                                        stringResource(
-                                            Res.string.favorites_empty),
+                                    text = emptyBrowseMessage,
                                     color = HausColors.current.muted,
                                     fontSize = 15.sp,
                                     modifier =
@@ -309,6 +340,8 @@ public fun LibraryHomeContent(
 
                             BrowseMode.Songs,
                             BrowseMode.Favorites,
+                            BrowseMode.RecentlyPlayed,
+                            BrowseMode.RecentlyAdded,
                             -> {
                                 items(visibleTracks, key = { it.id }) { track ->
                                     TrackRow(
@@ -355,3 +388,8 @@ public fun LibraryHomeContent(
         onVisibleTrackIdsChanged(visibleTracks.map { it.id })
     }
 }
+
+private fun BrowseMode.showsLibraryActionsWhenEmpty(): Boolean =
+    this != BrowseMode.Favorites &&
+        this != BrowseMode.RecentlyPlayed &&
+        this != BrowseMode.RecentlyAdded

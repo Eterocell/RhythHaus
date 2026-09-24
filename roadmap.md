@@ -30,7 +30,7 @@
 
 | Phase | Goal | Ordered deliverables |
 | --- | --- | --- |
-| Phase 2 — daily use | Make the existing library and player efficient to use every day. | ~~Favorites~~; play history/recently played/recently added; sorting and filtering; sleep timer; save Queue as playlist; smart playlists. |
+| Phase 2 — daily use | Make the existing library and player efficient to use every day. | ~~Favorites; play history/recently played/recently added~~; sorting and filtering; sleep timer; save Queue as playlist; smart playlists. |
 | Phase 3 — library management | Give users safe control over imported metadata and sources. | App-local metadata overrides; M3U/PLS import/export; Android MediaStore source; incremental-scan UX; desktop drag-and-drop and remaining cross-platform import policy. |
 | Phase 4 — advanced playback | Improve listening quality without adding network dependence. | ReplayGain/normalization; crossfade; basic EQ; gapless playback; local and embedded lyrics. |
 

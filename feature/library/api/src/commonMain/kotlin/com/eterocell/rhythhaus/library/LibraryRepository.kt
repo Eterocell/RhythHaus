@@ -1,5 +1,15 @@
 package com.eterocell.rhythhaus.library
 
+/** Persisted playback aggregate for one library track. */
+public data class TrackPlayHistory(
+    /** Stable library track identifier. */
+    public val trackId: String,
+    /** Number of recorded plays. */
+    public val playCount: Long,
+    /** Timestamp of the most recently recorded play. */
+    public val lastPlayedAtEpochMillis: Long,
+)
+
 /**
  * Stable persistence boundary for Library sources, tracks, artwork, and scans.
  */
@@ -18,6 +28,20 @@ public interface LibraryRepository {
 
     /** Returns the IDs of currently favorited tracks. */
     public fun favoriteTrackIds(): Set<String>
+
+    /** Returns persisted playback history keyed by track identifier. */
+    public fun playHistory(): Map<String, TrackPlayHistory>
+
+    /**
+     * Records one play for an existing track.
+     *
+     * @return `true` when [trackId] identifies an existing track; `false` when
+     *   no such track exists and no history row is stored.
+     */
+    public fun recordTrackPlayed(
+        trackId: String,
+        playedAtEpochMillis: Long,
+    ): Boolean
 
     /**
      * Stores the requested favorite state for an existing track.

@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -20,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -44,6 +46,7 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.onboarding.OnboardingCloseTestTag
 import com.eterocell.rhythhaus.onboarding.OnboardingRootTestTag
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
@@ -141,6 +144,122 @@ class LibraryAppShellJvmTest {
                             .assertCountEquals(2)
                     }
                 }
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun flatHomeSelectionUsesEachModeVisibleOrderForPicker() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                fun track(id: String, title: String) =
+                    Track(
+                        id = id,
+                        title = title,
+                        artist = "Artist",
+                        album = "Album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF000000, 0xFFFFFFFF),
+                        source = AudioSource.FilePath("/$id.mp3"),
+                    )
+
+                val tracks =
+                    listOf(
+                        track("hidden", "Hidden"),
+                        track("favorite-first", "Favorite first"),
+                        track("recent-latest", "Recent latest"),
+                        track("favorite-last", "Favorite last"),
+                    )
+                val playlistActions = mutableListOf<PlaylistStateAction>()
+                mount(
+                    width = 1200.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "flat-selection",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    tracks = tracks,
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                    favoriteTrackIds = {
+                        setOf("favorite-first", "favorite-last")
+                    },
+                    playHistory =
+                        mapOf(
+                            "recent-latest" to
+                                TrackPlayHistory("recent-latest", 1L, 300L),
+                            "favorite-last" to
+                                TrackPlayHistory("favorite-last", 1L, 200L),
+                        ),
+                    createdAtByTrackId =
+                        mapOf(
+                            "hidden" to 10L,
+                            "favorite-first" to 100L,
+                            "recent-latest" to 300L,
+                            "favorite-last" to 200L,
+                        ),
+                    onPlaylistStateAction = playlistActions::add,
+                )
+
+                fun selectAllAndOpenPicker(
+                    mode: String,
+                    selectedTitle: String,
+                    expectedTrackIds: List<String>,
+                ) {
+                    onAllNodes(hasText(mode))[0].performClick()
+                    waitForIdle()
+                    onNode(
+                            hasContentDescription(
+                                "Select track $selectedTitle"),
+                        )
+                        .performSemanticsAction(SemanticsActions.OnLongClick)
+                    waitForIdle()
+                    onNode(hasContentDescription("Select all")).performClick()
+                    waitForIdle()
+                    onNode(
+                            hasContentDescription(
+                                "Add selected tracks to playlist"),
+                        )
+                        .performClick()
+                    waitForIdle()
+
+                    assertEquals(
+                        PlaylistStateAction.OpenPicker(
+                            PlaylistPickerState(expectedTrackIds),
+                        ),
+                        playlistActions.last(),
+                    )
+
+                    onNode(hasContentDescription("Cancel selection"))
+                        .performClick()
+                    waitForIdle()
+                }
+
+                selectAllAndOpenPicker(
+                    mode = "Favorites",
+                    selectedTitle = "Favorite first",
+                    expectedTrackIds =
+                        listOf("favorite-first", "favorite-last"),
+                )
+                selectAllAndOpenPicker(
+                    mode = "Recently played",
+                    selectedTitle = "Recent latest",
+                    expectedTrackIds = listOf("recent-latest", "favorite-last"),
+                )
+                selectAllAndOpenPicker(
+                    mode = "Recently added",
+                    selectedTitle = "Recent latest",
+                    expectedTrackIds =
+                        listOf(
+                            "recent-latest",
+                            "favorite-last",
+                            "favorite-first",
+                            "hidden",
+                        ),
+                )
             }
         }
 
@@ -565,7 +684,10 @@ class LibraryAppShellJvmTest {
         playbackController: PlaybackController =
             PlaybackController(FakePlaybackEngine()),
         favoriteTrackIds: () -> Set<String> = { emptySet() },
+        playHistory: Map<String, TrackPlayHistory> = emptyMap(),
+        createdAtByTrackId: Map<String, Long> = emptyMap(),
         onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
+        onPlaylistStateAction: (PlaylistStateAction) -> Unit = {},
     ) {
         mount(
             width = { width },
@@ -578,7 +700,10 @@ class LibraryAppShellJvmTest {
             callbacks = callbacks,
             playbackController = playbackController,
             favoriteTrackIds = favoriteTrackIds,
+            playHistory = playHistory,
+            createdAtByTrackId = createdAtByTrackId,
             onSetTrackFavorite = onSetTrackFavorite,
+            onPlaylistStateAction = onPlaylistStateAction,
         )
     }
 
@@ -595,7 +720,10 @@ class LibraryAppShellJvmTest {
         playbackController: PlaybackController =
             PlaybackController(FakePlaybackEngine()),
         favoriteTrackIds: () -> Set<String> = { emptySet() },
+        playHistory: Map<String, TrackPlayHistory> = emptyMap(),
+        createdAtByTrackId: Map<String, Long> = emptyMap(),
         onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
+        onPlaylistStateAction: (PlaylistStateAction) -> Unit = {},
     ) {
         setContent {
             CompositionLocalProvider(
@@ -612,7 +740,7 @@ class LibraryAppShellJvmTest {
                         playlistState = PlaylistState(),
                         playlistBackupState = PlaylistBackupUiState(),
                         backupDocumentAvailable = false,
-                        onPlaylistStateAction = {},
+                        onPlaylistStateAction = onPlaylistStateAction,
                         onRefreshPlaylists = {},
                         onPlaylistMutation = { _, _ -> },
                         onExportPlaylists = {},
@@ -635,6 +763,8 @@ class LibraryAppShellJvmTest {
                         onRemoveMissingTracks = { _, _ -> },
                         onCancelScan = { callbacks.cancelCalls++ },
                         favoriteTrackIds = favoriteTrackIds(),
+                        playHistory = playHistory,
+                        createdAtByTrackId = createdAtByTrackId,
                         onSetTrackFavorite = onSetTrackFavorite,
                     )
                 }

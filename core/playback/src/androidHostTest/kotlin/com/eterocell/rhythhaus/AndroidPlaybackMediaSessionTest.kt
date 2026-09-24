@@ -387,6 +387,28 @@ class AndroidPlaybackMediaSessionTest {
     }
 
     @Test
+    fun playingPublicationWaitsForMedia3ActualPlayingConfirmation() {
+        val requests = AndroidPlaybackRequestState()
+        val listener = RecordingAndroidPlaybackListener()
+        val router = AndroidPlaybackEventRouter(requests)
+        val active = requests.begin(250L)
+        assertTrue(requests.ready(active.token, durationMillis = 60_000L))
+
+        // Calling play() only requests playback. Media3 may buffer or fail
+        // first, so only its actual-playing callback may publish Playing.
+        router.isPlayingChanged(listener, active.token, isPlaying = false)
+
+        assertEquals(listOf("status:250:Paused"), listener.events)
+
+        router.isPlayingChanged(listener, active.token, isPlaying = true)
+
+        assertEquals(
+            listOf("status:250:Paused", "status:250:Playing"),
+            listener.events,
+        )
+    }
+
+    @Test
     fun replacementRequestAfterTerminalFailurePublishesNormalStatuses() {
         val requests = AndroidPlaybackRequestState()
         val listener = RecordingAndroidPlaybackListener()

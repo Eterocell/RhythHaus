@@ -62,6 +62,7 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.TrackArtwork
+import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
@@ -143,7 +144,7 @@ private fun LazyListState.toLibraryScrollPosition(): LibraryScrollPosition =
 
 /**
  * Applies a home browse-mode change, clearing flat-list selection through the
- * route-change reducer exactly when leaving songs or favorites for a grouped
+ * route-change reducer exactly when leaving a flat home surface for a grouped
  * browse mode.
  */
 internal fun dispatchHomeBrowseModeChange(
@@ -152,10 +153,8 @@ internal fun dispatchHomeBrowseModeChange(
     onTrackSelectionAction: (TrackSelectionAction) -> Unit,
     onBrowseModeChange: (BrowseMode) -> Unit,
 ) {
-    val currentModeIsFlat =
-        currentMode == BrowseMode.Songs || currentMode == BrowseMode.Favorites
-    val nextModeIsFlat =
-        nextMode == BrowseMode.Songs || nextMode == BrowseMode.Favorites
+    val currentModeIsFlat = currentMode.isFlatHomeBrowseMode()
+    val nextModeIsFlat = nextMode.isFlatHomeBrowseMode()
     if (currentModeIsFlat && !nextModeIsFlat) {
         onTrackSelectionAction(TrackSelectionAction.RouteChanged(null))
     }
@@ -242,6 +241,8 @@ fun LibraryHomeScreen(
     onboardingCompletionError: String? = null,
     onCompleteOnboarding: () -> Unit = {},
     favoriteTrackIds: Set<String> = emptySet(),
+    playHistory: Map<String, TrackPlayHistory> = emptyMap(),
+    createdAtByTrackId: Map<String, Long> = emptyMap(),
     onSetTrackFavorite: (trackId: String, favorite: Boolean) -> Unit = { _, _ ->
     },
     modifier: Modifier = Modifier,
@@ -301,6 +302,9 @@ fun LibraryHomeScreen(
     var trackSelectionState by remember {
         mutableStateOf(TrackSelectionState())
     }
+    var homeVisibleTrackIds by remember {
+        mutableStateOf(emptyList<String>())
+    }
     var searchVisibleTrackIds by remember {
         mutableStateOf(emptyList<String>())
     }
@@ -321,9 +325,16 @@ fun LibraryHomeScreen(
                 .toDp()
         }
     fun dispatchTrackSelection(action: TrackSelectionAction) {
-        if (action is TrackSelectionAction.ReconcileVisible &&
-            action.pageKey == TrackSelectionPageKey.Search) {
-            searchVisibleTrackIds = action.visibleTrackIds
+        if (action is TrackSelectionAction.ReconcileVisible) {
+            when (action.pageKey) {
+                TrackSelectionPageKey.HomeSongs ->
+                    homeVisibleTrackIds = action.visibleTrackIds
+
+                TrackSelectionPageKey.Search ->
+                    searchVisibleTrackIds = action.visibleTrackIds
+
+                else -> Unit
+            }
         }
         trackSelectionState = reduceTrackSelection(trackSelectionState, action)
     }
@@ -369,7 +380,7 @@ fun LibraryHomeScreen(
     }
     fun pageTrackIds(pageKey: TrackSelectionPageKey): List<String> =
         when (pageKey) {
-            TrackSelectionPageKey.HomeSongs -> snapshot.tracks.map(Track::id)
+            TrackSelectionPageKey.HomeSongs -> homeVisibleTrackIds
             is TrackSelectionPageKey.Album ->
                 albums.filter { it.album == pageKey.album }.map(Track::id)
             is TrackSelectionPageKey.Artist ->
@@ -573,6 +584,8 @@ fun LibraryHomeScreen(
                             trackSelectionState.selectedTrackIds
                         else emptySet(),
                     favoriteTrackIds = favoriteTrackIds,
+                    playHistory = playHistory,
+                    createdAtByTrackId = createdAtByTrackId,
                     onSetTrackFavorite = onSetTrackFavorite,
                     labels = librarySharedLabels(),
                     homeBackdrop = rememberRhythHausBackdrop(),
@@ -695,6 +708,8 @@ fun LibraryHomeScreen(
                                     trackSelectionState.selectedTrackIds
                                 else emptySet(),
                             favoriteTrackIds = favoriteTrackIds,
+                            playHistory = playHistory,
+                            createdAtByTrackId = createdAtByTrackId,
                             onSetTrackFavorite = onSetTrackFavorite,
                             labels = librarySharedLabels(),
                             homeBackdrop = rememberRhythHausBackdrop(),

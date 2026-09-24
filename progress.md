@@ -4426,3 +4426,30 @@ Verification:
 - Independent final review of `6fd6f0c2..bfe19fe3`: Ready; no Critical, Important, or Minor findings.
 Blockers: Android assembly could not start because the environment lacks NDK `30.0.15729638` and `android.toolchain.cmake`; no Android assembly claim is made. Physical-device playback/system-control acceptance remains outside this change.
 Next owner: none; archived as `openspec/changes/archive/2026-09-23-favorites/`.
+
+## Planning - 2026-09-23 playback history
+
+Route: openspec+superpowers planning
+Owner: OpenSpec planning
+Input: next ordered Phase 2 daily-use deliverable after completed Favorites.
+Output: `openspec/changes/playback-history/` contains the proposal, `playback-history` capability delta, `local-library-scanning` lifecycle delta, cross-module design, and executable task ledger. `docs/superpowers/specs/2026-09-23-playback-history-design.md` records the approved design; `docs/superpowers/plans/2026-09-23-playback-history.md` provides the TDD execution plan.
+Decision: persist a separate `track_play_history` relation keyed by library track ID. Count one event only when a current controller generation first enters actual `Playing`; derive Recently Added from the existing track creation timestamp. Shared owns event collection and serialized authoritative publication; Library receives immutable history and creation-time projections for flat Recently Played/Recently Added lists.
+Verification: `openspec validate playback-history --strict` passed; all four planning artifacts report complete; plan placeholder scan and `git diff --check` passed.
+Next owner: OpenSpec apply plus subagent-driven implementation, beginning with the database/repository migration task.
+Blockers: planning is complete; no product code has been changed in this planning phase.
+
+## Closeout - 2026-09-24 playback history
+
+Route: openspec+superpowers
+Owner: implementation and harness verification
+Input: approved `playback-history` change and `docs/superpowers/plans/2026-09-23-playback-history.md`.
+Output: RhythHaus persists listener-owned per-track play count and last-successful-play time through a foreign-keyed SQLDelight relation, preserves it across rescans, and cascades it with track deletion. The controller emits one buffered history event per actual-playing generation and occurrence; Android now waits for Media3 actual-playing confirmation rather than optimistically counting `MediaController.play()`. Shared serializes history writes with authoritative library publications and rejects stale publications at the Compose-state boundary. Library exposes deterministic Recently Played and Recently Added lists with localized passive empty states, selected semantics, exact visible queues, and visible-list selection behavior.
+Verification:
+- Focused database/repository, playback event, Shared history/publication, Library ordering/semantics, Android-host callback, and iOS test-code compilation selectors passed. The final repair matrix covered Android Media3 actual-playing confirmation, stale-publication rejection, and Favorites/Recent visible selection ordering.
+- `spotlessApply`, standalone `spotlessCheck`, standalone `detekt`, standalone `architectureCheck`, `openspec validate playback-history --strict`, `openspec validate --specs` (15 passed, 0 failed), and `git diff --check` passed after the final repair.
+- The aggregated changed-path JVM/iOS command did not pass: the pre-existing `LibraryPlaybackSelectionTest.differentSelectionPreservesRepeatAndShuffleModes` timeout reproduced, while `PlaybackControllerTest.autoAdvanceRemainsLoadingUntilEngineReportsPlaying` and `SearchRouteAdapterJvmTest.currentTrackRestartsBeforeDismissal` each passed immediately in isolated selectors. Android assembly was blocked before Kotlin packaging by TagLib native CMake configuration: `CMAKE_MAKE_PROGRAM` and the C++ compiler were unavailable.
+- Final `./init.sh` also failed before Shared test completion and Android packaging because TagLib requires `/Users/eterocell/Library/Android/sdk/ndk/30.0.15729638/build/cmake/android.toolchain.cmake`, which is absent; all three Android ABI helper tasks stopped at that native-toolchain check.
+Review: final independent review found three Important issues (Android optimistic playback status, flat-mode visible selection leakage, stale Compose publication); `c1e4efb3` repaired all three, and scoped re-review returned correct with no new Critical or Important findings.
+OpenSpec: canonical specs are `openspec/specs/playback-history/spec.md` and `openspec/specs/local-library-scanning/spec.md`; archived change is `openspec/changes/archive/2026-09-24-playback-history/`.
+Next owner: select the next Phase 2 roadmap change, beginning with sorting and filtering.
+Blockers: the recorded Shared full-suite timeout and TagLib Android native toolchain configuration remain environment/baseline verification limits; no playback-history code blocker.
