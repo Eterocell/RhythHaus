@@ -28,6 +28,19 @@ public enum class BrowseMode {
     RecentlyAdded,
 }
 
+/** Returns whether this mode renders one flat Home track sequence. */
+internal fun BrowseMode.isFlatHomeBrowseMode(): Boolean =
+    when (this) {
+        BrowseMode.Albums,
+        BrowseMode.Artists,
+        -> false
+        BrowseMode.Songs,
+        BrowseMode.Favorites,
+        BrowseMode.RecentlyPlayed,
+        BrowseMode.RecentlyAdded,
+        -> true
+    }
+
 /** Returns the authoritative tracks visible in the selected browse mode. */
 internal fun visibleTracksForBrowseMode(
     tracks: List<Track>,
@@ -37,29 +50,16 @@ internal fun visibleTracksForBrowseMode(
     createdAtByTrackId: Map<String, Long> = emptyMap(),
 ): List<Track> =
     when (browseMode) {
-        BrowseMode.Favorites -> tracks.filter { it.id in favoriteTrackIds }
-        BrowseMode.RecentlyPlayed ->
-            tracks
-                .filter { it.id in playHistory }
-                .sortedWith(
-                    compareByDescending<Track> {
-                            playHistory.getValue(it.id).lastPlayedAtEpochMillis
-                        }
-                        .thenBy { it.title.lowercase() }
-                        .thenBy { it.artist.lowercase() },
-                )
-        BrowseMode.RecentlyAdded -> {
-            require(tracks.all { it.id in createdAtByTrackId }) {
-                "Recently added requires a created-time projection for every displayed track."
-            }
-            tracks.sortedWith(
-                compareByDescending<Track> {
-                        createdAtByTrackId.getValue(it.id)
-                    }
-                    .thenBy { it.title.lowercase() }
-                    .thenBy { it.artist.lowercase() },
-            )
-        }
+        BrowseMode.Favorites,
+        BrowseMode.RecentlyPlayed,
+        BrowseMode.RecentlyAdded,
+        -> visibleTracksForBrowseQuery(
+            tracks = tracks,
+            browseMode = browseMode,
+            favoriteTrackIds = favoriteTrackIds,
+            playHistory = playHistory,
+            createdAtByTrackId = createdAtByTrackId,
+        )
         BrowseMode.Albums,
         BrowseMode.Artists,
         BrowseMode.Songs,
