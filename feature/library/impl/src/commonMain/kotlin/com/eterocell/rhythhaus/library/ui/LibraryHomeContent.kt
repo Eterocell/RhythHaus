@@ -34,6 +34,7 @@ import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.library.generated.resources.Res
 import rhythhaus.feature.library.generated.resources.favorites_empty
+import rhythhaus.feature.library.generated.resources.filtered_empty
 import rhythhaus.feature.library.generated.resources.recently_added_empty
 import rhythhaus.feature.library.generated.resources.recently_played_empty
 import top.yukonga.miuix.kmp.basic.Button
@@ -170,11 +171,20 @@ public fun LibraryHomeContent(
         }
     val albums = remember(visibleTracks) { groupTracksByAlbum(visibleTracks) }
     val artists = remember(visibleTracks) { groupTracksByArtist(visibleTracks) }
+    val sourceIds =
+        remember(sourceIdByTrackId) {
+            sourceIdByTrackId.values.filterNotNull().distinct().sorted()
+        }
+    val hasActiveFilter =
+        browseQuery.favoriteOnly ||
+            browseQuery.artworkOnly ||
+            browseQuery.sourceId != null
     val emptyBrowseMessage =
-        if (visibleTracks.isEmpty()) {
+        if (tracks.isNotEmpty() && visibleTracks.isEmpty() && hasActiveFilter) {
+            stringResource(Res.string.filtered_empty)
+        } else if (visibleTracks.isEmpty()) {
             when (browseMode) {
-                BrowseMode.Favorites ->
-                    stringResource(Res.string.favorites_empty)
+                BrowseMode.Favorites -> stringResource(Res.string.favorites_empty)
                 BrowseMode.RecentlyPlayed ->
                     stringResource(Res.string.recently_played_empty)
                 BrowseMode.RecentlyAdded ->
@@ -206,7 +216,8 @@ public fun LibraryHomeContent(
                         item {
                             HeaderSection(title = title, subtitle = subtitle)
                         }
-                        if (visibleTracks.isEmpty() &&
+                        if (tracks.isEmpty() &&
+                            visibleTracks.isEmpty() &&
                             browseMode.showsLibraryActionsWhenEmpty() &&
                             sourcePickerActionVisible) {
                             item {
@@ -220,7 +231,8 @@ public fun LibraryHomeContent(
                                 )
                             }
                         }
-                        if (visibleTracks.isEmpty() &&
+                        if (tracks.isEmpty() &&
+                            visibleTracks.isEmpty() &&
                             browseMode.showsLibraryActionsWhenEmpty() &&
                             scanProgress?.isActive == true) {
                             item {
@@ -271,6 +283,19 @@ public fun LibraryHomeContent(
                                 browseMode = browseMode,
                                 labels = labels,
                                 onModeChange = onBrowseModeChange,
+                            )
+                        }
+                        item {
+                            LibraryBrowseControls(
+                                query = browseQuery,
+                                sourceIds = sourceIds,
+                                onSortChange = onBrowseSortChange,
+                                onSortDirectionChange =
+                                    onBrowseSortDirectionChange,
+                                onFavoriteOnlyChange =
+                                    onBrowseFavoriteOnlyChange,
+                                onArtworkOnlyChange = onBrowseArtworkOnlyChange,
+                                onSourceIdChange = onBrowseSourceIdChange,
                             )
                         }
                         if (emptyBrowseMessage != null) {

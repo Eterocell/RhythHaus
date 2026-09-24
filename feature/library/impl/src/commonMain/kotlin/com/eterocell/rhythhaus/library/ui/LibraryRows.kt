@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +18,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -63,6 +66,26 @@ import rhythhaus.feature.library.generated.resources.browse_mode_favorites
 import rhythhaus.feature.library.generated.resources.browse_mode_recently_added
 import rhythhaus.feature.library.generated.resources.browse_mode_recently_played
 import rhythhaus.feature.library.generated.resources.browse_mode_songs
+import rhythhaus.feature.library.generated.resources.browse_controls_heading
+import rhythhaus.feature.library.generated.resources.browse_filter_all_sources
+import rhythhaus.feature.library.generated.resources.browse_filter_artwork
+import rhythhaus.feature.library.generated.resources.browse_filter_favorite
+import rhythhaus.feature.library.generated.resources.browse_filter_source
+import rhythhaus.feature.library.generated.resources.browse_selected_state
+import rhythhaus.feature.library.generated.resources.browse_sort_added
+import rhythhaus.feature.library.generated.resources.browse_sort_album
+import rhythhaus.feature.library.generated.resources.browse_sort_artist
+import rhythhaus.feature.library.generated.resources.browse_sort_ascending
+import rhythhaus.feature.library.generated.resources.browse_sort_descending
+import rhythhaus.feature.library.generated.resources.browse_sort_direction
+import rhythhaus.feature.library.generated.resources.browse_sort_favorite
+import rhythhaus.feature.library.generated.resources.browse_sort_modified
+import rhythhaus.feature.library.generated.resources.browse_sort_play_count
+import rhythhaus.feature.library.generated.resources.browse_sort_title
+import rhythhaus.feature.library.generated.resources.browse_unselected_state
+import rhythhaus.feature.library.generated.resources.browse_enabled_state
+import rhythhaus.feature.library.generated.resources.browse_disabled_state
+import rhythhaus.feature.library.generated.resources.browse_source_format
 import rhythhaus.feature.library.generated.resources.hide_scan_report
 import rhythhaus.feature.library.generated.resources.import_card_description
 import rhythhaus.feature.library.generated.resources.import_card_title
@@ -501,6 +524,230 @@ internal fun BrowseModePicker(
         }
     }
 }
+
+/**
+ * Renders the ephemeral Home sorting and filtering controls.
+ *
+ * Each control row scrolls horizontally so the complete choice set remains
+ * reachable at compact widths without forcing the Home list to measure an
+ * unbounded row. Choice buttons expose selected semantics, while filter
+ * buttons expose checked semantics through [ToggleableState].
+ */
+@Composable
+internal fun LibraryBrowseControls(
+    query: LibraryBrowseQuery,
+    sourceIds: List<String>,
+    onSortChange: (LibrarySort) -> Unit,
+    onSortDirectionChange: (LibrarySortDirection) -> Unit,
+    onFavoriteOnlyChange: (Boolean) -> Unit,
+    onArtworkOnlyChange: (Boolean) -> Unit,
+    onSourceIdChange: (String?) -> Unit,
+) {
+    val selectedState = stringResource(Res.string.browse_selected_state)
+    val unselectedState = stringResource(Res.string.browse_unselected_state)
+    val enabledState = stringResource(Res.string.browse_enabled_state)
+    val disabledState = stringResource(Res.string.browse_disabled_state)
+    val distinctSourceIds = remember(sourceIds) { sourceIds.distinct().sorted() }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(Res.string.browse_controls_heading),
+            color = HausColors.current.ink,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Black,
+        )
+        BrowseControlScrollRow {
+            LibrarySort.entries.forEach { sort ->
+                BrowseChoiceButton(
+                    label = stringResource(sort.labelResource()),
+                    selected = query.sort == sort,
+                    stateDescription =
+                        if (query.sort == sort) selectedState
+                        else unselectedState,
+                    onClick = { onSortChange(sort) },
+                )
+            }
+        }
+        Text(
+            text = stringResource(Res.string.browse_sort_direction),
+            color = HausColors.current.muted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        BrowseControlScrollRow {
+            LibrarySortDirection.entries.forEach { direction ->
+                BrowseChoiceButton(
+                    label = stringResource(direction.labelResource()),
+                    selected = query.direction == direction,
+                    stateDescription =
+                        if (query.direction == direction) selectedState
+                        else unselectedState,
+                    onClick = { onSortDirectionChange(direction) },
+                )
+            }
+        }
+        BrowseControlScrollRow {
+            BrowseToggleButton(
+                label = stringResource(Res.string.browse_filter_favorite),
+                checked = query.favoriteOnly,
+                stateDescription =
+                    if (query.favoriteOnly) enabledState else disabledState,
+                onClick = { onFavoriteOnlyChange(!query.favoriteOnly) },
+            )
+            BrowseToggleButton(
+                label = stringResource(Res.string.browse_filter_artwork),
+                checked = query.artworkOnly,
+                stateDescription =
+                    if (query.artworkOnly) enabledState else disabledState,
+                onClick = { onArtworkOnlyChange(!query.artworkOnly) },
+            )
+        }
+        if (distinctSourceIds.isNotEmpty()) {
+            Text(
+                text = stringResource(Res.string.browse_filter_source),
+                color = HausColors.current.muted,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            BrowseControlScrollRow {
+                BrowseChoiceButton(
+                    label = stringResource(Res.string.browse_filter_all_sources),
+                    selected = query.sourceId == null,
+                    stateDescription =
+                        if (query.sourceId == null) selectedState
+                        else unselectedState,
+                    onClick = { onSourceIdChange(null) },
+                )
+                distinctSourceIds.forEach { sourceId ->
+                    BrowseChoiceButton(
+                        label = sourceId,
+                        contentDescription =
+                            stringResource(
+                                Res.string.browse_source_format,
+                                sourceId,
+                            ),
+                        selected = query.sourceId == sourceId,
+                        stateDescription =
+                            if (query.sourceId == sourceId) selectedState
+                            else unselectedState,
+                        onClick = { onSourceIdChange(sourceId) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BrowseControlScrollRow(content: @Composable RowScope.() -> Unit) {
+    Row(
+        modifier =
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        content = content,
+    )
+}
+
+@Composable
+private fun BrowseChoiceButton(
+    label: String,
+    selected: Boolean,
+    stateDescription: String,
+    onClick: () -> Unit,
+    contentDescription: String = label,
+) {
+    Button(
+        onClick = onClick,
+        modifier =
+            Modifier.height(40.dp).semantics {
+                this.contentDescription = contentDescription
+                this.selected = selected
+                this.stateDescription = stateDescription
+            },
+        cornerRadius = 20.dp,
+        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        colors =
+            if (selected) {
+                ButtonDefaults.buttonColors(
+                    color = HausColors.current.ink,
+                    contentColor = HausColors.current.paper,
+                )
+            } else {
+                ButtonDefaults.buttonColors(
+                    color = HausColors.current.panel,
+                    contentColor = HausColors.current.ink,
+                )
+            },
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun BrowseToggleButton(
+    label: String,
+    checked: Boolean,
+    stateDescription: String,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        modifier =
+            Modifier.height(40.dp).semantics {
+                this.contentDescription = label
+                toggleableState =
+                    if (checked) ToggleableState.On else ToggleableState.Off
+                this.stateDescription = stateDescription
+            },
+        cornerRadius = 20.dp,
+        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        colors =
+            if (checked) {
+                ButtonDefaults.buttonColors(
+                    color = HausColors.current.ink,
+                    contentColor = HausColors.current.paper,
+                )
+            } else {
+                ButtonDefaults.buttonColors(
+                    color = HausColors.current.panel,
+                    contentColor = HausColors.current.ink,
+                )
+            },
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = if (checked) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private fun LibrarySort.labelResource() =
+    when (this) {
+        LibrarySort.Title -> Res.string.browse_sort_title
+        LibrarySort.Artist -> Res.string.browse_sort_artist
+        LibrarySort.Album -> Res.string.browse_sort_album
+        LibrarySort.Added -> Res.string.browse_sort_added
+        LibrarySort.Modified -> Res.string.browse_sort_modified
+        LibrarySort.PlayCount -> Res.string.browse_sort_play_count
+        LibrarySort.Favorite -> Res.string.browse_sort_favorite
+    }
+
+private fun LibrarySortDirection.labelResource() =
+    when (this) {
+        LibrarySortDirection.Ascending -> Res.string.browse_sort_ascending
+        LibrarySortDirection.Descending -> Res.string.browse_sort_descending
+    }
 
 @Composable
 private fun BrowseModeButton(

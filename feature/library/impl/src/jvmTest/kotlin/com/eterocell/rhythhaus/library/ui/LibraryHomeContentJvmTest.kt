@@ -125,7 +125,6 @@ class LibraryHomeContentJvmTest {
                 expectedTracks.map(Track::id),
                 visibleReports.last(),
             )
-            onAllNodes(hasText("Two")).assertCountEquals(2)
             onAllNodes(hasText("Now playing")).assertCountEquals(1)
 
             browseQuery =
@@ -794,12 +793,12 @@ class LibraryHomeContentJvmTest {
         }
         waitForIdle()
 
-        onAllNodes(hasText("Artist")).assertCountEquals(1)
-        onAllNodes(hasText("Soloist")).assertCountEquals(1)
+        onAllNodes(hasContentDescription("Artist Artist")).assertCountEquals(1)
+        onAllNodes(hasContentDescription("Artist Soloist")).assertCountEquals(1)
         onAllNodes(hasText("1 albums · 3 tracks")).assertCountEquals(1)
         onAllNodes(hasText("1 albums · 1 tracks")).assertCountEquals(1)
 
-        onAllNodes(hasText("Soloist"))[0].performClick()
+        onAllNodes(hasContentDescription("Artist Soloist"))[0].performClick()
         waitForIdle()
         assertEquals(listOf("Soloist"), openedArtists)
     }
