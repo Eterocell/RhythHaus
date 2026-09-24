@@ -33,6 +33,8 @@ import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackStatus
+import com.eterocell.rhythhaus.RepeatMode
+import com.eterocell.rhythhaus.ShuffleMode
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
@@ -259,6 +261,125 @@ class LibraryAppShellJvmTest {
                             "favorite-first",
                             "hidden",
                         ),
+                )
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun queryChangesReconcileHomeSelectionInProjectedOrderWithoutMutatingPlayback() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                fun track(id: String, title: String) =
+                    Track(
+                        id = id,
+                        title = title,
+                        artist = "Artist",
+                        album = "Album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF000000, 0xFFFFFFFF),
+                        source = AudioSource.FilePath("/$id.mp3"),
+                    )
+
+                val playing = track("playing", "Zed")
+                val filtered = track("filtered", "Alpha")
+                val retained = track("retained", "Bravo")
+                val tracks = listOf(playing, filtered, retained)
+                val controller = PlaybackController(FakePlaybackEngine())
+                controller.setQueue(
+                    tracks.map { it.toPlayableTrack() },
+                    selectedTrackId = playing.id,
+                )
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.state.value.status == PlaybackStatus.Paused
+                }
+                controller.setRepeatMode(RepeatMode.RepeatOne)
+                controller.setShuffleMode(ShuffleMode.On)
+                controller.play()
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.state.value.status == PlaybackStatus.Playing
+                }
+                val playbackBeforeQuery = controller.state.value
+                val playlistActions = mutableListOf<PlaylistStateAction>()
+                mount(
+                    width = 1200.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "query-selection",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    tracks = tracks,
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                    playbackController = controller,
+                    favoriteTrackIds = { setOf(retained.id) },
+                    onPlaylistStateAction = playlistActions::add,
+                )
+                onAllNodes(hasText("Songs"))[0].performClick()
+                waitForIdle()
+
+                onNode(hasContentDescription("Select track Alpha"))
+                    .performSemanticsAction(SemanticsActions.OnLongClick)
+                waitForIdle()
+                onNode(
+                        hasContentDescription("Select track Alpha") and
+                            SemanticsMatcher.expectValue(
+                                SemanticsProperties.ToggleableState,
+                                ToggleableState.On,
+                            ),
+                    )
+                    .assertIsDisplayed()
+                onNode(hasContentDescription("Select track Bravo"))
+                    .performSemanticsAction(SemanticsActions.OnLongClick)
+                waitForIdle()
+                onNode(
+                        hasContentDescription("Select track Bravo") and
+                            SemanticsMatcher.expectValue(
+                                SemanticsProperties.ToggleableState,
+                                ToggleableState.On,
+                            ),
+                    )
+                    .assertIsDisplayed()
+                onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
+
+                onNode(hasContentDescription("Descending")).performClick()
+                waitForIdle()
+                onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
+                onNode(hasContentDescription("Add selected tracks to playlist"))
+                    .performClick()
+                waitForIdle()
+                assertEquals(
+                    PlaylistStateAction.OpenPicker(
+                        PlaylistPickerState(listOf(retained.id, filtered.id)),
+                    ),
+                    playlistActions.last(),
+                )
+                assertEquals(playbackBeforeQuery, controller.state.value)
+
+                onNode(hasContentDescription("Favorites only")).performClick()
+                waitForIdle()
+                onNode(hasContentDescription("Cancel selection")).assertIsDisplayed()
+                onNode(hasContentDescription("Add selected tracks to playlist"))
+                    .performClick()
+                waitForIdle()
+                assertEquals(
+                    PlaylistStateAction.OpenPicker(PlaylistPickerState(listOf(retained.id))),
+                    playlistActions.last(),
+                )
+                assertEquals(playbackBeforeQuery, controller.state.value)
+
+                onNode(hasContentDescription("Cancel selection")).performClick()
+                waitForIdle()
+                onNode(hasContentDescription("Select track Bravo")).performClick()
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.state.value.currentTrack?.id == retained.id
+                }
+                assertEquals(
+                    listOf(retained.id),
+                    controller.state.value.queue.map { it.track.id },
                 )
             }
         }

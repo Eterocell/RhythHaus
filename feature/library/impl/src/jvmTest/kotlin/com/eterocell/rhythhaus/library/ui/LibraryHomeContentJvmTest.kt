@@ -154,6 +154,79 @@ class LibraryHomeContentJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun queryAndModeChangesPublishAllProjectedHomeIdsWithoutPlaybackRequests() =
+        runComposeUiTest {
+            val visibleReports = mutableListOf<List<String>>()
+            var playRequests = 0
+            var browseMode by mutableStateOf(BrowseMode.Songs)
+            var browseQuery by mutableStateOf(LibraryBrowseQuery())
+            setContent {
+                // The controls alone exceed this viewport, so any IDs reported
+                // here must come from the full projection rather than laid-out rows.
+                Box(Modifier.size(420.dp, 160.dp)) {
+                    LibraryHomeContent(
+                        title = "Library",
+                        subtitle = "",
+                        tracks = tracks(),
+                        browseMode = browseMode,
+                        playHistory = emptyMap(),
+                        createdAtByTrackId = emptyMap(),
+                        folderPickerLauncher = StubPicker,
+                        sourcePickerActionVisible = false,
+                        importMessage = null,
+                        scanProgress = null,
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onShowPlaylists = {},
+                        onPlayTrack = { _, _ -> playRequests++ },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = { ids ->
+                            visibleReports += ids
+                        },
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                        favoriteTrackIds = setOf("t-1", "t-4"),
+                        onSetTrackFavorite = { _, _ -> },
+                        browseQuery = browseQuery,
+                        sourceOptions = emptyList(),
+                        sourceIdByTrackId = emptyMap(),
+                        modifiedAtByTrackId = emptyMap(),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
+                    )
+                }
+            }
+            waitForIdle()
+
+            assertEquals(listOf("t-2", "t-3", "t-1", "t-4"), visibleReports.last())
+
+            browseQuery =
+                LibraryBrowseQuery(direction = LibrarySortDirection.Descending)
+            waitForIdle()
+            assertEquals(listOf("t-4", "t-1", "t-3", "t-2"), visibleReports.last())
+
+            browseMode = BrowseMode.Favorites
+            waitForIdle()
+            assertEquals(listOf("t-4", "t-1"), visibleReports.last())
+            assertEquals(0, playRequests)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun favoriteToggleRequestsDesiredStateAndRendersProjectionState() =
         runComposeUiTest {
             var favoriteTrackIds by mutableStateOf(emptySet<String>())
