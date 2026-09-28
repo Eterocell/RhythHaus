@@ -4476,3 +4476,13 @@ Review: the first branch review found three Important issues; `0cef8d5d` repaire
 OpenSpec: the canonical `openspec/specs/library-sorting-filtering/spec.md` contains all delta requirements and was validated with `openspec validate --specs` (16 passed, 0 failed). `openspec archive sorting-filtering --skip-specs --yes` moved the already-synced change to `openspec/changes/archive/2026-09-28-sorting-filtering/`; `openspec validate --all` passed (57/57).
 Next owner: retain the isolated branch until the known full Shared JVM timeout and Android TagLib native toolchain limitations are resolved or explicitly accepted for integration; physical Android/iOS/macOS UI and playback acceptance remains a release check.
 Blockers: full Shared JVM baseline timeout and Android native toolchain. Full-suite/Android green is not claimed.
+
+## Integration - sorting and filtering
+
+Route: openspec+superpowers integration
+Owner: implementation
+Input: completed `feature/sorting-filtering` at `1080dde4`, clean `main` at `dcbbe692`.
+Output: `git merge --ff-only feature/sorting-filtering` advanced `main` to `1080dde4` without conflicts or overwriting user changes. Archived change and canonical spec are included. The feature worktree and branch remain available because full-suite and Android environment gates have not turned green; no remote push was performed.
+Verification on merged `main`: `:feature:library:impl:jvmTest`, focused Shared browse/AppShell JVM tests, `:desktopApp:compileKotlin`, and `:shared:compileTestKotlinIosSimulatorArm64` passed with `--configuration-cache`. Prior branch gates `spotlessCheck`, `detekt`, `architectureCheck`, `openspec validate --all` (57 passed, 0 failed), and `git diff --check` passed on the same fast-forwarded revision.
+Next owner: prioritize outstanding Phase 1 physical/system-media acceptance; Phase 2 next implementation is the sleep timer. Preserve the documented Android native-toolchain and full Shared JVM baseline limitations until resolved.
+Blockers: full Shared JVM `LibraryPlaybackSelectionTest.differentSelectionPreservesRepeatAndShuffleModes` timeout; Android TagLib native CMake toolchain unavailable. No full `./init.sh`, APK, or physical-device acceptance is claimed for this merge.

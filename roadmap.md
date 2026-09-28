@@ -19,7 +19,7 @@
 
 - Files.app permits multi-file and folder selection; RhythHaus copies supported audio into its managed sandbox and scans the existing `ios-app-local` source.
 - Copying, duplicate handling, cancellation, and source mutation/scan handoff are covered by automated JVM and XCTest regressions.
-- Real picker-to-playback acceptance is complete; the remaining scope is the requested default app-local source/access behavior.
+- Real picker-to-playback acceptance and the default `Documents/RhythHaus` app-local source are complete.
 - MusicKit and security-scoped bookmarks remain deferred; do not introduce external URL persistence in this change.
 
 ### Explicitly abandoned work
@@ -34,7 +34,7 @@
 | Phase 3 — library management | Give users safe control over imported metadata and sources. | App-local metadata overrides; M3U/PLS import/export; Android MediaStore source; incremental-scan UX; desktop drag-and-drop and remaining cross-platform import policy. |
 | Phase 4 — advanced playback | Improve listening quality without adding network dependence. | ReplayGain/normalization; crossfade; basic EQ; gapless playback; local and embedded lyrics. |
 
-Sorting and filtering is implemented on the isolated `feature/sorting-filtering` branch: Shared owns an ephemeral query, flat Library modes use deterministic sort/filter projections, artwork presence is read without loading image blobs, and accessible EN/ZH controls preserve visible selection and playback order. Android packaging is still blocked by the TagLib native toolchain, and the known full Shared JVM playback-selection timeout prevents claiming a green full-suite gate. Physical-platform acceptance remains a release check; no metadata writes or saved sort presets were added.
+Sorting and filtering is integrated into `main`: Shared owns an ephemeral query, flat Library modes use deterministic sort/filter projections, artwork presence is read without loading image blobs, and accessible EN/ZH controls preserve visible selection and playback order. Android packaging is still blocked by the TagLib native toolchain, and the known full Shared JVM playback-selection timeout prevents claiming a green full-suite gate. Physical-platform acceptance remains a release check; no metadata writes or saved sort presets were added.
 
 ## Capability baseline
 
@@ -54,15 +54,15 @@ RhythHaus already provides:
 | Gap | Product decision |
 | --- | --- |
 | Real playback-system acceptance | Treat device/system controls as release evidence. Compilation and unit tests do not prove Bluetooth/wired controls, lock-screen/notification surfaces, route loss, interruptions, or background continuation. |
-| Android notification denial | Provide status, rationale, and a Settings re-entry path rather than ignoring the permission result. |
+| Android notification denial | Implemented; Android 13+ physical playback-under-denial and restored media-control acceptance remain open. |
 | Source and file lifecycle | Specify user-facing recovery for deleted/moved files, unavailable disks, revoked SAF grants, and source re-binding. |
 
 ### P1 — library and workflow
 
 | Area | First useful version |
 | --- | --- |
-| Favorites and history | Persist favorites, play count, last played, recently played, and recently added. |
-| Sorting and filtering | Sort direction, added/modified date, play count, favorites, artwork, and source filters. |
+| Favorites and history | Implemented: favorites, play count, last played, recently played, and recently added. |
+| Sorting and filtering | Implemented: sort direction, added/modified date, play count, favorites, artwork, and source filters. |
 | Metadata editing | App-local display overrides; do not write original media tags initially. |
 | Smart playlists | Favorites, recent tracks/additions, artist, album, and saved Queue rules. |
 | Playlist interoperability | M3U/PLS import/export; the existing JSON backup remains a recovery format. |
