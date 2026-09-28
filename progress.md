@@ -4486,3 +4486,12 @@ Output: `git merge --ff-only feature/sorting-filtering` advanced `main` to `1080
 Verification on merged `main`: `:feature:library:impl:jvmTest`, focused Shared browse/AppShell JVM tests, `:desktopApp:compileKotlin`, and `:shared:compileTestKotlinIosSimulatorArm64` passed with `--configuration-cache`. Prior branch gates `spotlessCheck`, `detekt`, `architectureCheck`, `openspec validate --all` (57 passed, 0 failed), and `git diff --check` passed on the same fast-forwarded revision.
 Next owner: prioritize outstanding Phase 1 physical/system-media acceptance; Phase 2 next implementation is the sleep timer. Preserve the documented Android native-toolchain and full Shared JVM baseline limitations until resolved.
 Blockers: full Shared JVM `LibraryPlaybackSelectionTest.differentSelectionPreservesRepeatAndShuffleModes` timeout; Android TagLib native CMake toolchain unavailable. No full `./init.sh`, APK, or physical-device acceptance is claimed for this merge.
+
+## Acceptance ownership and next roadmap item
+
+Route: openspec+superpowers
+Owner: user (manual acceptance), implementation (automated verification and product work)
+Input: user direction to perform manual verification personally and continue ordered roadmap implementation.
+Output: `roadmap.md` assigns real-device, UI, listening, and system-control acceptance to the user. Unreported scenarios remain pending; automated tests, compilation, and quality checks remain implementation-owned. Next independent Phase 2 deliverable is the sleep timer, after completed Favorites, history, and sorting/filtering.
+Next owner: implementation — design and plan the sleep timer through its own OpenSpec change before product code.
+Blockers: physical acceptance awaits user evidence; previously recorded Shared test timeout and Android TagLib native toolchain remain automated limitations.

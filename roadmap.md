@@ -91,6 +91,8 @@ RhythHaus already provides:
 
 Automated tests and compilation are necessary but not sufficient for UI, picker, system-media, accessibility, or audible playback claims. Record manual evidence separately for:
 
+**Verification ownership:** the user performs and reports manual device/UI/listening/system-control acceptance; the implementation owner runs automated tests, builds, and static checks. Until the user reports a scenario's result, record it as pending rather than passed. Manual ownership does not waive automated verification or silently close an OpenSpec acceptance task.
+
 - Android/iOS device behavior and macOS system controls.
 - Files/folder selection, scanning, restart, and playable imported media.
 - Compact/wide, light/dark, Chinese/English/CJK rendering, accessibility, long press/drag, predictive Back, and system panels.
