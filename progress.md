@@ -4464,3 +4464,15 @@ Decision: add a pure Library browse query for title, artist, album, added time, 
 Verification: `openspec validate sorting-filtering --strict` passed; plan placeholder scan and `git diff --check` passed.
 Next owner: isolated OpenSpec apply plus subagent-driven implementation, beginning with the pure query projection task.
 Blockers: none for implementation planning.
+
+## Implementation - sorting and filtering
+
+Route: openspec+superpowers
+Owner: implementation
+Input: `openspec/changes/sorting-filtering/` and `docs/superpowers/plans/2026-09-24-sorting-filtering.md`.
+Output: isolated `feature/sorting-filtering` branch provides ephemeral Shared-owned browse query, Library flat-mode filters/sorts and accessible EN/ZH controls, authoritative persisted artwork-presence projection without loading image blobs, and exact visible-order selection/playback callbacks. Review repair `0cef8d5d` separates explicit Title/Ascending from default recent ordering and sorts missing numeric metadata as zero.
+Verification: Library JVM suite passed after repair; focused Shared browse/AppShell tests, iOS test-code compilation, standalone `spotlessCheck`, `detekt`, `architectureCheck`, strict change validation, and `git diff --check` passed. UI tests render the compact Home artwork-only filter from persisted presence with lazy track bytes. The full Shared JVM suite earlier reached 414 tests but stopped at the existing `LibraryPlaybackSelectionTest.differentSelectionPreservesRepeatAndShuffleModes` timeout. Android assembly remains blocked by TagLib native configuration without `CMAKE_MAKE_PROGRAM`/C++ compiler; no Android success claimed.
+Review: the first branch review found three Important issues; `0cef8d5d` repaired them. A later review found a Minor recent-mode accessibility-state mismatch; `4e539ff1` repaired it, and independent re-review returned Ready with no remaining Critical or Important finding.
+OpenSpec: the canonical `openspec/specs/library-sorting-filtering/spec.md` contains all delta requirements and was validated with `openspec validate --specs` (16 passed, 0 failed). `openspec archive sorting-filtering --skip-specs --yes` moved the already-synced change to `openspec/changes/archive/2026-09-28-sorting-filtering/`; `openspec validate --all` passed (57/57).
+Next owner: retain the isolated branch until the known full Shared JVM timeout and Android TagLib native toolchain limitations are resolved or explicitly accepted for integration; physical Android/iOS/macOS UI and playback acceptance remains a release check.
+Blockers: full Shared JVM baseline timeout and Android native toolchain. Full-suite/Android green is not claimed.

@@ -29,11 +29,12 @@ Task 2: complete
 - Review: Ready; no Critical, Important, or Minor findings.
 
 Task 3: complete
-- Commit: pending.
-- Focused controls/Home/resource tests passed.
-- Review: pending.
+- Commits: cbbdd094, b5a17656; focused controls/Home/resource tests passed.
+- Review: five UI findings repaired and re-reviewed Ready.
 
 Task 4: complete
-- Commit: e5add1b0.
-- Focused tests: LibraryHomeContentJvmTest and Shared AppShell/selection/query-state selectors passed.
+- Commits: e5add1b0, f216fa6e; LibraryHomeContentJvmTest and Shared AppShell/selection/query-state selectors passed.
+- Review: three behavioral-evidence gaps repaired; exact real-controller multi-track queue, compact and wide routes, and unchanged playback snapshots covered.
 - Existing Home-to-Shared callback already published the complete visible projection; Task 4 adds boundary regressions without a production-source change.
+
+Full-branch review: three Important production defects were found and repaired in 0cef8d5d. Artwork-only now uses non-blob persisted artwork presence; explicit Title/Ascending no longer aliases recent-mode defaults; missing numeric metadata sorts as zero. A Minor recent-mode accessibility-state mismatch was repaired in 4e539ff1, then independently re-reviewed Ready. SQL repository, Library pure/Home UI, Shared query/AppShell, iOS test-code compilation, Spotless, Detekt, architecture, and strict OpenSpec checks passed. Full Shared JVM suite retains the previously established unrelated playback-selection timeout; Android assembly retains the TagLib native toolchain blocker.
