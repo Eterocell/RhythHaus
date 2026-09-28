@@ -1,0 +1,32 @@
+# Sleep timer design
+
+## Context
+
+`PlaybackController` is the authoritative queue and generation owner; all native completions reach `onPlaybackCompleted(generation)`. Its controller scope already survives Now Playing composition and is cancelled on release. `stop()` resets engine position while retaining queue and modes. Platform engines expose transport but no common gain command; iOS has a separate, blocking 50 ms track-switch fade that is not suitable for a user timer. Android's service owns ExoPlayer, macOS owns AVAudioPlayer through JNI, and iOS Swift owns AVAudioPlayer on main. See proposal.md for motivation.
+
+## Goals / Non-Goals
+
+**Goals:** One ephemeral timer with elapsed-time or natural-completion mode, optional reversible ten-second fade, accurate Now Playing controls on three platforms, and no stale callback stopping a replacement selection.
+
+**Non-goals:** Persisting an armed timer, controlling hardware volume, scheduling a platform alarm after process death, altering repeat/shuffle modes, media/file mutation, a general audio effects framework, or changing the pre-existing iOS 50 ms track-switch fade.
+
+## Decisions
+
+1. **Playback authority:** Keep timer state and expiration in `:core:playback` next to the controller's generation/selection transaction, not in a composable or a second independent queue observer. Expose `StateFlow<SleepTimerState>` and commands for arm-by-duration, arm-by-natural-completions, and cancel. Exactly one arm token owns its expiry; rearming/cancelling invalidates its job and gain updates. Use monotonic elapsed time for a process-local deadline; no persistence. A timed expiration binds to the current authoritative generation at execution and cancels a pending load's autoplay before the engine stop action. On queue clear or controller release invalidate timer and restore gain.
+2. **Natural completion accounting:** Decrement only within `onPlaybackCompleted` after it confirms the active generation, once for each accepted completion event. When count reaches zero, commit a stop before any repeat-mode advance. Explicit skip, seek, queue replacement, error, recovery and stale duplicate callbacks cannot count. A `RepeatOne` natural completion counts; repeat/shuffle selection is preserved. Keep a consumed-completion key to reject repeated native callbacks for the same generation.
+3. **Fade output:** Add `setPlaybackGain(gain: Float)` (finite 0..1) to the engine seam, migrate every production adapter and existing test engine without a no-op compatibility shim. Android applies Media3 player gain through the service/session control path; Swift sets AVAudioPlayer volume through the existing main-thread serialized provider; macOS JNI calls AVAudioPlayer volume under its native handle lock. If a load replaces the player, reapply the controller's authoritative gain to the new player before audible playback; cancel/stop/release resets it to 1 without changing system volume. Do not reuse iOS's blocking teardown fade.
+4. **Fade policy:** Fade opt-in uses a fixed ten-second window. Timed mode derives current gain from remaining monotonic time at each fade tick, scheduling no periodic work before the window. Completion mode derives gain from current progress/duration only for the final counted track; unknown duration remains at full gain and stops immediately on completion. Pause freezes progress-based gain; seek or selection change recomputes/restores it. No attempt to predict an unknown natural endpoint. Timer replacement/cancellation invalidates pending fade writes before native calls.
+5. **UI:** Shared passes immutable timer projection and narrow arm/cancel callbacks to `:feature:nowplaying`; feature owns its timer panel, EN/ZH copy, semantic labels and compact/split reachable controls. Offer 15/30/45/60 minutes and stop after current/3/5 natural completions, plus fade toggle and cancel. No platform-specific navigation/permission flow. Display rounded-up minutes/seconds remaining and the remaining count from the authoritative state; never imply a timer is persisted.
+6. **Acceptance ownership:** Implementation owner runs unit, integration, platform compilation/native bridge and static gates; user performs real-device/UI/listening/system-control manual acceptance, recorded as pending until reported.
+
+## Risks / Trade-offs
+
+- Android Media3 controller may not expose local-player volume safely; adapt gain via an explicit service-side command if required rather than silently updating an unrelated volume endpoint. Assert gain on the actual ExoPlayer in host tests.
+- Native gain changes and completion callbacks can race selection; compare timer token and engine generation at the controller admission boundary, and keep engine calls outside ownership locks. Never block a native callback on a fade coroutine.
+- A process killed during playback loses the timer by design. Avoid a false persisted armed indicator on restore; document this in the UI.
+- A timed fade while playback is paused may reach silence without audible ramp; stop still occurs at deadline. Natural-completion mode with unknown duration stops without a fade rather than fabricating timing.
+- iOS background timers require an active playback process/session; automatic stop after a suspended process cannot be guaranteed until it resumes. Manual device evidence is required, not inferred from simulator compilation.
+
+## Verification
+
+Write controller RED/GREEN tests for expiry, cancellation/replacement races, stop-before-repeat, N natural completions, stale/duplicate generations, queue/load changes, progress-based fade and gain restoration. Add engine gain tests for Android service/Media3, iOS Swift provider and Kotlin bridge, and macOS JNI/native AVAudioPlayer. Compose semantic tests cover compact/split layouts, accessible active/idle states, EN/ZH resource parity, cancellation and actual callback invocation. Run focused JVM/Android-host/iOS compile/macOS tests and independent formatting, Detekt, architecture and OpenSpec validation; document existing Shared timeout and Android native-toolchain limits separately. User performs real platform acceptance.
