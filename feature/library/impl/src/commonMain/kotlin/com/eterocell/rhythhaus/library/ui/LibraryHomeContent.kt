@@ -295,6 +295,7 @@ public fun LibraryHomeContent(
                             item {
                                 LibraryBrowseControls(
                                     query = browseQuery,
+                                    browseMode = browseMode,
                                     sourceOptions = sourceOptions,
                                     onSortChange = onBrowseSortChange,
                                     onSortDirectionChange =

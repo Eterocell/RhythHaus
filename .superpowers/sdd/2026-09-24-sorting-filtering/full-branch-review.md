@@ -6,4 +6,4 @@ Initial verdict: **Incorrect**; three Important findings, no Critical or Minor f
 2. Title/Ascending represented both the initial mode default and an explicit choice. Repaired by tracking whether a sort was explicitly selected; recent modes retain their established order only before an explicit selection. Verified by query and Shared state tests.
 3. Missing play history was sorted as null instead of a zero play count. Repaired with zero fallback for play count and absent timestamps. Verified by query tests and the updated Home projection expectation.
 
-Post-repair review and cross-platform gates: pending.
+Independent repair review found no remaining Critical or Important issue, but identified one Minor accessibility mismatch: recent modes announced Title/Ascending selected while using the initial date order. Home now passes the active mode to its controls and leaves sort/direction unselected until an explicit choice; the rendered controls test covers both states. Full Library JVM and focused Shared JVM tests passed after that repair. Final re-review and archive gates: pending.

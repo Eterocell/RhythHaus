@@ -34,6 +34,8 @@ The helper applies query sorting only to flat Home modes (`Songs`, `Favorites`, 
 
 Add a compact, scrollable controls row below the browse-mode picker. A sort button cycles/open-selects sort key and direction; filter controls expose favorite, artwork, and source choices. Controls have selected/checked semantics and localized labels. The source selector is omitted when there are no sources. Clearing a filter is explicit and returns to the full list. Empty result state remains passive for filtered results and does not show import actions.
 
+While recent modes use their initial date ordering, neither Title nor Ascending is announced as selected. Once a sort or direction is explicitly selected, the selected control state reflects the actual query order.
+
 ### State and playback
 
 Shared passes source IDs and metadata projections to Library. Home computes one `visibleTracks` list from browse mode and query, reports that list to selection reconciliation, and supplies it to `onPlayTrack`. Changing query clears selection on the same flat page when the visible set/order changes, preventing stale selected IDs or queue order.

@@ -87,6 +87,11 @@ The system SHALL expose localized English and Simplified Chinese labels for sort
 - **THEN** its label and state describe the active key, direction, or checked filter
 - **AND** inactive filters remain actionable to clear or enable
 
+#### Scenario: Recent-mode default does not claim an explicit sort
+- **WHEN** a recent browse mode uses its initial date ordering before a sort choice
+- **THEN** Title and Ascending are not announced as selected
+- **AND** selecting Title explicitly activates Title/Ascending and updates the announced state
+
 ### Requirement: Empty filtered results are passive
 
 The system SHALL show a localized empty-result message when the active query removes all visible tracks and SHALL NOT show an import or destructive-library action solely because filtering returned no rows.
