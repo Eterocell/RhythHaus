@@ -673,6 +673,7 @@ fun App(
                     createdAtByTrackId = libraryContent.createdAtByTrackId,
                     sourceIdByTrackId = libraryContent.sourceIdByTrackId,
                     modifiedAtByTrackId = libraryContent.modifiedAtByTrackId,
+                    artworkTrackIds = libraryContent.artworkTrackIds,
                     onSetTrackFavorite = { trackId, favorite ->
                         scope.launch {
                             setTrackFavoriteAndPublish(
@@ -917,6 +918,7 @@ internal data class LibraryContentState(
     val createdAtByTrackId: Map<String, Long> = emptyMap(),
     val sourceIdByTrackId: Map<String, String> = emptyMap(),
     val modifiedAtByTrackId: Map<String, Long?> = emptyMap(),
+    val artworkTrackIds: Set<String> = emptySet(),
 )
 
 /** Compose-owned projection consumed by the App's downstream library routes. */
@@ -1191,6 +1193,7 @@ internal fun loadLibraryContent(
             },
         tracks = tracks,
         favoriteTrackIds = repository.favoriteTrackIds().toSet(),
+        artworkTrackIds = repository.artworkTrackIds().toSet(),
         playHistory = repository.playHistory().toMap(),
         createdAtByTrackId =
             tracks.associate { track ->

@@ -374,6 +374,12 @@ internal class SqlDelightLibraryRepository(
             bytes = artworkBytes, mimeType = metadata.artworkMimeType)
     }
 
+    override fun artworkTrackIds(): Set<String> =
+        database.libraryTrackQueries
+            .selectTrackIdsWithArtwork()
+            .executeAsList()
+            .toSet()
+
     /**
      * Stores a scan session.
      *

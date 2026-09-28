@@ -217,6 +217,8 @@ private class MutationLibraryRepository : LibraryRepository {
 
     override fun artworkForTrack(trackId: String): TrackArtwork? = null
 
+    override fun artworkTrackIds(): Set<String> = emptySet()
+
     override fun insertScanSession(session: ScanSession) = Unit
 
     override fun updateScanSession(session: ScanSession) = Unit

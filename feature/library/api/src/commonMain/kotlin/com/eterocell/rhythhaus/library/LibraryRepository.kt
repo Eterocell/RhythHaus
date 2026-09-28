@@ -60,6 +60,12 @@ public interface LibraryRepository {
     /** Returns artwork for a track when available. */
     public fun artworkForTrack(trackId: String): TrackArtwork?
 
+    /**
+     * Returns IDs of tracks with non-empty artwork without materializing image
+     * bytes.
+     */
+    public fun artworkTrackIds(): Set<String>
+
     /** Stores a scan session. */
     public fun insertScanSession(session: ScanSession)
 

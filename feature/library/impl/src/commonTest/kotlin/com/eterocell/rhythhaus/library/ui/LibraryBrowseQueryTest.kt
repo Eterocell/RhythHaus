@@ -136,7 +136,7 @@ class LibraryBrowseQueryTest {
             )
 
         assertEquals(
-            listOf("zero", "known", "missing"),
+            listOf("missing", "zero", "known"),
             project(
                 tracks = tracks,
                 query = LibraryBrowseQuery(sort = LibrarySort.Modified),
@@ -144,7 +144,7 @@ class LibraryBrowseQueryTest {
             ),
         )
         assertEquals(
-            listOf("missing", "known", "zero"),
+            listOf("known", "zero", "missing"),
             project(
                 tracks = tracks,
                 query =
@@ -156,7 +156,7 @@ class LibraryBrowseQueryTest {
             ),
         )
         assertEquals(
-            listOf("zero", "known", "missing"),
+            listOf("missing", "zero", "known"),
             project(
                 tracks = tracks,
                 query = LibraryBrowseQuery(sort = LibrarySort.PlayCount),
@@ -165,6 +165,61 @@ class LibraryBrowseQueryTest {
                         "known" to TrackPlayHistory("known", 2L, 1L),
                         "zero" to TrackPlayHistory("zero", 0L, 1L)),
             ),
+        )
+    }
+
+    @Test
+    fun unplayedTrackSortsLikeZeroPlaysRatherThanAfterPlayedTracks() {
+        val tracks =
+            listOf(
+                testTrack("played", "Played"),
+                testTrack("unplayed", "Unplayed"),
+                testTrack("zero", "Zero"),
+            )
+        val history =
+            mapOf(
+                "played" to TrackPlayHistory("played", 2L, 1L),
+                "zero" to TrackPlayHistory("zero", 0L, 1L),
+            )
+
+        assertEquals(
+            listOf("unplayed", "zero", "played"),
+            project(
+                tracks,
+                query = LibraryBrowseQuery(sort = LibrarySort.PlayCount),
+                playHistory = history),
+        )
+        assertEquals(
+            listOf("played", "zero", "unplayed"),
+            project(
+                tracks,
+                query =
+                    LibraryBrowseQuery(
+                        sort = LibrarySort.PlayCount,
+                        direction = LibrarySortDirection.Descending),
+                playHistory = history,
+            ),
+        )
+    }
+
+    @Test
+    fun absentTimestampsUseZeroAndCannotAppearNewestInRecentlyAdded() {
+        val tracks =
+            listOf(testTrack("missing", "Missing"), testTrack("known", "Known"))
+        val created = mapOf("known" to 100L)
+        assertEquals(
+            listOf("missing", "known"),
+            project(
+                tracks,
+                query = LibraryBrowseQuery(sort = LibrarySort.Added),
+                createdAtByTrackId = created),
+        )
+        assertEquals(
+            listOf("known", "missing"),
+            project(
+                tracks,
+                browseMode = BrowseMode.RecentlyAdded,
+                createdAtByTrackId = created),
         )
     }
 
@@ -220,6 +275,24 @@ class LibraryBrowseQueryTest {
                 query = LibraryBrowseQuery(sourceId = "missing-source"),
                 sourceIdByTrackId = sourceIds,
             ),
+        )
+    }
+
+    @Test
+    fun artworkFilterUsesAuthoritativePresenceWhenRoutineTracksOmitBytes() {
+        val tracks =
+            listOf(
+                testTrack("with-art", "Artwork"),
+                testTrack("without-art", "Plain"))
+        assertEquals(
+            listOf("with-art"),
+            visibleTracksForBrowseQuery(
+                    tracks,
+                    BrowseMode.Songs,
+                    LibraryBrowseQuery(artworkOnly = true),
+                    artworkTrackIds = setOf("with-art"),
+                )
+                .map { it.id },
         )
     }
 
@@ -299,6 +372,25 @@ class LibraryBrowseQueryTest {
     }
 
     @Test
+    fun explicitTitleAscendingOrdersRecentTracksInsteadOfRestoringRecentOrder() {
+        val tracks =
+            listOf(testTrack("older", "Alpha"), testTrack("newer", "Zulu"))
+        val created = mapOf("older" to 1L, "newer" to 2L)
+        assertEquals(
+            listOf("newer", "older"),
+            project(
+                tracks, BrowseMode.RecentlyAdded, createdAtByTrackId = created))
+        assertEquals(
+            listOf("older", "newer"),
+            project(
+                tracks,
+                BrowseMode.RecentlyAdded,
+                LibraryBrowseQuery(sortExplicit = true),
+                createdAtByTrackId = created),
+        )
+    }
+
+    @Test
     fun groupedModesPassThroughWithoutApplyingQuery() {
         val tracks =
             listOf(
@@ -340,6 +432,11 @@ class LibraryBrowseQueryTest {
         query: LibraryBrowseQuery = LibraryBrowseQuery(),
         favoriteTrackIds: Set<String> = emptySet(),
         sourceIdByTrackId: Map<String, String> = emptyMap(),
+        artworkTrackIds: Set<String> =
+            tracks
+                .filter { it.artworkBytes?.isNotEmpty() == true }
+                .map { it.id }
+                .toSet(),
         createdAtByTrackId: Map<String, Long> = emptyMap(),
         modifiedAtByTrackId: Map<String, Long> = emptyMap(),
         playHistory: Map<String, TrackPlayHistory> = emptyMap(),
@@ -349,6 +446,7 @@ class LibraryBrowseQueryTest {
                 browseMode = browseMode,
                 query = query,
                 favoriteTrackIds = favoriteTrackIds,
+                artworkTrackIds = artworkTrackIds,
                 sourceIdByTrackId = sourceIdByTrackId,
                 createdAtByTrackId = createdAtByTrackId,
                 modifiedAtByTrackId = modifiedAtByTrackId,

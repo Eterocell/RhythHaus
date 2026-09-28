@@ -338,6 +338,7 @@ class LibraryBrowseControlsJvmTest {
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
+                        artworkTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery =
                             LibraryBrowseQuery(
@@ -411,6 +412,7 @@ class LibraryBrowseControlsJvmTest {
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
+                        artworkTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery = LibraryBrowseQuery(favoriteOnly = true),
                         sourceIdByTrackId = mapOf("track" to "source-a"),
