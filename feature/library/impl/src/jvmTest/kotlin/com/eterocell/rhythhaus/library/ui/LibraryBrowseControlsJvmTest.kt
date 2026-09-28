@@ -53,6 +53,7 @@ class LibraryBrowseControlsJvmTest {
             Box(Modifier.size(1_200.dp, 1_200.dp)) {
                 LibraryBrowseControls(
                     query = LibraryBrowseQuery(),
+                    browseMode = BrowseMode.Songs,
                     sourceOptions =
                         listOf(
                             LibraryBrowseSourceOption(
@@ -111,6 +112,57 @@ class LibraryBrowseControlsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun recentDefaultDoesNotAnnounceTitleAscendingAsActive() =
+        runComposeUiTest {
+            var query by mutableStateOf(LibraryBrowseQuery())
+            setContent {
+                Box(Modifier.size(1_200.dp, 1_200.dp)) {
+                    LibraryBrowseControls(
+                        query = query,
+                        browseMode = BrowseMode.RecentlyPlayed,
+                        sourceOptions = emptyList(),
+                        onSortChange = {
+                            query = query.copy(sort = it, sortExplicit = true)
+                        },
+                        onSortDirectionChange = {
+                            query =
+                                query.copy(direction = it, sortExplicit = true)
+                        },
+                        onFavoriteOnlyChange = {},
+                        onArtworkOnlyChange = {},
+                        onSourceIdChange = {},
+                    )
+                }
+            }
+            waitForIdle()
+            val title = hasText("Title", substring = false)
+            val ascending = hasText("Ascending", substring = false)
+            onNode(
+                    title and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.Selected, false))
+                .assertIsDisplayed()
+            onNode(
+                    ascending and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.Selected, false))
+                .assertIsDisplayed()
+            onNode(title).performClick()
+            waitForIdle()
+            onNode(
+                    title and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.Selected, true))
+                .assertIsDisplayed()
+            onNode(
+                    ascending and
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.Selected, true))
+                .assertIsDisplayed()
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun filterTogglesExposeCheckedStateAndCanBeCleared() = runComposeUiTest {
         val favoriteChanges = mutableListOf<Boolean>()
         val artworkChanges = mutableListOf<Boolean>()
@@ -119,6 +171,7 @@ class LibraryBrowseControlsJvmTest {
             Box(Modifier.size(1_200.dp, 1_200.dp)) {
                 LibraryBrowseControls(
                     query = query,
+                    browseMode = BrowseMode.Songs,
                     sourceOptions =
                         listOf(
                             LibraryBrowseSourceOption(
@@ -201,6 +254,7 @@ class LibraryBrowseControlsJvmTest {
                 Box(Modifier.size(1_200.dp, 1_200.dp)) {
                     LibraryBrowseControls(
                         query = query,
+                        browseMode = BrowseMode.Songs,
                         sourceOptions =
                             listOf(
                                 LibraryBrowseSourceOption(
@@ -247,6 +301,7 @@ class LibraryBrowseControlsJvmTest {
                 Box(Modifier.size(1_200.dp, 260.dp)) {
                     LibraryBrowseControls(
                         query = staleQuery,
+                        browseMode = BrowseMode.Songs,
                         sourceOptions = emptyList(),
                         onSortChange = {},
                         onSortDirectionChange = {},
@@ -272,6 +327,7 @@ class LibraryBrowseControlsJvmTest {
             Box(Modifier.size(420.dp, 900.dp)) {
                 LibraryBrowseControls(
                     query = LibraryBrowseQuery(),
+                    browseMode = BrowseMode.Songs,
                     sourceOptions =
                         listOf(
                             LibraryBrowseSourceOption(

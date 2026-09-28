@@ -535,6 +535,7 @@ internal fun BrowseModePicker(
 @Composable
 internal fun LibraryBrowseControls(
     query: LibraryBrowseQuery,
+    browseMode: BrowseMode,
     sourceOptions: List<LibraryBrowseSourceOption>,
     onSortChange: (LibrarySort) -> Unit,
     onSortDirectionChange: (LibrarySortDirection) -> Unit,
@@ -544,6 +545,10 @@ internal fun LibraryBrowseControls(
 ) {
     val selectedState = stringResource(Res.string.browse_selected_state)
     val unselectedState = stringResource(Res.string.browse_unselected_state)
+    val sortIsActive =
+        query.sortExplicit ||
+            browseMode != BrowseMode.RecentlyPlayed &&
+                browseMode != BrowseMode.RecentlyAdded
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -558,9 +563,9 @@ internal fun LibraryBrowseControls(
             LibrarySort.entries.forEach { sort ->
                 BrowseChoiceButton(
                     label = stringResource(sort.labelResource()),
-                    selected = query.sort == sort,
+                    selected = sortIsActive && query.sort == sort,
                     stateDescription =
-                        if (query.sort == sort) selectedState
+                        if (sortIsActive && query.sort == sort) selectedState
                         else unselectedState,
                     onClick = { onSortChange(sort) },
                 )
@@ -576,9 +581,10 @@ internal fun LibraryBrowseControls(
             LibrarySortDirection.entries.forEach { direction ->
                 BrowseChoiceButton(
                     label = stringResource(direction.labelResource()),
-                    selected = query.direction == direction,
+                    selected = sortIsActive && query.direction == direction,
                     stateDescription =
-                        if (query.direction == direction) selectedState
+                        if (sortIsActive && query.direction == direction)
+                            selectedState
                         else unselectedState,
                     onClick = { onSortDirectionChange(direction) },
                 )
