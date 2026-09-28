@@ -24,12 +24,21 @@ class LibraryBrowseQueryStateTest {
     }
 
     @Test
+    fun explicitTitleChoiceSortsRecentTracksWhileUntouchedDefaultKeepsRecentOrder() {
+        val state = LibraryAppState(initialSelectedTrackId = null)
+        assertEquals(false, state.browseQuery.sortExplicit)
+        state.setBrowseSort(LibrarySort.Title)
+        assertEquals(true, state.browseQuery.sortExplicit)
+    }
+
+    @Test
     fun browseQuerySettersPreserveIndependentSortAndFilterChoices() {
         val state = LibraryAppState(initialSelectedTrackId = null)
 
         state.setBrowseSort(LibrarySort.Modified)
         assertEquals(
-            LibraryBrowseQuery(sort = LibrarySort.Modified),
+            LibraryBrowseQuery(
+                sort = LibrarySort.Modified, sortExplicit = true),
             state.browseQuery,
         )
 
@@ -38,6 +47,7 @@ class LibraryBrowseQueryStateTest {
             LibraryBrowseQuery(
                 sort = LibrarySort.Modified,
                 direction = LibrarySortDirection.Descending,
+                sortExplicit = true,
             ),
             state.browseQuery,
         )
@@ -49,6 +59,7 @@ class LibraryBrowseQueryStateTest {
             LibraryBrowseQuery(
                 sort = LibrarySort.Modified,
                 direction = LibrarySortDirection.Descending,
+                sortExplicit = true,
                 favoriteOnly = true,
                 artworkOnly = true,
                 sourceId = "source-b",
@@ -61,6 +72,7 @@ class LibraryBrowseQueryStateTest {
             LibraryBrowseQuery(
                 sort = LibrarySort.Modified,
                 direction = LibrarySortDirection.Descending,
+                sortExplicit = true,
                 artworkOnly = true,
                 sourceId = "source-b",
             ),
@@ -118,6 +130,26 @@ class LibraryBrowseQueryStateTest {
             ),
             content.modifiedAtByTrackId,
         )
+    }
+
+    @Test
+    fun libraryContentPublishesArtworkPresenceWithoutLoadingArtworkIntoTracks() {
+        val repository =
+            InMemoryLibraryRepository().apply {
+                upsertSource(source("source-a"))
+                upsertTrack(
+                    track("with-art", "source-a", null)
+                        .copy(artworkBytes = byteArrayOf(1, 2)))
+                upsertTrack(track("without-art", "source-a", null))
+                upsertTrack(
+                    track("empty-art", "source-a", null)
+                        .copy(artworkBytes = byteArrayOf()))
+            }
+
+        val content = loadLibraryContent(repository, AvailableSourceAccess)
+
+        assertEquals(setOf("with-art"), content.artworkTrackIds)
+        assertEquals(true, content.tracks.all { it.artworkBytes == null })
     }
 
     @Test

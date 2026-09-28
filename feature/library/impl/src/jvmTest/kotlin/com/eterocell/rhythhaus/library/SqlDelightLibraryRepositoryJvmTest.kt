@@ -509,6 +509,32 @@ class SqlDelightLibraryRepositoryJvmTest {
     }
 
     @Test
+    fun artworkPresenceDoesNotLoadBlobAndRejectsEmptyArtwork() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-artwork-presence", ".db").toFile()
+        databaseFile.deleteOnExit()
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            listOf(
+                    "present" to byteArrayOf(1),
+                    "empty" to byteArrayOf(),
+                    "absent" to null)
+                .forEach { (id, artwork) ->
+                    open.repository.upsertTrack(
+                        testTrack(
+                                id = id,
+                                sourceLocalKey = "$id.mp3",
+                                title = id,
+                                artist = "Artist")
+                            .copy(artworkBytes = artwork),
+                    )
+                }
+            assertEquals(setOf("present"), open.repository.artworkTrackIds())
+            assertTrue(open.repository.tracks().all { it.artworkBytes == null })
+        }
+    }
+
+    @Test
     fun largeArtworkIsLoadedLazilyInMultipleBoundedChunks() {
         val databaseFile =
             Files.createTempFile("rhythhaus-library-chunked-artwork", ".db")

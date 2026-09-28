@@ -226,11 +226,13 @@ internal class LibraryAppState(
     }
 
     fun setBrowseSort(sort: LibrarySort) {
-        browseQueryState = browseQueryState.copy(sort = sort)
+        browseQueryState =
+            browseQueryState.copy(sort = sort, sortExplicit = true)
     }
 
     fun setBrowseSortDirection(direction: LibrarySortDirection) {
-        browseQueryState = browseQueryState.copy(direction = direction)
+        browseQueryState =
+            browseQueryState.copy(direction = direction, sortExplicit = true)
     }
 
     fun setBrowseFavoriteOnly(favoriteOnly: Boolean) {

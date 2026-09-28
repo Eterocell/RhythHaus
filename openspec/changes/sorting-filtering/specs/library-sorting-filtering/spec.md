@@ -40,7 +40,7 @@ The system SHALL support Favorite-only, Artwork-present, and Source filters, and
 
 #### Scenario: Artwork filter excludes absent artwork
 - **WHEN** Artwork-present is enabled
-- **THEN** only tracks with non-empty artwork bytes are shown
+- **THEN** only tracks with persisted non-empty artwork are shown, even when routine track rows omit artwork bytes for lazy loading
 
 #### Scenario: Source filter selects one source
 - **WHEN** a source filter is selected
@@ -50,6 +50,10 @@ The system SHALL support Favorite-only, Artwork-present, and Source filters, and
 ### Requirement: Browse modes retain their membership semantics
 
 The system SHALL preserve Favorites, Recently Played, and Recently Added membership rules while applying explicit query filters and sort choices to their visible flat results.
+
+#### Scenario: Default ordering remains distinct from an explicit title sort
+- **WHEN** the user selects Title ascending in a recent flat browse mode
+- **THEN** the visible tracks sort by title instead of reverting to the mode's default recent ordering
 
 #### Scenario: Recent and favorite modes do not broaden membership
 - **WHEN** a user applies sorting or filtering while viewing Favorites, Recently Played, or Recently Added

@@ -196,6 +196,8 @@ private class RecordingLibraryRepository : LibraryRepository {
         return TrackArtwork(byteArrayOf(1), "image/jpeg")
     }
 
+    override fun artworkTrackIds(): Set<String> = setOf(track.id)
+
     override fun insertScanSession(session: ScanSession) {
         calls += LibraryRepositoryMethod.InsertScanSession
     }

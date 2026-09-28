@@ -94,6 +94,7 @@ class LibraryHomeContentJvmTest {
                         },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
+                        artworkTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery = browseQuery,
                         sourceOptions = emptyList(),
@@ -137,9 +138,9 @@ class LibraryHomeContentJvmTest {
             waitForIdle()
             val queryProjectedTracks =
                 listOf(
-                    tracks()[3],
                     tracks()[0],
                     tracks()[1],
+                    tracks()[3],
                 )
             assertEquals(
                 queryProjectedTracks.map(Track::id),
@@ -149,7 +150,7 @@ class LibraryHomeContentJvmTest {
             onAllNodes(hasContentDescription("Select Two"))[0].performClick()
             waitForIdle()
             assertEquals(queryProjectedTracks, plays.last().first)
-            assertEquals(tracks()[3].id, plays.last().second.id)
+            assertEquals(tracks()[0].id, plays.last().second.id)
         }
 
     @OptIn(ExperimentalTestApi::class)
@@ -198,6 +199,7 @@ class LibraryHomeContentJvmTest {
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = setOf("t-1", "t-4"),
+                        artworkTrackIds = setOf("t-1"),
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery = browseQuery,
                         sourceOptions = emptyList(),
@@ -221,6 +223,16 @@ class LibraryHomeContentJvmTest {
             waitForIdle()
             assertEquals(
                 listOf("t-4", "t-1", "t-3", "t-2"), visibleReports.last())
+
+            // Routine rows contain no artwork bytes; persisted artwork
+            // presence still keeps the artwork-bearing track visible.
+            browseQuery = LibraryBrowseQuery(artworkOnly = true)
+            waitForIdle()
+            assertEquals(listOf("t-1"), visibleReports.last())
+
+            browseQuery =
+                LibraryBrowseQuery(direction = LibrarySortDirection.Descending)
+            waitForIdle()
 
             browseMode = BrowseMode.Favorites
             waitForIdle()
@@ -267,6 +279,7 @@ class LibraryHomeContentJvmTest {
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = favoriteTrackIds,
+                        artworkTrackIds = emptySet(),
                         onSetTrackFavorite = { id, favorite ->
                             requests += id to favorite
                             favoriteTrackIds =
@@ -349,6 +362,7 @@ class LibraryHomeContentJvmTest {
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = favoriteTrackIds,
+                    artworkTrackIds = emptySet(),
                     onSetTrackFavorite = { id, favorite ->
                         favoriteTrackIds =
                             if (favorite) favoriteTrackIds + id
@@ -422,6 +436,7 @@ class LibraryHomeContentJvmTest {
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = setOf("t-1"),
+                    artworkTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
                     browseQuery = LibraryBrowseQuery(),
                     sourceOptions = emptyList(),
@@ -488,6 +503,7 @@ class LibraryHomeContentJvmTest {
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = setOf("t-2", "t-3"),
+                        artworkTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery = LibraryBrowseQuery(),
                         sourceOptions = emptyList(),
@@ -561,6 +577,7 @@ class LibraryHomeContentJvmTest {
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
+                    artworkTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
                     browseQuery = LibraryBrowseQuery(),
                     sourceOptions = emptyList(),
@@ -619,6 +636,7 @@ class LibraryHomeContentJvmTest {
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
+                        artworkTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery = LibraryBrowseQuery(),
                         sourceOptions = emptyList(),
@@ -676,6 +694,7 @@ class LibraryHomeContentJvmTest {
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
+                        artworkTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery = LibraryBrowseQuery(),
                         sourceOptions = emptyList(),
@@ -735,6 +754,7 @@ class LibraryHomeContentJvmTest {
                     },
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
+                    artworkTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
                     browseQuery = LibraryBrowseQuery(),
                     sourceOptions = emptyList(),
@@ -792,6 +812,7 @@ class LibraryHomeContentJvmTest {
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
+                    artworkTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
                     browseQuery = LibraryBrowseQuery(),
                     sourceOptions = emptyList(),
@@ -865,6 +886,7 @@ class LibraryHomeContentJvmTest {
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
+                    artworkTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
                     browseQuery = LibraryBrowseQuery(),
                     sourceOptions = emptyList(),
@@ -927,6 +949,7 @@ class LibraryHomeContentJvmTest {
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
+                    artworkTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
                     browseQuery = LibraryBrowseQuery(),
                     sourceOptions = emptyList(),
@@ -1046,6 +1069,7 @@ class LibraryHomeContentJvmTest {
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
+                        artworkTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery = LibraryBrowseQuery(),
                         sourceOptions = emptyList(),
@@ -1105,6 +1129,7 @@ class LibraryHomeContentJvmTest {
                     onScrollPositionChanged = { _, _ -> },
                     bottomContentPadding = 0.dp,
                     favoriteTrackIds = emptySet(),
+                    artworkTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
                     browseQuery = LibraryBrowseQuery(),
                     sourceOptions = emptyList(),
@@ -1163,6 +1188,7 @@ class LibraryHomeContentJvmTest {
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
+                        artworkTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery = LibraryBrowseQuery(),
                         sourceOptions = emptyList(),
@@ -1221,6 +1247,7 @@ class LibraryHomeContentJvmTest {
                         onScrollPositionChanged = { _, _ -> },
                         bottomContentPadding = 0.dp,
                         favoriteTrackIds = emptySet(),
+                        artworkTrackIds = emptySet(),
                         onSetTrackFavorite = { _, _ -> },
                         browseQuery = LibraryBrowseQuery(),
                         sourceOptions = emptyList(),

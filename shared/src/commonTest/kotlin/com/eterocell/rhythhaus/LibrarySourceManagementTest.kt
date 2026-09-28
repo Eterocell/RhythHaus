@@ -979,6 +979,8 @@ private class FailingMutationRepository(
 
     override fun artworkForTrack(trackId: String) = null
 
+    override fun artworkTrackIds(): Set<String> = emptySet()
+
     override fun insertScanSession(session: ScanSession) = Unit
 
     override fun updateScanSession(session: ScanSession) = Unit

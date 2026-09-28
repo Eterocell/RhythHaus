@@ -243,6 +243,7 @@ fun LibraryHomeScreen(
     onboardingCompletionError: String? = null,
     onCompleteOnboarding: () -> Unit = {},
     favoriteTrackIds: Set<String> = emptySet(),
+    artworkTrackIds: Set<String> = emptySet(),
     playHistory: Map<String, TrackPlayHistory> = emptyMap(),
     createdAtByTrackId: Map<String, Long> = emptyMap(),
     onSetTrackFavorite: (trackId: String, favorite: Boolean) -> Unit = { _, _ ->
@@ -595,6 +596,7 @@ fun LibraryHomeScreen(
                             trackSelectionState.selectedTrackIds
                         else emptySet(),
                     favoriteTrackIds = favoriteTrackIds,
+                    artworkTrackIds = artworkTrackIds,
                     playHistory = playHistory,
                     createdAtByTrackId = createdAtByTrackId,
                     browseQuery = appState.browseQuery,
@@ -730,6 +732,7 @@ fun LibraryHomeScreen(
                                     trackSelectionState.selectedTrackIds
                                 else emptySet(),
                             favoriteTrackIds = favoriteTrackIds,
+                            artworkTrackIds = artworkTrackIds,
                             playHistory = playHistory,
                             createdAtByTrackId = createdAtByTrackId,
                             browseQuery = appState.browseQuery,

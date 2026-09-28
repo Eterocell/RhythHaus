@@ -26,9 +26,9 @@ Add a public feature-owned `LibraryBrowseQuery` with `sort: LibrarySort`, `direc
 
 ### Projection boundary
 
-A pure helper receives `List<Track>` plus immutable maps for source IDs, created/modified timestamps, favorite IDs, and play history. It filters first, then sorts with a deterministic case-insensitive primary key and title/artist/album/id tie-breakers. Missing optional values sort last in ascending order and first in descending order only through direction reversal of the complete comparator; no entries are silently fabricated. Favorite sort places favorites first in ascending mode and last in descending mode.
+A pure helper receives `List<Track>` plus immutable maps for source IDs, created/modified timestamps, favorite IDs, artwork-presence IDs, and play history. Artwork presence comes from persisted metadata without loading artwork blobs; routine track rows intentionally omit bytes. It filters first, then sorts with a deterministic case-insensitive primary key and title/artist/album/id tie-breakers. Missing numeric metadata sorts as zero and missing text as empty; no entries are silently fabricated. Favorite sort places favorites first in ascending mode and last in descending mode.
 
-The helper applies query sorting only to flat Home modes (`Songs`, `Favorites`, `RecentlyPlayed`, `RecentlyAdded`). Existing mode-specific membership/order remains authoritative: Favorites and Recently Played still filter/order by their semantics, then the explicit query sort is applied only when the user changes away from the default mode sort. Albums and Artists continue their existing grouping and detail ordering.
+The helper applies query sorting only to flat Home modes (`Songs`, `Favorites`, `RecentlyPlayed`, `RecentlyAdded`). Existing mode-specific membership/order remains authoritative: Favorites and recent modes use their established order only until the user explicitly selects a sort key or direction. An explicit Title/Ascending selection sorts by title, even when it matches the initial query values. Albums and Artists continue their existing grouping and detail ordering.
 
 ### UI
 

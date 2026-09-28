@@ -99,6 +99,7 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  * @param bottomContentPadding reserved trailing list space for Shared shell
  *   chrome.
  * @param favoriteTrackIds immutable authoritative favorite IDs.
+ * @param artworkTrackIds immutable IDs whose persisted artwork is non-empty.
  * @param onSetTrackFavorite requests a desired favorite state for a track.
  * @param onBrowseSortChange requests a new flat-Home sort field.
  * @param onBrowseSortDirectionChange requests a new flat-Home sort direction.
@@ -139,6 +140,7 @@ public fun LibraryHomeContent(
         (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
     bottomContentPadding: Dp,
     favoriteTrackIds: Set<String>,
+    artworkTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
     browseQuery: LibraryBrowseQuery,
     sourceOptions: List<LibraryBrowseSourceOption>,
@@ -158,6 +160,7 @@ public fun LibraryHomeContent(
             browseMode,
             browseQuery,
             favoriteTrackIds,
+            artworkTrackIds,
             playHistory,
             createdAtByTrackId,
             sourceIdByTrackId,
@@ -168,6 +171,7 @@ public fun LibraryHomeContent(
                 browseMode = browseMode,
                 query = browseQuery,
                 favoriteTrackIds = favoriteTrackIds,
+                artworkTrackIds = artworkTrackIds,
                 sourceIdByTrackId = sourceIdByTrackId,
                 playHistory = playHistory,
                 createdAtByTrackId = createdAtByTrackId,

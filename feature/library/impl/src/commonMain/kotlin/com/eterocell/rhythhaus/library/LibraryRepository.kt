@@ -112,6 +112,13 @@ class InMemoryLibraryRepository : LibraryRepository {
         return TrackArtwork(bytes = bytes, mimeType = track.artworkMimeType)
     }
 
+    override fun artworkTrackIds(): Set<String> =
+        tracks.values
+            .asSequence()
+            .filter { it.artworkBytes?.isNotEmpty() == true }
+            .map { it.id }
+            .toSet()
+
     /**
      * Stores a scan session.
      *
