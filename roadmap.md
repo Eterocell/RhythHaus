@@ -89,9 +89,7 @@ RhythHaus already provides:
 
 ## Release evidence rule
 
-Automated tests and compilation are necessary but not sufficient for UI, picker, system-media, accessibility, or audible playback claims. Record manual evidence separately for:
-
-**Verification ownership:** the user performs and reports manual device/UI/listening/system-control acceptance; the implementation owner runs automated tests, builds, and static checks. Until the user reports a scenario's result, record it as pending rather than passed. Manual ownership does not waive automated verification or silently close an OpenSpec acceptance task.
+Automated tests and compilation are necessary but not sufficient for UI, picker, system-media, accessibility, or audible playback claims. **Verification ownership:** the user performs and reports manual device/UI/listening/system-control acceptance; the implementation owner runs automated tests, builds, and static checks. Until the user reports a scenario's result, record it as pending rather than passed. Manual ownership does not waive automated verification or silently close an OpenSpec acceptance task. Record manual evidence separately for:
 
 - Android/iOS device behavior and macOS system controls.
 - Files/folder selection, scanning, restart, and playable imported media.
