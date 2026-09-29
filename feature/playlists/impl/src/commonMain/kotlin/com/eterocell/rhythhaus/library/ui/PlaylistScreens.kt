@@ -228,6 +228,13 @@ internal data class PlaylistNameDraft(
     fun mutationFailed(): PlaylistNameDraft = copy(showFailure = true)
 }
 
+private data class QueueSaveDraft(
+    val name: PlaylistNameDraft,
+    val trackIds: List<String>,
+    val appearance: PlaylistDismissalAppearance,
+    val pending: Boolean = false,
+)
+
 internal enum class PlaylistModalNotice {
     MutationFailed
 }
@@ -828,6 +835,8 @@ public fun PlaylistHubScreen(
     onOpenPlaylist: (String) -> Unit,
     onSelectTab: (PlaylistTab) -> Unit,
     onCreate: (String, (PlaylistStateAction) -> Unit) -> Unit,
+    onSaveQueueAsPlaylist:
+        (String, List<String>, (PlaylistStateAction) -> Unit) -> Unit,
     onRetry: () -> Unit,
     onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
     onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
@@ -837,6 +846,10 @@ public fun PlaylistHubScreen(
 ) {
     var createDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
     var createOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
+    var queueSaveDraft by remember { mutableStateOf<QueueSaveDraft?>(null) }
+    var queueSaveOutcome by remember {
+        mutableStateOf<PlaylistStateAction?>(null)
+    }
     var queueClearConfirmation by remember {
         mutableStateOf<QueueClearConfirmationPresentation?>(null)
     }
@@ -890,6 +903,37 @@ public fun PlaylistHubScreen(
                     }
             }
         } else {
+            val queueToSave = queueTabPresentation(playbackState)
+            if (!queueToSave.isEmpty) {
+                item(key = "save-queue") {
+                    Button(
+                        onClick = {
+                            val trackIds =
+                                queueTabPresentation(playbackState).rows.map {
+                                    it.occurrence.track.id
+                                }
+                            if (trackIds.isNotEmpty()) {
+                                queueSaveDraft =
+                                    QueueSaveDraft(
+                                        name = PlaylistNameDraft(),
+                                        trackIds = trackIds,
+                                        appearance =
+                                            appearanceSource.next("save-queue"),
+                                    )
+                                queueSaveOutcome = null
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        cornerRadius = 16.dp,
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                HausColors.current.ink,
+                                HausColors.current.paper),
+                    ) {
+                        Text(stringResource(Res.string.queue_save_as_playlist))
+                    }
+                }
+            }
             queueTabItems(
                 playbackState = playbackState,
                 onReorderUpcoming = onReorderUpcoming,
@@ -915,6 +959,7 @@ public fun PlaylistHubScreen(
     val createAppearance = createDraft?.let {
         rememberFeatureAppearance("create", appearanceSource)
     }
+    val queueSaveAppearance = queueSaveDraft?.appearance
     val queueClearAppearance = queueClearConfirmation?.let {
         rememberFeatureAppearance("queue", appearanceSource)
     }
@@ -926,6 +971,10 @@ public fun PlaylistHubScreen(
                 PlaylistFeatureDismissal.Modal(
                     destination, checkNotNull(createAppearance))
             }
+                ?: queueSaveDraft?.let {
+                    PlaylistFeatureDismissal.Modal(
+                        destination, checkNotNull(queueSaveAppearance))
+                }
                 ?: queueClearConfirmation?.let {
                     PlaylistFeatureDismissal.Modal(
                         destination, checkNotNull(queueClearAppearance))
@@ -935,6 +984,10 @@ public fun PlaylistHubScreen(
             createAppearance -> {
                 createDraft = null
                 createOutcome = null
+            }
+            queueSaveAppearance -> {
+                queueSaveDraft = null
+                queueSaveOutcome = null
             }
             queueClearAppearance -> queueClearConfirmation = null
             else -> Unit
@@ -966,6 +1019,53 @@ public fun PlaylistHubScreen(
                             PlaylistMutationWorkflow.Create, outcome) ==
                             PlaylistMutationDecision.CloseModal) {
                             createDraft = null
+                        }
+                    }
+                }
+            },
+        )
+    }
+    queueSaveDraft?.let { save ->
+        val title = stringResource(Res.string.queue_save_as_playlist)
+        PlaylistNameDialog(
+            title = title,
+            confirmLabel = stringResource(Res.string.playlist_create),
+            draft = save.name,
+            notice =
+                playlistNameModalPresentation(save.name, queueSaveOutcome)
+                    .notice,
+            onDraftChange = {
+                if (queueSaveDraft?.appearance == save.appearance &&
+                    queueSaveDraft?.pending == false) {
+                    queueSaveDraft = save.copy(name = PlaylistNameDraft(it))
+                    queueSaveOutcome = null
+                }
+            },
+            onDismiss = {
+                if (queueSaveDraft?.appearance == save.appearance) {
+                    queueSaveDraft = null
+                    queueSaveOutcome = null
+                }
+            },
+            onConfirm = {
+                if (queueSaveDraft?.appearance == save.appearance &&
+                    queueSaveDraft?.pending == false) {
+                    val name = save.name.confirmedName()
+                    if (name == null) {
+                        queueSaveDraft =
+                            save.copy(name = save.name.mutationFailed())
+                    } else {
+                        queueSaveDraft = save.copy(pending = true)
+                        onSaveQueueAsPlaylist(name, save.trackIds) { outcome ->
+                            if (queueSaveDraft?.appearance == save.appearance) {
+                                queueSaveOutcome = outcome
+                                queueSaveDraft =
+                                    if (outcome
+                                        is
+                                        PlaylistStateAction.SnapshotConfirmed)
+                                        null
+                                    else save.copy(pending = false)
+                            }
                         }
                     }
                 }
@@ -2387,7 +2487,8 @@ private fun PlaylistNameDialog(
     notice: PlaylistModalNotice?,
     onDraftChange: (String) -> Unit,
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: () -> Unit,
+    confirmLabel: String = title,
 ) {
     HausDialog(
         title = title,
@@ -2420,7 +2521,7 @@ private fun PlaylistNameDialog(
                     stringResource(Res.string.playlist_cancel),
                     Modifier.weight(1f),
                     onDismiss)
-                CompactAction(title, Modifier.weight(1f), onConfirm)
+                CompactAction(confirmLabel, Modifier.weight(1f), onConfirm)
             }
         },
     )

@@ -96,6 +96,7 @@ class PlaylistFeatureDismissalTest {
                     onOpenPlaylist = {},
                     onSelectTab = { state = state.copy(selectedTab = it) },
                     onCreate = { _, _ -> },
+                    onSaveQueueAsPlaylist = { _, _, _ -> },
                     onRetry = {},
                     onReorderUpcoming = { _, _ ->
                         QueueMutationFeedback(playbackState, false)

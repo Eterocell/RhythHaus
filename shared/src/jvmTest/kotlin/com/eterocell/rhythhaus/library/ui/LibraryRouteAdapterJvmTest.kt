@@ -5,22 +5,29 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
+import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.toPlayableTrack
+import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 
 /**
  * Drives the real Shared playlist-detail route projection and play-entry path:
@@ -29,6 +36,92 @@ import kotlin.test.assertTrue
  * `onPlayEntry` wiring.
  */
 class LibraryRouteAdapterJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun queueRouteSavesOrderedDuplicateEntriesWithoutMutatingPlayback() =
+        runComposeUiTest {
+            val originalLocale = Locale.getDefault()
+            Locale.setDefault(Locale.SIMPLIFIED_CHINESE)
+            try {
+                val controller = PlaybackController(FakePlaybackEngine())
+                val first = libraryTrack("a", "First").toPlayableTrack()
+                val second = libraryTrack("b", "Second").toPlayableTrack()
+                runBlocking {
+                    controller.setOccurrenceQueue(
+                        listOf(
+                            QueueOccurrence("old", second),
+                            QueueOccurrence("current", first),
+                            QueueOccurrence("next", second),
+                            QueueOccurrence("duplicate", first),
+                        ),
+                        "current",
+                    )
+                }
+                val before = controller.state.value
+                assertEquals("current", before.currentOccurrenceId)
+                val saved = mutableListOf<PlaylistEntry>()
+                val repository =
+                    object : PlaylistRepository by EmptyPlaylistRepository {
+                        override fun createWithEntries(
+                            name: String,
+                            trackIds: List<String>
+                        ): PlaylistSummary {
+                            val playlist = PlaylistSummary("saved", name, 1, 1)
+                            saved += trackIds.mapIndexed { index, id ->
+                                PlaylistEntry(
+                                    "entry-$index", playlist.id, id, index, 1)
+                            }
+                            return playlist
+                        }
+
+                        override fun playlists(): List<PlaylistSummary> =
+                            if (saved.isEmpty()) emptyList()
+                            else listOf(PlaylistSummary("saved", "Trip", 1, 1))
+
+                        override fun entries(
+                            playlistId: String
+                        ): List<PlaylistEntry> = saved.toList()
+                    }
+                val owner = PlaylistStateOwner(repository, Dispatchers.Default)
+                var snapshot: PlaylistSnapshot? = null
+                setContent {
+                    playlistDetailRoute(
+                        controller,
+                        libraryTracks = emptyList(),
+                        entries = emptyList(),
+                        route = LibraryRoute.PlaylistHub,
+                        playlistState =
+                            PlaylistState(
+                                selectedTab = PlaylistTab.Queue,
+                                hasConfirmedSnapshot = true),
+                        onMutation = { mutation, onOutcome ->
+                            val outcome = runBlocking {
+                                owner.mutate(mutation = mutation)
+                            }
+                            snapshot =
+                                (outcome
+                                        as?
+                                        PlaylistStateAction.SnapshotConfirmed)
+                                    ?.snapshot
+                            onOutcome(outcome)
+                        },
+                    )
+                }
+                onAllNodes(hasText("将队列保存为播放列表"))[0].performClick()
+                onAllNodes(hasText("播放列表名称"))[0].performTextInput("Trip")
+                onAllNodes(hasText("创建播放列表"))[0].performClick()
+                assertEquals(listOf("a", "b", "a"), saved.map { it.trackId })
+                assertEquals(listOf(0, 1, 2), saved.map { it.position })
+                assertEquals(saved, snapshot?.entries("saved"))
+                assertEquals(before.queue, controller.state.value.queue)
+                assertEquals(
+                    before.currentOccurrenceId,
+                    controller.state.value.currentOccurrenceId)
+            } finally {
+                Locale.setDefault(originalLocale)
+            }
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun routeProjectionPreservesPlayableFieldsAndArtworkBytes() =
@@ -193,37 +286,43 @@ class LibraryRouteAdapterJvmTest {
         controller: PlaybackController,
         libraryTracks: List<LibraryTrack>,
         entries: List<PlaylistEntry>,
+        route: LibraryRoute = LibraryRoute.PlaylistDetail("pl-1"),
+        playlistState: PlaylistState =
+            PlaylistState(
+                confirmedSnapshot =
+                    PlaylistSnapshot(
+                        playlists =
+                            listOf(PlaylistSummary("pl-1", "Saved", 1, 1)),
+                        entriesByPlaylistId = mapOf("pl-1" to entries),
+                    ),
+                hasConfirmedSnapshot = true,
+            ),
+        onMutation:
+            (
+                PlaylistRepository.() -> Unit,
+                (PlaylistStateAction) -> Unit) -> Unit =
+            { _, _ ->
+            },
     ) {
         val playbackState by controller.state.collectAsState()
         LibraryRouteContent(
-            route = LibraryRoute.PlaylistDetail("pl-1"),
+            route = route,
             tracks = emptyList(),
             snapshot = LibrarySnapshot("Library", "", emptyList(), null),
             libraryTracks = libraryTracks,
             playbackController = controller,
             playbackState = playbackState,
             playlistRepository = EmptyPlaylistRepository,
-            playlistState =
-                PlaylistState(
-                    confirmedSnapshot =
-                        PlaylistSnapshot(
-                            playlists =
-                                listOf(PlaylistSummary("pl-1", "Saved", 1, 1)),
-                            entriesByPlaylistId = mapOf("pl-1" to entries),
-                        ),
-                    hasConfirmedSnapshot = true,
-                ),
+            playlistState = playlistState,
             onPlaylistStateAction = {},
             onRefreshPlaylists = {},
-            onPlaylistMutation = { _, _ -> },
+            onPlaylistMutation = onMutation,
             onRecoverStalePlaylistDetail = {},
             onDisplayedPlaylistDeleteConfirmed = {},
             selectedTrackId = null,
             isNowPlayingBarVisible = true,
             onBack = {},
-            destinationId =
-                LibraryDestinationId(
-                    LibraryRoute.PlaylistDetail("pl-1"), "adapter"),
+            destinationId = LibraryDestinationId(route, "adapter"),
             playlistAppearanceSource =
                 rememberPlaylistFeatureAppearanceSource(
                     PlaylistFeatureDestination("adapter")),

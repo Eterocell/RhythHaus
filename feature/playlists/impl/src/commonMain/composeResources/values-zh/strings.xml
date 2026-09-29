@@ -27,6 +27,7 @@
     <string name="playlist_row_accessibility_format">播放列表 %1$s，共 %2$d 首曲目</string>
     <string name="playlist_entry_state">已保存的播放列表曲目</string>
     <string name="playlist_selected_state">已选中用于播放列表</string>
+    <string name="queue_save_as_playlist">将队列保存为播放列表</string>
     <string name="queue_current">当前</string>
     <string name="queue_upcoming">即将播放</string>
     <string name="queue_current_state">当前队列曲目</string>

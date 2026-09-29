@@ -746,6 +746,10 @@ internal fun LibraryRouteContent(
                 onCreate = { name, onSuccess ->
                     onPlaylistMutation({ create(name) }, onSuccess)
                 },
+                onSaveQueueAsPlaylist = { name, trackIds, onSuccess ->
+                    onPlaylistMutation(
+                        { createWithEntries(name, trackIds) }, onSuccess)
+                },
                 onReorderUpcoming = queueMutations::reorder,
                 onRemoveUpcoming = queueMutations::remove,
                 onClearUpcoming = queueMutations::clear,
