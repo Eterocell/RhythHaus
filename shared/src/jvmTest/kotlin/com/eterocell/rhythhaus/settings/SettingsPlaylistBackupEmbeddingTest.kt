@@ -336,6 +336,24 @@ class SettingsPlaylistBackupEmbeddingTest {
         }
 
     private object EmptyPlaylistRepository : PlaylistRepository {
+        override fun smartPlaylists() =
+            emptyList<com.eterocell.rhythhaus.library.SmartPlaylistSummary>()
+
+        override fun createSmartPlaylist(
+            name: String,
+            rule: com.eterocell.rhythhaus.library.SmartPlaylistRule,
+        ): com.eterocell.rhythhaus.library.SmartPlaylistSummary =
+            error("Not used by this test")
+
+        override fun updateSmartPlaylist(
+            id: String,
+            name: String,
+            rule: com.eterocell.rhythhaus.library.SmartPlaylistRule,
+        ) = error("Not used by this test")
+
+        override fun deleteSmartPlaylist(id: String) =
+            error("Not used by this test")
+
         override fun playlists() = emptyList<PlaylistSummary>()
 
         override fun playlist(id: String) = null

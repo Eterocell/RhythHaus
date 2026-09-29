@@ -32,7 +32,7 @@
 
 | Phase | Goal | Ordered deliverables |
 | --- | --- | --- |
-| Phase 2 — daily use | Make the existing library and player efficient to use every day. | ~~Favorites; play history/recently played/recently added; sorting and filtering; sleep timer; save Queue as playlist~~; smart playlists. |
+| Phase 2 — daily use | Make the existing library and player efficient to use every day. | ~~Favorites; play history/recently played/recently added; sorting and filtering; sleep timer; save Queue as playlist; smart playlists~~. All implementations complete; pending manual acceptance remains release evidence. |
 | Phase 3 — library management | Give users safe control over imported metadata and sources. | App-local metadata overrides; M3U/PLS import/export; Android MediaStore source; incremental-scan UX; desktop drag-and-drop and remaining cross-platform import policy. |
 | Phase 4 — advanced playback | Improve listening quality without adding network dependence. | ReplayGain/normalization; crossfade; basic EQ; gapless playback; local and embedded lyrics. |
 
@@ -40,7 +40,9 @@ Sorting and filtering is integrated into `main`: Shared owns an ephemeral query,
 
 Sleep timer is integrated into `main` at `21af63ab`: process-local timed/current/N-track stop, reversible ten-second playback-only fade, localized compact/split controls, and controller-owned native remote commands. Canonical spec: `openspec/specs/sleep-timer/spec.md`; archived change: `openspec/changes/archive/2026-09-29-sleep-timer/`. Post-merge Core JVM tests and desktop compilation pass; OpenSpec validation passes (58/58). Earlier focused Android host regressions, Shared/Now Playing tests, iOS Kotlin compilation and Swift provider XCTest also pass; macOS tests exercise real temporary WAV playback and native gain. Full Android host execution timed out, Android APK assembly remains blocked by TagLib CMake, and no green full `./init.sh` is claimed. User-owned physical/listening/background/system-control acceptance remains pending.
 
-Save Queue as playlist is implemented on `feature/save-queue-as-playlist`: the Queue tab captures current plus upcoming occurrences in displayed order when naming opens, excludes the played prefix, preserves duplicates, and creates one atomic saved playlist. Concurrent confirmation is guarded and stale responses from dismissed dialogs cannot affect a new draft. Empty/unselected queues hide the action; playback remains untouched. The canonical `saved-playlists` specification has been updated and the change archived at `openspec/changes/archive/2026-09-29-save-queue-as-playlist/`. User-owned Android/iOS/macOS UI acceptance remains pending; next Phase 2 item is smart playlists.
+Save Queue as playlist is integrated into `main` at `f9c2fcb4`: the Queue tab captures current plus upcoming occurrences in displayed order when naming opens, excludes the played prefix, preserves duplicates, and creates one atomic saved playlist. Concurrent confirmation is guarded and stale responses from dismissed dialogs cannot affect a new draft. Empty/unselected queues hide the action; playback remains untouched. The canonical `saved-playlists` specification has been updated and the change archived at `openspec/changes/archive/2026-09-29-save-queue-as-playlist/`. Post-merge focused tests and desktop compilation passed; OpenSpec validation passed 58/58. User-owned Android/iOS/macOS UI acceptance remains pending; next Phase 2 item is smart playlists.
+
+Smart playlists are implementation-complete on `feature/smart-playlists`, not yet merged into `main`: persisted single rules for Favorites, Recently Played/Added (10/25/50), Artist, Artist+Album and static saved-playlist membership. Derived rows update from authoritative library inputs; saved-source order and duplicate occurrences are retained. Create/edit/delete and EN/ZH accessible details preserve playback, handle disappearing sources and guard stale modal outcomes. Static v1 JSON backup excludes smart rules and explains this at the export entry. Migration/repository, Playlist/Core JVM suites, focused Shared tests and desktop/Android/iOS Kotlin compilation pass, as do quality gates and independent final review. Desktop smoke observed the creation surface; isolated end-to-end UI automation was blocked by macOS AX window reads despite granted permissions. Full Shared baseline failures and Android native packaging limits remain; manual acceptance is user-owned and pending. Canonical spec: `openspec/specs/smart-playlists/spec.md`; archive: `openspec/changes/archive/2026-09-29-smart-playlists/`. Next product implementation: Phase 3 app-local metadata overrides.
 
 ## Capability baseline
 
@@ -70,7 +72,7 @@ RhythHaus already provides:
 | Favorites and history | Implemented: favorites, play count, last played, recently played, and recently added. |
 | Sorting and filtering | Implemented: sort direction, added/modified date, play count, favorites, artwork, and source filters. |
 | Metadata editing | App-local display overrides; do not write original media tags initially. |
-| Smart playlists | Favorites, recent tracks/additions, artist, album, and saved Queue rules. |
+| Smart playlists | Implemented on the feature branch: Favorites, recent tracks/additions, artist, album, and static saved-playlist rules; integration and user-owned manual acceptance pending. |
 | Playlist interoperability | M3U/PLS import/export; the existing JSON backup remains a recovery format. |
 | Android media discovery | Optional MediaStore source beside SAF folders. |
 | Incremental scanning | Explicit unchanged/added/modified/deleted summary and refresh policy. |

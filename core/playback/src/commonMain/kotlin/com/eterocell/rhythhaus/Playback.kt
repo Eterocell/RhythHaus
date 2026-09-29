@@ -871,6 +871,7 @@ internal constructor(
     public fun setOccurrenceQueue(
         occurrences: List<QueueOccurrence>,
         selectedOccurrenceId: String? = occurrences.firstOrNull()?.id,
+        autoPlay: Boolean = false,
     ) {
         if (!commandsEnabled.value) return
         require(occurrences.map { it.id }.distinct().size == occurrences.size)
@@ -904,7 +905,7 @@ internal constructor(
         } else {
             if (loadSelected(
                 selected,
-                autoPlay = false,
+                autoPlay = autoPlay,
                 replacementQueue = occurrences,
             )) {
                 emitImmediateCheckpoint()

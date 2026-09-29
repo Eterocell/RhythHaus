@@ -1,5 +1,7 @@
 package com.eterocell.rhythhaus.library
 
+import com.eterocell.rhythhaus.library.ui.PlaylistImportOwnerResult
+import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
@@ -7,8 +9,67 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 
 class PlaylistSqlDelightRepositoryJvmTest {
+    @Test
+    fun unsupportedSmartRuleCannotCommitHiddenStaticImports() = runBlocking {
+        openRepositories().use { open ->
+            open.seedTrack("track-a", "scan")
+            val existing = open.playlists.create("Existing")
+            open.database.smartPlaylistQueries.insertRule(
+                "invalid", "Invalid", "unsupported", null, null, null, 1, 1)
+            val owner =
+                PlaylistStateOwner(open.playlists, Dispatchers.Unconfined)
+            val request =
+                listOf(PlaylistImportMutation("Imported", listOf("track-a")))
+            repeat(2) {
+                assertTrue(
+                    owner.importPlaylists(request)
+                        is PlaylistImportOwnerResult.Failure)
+                assertEquals(listOf(existing), open.playlists.playlists())
+            }
+            open.database.smartPlaylistQueries.deleteRule("invalid")
+            assertTrue(
+                owner.importPlaylists(request)
+                    is PlaylistImportOwnerResult.Success)
+            assertEquals(
+                listOf("Existing", "Imported"),
+                open.playlists.playlists().map { it.name }.sorted())
+        }
+    }
+
+    @Test
+    fun smartRulesReopenAndSurviveDeletionOfTheirStaticSource() {
+        val file = tempDatabase()
+        lateinit var created: SmartPlaylistSummary
+        openRepositories(file).use { open ->
+            val source = open.playlists.create("Source")
+            created =
+                open.playlists.createSmartPlaylist(
+                    "Derived", SmartPlaylistRule.SavedPlaylist(source.id))
+            open.playlists.delete(source.id)
+            assertEquals(listOf(created), open.playlists.smartPlaylists())
+            assertFailsWith<IllegalArgumentException> {
+                open.playlists.createSmartPlaylist(
+                    "Broken", SmartPlaylistRule.SavedPlaylist("missing"))
+            }
+            assertEquals(listOf(created), open.playlists.smartPlaylists())
+        }
+        openRepositories(file).use { reopened ->
+            assertEquals(listOf(created), reopened.playlists.smartPlaylists())
+            reopened.playlists.updateSmartPlaylist(
+                created.id, "Favorites", SmartPlaylistRule.Favorites)
+            assertEquals(
+                SmartPlaylistRule.Favorites,
+                reopened.playlists.smartPlaylists().single().rule)
+            reopened.playlists.deleteSmartPlaylist(created.id)
+            assertEquals(emptyList(), reopened.playlists.smartPlaylists())
+        }
+    }
+
     @Test
     fun sqlRepositoryUsesLegacyMissingPlaylistAndEntryMessages() {
         openRepositories().use { open ->

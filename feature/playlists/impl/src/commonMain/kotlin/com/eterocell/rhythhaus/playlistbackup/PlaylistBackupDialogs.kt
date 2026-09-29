@@ -82,6 +82,10 @@ public fun PlaylistBackupSettingsSection(
                 enabled = launcherAvailable && !state.isBusy,
                 primary = true,
             )
+            Text(
+                stringResource(Res.string.smart_backup_note),
+                color = HausColors.current.muted,
+            )
             SettingsSectionButton(
                 label =
                     stringResource(

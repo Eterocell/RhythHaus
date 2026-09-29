@@ -51,6 +51,22 @@ private class RecordingPlaylistRepository(
 ) : PlaylistRepository {
     val calls = mutableSetOf<PlaylistRepositoryMethod>()
 
+    override fun smartPlaylists(): List<SmartPlaylistSummary> = emptyList()
+
+    override fun createSmartPlaylist(
+        name: String,
+        rule: SmartPlaylistRule,
+    ): SmartPlaylistSummary = error("Not used by this test")
+
+    override fun updateSmartPlaylist(
+        id: String,
+        name: String,
+        rule: SmartPlaylistRule
+    ) = error("Not used by this test")
+
+    override fun deleteSmartPlaylist(id: String) =
+        error("Not used by this test")
+
     override fun playlists(): List<PlaylistSummary> {
         calls += PlaylistRepositoryMethod.Playlists
         return listOf(summary)

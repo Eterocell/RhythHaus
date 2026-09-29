@@ -13,6 +13,82 @@ import kotlin.test.assertTrue
 
 class ExistingDatabaseMigrationTest {
     @Test
+    fun unversionedHistoryDatabaseBootstrapsAsFourBeforeSmartMigration() {
+        val file =
+            Files.createTempFile("rhythhaus-v4-unversioned", ".db").toFile()
+        Files.copy(
+            File("src/commonMain/sqldelight/databases/4.db").toPath(),
+            file.toPath(),
+            StandardCopyOption.REPLACE_EXISTING)
+        seedVersionTwoLibrary(file)
+        DriverManager.getConnection("jdbc:sqlite:${file.absolutePath}").use {
+            connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("PRAGMA user_version = 0")
+            }
+        }
+        val database = LibraryDatabase(file)
+        try {
+            assertEquals(5L, driverUserVersion(database.driver))
+            assertEquals(
+                "legacy-track",
+                database.database.playlistQueries
+                    .selectEntries("playlist-1")
+                    .executeAsOne()
+                    .trackId)
+            assertTrue(
+                database.database.smartPlaylistQueries
+                    .selectAll()
+                    .executeAsList()
+                    .isEmpty())
+        } finally {
+            database.driver.close()
+            file.delete()
+        }
+    }
+
+    @Test
+    fun versionFourFixtureMigratesPreservingPlayHistoryAndPlaylistRows() {
+        val file = Files.createTempFile("rhythhaus-v4", ".db").toFile()
+        Files.copy(
+            File("src/commonMain/sqldelight/databases/4.db").toPath(),
+            file.toPath(),
+            StandardCopyOption.REPLACE_EXISTING)
+        seedVersionTwoLibrary(file)
+        DriverManager.getConnection("jdbc:sqlite:${file.absolutePath}").use {
+            connection ->
+            connection.createStatement().use { statement ->
+                statement.execute(
+                    "INSERT INTO track_play_history(trackId, playCount, lastPlayedAtEpochMillis) VALUES ('legacy-track', 2, 100)")
+            }
+        }
+        val database = LibraryDatabase(file)
+        try {
+            assertEquals(5L, driverUserVersion(database.driver))
+            assertEquals(
+                "legacy-track",
+                database.database.playlistQueries
+                    .selectEntries("playlist-1")
+                    .executeAsOne()
+                    .trackId)
+            assertEquals(
+                2L,
+                database.database.trackPlayHistoryQueries
+                    .selectPlayHistory()
+                    .executeAsOne()
+                    .playCount)
+            assertTrue(
+                database.database.smartPlaylistQueries
+                    .selectAll()
+                    .executeAsList()
+                    .isEmpty())
+        } finally {
+            database.driver.close()
+            file.delete()
+        }
+    }
+
+    @Test
     fun versionOneFixtureMigratesWithoutLosingRowsAndPreservesForeignKeys() {
         val databaseFile = copyVersionOneDatabase()
         assertEquals(1L, jdbcUserVersion(databaseFile))
@@ -36,7 +112,7 @@ class ExistingDatabaseMigrationTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(RhythHausDatabase.Schema.version, 4L)
+            assertEquals(5L, RhythHausDatabase.Schema.version)
 
             database.playlistQueries.insertPlaylist(
                 "playlist-1", "Migrated", 1, 1)
@@ -82,7 +158,7 @@ class ExistingDatabaseMigrationTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(4L, RhythHausDatabase.Schema.version)
+            assertEquals(5L, RhythHausDatabase.Schema.version)
             assertEquals(
                 "legacy-track",
                 database.libraryTrackQueries
@@ -118,7 +194,7 @@ class ExistingDatabaseMigrationTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(4L, RhythHausDatabase.Schema.version)
+            assertEquals(5L, RhythHausDatabase.Schema.version)
             assertEquals(
                 "legacy-track",
                 database.libraryTrackQueries

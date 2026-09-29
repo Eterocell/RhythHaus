@@ -37,6 +37,8 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.TrackPlayHistory
+import com.eterocell.rhythhaus.library.selectDynamicOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.toPlayableTrack
@@ -449,6 +451,7 @@ internal fun LibraryRouteOverlays(
         LibraryRoute.ClearLibraryDialog,
         LibraryRoute.PlaylistHub,
         is LibraryRoute.PlaylistDetail,
+        is LibraryRoute.SmartPlaylistDetail,
         -> Unit
 
         is LibraryRoute.Onboarding ->
@@ -564,6 +567,7 @@ internal fun LibraryRouteContent(
     bottomContentPadding: Dp = 0.dp,
     favoriteTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
+    playHistory: Map<String, TrackPlayHistory> = emptyMap(),
 ) {
     val playlistDestinationId =
         destinationId ?: LibraryDestinationId(route, "unpresented")
@@ -725,6 +729,14 @@ internal fun LibraryRouteContent(
             PlaylistHubScreen(
                 state = playlistState,
                 playbackState = playbackState,
+                libraryTracks = libraryTracks,
+                onOpenSmartPlaylist = {
+                    onOpenDetailRoute(LibraryRoute.SmartPlaylistDetail(it))
+                },
+                onCreateSmartPlaylist = { name, rule, onOutcome ->
+                    onPlaylistMutation(
+                        { createSmartPlaylist(name, rule) }, onOutcome)
+                },
                 destination = playlistDestination,
                 appearanceSource = playlistAppearanceSource,
                 dismissalPublisher = playlistDismissalPublisher,
@@ -758,6 +770,61 @@ internal fun LibraryRouteContent(
             )
         }
 
+        is LibraryRoute.SmartPlaylistDetail -> {
+            val smart =
+                playlistState.confirmedSnapshot.smartPlaylist(
+                    route.smartPlaylistId)
+            if (!playlistState.hasConfirmedSnapshot) {
+                PlaylistRoutePlaceholder(
+                    stringResource(Res.string.playlists),
+                    playlistState,
+                    onBack,
+                    onRefreshPlaylists)
+            } else if (smart == null) {
+                val message = stringResource(Res.string.playlist_changed)
+                LaunchedEffect(route, playlistState.publicationRevision) {
+                    onRecoverStalePlaylistDetail(message)
+                }
+            } else {
+                SmartPlaylistDetailScreen(
+                    playlist = smart,
+                    projection =
+                        projectSmartPlaylist(
+                            smart,
+                            libraryTracks,
+                            favoriteTrackIds,
+                            playHistory,
+                            playlistState.confirmedSnapshot),
+                    playableTracksById = playableTracksById,
+                    libraryTracks = libraryTracks,
+                    state = playlistState,
+                    destination = playlistDestination,
+                    appearanceSource = playlistAppearanceSource,
+                    dismissalPublisher = playlistDismissalPublisher,
+                    mutationFailedLabel =
+                        stringResource(Res.string.playlist_mutation_failed),
+                    onBack = onBack,
+                    onRetry = onRefreshPlaylists,
+                    onUpdate = { name, rule, onOutcome ->
+                        onPlaylistMutation(
+                            { updateSmartPlaylist(smart.id, name, rule) },
+                            onOutcome)
+                    },
+                    onDelete = { onOutcome ->
+                        onPlaylistMutation(
+                            { deleteSmartPlaylist(smart.id) }, onOutcome)
+                    },
+                    onDeleteConfirmed = onDisplayedPlaylistDeleteConfirmed,
+                    onPlayEntry = { request ->
+                        selectDynamicOccurrenceForPlayback(
+                            playbackController,
+                            request.occurrences,
+                            request.selectedOccurrenceId)
+                    },
+                    bottomContentPadding = bottomContentPadding,
+                )
+            }
+        }
         is LibraryRoute.PlaylistDetail -> {
             when (val resolution =
                 sharedPlaylistDetailResolution(

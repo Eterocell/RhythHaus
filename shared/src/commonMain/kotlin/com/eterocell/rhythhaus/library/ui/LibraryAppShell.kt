@@ -170,7 +170,11 @@ internal class PlaylistDetailRouteOrchestrator(
     private val clearSelection: () -> Unit,
     private val onPlaylistStateAction: (PlaylistStateAction) -> Unit,
 ) {
-    fun recoverStalePlaylistDetail(message: String) {
+    fun recoverStalePlaylistDetail(
+        entry: LibraryNavigationEntry,
+        message: String
+    ) {
+        if (appState.navigation.currentEntry != entry) return
         clearSelection()
         appState.recoverStalePlaylistDetail(message) { recoverableMessage ->
             onPlaylistStateAction(
@@ -187,6 +191,13 @@ internal class PlaylistDetailRouteOrchestrator(
             appState.completeDisplayedPlaylistDeletion(
                 confirmedSnapshot,
                 route.playlistId,
+                entry,
+            )
+        }
+        (entry.route as? LibraryRoute.SmartPlaylistDetail)?.let { route ->
+            appState.completeDisplayedSmartPlaylistDeletion(
+                confirmedSnapshot,
+                route.smartPlaylistId,
                 entry,
             )
         }
@@ -548,7 +559,7 @@ fun LibraryHomeScreen(
             onPlaylistMutation = onPlaylistMutation,
             onRecoverStalePlaylistDetail = { message ->
                 playlistDetailRouteOrchestrator.recoverStalePlaylistDetail(
-                    message)
+                    entry, message)
             },
             onDisplayedPlaylistDeleteConfirmed =
                 playlistDetailRouteOrchestrator
@@ -575,6 +586,7 @@ fun LibraryHomeScreen(
             onTrackSelectionAction = ::dispatchTrackSelection,
             bottomContentPadding = activeBottomBarClearance,
             favoriteTrackIds = favoriteTrackIds,
+            playHistory = playHistory,
             onSetTrackFavorite = onSetTrackFavorite,
             homeContent = { onOpenDetailRoute ->
                 LibraryHomeContent(
@@ -808,6 +820,7 @@ fun LibraryHomeScreen(
                             is LibraryRoute.AlbumDetail,
                             is LibraryRoute.ArtistDetail,
                             is LibraryRoute.PlaylistDetail,
+                            is LibraryRoute.SmartPlaylistDetail,
                             LibraryRoute.PlaylistHub,
                             -> {
                                 RouteContent(

@@ -6,6 +6,85 @@ internal class SqlDelightPlaylistRepository(
     private val idFactory: () -> String = ::uuid4,
 ) : PlaylistRepository {
     private val database = libraryDatabase.database
+
+    override fun smartPlaylists(): List<SmartPlaylistSummary> =
+        database.smartPlaylistQueries
+            .selectAll {
+                id,
+                name,
+                kind,
+                argument,
+                secondArgument,
+                count,
+                created,
+                updated ->
+                SmartPlaylistSummary(
+                    id,
+                    name,
+                    decodeSmartRule(kind, argument, secondArgument, count),
+                    created,
+                    updated)
+            }
+            .executeAsList()
+
+    override fun createSmartPlaylist(
+        name: String,
+        rule: SmartPlaylistRule
+    ): SmartPlaylistSummary = database.transactionWithResult {
+        val validatedName = requireName(name)
+        validateSmartRule(rule)
+        val encoded = rule.encode()
+        val time = now()
+        val result =
+            SmartPlaylistSummary(idFactory(), validatedName, rule, time, time)
+        database.smartPlaylistQueries.insertRule(
+            result.id,
+            result.name,
+            encoded.kind,
+            encoded.argument,
+            encoded.secondArgument,
+            encoded.count,
+            time,
+            time)
+        result
+    }
+
+    override fun updateSmartPlaylist(
+        id: String,
+        name: String,
+        rule: SmartPlaylistRule
+    ) = database.transaction {
+        val old =
+            requireNotNull(
+                database.smartPlaylistQueries
+                    .selectById(id)
+                    .executeAsOneOrNull()) {
+                    "Smart playlist not found"
+                }
+        val validatedName = requireName(name)
+        validateSmartRule(
+            rule,
+            decodeSmartRule(
+                old.ruleKind, old.argument, old.secondArgument, old.itemCount))
+        val encoded = rule.encode()
+        database.smartPlaylistQueries.updateRule(
+            validatedName,
+            encoded.kind,
+            encoded.argument,
+            encoded.secondArgument,
+            encoded.count,
+            now(),
+            id)
+    }
+
+    override fun deleteSmartPlaylist(id: String) = database.transaction {
+        requireNotNull(
+            database.smartPlaylistQueries.selectById(id).executeAsOneOrNull()) {
+                "Smart playlist not found"
+            }
+        database.smartPlaylistQueries.deleteRule(id)
+    }
+
     /**
      * Test seam firing immediately before entry-list mutations re-read the
      * repository inside their transaction. Only append/remove/reorder re-read,

@@ -45,4 +45,20 @@ internal fun selectOccurrenceForPlayback(
     }
 }
 
+internal fun selectDynamicOccurrenceForPlayback(
+    playbackController: PlaybackController,
+    visibleQueue: List<QueueOccurrence>,
+    selectedOccurrenceId: String,
+) {
+    if (visibleQueue.none { it.id == selectedOccurrenceId }) return
+    val current = playbackController.state.value
+    if (current.currentOccurrenceId == selectedOccurrenceId &&
+        current.queue == visibleQueue) {
+        playbackController.restartCurrentTrack()
+    } else {
+        playbackController.setOccurrenceQueue(
+            visibleQueue, selectedOccurrenceId, autoPlay = true)
+    }
+}
+
 // Library extraction

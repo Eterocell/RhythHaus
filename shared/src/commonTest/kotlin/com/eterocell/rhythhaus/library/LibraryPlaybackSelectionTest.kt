@@ -14,6 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
@@ -62,6 +63,36 @@ class LibraryPlaybackSelectionTest {
 
             assertEquals(existingQueue, controller.state.value.queue)
             assertEquals("entry-2", controller.state.value.currentOccurrenceId)
+        }
+
+    @Test
+    fun selectingCurrentSmartOccurrenceRefreshesChangedVisibleMembership() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val initial =
+                listOf(
+                    QueueOccurrence("smart:a", tracks("a").single()),
+                    QueueOccurrence("smart:b", tracks("b").single()),
+                )
+            controller.setOccurrenceQueue(initial, "smart:a")
+            engine.awaitLoad()
+            engine.clearEvents()
+            val changed =
+                listOf(
+                    initial[0],
+                    QueueOccurrence("smart:c", tracks("c").single()))
+
+            selectDynamicOccurrenceForPlayback(controller, changed, "smart:a")
+            engine.awaitLoad()
+            withTimeout(5_000) {
+                controller.state.first { it.status == PlaybackStatus.Playing }
+            }
+
+            assertEquals(
+                listOf("smart:a", "smart:c"),
+                controller.state.value.queue.map { it.id })
+            assertEquals("smart:a", controller.state.value.currentOccurrenceId)
         }
 
     @Test

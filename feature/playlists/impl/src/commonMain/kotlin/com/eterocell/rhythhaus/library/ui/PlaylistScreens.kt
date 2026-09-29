@@ -65,6 +65,7 @@ import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.SmartPlaylistRule
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.HausDialog
@@ -835,6 +836,10 @@ public fun PlaylistHubScreen(
     onOpenPlaylist: (String) -> Unit,
     onSelectTab: (PlaylistTab) -> Unit,
     onCreate: (String, (PlaylistStateAction) -> Unit) -> Unit,
+    libraryTracks: List<LibraryTrack>,
+    onOpenSmartPlaylist: (String) -> Unit,
+    onCreateSmartPlaylist:
+        (String, SmartPlaylistRule, (PlaylistStateAction) -> Unit) -> Unit,
     onSaveQueueAsPlaylist:
         (String, List<String>, (PlaylistStateAction) -> Unit) -> Unit,
     onRetry: () -> Unit,
@@ -845,6 +850,7 @@ public fun PlaylistHubScreen(
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     var createDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
+    var smartDraft by remember { mutableStateOf<SmartDraft?>(null) }
     var createOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
     var queueSaveDraft by remember { mutableStateOf<QueueSaveDraft?>(null) }
     var queueSaveOutcome by remember {
@@ -869,6 +875,14 @@ public fun PlaylistHubScreen(
                 }
             }
         } else if (state.selectedTab == PlaylistTab.Saved) {
+            item(key = "smart-create") {
+                CompactAction(
+                    stringResource(Res.string.smart_create),
+                    Modifier.fillMaxWidth().height(48.dp)) {
+                        smartDraft =
+                            SmartDraft(appearanceSource.next("smart-create"))
+                    }
+            }
             item(key = "create") {
                 Button(
                     onClick = { createDraft = PlaylistNameDraft() },
@@ -883,7 +897,8 @@ public fun PlaylistHubScreen(
                         fontWeight = FontWeight.Black)
                 }
             }
-            if (state.confirmedSnapshot.playlists.isEmpty()) {
+            if (state.confirmedSnapshot.playlists.isEmpty() &&
+                state.confirmedSnapshot.smartPlaylists.isEmpty()) {
                 item(key = "empty") {
                     EmptyPlaylistMessage(
                         stringResource(Res.string.playlist_empty_saved))
@@ -901,6 +916,22 @@ public fun PlaylistHubScreen(
                             onClick = { onOpenPlaylist(playlist.id) },
                         )
                     }
+            }
+            if (state.confirmedSnapshot.smartPlaylists.isNotEmpty()) {
+                item(key = "smart-heading") {
+                    Text(stringResource(Res.string.smart_rules))
+                }
+                items(
+                    state.confirmedSnapshot.smartPlaylists,
+                    key = { "smart-${it.id}" }) { smart ->
+                        CompactAction(
+                            smart.name, Modifier.fillMaxWidth().height(48.dp)) {
+                                onOpenSmartPlaylist(smart.id)
+                            }
+                    }
+            }
+            item(key = "smart-backup-note") {
+                Text(stringResource(Res.string.smart_backup_note))
             }
         } else {
             val queueToSave = queueTabPresentation(playbackState)
@@ -959,6 +990,7 @@ public fun PlaylistHubScreen(
     val createAppearance = createDraft?.let {
         rememberFeatureAppearance("create", appearanceSource)
     }
+    val smartAppearance = smartDraft?.appearance
     val queueSaveAppearance = queueSaveDraft?.appearance
     val queueClearAppearance = queueClearConfirmation?.let {
         rememberFeatureAppearance("queue", appearanceSource)
@@ -967,10 +999,14 @@ public fun PlaylistHubScreen(
         destination = destination,
         publisher = dismissalPublisher,
         dismissal =
-            createDraft?.let {
+            smartDraft?.let {
                 PlaylistFeatureDismissal.Modal(
-                    destination, checkNotNull(createAppearance))
+                    destination, checkNotNull(smartAppearance))
             }
+                ?: createDraft?.let {
+                    PlaylistFeatureDismissal.Modal(
+                        destination, checkNotNull(createAppearance))
+                }
                 ?: queueSaveDraft?.let {
                     PlaylistFeatureDismissal.Modal(
                         destination, checkNotNull(queueSaveAppearance))
@@ -981,6 +1017,7 @@ public fun PlaylistHubScreen(
                 },
     ) { dismissal ->
         when (dismissal.appearance) {
+            smartAppearance -> smartDraft = null
             createAppearance -> {
                 createDraft = null
                 createOutcome = null
@@ -992,6 +1029,44 @@ public fun PlaylistHubScreen(
             queueClearAppearance -> queueClearConfirmation = null
             else -> Unit
         }
+    }
+    smartDraft?.let { current ->
+        SmartRuleDialog(
+            current,
+            libraryTracks,
+            state.confirmedSnapshot,
+            stringResource(Res.string.smart_create),
+            { next ->
+                if (smartDraft?.appearance == current.appearance &&
+                    smartDraft?.pending == false)
+                    smartDraft = next
+            },
+            {
+                if (smartDraft?.appearance == current.appearance)
+                    smartDraft = null
+            },
+            {
+                if (smartDraft?.appearance == current.appearance &&
+                    smartDraft?.pending == false) {
+                    if (!validSmartDraft(
+                        current, state.confirmedSnapshot, libraryTracks))
+                        smartDraft = current.copy(failed = true)
+                    else {
+                        smartDraft = current.copy(pending = true)
+                        onCreateSmartPlaylist(
+                            current.name.trim(), current.rule) { outcome ->
+                                if (smartDraft?.appearance ==
+                                    current.appearance)
+                                    smartDraft =
+                                        if (outcome
+                                            is
+                                            PlaylistStateAction.SnapshotConfirmed)
+                                            null
+                                        else current.copy(failed = true)
+                            }
+                    }
+                }
+            })
     }
     createDraft?.let { draft ->
         val modalPresentation =
@@ -2019,7 +2094,7 @@ public fun PlaylistTrackBrowserOverlay(
 }
 
 @Composable
-private fun PlaylistScreenFrame(
+internal fun PlaylistScreenFrame(
     title: String,
     onBack: () -> Unit,
     beforeList: (@Composable () -> Unit)? = null,
@@ -2426,7 +2501,7 @@ private fun PlaylistEntryMutationActions(
 }
 
 @Composable
-private fun CompactAction(
+internal fun CompactAction(
     text: String,
     modifier: Modifier,
     onClick: () -> Unit
@@ -2463,7 +2538,7 @@ private fun CompactAction(
 }
 
 @Composable
-private fun EmptyPlaylistMessage(text: String) {
+internal fun EmptyPlaylistMessage(text: String) {
     Text(
         text,
         modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
@@ -2472,7 +2547,7 @@ private fun EmptyPlaylistMessage(text: String) {
 }
 
 @Composable
-private fun PlaylistNotice(state: PlaylistState, mutationFailedLabel: String) {
+internal fun PlaylistNotice(state: PlaylistState, mutationFailedLabel: String) {
     if (state.mutationErrorMessage != null)
         Text(
             mutationFailedLabel,
@@ -2538,7 +2613,7 @@ private fun ModalFailureNotice(notice: PlaylistModalNotice?) {
 }
 
 @Composable
-private fun ReadFailureNotice(onRetry: () -> Unit) {
+internal fun ReadFailureNotice(onRetry: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             stringResource(Res.string.playlist_retained_load_failed),

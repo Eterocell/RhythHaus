@@ -1,0 +1,10 @@
+CREATE TABLE smart_playlist (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    ruleKind TEXT NOT NULL,
+    argument TEXT,
+    secondArgument TEXT,
+    itemCount INTEGER,
+    createdAtEpochMillis INTEGER NOT NULL,
+    updatedAtEpochMillis INTEGER NOT NULL
+);

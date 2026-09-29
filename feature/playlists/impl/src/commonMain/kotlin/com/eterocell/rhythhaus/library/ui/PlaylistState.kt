@@ -6,6 +6,7 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.SmartPlaylistSummary
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -24,7 +25,14 @@ public enum class PlaylistTab {
 public data class PlaylistSnapshot(
     val playlists: List<PlaylistSummary> = emptyList(),
     val entriesByPlaylistId: Map<String, List<PlaylistEntry>> = emptyMap(),
+    val smartPlaylists: List<SmartPlaylistSummary> = emptyList(),
 ) {
+    /** Returns one confirmed smart rule. */
+    public fun smartPlaylist(id: String): SmartPlaylistSummary? =
+        smartPlaylists.firstOrNull {
+            it.id == id
+        }
+
     /** Returns the confirmed playlist with [id], if present. */
     public fun playlist(id: String): PlaylistSummary? = playlists.firstOrNull {
         it.id == id
@@ -226,11 +234,13 @@ internal fun playlistDetailResolution(
 }
 
 internal fun loadPlaylistSnapshot(
-    repository: PlaylistRepository
+    repository: PlaylistRepository,
+    smartPlaylists: List<SmartPlaylistSummary> = repository.smartPlaylists(),
 ): PlaylistSnapshot {
     val playlists = repository.playlists()
     return PlaylistSnapshot(
         playlists = playlists,
+        smartPlaylists = smartPlaylists,
         entriesByPlaylistId =
             playlists.associate { it.id to repository.entries(it.id) },
     )
@@ -240,6 +250,7 @@ internal fun mutatePlaylistAndRefresh(
     repository: PlaylistRepository,
     mutation: PlaylistRepository.() -> Unit,
 ): PlaylistSnapshot {
+    repository.smartPlaylists()
     repository.mutation()
     return loadPlaylistSnapshot(repository)
 }
@@ -300,8 +311,12 @@ public class PlaylistStateOwner(
             PlaylistImportOwnerResult.Success(
                 snapshot =
                     withContext(dispatcher) {
+                        // Decode before committing static rows. Smart mutations
+                        // share this owner's mutex, so this projection remains
+                        // authoritative through the import publication.
+                        val smartPlaylists = repository.smartPlaylists()
                         repository.importPlaylists(playlists)
-                        loadPlaylistSnapshot(repository)
+                        loadPlaylistSnapshot(repository, smartPlaylists)
                     },
                 revision = revision,
             )

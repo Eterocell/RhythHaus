@@ -1,0 +1,25 @@
+CREATE TABLE smart_playlist (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    ruleKind TEXT NOT NULL,
+    argument TEXT,
+    secondArgument TEXT,
+    itemCount INTEGER,
+    createdAtEpochMillis INTEGER NOT NULL,
+    updatedAtEpochMillis INTEGER NOT NULL
+);
+
+selectAll:
+SELECT * FROM smart_playlist ORDER BY createdAtEpochMillis ASC, id ASC;
+
+selectById:
+SELECT * FROM smart_playlist WHERE id = ?;
+
+insertRule:
+INSERT INTO smart_playlist VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+updateRule:
+UPDATE smart_playlist SET name = ?, ruleKind = ?, argument = ?, secondArgument = ?, itemCount = ?, updatedAtEpochMillis = ? WHERE id = ?;
+
+deleteRule:
+DELETE FROM smart_playlist WHERE id = ?;

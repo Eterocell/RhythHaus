@@ -230,12 +230,17 @@ class PlaylistArtworkJvmTest {
                 loadFailedLabel = "Failed",
                 retryLabel = "Retry",
                 mutationFailedLabel = "Could not save playlist changes",
+                libraryTracks = emptyList(),
                 artworkLoader = { id ->
                     loadCalls++
                     if (id == "queue-track") artworkBytes() else null
                 },
                 onBack = {},
                 onOpenPlaylist = {},
+                onOpenSmartPlaylist = { error("Unexpected smart route") },
+                onCreateSmartPlaylist = { _, _, _ ->
+                    error("Unexpected smart creation")
+                },
                 onSelectTab = { state = state.copy(selectedTab = it) },
                 onCreate = { _, _ -> },
                 onSaveQueueAsPlaylist = { _, _, _ -> },

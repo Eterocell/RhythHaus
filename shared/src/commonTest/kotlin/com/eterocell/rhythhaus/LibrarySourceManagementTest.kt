@@ -799,6 +799,22 @@ private class RecordingPlaylistRepository(
 ) : com.eterocell.rhythhaus.library.PlaylistRepository {
     private val delegate = SourceManagementPlaylistRepository()
 
+    override fun smartPlaylists() = delegate.smartPlaylists()
+
+    override fun createSmartPlaylist(
+        name: String,
+        rule: com.eterocell.rhythhaus.library.SmartPlaylistRule,
+    ) = delegate.createSmartPlaylist(name, rule)
+
+    override fun updateSmartPlaylist(
+        id: String,
+        name: String,
+        rule: com.eterocell.rhythhaus.library.SmartPlaylistRule,
+    ) = delegate.updateSmartPlaylist(id, name, rule)
+
+    override fun deleteSmartPlaylist(id: String) =
+        delegate.deleteSmartPlaylist(id)
+
     override fun playlists():
         List<com.eterocell.rhythhaus.library.PlaylistSummary> {
         events += "read_playlists"
@@ -835,11 +851,41 @@ private open class SourceManagementPlaylistRepository :
     com.eterocell.rhythhaus.library.PlaylistRepository {
     private val playlists =
         linkedMapOf<String, com.eterocell.rhythhaus.library.PlaylistSummary>()
+    private val smartPlaylists =
+        linkedMapOf<
+            String, com.eterocell.rhythhaus.library.SmartPlaylistSummary>()
     private val entries =
         linkedMapOf<
             String,
             MutableList<com.eterocell.rhythhaus.library.PlaylistEntry>>()
     private var nextId = 1
+
+    override fun smartPlaylists() = smartPlaylists.values.toList()
+
+    override fun createSmartPlaylist(
+        name: String,
+        rule: com.eterocell.rhythhaus.library.SmartPlaylistRule,
+    ): com.eterocell.rhythhaus.library.SmartPlaylistSummary {
+        val id = "smart-playlist-${nextId++}"
+        return com.eterocell.rhythhaus.library
+            .SmartPlaylistSummary(id, name, rule, 1L, 1L)
+            .also { smartPlaylists[id] = it }
+    }
+
+    override fun updateSmartPlaylist(
+        id: String,
+        name: String,
+        rule: com.eterocell.rhythhaus.library.SmartPlaylistRule,
+    ) {
+        smartPlaylists[id]?.let {
+            smartPlaylists[id] =
+                it.copy(name = name, rule = rule, updatedAtEpochMillis = 1L)
+        }
+    }
+
+    override fun deleteSmartPlaylist(id: String) {
+        smartPlaylists.remove(id)
+    }
 
     override fun playlists() = playlists.values.toList()
 

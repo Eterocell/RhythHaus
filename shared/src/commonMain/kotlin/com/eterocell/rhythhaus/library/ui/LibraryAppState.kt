@@ -295,6 +295,25 @@ internal class LibraryAppState(
             origin.route != LibraryRoute.PlaylistDetail(playlistId)) {
             return
         }
+        invalidateDisplayedPlaylistDestination(origin)
+    }
+
+    internal fun completeDisplayedSmartPlaylistDeletion(
+        confirmedSnapshot: PlaylistSnapshot,
+        smartPlaylistId: String,
+        origin: LibraryNavigationEntry,
+    ) {
+        if (confirmedSnapshot.smartPlaylist(smartPlaylistId) != null ||
+            navigation.currentEntry != origin ||
+            origin.route != LibraryRoute.SmartPlaylistDetail(smartPlaylistId)) {
+            return
+        }
+        invalidateDisplayedPlaylistDestination(origin)
+    }
+
+    private fun invalidateDisplayedPlaylistDestination(
+        origin: LibraryNavigationEntry,
+    ) {
         val invalidatedDestination = origin.destinationId
         if (acceptedBackSurface?.port?.destinationId ==
             invalidatedDestination) {

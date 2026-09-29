@@ -51,8 +51,15 @@ class PlaylistQueueSaveJvmTest {
                         loadFailedLabel = "Failed",
                         retryLabel = "Retry",
                         mutationFailedLabel = "Failed",
+                        libraryTracks = emptyList(),
                         onBack = {},
                         onOpenPlaylist = {},
+                        onOpenSmartPlaylist = {
+                            error("Unexpected smart route")
+                        },
+                        onCreateSmartPlaylist = { _, _, _ ->
+                            error("Unexpected smart creation")
+                        },
                         onSelectTab = {},
                         onCreate = { _, _ -> },
                         onSaveQueueAsPlaylist = { _, _, done ->
@@ -121,8 +128,13 @@ class PlaylistQueueSaveJvmTest {
                 loadFailedLabel = "Failed",
                 retryLabel = "Retry",
                 mutationFailedLabel = "Failed",
+                libraryTracks = emptyList(),
                 onBack = {},
                 onOpenPlaylist = {},
+                onOpenSmartPlaylist = { error("Unexpected smart route") },
+                onCreateSmartPlaylist = { _, _, _ ->
+                    error("Unexpected smart creation")
+                },
                 onSelectTab = {},
                 onCreate = { _, _ -> },
                 onSaveQueueAsPlaylist = { _, _, _ -> attempts++ },
@@ -172,8 +184,15 @@ class PlaylistQueueSaveJvmTest {
                         loadFailedLabel = "Failed",
                         retryLabel = "Retry",
                         mutationFailedLabel = "Save failed",
+                        libraryTracks = emptyList(),
                         onBack = {},
                         onOpenPlaylist = {},
+                        onOpenSmartPlaylist = {
+                            error("Unexpected smart route")
+                        },
+                        onCreateSmartPlaylist = { _, _, _ ->
+                            error("Unexpected smart creation")
+                        },
                         onSelectTab = {},
                         onCreate = { _, _ -> },
                         onSaveQueueAsPlaylist = { name, ids, done ->
@@ -249,8 +268,15 @@ class PlaylistQueueSaveJvmTest {
                             loadFailedLabel = "Failed",
                             retryLabel = "Retry",
                             mutationFailedLabel = "Save failed",
+                            libraryTracks = emptyList(),
                             onBack = {},
                             onOpenPlaylist = {},
+                            onOpenSmartPlaylist = {
+                                error("Unexpected smart route")
+                            },
+                            onCreateSmartPlaylist = { _, _, _ ->
+                                error("Unexpected smart creation")
+                            },
                             onSelectTab = {},
                             onCreate = { _, _ -> },
                             onSaveQueueAsPlaylist = { name, ids, done ->

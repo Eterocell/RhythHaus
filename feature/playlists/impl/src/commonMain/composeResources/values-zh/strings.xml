@@ -75,4 +75,24 @@
     <string name="playlist_backup_invalid_duration_error">已保存播放列表中的曲目时长无效，无法导出。</string>
     <string name="playlist_backup_invalid_data_error">播放列表超出支持的备份限制。</string>
     <string name="playlist_backup_repository_error">无法导入播放列表。没有播放列表被更改。</string>
+    <string name="smart_create">创建智能播放列表</string>
+    <string name="smart_rules">智能播放列表</string>
+    <string name="smart_backup_note">JSON 备份不包含智能播放列表</string>
+    <string name="smart_rule">规则</string>
+    <string name="smart_favorites">收藏</string>
+    <string name="smart_recent_played">最近播放</string>
+    <string name="smart_recent_added">最近新增</string>
+    <string name="smart_artist">艺术家</string>
+    <string name="smart_album">专辑</string>
+    <string name="smart_saved">已保存播放列表</string>
+    <string name="smart_count">歌曲上限</string>
+    <string name="smart_missing_source">原播放列表已不存在。请选择其他播放列表修复规则。</string>
+    <string name="smart_empty">没有匹配的歌曲</string>
+    <string name="smart_edit">编辑智能播放列表</string>
+    <string name="smart_delete">删除智能播放列表</string>
+    <string name="smart_delete_confirm">删除此智能播放列表？音乐文件和其他播放列表不会改变。</string>
+    <string name="smart_save">保存</string>
+    <string name="smart_choose_option">选择可用的规则值</string>
+    <string name="smart_selected">已选择</string>
+    <string name="smart_not_selected">未选择</string>
 </resources>

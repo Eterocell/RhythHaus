@@ -37,6 +37,7 @@ private val libraryTables =
 private val playlistTables = setOf("playlist", "playlist_entry")
 private val favoriteTables = setOf("track_favorite")
 private val playHistoryTables = setOf("track_play_history")
+private val smartPlaylistTables = setOf("smart_playlist")
 
 private fun foreignKeyProperties(): Properties =
     Properties().apply { put("foreign_keys", "true") }
@@ -58,7 +59,13 @@ private fun bootstrapLegacyVersionZeroDatabase(
                     libraryTables +
                         playlistTables +
                         favoriteTables +
-                        playHistoryTables -> RhythHausDatabase.Schema.version
+                        playHistoryTables -> 4L
+                tables ==
+                    libraryTables +
+                        playlistTables +
+                        favoriteTables +
+                        playHistoryTables +
+                        smartPlaylistTables -> RhythHausDatabase.Schema.version
                 else -> return
             }
         driver.execute(null, "PRAGMA user_version = $legacyVersion", 0).value

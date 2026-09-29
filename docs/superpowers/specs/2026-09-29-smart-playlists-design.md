@@ -1,0 +1,23 @@
+# Smart playlists — design (2026-09-29)
+
+## Intent and authority
+
+Complete the remaining Phase 2 smart-playlists item. The user authorized autonomous specification, design, planning, and implementation direction earlier in this conversation and asked to continue after merging Queue save. Static saved playlists, their duplicate-occurrence semantics, and version-1 JSON backup remain unchanged.
+
+## Behavior
+
+A listener can create a named smart playlist from the Saved tab, select one of six single rules, change its rule and name later, and delete it. Rules: Favorites (all favorited tracks); Recently Played (most recent N tracks with a recorded play); Recently Added (newest N library tracks); Artist (exact artist chosen from current library); Album (exact artist-and-album pair chosen from current library); Saved Playlist (an existing static saved playlist, including one made from Queue, in its current entry order). N is 10, 25, or 50, default 25. The latter rule retains repeated source entries; the other five produce one row per matching track. Recent ordering uses descending persisted timestamps then stable track ID; Favorites/Artist/Album use case-insensitive title then stable track ID. No wall-clock cutoff: "recent" explicitly means newest N, avoiding a background clock or ambiguous time-zone policy. A deleted static source leaves the smart playlist visible but empty with a missing-source notice and an editable rule; no files or other playlists are removed.
+
+Opening a smart playlist recomputes membership from the latest authoritative Library content and confirmed static playlist snapshot; saving a rule never snapshots tracks. Scans, favorite toggles, recorded plays, static playlist edits/removal and restart update results. A smart playlist detail is read-only for entries (no manual append/remove/reorder); rename/change-rule/delete are allowed. Selecting a row plays the current visible order as a queue without changing rule membership. Deletion has explicit confirmation and invalidates only that destination on success; failed writes retain the dialog. Empty matching sets show a distinct empty state. The creation/editor UI is available in EN/ZH, keyboard accessible, and scrollable at 600×400 dp.
+
+## Storage and ownership
+
+`:core:database` owns `smart_playlist(id, name, ruleKind, ruleValue, ruleAuxValue, createdAtEpochMillis, updatedAtEpochMillis)`, plus migration `4.sqm`. Rule kinds are a small stable persisted discriminant; arguments are validated by the playlist repository (count 10/25/50, nonblank artist/album, existing static-playlist ID at creation/edit). No FK to the source playlist: deleting a source must not silently delete the smart list, and a missing reference yields a recoverable empty state. Migration from v1–v4 and version-zero legacy bootstrap must preserve existing rows. `:feature:playlists:api` owns typed rules and the smart summary plus narrow repository methods. `:feature:playlists:impl` owns persistence, deterministic pure membership projection, modal and detail rendering, and state/owner publication. `:shared` owns route identity/Back, passes the current authoritative library tracks, favorite IDs, and history projection into the feature and delegates mutations through the existing `PlaylistStateOwner`. One rule per list; no arbitrary Boolean rule expression or background materialization.
+
+## Compatibility and constraints
+
+Keep static playlist IDs and entries separate from smart list IDs and rules. Backup v1 exports/imports only static saved playlists and is not silently expanded to a new incompatible format. Smart lists are explicitly labeled as excluded from backup/export in their UI; a future backup-version proposal is needed to move rules across devices. No media tags, files, permissions, queue, repeat, shuffle, timers, or playback progress are mutated by rule management. Smart list playback uses the existing `selectOccurrenceForPlayback` route. Unknown/corrupt persisted rule data fails the read with a visible retry state rather than fabricating empty membership.
+
+## Verification
+
+Migration (including legacy v0), repository transaction/validation, deterministic membership for each rule, dynamic refresh across scan/favorite/history/static changes, stale snapshot publication, missing-source handling, creation/edit/delete failure retention, navigation/Back, row playback order, locale parity, compact window interactions. Run focused JVM tests, SQLDelight generation, desktop/Android/iOS compilation, formatting/Detekt/architecture/OpenSpec, then actual desktop smart-list flow with temporary media if available. User owns physical Android/iOS/macOS visual, listening and system-media manual acceptance; report untested cases rather than mark them passed.

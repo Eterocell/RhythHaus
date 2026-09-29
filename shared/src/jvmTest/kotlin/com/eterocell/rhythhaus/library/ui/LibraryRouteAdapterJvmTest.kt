@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
@@ -20,6 +21,8 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.SmartPlaylistRule
+import com.eterocell.rhythhaus.library.SmartPlaylistSummary
 import com.eterocell.rhythhaus.library.toPlayableTrack
 import java.util.Locale
 import kotlin.test.Test
@@ -36,6 +39,53 @@ import kotlinx.coroutines.runBlocking
  * `onPlayEntry` wiring.
  */
 class LibraryRouteAdapterJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun smartRouteUpdatesFavoriteMembershipWithoutReplacingThePlayingQueue() =
+        runComposeUiTest {
+            val controller = PlaybackController(FakePlaybackEngine())
+            val library =
+                listOf(libraryTrack("a", "First"), libraryTrack("b", "Second"))
+            val favorites = mutableStateOf(setOf("a"))
+            val state =
+                PlaylistState(
+                    confirmedSnapshot =
+                        PlaylistSnapshot(
+                            smartPlaylists =
+                                listOf(
+                                    SmartPlaylistSummary(
+                                        "smart",
+                                        "Favorites rule",
+                                        SmartPlaylistRule.Favorites,
+                                        1,
+                                        1))),
+                    hasConfirmedSnapshot = true,
+                )
+            setContent {
+                playlistDetailRoute(
+                    controller,
+                    library,
+                    emptyList(),
+                    route = LibraryRoute.SmartPlaylistDetail("smart"),
+                    playlistState = state,
+                    favoriteTrackIds = favorites.value)
+            }
+            onNode(hasText("First")).performClick()
+            waitForIdle()
+            val before = controller.state.value
+            assertEquals(listOf("a"), before.queue.map { it.track.id })
+            favorites.value = setOf("b")
+            waitForIdle()
+            assertEquals(
+                0, onAllNodes(hasText("First")).fetchSemanticsNodes().size)
+            assertEquals(
+                1, onAllNodes(hasText("Second")).fetchSemanticsNodes().size)
+            assertEquals(before.queue, controller.state.value.queue)
+            assertEquals(
+                before.currentOccurrenceId,
+                controller.state.value.currentOccurrenceId)
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun queueRouteSavesOrderedDuplicateEntriesWithoutMutatingPlayback() =
@@ -303,6 +353,7 @@ class LibraryRouteAdapterJvmTest {
                 (PlaylistStateAction) -> Unit) -> Unit =
             { _, _ ->
             },
+        favoriteTrackIds: Set<String> = emptySet(),
     ) {
         val playbackState by controller.state.collectAsState()
         LibraryRouteContent(
@@ -336,7 +387,7 @@ class LibraryRouteAdapterJvmTest {
             onScrollPositionChanged = {},
             artworkLoader = { null },
             homeContent = { _ -> },
-            favoriteTrackIds = emptySet(),
+            favoriteTrackIds = favoriteTrackIds,
             onSetTrackFavorite = { _, _ -> },
             trackSelectionState = TrackSelectionState(),
             onTrackSelectionAction = {},
@@ -383,6 +434,21 @@ class LibraryRouteAdapterJvmTest {
         )
 
     private object EmptyPlaylistRepository : PlaylistRepository {
+        override fun smartPlaylists() = emptyList<SmartPlaylistSummary>()
+
+        override fun createSmartPlaylist(
+            name: String,
+            rule: SmartPlaylistRule
+        ): SmartPlaylistSummary = error("unused")
+
+        override fun updateSmartPlaylist(
+            id: String,
+            name: String,
+            rule: SmartPlaylistRule
+        ) = error("unused")
+
+        override fun deleteSmartPlaylist(id: String) = error("unused")
+
         override fun playlists() = emptyList<PlaylistSummary>()
 
         override fun playlist(id: String) = null

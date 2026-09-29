@@ -36,6 +36,25 @@ public data class PlaylistSummary(
 
 /** Stable persistence boundary for playlists and ordered entries. */
 public interface PlaylistRepository {
+    /** Reads named smart rules without materializing entries. */
+    public fun smartPlaylists(): List<SmartPlaylistSummary>
+
+    /** Creates a validated named rule. */
+    public fun createSmartPlaylist(
+        name: String,
+        rule: SmartPlaylistRule
+    ): SmartPlaylistSummary
+
+    /** Updates an existing named rule atomically. */
+    public fun updateSmartPlaylist(
+        id: String,
+        name: String,
+        rule: SmartPlaylistRule
+    )
+
+    /** Deletes only the named rule. */
+    public fun deleteSmartPlaylist(id: String)
+
     /** Returns all playlists. */
     public fun playlists(): List<PlaylistSummary>
 

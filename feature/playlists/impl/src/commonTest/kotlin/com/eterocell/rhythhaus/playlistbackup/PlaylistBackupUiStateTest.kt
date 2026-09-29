@@ -4,6 +4,8 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.SmartPlaylistRule
+import com.eterocell.rhythhaus.library.SmartPlaylistSummary
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import kotlin.test.Test
@@ -230,6 +232,22 @@ class PlaylistBackupUiStateTest {
 
     private class CountingRepository : PlaylistRepository {
         var importCalls = 0
+
+        override fun smartPlaylists(): List<SmartPlaylistSummary> = emptyList()
+
+        override fun createSmartPlaylist(
+            name: String,
+            rule: SmartPlaylistRule,
+        ): SmartPlaylistSummary = error("Not used by this test")
+
+        override fun updateSmartPlaylist(
+            id: String,
+            name: String,
+            rule: SmartPlaylistRule
+        ) = error("Not used by this test")
+
+        override fun deleteSmartPlaylist(id: String) =
+            error("Not used by this test")
 
         override fun playlists(): List<PlaylistSummary> = emptyList()
 

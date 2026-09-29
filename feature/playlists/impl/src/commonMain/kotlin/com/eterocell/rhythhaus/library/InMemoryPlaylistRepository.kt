@@ -6,6 +6,42 @@ internal class InMemoryPlaylistRepository(
 ) : PlaylistRepository {
     private var playlists = linkedMapOf<String, PlaylistSummary>()
     private var entries = linkedMapOf<String, PlaylistEntry>()
+    private val smartRules = linkedMapOf<String, SmartPlaylistSummary>()
+
+    override fun smartPlaylists(): List<SmartPlaylistSummary> =
+        smartRules.values.sortedWith(
+            compareBy<SmartPlaylistSummary> { it.createdAtEpochMillis }
+                .thenBy { it.id })
+
+    override fun createSmartPlaylist(
+        name: String,
+        rule: SmartPlaylistRule
+    ): SmartPlaylistSummary {
+        val validatedName = requireName(name)
+        validateSmartRule(rule)
+        val time = now()
+        val result =
+            SmartPlaylistSummary(idFactory(), validatedName, rule, time, time)
+        smartRules[result.id] = result
+        return result
+    }
+
+    override fun updateSmartPlaylist(
+        id: String,
+        name: String,
+        rule: SmartPlaylistRule
+    ) {
+        val old = requireNotNull(smartRules[id]) { "Smart playlist not found" }
+        val validatedName = requireName(name)
+        validateSmartRule(rule, old.rule)
+        smartRules[id] =
+            old.copy(
+                name = validatedName, rule = rule, updatedAtEpochMillis = now())
+    }
+
+    override fun deleteSmartPlaylist(id: String) {
+        requireNotNull(smartRules.remove(id)) { "Smart playlist not found" }
+    }
 
     override fun playlists(): List<PlaylistSummary> =
         playlists.values.sortedWith(
