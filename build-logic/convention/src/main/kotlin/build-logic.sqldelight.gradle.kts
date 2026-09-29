@@ -65,7 +65,7 @@ sqldelight {
     databases {
         create("RhythHausDatabase") {
             packageName.set("com.eterocell.rhythhaus.library")
-            dialect("app.cash.sqldelight:sqlite-3-38-dialect:2.3.2")
+            dialect("app.cash.sqldelight:sqlite-3-38-dialect:2.4.0")
             schemaOutputDirectory.set(
                 file("src/commonMain/sqldelight/databases"))
         }
