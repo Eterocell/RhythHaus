@@ -15,9 +15,17 @@ final class RhythHausAudioPlayerProvider: NSObject, IOSAudioPlayerProvider, AVAu
     }
 
     private var player: AVAudioPlayer?
+    private var playbackGain: Float = 1.0
     private var isPlayingAuthoritatively = false
     private var playRequestToken = 0
     private var notificationTokens: [NSObjectProtocol] = []
+
+#if DEBUG
+    var debugPlayerVolume: Float? {
+        Self.assertMainThread()
+        return player?.volume
+    }
+#endif
 
     override init() {
         Self.assertMainThread()
@@ -86,6 +94,7 @@ final class RhythHausAudioPlayerProvider: NSObject, IOSAudioPlayerProvider, AVAu
                     handler.onAudioLoadFailed()
                     return
                 }
+                preparedPlayer.volume = self.playbackGain
                 preparedPlayer.delegate = self
                 self.player = preparedPlayer
                 self.isPlayingAuthoritatively = false
@@ -111,8 +120,13 @@ final class RhythHausAudioPlayerProvider: NSObject, IOSAudioPlayerProvider, AVAu
             }
             DispatchQueue.main.async {
                 guard self.playRequestToken == requestToken,
-                      self.player?.play() == true
+                      let player = self.player
                 else {
+                    handler.onPlaybackStartFailed()
+                    return
+                }
+                player.volume = self.playbackGain
+                guard player.play() else {
                     handler.onPlaybackStartFailed()
                     return
                 }
@@ -135,6 +149,15 @@ final class RhythHausAudioPlayerProvider: NSObject, IOSAudioPlayerProvider, AVAu
         isPlayingAuthoritatively = false
         player?.stop()
         player?.currentTime = 0
+    }
+
+    func setPlaybackGain(gain: Float) {
+        Self.assertMainThread()
+        precondition(
+            gain.isFinite && gain >= 0 && gain <= 1,
+            "Playback gain must be finite and within 0...1")
+        playbackGain = gain
+        player?.volume = gain
     }
 
     func seekTo(positionMillis: Int64) {
@@ -168,10 +191,14 @@ final class RhythHausAudioPlayerProvider: NSObject, IOSAudioPlayerProvider, AVAu
         player.currentTime = 0
     }
 
-    func audioPlayerDidFinishPlaying(_: AVAudioPlayer, successfully _: Bool) {
+    func audioPlayerDidFinishPlaying(_: AVAudioPlayer, successfully flag: Bool) {
         Self.assertMainThread()
         isPlayingAuthoritatively = false
-        completionHandler?.onPlaybackCompleted()
+        if flag {
+            completionHandler?.onPlaybackCompleted()
+        } else {
+            completionHandler?.onPlaybackFailed()
+        }
     }
 
     private func handleInterruption(_ notification: Notification) {

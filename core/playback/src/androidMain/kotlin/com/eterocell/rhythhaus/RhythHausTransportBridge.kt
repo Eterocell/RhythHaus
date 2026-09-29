@@ -19,6 +19,14 @@ internal object RhythHausTransportBridge {
 
     @Volatile var onSkipToPrevious: (() -> Unit)? = null
 
+    @Volatile var onPlay: (() -> Unit)? = null
+
+    @Volatile var onPause: (() -> Unit)? = null
+
+    @Volatile var onStop: (() -> Unit)? = null
+
+    @Volatile var onSeek: ((Long) -> Unit)? = null
+
     fun setTransportEnabled(enabled: Boolean) {
         transportEnabled = enabled
     }
@@ -76,13 +84,37 @@ internal class ServiceTransportRouter {
 
     fun play(action: () -> Unit): Boolean = routeTransport(action)
 
+    fun play(internalController: Boolean, action: () -> Unit): Boolean =
+        routeSessionTransport(internalController, action) {
+            RhythHausTransportBridge.onPlay?.invoke()
+        }
+
     fun pause(action: () -> Unit): Boolean = routeTransport(action)
 
+    fun pause(internalController: Boolean, action: () -> Unit): Boolean =
+        routeSessionTransport(internalController, action) {
+            RhythHausTransportBridge.onPause?.invoke()
+        }
+
     fun stop(action: () -> Unit): Boolean = routeTransport(action)
+
+    fun stop(internalController: Boolean, action: () -> Unit): Boolean =
+        routeSessionTransport(internalController, action) {
+            RhythHausTransportBridge.onStop?.invoke()
+        }
 
     fun seekTo(positionMillis: Long, action: (Long) -> Unit): Boolean =
         routeTransport {
             action(positionMillis)
+        }
+
+    fun seekTo(
+        positionMillis: Long,
+        internalController: Boolean,
+        action: (Long) -> Unit
+    ): Boolean =
+        routeSessionTransport(internalController, { action(positionMillis) }) {
+            RhythHausTransportBridge.onSeek?.invoke(positionMillis)
         }
 
     fun seekTo(
@@ -91,18 +123,47 @@ internal class ServiceTransportRouter {
         action: (Int, Long) -> Unit
     ): Boolean = routeTransport { action(mediaItemIndex, positionMillis) }
 
+    fun seekTo(
+        mediaItemIndex: Int,
+        positionMillis: Long,
+        internalController: Boolean,
+        action: (Int, Long) -> Unit
+    ): Boolean =
+        routeSessionTransport(
+            internalController,
+            { action(mediaItemIndex, positionMillis) },
+        ) {
+            RhythHausTransportBridge.onSeek?.invoke(positionMillis)
+        }
+
+    private inline fun routeSessionTransport(
+        internalController: Boolean,
+        internalAction: () -> Unit,
+        externalAction: () -> Unit,
+    ): Boolean {
+        if (internalController) {
+            internalAction()
+            return true
+        }
+        return routeTransport(externalAction)
+    }
+
     fun next(action: () -> Unit): Boolean = routeTransport(action)
 
     fun previous(action: () -> Unit): Boolean = routeTransport(action)
 
     fun isCommandAvailable(command: Int, delegateAvailable: Boolean): Boolean =
-        transportCommandAllowed(command) &&
-            (command in skipTransportCommands || delegateAvailable)
+        command in skipTransportCommands || delegateAvailable
 }
 
 internal fun transportCommandAllowed(command: Int): Boolean =
     RhythHausTransportBridge.isTransportEnabled() ||
         command !in gatedTransportCommands
+
+internal fun sessionPlayerCommandAllowed(
+    internalController: Boolean,
+    command: Int,
+): Boolean = internalController || transportCommandAllowed(command)
 
 private val skipTransportCommands =
     setOf(
@@ -135,8 +196,5 @@ internal fun transportAvailableCommands(
             .add(
                 androidx.media3.common.Player
                     .COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
-    if (!RhythHausTransportBridge.isTransportEnabled()) {
-        gatedTransportCommands.forEach(builder::remove)
-    }
     return builder.build()
 }

@@ -187,6 +187,9 @@ class LibraryPlaybackSelectionTest {
         var generation: Long = 0L
             private set
 
+        var playbackRunId: Long = 0L
+            private set
+
         override suspend fun loadPaused(
             track: PlayableTrack,
             generation: Long
@@ -205,6 +208,10 @@ class LibraryPlaybackSelectionTest {
 
         override fun setUserTransportEnabled(enabled: Boolean) = Unit
 
+        override fun setPlaybackGain(gain: Float) {
+            require(gain.isFinite() && gain in 0f..1f)
+        }
+
         suspend fun awaitLoad() = loadSignal.await()
 
         fun clearEvents() {
@@ -221,7 +228,8 @@ class LibraryPlaybackSelectionTest {
                 List(count) { events.receive() }
             }
 
-        override fun play() {
+        override fun play(playbackRunId: Long) {
+            this.playbackRunId = playbackRunId
             record(EngineEvent.Play)
             listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
         }

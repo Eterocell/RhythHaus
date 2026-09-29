@@ -8,6 +8,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionResult
 
 /**
  * Foreground-capable Media3 service that hosts the ExoPlayer and [MediaSession]
@@ -57,10 +58,36 @@ public class RhythHausPlaybackService : MediaSessionService() {
             }
 
         mediaSession =
-            MediaSession.Builder(this, SkipRoutingPlayer(exoPlayer))
+            MediaSession.Builder(
+                    this,
+                    SkipRoutingPlayer(exoPlayer) {
+                        val request = mediaSession?.controllerForCurrentRequest
+                        request != null && isEngineController(request)
+                    },
+                )
+                .setCallback(
+                    object : MediaSession.Callback {
+                        override fun onPlayerCommandRequest(
+                            session: MediaSession,
+                            controller: MediaSession.ControllerInfo,
+                            playerCommand: Int,
+                        ): Int =
+                            if (sessionPlayerCommandAllowed(
+                                isEngineController(controller), playerCommand))
+                                SessionResult.RESULT_SUCCESS
+                            else SessionResult.RESULT_ERROR_PERMISSION_DENIED
+                    },
+                )
                 .apply { sessionActivityIntent?.let { setSessionActivity(it) } }
                 .build()
     }
+
+    private fun isEngineController(
+        controller: MediaSession.ControllerInfo
+    ): Boolean =
+        controller.uid == applicationInfo.uid &&
+            controller.connectionHints.getBoolean(
+                RHYTHHAUS_ENGINE_CONTROLLER_HINT)
 
     /** Returns the session exposed to Media3 controllers. */
     public override fun onGetSession(
@@ -86,6 +113,8 @@ public class RhythHausPlaybackService : MediaSessionService() {
     /** Releases the Media3 session and player during service teardown. */
     public override fun onDestroy(): Unit {
         mediaSession?.run {
+            // This is Media3 player gain only; it never touches device volume.
+            resetAndroidPlaybackGain(player)
             player.release()
             release()
         }
@@ -101,8 +130,10 @@ public class RhythHausPlaybackService : MediaSessionService() {
  * drive queue navigation owned by the shared [PlaybackController]. All other
  * commands delegate to the wrapped ExoPlayer unchanged.
  */
-internal class SkipRoutingPlayer(player: Player) :
-    androidx.media3.common.ForwardingPlayer(player) {
+internal class SkipRoutingPlayer(
+    player: Player,
+    private val isInternalController: () -> Boolean = { true },
+) : androidx.media3.common.ForwardingPlayer(player) {
     private val transportRouter = ServiceTransportRouter()
 
     override fun getAvailableCommands(): Player.Commands =
@@ -113,24 +144,73 @@ internal class SkipRoutingPlayer(player: Player) :
             command, super.isCommandAvailable(command))
 
     override fun play() {
-        transportRouter.play { super.play() }
+        transportRouter.play(isInternalController()) { super.play() }
+    }
+
+    override fun setPlayWhenReady(playWhenReady: Boolean) {
+        if (playWhenReady)
+            transportRouter.play(isInternalController()) {
+                super.setPlayWhenReady(true)
+            }
+        else
+            transportRouter.pause(isInternalController()) {
+                super.setPlayWhenReady(false)
+            }
     }
 
     override fun pause() {
-        transportRouter.pause { super.pause() }
+        transportRouter.pause(isInternalController()) { super.pause() }
     }
 
     override fun stop() {
-        transportRouter.stop { super.stop() }
+        transportRouter.stop(isInternalController()) { super.stop() }
     }
 
     override fun seekTo(positionMs: Long) {
-        transportRouter.seekTo(positionMs) { super.seekTo(it) }
+        transportRouter.seekTo(positionMs, isInternalController()) {
+            super.seekTo(it)
+        }
     }
 
     override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
-        transportRouter.seekTo(mediaItemIndex, positionMs) { index, position ->
-            super.seekTo(index, position)
+        transportRouter.seekTo(
+            mediaItemIndex, positionMs, isInternalController()) {
+                index,
+                position ->
+                super.seekTo(index, position)
+            }
+    }
+
+    override fun seekBack() {
+        transportRouter.seekTo(
+            (currentPosition - seekBackIncrement).coerceAtLeast(0L),
+            isInternalController(),
+        ) {
+            super.seekBack()
+        }
+    }
+
+    override fun seekForward() {
+        transportRouter.seekTo(
+            (currentPosition + seekForwardIncrement).coerceAtMost(
+                duration.takeIf { it > 0 } ?: Long.MAX_VALUE),
+            isInternalController(),
+        ) {
+            super.seekForward()
+        }
+    }
+
+    override fun seekToDefaultPosition() {
+        transportRouter.seekTo(0L, isInternalController()) {
+            super.seekToDefaultPosition()
+        }
+    }
+
+    override fun seekToDefaultPosition(mediaItemIndex: Int) {
+        transportRouter.seekTo(mediaItemIndex, 0L, isInternalController()) {
+            index,
+            _ ->
+            super.seekToDefaultPosition(index)
         }
     }
 

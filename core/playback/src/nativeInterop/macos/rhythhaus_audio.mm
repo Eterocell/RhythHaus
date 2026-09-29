@@ -35,6 +35,9 @@
     std::vector<AudioDeviceID> _availableDevices;
     RhythHausRouteCallbackContext *_routeContext;
     BOOL _routeSnapshotInjected;
+    float _playbackGain;
+    JavaVM *_callbackVM;
+    jweak _remoteBridge;
 }
 @property(nonatomic, strong) AVAudioPlayer *player;
 @property(nonatomic, assign) BOOL remoteCommandsRegistered;
@@ -52,6 +55,12 @@
 - (void)pause;
 - (void)stop;
 - (void)seekToMillis:(jlong)positionMillis;
+- (void)setPlaybackGain:(jfloat)gain;
+- (jfloat)playbackGain;
+- (jfloat)playerVolumeForTest;
+- (void)installRemoteBridge:(JNIEnv *)env bridge:(jobject)bridge;
+- (void)removeRemoteBridge;
+- (BOOL)dispatchRemoteCommand:(jint)command positionMillis:(jlong)positionMillis;
 @end
 
 static void releaseNativePlayer(RhythHausAudioPlayer *player);
@@ -59,14 +68,13 @@ static void releaseNativePlayer(RhythHausAudioPlayer *player);
 static MPRemoteCommandHandlerStatus performRemotePlay(RhythHausAudioPlayer *player) {
     if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
     if (!player.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
-    return [player play] ? MPRemoteCommandHandlerStatusSuccess : MPRemoteCommandHandlerStatusCommandFailed;
+    return [player dispatchRemoteCommand:1 positionMillis:0] ? MPRemoteCommandHandlerStatusSuccess : MPRemoteCommandHandlerStatusCommandFailed;
 }
 
 static MPRemoteCommandHandlerStatus performRemotePause(RhythHausAudioPlayer *player) {
     if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
     if (!player.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
-    [player pause];
-    return MPRemoteCommandHandlerStatusSuccess;
+    return [player dispatchRemoteCommand:2 positionMillis:0] ? MPRemoteCommandHandlerStatusSuccess : MPRemoteCommandHandlerStatusCommandFailed;
 }
 
 static MPRemoteCommandHandlerStatus performRemoteToggle(RhythHausAudioPlayer *player) {
@@ -78,15 +86,13 @@ static MPRemoteCommandHandlerStatus performRemoteToggle(RhythHausAudioPlayer *pl
 static MPRemoteCommandHandlerStatus performRemoteStop(RhythHausAudioPlayer *player) {
     if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
     if (!player.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
-    [player stop];
-    return MPRemoteCommandHandlerStatusSuccess;
+    return [player dispatchRemoteCommand:3 positionMillis:0] ? MPRemoteCommandHandlerStatusSuccess : MPRemoteCommandHandlerStatusCommandFailed;
 }
 
 static MPRemoteCommandHandlerStatus performRemoteSeek(RhythHausAudioPlayer *player, jlong positionMillis) {
     if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
     if (!player.transportEnabled) return MPRemoteCommandHandlerStatusCommandFailed;
-    [player seekToMillis:positionMillis];
-    return MPRemoteCommandHandlerStatusSuccess;
+    return [player dispatchRemoteCommand:4 positionMillis:positionMillis] ? MPRemoteCommandHandlerStatusSuccess : MPRemoteCommandHandlerStatusCommandFailed;
 }
 
 static NSInteger liveRemoteHandlerCount = 0;
@@ -196,6 +202,59 @@ static void removeRouteListener(const AudioObjectPropertyAddress *address,
 
 @implementation RhythHausAudioPlayer
 
+- (void)installRemoteBridge:(JNIEnv *)env bridge:(jobject)bridge {
+    @synchronized (self) {
+        env->GetJavaVM(&_callbackVM);
+        _remoteBridge = env->NewWeakGlobalRef(bridge);
+    }
+}
+
+- (void)removeRemoteBridge {
+    @synchronized (self) {
+        if (_remoteBridge == nullptr) return;
+        JNIEnv *env = nullptr;
+        bool attached = false;
+        if (_callbackVM->GetEnv((void **)&env, JNI_VERSION_1_6) != JNI_OK &&
+            _callbackVM->AttachCurrentThread((void **)&env, nullptr) == JNI_OK)
+            attached = true;
+        if (env != nullptr)
+            env->DeleteWeakGlobalRef(_remoteBridge);
+        _remoteBridge = nullptr;
+        if (attached) _callbackVM->DetachCurrentThread();
+    }
+}
+
+- (BOOL)dispatchRemoteCommand:(jint)command positionMillis:(jlong)positionMillis {
+    JavaVM *vm = _callbackVM;
+    if (vm == nullptr) return NO;
+    JNIEnv *env = nullptr;
+    bool attached = false;
+    if (vm->GetEnv((void **)&env, JNI_VERSION_1_6) != JNI_OK) {
+        if (vm->AttachCurrentThread((void **)&env, nullptr) != JNI_OK) return NO;
+        attached = true;
+    }
+    jobject bridge = nullptr;
+    @synchronized (self) {
+        if (_remoteBridge != nullptr) bridge = env->NewLocalRef(_remoteBridge);
+    }
+    BOOL accepted = NO;
+    if (bridge != nullptr) {
+        jclass type = env->GetObjectClass(bridge);
+        jmethodID method = env->GetMethodID(type, "onRemoteTransport", "(IJ)Z");
+        if (method != nullptr)
+            accepted = env->CallBooleanMethod(bridge, method, command, positionMillis) == JNI_TRUE;
+        if (env->ExceptionCheck()) {
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+            accepted = NO;
+        }
+        env->DeleteLocalRef(type);
+        env->DeleteLocalRef(bridge);
+    }
+    if (attached) vm->DetachCurrentThread();
+    return accepted;
+}
+
 - (instancetype)init {
     self = [super init];
     if (self != nil) {
@@ -204,6 +263,7 @@ static void removeRouteListener(const AudioObjectPropertyAddress *address,
         _expectedActive.store(false);
         _trackedDefaultDevice = kAudioObjectUnknown;
         _routeSnapshotInjected = NO;
+        _playbackGain = 1.0f;
         readRouteSnapshot(_availableDevices, _trackedDefaultDevice);
         _routeContext = [[RhythHausRouteCallbackContext alloc] init];
         _routeContext.player = self;
@@ -229,12 +289,15 @@ static void removeRouteListener(const AudioObjectPropertyAddress *address,
 - (BOOL)loadPath:(NSString *)path {
     NSURL *url = [NSURL fileURLWithPath:path];
     NSError *error = nil;
-    self.player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&error];
-    if (self.player == nil || error != nil) {
-        self.player = nil;
+    AVAudioPlayer *nextPlayer = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&error];
+    if (nextPlayer == nil || error != nil) {
         return NO;
     }
-    return [self.player prepareToPlay];
+    @synchronized (self) {
+        self.player = nextPlayer;
+        self.player.volume = _playbackGain;
+        return [self.player prepareToPlay];
+    }
 }
 
 - (BOOL)play {
@@ -263,6 +326,27 @@ static void removeRouteListener(const AudioObjectPropertyAddress *address,
         _routeDisconnectPending.store(false);
         [self.player stop];
         self.player.currentTime = 0.0;
+        _playbackGain = 1.0f;
+        self.player.volume = _playbackGain;
+    }
+}
+
+- (void)setPlaybackGain:(jfloat)gain {
+    @synchronized (self) {
+        _playbackGain = gain;
+        self.player.volume = gain;
+    }
+}
+
+- (jfloat)playbackGain {
+    @synchronized (self) {
+        return _playbackGain;
+    }
+}
+
+- (jfloat)playerVolumeForTest {
+    @synchronized (self) {
+        return self.player == nil ? _playbackGain : self.player.volume;
     }
 }
 
@@ -518,6 +602,7 @@ static RhythHausAudioPlayer *playerFromHandle(jlong handle) {
 
 static void releaseNativePlayer(RhythHausAudioPlayer *player) {
     if (player != nil) {
+        [player removeRemoteBridge];
         [player removeRouteListeners];
         [player pause];
         [player removeRemoteCommands];
@@ -527,8 +612,9 @@ static void releaseNativePlayer(RhythHausAudioPlayer *player) {
     }
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeCreate(JNIEnv *, jobject) {
+extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeCreate(JNIEnv *env, jobject bridge) {
     RhythHausAudioPlayer *player = [[RhythHausAudioPlayer alloc] init];
+    [player installRemoteBridge:env bridge:bridge];
     return (jlong)(__bridge_retained void *)player;
 }
 
@@ -569,6 +655,18 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBr
 
 extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeDurationMillis(JNIEnv *, jobject, jlong handle) {
     return [playerFromHandle(handle) durationMillis];
+}
+
+extern "C" JNIEXPORT jfloat JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativePlaybackGain(JNIEnv *, jobject, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    return player == nil ? 1.0f : [player playbackGain];
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeSetPlaybackGain(JNIEnv *, jobject, jlong handle, jfloat gain) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    if (player != nil) {
+        [player setPlaybackGain:gain];
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeUpdateNowPlayingInfo(JNIEnv *env, jobject, jlong handle, jstring title, jstring artist, jstring album, jlong durationMillis, jlong positionMillis) {
@@ -704,6 +802,11 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBr
     if (playerFromHandle(handle) == nil) return 0;
     NSNumber *position = [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime];
     return position == nil ? 0 : (jlong)(position.doubleValue * 1000.0);
+}
+
+extern "C" JNIEXPORT jfloat JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativePlayerVolumeForTest(JNIEnv *, jobject, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    return player == nil ? 0.0f : [player playerVolumeForTest];
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeLiveRouteListenerCountForTest(JNIEnv *, jobject) {

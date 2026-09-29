@@ -59,6 +59,7 @@ import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
+import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.nowplaying.ui.MusicProgressScrubber
 import com.eterocell.rhythhaus.theme.HausColors
@@ -164,6 +165,10 @@ public fun NowPlayingContent(
     labels: NowPlayingScreenLabels,
     artworkLoader: suspend (String) -> ByteArray?,
     onBack: () -> Unit,
+    sleepTimerState: SleepTimerState,
+    onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
+    onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
+    onCancelSleepTimer: () -> Unit,
     modifier: Modifier = Modifier,
     favoriteTrackIds: Set<String> = emptySet(),
     onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
@@ -216,7 +221,11 @@ public fun NowPlayingContent(
                             brush,
                             favoriteTrackIds,
                             guardedOnSetTrackFavorite,
-                            isCurrentTrackAvailableInLibrary)
+                            isCurrentTrackAvailableInLibrary,
+                            sleepTimerState,
+                            onArmSleepTimer,
+                            onArmSleepTimerAfterCompletions,
+                            onCancelSleepTimer)
                     NowPlayingAdaptiveLayoutMode.Split ->
                         WideNowPlayingLayout(
                             track,
@@ -228,7 +237,11 @@ public fun NowPlayingContent(
                             brush,
                             favoriteTrackIds,
                             guardedOnSetTrackFavorite,
-                            isCurrentTrackAvailableInLibrary)
+                            isCurrentTrackAvailableInLibrary,
+                            sleepTimerState,
+                            onArmSleepTimer,
+                            onArmSleepTimerAfterCompletions,
+                            onCancelSleepTimer)
                 }
             }
         }
@@ -279,6 +292,10 @@ private fun NowPlayingControlsPane(
     favoriteTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
     isCurrentTrackAvailableInLibrary: Boolean,
+    sleepTimerState: SleepTimerState,
+    onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
+    onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
+    onCancelSleepTimer: () -> Unit,
 ) {
     Column(modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -468,6 +485,12 @@ private fun NowPlayingControlsPane(
                     testTag = NowPlayingNextTestTag)
             }
         Spacer(Modifier.height(16.dp))
+        SleepTimerPanel(
+            sleepTimerState = sleepTimerState,
+            onArmSleepTimer = onArmSleepTimer,
+            onArmSleepTimerAfterCompletions = onArmSleepTimerAfterCompletions,
+            onCancelSleepTimer = onCancelSleepTimer,
+        )
     }
 }
 
@@ -568,7 +591,11 @@ private fun CompactNowPlayingLayout(
     brush: Brush,
     favoriteTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
-    isCurrentTrackAvailableInLibrary: Boolean
+    isCurrentTrackAvailableInLibrary: Boolean,
+    sleepTimerState: SleepTimerState,
+    onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
+    onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
+    onCancelSleepTimer: () -> Unit,
 ) {
     Column(
         Modifier.testTag(NowPlayingCompactLayoutTestTag)
@@ -601,7 +628,11 @@ private fun CompactNowPlayingLayout(
                 controlsModifier,
                 favoriteTrackIds,
                 onSetTrackFavorite,
-                isCurrentTrackAvailableInLibrary)
+                isCurrentTrackAvailableInLibrary,
+                sleepTimerState,
+                onArmSleepTimer,
+                onArmSleepTimerAfterCompletions,
+                onCancelSleepTimer)
         }
 }
 
@@ -616,7 +647,11 @@ private fun WideNowPlayingLayout(
     brush: Brush,
     favoriteTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
-    isCurrentTrackAvailableInLibrary: Boolean
+    isCurrentTrackAvailableInLibrary: Boolean,
+    sleepTimerState: SleepTimerState,
+    onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
+    onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
+    onCancelSleepTimer: () -> Unit,
 ) {
     Row(
         Modifier.testTag(NowPlayingSplitLayoutTestTag)
@@ -638,13 +673,11 @@ private fun WideNowPlayingLayout(
             Box(
                 Modifier.fillMaxHeight().weight(0.52f),
                 contentAlignment = Alignment.Center) {
+                    // The timer setup panel may exceed a 600×400 dp split
+                    // viewport even without an error recovery section.
                     val controlsModifier =
-                        if (playbackState.errorRecoveryVisible) {
-                            Modifier.fillMaxWidth()
-                                .verticalScroll(rememberScrollState())
-                        } else {
-                            Modifier.fillMaxWidth()
-                        }
+                        Modifier.fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
                     NowPlayingControlsPane(
                         track,
                         playbackState,
@@ -654,7 +687,11 @@ private fun WideNowPlayingLayout(
                         controlsModifier,
                         favoriteTrackIds,
                         onSetTrackFavorite,
-                        isCurrentTrackAvailableInLibrary)
+                        isCurrentTrackAvailableInLibrary,
+                        sleepTimerState,
+                        onArmSleepTimer,
+                        onArmSleepTimerAfterCompletions,
+                        onCancelSleepTimer)
                 }
         }
 }

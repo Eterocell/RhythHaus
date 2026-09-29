@@ -2,6 +2,8 @@ package com.eterocell.rhythhaus
 
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import java.lang.reflect.Proxy
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -18,6 +20,98 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 class AndroidPlaybackMediaSessionTest {
+
+    @Test
+    fun externalMediaSessionPlayAndSeekCannotBypassControllerRunAdmission() {
+        val nativeActions = mutableListOf<String>()
+        val requestedActions = mutableListOf<String>()
+        var internalController = false
+        val delegate =
+            Proxy.newProxyInstance(
+                Player::class.java.classLoader,
+                arrayOf(Player::class.java),
+            ) { _, method, arguments ->
+                when (method.name) {
+                    "play" -> nativeActions += "play"
+                    "seekTo" -> nativeActions += "seek:${arguments?.last()}"
+                    else -> error("Unexpected Player method: ${method.name}")
+                }
+                null
+            } as Player
+        val player = SkipRoutingPlayer(delegate) { internalController }
+        RhythHausTransportBridge.onPlay = { requestedActions += "play" }
+        RhythHausTransportBridge.onSeek = { requestedActions += "seek:$it" }
+        try {
+            player.play()
+            player.seekTo(2_000L)
+            assertEquals(listOf("play", "seek:2000"), requestedActions)
+            assertEquals(emptyList(), nativeActions)
+
+            internalController = true
+            player.play()
+            player.seekTo(3_000L)
+            assertEquals(listOf("play", "seek:3000"), nativeActions)
+            assertEquals(listOf("play", "seek:2000"), requestedActions)
+        } finally {
+            RhythHausTransportBridge.onPlay = null
+            RhythHausTransportBridge.onSeek = null
+        }
+    }
+
+    @Test
+    fun externalPlayWhenReadyAndSeekShortcutsRouteThroughController() {
+        val nativeActions = mutableListOf<String>()
+        val requestedActions = mutableListOf<String>()
+        val delegate =
+            Proxy.newProxyInstance(
+                Player::class.java.classLoader,
+                arrayOf(Player::class.java),
+            ) { _, method, arguments ->
+                when (method.name) {
+                    "getCurrentPosition" -> 4_000L
+                    "getSeekBackIncrement" -> 1_000L
+                    "getSeekForwardIncrement" -> 1_500L
+                    "getDuration" -> 8_000L
+                    "setPlayWhenReady",
+                    "seekBack",
+                    "seekForward",
+                    "seekToDefaultPosition" -> {
+                        nativeActions += method.name
+                        null
+                    }
+                    else ->
+                        error(
+                            "Unexpected Player method: ${method.name}, $arguments")
+                }
+            } as Player
+        val player = SkipRoutingPlayer(delegate) { false }
+        RhythHausTransportBridge.onPlay = { requestedActions += "play" }
+        RhythHausTransportBridge.onPause = { requestedActions += "pause" }
+        RhythHausTransportBridge.onSeek = { requestedActions += "seek:$it" }
+        try {
+            player.playWhenReady = true
+            player.playWhenReady = false
+            player.seekBack()
+            player.seekForward()
+            player.seekToDefaultPosition()
+            player.seekToDefaultPosition(0)
+            assertEquals(
+                listOf(
+                    "play",
+                    "pause",
+                    "seek:3000",
+                    "seek:5500",
+                    "seek:0",
+                    "seek:0"),
+                requestedActions,
+            )
+            assertEquals(emptyList(), nativeActions)
+        } finally {
+            RhythHausTransportBridge.onPlay = null
+            RhythHausTransportBridge.onPause = null
+            RhythHausTransportBridge.onSeek = null
+        }
+    }
 
     @Test
     fun mediaItemCarriesTrackMetadataForAndroidSystemControls() {
@@ -78,6 +172,68 @@ class AndroidPlaybackMediaSessionTest {
         assertFalse(firstMediaId == secondMediaId)
         assertEquals(first, Media3RequestToken.decode(firstMediaId))
         assertEquals(second, Media3RequestToken.decode(secondMediaId))
+    }
+
+    @Test
+    fun gainSetBeforeConnectionReachesServicePlayerAndReturnsToUnityAfterReset() {
+        val gain = AndroidPlaybackGainState()
+        val firstServicePlayer = VolumeTrackingPlayer()
+        val firstSessionPlayer = SkipRoutingPlayer(firstServicePlayer.player)
+
+        gain.set(0.27f)
+        gain.applyTo(firstSessionPlayer)
+
+        assertEquals(0.27f, firstServicePlayer.volume)
+
+        val replacementServicePlayer = VolumeTrackingPlayer()
+        val replacementSessionPlayer =
+            SkipRoutingPlayer(replacementServicePlayer.player)
+
+        gain.applyTo(replacementSessionPlayer)
+
+        assertEquals(0.27f, replacementServicePlayer.volume)
+
+        gain.reset()
+        gain.applyTo(replacementSessionPlayer)
+
+        assertEquals(1f, replacementServicePlayer.volume)
+
+        val nextServicePlayer = VolumeTrackingPlayer()
+        gain.applyTo(SkipRoutingPlayer(nextServicePlayer.player))
+
+        assertEquals(1f, nextServicePlayer.volume)
+    }
+
+    @Test
+    fun playbackGainRejectsNonFiniteAndOutOfRangeValues() {
+        val gain = AndroidPlaybackGainState()
+
+        assertFailsWith<IllegalArgumentException> { gain.set(Float.NaN) }
+        assertFailsWith<IllegalArgumentException> {
+            gain.set(Float.NEGATIVE_INFINITY)
+        }
+        assertFailsWith<IllegalArgumentException> { gain.set(-0.01f) }
+        assertFailsWith<IllegalArgumentException> { gain.set(1.01f) }
+    }
+
+    @Test
+    fun releaseResetStaysAtUnityWhenGainChangesBeforeQueuedTeardownRuns() {
+        val executor = RecordingAndroidControllerExecutor()
+        val lifecycle =
+            AndroidControllerLifecycle(AndroidControllerOperations(executor))
+        val gain = AndroidPlaybackGainState()
+        val servicePlayer = VolumeTrackingPlayer()
+        val sessionPlayer = SkipRoutingPlayer(servicePlayer.player)
+
+        gain.set(0.27f)
+        gain.applyTo(sessionPlayer)
+        assertEquals(0.27f, servicePlayer.volume)
+        lifecycle.release { resetAndroidPlaybackGain(sessionPlayer) }
+        gain.set(0.61f)
+
+        executor.runAll()
+
+        assertEquals(1f, servicePlayer.volume)
     }
 
     @Test
@@ -499,6 +655,27 @@ class AndroidPlaybackMediaSessionTest {
         }
     }
 
+    private class VolumeTrackingPlayer {
+        var volume: Float = 1f
+            private set
+
+        val player: Player =
+            Proxy.newProxyInstance(
+                Player::class.java.classLoader,
+                arrayOf(Player::class.java),
+            ) { _, method, arguments ->
+                when (method.name) {
+                    "setVolume" -> {
+                        volume = arguments?.single() as Float
+                        null
+                    }
+
+                    "getVolume" -> volume
+                    else -> error("Unexpected Player method: ${method.name}")
+                }
+            } as Player
+    }
+
     private class RecordingAndroidPlaybackListener : PlaybackEngineListener {
         val events = mutableListOf<String>()
 
@@ -517,7 +694,10 @@ class AndroidPlaybackMediaSessionTest {
             events += "progress:$generation"
         }
 
-        override fun onPlaybackCompleted(generation: Long) {
+        override fun onPlaybackCompleted(
+            generation: Long,
+            playbackRunId: Long
+        ) {
             events += "completed:$generation"
         }
 
@@ -531,5 +711,14 @@ class AndroidPlaybackMediaSessionTest {
         override fun onSkipToNext(generation: Long) = Unit
 
         override fun onSkipToPrevious(generation: Long) = Unit
+
+        override fun onPlayRequested(generation: Long) = Unit
+
+        override fun onPauseRequested(generation: Long) = Unit
+
+        override fun onStopRequested(generation: Long) = Unit
+
+        override fun onSeekRequested(generation: Long, positionMillis: Long) =
+            Unit
     }
 }

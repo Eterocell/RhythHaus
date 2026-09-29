@@ -57,6 +57,7 @@ private class IOSPlaybackEngine(
     private var progressJob: Job? = null
     private var completionReported: Boolean = false
     private var playbackActive: Boolean = false
+    private var playbackGain: Float = 1.0f
     private var wasPlayingBeforeInterruption: Boolean = false
     private var remoteCommandsRegistered: Boolean = false
     private val remoteCommandHandlerTokens = mutableListOf<Any?>()
@@ -89,7 +90,11 @@ private class IOSPlaybackEngine(
         registerRemoteCommands()
     }
 
-    private fun completionHandler(generation: Long, version: Long) =
+    private fun completionHandler(
+        generation: Long,
+        version: Long,
+        playbackRunId: Long
+    ) =
         object : IOSAudioPlayerCompletionHandler {
             override fun onPlaybackCompleted() {
                 withIOSPlaybackMainThread completion@{
@@ -105,7 +110,20 @@ private class IOSPlaybackEngine(
                             ?: 0L
                     listener?.onPlaybackProgress(
                         generation, pos, durationMillis)
-                    listener?.onPlaybackCompleted(generation)
+                    listener?.onPlaybackCompleted(generation, playbackRunId)
+                }
+            }
+
+            override fun onPlaybackFailed() {
+                withIOSPlaybackMainThread {
+                    if (isCurrentSource(generation, version) &&
+                        !completionReported) {
+                        completionReported = true
+                        listener?.onPlaybackError(
+                            generation,
+                            PlaybackError(
+                                "iOS audio playback ended unsuccessfully"))
+                    }
                 }
             }
         }
@@ -138,8 +156,8 @@ private class IOSPlaybackEngine(
                     val resume = shouldResume && wasPlayingBeforeInterruption
                     wasPlayingBeforeInterruption = false
                     if (!resume) return@ended
-                    val provider = audioProvider ?: return@ended
-                    requestPlaySerialized(generation, version)
+                    if (audioProvider != null)
+                        listener?.onPlayRequested(generation)
                 }
             }
 
@@ -268,8 +286,9 @@ private class IOSPlaybackEngine(
                 throw PlaybackFailureException(failure)
             }
         playbackLog.d { "Player path: $path" }
-        provider.completionHandler = completionHandler(generation, version)
+        provider.completionHandler = null
         provider.interruptionHandler = interruptionHandler(generation, version)
+        provider.setPlaybackGain(playbackGain)
         return PendingTrackLoad(
             provider = provider,
             path = path,
@@ -288,6 +307,7 @@ private class IOSPlaybackEngine(
             load.track.durationMillis ?: provider.currentDurationMillis()
         completionReported = false
         updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
+        provider.setPlaybackGain(playbackGain)
         provider.pause()
         listener?.onPlaybackProgress(load.generation, 0L, durationMillis)
         playbackLog.d { "Loaded OK: duration=${durationMillis}ms" }
@@ -297,6 +317,8 @@ private class IOSPlaybackEngine(
 
     private fun clearFailedLoad(provider: IOSAudioPlayerProvider) {
         provider.stop()
+        playbackGain = 1.0f
+        provider.setPlaybackGain(playbackGain)
         provider.completionHandler = null
         provider.interruptionHandler = null
         progressJob?.cancel()
@@ -315,6 +337,7 @@ private class IOSPlaybackEngine(
             activeGeneration = generation
             sourceVersion++
             releaseForTrackSwitch()
+            restorePlaybackGain()
             MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
         }
     }
@@ -323,8 +346,29 @@ private class IOSPlaybackEngine(
         withIOSPlaybackMainThread { remoteTransportGate.setEnabled(enabled) }
     }
 
-    override fun play() {
+    override fun setPlaybackGain(gain: Float) {
+        require(gain.isFinite() && gain >= 0f && gain <= 1f) {
+            "Playback gain must be finite and within 0..1, was $gain"
+        }
+        withIOSPlaybackMainThread { setPlaybackGainSerialized(gain) }
+    }
+
+    private fun setPlaybackGainSerialized(gain: Float) {
+        playbackGain = gain
+        (audioProvider ?: IOSAudioPlayerBridge.provider)?.setPlaybackGain(gain)
+    }
+
+    private fun restorePlaybackGain() {
+        setPlaybackGainSerialized(1.0f)
+    }
+
+    override fun play(playbackRunId: Long) {
         withIOSPlaybackMainThread {
+            val provider = requireNotNull(audioProvider) { "No player loaded" }
+            completionReported = false
+            provider.completionHandler =
+                completionHandler(
+                    activeGeneration, sourceVersion, playbackRunId)
             requestPlaySerialized(activeGeneration, sourceVersion)
         }
     }
@@ -334,6 +378,7 @@ private class IOSPlaybackEngine(
         playbackLog.d { "Playing: ${loadedTrack?.title}" }
         val request = ++playRequestSequence
         pendingPlayRequest = request
+        provider.setPlaybackGain(playbackGain)
         provider.playAsync(
             object : IOSAudioPlayerPlaybackStartHandler {
                 override fun onPlaybackStarted() {
@@ -445,6 +490,7 @@ private class IOSPlaybackEngine(
         playbackActive = false
         wasPlayingBeforeInterruption = false
         audioProvider?.stop()
+        restorePlaybackGain()
         updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         listener?.onPlaybackProgress(activeGeneration, 0L, durationMillis)
         listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Stopped)
@@ -470,6 +516,7 @@ private class IOSPlaybackEngine(
         wasPlayingBeforeInterruption = false
         progressJob?.cancel()
         audioProvider?.stop()
+        restorePlaybackGain()
         audioProvider?.completionHandler = null
         audioProvider?.interruptionHandler = null
         audioProvider = null
@@ -514,8 +561,7 @@ private class IOSPlaybackEngine(
                 withIOSPlaybackMainThread {
                     remoteTransportGate.play {
                         if (audioProvider != null) {
-                            requestPlaySerialized(
-                                activeGeneration, sourceVersion)
+                            listener?.onPlayRequested(activeGeneration)
                         }
                     }
                 }
@@ -523,7 +569,9 @@ private class IOSPlaybackEngine(
         remoteCommandHandlerTokens +=
             commandCenter.pauseCommand.addTargetWithHandler { _ ->
                 withIOSPlaybackMainThread {
-                    remoteTransportGate.perform { pauseSerialized() }
+                    remoteTransportGate.perform {
+                        listener?.onPauseRequested(activeGeneration)
+                    }
                 }
             }
         remoteCommandHandlerTokens +=
@@ -532,10 +580,9 @@ private class IOSPlaybackEngine(
                     remoteTransportGate.perform {
                         val provider = audioProvider
                         if (provider != null) {
-                            if (provider.isPlaying()) pauseSerialized()
-                            else
-                                requestPlaySerialized(
-                                    activeGeneration, sourceVersion)
+                            if (provider.isPlaying())
+                                listener?.onPauseRequested(activeGeneration)
+                            else listener?.onPlayRequested(activeGeneration)
                         }
                     }
                 }
@@ -543,7 +590,9 @@ private class IOSPlaybackEngine(
         remoteCommandHandlerTokens +=
             commandCenter.stopCommand.addTargetWithHandler { _ ->
                 withIOSPlaybackMainThread {
-                    remoteTransportGate.perform { stopSerialized() }
+                    remoteTransportGate.perform {
+                        listener?.onStopRequested(activeGeneration)
+                    }
                 }
             }
         remoteCommandHandlerTokens +=
@@ -554,14 +603,7 @@ private class IOSPlaybackEngine(
                     val pos = (seekSeconds * 1_000.0).toLong()
                     withIOSPlaybackMainThread {
                         remoteTransportGate.seek(pos) {
-                            audioProvider?.seekTo(it)
-                            updateNowPlayingInfo(
-                                positionMillis = it,
-                                playbackRate =
-                                    if (audioProvider?.isPlaying() == true) 1.0
-                                    else 0.0)
-                            listener?.onPlaybackProgress(
-                                activeGeneration, it, durationMillis)
+                            listener?.onSeekRequested(activeGeneration, it)
                         }
                     }
                 } else {

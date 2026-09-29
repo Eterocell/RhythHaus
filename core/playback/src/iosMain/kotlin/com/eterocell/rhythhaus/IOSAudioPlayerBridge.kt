@@ -8,6 +8,11 @@ package com.eterocell.rhythhaus
 public interface IOSAudioPlayerCompletionHandler {
     /** Notifies Kotlin that playback completed. */
     public fun onPlaybackCompleted(): Unit
+
+    /**
+     * Native playback ended unsuccessfully; this is not a natural completion.
+     */
+    public fun onPlaybackFailed(): Unit
 }
 
 /**
@@ -84,6 +89,9 @@ public interface IOSAudioPlayerProvider {
 
     /** Returns whether playback is active. */
     public fun isPlaying(): Boolean
+
+    /** Applies a finite playback-only gain between 0 and 1. */
+    public fun setPlaybackGain(gain: Float): Unit
 
     /** Fades out then stops playback. */
     public fun fadeOutAndStop(

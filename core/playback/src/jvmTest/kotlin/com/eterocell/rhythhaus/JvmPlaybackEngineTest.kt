@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
+import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
@@ -22,6 +23,43 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 
 class JvmPlaybackEngineTest {
+    @Test
+    fun seekingToNativeEndpointDoesNotConsumeSleepTimerCompletion() =
+        runBlocking {
+            val file = createSilentWavFile(durationMillis = 2_000)
+            val engine = MacOSNativePlaybackEngine(MacAudioPlayerBridge())
+            val controller = PlaybackController(engine)
+            try {
+                controller.setQueue(
+                    listOf(
+                        PlayableTrack(
+                            "seek-timer",
+                            "Seek",
+                            "Test",
+                            null,
+                            2_000L,
+                            AudioSource.FilePath(file.toString()))))
+                withTimeout(5_000) {
+                    while (controller.state.value.status !=
+                        PlaybackStatus.Paused) yield()
+                }
+                engine.play(1L)
+                engine.pauseProgressUpdatesForTest()
+                controller.armSleepTimerAfterCompletions(1, false)
+                engine.seekTo(2_000L)
+                engine.publishProgressForTest()
+                assertEquals(
+                    1, controller.sleepTimerState.value.remainingTracks)
+                assertEquals(
+                    PlaybackStatus.Playing, controller.state.value.status)
+                assertEquals(
+                    "seek-timer", controller.state.value.currentTrack?.id)
+            } finally {
+                controller.release()
+                file.deleteIfExists()
+            }
+        }
+
     @Test
     fun macOSNowPlayingInfoUpdateAcceptsTrackMetadata() {
         val bridge = MacAudioPlayerBridge()
@@ -157,7 +195,7 @@ class JvmPlaybackEngineTest {
         val statuses = mutableListOf<PlaybackStatus>()
         val pausedLatch = CountDownLatch(1)
         engine.listener =
-            object : PlaybackEngineListener {
+            object : RejectingRemoteTransportListener() {
                 override fun onPlaybackStatus(
                     generation: Long,
                     status: PlaybackStatus
@@ -177,7 +215,10 @@ class JvmPlaybackEngineTest {
                     durationMillis: Long?
                 ) = Unit
 
-                override fun onPlaybackCompleted(generation: Long) = Unit
+                override fun onPlaybackCompleted(
+                    generation: Long,
+                    playbackRunId: Long
+                ) = Unit
 
                 override fun onPlaybackError(
                     generation: Long,
@@ -202,7 +243,7 @@ class JvmPlaybackEngineTest {
                     generation = 3L,
                 )
             }
-            engine.play()
+            engine.play(1L)
             engine.seekTo(200L)
             assertTrue(bridge.invokeRouteDisconnectForTest())
             assertTrue(pausedLatch.await(1, TimeUnit.SECONDS))
@@ -233,7 +274,7 @@ class JvmPlaybackEngineTest {
         val routeLossProgress = CountDownLatch(1)
         val replaceOnRouteLossProgress = AtomicBoolean(false)
         engine.listener =
-            object : PlaybackEngineListener {
+            object : RejectingRemoteTransportListener() {
                 override fun onPlaybackStatus(
                     generation: Long,
                     status: PlaybackStatus
@@ -269,7 +310,10 @@ class JvmPlaybackEngineTest {
                     }
                 }
 
-                override fun onPlaybackCompleted(generation: Long) = Unit
+                override fun onPlaybackCompleted(
+                    generation: Long,
+                    playbackRunId: Long
+                ) = Unit
 
                 override fun onPlaybackError(
                     generation: Long,
@@ -294,7 +338,7 @@ class JvmPlaybackEngineTest {
                     generation = 3L,
                 )
             }
-            engine.play()
+            engine.play(1L)
             engine.pauseProgressUpdatesForTest()
             replaceOnRouteLossProgress.set(true)
             assertTrue(bridge.invokeRouteDisconnectForTest())
@@ -325,7 +369,7 @@ class JvmPlaybackEngineTest {
         val events = mutableListOf<Pair<Long, String>>()
         var replacing = false
         engine.listener =
-            object : PlaybackEngineListener {
+            object : RejectingRemoteTransportListener() {
                 override fun onPlaybackStatus(
                     generation: Long,
                     status: PlaybackStatus
@@ -361,7 +405,10 @@ class JvmPlaybackEngineTest {
                     synchronized(events) { events += generation to "Progress" }
                 }
 
-                override fun onPlaybackCompleted(generation: Long) = Unit
+                override fun onPlaybackCompleted(
+                    generation: Long,
+                    playbackRunId: Long
+                ) = Unit
 
                 override fun onPlaybackError(
                     generation: Long,
@@ -421,6 +468,110 @@ class JvmPlaybackEngineTest {
         }
         assertEquals(0, bridge.liveRemoteHandlerCountForTest())
     }
+
+    @Test
+    fun macOSNativePlayerGainSurvivesNativeAndHandleReplacement() {
+        val firstWavPath = createSilentWavFile()
+        val secondWavPath = createSilentWavFile()
+        val bridge = MacAudioPlayerBridge()
+        try {
+            assertTrue(bridge.load(firstWavPath.toString()))
+
+            bridge.setPlaybackGain(0.37f)
+            assertEquals(0.37f, bridge.playerVolumeForTest(), 0.001f)
+
+            assertTrue(bridge.load(secondWavPath.toString()))
+            assertEquals(0.37f, bridge.playerVolumeForTest(), 0.001f)
+
+            bridge.resetPlayer()
+            assertTrue(bridge.load(firstWavPath.toString()))
+            assertEquals(0.37f, bridge.playerVolumeForTest(), 0.001f)
+        } finally {
+            bridge.releasePlayer()
+            firstWavPath.deleteIfExists()
+            secondWavPath.deleteIfExists()
+        }
+    }
+
+    @Test
+    fun macOSRemoteStopRestoresUnityGainBeforeLaterPlayerReplacement() =
+        runBlocking {
+            val firstWavPath = createSilentWavFile()
+            val secondWavPath = createSilentWavFile()
+            val bridge = MacAudioPlayerBridge()
+            val controller =
+                PlaybackController(MacOSNativePlaybackEngine(bridge))
+            try {
+                controller.setQueue(
+                    listOf(macWavTrack("remote-stop", firstWavPath)))
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Paused
+                }
+                bridge.setPlaybackGain(0.37f)
+
+                assertTrue(bridge.invokeRemoteStopForTest())
+                withTimeout(5_000) {
+                    while (bridge.playerVolumeForTest() != 1f) yield()
+                }
+
+                bridge.resetPlayer()
+                assertTrue(bridge.load(secondWavPath.toString()))
+                assertEquals(1f, bridge.playerVolumeForTest(), 0.001f)
+            } finally {
+                controller.release()
+                firstWavPath.deleteIfExists()
+                secondWavPath.deleteIfExists()
+            }
+        }
+
+    @Test
+    fun macOSPlaybackEngineRestoresUnityGainAfterStop() = runBlocking {
+        val wavPath = createSilentWavFile()
+        val bridge = MacAudioPlayerBridge()
+        val engine = MacOSNativePlaybackEngine(bridge)
+        try {
+            engine.loadPaused(
+                macWavTrack("stop-gain", wavPath), generation = 1L)
+            engine.setPlaybackGain(0.24f)
+            assertEquals(0.24f, bridge.playerVolumeForTest(), 0.001f)
+
+            engine.stop()
+
+            assertEquals(1f, bridge.playerVolumeForTest(), 0.001f)
+        } finally {
+            engine.release()
+            wavPath.deleteIfExists()
+        }
+    }
+
+    @Test
+    fun macOSPlaybackEngineRestoresUnityGainAfterClearBeforeLaterLoad() =
+        runBlocking {
+            val firstWavPath = createSilentWavFile()
+            val secondWavPath = createSilentWavFile()
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            try {
+                engine.loadPaused(
+                    macWavTrack("clear-gain-first", firstWavPath),
+                    generation = 1L,
+                )
+                engine.setPlaybackGain(0.61f)
+                assertEquals(0.61f, bridge.playerVolumeForTest(), 0.001f)
+
+                engine.clear(generation = 2L)
+                engine.loadPaused(
+                    macWavTrack("clear-gain-second", secondWavPath),
+                    generation = 3L,
+                )
+
+                assertEquals(1f, bridge.playerVolumeForTest(), 0.001f)
+            } finally {
+                engine.release()
+                firstWavPath.deleteIfExists()
+                secondWavPath.deleteIfExists()
+            }
+        }
 
     @Test
     fun inFlightBridgeOperationBlocksResetAndKeepsOneHandleIdentity() {
@@ -547,7 +698,7 @@ class JvmPlaybackEngineTest {
         var latestDuration: Long? = null
         var latestError: PlaybackError? = null
         engine.listener =
-            object : PlaybackEngineListener {
+            object : RejectingRemoteTransportListener() {
                 override fun onPlaybackStatus(
                     generation: Long,
                     status: PlaybackStatus
@@ -563,7 +714,10 @@ class JvmPlaybackEngineTest {
                     synchronized(events) { latestDuration = durationMillis }
                 }
 
-                override fun onPlaybackCompleted(generation: Long) = Unit
+                override fun onPlaybackCompleted(
+                    generation: Long,
+                    playbackRunId: Long
+                ) = Unit
 
                 override fun onPlaybackError(
                     generation: Long,
@@ -592,7 +746,7 @@ class JvmPlaybackEngineTest {
                 )
             }
             engine.setUserTransportEnabled(true)
-            engine.play()
+            engine.play(1L)
             engine.pause()
             engine.seekTo(10L)
             engine.stop()
@@ -620,7 +774,7 @@ class JvmPlaybackEngineTest {
         val progressLatch = CountDownLatch(1)
         var latestError: PlaybackError? = null
         engine.listener =
-            object : PlaybackEngineListener {
+            object : RejectingRemoteTransportListener() {
                 override fun onPlaybackStatus(
                     generation: Long,
                     status: PlaybackStatus
@@ -637,7 +791,10 @@ class JvmPlaybackEngineTest {
                     }
                 }
 
-                override fun onPlaybackCompleted(generation: Long) = Unit
+                override fun onPlaybackCompleted(
+                    generation: Long,
+                    playbackRunId: Long
+                ) = Unit
 
                 override fun onPlaybackError(
                     generation: Long,
@@ -666,7 +823,7 @@ class JvmPlaybackEngineTest {
                 )
             }
             engine.setUserTransportEnabled(true)
-            engine.play()
+            engine.play(1L)
             engine.seekTo(100L)
 
             assertTrue(
@@ -979,7 +1136,7 @@ class JvmPlaybackEngineTest {
                     return LoadedPlayback(generation, track.durationMillis)
                 }
 
-                override fun play() {
+                override fun play(playbackRunId: Long) {
                     listener?.onPlaybackStatus(1L, PlaybackStatus.Playing)
                 }
 
@@ -992,6 +1149,8 @@ class JvmPlaybackEngineTest {
                 override fun clear(generation: Long) = Unit
 
                 override fun setUserTransportEnabled(enabled: Boolean) = Unit
+
+                override fun setPlaybackGain(gain: Float) = Unit
 
                 override fun release() = Unit
             }
@@ -1032,30 +1191,78 @@ class JvmPlaybackEngineTest {
     }
 
     @Test
-    fun macTransportGateSurvivesResetAndRejectsRemoteActionsUntilReenabled() {
-        val wavPath = createSilentWavFile(durationMillis = 500)
-        val bridge = MacAudioPlayerBridge()
-        try {
-            bridge.setTransportEnabled(false)
-            bridge.resetPlayer()
-            assertTrue(bridge.load(wavPath.toString()))
-            bridge.registerNowPlayingRemoteCommands()
+    fun macTransportGateSurvivesResetAndRejectsRemoteActionsUntilReenabled() =
+        runBlocking {
+            val wavPath = createSilentWavFile(durationMillis = 500)
+            val bridge = MacAudioPlayerBridge()
+            val controller =
+                PlaybackController(MacOSNativePlaybackEngine(bridge))
+            try {
+                controller.setQueue(listOf(macWavTrack("remote-gate", wavPath)))
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Paused
+                }
+                controller.setCommandsEnabled(false)
 
-            assertFalse(bridge.invokeRemotePlayForTest())
-            assertFalse(bridge.invokeRemoteSeekForTest(200L))
-            assertFalse(bridge.isPlayingForTest())
-            assertEquals(0L, bridge.currentPositionMillis())
+                assertFalse(bridge.invokeRemotePlayForTest())
+                assertFalse(bridge.invokeRemoteSeekForTest(200L))
+                assertFalse(bridge.isPlayingForTest())
+                assertEquals(0L, bridge.currentPositionMillis())
 
-            bridge.setTransportEnabled(true)
-            assertTrue(bridge.invokeRemoteSeekForTest(200L))
-            assertTrue(bridge.currentPositionMillis() >= 150L)
-            assertTrue(
-                bridge.invokeRemotePlayForTest() || bridge.isPlayingForTest())
-        } finally {
-            bridge.releasePlayer()
-            wavPath.deleteIfExists()
+                controller.setCommandsEnabled(true)
+                assertTrue(bridge.invokeRemoteSeekForTest(200L))
+                awaitPlaybackState(controller) { it.positionMillis >= 150L }
+                assertTrue(bridge.invokeRemotePlayForTest())
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Playing
+                }
+                Unit
+            } finally {
+                controller.release()
+                wavPath.deleteIfExists()
+            }
         }
-    }
+
+    @Test
+    fun macRemotePlayAfterPausedLoadClaimsControllerRunAndCountsNaturalCompletion() =
+        runBlocking {
+            val wavPath = createSilentWavFile(durationMillis = 350)
+            val bridge = MacAudioPlayerBridge()
+            val controller =
+                PlaybackController(MacOSNativePlaybackEngine(bridge))
+            try {
+                controller.setQueue(
+                    listOf(
+                        PlayableTrack(
+                            id = "remote-run",
+                            title = "Remote run",
+                            artist = "Test artist",
+                            album = null,
+                            durationMillis = 350L,
+                            source = AudioSource.FilePath(wavPath.toString()),
+                        ),
+                    ),
+                    selectedTrackId = "remote-run",
+                )
+                withTimeout(5_000) {
+                    while (controller.state.value.status !=
+                        PlaybackStatus.Paused) yield()
+                }
+                controller.armSleepTimerAfterCompletions(1, false)
+                assertTrue(bridge.invokeRemotePlayForTest())
+                withTimeout(5_000) {
+                    while (controller.state.value.status !=
+                        PlaybackStatus.Stopped ||
+                        controller.sleepTimerState.value.mode != null) yield()
+                }
+                withTimeout(5_000) {
+                    while (bridge.isPlayingForTest()) yield()
+                }
+            } finally {
+                controller.release()
+                wavPath.deleteIfExists()
+            }
+        }
 
     @Test
     fun staleMacProgressPublicationIsRejectedAfterSourceReplacement() {
@@ -1090,34 +1297,6 @@ class JvmPlaybackEngineTest {
         }
     }
 
-    @Test
-    fun nativeRemoteOperationsShareProductionGateForAllCommands() {
-        val wavPath = createSilentWavFile(durationMillis = 500)
-        val bridge = MacAudioPlayerBridge()
-        try {
-            assertTrue(bridge.load(wavPath.toString()))
-            bridge.setTransportEnabled(false)
-
-            assertFalse(bridge.invokeRemotePlayForTest())
-            assertFalse(bridge.invokeRemotePauseForTest())
-            assertFalse(bridge.invokeRemoteToggleForTest())
-            assertFalse(bridge.invokeRemoteStopForTest())
-            assertFalse(bridge.invokeRemoteSeekForTest(200L))
-            assertEquals(0L, bridge.currentPositionMillis())
-
-            bridge.setTransportEnabled(true)
-            assertTrue(bridge.invokeRemoteSeekForTest(200L))
-            assertTrue(bridge.invokeRemotePlayForTest())
-            assertTrue(bridge.invokeRemotePauseForTest())
-            assertTrue(bridge.invokeRemoteToggleForTest())
-            assertTrue(bridge.invokeRemoteStopForTest())
-            assertEquals(0L, bridge.currentPositionMillis())
-        } finally {
-            bridge.releasePlayer()
-            wavPath.deleteIfExists()
-        }
-    }
-
     private fun createSilentWavFile(durationMillis: Int = 100) =
         createTempFile(prefix = "rhythhaus-silence", suffix = ".wav").also {
             path ->
@@ -1143,6 +1322,16 @@ class JvmPlaybackEngineTest {
             repeat(sampleCount) { buffer.putShort(0) }
             Files.write(path, buffer.array())
         }
+
+    private fun macWavTrack(id: String, wavPath: Path): PlayableTrack =
+        PlayableTrack(
+            id = id,
+            title = id,
+            artist = "Test",
+            album = null,
+            durationMillis = null,
+            source = AudioSource.FilePath(wavPath.toString()),
+        )
 
     private fun awaitPlaybackStatus(
         controller: PlaybackController,
@@ -1175,4 +1364,19 @@ class JvmPlaybackEngineTest {
             handle: Long
         ): Boolean
     }
+}
+
+private abstract class RejectingRemoteTransportListener :
+    PlaybackEngineListener {
+    override fun onPlayRequested(generation: Long): Unit =
+        error("Unexpected external play")
+
+    override fun onPauseRequested(generation: Long): Unit =
+        error("Unexpected external pause")
+
+    override fun onStopRequested(generation: Long): Unit =
+        error("Unexpected external stop")
+
+    override fun onSeekRequested(generation: Long, positionMillis: Long): Unit =
+        error("Unexpected external seek")
 }

@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.MediaItem
@@ -72,6 +73,40 @@ internal class AndroidControllerLifecycle(
     internal fun isDisposedForTest(): Boolean = releaseRequested.get()
 }
 
+internal const val FULL_ANDROID_PLAYBACK_GAIN: Float = 1f
+internal const val RHYTHHAUS_ENGINE_CONTROLLER_HINT: String =
+    "com.eterocell.rhythhaus.playback.ENGINE_CONTROLLER"
+
+/**
+ * Retains the app-local gain that must be applied to each connected Media3
+ * player. The owning [AndroidPlaybackEngine] confines mutation and application
+ * to its controller executor.
+ */
+internal class AndroidPlaybackGainState {
+    private var intendedGain: Float = FULL_ANDROID_PLAYBACK_GAIN
+
+    fun set(gain: Float) {
+        require(gain.isFinite() && gain >= 0f && gain <= 1f) {
+            "Playback gain must be finite and within 0..1, was $gain"
+        }
+        intendedGain = gain
+    }
+
+    fun reset() {
+        intendedGain = FULL_ANDROID_PLAYBACK_GAIN
+    }
+
+    fun applyTo(player: Player) {
+        // Player.volume is Media3's app playback gain, not device volume.
+        player.volume = intendedGain
+    }
+}
+
+internal fun resetAndroidPlaybackGain(player: Player) {
+    // Player.volume is Media3's app playback gain, not device volume.
+    player.volume = FULL_ANDROID_PLAYBACK_GAIN
+}
+
 private var rhythHausAndroidContext: Context? = null
 
 /** Sets the application context used by Android playback integration. */
@@ -108,6 +143,18 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
             RhythHausTransportBridge.onSkipToPrevious = {
                 value?.onSkipToPrevious(activeGeneration)
             }
+            RhythHausTransportBridge.onPlay = {
+                value?.onPlayRequested(activeGeneration)
+            }
+            RhythHausTransportBridge.onPause = {
+                value?.onPauseRequested(activeGeneration)
+            }
+            RhythHausTransportBridge.onStop = {
+                value?.onStopRequested(activeGeneration)
+            }
+            RhythHausTransportBridge.onSeek = {
+                value?.onSeekRequested(activeGeneration, it)
+            }
         }
 
     private var controller: MediaController? = null
@@ -120,8 +167,10 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         AndroidControllerLifecycle(controllerOperations)
     private var progressJob: Job? = null
     private var activeGeneration: Long = 0L
+    private var activePlaybackRunId: Long? = null
     private val requestState = AndroidPlaybackRequestState()
     private val eventRouter = AndroidPlaybackEventRouter(requestState)
+    private val playbackGain = AndroidPlaybackGainState()
 
     /**
      * True once [release] has run; guards async connection callbacks from
@@ -161,7 +210,14 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
             SessionToken(
                 context,
                 ComponentName(context, RhythHausPlaybackService::class.java))
-        val future = MediaController.Builder(context, token).buildAsync()
+        val hints =
+            Bundle().apply {
+                putBoolean(RHYTHHAUS_ENGINE_CONTROLLER_HINT, true)
+            }
+        val future =
+            MediaController.Builder(context, token)
+                .setConnectionHints(hints)
+                .buildAsync()
         controllerFuture = future
         future.addListener(
             {
@@ -190,6 +246,7 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
                     }
                 connected.addListener(AndroidPlayerListener())
                 controller = connected
+                playbackGain.applyTo(connected)
                 while (pendingActions.isNotEmpty()) {
                     pendingActions.removeFirst().invoke(connected)
                 }
@@ -206,12 +263,14 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         track: PlayableTrack,
         generation: Long
     ): LoadedPlayback {
+        activePlaybackRunId = null
         val request =
             requestState.begin(generation, track.source.androidLocalFile())
         activeGeneration = generation
         listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
         loadedTrackDurationMillis = track.durationMillis
         withController { controller ->
+            playbackGain.applyTo(controller)
             controller.pause()
             controller.playWhenReady = false
             controller.setMediaItem(
@@ -229,12 +288,15 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     }
 
     override fun clear(generation: Long) {
+        activePlaybackRunId = null
         activeGeneration = generation
         requestState.clear(CancellationException("Android playback cleared"))
         progressJob?.cancel()
+        playbackGain.reset()
         withController { controller ->
             controller.pause()
             controller.playWhenReady = false
+            playbackGain.applyTo(controller)
             controller.clearMediaItems()
         }
         loadedTrackDurationMillis = null
@@ -244,8 +306,18 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         RhythHausTransportBridge.setTransportEnabled(enabled)
     }
 
-    override fun play() {
+    override fun setPlaybackGain(gain: Float) {
+        playbackGain.set(gain)
+        // A future connection applies the retained gain before its queued
+        // load can prepare. Do not start the service solely to change gain.
+        if (controller != null) {
+            withController { connected -> playbackGain.applyTo(connected) }
+        }
+    }
+
+    override fun play(playbackRunId: Long) {
         withController { controller ->
+            activePlaybackRunId = playbackRunId
             controller.play()
             // MediaController.play() is non-blocking. The Media3 listener's
             // onIsPlayingChanged(true) callback is the sole actual-playing
@@ -265,11 +337,14 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     }
 
     override fun stop() {
+        activePlaybackRunId = null
         progressJob?.cancel()
+        playbackGain.reset()
         val connected = controller
         if (connected != null) {
             connected.pause()
             connected.seekTo(0L)
+            playbackGain.applyTo(connected)
             publishProgress(connected)
         } else {
             listener?.onPlaybackProgress(
@@ -280,6 +355,13 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
 
     override fun seekTo(positionMillis: Long) {
         withController { controller ->
+            // Media3 can report STATE_ENDED when a seek lands on the media
+            // endpoint. That is not a natural completion of this run.
+            val duration =
+                controller.duration.takeIf { it > 0L }
+                    ?: loadedTrackDurationMillis
+            if (duration != null && positionMillis >= duration)
+                activePlaybackRunId = null
             controller.seekTo(positionMillis)
             publishProgress(controller)
         }
@@ -290,12 +372,18 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         progressJob?.cancel()
         RhythHausTransportBridge.onSkipToNext = null
         RhythHausTransportBridge.onSkipToPrevious = null
+        RhythHausTransportBridge.onPlay = null
+        RhythHausTransportBridge.onPause = null
+        RhythHausTransportBridge.onStop = null
+        RhythHausTransportBridge.onSeek = null
+        playbackGain.reset()
         controllerLifecycle.release {
             if (disposed) return@release
             disposed = true
             pendingActions.clear()
             val connected = controller
             if (connected != null) {
+                resetAndroidPlaybackGain(connected)
                 connected.release()
             } else {
                 controllerFuture?.let(MediaController::releaseFuture)
@@ -357,7 +445,10 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
                             ?: loadedTrackDurationMillis)
                 }
 
-                Player.STATE_ENDED -> listener?.onPlaybackCompleted(generation)
+                Player.STATE_ENDED ->
+                    activePlaybackRunId?.let {
+                        listener?.onPlaybackCompleted(generation, it)
+                    }
 
                 Player.STATE_IDLE -> Unit
             }

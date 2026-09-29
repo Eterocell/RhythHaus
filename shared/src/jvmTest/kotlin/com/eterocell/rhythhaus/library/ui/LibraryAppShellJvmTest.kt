@@ -35,6 +35,8 @@ import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
+import com.eterocell.rhythhaus.SleepTimerMode
+import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
@@ -892,6 +894,127 @@ class LibraryAppShellJvmTest {
             }
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun expandedNowPlayingForwardsTimerActionsToTheActualPlaybackController() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val track =
+                    Track(
+                        id = "sleep-timer-track",
+                        title = "Sleep timer track",
+                        artist = "Artist",
+                        album = "Album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF123456, 0xFF654321),
+                        source = AudioSource.FilePath("/sleep-timer.mp3"),
+                    )
+                val controller = PlaybackController(FakePlaybackEngine())
+                controller.setQueue(
+                    listOf(track.toPlayableTrack()),
+                    selectedTrackId = track.id,
+                )
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.state.value.status == PlaybackStatus.Paused
+                }
+                mount(
+                    width = 600.dp,
+                    height = 400.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "sleep-timer-route",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    tracks = listOf(track),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                    playbackController = controller,
+                )
+
+                onNodeWithTag(
+                        "NowPlayingShellPlacement", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onNode(
+                        hasContentDescription("15 minutes"),
+                        useUnmergedTree = true,
+                    )
+                    .performScrollTo()
+                    .performClick()
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.sleepTimerState.value.mode ==
+                        SleepTimerMode.Timed
+                }
+                val timedState = controller.sleepTimerState.value
+                assertEquals(SleepTimerMode.Timed, timedState.mode)
+                assertEquals(false, timedState.fadeEnabled)
+                assertEquals(
+                    true,
+                    timedState.remainingMillis?.let { it in 1L..900_000L } ==
+                        true,
+                )
+
+                onNode(
+                        hasContentDescription("30 minutes"),
+                        useUnmergedTree = true,
+                    )
+                    .performScrollTo()
+                    .performClick()
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.sleepTimerState.value.remainingMillis?.let {
+                        it in 900_001L..1_800_000L
+                    } == true
+                }
+
+                onNode(
+                        hasContentDescription("Cancel timer"),
+                        useUnmergedTree = true,
+                    )
+                    .performScrollTo()
+                    .performClick()
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.sleepTimerState.value == SleepTimerState()
+                }
+                onNode(
+                        hasContentDescription("10-second fade"),
+                        useUnmergedTree = true,
+                    )
+                    .performClick()
+                onNode(
+                        hasContentDescription("3 tracks"),
+                        useUnmergedTree = true,
+                    )
+                    .performScrollTo()
+                    .performClick()
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.sleepTimerState.value.mode ==
+                        SleepTimerMode.TrackCount
+                }
+                assertEquals(
+                    SleepTimerState(
+                        mode = SleepTimerMode.TrackCount,
+                        remainingTracks = 3,
+                        fadeEnabled = true,
+                    ),
+                    controller.sleepTimerState.value,
+                )
+
+                onNode(
+                        hasContentDescription("Cancel timer"),
+                        useUnmergedTree = true,
+                    )
+                    .performScrollTo()
+                    .performClick()
+                waitUntil(timeoutMillis = 5_000) {
+                    controller.sleepTimerState.value == SleepTimerState()
+                }
+                controller.release()
+            }
+        }
+
     private inline fun <T> withDefaultLocale(
         locale: Locale,
         block: () -> T,
@@ -966,7 +1089,13 @@ class LibraryAppShellJvmTest {
             ) {
                 Box(Modifier.size(width(), height)) {
                     LibraryHomeScreen(
-                        snapshot = LibrarySnapshot("Library", "", tracks, null),
+                        snapshot =
+                            LibrarySnapshot(
+                                "Library",
+                                "",
+                                tracks,
+                                playbackController.state.value.currentTrack?.id,
+                            ),
                         libraryTracks = emptyList(),
                         tagLibReader = UnusedTagLibReader,
                         playbackController = playbackController,

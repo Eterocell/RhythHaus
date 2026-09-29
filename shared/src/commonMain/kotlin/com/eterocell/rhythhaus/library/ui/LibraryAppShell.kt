@@ -53,6 +53,7 @@ import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
@@ -251,6 +252,7 @@ fun LibraryHomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val playbackState by playbackController.state.collectAsState()
+    val sleepTimerState by playbackController.sleepTimerState.collectAsState()
     val appState =
         rememberLibraryAppState(
             snapshot = snapshot,
@@ -918,6 +920,11 @@ fun LibraryHomeScreen(
             track = selectedTrack,
             playbackState = playbackState,
             playbackController = playbackController,
+            sleepTimerState = sleepTimerState,
+            onArmSleepTimer = playbackController::armSleepTimer,
+            onArmSleepTimerAfterCompletions =
+                playbackController::armSleepTimerAfterCompletions,
+            onCancelSleepTimer = playbackController::cancelSleepTimer,
             tagLibReader = tagLibReader,
             currentLibraryTrack =
                 libraryTracks.firstOrNull { it.id == selectedTrack?.id },
@@ -1137,6 +1144,10 @@ private fun NowPlayingExpandOverlay(
     track: Track?,
     playbackState: PlaybackState,
     playbackController: PlaybackController,
+    sleepTimerState: SleepTimerState,
+    onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
+    onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
+    onCancelSleepTimer: () -> Unit,
     tagLibReader: TagLibReader,
     currentLibraryTrack: LibraryTrack?,
     isVisible: Boolean,
@@ -1182,6 +1193,11 @@ private fun NowPlayingExpandOverlay(
                     tagLibReader = tagLibReader,
                     currentLibraryTrack = currentLibraryTrack,
                     onBack = onBack,
+                    sleepTimerState = sleepTimerState,
+                    onArmSleepTimer = onArmSleepTimer,
+                    onArmSleepTimerAfterCompletions =
+                        onArmSleepTimerAfterCompletions,
+                    onCancelSleepTimer = onCancelSleepTimer,
                     favoriteTrackIds = favoriteTrackIds,
                     onSetTrackFavorite = onSetTrackFavorite,
                 )

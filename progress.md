@@ -4495,3 +4495,25 @@ Input: user direction to perform manual verification personally and continue ord
 Output: `roadmap.md` assigns real-device, UI, listening, and system-control acceptance to the user. Unreported scenarios remain pending; automated tests, compilation, and quality checks remain implementation-owned. Next independent Phase 2 deliverable is the sleep timer, after completed Favorites, history, and sorting/filtering.
 Next owner: implementation — design and plan the sleep timer through its own OpenSpec change before product code.
 Blockers: physical acceptance awaits user evidence; previously recorded Shared test timeout and Android TagLib native toolchain remain automated limitations.
+
+## Sleep timer implementation closeout — 2026-09-29
+
+Route: openspec+superpowers
+Owner: implementation
+Input: ordered Phase 2 roadmap; manual verification assigned to the user.
+Output: process-local timed or natural-completion timer, optional ten-second playback-only fade, EN/ZH Now Playing controls, and Android/iOS/macOS gain adapters. Selection, run and timer identities guard completion/stop/gain ownership. Pause retains progress-based fade; every authoritative empty queue cancels the timer. Native system Play/Pause/Stop/Seek enters controller ownership. Android distinguishes the same-UID engine-hinted controller from external MediaSession requests, preserving internal command admission during disabled user transport.
+
+Review: SleepUiIntegrationReview found no actionable UI defect; SleepTransportReReview's five residual findings were fixed, including same-occurrence/new-run completion counting. SleepAndroidBoundaryFinal re-review found no blocking defect after internal Media3 capability admission was preserved and external admission moved to the session callback. Earlier expiry/rearm native-stop race regression and all controller tests pass.
+
+Verification (worktree `.worktrees/sleep-timer`):
+- `./gradlew :core:playback:jvmTest --configuration-cache --console=plain` passed, including real macOS temporary WAV playback, native gain/reset, remote-first-play completion and seek-to-end exclusion.
+- `:core:playback:testAndroidHostTest --tests 'com.eterocell.rhythhaus.RhythHausTransportBridgeTest' --tests 'com.eterocell.rhythhaus.AndroidPlaybackMediaSessionTest'` passed (40 tests in the preceding run; final repaired invocation exited zero).
+- `:feature:nowplaying:jvmTest :shared:jvmTest --tests '*LibraryAppShellJvmTest'` passed, covering timer action routing and compact/split semantics.
+- `:desktopApp:compileKotlin :shared:compileTestKotlinIosSimulatorArm64` passed.
+- Generic iOS Simulator Xcode build passed; `xcodebuild ... -destination 'platform=iOS Simulator,id=D7FE6DB6-2277-44AC-B907-DD8CC387A3FC' -only-testing:iosAppTests/RhythHausAudioPlayerProviderTests CODE_SIGNING_ALLOWED=NO test -quiet` exited zero.
+- Separate `spotlessApply`, `spotlessCheck`, `detekt`, and `architectureCheck` passed. Strict sleep-timer validation passed; canonical specs validation passed (17/17).
+- RED/GREEN: same-occurrence replay completion test timed out before adding playbackRunId to the timer completion key and passed after; external playWhenReady/seek-shortcut test failed before forwarding overrides and passed after.
+
+Lifecycle: canonical `openspec/specs/sleep-timer/spec.md` synchronized; change archived under `openspec/changes/archive/2026-09-29-sleep-timer/`. Implementation remains on the isolated feature branch, not automatically merged with failed full gates.
+Next owner: user — manual UI/listening, elapsed deadline while backgrounded, fade cancel/rearm/resume, natural-current/N-track stop, and lock-screen/headset/system transport on Android/iOS/macOS. Implementation — next independent roadmap change is save Queue as playlist after integration decision.
+Blockers: combined full Android host runs timed out at `:core:playback:testAndroidHostTest` (180/240-second deadlines); focused changed-path Android host regressions pass. APK assembly failed in `:taglib:buildAndroidTagLibHelper-{armeabi-v7a,arm64-v8a,x86_64}`: CMake could not find the Unix Makefiles build program and C++ compiler. Known full Shared playback-selection timeout remains recorded; no full `./init.sh`, APK, physical or audible acceptance is claimed. User-owned pending manual acceptance does not block the next implementation unless a defect is reported.

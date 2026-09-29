@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import java.util.concurrent.atomic.AtomicBoolean
@@ -172,6 +173,10 @@ public class NowPlayingArtworkRenderingJvmTest {
                             null
                         },
                         onBack = {},
+                        sleepTimerState = SleepTimerState(),
+                        onArmSleepTimer = { _, _ -> },
+                        onArmSleepTimerAfterCompletions = { _, _ -> },
+                        onCancelSleepTimer = {},
                     )
                 }
             }
@@ -210,6 +215,10 @@ public class NowPlayingArtworkRenderingJvmTest {
                             "Play", "Pause", "Album art", "Artist - Album"),
                     artworkLoader = loader.value,
                     onBack = {},
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
                 )
             }
         }
@@ -291,6 +300,10 @@ public class NowPlayingArtworkRenderingJvmTest {
                             "Play", "Pause", "Album art", "Artist - Album"),
                     artworkLoader = loader.value,
                     onBack = {},
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
                 )
             }
         }
@@ -340,6 +353,10 @@ public class NowPlayingArtworkRenderingJvmTest {
                         replacement.await()
                     },
                     onBack = {},
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
                 )
             }
         }
@@ -448,6 +465,10 @@ public class NowPlayingArtworkRenderingJvmTest {
                         throw sentinel
                     },
                     onBack = {},
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
                 )
             }
         }
@@ -566,7 +587,9 @@ public class NowPlayingArtworkRenderingJvmTest {
 
         override fun setUserTransportEnabled(enabled: Boolean): Unit = Unit
 
-        override fun play(): Unit = Unit
+        override fun setPlaybackGain(gain: Float): Unit = Unit
+
+        override fun play(playbackRunId: Long): Unit = Unit
 
         override fun pause(): Unit = Unit
 

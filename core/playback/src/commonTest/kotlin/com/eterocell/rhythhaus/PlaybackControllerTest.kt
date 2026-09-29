@@ -16,6 +16,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -417,6 +419,490 @@ class PlaybackControllerTest {
     }
 
     @Test
+    fun sleepTimerStartsInactiveAndRejectsNonPositiveDurationsAndCounts() {
+        val controller = timerController(RecordingPlaybackEngine())
+
+        assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+        assertFailsWith<IllegalArgumentException> {
+            controller.armSleepTimer(0, fadeEnabled = false)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            controller.armSleepTimerAfterCompletions(0, fadeEnabled = true)
+        }
+        assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+    }
+
+    @Test
+    fun libraryReconciliationCancelsTimerWhenFinalOccurrenceDisappears() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            controller.setQueue(testTracks(1))
+            engine.awaitLoad()
+            controller.armSleepTimerAfterCompletions(3, true)
+            controller.reconcileSession(emptyList())
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            assertEquals(emptyList(), controller.state.value.queue)
+            controller.release()
+        }
+
+    @Test
+    fun removingFinalFailedOccurrenceCancelsArmedTimer() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = timerController(engine)
+        controller.setQueue(testTracks(1))
+        engine.awaitLoad()
+        controller.armSleepTimerAfterCompletions(3, true)
+        controller.onPlaybackError(
+            engine.activeGeneration, PlaybackError("failed"))
+        controller.removeFailedTrack()
+        assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+        assertEquals(emptyList(), controller.state.value.queue)
+        controller.release()
+    }
+
+    @Test
+    fun failedSurvivorReconciliationCancelsTimerOnEmptyFallback() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val tracks = testTracks(2)
+            controller.setQueue(tracks)
+            engine.awaitLoad()
+            controller.armSleepTimerAfterCompletions(3, false)
+            engine.nextLoadFailure =
+                IllegalStateException("replacement unavailable")
+            assertFailsWith<IllegalStateException> {
+                controller.reconcileSession(listOf(tracks.last()))
+            }
+            assertEquals(emptyList(), controller.state.value.queue)
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            controller.release()
+        }
+
+    @Test
+    fun survivingReconciliationRestoresUnityBeforeReplacementCanPlay() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val tracks = testTracks(2).map { it.copy(durationMillis = 20_000L) }
+            controller.setQueue(tracks)
+            engine.awaitLoad()
+            controller.play()
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Playing
+            }
+            controller.armSleepTimerAfterCompletions(1, true)
+            engine.listener?.onPlaybackProgress(
+                engine.activeGeneration, 15_000L, 20_000L)
+            engine.awaitEvent { it == EngineEvent.Gain(0.5f) }
+            engine.clearEvents()
+            controller.reconcileSession(listOf(tracks.last()))
+            assertEquals(
+                tracks.last().id, controller.state.value.currentTrack?.id)
+            assertEquals(
+                EngineEvent.Gain(1f),
+                engine.awaitEvent { it == EngineEvent.Gain(1f) })
+            controller.release()
+        }
+
+    @Test
+    fun timedSleepTimerUsesElapsedTimeWhilePausedAndStopsOnceWithoutMutatingQueueModes() =
+        runBlocking {
+            val runtime = ManualSleepTimerRuntime()
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine, runtime)
+            val tracks = testTracks(2)
+            controller.setQueue(tracks, selectedTrackId = tracks.first().id)
+            engine.awaitLoad()
+            controller.setRepeatMode(RepeatMode.RepeatPlaylist)
+            controller.setShuffleMode(ShuffleMode.On)
+            controller.play()
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Playing
+            }
+            engine.clearEvents()
+            val queueBefore = controller.state.value.queue
+
+            controller.armSleepTimer(minutes = 1, fadeEnabled = false)
+            assertEquals(
+                SleepTimerState(
+                    mode = SleepTimerMode.Timed,
+                    remainingMillis = 60_000L,
+                    fadeEnabled = false,
+                ),
+                controller.sleepTimerState.value,
+            )
+            runtime.advanceTo(30_000L)
+            awaitState {
+                controller.sleepTimerState.value.remainingMillis == 30_000L
+            }
+
+            controller.pause()
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Paused
+            }
+            engine.clearEvents()
+            runtime.advanceTo(60_000L)
+
+            awaitState {
+                controller.sleepTimerState.value == SleepTimerState() &&
+                    controller.state.value.status == PlaybackStatus.Stopped
+            }
+            assertEquals(
+                EngineEvent.Stop,
+                engine.awaitEvent { it == EngineEvent.Stop },
+            )
+            assertEquals(queueBefore, controller.state.value.queue)
+            assertEquals(
+                RepeatMode.RepeatPlaylist,
+                controller.state.value.repeatMode,
+            )
+            assertEquals(ShuffleMode.On, controller.state.value.shuffleMode)
+
+            val stoppedState = controller.state.value
+            engine.listener?.onPlaybackCompleted(
+                stoppedState.engineGeneration, engine.activePlaybackRunId)
+            assertEquals(stoppedState, controller.state.value)
+        }
+
+    @Test
+    fun rearmedAndCancelledTimedSleepTimersRejectLateDeadlineWork() =
+        runBlocking {
+            val runtime = StaleSleepTimerRuntime()
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine, runtime)
+            val track = testTracks(1).single()
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitLoad()
+            controller.play()
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Playing
+            }
+            engine.clearEvents()
+
+            controller.armSleepTimer(minutes = 1, fadeEnabled = false)
+            runtime.awaitDelayRequest()
+            controller.armSleepTimer(minutes = 1, fadeEnabled = false)
+            runtime.advanceQueuedDelayTo(60_000L)
+            assertEquals(
+                SleepTimerMode.Timed, controller.sleepTimerState.value.mode)
+            assertEquals(
+                60_000L, controller.sleepTimerState.value.remainingMillis)
+            assertTrue(engine.eventSnapshot().none { it == EngineEvent.Stop })
+
+            controller.cancelSleepTimer()
+            runtime.advanceQueuedDelayTo(120_000L)
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            assertTrue(engine.eventSnapshot().none { it == EngineEvent.Stop })
+        }
+
+    @Test
+    fun rearmAfterExpiryCannotDiscardAlreadyClaimedNativeStop() = runBlocking {
+        val runtime = ManualSleepTimerRuntime()
+        val engine = RecordingPlaybackEngine(seekGate = CompletableDeferred())
+        val controller = timerController(engine, runtime)
+        controller.setQueue(testTracks(1))
+        engine.awaitLoad()
+        controller.play()
+        awaitState { controller.state.value.status == PlaybackStatus.Playing }
+        controller.seekTo(250L)
+        engine.awaitSeekStarted()
+        controller.armSleepTimer(minutes = 1, fadeEnabled = false)
+
+        runtime.advanceTo(60_000L)
+        awaitState { controller.state.value.status == PlaybackStatus.Stopped }
+        controller.armSleepTimer(minutes = 2, fadeEnabled = true)
+        engine.releaseSeek()
+
+        assertEquals(
+            EngineEvent.Stop, engine.awaitEvent { it == EngineEvent.Stop })
+        assertEquals(
+            SleepTimerMode.Timed, controller.sleepTimerState.value.mode)
+        assertEquals(120_000L, controller.sleepTimerState.value.remainingMillis)
+    }
+
+    @Test
+    fun timedExpiryDuringLoadCancelsAutoplayBeforeTheLoadCanPlay() =
+        runBlocking {
+            val runtime = ManualSleepTimerRuntime()
+            val loadGate = CompletableDeferred<Unit>()
+            val engine = RecordingPlaybackEngine(loadGate = loadGate)
+            val controller = timerController(engine, runtime)
+            val track = testTracks(1).single()
+
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitLoadStarted()
+            controller.play()
+            controller.armSleepTimer(minutes = 1, fadeEnabled = false)
+            runtime.advanceTo(60_000L)
+
+            awaitState {
+                controller.sleepTimerState.value == SleepTimerState() &&
+                    controller.state.value.status == PlaybackStatus.Stopped
+            }
+            engine.releaseLoad()
+            assertEquals(
+                EngineEvent.Stop,
+                engine.awaitEvent { it == EngineEvent.Stop },
+            )
+            assertEquals(
+                emptyList<EngineEvent.Play>(),
+                engine.eventSnapshot().filterIsInstance<EngineEvent.Play>(),
+            )
+        }
+
+    @Test
+    fun completionTimerCountsRepeatOneOnceAndStopsBeforeItCanReplay() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val track = testTracks(1).single()
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitLoad()
+            controller.setRepeatMode(RepeatMode.RepeatOne)
+            controller.play()
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Playing
+            }
+            engine.clearEvents()
+            controller.armSleepTimerAfterCompletions(
+                count = 1, fadeEnabled = false)
+            val generation = engine.activeGeneration
+
+            engine.listener?.onPlaybackCompleted(
+                generation, engine.activePlaybackRunId)
+
+            assertEquals(
+                EngineEvent.Stop,
+                engine.awaitEvent { it == EngineEvent.Stop },
+            )
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
+            assertEquals(1, engine.loadedGenerations.size)
+
+            engine.listener?.onPlaybackCompleted(
+                generation, engine.activePlaybackRunId)
+            assertEquals(1, engine.loadedGenerations.size)
+        }
+
+    @Test
+    fun completionTimerCountsNewPlaybackRunOnSameOccurrence() = runBlocking {
+        val engine = RecordingPlaybackEngine()
+        val controller = timerController(engine)
+        controller.setQueue(testTracks(1))
+        engine.awaitLoad()
+        controller.setRepeatMode(RepeatMode.StopAfterCurrent)
+        controller.play()
+        awaitState { controller.state.value.status == PlaybackStatus.Playing }
+        controller.armSleepTimerAfterCompletions(2, fadeEnabled = false)
+        val generation = engine.activeGeneration
+        val firstRun = engine.activePlaybackRunId
+
+        engine.listener?.onPlaybackCompleted(generation, firstRun)
+        awaitState { controller.state.value.status == PlaybackStatus.Stopped }
+        assertEquals(1, controller.sleepTimerState.value.remainingTracks)
+
+        controller.restartCurrentTrack()
+        engine.awaitEvent { it is EngineEvent.Play }
+        val secondRun = engine.activePlaybackRunId
+        assertTrue(secondRun != firstRun)
+        awaitState { controller.state.value.status == PlaybackStatus.Playing }
+        engine.listener?.onPlaybackCompleted(generation, firstRun)
+        assertEquals(1, controller.sleepTimerState.value.remainingTracks)
+
+        engine.listener?.onPlaybackCompleted(generation, secondRun)
+        assertEquals(
+            EngineEvent.Stop, engine.awaitEvent { it == EngineEvent.Stop })
+        assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+    }
+
+    @Test
+    fun completionTimerDecrementsOnlyForAcceptedNaturalCompletions() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val tracks = testTracks(2)
+            controller.setQueue(tracks, selectedTrackId = tracks.first().id)
+            engine.awaitLoad()
+            controller.setRepeatMode(RepeatMode.RepeatOne)
+            controller.play()
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Playing
+            }
+            controller.armSleepTimerAfterCompletions(
+                count = 2, fadeEnabled = false)
+            val firstGeneration = engine.activeGeneration
+
+            controller.skipToNext()
+            engine.awaitLoadCount(2)
+            assertEquals(2, controller.sleepTimerState.value.remainingTracks)
+            engine.listener?.onPlaybackCompleted(firstGeneration, 0L)
+            assertEquals(2, controller.sleepTimerState.value.remainingTracks)
+
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration,
+                PlaybackError("transient"),
+            )
+            controller.retryFailedTrack()
+            engine.awaitLoadCount(3)
+            engine.awaitEvent { it == EngineEvent.Play }
+            assertEquals(2, controller.sleepTimerState.value.remainingTracks)
+
+            val acceptedGeneration = engine.activeGeneration
+            engine.listener?.onPlaybackCompleted(
+                acceptedGeneration, engine.activePlaybackRunId)
+            engine.awaitLoadCount(4)
+            engine.awaitEvent { it == EngineEvent.Play }
+            assertEquals(1, controller.sleepTimerState.value.remainingTracks)
+            engine.listener?.onPlaybackCompleted(
+                acceptedGeneration, engine.activePlaybackRunId)
+            assertEquals(1, controller.sleepTimerState.value.remainingTracks)
+        }
+
+    @Test
+    fun completionFromEarlierPlaybackRunCannotStopRestartedOccurrence() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            controller.setQueue(testTracks(1))
+            engine.awaitLoad()
+            controller.play()
+            engine.awaitEvent { it == EngineEvent.Play }
+            val oldRun = engine.activePlaybackRunId
+            val generation = engine.activeGeneration
+            controller.armSleepTimerAfterCompletions(
+                count = 1, fadeEnabled = false)
+
+            controller.restartCurrentTrack()
+            engine.awaitEvent { it == EngineEvent.Play }
+            assertTrue(engine.activePlaybackRunId != oldRun)
+            engine.listener?.onPlaybackCompleted(generation, oldRun)
+
+            assertEquals(1, controller.sleepTimerState.value.remainingTracks)
+            assertEquals(PlaybackStatus.Playing, controller.state.value.status)
+            engine.listener?.onPlaybackCompleted(
+                generation, engine.activePlaybackRunId)
+            engine.awaitEvent { it == EngineEvent.Stop }
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+        }
+
+    @Test
+    fun timedFadeUsesRemainingMonotonicTimeAndCancellationRestoresUnityGain() =
+        runBlocking {
+            val runtime = ManualSleepTimerRuntime()
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine, runtime)
+            val track = testTracks(1).single().copy(durationMillis = 60_000L)
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitLoad()
+            controller.play()
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Playing
+            }
+            engine.clearEvents()
+
+            controller.armSleepTimer(minutes = 1, fadeEnabled = true)
+            assertEquals(
+                EngineEvent.Gain(1f),
+                engine.awaitEvent { it == EngineEvent.Gain(1f) },
+            )
+            runtime.advanceTo(55_000L)
+            assertEquals(
+                EngineEvent.Gain(0.5f),
+                engine.awaitEvent { it == EngineEvent.Gain(0.5f) },
+            )
+            controller.cancelSleepTimer()
+
+            assertEquals(
+                EngineEvent.Gain(1f),
+                engine.awaitEvent { it == EngineEvent.Gain(1f) },
+            )
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+        }
+
+    @Test
+    fun finalCompletionFadeUsesKnownPlayingProgressAndFreezesWhilePaused() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val track = testTracks(1).single().copy(durationMillis = 20_000L)
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitLoad()
+            controller.play()
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Playing
+            }
+            engine.clearEvents()
+            controller.armSleepTimerAfterCompletions(
+                count = 1, fadeEnabled = true)
+            engine.awaitEvent { it == EngineEvent.Gain(1f) }
+
+            engine.listener?.onPlaybackProgress(
+                engine.activeGeneration,
+                positionMillis = 15_000L,
+                durationMillis = 20_000L,
+            )
+            assertEquals(
+                EngineEvent.Gain(0.5f),
+                engine.awaitEvent { it == EngineEvent.Gain(0.5f) },
+            )
+
+            controller.pause()
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Paused
+            }
+            engine.clearEvents()
+            engine.listener?.onPlaybackProgress(
+                engine.activeGeneration,
+                positionMillis = 18_000L,
+                durationMillis = 20_000L,
+            )
+            assertEquals(emptyList(), engine.eventSnapshot())
+
+            controller.play()
+            assertEquals(
+                EngineEvent.Gain(0.5f),
+                engine.awaitEvent { it is EngineEvent.Gain })
+            assertEquals(
+                EngineEvent.Gain(0.2f),
+                engine.awaitEvent { it == EngineEvent.Gain(0.2f) },
+            )
+        }
+
+    @Test
+    fun clearingQueueOrReleasingCancelsTimerAndRestoresFullGain() =
+        runBlocking {
+            val runtime = ManualSleepTimerRuntime()
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine, runtime)
+            val track = testTracks(1).single().copy(durationMillis = 60_000L)
+            controller.setQueue(listOf(track), selectedTrackId = track.id)
+            engine.awaitLoad()
+            controller.play()
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Playing
+            }
+            engine.clearEvents()
+            controller.armSleepTimer(minutes = 1, fadeEnabled = true)
+            engine.awaitEvent { it == EngineEvent.Gain(1f) }
+            runtime.advanceTo(55_000L)
+            engine.awaitEvent { it == EngineEvent.Gain(0.5f) }
+
+            controller.setQueue(emptyList())
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            assertEquals(
+                EngineEvent.Gain(1f),
+                engine.awaitEvent { it == EngineEvent.Gain(1f) },
+            )
+
+            controller.armSleepTimer(minutes = 1, fadeEnabled = true)
+            controller.release()
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            assertEquals(EngineEvent.Gain(1f), engine.eventSnapshot().last())
+        }
+
+    @Test
     fun stopAfterQueueAdvancesMiddleTrackAndStopsAtFinalTrackEnd() =
         runBlocking {
             val engine = DelayedStatusPlaybackEngine()
@@ -425,15 +911,21 @@ class PlaybackControllerTest {
             controller.setQueue(tracks, selectedTrackId = "track-1")
             engine.awaitLoadCount(1)
             controller.play()
+            engine.awaitPlayCount(1)
+            engine.reportStatus(PlaybackStatus.Playing)
 
             engine.complete()
             engine.awaitLoadCount(2)
             assertEquals("track-2", controller.state.value.currentTrack?.id)
 
+            engine.awaitPlayCount(2)
+            engine.reportStatus(PlaybackStatus.Playing)
             engine.complete()
             engine.awaitLoadCount(3)
             assertEquals("track-3", controller.state.value.currentTrack?.id)
 
+            engine.awaitPlayCount(3)
+            engine.reportStatus(PlaybackStatus.Playing)
             engine.complete()
             assertEquals("track-3", controller.state.value.currentTrack?.id)
             assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
@@ -449,6 +941,8 @@ class PlaybackControllerTest {
         engine.awaitLoadCount(1)
         controller.setRepeatMode(RepeatMode.StopAfterCurrent)
         controller.play()
+        engine.awaitPlayCount(1)
+        engine.reportStatus(PlaybackStatus.Playing)
 
         engine.complete()
 
@@ -466,6 +960,8 @@ class PlaybackControllerTest {
         engine.awaitLoadCount(1)
         controller.setRepeatMode(RepeatMode.RepeatPlaylist)
         controller.play()
+        engine.awaitPlayCount(1)
+        engine.reportStatus(PlaybackStatus.Playing)
 
         engine.complete()
         engine.awaitLoadCount(2)
@@ -489,6 +985,8 @@ class PlaybackControllerTest {
             engine.awaitLoadCount(1)
             controller.setRepeatMode(RepeatMode.RepeatOne)
             controller.play()
+            engine.awaitPlayCount(1)
+            engine.reportStatus(PlaybackStatus.Playing)
 
             engine.complete()
             engine.awaitLoadCount(2)
@@ -603,6 +1101,9 @@ class PlaybackControllerTest {
         controller.setQueue(tracks, selectedTrackId = "track-1")
         engine.awaitLoadCount(1)
 
+        controller.play()
+        engine.awaitPlayCount(1)
+        engine.reportStatus(PlaybackStatus.Playing)
         engine.complete()
         engine.awaitLoadCount(2)
 
@@ -907,7 +1408,7 @@ class PlaybackControllerTest {
         engine.listener?.onPlaybackStatus(
             firstGeneration, PlaybackStatus.Playing)
         engine.listener?.onPlaybackProgress(firstGeneration, 999L, 1_000L)
-        engine.listener?.onPlaybackCompleted(firstGeneration)
+        engine.listener?.onPlaybackCompleted(firstGeneration, 0L)
         engine.listener?.onPlaybackError(
             firstGeneration, PlaybackError("stale"))
         engine.listener?.onSkipToPrevious(firstGeneration)
@@ -1670,7 +2171,7 @@ class PlaybackControllerTest {
             engine.listener?.onPlaybackStatus(
                 staleGeneration, PlaybackStatus.Playing)
             engine.listener?.onPlaybackProgress(staleGeneration, 900L, 1_000L)
-            engine.listener?.onPlaybackCompleted(staleGeneration)
+            engine.listener?.onPlaybackCompleted(staleGeneration, 0L)
             engine.listener?.onPlaybackError(
                 staleGeneration, PlaybackError("stale"))
             engine.listener?.onSkipToNext(staleGeneration)
@@ -1710,6 +2211,40 @@ class PlaybackControllerTest {
             engine.listener?.onSkipToNext(generation)
 
             assertEquals(before, controller.state.value)
+            assertEquals(emptyList(), engine.eventSnapshot())
+        }
+
+    @Test
+    fun externalTransportUsesControllerRunAndRejectsStaleRequests() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = loadedController(engine, PlaybackStatus.Paused)
+            val generation = engine.activeGeneration
+            engine.clearEvents()
+
+            engine.listener?.onPlayRequested(generation)
+            engine.awaitEvent { it == EngineEvent.Play }
+            val run = engine.activePlaybackRunId
+            assertTrue(run > 0L)
+            engine.listener?.onSeekRequested(generation, 1_000L)
+            assertEquals(
+                EngineEvent.Seek(1_000L),
+                engine.awaitEvent { it is EngineEvent.Seek })
+            engine.listener?.onPauseRequested(generation)
+            assertEquals(
+                EngineEvent.Pause,
+                engine.awaitEvent { it == EngineEvent.Pause })
+            engine.listener?.onPlayRequested(generation)
+            engine.awaitEvent { it == EngineEvent.Play }
+            assertTrue(engine.activePlaybackRunId > run)
+            engine.listener?.onStopRequested(generation)
+            assertEquals(
+                EngineEvent.Stop, engine.awaitEvent { it == EngineEvent.Stop })
+
+            controller.setCommandsEnabled(false)
+            engine.clearEvents()
+            engine.listener?.onPlayRequested(generation)
+            engine.listener?.onSeekRequested(generation, 0L)
             assertEquals(emptyList(), engine.eventSnapshot())
         }
 
@@ -2132,7 +2667,7 @@ class PlaybackControllerTest {
             // completion and error, must be dropped entirely.
             engine.listener?.onPlaybackProgress(
                 staleGeneration, 9_500L, 10_000L)
-            engine.listener?.onPlaybackCompleted(staleGeneration)
+            engine.listener?.onPlaybackCompleted(staleGeneration, 0L)
             engine.listener?.onPlaybackError(
                 staleGeneration, PlaybackError("stale"))
             assertEquals("track-2", controller.state.value.currentTrack?.id)
@@ -2264,7 +2799,11 @@ class PlaybackControllerTest {
         checkpoints.receive()
         val generation = engine.activeGeneration
 
-        engine.listener?.onPlaybackCompleted(generation)
+        controller.play()
+        engine.awaitEvent { it == EngineEvent.Play }
+
+        engine.listener?.onPlaybackCompleted(
+            generation, engine.activePlaybackRunId)
 
         val stopped = checkpoints.receive()
         assertTrue(stopped is PlaybackCheckpoint.Immediate)
@@ -2860,7 +3399,7 @@ class PlaybackControllerTest {
         engine.listener?.onPlaybackStatus(
             staleGeneration, PlaybackStatus.Playing)
         engine.listener?.onPlaybackProgress(staleGeneration, 1_500L, 2_000L)
-        engine.listener?.onPlaybackCompleted(staleGeneration)
+        engine.listener?.onPlaybackCompleted(staleGeneration, 0L)
         engine.listener?.onPlaybackError(
             staleGeneration, PlaybackError("stale"))
         engine.listener?.onSkipToNext(staleGeneration)
@@ -2948,7 +3487,8 @@ class PlaybackControllerTest {
                 "track-2", checkpoints.receive().snapshot.currentTrackId)
             engine.awaitLoadCount(3)
 
-            engine.listener?.onPlaybackCompleted(engine.activeGeneration)
+            engine.listener?.onPlaybackCompleted(
+                engine.activeGeneration, engine.activePlaybackRunId)
             val completion = checkpoints.receive()
             assertTrue(completion is PlaybackCheckpoint.Immediate)
             assertEquals("track-3", completion.snapshot.currentTrackId)
@@ -2976,7 +3516,11 @@ class PlaybackControllerTest {
                 controller.setRepeatMode(mode)
                 if (mode != RepeatMode.StopAfterQueue) checkpoints.receive()
 
-                engine.listener?.onPlaybackCompleted(engine.activeGeneration)
+                controller.play()
+                engine.awaitEvent { it == EngineEvent.Play }
+
+                engine.listener?.onPlaybackCompleted(
+                    engine.activeGeneration, engine.activePlaybackRunId)
 
                 val terminal = withTimeout(1_000) { checkpoints.receive() }
                 assertTrue(terminal is PlaybackCheckpoint.Immediate)
@@ -3199,13 +3743,90 @@ class PlaybackControllerTest {
         )
     }
 
+    private fun timerController(
+        engine: PlatformPlaybackEngine,
+        runtime: SleepTimerRuntime = ManualSleepTimerRuntime(),
+    ): PlaybackController =
+        PlaybackController(
+            engine,
+            { ids, _ -> ids },
+            { null },
+            runtime,
+        )
+
+    private class ManualSleepTimerRuntime : SleepTimerRuntime {
+        private data class DelayRequest(
+            val gate: CompletableDeferred<Unit>,
+        )
+
+        private val requests = Channel<DelayRequest>(Channel.UNLIMITED)
+        private var nowMillis: Long = 0L
+
+        override fun nowMillis(): Long = nowMillis
+
+        override suspend fun delay(millis: Long) {
+            check(millis > 0L)
+            val request = DelayRequest(CompletableDeferred())
+            check(requests.trySend(request).isSuccess)
+            request.gate.await()
+        }
+
+        suspend fun advanceTo(nextNowMillis: Long) {
+            check(nextNowMillis >= nowMillis)
+            val request = requests.receive()
+            nowMillis = nextNowMillis
+            request.gate.complete(Unit)
+        }
+    }
+
+    /**
+     * Delivers an already queued delay even after cancellation, proving stale
+     * deadline safety at the controller seam rather than through cancellation.
+     */
+    private class StaleSleepTimerRuntime : SleepTimerRuntime {
+        private data class DelayRequest(
+            val gate: CompletableDeferred<Unit>,
+        )
+
+        private val requests = Channel<DelayRequest>(Channel.UNLIMITED)
+        private var queuedRequest: DelayRequest? = null
+        private var nowMillis: Long = 0L
+
+        override fun nowMillis(): Long = nowMillis
+
+        override suspend fun delay(millis: Long) {
+            check(millis > 0L)
+            val request = DelayRequest(CompletableDeferred())
+            check(requests.trySend(request).isSuccess)
+            withContext(NonCancellable) { request.gate.await() }
+        }
+
+        suspend fun awaitDelayRequest() {
+            check(queuedRequest == null)
+            queuedRequest = requests.receive()
+        }
+
+        suspend fun advanceQueuedDelayTo(nextNowMillis: Long) {
+            check(nextNowMillis >= nowMillis)
+            val request = queuedRequest ?: requests.receive()
+            queuedRequest = null
+            nowMillis = nextNowMillis
+            request.gate.complete(Unit)
+        }
+    }
+
     private class DelayedStatusPlaybackEngine : PlatformPlaybackEngine {
         override var listener: PlaybackEngineListener? = null
         var activeGeneration: Long = 0L
             private set
 
+        var activePlaybackRunId: Long = 0L
+            private set
+
         private var loadCount: Int = 0
         private val loadSignals = Channel<Int>(Channel.UNLIMITED)
+        private var playCount: Int = 0
+        private val playSignals = Channel<Int>(Channel.UNLIMITED)
 
         override suspend fun loadPaused(
             track: PlayableTrack,
@@ -3223,8 +3844,12 @@ class PlaybackControllerTest {
 
         override fun setUserTransportEnabled(enabled: Boolean) = Unit
 
+        override fun setPlaybackGain(gain: Float) {
+            require(gain.isFinite() && gain in 0f..1f)
+        }
+
         fun complete() {
-            listener?.onPlaybackCompleted(activeGeneration)
+            listener?.onPlaybackCompleted(activeGeneration, activePlaybackRunId)
         }
 
         fun reportStatus(status: PlaybackStatus) {
@@ -3236,7 +3861,16 @@ class PlaybackControllerTest {
                 while (loadSignals.receive() < count) {}
             }
 
-        override fun play() = Unit
+        suspend fun awaitPlayCount(count: Int) =
+            withTimeout(5_000) {
+                while (playSignals.receive() < count) {}
+            }
+
+        override fun play(playbackRunId: Long) {
+            activePlaybackRunId = playbackRunId
+            playCount++
+            check(playSignals.trySend(playCount).isSuccess)
+        }
 
         override fun pause() = Unit
 
@@ -3251,6 +3885,8 @@ class PlaybackControllerTest {
         data class Load(val trackId: String) : EngineEvent
 
         data class Seek(val positionMillis: Long) : EngineEvent
+
+        data class Gain(val gain: Float) : EngineEvent
 
         data class TransportEnabled(val enabled: Boolean) : EngineEvent
 
@@ -3276,6 +3912,9 @@ class PlaybackControllerTest {
         val loadedGenerations = mutableListOf<Long>()
         val generationSignals = Channel<Long>(Channel.UNLIMITED)
         var activeGeneration: Long = 0L
+            private set
+
+        var activePlaybackRunId: Long = 0L
             private set
 
         var nextLoadFailure: Throwable? = null
@@ -3358,7 +3997,19 @@ class PlaybackControllerTest {
                 List(count) { events.receive() }
             }
 
-        override fun play() {
+        suspend fun awaitEvent(
+            predicate: (EngineEvent) -> Boolean,
+        ): EngineEvent =
+            withTimeout(5_000) {
+                while (true) {
+                    val event = events.receive()
+                    if (predicate(event)) return@withTimeout event
+                }
+                error("Unreachable event wait")
+            }
+
+        override fun play(playbackRunId: Long) {
+            activePlaybackRunId = playbackRunId
             record(EngineEvent.Play)
             listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
         }
@@ -3393,6 +4044,11 @@ class PlaybackControllerTest {
             record(EngineEvent.TransportEnabled(enabled))
         }
 
+        override fun setPlaybackGain(gain: Float) {
+            require(gain.isFinite() && gain in 0f..1f)
+            record(EngineEvent.Gain(gain))
+        }
+
         override fun release() = Unit
 
         private fun record(event: EngineEvent) {
@@ -3402,6 +4058,11 @@ class PlaybackControllerTest {
 
     private class ReplacingLoadPlaybackEngine : PlatformPlaybackEngine {
         override var listener: PlaybackEngineListener? = null
+
+        override fun setPlaybackGain(gain: Float) {
+            require(gain.isFinite() && gain in 0f..1f)
+        }
+
         val firstStarted = CompletableDeferred<Unit>()
         val secondStarted = CompletableDeferred<Unit>()
         private val firstResult = CompletableDeferred<LoadedPlayback>()
@@ -3447,7 +4108,7 @@ class PlaybackControllerTest {
 
         override fun setUserTransportEnabled(enabled: Boolean) = Unit
 
-        override fun play() = Unit
+        override fun play(playbackRunId: Long) = Unit
 
         override fun pause() = Unit
 
@@ -3460,6 +4121,11 @@ class PlaybackControllerTest {
 
     private class SerializedSessionPlaybackEngine : PlatformPlaybackEngine {
         override var listener: PlaybackEngineListener? = null
+
+        override fun setPlaybackGain(gain: Float) {
+            require(gain.isFinite() && gain in 0f..1f)
+        }
+
         val firstLoadStarted = CompletableDeferred<Unit>()
         val releaseFirstLoad = CompletableDeferred<Unit>()
         private val events = Channel<EngineEvent>(Channel.UNLIMITED)
@@ -3487,7 +4153,7 @@ class PlaybackControllerTest {
 
         override fun setUserTransportEnabled(enabled: Boolean) = Unit
 
-        override fun play() = record(EngineEvent.Play)
+        override fun play(playbackRunId: Long) = record(EngineEvent.Play)
 
         override fun stop() = record(EngineEvent.Stop)
 

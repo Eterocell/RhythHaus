@@ -26,5 +26,23 @@
     <string name="repeat_mode_stop_after_queue">重复模式：播放列表后停止</string>
     <string name="shuffle_off">随机播放已关闭</string>
     <string name="shuffle_on">随机播放已开启</string>
+    <string name="sleep_timer_15_minutes">15 分钟</string>
+    <string name="sleep_timer_30_minutes">30 分钟</string>
+    <string name="sleep_timer_3_tracks">3 首歌曲</string>
+    <string name="sleep_timer_45_minutes">45 分钟</string>
+    <string name="sleep_timer_5_tracks">5 首歌曲</string>
+    <string name="sleep_timer_60_minutes">60 分钟</string>
+    <string name="sleep_timer_cancel">取消定时器</string>
+    <string name="sleep_timer_current_track">当前歌曲</string>
+    <string name="sleep_timer_fade">10 秒淡出</string>
+    <string name="sleep_timer_fade_format">%1$s：%2$s</string>
+    <string name="sleep_timer_fade_off">关闭</string>
+    <string name="sleep_timer_fade_on">开启</string>
+    <string name="sleep_timer_stop_after">播放以下歌曲后停止</string>
+    <string name="sleep_timer_stop_in">将在以下时间后停止</string>
+    <string name="sleep_timer_timed_summary_minutes">将在 %1$d 分钟后停止；10 秒淡出：%2$s</string>
+    <string name="sleep_timer_timed_summary_seconds">将在 %1$d 秒后停止；10 秒淡出：%2$s</string>
+    <string name="sleep_timer_title">睡眠定时器</string>
+    <string name="sleep_timer_tracks_summary">将在剩余 %1$d 首歌曲后停止；10 秒淡出：%2$s</string>
     <string name="track_number_format">第 %1$d 轨</string>
 </resources>

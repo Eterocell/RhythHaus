@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
+import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.ui.LocalTrackArtworkLoader
@@ -22,8 +23,8 @@ internal fun nowPlayingFavoriteAvailable(
     authoritativeTrackId != null && authoritativeTrackId == playbackTrackId
 
 /**
- * Preserves the shared-facing Now Playing signature while delegating UI to the
- * feature module.
+ * Shared composition facade delegating Now Playing presentation to the feature
+ * module.
  */
 @Composable
 public fun NowPlayingScreen(
@@ -33,6 +34,10 @@ public fun NowPlayingScreen(
     tagLibReader: TagLibReader,
     currentLibraryTrack: LibraryTrack?,
     onBack: () -> Unit,
+    sleepTimerState: SleepTimerState,
+    onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
+    onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
+    onCancelSleepTimer: () -> Unit,
     modifier: Modifier = Modifier,
     favoriteTrackIds: Set<String> = emptySet(),
     onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
@@ -55,6 +60,10 @@ public fun NowPlayingScreen(
             ),
         artworkLoader = { trackId -> artworkLoader(trackId)?.bytes },
         onBack = onBack,
+        sleepTimerState = sleepTimerState,
+        onArmSleepTimer = onArmSleepTimer,
+        onArmSleepTimerAfterCompletions = onArmSleepTimerAfterCompletions,
+        onCancelSleepTimer = onCancelSleepTimer,
         modifier = modifier,
         favoriteTrackIds = favoriteTrackIds,
         onSetTrackFavorite = onSetTrackFavorite,

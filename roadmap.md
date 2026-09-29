@@ -4,6 +4,8 @@
 >
 > **How to use this file.** This is the current product roadmap: active work, priority order, and release evidence. Detailed implementation evidence and historical handoffs live in [`progress.md`](progress.md); durable requirements, designs, and task state live under [`openspec/`](openspec/).
 
+> **Verification ownership.** The user performs manual UI, listening, physical-device, background, and system-media-control acceptance. The implementation owner runs automated behavior tests, native smoke, compilation and static checks. Pending manual acceptance is not a passed check and does not block the next planned implementation unless it exposes a defect.
+
 ## Current focus — Phase 1: release closure and first-run usability
 
 | Priority | Outcome | Status | Next evidence or change |
@@ -30,11 +32,13 @@
 
 | Phase | Goal | Ordered deliverables |
 | --- | --- | --- |
-| Phase 2 — daily use | Make the existing library and player efficient to use every day. | ~~Favorites; play history/recently played/recently added; sorting and filtering~~; sleep timer; save Queue as playlist; smart playlists. |
+| Phase 2 — daily use | Make the existing library and player efficient to use every day. | ~~Favorites; play history/recently played/recently added; sorting and filtering; sleep timer~~; save Queue as playlist; smart playlists. |
 | Phase 3 — library management | Give users safe control over imported metadata and sources. | App-local metadata overrides; M3U/PLS import/export; Android MediaStore source; incremental-scan UX; desktop drag-and-drop and remaining cross-platform import policy. |
 | Phase 4 — advanced playback | Improve listening quality without adding network dependence. | ReplayGain/normalization; crossfade; basic EQ; gapless playback; local and embedded lyrics. |
 
 Sorting and filtering is integrated into `main`: Shared owns an ephemeral query, flat Library modes use deterministic sort/filter projections, artwork presence is read without loading image blobs, and accessible EN/ZH controls preserve visible selection and playback order. Android packaging is still blocked by the TagLib native toolchain, and the known full Shared JVM playback-selection timeout prevents claiming a green full-suite gate. Physical-platform acceptance remains a release check; no metadata writes or saved sort presets were added.
+
+Sleep timer implementation is complete on `feature/sleep-timer`: process-local timed/current/N-track stop, reversible ten-second playback-only fade, localized compact/split controls, and controller-owned native remote commands. Canonical spec: `openspec/specs/sleep-timer/spec.md`; archived change: `openspec/changes/archive/2026-09-29-sleep-timer/`. JVM tests, focused Android host regressions, Shared/Now Playing tests, iOS Kotlin compilation and Swift provider XCTest pass; macOS tests exercise real temporary WAV playback and native gain. Full Android host execution timed out, Android APK assembly remains blocked by TagLib CMake, and no green full `./init.sh` is claimed. User-owned physical/listening/background/system-control acceptance remains pending. Next independent implementation: save Queue as playlist.
 
 ## Capability baseline
 
@@ -69,7 +73,7 @@ RhythHaus already provides:
 | Android media discovery | Optional MediaStore source beside SAF folders. |
 | Incremental scanning | Explicit unchanged/added/modified/deleted summary and refresh policy. |
 | Import ergonomics | Desktop drag-and-drop plus an explicit remaining copy-versus-reference policy; preserve current iOS sandbox-copy decision. |
-| Sleep timer | Timed stop, stop after current/N tracks, and fade-out. |
+| Sleep timer | Implemented: timed/current/N-track stop and reversible ten-second fade. Physical/listening/background/system-control acceptance remains user-owned and pending. |
 
 ### P1 — advanced player
 

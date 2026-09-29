@@ -13,6 +13,10 @@ class RhythHausTransportBridgeTest {
     fun tearDown() {
         RhythHausTransportBridge.onSkipToNext = null
         RhythHausTransportBridge.onSkipToPrevious = null
+        RhythHausTransportBridge.onPlay = null
+        RhythHausTransportBridge.onPause = null
+        RhythHausTransportBridge.onStop = null
+        RhythHausTransportBridge.onSeek = null
         RhythHausTransportBridge.setTransportEnabled(true)
     }
 
@@ -67,7 +71,10 @@ class RhythHausTransportBridgeTest {
                     durationMillis: Long?
                 ) = Unit
 
-                override fun onPlaybackCompleted(generation: Long) = Unit
+                override fun onPlaybackCompleted(
+                    generation: Long,
+                    playbackRunId: Long
+                ) = Unit
 
                 override fun onPlaybackError(
                     generation: Long,
@@ -81,6 +88,17 @@ class RhythHausTransportBridgeTest {
                 override fun onSkipToPrevious(generation: Long) {
                     prevCalls++
                 }
+
+                override fun onPlayRequested(generation: Long) = Unit
+
+                override fun onPauseRequested(generation: Long) = Unit
+
+                override fun onStopRequested(generation: Long) = Unit
+
+                override fun onSeekRequested(
+                    generation: Long,
+                    positionMillis: Long
+                ) = Unit
             }
 
         val engine = createAndroidPlaybackEngine()
@@ -142,6 +160,74 @@ class RhythHausTransportBridgeTest {
     }
 
     @Test
+    fun externalSessionPlayAndSeekRequestControllerButInternalEngineActionsReachPlayer() {
+        val actions = mutableListOf<String>()
+        val router = ServiceTransportRouter()
+        RhythHausTransportBridge.onPlay = { actions += "controller-play" }
+        RhythHausTransportBridge.onSeek = { actions += "controller-seek:$it" }
+
+        router.play(internalController = false) { actions += "native-play" }
+        router.seekTo(1_000L, internalController = false) {
+            actions += "native-seek:$it"
+        }
+        assertEquals(listOf("controller-play", "controller-seek:1000"), actions)
+
+        router.play(internalController = true) { actions += "native-play" }
+        router.seekTo(200L, internalController = true) {
+            actions += "native-seek:$it"
+        }
+        assertEquals(
+            listOf(
+                "controller-play",
+                "controller-seek:1000",
+                "native-play",
+                "native-seek:200"),
+            actions)
+    }
+
+    @Test
+    fun disabledUserTransportDoesNotBlockControllerOwnedTimerStop() {
+        val bridge = ServiceTransportRouter()
+        val nativeActions = mutableListOf<String>()
+        bridge.setTransportEnabled(false)
+
+        assertTrue(
+            bridge.pause(internalController = true) {
+                nativeActions += "pause"
+            })
+        assertTrue(
+            bridge.seekTo(0L, internalController = true) {
+                nativeActions += "seek:$it"
+            })
+        assertTrue(
+            bridge.stop(internalController = true) { nativeActions += "stop" })
+        assertEquals(listOf("pause", "seek:0", "stop"), nativeActions)
+
+        assertFalse(
+            bridge.play(internalController = false) { nativeActions += "play" })
+        assertEquals(listOf("pause", "seek:0", "stop"), nativeActions)
+    }
+
+    @Test
+    fun mediaSessionKeepsInternalPauseAndSeekAvailableWhileRejectingExternalRequests() {
+        val bridge = ServiceTransportRouter()
+        bridge.setTransportEnabled(false)
+        assertTrue(bridge.isCommandAvailable(Player.COMMAND_PLAY_PAUSE, true))
+        assertTrue(
+            bridge.isCommandAvailable(
+                Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM, true))
+        assertTrue(sessionPlayerCommandAllowed(true, Player.COMMAND_PLAY_PAUSE))
+        assertTrue(
+            sessionPlayerCommandAllowed(
+                true, Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
+        assertFalse(
+            sessionPlayerCommandAllowed(false, Player.COMMAND_PLAY_PAUSE))
+        assertFalse(
+            sessionPlayerCommandAllowed(
+                false, Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
+    }
+
+    @Test
     fun productionRouterRejectsEveryGatedOperationWhenDisabled() {
         val actions = mutableListOf<String>()
         val bridge = ServiceTransportRouter()
@@ -157,10 +243,10 @@ class RhythHausTransportBridgeTest {
             })
         assertFalse(bridge.next { actions += "next" })
         assertFalse(bridge.previous { actions += "previous" })
-        assertFalse(
+        assertTrue(
             bridge.isCommandAvailable(
                 Player.COMMAND_PLAY_PAUSE, delegateAvailable = true))
-        assertFalse(
+        assertTrue(
             bridge.isCommandAvailable(
                 Player.COMMAND_SEEK_TO_NEXT, delegateAvailable = true))
         assertEquals(emptyList(), actions)

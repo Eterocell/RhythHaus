@@ -36,6 +36,7 @@ import com.eterocell.rhythhaus.PlaybackStatus
 import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.ShuffleMode
+import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import java.util.Locale
@@ -60,6 +61,10 @@ public class NowPlayingContentSemanticsJvmTest {
                     labels = recoveryLabels,
                     artworkLoader = { null },
                     onBack = {},
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
                     favoriteTrackIds = emptySet(),
                     onSetTrackFavorite = { id, favorite ->
                         requests += id to favorite
@@ -91,6 +96,10 @@ public class NowPlayingContentSemanticsJvmTest {
                     labels = recoveryLabels,
                     artworkLoader = { null },
                     onBack = {},
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
                     favoriteTrackIds = setOf(displayTrack().id),
                     onSetTrackFavorite = { id, favorite ->
                         requests += id to favorite
@@ -129,6 +138,10 @@ public class NowPlayingContentSemanticsJvmTest {
                         labels = recoveryLabels,
                         artworkLoader = { null },
                         onBack = {},
+                        sleepTimerState = SleepTimerState(),
+                        onArmSleepTimer = { _, _ -> },
+                        onArmSleepTimerAfterCompletions = { _, _ -> },
+                        onCancelSleepTimer = {},
                         favoriteTrackIds = setOf(displayTrack().id),
                         onSetTrackFavorite = { _, _ ->
                             error("unavailable action invoked")
@@ -156,6 +169,10 @@ public class NowPlayingContentSemanticsJvmTest {
                         labels = recoveryLabels,
                         artworkLoader = { null },
                         onBack = {},
+                        sleepTimerState = SleepTimerState(),
+                        onArmSleepTimer = { _, _ -> },
+                        onArmSleepTimerAfterCompletions = { _, _ -> },
+                        onCancelSleepTimer = {},
                         favoriteTrackIds = emptySet(),
                         onSetTrackFavorite = { id, favorite ->
                             requests += id to favorite
@@ -199,6 +216,10 @@ public class NowPlayingContentSemanticsJvmTest {
                             "Play", "Pause", "Album art", "Artist - Album"),
                     artworkLoader = { null },
                     onBack = { backCallbacks += 1 },
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
                 )
             }
         }
@@ -276,6 +297,10 @@ public class NowPlayingContentSemanticsJvmTest {
                             "Play", "Pause", "Album art", "Artist - Album"),
                     artworkLoader = { null },
                     onBack = {},
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
                 )
             }
         }
@@ -292,6 +317,10 @@ public class NowPlayingContentSemanticsJvmTest {
                             "Play", "Pause", "Album art", "Artist - Album"),
                     artworkLoader = { null },
                     onBack = {},
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
                 )
             }
         }
@@ -315,6 +344,10 @@ public class NowPlayingContentSemanticsJvmTest {
                             "Play", "Pause", "Album art", "Artist - Album"),
                     artworkLoader = { null },
                     onBack = {},
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
                 )
             }
         }
@@ -842,7 +875,9 @@ public class NowPlayingContentSemanticsJvmTest {
 
         override fun setUserTransportEnabled(enabled: Boolean): Unit = Unit
 
-        override fun play(): Unit = Unit
+        override fun setPlaybackGain(gain: Float): Unit = Unit
+
+        override fun play(playbackRunId: Long): Unit = Unit
 
         override fun pause(): Unit = Unit
 
@@ -888,7 +923,9 @@ private class RecoveryPlaybackEngine : PlatformPlaybackEngine {
 
     override fun setUserTransportEnabled(enabled: Boolean): Unit = Unit
 
-    override fun play(): Unit {
+    override fun setPlaybackGain(gain: Float): Unit = Unit
+
+    override fun play(playbackRunId: Long): Unit {
         recordedEvents += EngineEvent.Play
     }
 
@@ -927,6 +964,10 @@ private fun mountedRecoveryNowPlaying(
             labels = recoveryLabels,
             artworkLoader = { null },
             onBack = {},
+            sleepTimerState = SleepTimerState(),
+            onArmSleepTimer = { _, _ -> },
+            onArmSleepTimerAfterCompletions = { _, _ -> },
+            onCancelSleepTimer = {},
         )
     }
 }

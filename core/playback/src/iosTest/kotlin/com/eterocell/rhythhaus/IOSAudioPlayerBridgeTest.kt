@@ -26,6 +26,10 @@ class IOSAudioPlayerBridgeTest {
                 override fun onPlaybackCompleted() {
                     events += "completed"
                 }
+
+                override fun onPlaybackFailed() {
+                    events += "failed"
+                }
             }
 
         provider.completionHandler = handler
@@ -395,7 +399,7 @@ class IOSAudioPlayerBridgeTest {
         assertEquals(null, provider.interruptionHandler)
         assertEquals(
             null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
-        assertFailsWith<IllegalArgumentException> { engine.play() }
+        assertFailsWith<IllegalArgumentException> { engine.play(1L) }
         assertEquals(0, provider.playCallCount)
         engine.release()
         IOSAudioPlayerBridge.provider = null
@@ -477,6 +481,79 @@ class IOSAudioPlayerBridgeTest {
     fun iosPlaybackEngineUsesSwiftNativeAudioProvider() {
         assertEquals(
             IOSAudioBackend.SwiftAVAudioPlayerDelegate, iosAudioBackend)
+    }
+
+    @Test
+    fun playbackGainHeldDuringPendingLoadReachesProviderBeforePlayback() =
+        runBlocking {
+            val provider = FakeIOSAudioPlayerProvider()
+            provider.deferLoad = true
+            IOSAudioPlayerBridge.provider = provider
+            val engine = createIOSPlaybackEngine(testResolver())
+            try {
+                val load = launch {
+                    engine.loadPaused(
+                        testTrack("pending-gain"), generation = 62L)
+                }
+
+                kotlinx.coroutines.yield()
+                engine.setPlaybackGain(0.25f)
+                provider.completeDeferredLoad()
+                load.join()
+                engine.play(1L)
+
+                assertEquals(0.25f, provider.gainAtLoadCompletion)
+                assertEquals(0.25f, provider.gainAtPlayStart)
+                assertEquals(0.25f, provider.playbackGainChanges.last())
+            } finally {
+                engine.release()
+                IOSAudioPlayerBridge.provider = null
+            }
+        }
+
+    @Test
+    fun playerReplacementRetainsRequestedPlaybackGainAndReleaseRestoresUnity() {
+        val provider = FakeIOSAudioPlayerProvider()
+        IOSAudioPlayerBridge.provider = provider
+        val engine = createIOSPlaybackEngine(testResolver())
+        try {
+            runBlocking {
+                engine.loadPaused(testTrack("first-gain"), generation = 63L)
+            }
+            engine.setPlaybackGain(0.25f)
+
+            runBlocking {
+                engine.loadPaused(
+                    testTrack("replacement-gain"), generation = 64L)
+            }
+
+            assertEquals(0.25f, provider.gainAtLoadCompletion)
+            engine.setPlaybackGain(0.4f)
+            engine.release()
+
+            assertEquals(1.0f, provider.playbackGainChanges.last())
+        } finally {
+            engine.release()
+            IOSAudioPlayerBridge.provider = null
+        }
+    }
+
+    @Test
+    fun playbackGainRejectsNonFiniteAndOutOfRangeValues() {
+        val engine = createIOSPlaybackEngine(testResolver())
+        try {
+            assertFailsWith<IllegalArgumentException> {
+                engine.setPlaybackGain(Float.NaN)
+            }
+            assertFailsWith<IllegalArgumentException> {
+                engine.setPlaybackGain(-0.01f)
+            }
+            assertFailsWith<IllegalArgumentException> {
+                engine.setPlaybackGain(1.01f)
+            }
+        } finally {
+            engine.release()
+        }
     }
 
     @Test
@@ -582,9 +659,13 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
     var onFadeOutAndStop: (() -> Unit)? = null
     var onLoad: (() -> Unit)? = null
     var durationThrows = false
+    var gainAtLoadCompletion: Float? = null
+    var gainAtPlayStart: Float? = null
+    val playbackGainChanges = mutableListOf<Float>()
     private var positionMillis: Long = 0L
     private var durationMillis: Long? = null
     private var playing = false
+    private var playbackGain = 1.0f
     private var pendingPlayStart: IOSAudioPlayerPlaybackStartHandler? = null
     private var pendingLoad: IOSAudioPlayerLoadHandler? = null
     var isLoaded = false
@@ -608,6 +689,7 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
         handler: IOSAudioPlayerLoadHandler,
     ) {
         isLoaded = filePath.isNotBlank() && loadSucceeds
+        gainAtLoadCompletion = playbackGain
         if (isLoaded) handler.onAudioLoaded() else handler.onAudioLoadFailed()
         onLoad?.invoke()
     }
@@ -632,6 +714,7 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
             handler.onPlaybackStartFailed()
             return
         }
+        gainAtPlayStart = playbackGain
         playing = true
         handler.onPlaybackStarted()
     }
@@ -666,6 +749,11 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
 
     override fun isPlaying(): Boolean {
         return playing
+    }
+
+    override fun setPlaybackGain(gain: Float) {
+        playbackGain = gain
+        playbackGainChanges += gain
     }
 
     override fun fadeOutAndStop(
@@ -707,7 +795,7 @@ private class RecordingListener : PlaybackEngineListener {
         progressCount++
     }
 
-    override fun onPlaybackCompleted(generation: Long) {
+    override fun onPlaybackCompleted(generation: Long, playbackRunId: Long) {
         completionCount++
     }
 
@@ -716,6 +804,14 @@ private class RecordingListener : PlaybackEngineListener {
     override fun onSkipToNext(generation: Long) = Unit
 
     override fun onSkipToPrevious(generation: Long) = Unit
+
+    override fun onPlayRequested(generation: Long) = Unit
+
+    override fun onPauseRequested(generation: Long) = Unit
+
+    override fun onStopRequested(generation: Long) = Unit
+
+    override fun onSeekRequested(generation: Long, positionMillis: Long) = Unit
 }
 
 private data class IOSPlaybackTestSession(
@@ -728,7 +824,7 @@ private fun loadAndPlay(
     generation: Long,
 ): IOSPlaybackTestSession {
     val session = loadAndPause(provider, generation)
-    session.engine.play()
+    session.engine.play(1L)
     return session
 }
 
