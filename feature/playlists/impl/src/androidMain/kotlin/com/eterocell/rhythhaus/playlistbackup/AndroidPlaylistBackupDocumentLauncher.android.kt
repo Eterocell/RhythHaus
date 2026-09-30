@@ -52,17 +52,30 @@ public fun rememberAndroidPlaylistBackupDocumentLauncher(
             override val isAvailable: Boolean = true
 
             override fun save(suggestedFileName: String, bytes: ByteArray) {
+                save(
+                    suggestedFileName,
+                    bytes,
+                    PlaylistDocumentFormat.RhythHausJson)
+            }
+
+            override fun save(
+                suggestedFileName: String,
+                bytes: ByteArray,
+                format: PlaylistDocumentFormat,
+            ) {
                 coordinator.launchSave(bytes) {
                     saveLauncher.launch(
-                        playlistBackupFileName(suggestedFileName))
+                        playlistDocumentFileName(suggestedFileName, format))
                 }
             }
 
             override fun open() {
+                open(PlaylistDocumentFormat.RhythHausJson)
+            }
+
+            override fun open(format: PlaylistDocumentFormat) {
                 coordinator.launchOpen {
-                    openLauncher.launch(
-                        arrayOf(
-                            PlaylistBackupMimeType, PlaylistBackupJsonMimeType))
+                    openLauncher.launch(format.mimeTypes.toTypedArray())
                 }
             }
         }

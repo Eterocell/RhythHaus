@@ -34,6 +34,21 @@ public interface IOSPlaylistBackupDocumentProvider {
         maxBytes: Int,
         completion: IOSPlaylistBackupDocumentCompletion
     )
+
+    /** Optional format-aware save; default preserves legacy JSON providers. */
+    fun saveDocumentWithFormat(
+        fileName: String,
+        bytes: ByteArray,
+        format: String,
+        completion: IOSPlaylistBackupDocumentCompletion,
+    ) = saveDocument(fileName, bytes, completion)
+
+    /** Optional format-aware open; default preserves legacy JSON providers. */
+    fun openDocumentWithFormats(
+        maxBytes: Int,
+        mimeTypes: List<String>,
+        completion: IOSPlaylistBackupDocumentCompletion,
+    ) = openDocument(maxBytes, completion)
 }
 
 /** ABI singleton retaining the current injected iOS document provider. */
@@ -69,14 +84,23 @@ internal fun iosPlaylistBackupDocumentLauncher(
             get() = IOSPlaylistBackupDocumentBridge.provider != null
 
         override fun save(suggestedFileName: String, bytes: ByteArray) {
+            save(suggestedFileName, bytes, PlaylistDocumentFormat.RhythHausJson)
+        }
+
+        override fun save(
+            suggestedFileName: String,
+            bytes: ByteArray,
+            format: PlaylistDocumentFormat,
+        ) {
             val provider = IOSPlaylistBackupDocumentBridge.provider
             if (provider == null) {
                 onSaveResult(iosPlaylistBackupUnavailableSaveResult())
                 return
             }
-            provider.saveDocument(
+            provider.saveDocumentWithFormat(
                 iosPlaylistBackupFileName(suggestedFileName),
                 bytes,
+                format.extension,
                 object : IOSPlaylistBackupDocumentCompletion {
                     override fun complete(
                         status: Int,
@@ -91,13 +115,18 @@ internal fun iosPlaylistBackupDocumentLauncher(
         }
 
         override fun open() {
+            open(PlaylistDocumentFormat.RhythHausJson)
+        }
+
+        override fun open(format: PlaylistDocumentFormat) {
             val provider = IOSPlaylistBackupDocumentBridge.provider
             if (provider == null) {
                 onOpenResult(iosPlaylistBackupUnavailableOpenResult())
                 return
             }
-            provider.openDocument(
+            provider.openDocumentWithFormats(
                 PlaylistBackupMaxBytes,
+                format.mimeTypes,
                 object : IOSPlaylistBackupDocumentCompletion {
                     override fun complete(
                         status: Int,

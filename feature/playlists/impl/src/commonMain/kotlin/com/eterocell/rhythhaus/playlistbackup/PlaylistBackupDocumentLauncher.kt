@@ -6,6 +6,22 @@ internal const val PlaylistBackupMimeType =
 internal const val PlaylistBackupJsonMimeType = "application/json"
 internal const val PlaylistBackupMaxBytes = 4 * 1024 * 1024
 
+/** Supported user-facing playlist document formats. */
+public enum class PlaylistDocumentFormat(
+    /** Default file extension used by save panels. */
+    public val extension: String,
+    /** MIME types accepted by open panels, in preference order. */
+    public val mimeTypes: List<String>,
+) {
+    RhythHausJson(
+        ".rhythhaus-playlists.json",
+        listOf(PlaylistBackupMimeType, PlaylistBackupJsonMimeType),
+    ),
+    M3u(".m3u", listOf("audio/x-mpegurl", "audio/mpegurl")),
+    M3u8(".m3u8", listOf("audio/x-mpegurl", "application/vnd.apple.mpegurl")),
+    Pls(".pls", listOf("audio/x-scpls")),
+}
+
 /**
  * Immutable terminal save-panel outcome.
  *
@@ -86,10 +102,26 @@ public interface PlaylistBackupDocumentLauncher {
     public fun save(suggestedFileName: String, bytes: ByteArray)
 
     /**
+     * Requests a save panel filtered for [format]; legacy launchers may use
+     * their default filter.
+     */
+    public fun save(
+        suggestedFileName: String,
+        bytes: ByteArray,
+        format: PlaylistDocumentFormat,
+    ) = save(suggestedFileName, bytes)
+
+    /**
      * Requests an open panel whose eventual terminal result is routed by
      * Shared.
      */
     public fun open()
+
+    /**
+     * Requests an open panel filtered for [format]; legacy launchers may use
+     * their default filter.
+     */
+    public fun open(format: PlaylistDocumentFormat) = open()
 }
 
 /**
@@ -118,6 +150,21 @@ internal fun playlistBackupFileName(suggestedFileName: String): String {
             ?: "rhythhaus-playlists"
     return if (safe.endsWith(PlaylistBackupFileExtension, true)) safe
     else safe + PlaylistBackupFileExtension
+}
+
+internal fun playlistDocumentFileName(
+    suggestedFileName: String,
+    format: PlaylistDocumentFormat,
+): String {
+    val safe =
+        suggestedFileName
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .trim()
+            .takeUnless { it.isBlank() || it == "." || it == ".." }
+            ?: "rhythhaus-playlist"
+    return if (safe.endsWith(format.extension, ignoreCase = true)) safe
+    else safe + format.extension
 }
 
 internal class PlaylistBackupDocumentOperationGate {
