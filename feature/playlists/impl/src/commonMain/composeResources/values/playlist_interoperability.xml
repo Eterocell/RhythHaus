@@ -1,0 +1,10 @@
+<resources>
+    <string name="playlist_interop_section">Playlist interchange</string>
+    <string name="playlist_interop_import">Import M3U or PLS</string>
+    <string name="playlist_interop_export">Export M3U or PLS</string>
+    <string name="playlist_interop_format">Playlist format</string>
+    <string name="playlist_interop_unmatched">Some entries were not found in your library.</string>
+    <string name="playlist_interop_ambiguous">Some entries matched more than one track.</string>
+    <string name="playlist_interop_no_matches">No library tracks matched this playlist.</string>
+    <string name="playlist_interop_accessibility">Playlist interchange format</string>
+</resources>

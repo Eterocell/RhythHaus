@@ -1,0 +1,10 @@
+<resources>
+    <string name="playlist_interop_section">播放列表互操作</string>
+    <string name="playlist_interop_import">导入 M3U 或 PLS</string>
+    <string name="playlist_interop_export">导出 M3U 或 PLS</string>
+    <string name="playlist_interop_format">播放列表格式</string>
+    <string name="playlist_interop_unmatched">部分条目未在曲库中找到。</string>
+    <string name="playlist_interop_ambiguous">部分条目匹配到多个曲目。</string>
+    <string name="playlist_interop_no_matches">没有曲目匹配此播放列表。</string>
+    <string name="playlist_interop_accessibility">播放列表互操作格式</string>
+</resources>
