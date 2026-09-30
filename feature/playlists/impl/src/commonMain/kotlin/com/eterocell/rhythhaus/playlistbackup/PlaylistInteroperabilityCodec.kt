@@ -154,7 +154,10 @@ internal object PlaylistInteroperabilityCodec {
         var pending: M3uEntry? = null
         val entries = mutableListOf<PlaylistInteroperabilityEntry>()
 
-        forEachDocumentLine(text) { rawLine ->
+        forEachDocumentLine(
+            text,
+            PlaylistInteroperabilityValidationError.MALFORMED_M3U,
+        ) { rawLine ->
             val line =
                 if (firstLine && rawLine.firstOrNull() == '\uFEFF') {
                     rawLine.substring(1)
@@ -305,7 +308,10 @@ internal object PlaylistInteroperabilityCodec {
         val fieldsByIndex = mutableMapOf<Long, PlsEntryFields>()
         val fieldCounts = PlsFieldCounts()
 
-        forEachDocumentLine(text) { rawLine ->
+        forEachDocumentLine(
+            text,
+            PlaylistInteroperabilityValidationError.MALFORMED_PLS,
+        ) { rawLine ->
             val line =
                 if (firstLine && rawLine.firstOrNull() == '\uFEFF') {
                     rawLine.substring(1)
@@ -474,6 +480,7 @@ internal object PlaylistInteroperabilityCodec {
                 validatePath(
                     value,
                     PlaylistInteroperabilityValidationError.MALFORMED_PLS,
+                    rejectCommentMarker = false,
                 )
 
             PlsField.TITLE,
@@ -557,7 +564,11 @@ internal object PlaylistInteroperabilityCodec {
             requireValidField(entry.title)
             requireValidField(entry.artist)
             requireValidField(entry.album)
-            requireValidPath(entry.path)
+            requireValidPath(
+                entry.path,
+                rejectCommentMarker =
+                    document.format != PlaylistInteroperabilityFormat.PLS,
+            )
             require(
                 entry.durationSeconds in
                     0..PlaylistBackupLimits.MAX_DURATION_SECONDS) {
@@ -571,9 +582,9 @@ internal object PlaylistInteroperabilityCodec {
         requireValidField(value)
     }
 
-    private fun requireValidPath(value: String) {
+    private fun requireValidPath(value: String, rejectCommentMarker: Boolean) {
         require(!value.isBlank()) { "Playlist interoperability path is blank" }
-        require(!value.startsWith('#')) {
+        require(!rejectCommentMarker || !value.startsWith('#')) {
             "Playlist interoperability M3U path cannot begin with a comment marker"
         }
         requireValidField(value)
@@ -588,9 +599,10 @@ internal object PlaylistInteroperabilityCodec {
     private fun validatePath(
         value: String,
         malformedError: PlaylistInteroperabilityValidationError,
+        rejectCommentMarker: Boolean = true,
     ) {
         validateFieldString(value, malformedError)
-        if (value.isBlank() || value.startsWith('#')) {
+        if (value.isBlank() || (rejectCommentMarker && value.startsWith('#'))) {
             fail(malformedError)
         }
     }
@@ -645,6 +657,7 @@ internal object PlaylistInteroperabilityCodec {
 
     private fun forEachDocumentLine(
         text: String,
+        malformedLineError: PlaylistInteroperabilityValidationError,
         consume: (String) -> Unit,
     ) {
         var lineStart = 0
@@ -658,9 +671,7 @@ internal object PlaylistInteroperabilityCodec {
 
                 '\r' -> {
                     if (index + 1 >= text.length || text[index + 1] != '\n') {
-                        fail(
-                            PlaylistInteroperabilityValidationError
-                                .MALFORMED_M3U)
+                        fail(malformedLineError)
                     }
                     consumeLine(text, lineStart, index, consume)
                     index++

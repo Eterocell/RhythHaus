@@ -18,6 +18,13 @@ internal data class PlaylistInteroperabilityImportPlan(
     val trackIds: List<String>,
     val unmatched: Int,
     val ambiguous: Int,
+    val issues: List<PlaylistInteroperabilityIssue> = emptyList(),
+)
+
+internal data class PlaylistInteroperabilityIssue(
+    val entryIndex: Int,
+    val entry: PlaylistInteroperabilityEntry,
+    val candidateTrackIds: List<String> = emptyList(),
 )
 
 /** Export one static playlist; smart rules are intentionally not serialized. */
@@ -72,9 +79,10 @@ internal fun planPlaylistInteroperabilityImport(
 ): PlaylistInteroperabilityImportPlan {
     val matcher = PlaylistBackupMatcher(destinationTracks)
     val ids = mutableListOf<String>()
+    val issues = mutableListOf<PlaylistInteroperabilityIssue>()
     var unmatched = 0
     var ambiguous = 0
-    document.entries.forEach { entry ->
+    document.entries.forEachIndexed { index, entry ->
         when (val match =
             matcher.match(
                 PlaylistBackupEntry(
@@ -83,12 +91,19 @@ internal fun planPlaylistInteroperabilityImport(
                     entry.album,
                     entry.durationSeconds))) {
             is PlaylistBackupMatch.Unique -> ids += match.trackId
-            PlaylistBackupMatch.Unmatched -> unmatched++
-            is PlaylistBackupMatch.Ambiguous -> ambiguous++
+            PlaylistBackupMatch.Unmatched -> {
+                unmatched++
+                issues += PlaylistInteroperabilityIssue(index, entry)
+            }
+            is PlaylistBackupMatch.Ambiguous -> {
+                ambiguous++
+                issues +=
+                    PlaylistInteroperabilityIssue(index, entry, match.trackIds)
+            }
         }
     }
     return PlaylistInteroperabilityImportPlan(
-        document.name, ids, unmatched, ambiguous)
+        document.name, ids, unmatched, ambiguous, issues)
 }
 
 internal fun PlaylistInteroperabilityImportPlan.toMutation():
