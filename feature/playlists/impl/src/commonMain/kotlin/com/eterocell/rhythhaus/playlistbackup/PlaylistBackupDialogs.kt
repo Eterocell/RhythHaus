@@ -67,6 +67,8 @@ public fun PlaylistBackupSettingsSection(
     onOpen: () -> Unit,
     onAction: (PlaylistBackupUiAction) -> Unit,
     modifier: Modifier = Modifier,
+    onExportFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
+    onOpenFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
 ) {
     Column(
         modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -78,7 +80,10 @@ public fun PlaylistBackupSettingsSection(
                             PlaylistBackupOperation.Exporting)
                             Res.string.playlist_backup_exporting
                         else Res.string.playlist_backup_export),
-                onClick = onExport,
+                onClick = {
+                    onExportFormat?.invoke(PlaylistDocumentFormat.M3u)
+                        ?: onExport()
+                },
                 enabled = launcherAvailable && !state.isBusy,
                 primary = true,
             )
@@ -94,7 +99,9 @@ public fun PlaylistBackupSettingsSection(
                             state.operation == PlaylistBackupOperation.Planning)
                             Res.string.playlist_backup_importing
                         else Res.string.playlist_backup_import),
-                onClick = onOpen,
+                onClick = {
+                    onOpenFormat?.invoke(PlaylistDocumentFormat.M3u) ?: onOpen()
+                },
                 enabled = launcherAvailable && !state.isBusy,
                 primary = false,
             )
@@ -159,6 +166,8 @@ public fun PlaylistBackupSettingsHost(
     onConfirmPreview: () -> Unit,
     onDismissResult: () -> Unit,
     modifier: Modifier = Modifier,
+    onExportFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
+    onOpenFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
 ) {
     var previewAppearance by remember {
         mutableStateOf<PlaylistDismissalAppearance?>(null)
@@ -175,7 +184,16 @@ public fun PlaylistBackupSettingsHost(
     }
     if (state.result == null) resultAppearance = null
     PlaylistBackupSettingsSection(
-        state, launcherAvailable, labels, onExport, onOpen, onAction, modifier)
+        state = state,
+        launcherAvailable = launcherAvailable,
+        labels = labels,
+        onExport = onExport,
+        onOpen = onOpen,
+        onAction = onAction,
+        modifier = modifier,
+        onExportFormat = onExportFormat,
+        onOpenFormat = onOpenFormat,
+    )
     state.preview?.let { preview ->
         PlaylistBackupPreviewDialog(
             preview,

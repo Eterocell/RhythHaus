@@ -5,11 +5,14 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 
-internal sealed interface PlaylistInteroperabilityExportResult {
-    data class Success(val bytes: ByteArray) :
+/** Result of exporting one static playlist to an interoperable document. */
+public sealed interface PlaylistInteroperabilityExportResult {
+    /** Encoded document bytes. */
+    public data class Success(val bytes: ByteArray) :
         PlaylistInteroperabilityExportResult
 
-    data class Failure(val trackId: String?) :
+    /** Export could not resolve [trackId], if known. */
+    public data class Failure(val trackId: String?) :
         PlaylistInteroperabilityExportResult
 }
 
@@ -28,7 +31,7 @@ internal data class PlaylistInteroperabilityIssue(
 )
 
 /** Export one static playlist; smart rules are intentionally not serialized. */
-internal fun exportPlaylistInteroperability(
+public fun exportPlaylistInteroperability(
     snapshot: PlaylistSnapshot,
     playlistId: String,
     tracks: List<LibraryTrack>,

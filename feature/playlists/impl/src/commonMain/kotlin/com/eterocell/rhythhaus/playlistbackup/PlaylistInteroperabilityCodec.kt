@@ -2,7 +2,8 @@ package com.eterocell.rhythhaus.playlistbackup
 
 internal const val DEFAULT_INTEROPERABILITY_PLAYLIST_NAME = "Imported playlist"
 
-internal enum class PlaylistInteroperabilityFormat {
+/** Supported interoperable playlist document formats. */
+public enum class PlaylistInteroperabilityFormat {
     M3U,
     M3U8,
     PLS,
