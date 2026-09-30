@@ -33,6 +33,30 @@ internal sealed interface PlaylistBackupDecodeResult {
         PlaylistBackupDecodeResult
 }
 
+internal enum class PlaylistInteroperabilityValidationError {
+    INPUT_TOO_LARGE,
+    MALFORMED_UTF8,
+    MALFORMED_M3U,
+    MALFORMED_PLS,
+    MISSING_FIELD,
+    DUPLICATE_FIELD,
+    INVALID_INTEGER,
+    NUMERIC_OVERFLOW,
+    INVALID_DURATION,
+    ENTRY_LIMIT_EXCEEDED,
+    STRING_LIMIT_EXCEEDED,
+    LINE_LIMIT_EXCEEDED,
+    FIELD_LIMIT_EXCEEDED,
+    BLANK_PLAYLIST_NAME,
+    UNSUPPORTED_VERSION,
+}
+
+internal object PlaylistInteroperabilityLimits {
+    const val MAX_LINE_CODE_POINTS =
+        PlaylistBackupLimits.MAX_STRING_CODE_POINTS * 2
+    const val MAX_PLS_ENTRY_FIELDS = PlaylistBackupLimits.MAX_TOTAL_ENTRIES
+}
+
 internal enum class PlaylistBackupValidationError {
     INPUT_TOO_LARGE,
     MALFORMED_UTF8,
