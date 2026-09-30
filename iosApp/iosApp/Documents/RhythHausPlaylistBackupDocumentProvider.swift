@@ -31,10 +31,44 @@ final class RhythHausPlaylistBackupDocumentProvider: NSObject, IOSPlaylistBackup
     }
 
     func openDocument(maxBytes: Int32, completion: IOSPlaylistBackupDocumentCompletion) {
+        openDocumentWithFormats(maxBytes: maxBytes, mimeTypes: [], completion: completion)
+    }
+
+    func saveDocumentWithFormat(
+        fileName: String,
+        bytes: KotlinByteArray,
+        format: String,
+        completion: IOSPlaylistBackupDocumentCompletion
+    ) {
+        guard beginOperation(completion: completion) else { return }
+        do {
+            let prepared = try PlaylistBackupDocumentTemporaryExport.prepare(
+                fileName: fileName,
+                data: bytes.toData(),
+                storage: FileManagerPlaylistBackupDocumentTemporaryStorage(fileManager: .default)
+            )
+            isExportOperation = true
+            present(
+                UIDocumentPickerViewController(forExporting: [prepared.fileURL], asCopy: true),
+                cleanup: prepared.cleanup
+            )
+        } catch {
+            operationState.finishCurrent(outcome: .failure(error.localizedDescription))
+        }
+    }
+
+    func openDocumentWithFormats(
+        maxBytes: Int32,
+        mimeTypes: [String],
+        completion: IOSPlaylistBackupDocumentCompletion
+    ) {
         guard beginOperation(completion: completion) else { return }
         importMaxBytes = Int(maxBytes)
         isExportOperation = false
-        present(UIDocumentPickerViewController(forOpeningContentTypes: PlaylistBackupDocumentTypePolicy.contentTypes(), asCopy: false))
+        let types = mimeTypes.flatMap { PlaylistBackupDocumentTypePolicy.contentTypes(for: $0) }
+        present(UIDocumentPickerViewController(
+            forOpeningContentTypes: types.isEmpty ? PlaylistBackupDocumentTypePolicy.contentTypes() : types,
+            asCopy: false))
     }
 
     private func beginOperation(completion: IOSPlaylistBackupDocumentCompletion) -> Bool {

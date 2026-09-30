@@ -16,8 +16,21 @@ enum PlaylistBackupDocumentPolicyOutcome: Equatable {
 }
 
 enum PlaylistBackupDocumentTypePolicy {
+    static func contentTypes(for format: String? = nil) -> [UTType] {
+        switch format?.lowercased() {
+        case ".m3u":
+            return [UTType(mimeType: "audio/x-mpegurl"), .mpegURL].compactMap { $0 }
+        case ".m3u8":
+            return [UTType(mimeType: "application/vnd.apple.mpegurl"), .mpegURL].compactMap { $0 }
+        case ".pls":
+            return [UTType(mimeType: "audio/x-scpls")].compactMap { $0 }
+        default:
+            return [UTType(mimeType: PlatformPlaylistBackupDocumentsKt.PlaylistBackupMimeType), .json].compactMap { $0 }
+        }
+    }
+
     static func contentTypes() -> [UTType] {
-        [UTType(mimeType: PlatformPlaylistBackupDocumentsKt.PlaylistBackupMimeType), .json].compactMap { $0 }
+        contentTypes(for: nil)
     }
 }
 
