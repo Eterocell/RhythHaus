@@ -26,6 +26,21 @@ public interface LibraryRepository {
     /** Returns all tracks. */
     public fun tracks(): List<LibraryTrack>
 
+    /**
+     * Returns the latest scanned tags and persisted corrections without artwork
+     * bytes.
+     */
+    public fun metadataForTrack(trackId: String): TrackMetadataEditorData?
+
+    /**
+     * Atomically replaces corrections for an existing track; false for a
+     * missing track.
+     */
+    public fun setTrackMetadataOverride(
+        trackId: String,
+        overrides: TrackMetadataOverride
+    ): Boolean
+
     /** Returns the IDs of currently favorited tracks. */
     public fun favoriteTrackIds(): Set<String>
 

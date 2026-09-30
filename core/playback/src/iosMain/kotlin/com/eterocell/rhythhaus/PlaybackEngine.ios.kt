@@ -353,6 +353,20 @@ private class IOSPlaybackEngine(
         withIOSPlaybackMainThread { setPlaybackGainSerialized(gain) }
     }
 
+    override fun refreshLoadedMetadata(
+        track: PlayableTrack,
+        generation: Long,
+    ): Boolean = withIOSPlaybackMainThread {
+        if (generation != activeGeneration || loadedTrack?.id != track.id)
+            return@withIOSPlaybackMainThread false
+        loadedTrack = track
+        updateNowPlayingInfo(
+            positionMillis = audioProvider?.currentPositionMillis() ?: 0L,
+            playbackRate = if (playbackActive) 1.0 else 0.0,
+        )
+        true
+    }
+
     private fun setPlaybackGainSerialized(gain: Float) {
         playbackGain = gain
         (audioProvider ?: IOSAudioPlayerBridge.provider)?.setPlaybackGain(gain)

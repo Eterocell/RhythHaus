@@ -212,13 +212,14 @@ fun App(
         notificationPermissionController.state.collectAsState()
     suspend fun applyLibraryPublication(
         publication: AuthoritativeLibraryPublication,
-    ) {
+    ): Boolean =
         withContext(Dispatchers.Main) {
-            if (appLibraryContentState.apply(publication)) {
+            val applied = appLibraryContentState.apply(publication)
+            if (applied) {
                 libraryRevision = publication.revision
             }
+            applied
         }
-    }
     suspend fun updateLibraryContent(content: LibraryContentState) {
         val publication =
             withContext(Dispatchers.Default) {
@@ -233,9 +234,19 @@ fun App(
                             track.id to track.createdAtEpochMillis
                         }
                     },
+                    freshContent = {
+                        loadLibraryContent(repository, platformAccess)
+                    },
                 )
             }
-        applyLibraryPublication(publication)
+        if (applyLibraryPublication(publication)) {
+            controller.refreshTrackMetadata(
+                publication.content.tracks.map { it.toPlayableTrack() },
+            )
+            controller.refreshCurrentTrackMetadata(
+                publication.content.tracks.map { it.toPlayableTrack() },
+            )
+        }
     }
 
     LaunchedEffect(controller) {
@@ -674,6 +685,35 @@ fun App(
                     sourceIdByTrackId = libraryContent.sourceIdByTrackId,
                     modifiedAtByTrackId = libraryContent.modifiedAtByTrackId,
                     artworkTrackIds = libraryContent.artworkTrackIds,
+                    onLoadTrackMetadata = { trackId ->
+                        withContext(Dispatchers.Default) {
+                            repository.metadataForTrack(trackId)
+                        }
+                    },
+                    onSetTrackMetadataOverride = { trackId, override ->
+                        setTrackMetadataOverrideAndPublish(
+                            owner = libraryPublicationOwner,
+                            repository = repository,
+                            platformAccess = platformAccess,
+                            trackId = trackId,
+                            override = override,
+                            ioDispatcher = Dispatchers.Default,
+                            publish = { publication ->
+                                if (applyLibraryPublication(publication)) {
+                                    controller.refreshTrackMetadata(
+                                        publication.content.tracks.map {
+                                            it.toPlayableTrack()
+                                        },
+                                    )
+                                    controller.refreshCurrentTrackMetadata(
+                                        publication.content.tracks.map {
+                                            it.toPlayableTrack()
+                                        },
+                                    )
+                                }
+                            },
+                        )
+                    },
                     onSetTrackFavorite = { trackId, favorite ->
                         scope.launch {
                             setTrackFavoriteAndPublish(
@@ -967,13 +1007,15 @@ internal class AuthoritativeLibraryPublicationOwner {
         createdAtByTrackId: suspend () -> Map<String, Long> = {
             content.createdAtByTrackId
         },
+        freshContent: suspend () -> LibraryContentState = { content },
     ): AuthoritativeLibraryPublication = mutex.withLock {
         nextPublication(
-            content.copy(
-                favoriteTrackIds = favoriteTrackIds(),
-                playHistory = playHistory().toMap(),
-                createdAtByTrackId = createdAtByTrackId().toMap(),
-            ),
+            freshContent()
+                .copy(
+                    favoriteTrackIds = favoriteTrackIds(),
+                    playHistory = playHistory().toMap(),
+                    createdAtByTrackId = createdAtByTrackId().toMap(),
+                ),
         )
     }
 

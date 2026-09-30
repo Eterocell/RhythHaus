@@ -107,6 +107,7 @@ internal fun shouldApplyDrillDownOverscroll(
  *   chrome.
  * @param favoriteTrackIds immutable authoritative favorite IDs.
  * @param onSetTrackFavorite requests a desired favorite state.
+ * @param onEditTrackMetadata requests editing app-local metadata for a track.
  */
 @Composable
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
@@ -131,6 +132,7 @@ public fun DrillDownView(
     bottomContentPadding: Dp,
     favoriteTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
+    onEditTrackMetadata: ((String) -> Unit)? = null,
 ) {
     val subtitle =
         when (summary) {
@@ -321,6 +323,10 @@ public fun DrillDownView(
                                             onSetTrackFavorite(
                                                 track.id, favorite)
                                         },
+                                        onEditMetadata =
+                                            onEditTrackMetadata?.let { edit ->
+                                                { edit(track.id) }
+                                            },
                                     )
                                 }
                             }
@@ -348,6 +354,10 @@ public fun DrillDownView(
                                     onSetFavorite = { favorite ->
                                         onSetTrackFavorite(track.id, favorite)
                                     },
+                                    onEditMetadata =
+                                        onEditTrackMetadata?.let { edit ->
+                                            { edit(track.id) }
+                                        },
                                 )
                             }
                             item {
@@ -411,6 +421,7 @@ private fun DrillDownTrackRow(
     onStartSelection: (String) -> Unit,
     favorite: Boolean,
     onSetFavorite: (Boolean) -> Unit,
+    onEditMetadata: (() -> Unit)?,
 ) {
     TrackRow(
         track = track,
@@ -431,5 +442,6 @@ private fun DrillDownTrackRow(
         onStartSelection = { onStartSelection(track.id) },
         favorite = favorite,
         onSetFavorite = onSetFavorite,
+        onEditMetadata = onEditMetadata,
     )
 }

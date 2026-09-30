@@ -31,6 +31,52 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class PlaybackControllerTest {
     @Test
+    fun metadataRefreshUpdatesEveryMatchingOccurrenceWithoutChangingPlaybackIdentity() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = PlaybackController(engine)
+            val track = testTracks(1).single()
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence("current", track),
+                    QueueOccurrence("duplicate", track)),
+                "current")
+            engine.awaitLoad()
+            engine.listener?.onPlaybackProgress(
+                engine.activeGeneration, 510L, 1_000L)
+            engine.listener?.onPlaybackStatus(
+                engine.activeGeneration, PlaybackStatus.Paused)
+            val before = controller.state.value
+            engine.clearEvents()
+            val corrected =
+                track.copy(
+                    title = "Edited",
+                    artist = "New artist",
+                    album = "New album")
+
+            controller.refreshTrackMetadata(listOf(corrected))
+
+            val after = controller.state.value
+            assertEquals(
+                listOf("current", "duplicate"), after.queue.map { it.id })
+            assertEquals(
+                listOf("Edited", "Edited"), after.queue.map { it.track.title })
+            assertEquals(before.currentOccurrenceId, after.currentOccurrenceId)
+            assertEquals(before.positionMillis, after.positionMillis)
+            assertEquals(before.status, after.status)
+            assertEquals(before.repeatMode, after.repeatMode)
+            assertEquals(before.shuffleMode, after.shuffleMode)
+            assertEquals(before.engineGeneration, after.engineGeneration)
+            engine.awaitEvent { it == EngineEvent.Metadata("Edited") }
+            assertFalse(
+                engine.eventSnapshot().any {
+                    it is EngineEvent.Load ||
+                        it is EngineEvent.Seek ||
+                        it == EngineEvent.Play
+                })
+        }
+
+    @Test
     fun upcomingMutationsRejectCurrentStaleAndInvalidTargetsWithoutChangingState() =
         runBlocking {
             val engine = RecordingPlaybackEngine()
@@ -3884,6 +3930,8 @@ class PlaybackControllerTest {
     private sealed interface EngineEvent {
         data class Load(val trackId: String) : EngineEvent
 
+        data class Metadata(val title: String) : EngineEvent
+
         data class Seek(val positionMillis: Long) : EngineEvent
 
         data class Gain(val gain: Float) : EngineEvent
@@ -4012,6 +4060,15 @@ class PlaybackControllerTest {
             activePlaybackRunId = playbackRunId
             record(EngineEvent.Play)
             listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
+        }
+
+        override fun refreshLoadedMetadata(
+            track: PlayableTrack,
+            generation: Long
+        ): Boolean {
+            if (generation != activeGeneration) return false
+            record(EngineEvent.Metadata(track.title))
+            return true
         }
 
         override fun pause() {

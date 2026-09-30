@@ -145,7 +145,14 @@ private class ArchitectureProcessor(
                 parameterName in setOf("isCancelled", "onProgress")) ||
             (owner ==
                 "com.eterocell.rhythhaus.library.PlatformFolderPickResult.Failure" &&
-                parameterName == "cause")
+                parameterName == "cause") ||
+            (callable in
+                setOf(
+                    "com.eterocell.rhythhaus.library.ui.TrackRow",
+                    "com.eterocell.rhythhaus.library.ui.LibraryHomeContent",
+                    "com.eterocell.rhythhaus.library.ui.DrillDownView",
+                ) &&
+                parameterName in setOf("onEditMetadata", "onEditTrackMetadata"))
     }
 
     private fun report(

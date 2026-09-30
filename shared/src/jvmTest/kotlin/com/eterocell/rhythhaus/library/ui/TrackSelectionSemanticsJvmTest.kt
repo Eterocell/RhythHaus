@@ -64,6 +64,7 @@ class TrackSelectionSemanticsJvmTest {
                     onStartSelection = { selectionStartCount += 1 },
                     favorite = false,
                     onSetFavorite = {},
+                    onEditMetadata = {},
                 )
             }
 
@@ -103,6 +104,7 @@ class TrackSelectionSemanticsJvmTest {
                 onStartSelection = {},
                 favorite = false,
                 onSetFavorite = {},
+                onEditMetadata = {},
             )
         }
 
@@ -144,6 +146,7 @@ class TrackSelectionSemanticsJvmTest {
                     onStartSelection = {},
                     favorite = false,
                     onSetFavorite = {},
+                    onEditMetadata = {},
                 )
             }
 
@@ -182,6 +185,7 @@ class TrackSelectionSemanticsJvmTest {
                     onStartSelection = {},
                     favorite = false,
                     onSetFavorite = {},
+                    onEditMetadata = {},
                 )
             }
 

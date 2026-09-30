@@ -8,6 +8,90 @@ import kotlin.test.assertTrue
 
 class LibraryRepositoryContractTest {
     @Test
+    fun overridesKeepRawTagsAcrossRescanAndRestoreEachField() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        val raw =
+            testTrack(title = "Raw")
+                .copy(artist = "Old artist", album = "Old album")
+        repository.upsertTrack(raw)
+
+        assertTrue(
+            repository.setTrackMetadataOverride(
+                "track-1",
+                TrackMetadataOverride(
+                    title = "  Corrected  ",
+                    artist = "Artist",
+                    trackNumber = 3)))
+        assertEquals("Corrected", repository.tracks().single().title)
+        assertEquals(
+            "Artist", repository.tracksForSource("source-1").single().artist)
+        assertEquals(
+            "Raw", repository.metadataForTrack("track-1")?.scannedTrack?.title)
+        repository.upsertTrack(
+            raw.copy(
+                id = "replacement-id",
+                title = "Rescanned",
+                artist = "New artist",
+                updatedAtEpochMillis = 20L))
+        assertEquals("track-1", repository.tracks().single().id)
+        assertEquals("Corrected", repository.tracks().single().title)
+        assertEquals(
+            "New artist",
+            repository.metadataForTrack("track-1")?.scannedTrack?.artist)
+
+        assertTrue(
+            repository.setTrackMetadataOverride(
+                "track-1",
+                TrackMetadataOverride(artist = "Artist", trackNumber = 3)))
+        assertEquals("Rescanned", repository.tracks().single().title)
+        assertEquals("Artist", repository.tracks().single().artist)
+        assertTrue(
+            repository.setTrackMetadataOverride(
+                "track-1", TrackMetadataOverride()))
+        assertEquals("New artist", repository.tracks().single().artist)
+        assertEquals(
+            TrackMetadataOverride(),
+            repository.metadataForTrack("track-1")?.overrides)
+    }
+
+    @Test
+    fun overrideReplacementRejectsInvalidInputAndMissingTracksWithoutPartialMutation() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        repository.upsertTrack(testTrack())
+        assertFalse(
+            repository.setTrackMetadataOverride(
+                "missing", TrackMetadataOverride(title = "ghost")))
+        assertTrue(
+            repository.setTrackMetadataOverride(
+                "track-1", TrackMetadataOverride(title = "Corrected")))
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            repository.setTrackMetadataOverride(
+                "track-1",
+                TrackMetadataOverride(title = "Broken", discNumber = 0))
+        }
+        assertEquals("Corrected", repository.tracks().single().title)
+        assertEquals(
+            null, repository.metadataForTrack("track-1")?.overrides?.discNumber)
+    }
+
+    @Test
+    fun sourceRemovalDiscardsOverridesRatherThanTransferringThemByFilename() {
+        val repository = InMemoryLibraryRepository()
+        repository.upsertSource(testSource())
+        repository.upsertTrack(testTrack(title = "Original"))
+        assertTrue(
+            repository.setTrackMetadataOverride(
+                "track-1", TrackMetadataOverride(title = "Correction")))
+        repository.removeSource("source-1")
+        assertEquals(null, repository.metadataForTrack("track-1"))
+        repository.upsertSource(testSource())
+        repository.upsertTrack(testTrack(id = "new-track", title = "New raw"))
+        assertEquals("New raw", repository.tracks().single().title)
+    }
+
+    @Test
     fun upsertTrackDoesNotDuplicateSourceLocalKey() {
         val repository = InMemoryLibraryRepository()
         val source = testSource()

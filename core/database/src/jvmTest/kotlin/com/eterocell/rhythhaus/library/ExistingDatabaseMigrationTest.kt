@@ -29,7 +29,9 @@ class ExistingDatabaseMigrationTest {
         }
         val database = LibraryDatabase(file)
         try {
-            assertEquals(5L, driverUserVersion(database.driver))
+            assertEquals(
+                RhythHausDatabase.Schema.version,
+                driverUserVersion(database.driver))
             assertEquals(
                 "legacy-track",
                 database.database.playlistQueries
@@ -64,7 +66,9 @@ class ExistingDatabaseMigrationTest {
         }
         val database = LibraryDatabase(file)
         try {
-            assertEquals(5L, driverUserVersion(database.driver))
+            assertEquals(
+                RhythHausDatabase.Schema.version,
+                driverUserVersion(database.driver))
             assertEquals(
                 "legacy-track",
                 database.database.playlistQueries
@@ -112,7 +116,6 @@ class ExistingDatabaseMigrationTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(5L, RhythHausDatabase.Schema.version)
 
             database.playlistQueries.insertPlaylist(
                 "playlist-1", "Migrated", 1, 1)
@@ -158,7 +161,6 @@ class ExistingDatabaseMigrationTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(5L, RhythHausDatabase.Schema.version)
             assertEquals(
                 "legacy-track",
                 database.libraryTrackQueries
@@ -194,7 +196,6 @@ class ExistingDatabaseMigrationTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(5L, RhythHausDatabase.Schema.version)
             assertEquals(
                 "legacy-track",
                 database.libraryTrackQueries

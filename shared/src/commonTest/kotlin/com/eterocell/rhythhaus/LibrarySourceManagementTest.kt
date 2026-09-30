@@ -1013,6 +1013,13 @@ private class FailingMutationRepository(
     override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean =
         false
 
+    override fun metadataForTrack(trackId: String) = null
+
+    override fun setTrackMetadataOverride(
+        trackId: String,
+        overrides: com.eterocell.rhythhaus.library.TrackMetadataOverride,
+    ): Boolean = false
+
     override fun playHistory(): Map<String, TrackPlayHistory> = emptyMap()
 
     override fun recordTrackPlayed(

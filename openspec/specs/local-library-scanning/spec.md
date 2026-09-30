@@ -49,7 +49,7 @@ The iOS local-library workflow SHALL register and scan the managed `Documents/Rh
 
 ### Requirement: Persistent local library database
 
-The system SHALL persist library sources, tracks, scan sessions, scan errors, track-favorite relationships, and listener-owned per-track play history in a shared KMP database.
+The system SHALL persist library sources, tracks, scan sessions, scan errors, track-favorite relationships, listener-owned per-track play history, and app-local per-track metadata corrections in a shared KMP database.
 
 #### Scenario: Scanned tracks survive restart
 - **WHEN** tracks, their favorite relationships, and their play histories have been discovered and stored
@@ -87,6 +87,11 @@ The system SHALL persist library sources, tracks, scan sessions, scan errors, tr
 - **WHEN** source removal, clear-library, or an accepted remove-missing operation deletes a library track
 - **THEN** the associated play-history record is deleted as part of the same database lifecycle
 - **AND** the mutation cannot leave an orphaned history record visible to the application
+
+#### Scenario: Track deletion cascades metadata corrections
+- **WHEN** source removal, clear-library, or an accepted remove-missing operation deletes a library track
+- **THEN** its associated metadata correction is deleted in the same lifecycle
+- **AND** a later track with the same filename cannot inherit that correction
 
 ### Requirement: Scan progress and management
 

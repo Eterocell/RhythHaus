@@ -72,6 +72,14 @@ SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     NULL AS artworkMimeType
 FROM library_track WHERE sourceId = ? AND sourceLocalKey = ?;
 
+selectTrackForMetadataEditor:
+SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
+    displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
+    lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
+    NULL AS artworkBytes,
+    NULL AS artworkMimeType
+FROM library_track WHERE id = ?;
+
 selectArtworkMetadataForTrack:
 SELECT length(artworkBytes) AS artworkByteLength, artworkMimeType
 FROM library_track

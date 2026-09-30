@@ -1647,6 +1647,15 @@ private class BarrierRecordingLibraryRepository : LibraryRepository {
 
     override fun tracks(): List<LibraryTrack> = emptyList()
 
+    override fun metadataForTrack(
+        trackId: String
+    ): com.eterocell.rhythhaus.library.TrackMetadataEditorData? = null
+
+    override fun setTrackMetadataOverride(
+        trackId: String,
+        overrides: com.eterocell.rhythhaus.library.TrackMetadataOverride
+    ): Boolean = error("Not used by this test")
+
     override fun favoriteTrackIds(): Set<String> = emptySet()
 
     override fun setTrackFavorite(trackId: String, favorite: Boolean): Boolean =

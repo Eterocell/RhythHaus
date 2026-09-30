@@ -123,6 +123,22 @@ internal class MacOSNativePlaybackEngine(
         synchronized(playbackStateLock) { bridge.setTransportEnabled(enabled) }
     }
 
+    override fun refreshLoadedMetadata(
+        track: PlayableTrack,
+        generation: Long,
+    ): Boolean =
+        synchronized(playbackStateLock) {
+            if (generation != activeGeneration) return@synchronized false
+            bridge.updateNowPlayingInfo(
+                track.title,
+                track.artist,
+                track.album,
+                durationMillis,
+                bridge.currentPositionMillis(),
+            )
+            true
+        }
+
     override fun setPlaybackGain(gain: Float) {
         synchronized(playbackStateLock) { bridge.setPlaybackGain(gain) }
     }

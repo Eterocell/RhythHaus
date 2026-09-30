@@ -171,8 +171,9 @@ internal class SqlDelightLibraryRepository(
     }
 
     /** Returns all tracks. */
-    override fun tracks(): List<LibraryTrack> =
-        database.libraryTrackQueries
+    override fun tracks(): List<LibraryTrack> {
+        val overrides = overridesByTrackId()
+        return database.libraryTrackQueries
             .selectAllTracks {
                 id,
                 sourceId,
@@ -216,6 +217,125 @@ internal class SqlDelightLibraryRepository(
                 )
             }
             .executeAsList()
+            .map { track -> overrides[track.id]?.applyTo(track) ?: track }
+            .sortedWith(
+                compareBy<LibraryTrack> { it.title.lowercase() }
+                    .thenBy { it.artist.lowercase() })
+    }
+
+    private fun overridesByTrackId(): Map<String, TrackMetadataOverride> =
+        database.trackMetadataOverrideQueries
+            .selectAllOverrides {
+                trackId,
+                title,
+                artist,
+                album,
+                trackNumber,
+                discNumber ->
+                trackId to
+                    TrackMetadataOverride(
+                        title,
+                        artist,
+                        album,
+                        trackNumber?.toInt(),
+                        discNumber?.toInt())
+            }
+            .executeAsList()
+            .toMap()
+
+    override fun metadataForTrack(trackId: String): TrackMetadataEditorData? {
+        val scanned =
+            database.libraryTrackQueries
+                .selectTrackForMetadataEditor(trackId) {
+                    id,
+                    sourceId,
+                    sourceLocalKey,
+                    audioSourceKind,
+                    audioSourceValue,
+                    displayName,
+                    title,
+                    artist,
+                    album,
+                    durationMillis,
+                    sizeBytes,
+                    modifiedAtEpochMillis,
+                    lastSeenScanId,
+                    createdAtEpochMillis,
+                    updatedAtEpochMillis,
+                    trackNumber,
+                    discNumber,
+                    artworkBytes,
+                    artworkMimeType ->
+                    LibraryTrack(
+                        id = id,
+                        sourceId = sourceId,
+                        sourceLocalKey = sourceLocalKey,
+                        audioSource =
+                            audioSourceFrom(audioSourceKind, audioSourceValue),
+                        displayName = displayName,
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        durationMillis = durationMillis,
+                        sizeBytes = sizeBytes,
+                        modifiedAtEpochMillis = modifiedAtEpochMillis,
+                        lastSeenScanId = lastSeenScanId,
+                        createdAtEpochMillis = createdAtEpochMillis,
+                        updatedAtEpochMillis = updatedAtEpochMillis,
+                        trackNumber = trackNumber?.toInt(),
+                        discNumber = discNumber?.toInt(),
+                        artworkBytes = artworkBytes,
+                        artworkMimeType = artworkMimeType,
+                    )
+                }
+                .executeAsOneOrNull() ?: return null
+        val correction =
+            database.trackMetadataOverrideQueries
+                .selectOverrideForTrack(trackId) {
+                    _,
+                    title,
+                    artist,
+                    album,
+                    trackNumber,
+                    discNumber ->
+                    TrackMetadataOverride(
+                        title,
+                        artist,
+                        album,
+                        trackNumber?.toInt(),
+                        discNumber?.toInt())
+                }
+                .executeAsOneOrNull() ?: TrackMetadataOverride()
+        return TrackMetadataEditorData(scanned, correction)
+    }
+
+    override fun setTrackMetadataOverride(
+        trackId: String,
+        overrides: TrackMetadataOverride
+    ): Boolean {
+        val normalized = overrides.normalizedForStorage()
+        var accepted = false
+        database.transaction {
+            if (!database.trackMetadataOverrideQueries
+                .selectTrackExists(trackId)
+                .executeAsOne())
+                return@transaction
+            if (normalized == TrackMetadataOverride()) {
+                database.trackMetadataOverrideQueries.deleteOverride(trackId)
+            } else {
+                database.trackMetadataOverrideQueries.upsertOverride(
+                    trackId,
+                    normalized.title,
+                    normalized.artist,
+                    normalized.album,
+                    normalized.trackNumber?.toLong(),
+                    normalized.discNumber?.toLong(),
+                )
+            }
+            accepted = true
+        }
+        return accepted
+    }
 
     /** Returns the IDs of currently favorited tracks. */
     override fun favoriteTrackIds(): Set<String> =
@@ -285,8 +405,9 @@ internal class SqlDelightLibraryRepository(
      *
      * @param sourceId the owning source identifier.
      */
-    override fun tracksForSource(sourceId: String): List<LibraryTrack> =
-        database.libraryTrackQueries
+    override fun tracksForSource(sourceId: String): List<LibraryTrack> {
+        val overrides = overridesByTrackId()
+        return database.libraryTrackQueries
             .selectTracksForSource(sourceId) {
                 id,
                 srcId,
@@ -330,6 +451,11 @@ internal class SqlDelightLibraryRepository(
                 )
             }
             .executeAsList()
+            .map { track -> overrides[track.id]?.applyTo(track) ?: track }
+            .sortedWith(
+                compareBy<LibraryTrack> { it.title.lowercase() }
+                    .thenBy { it.artist.lowercase() })
+    }
 
     /**
      * Returns artwork for the given track, if stored.

@@ -18,7 +18,6 @@ class TrackFavoriteDatabaseTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(5L, RhythHausDatabase.Schema.version)
             seedTrack(database)
 
             database.trackFavoriteQueries.setTrackFavorite("missing-track", 10)

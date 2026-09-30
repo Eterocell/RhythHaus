@@ -23,6 +23,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -89,6 +92,7 @@ import rhythhaus.feature.library.generated.resources.hide_scan_report
 import rhythhaus.feature.library.generated.resources.import_card_description
 import rhythhaus.feature.library.generated.resources.import_card_title
 import rhythhaus.feature.library.generated.resources.import_card_title_with_tracks
+import rhythhaus.feature.library.generated.resources.metadata_edit_action
 import rhythhaus.feature.library.generated.resources.remove_missing
 import rhythhaus.feature.library.generated.resources.rescan
 import rhythhaus.feature.library.generated.resources.retry_scan
@@ -321,6 +325,7 @@ internal fun SectionLabel(title: String, subtitle: String?) {
  * @param onStartSelection requests beginning selection with this row.
  * @param favorite whether this track is currently favorited.
  * @param onSetFavorite requests the desired favorite state.
+ * @param onEditMetadata requests editing app-local metadata for this track.
  */
 @Composable
 public fun TrackRow(
@@ -335,6 +340,7 @@ public fun TrackRow(
     onStartSelection: () -> Unit,
     favorite: Boolean,
     onSetFavorite: (Boolean) -> Unit,
+    onEditMetadata: (() -> Unit)? = null,
 ) {
     val selectTrackContentDescription = labels.selectTrack(track.title)
     val nowPlayingDescription = labels.nowPlayingBadge
@@ -418,6 +424,26 @@ public fun TrackRow(
                 }
             }
         if (!selectionModeActive) {
+            if (onEditMetadata != null) {
+                val editLabel =
+                    stringResource(Res.string.metadata_edit_action, track.title)
+                Button(
+                    onClick = onEditMetadata,
+                    modifier =
+                        Modifier.size(44.dp).semantics {
+                            contentDescription = editLabel
+                        },
+                    cornerRadius = 22.dp,
+                    insideMargin = PaddingValues(0.dp),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            color = HausColors.current.panel,
+                            contentColor = HausColors.current.ink,
+                        ),
+                ) {
+                    Icon(Icons.Outlined.Edit, contentDescription = null)
+                }
+            }
             val favoriteDescription =
                 if (favorite) labels.removeFavorite(track.title)
                 else labels.addFavorite(track.title)

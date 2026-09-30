@@ -19,6 +19,63 @@ import kotlin.test.assertTrue
 
 class SqlDelightLibraryRepositoryJvmTest {
     @Test
+    fun persistedCorrectionSurvivesRescanAndRestartWhileRestoreUsesNewRawTag() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-correction", ".db").toFile()
+        databaseFile.deleteOnExit()
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            val scanned =
+                testTrack(
+                    id = "track-1",
+                    sourceLocalKey = "one.mp3",
+                    title = "Old title",
+                    artist = "Raw artist")
+            open.repository.upsertTrack(scanned)
+            assertTrue(
+                open.repository.setTrackMetadataOverride(
+                    "track-1",
+                    TrackMetadataOverride(
+                        title = "Corrected",
+                        artist = "  Editor  ",
+                        discNumber = 2)))
+            assertEquals("Corrected", open.repository.tracks().single().title)
+            assertEquals(
+                "Raw artist",
+                open.repository
+                    .metadataForTrack("track-1")
+                    ?.scannedTrack
+                    ?.artist)
+            open.repository.upsertTrack(
+                scanned.copy(
+                    id = "new-id",
+                    title = "New raw",
+                    artist = "New raw artist"))
+        }
+        openRepository(databaseFile).use { open ->
+            assertEquals("track-1", open.repository.tracks().single().id)
+            assertEquals(
+                "Editor",
+                open.repository.tracksForSource("source-1").single().artist)
+            assertEquals(
+                "New raw",
+                open.repository
+                    .metadataForTrack("track-1")
+                    ?.scannedTrack
+                    ?.title)
+            assertTrue(
+                open.repository.setTrackMetadataOverride(
+                    "track-1",
+                    TrackMetadataOverride(artist = "Editor", discNumber = 2)))
+            assertEquals("New raw", open.repository.tracks().single().title)
+            assertEquals("Editor", open.repository.tracks().single().artist)
+            assertFalse(
+                open.repository.setTrackMetadataOverride(
+                    "missing", TrackMetadataOverride(title = "ghost")))
+        }
+    }
+
+    @Test
     fun completedScanTerminalSourceUpdatePreservesPersistedChildren() {
         val databaseFile =
             Files.createTempFile("rhythhaus-library-scan-cascade", ".db")

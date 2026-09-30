@@ -347,6 +347,14 @@ public interface PlatformPlaybackEngine {
     /** Starts the currently loaded media for [playbackRunId]. */
     public fun play(playbackRunId: Long)
 
+    /**
+     * Refreshes an existing media label without changing its audio or position.
+     */
+    public fun refreshLoadedMetadata(
+        track: PlayableTrack,
+        generation: Long
+    ): Boolean = false
+
     /** Pauses the currently loaded media. */
     public fun pause()
 
@@ -909,6 +917,106 @@ internal constructor(
                 replacementQueue = occurrences,
             )) {
                 emitImmediateCheckpoint()
+            }
+        }
+    }
+
+    /**
+     * Updates only display metadata for indexed queue tracks, preserving
+     * transport ownership.
+     */
+    public fun refreshTrackMetadata(tracks: List<PlayableTrack>) {
+        val metadataById = tracks.associateBy { it.id }
+        var loaded: Pair<Long, PlayableTrack>? = null
+        while (true) {
+            if (released) return
+            val previous = _state.value
+            val updatedQueue =
+                previous.queue.map { occurrence ->
+                    val latest =
+                        metadataById[occurrence.track.id]
+                            ?: return@map occurrence
+                    val original = occurrence.track
+                    if (original.title == latest.title &&
+                        original.artist == latest.artist &&
+                        original.album == latest.album)
+                        occurrence
+                    else
+                        occurrence.copy(
+                            track =
+                                original.copy(
+                                    title = latest.title,
+                                    artist = latest.artist,
+                                    album = latest.album))
+                }
+            if (updatedQueue == previous.queue) {
+                previous.currentTrack
+                    ?.takeIf { metadataById.containsKey(it.id) }
+                    ?.let { current ->
+                        loaded = previous.engineGeneration to current
+                    }
+                break
+            }
+            // Session persistence stores occurrence and track IDs, not labels:
+            // no checkpoint.
+            val updated = previous.copy(queue = updatedQueue)
+            if (_state.compareAndSet(previous, updated)) {
+                updated.currentTrack
+                    ?.takeIf { current ->
+                        previous.currentTrack != current &&
+                            updated.status != PlaybackStatus.Loading &&
+                            updated.status != PlaybackStatus.Idle
+                    }
+                    ?.let { current ->
+                        loaded = updated.engineGeneration to current
+                    }
+                break
+            }
+        }
+        loaded?.let { (generation, current) ->
+            launchNonFatalEngineAction {
+                val stillCurrent = selectionGate.withLock {
+                    _state.value.engineGeneration == generation &&
+                        _state.value.currentTrack == current
+                }
+                if (stillCurrent) {
+                    try {
+                        engine.refreshLoadedMetadata(current, generation)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Throwable) {
+                        // A system-label update must not turn healthy audio
+                        // into playback Error.
+                        playbackLog.e { failure.stackTraceToString() }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Refreshes the loaded native label even when queue reconciliation already
+     * applied it.
+     */
+    public fun refreshCurrentTrackMetadata(tracks: List<PlayableTrack>) {
+        val metadataById = tracks.associateBy { it.id }
+        val snapshot = _state.value
+        val current =
+            snapshot.currentTrack?.let { metadataById[it.id] } ?: return
+        if (snapshot.status == PlaybackStatus.Loading ||
+            snapshot.status == PlaybackStatus.Idle)
+            return
+        launchNonFatalEngineAction {
+            val stillCurrent = selectionGate.withLock {
+                val liveTrack = _state.value.currentTrack
+                _state.value.engineGeneration == snapshot.engineGeneration &&
+                    liveTrack?.id == current.id &&
+                    liveTrack.title == current.title &&
+                    liveTrack.artist == current.artist &&
+                    liveTrack.album == current.album
+            }
+            if (stillCurrent) {
+                engine.refreshLoadedMetadata(current, snapshot.engineGeneration)
             }
         }
     }
@@ -2195,6 +2303,17 @@ internal constructor(
         }
     }
 
+    private fun launchNonFatalEngineAction(action: suspend () -> Unit) {
+        scope.launch {
+            try {
+                engineMutex.withLock { action() }
+            } catch (throwable: Throwable) {
+                if (throwable is CancellationException) throw throwable
+                playbackLog.e { throwable.stackTraceToString() }
+            }
+        }
+    }
+
     private suspend fun runEngineAction(
         errorGeneration: Long,
         action: suspend () -> Unit,
@@ -2351,6 +2470,7 @@ internal constructor(
         status: PlaybackStatus
     ) {
         var gainRequest: PlaybackGainRequest? = null
+        var metadataRefresh: PlayableTrack? = null
         selectionGate.withLock {
             if (timerStopClaim?.generation == generation &&
                 _state.value.status == PlaybackStatus.Stopped)
@@ -2369,8 +2489,23 @@ internal constructor(
             }
             emitPlaybackStartedIfNew(checkNotNull(published))
             gainRequest = updateCompletionFadeLocked(checkNotNull(published))
+            if (status == PlaybackStatus.Paused ||
+                status == PlaybackStatus.Playing) {
+                metadataRefresh = published.currentTrack
+            }
         }
         gainRequest?.let(::launchPlaybackGain)
+        metadataRefresh?.let { track ->
+            launchNonFatalEngineAction {
+                val stillCurrent = selectionGate.withLock {
+                    val state = _state.value
+                    state.engineGeneration == generation &&
+                        state.currentTrack == track
+                }
+                if (stillCurrent)
+                    engine.refreshLoadedMetadata(track, generation)
+            }
+        }
     }
 
     /**

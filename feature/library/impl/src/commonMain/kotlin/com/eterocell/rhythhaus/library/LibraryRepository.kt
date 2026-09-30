@@ -10,6 +10,8 @@ package com.eterocell.rhythhaus.library
 class InMemoryLibraryRepository : LibraryRepository {
     private val sources = linkedMapOf<String, LibrarySource>()
     private val tracks = linkedMapOf<String, LibraryTrack>()
+    private val metadataOverrides =
+        mutableMapOf<String, TrackMetadataOverride>()
     private val favoriteIds = linkedSetOf<String>()
     private val playHistory = linkedMapOf<String, TrackPlayHistory>()
     private val scanSessions = linkedMapOf<String, ScanSession>()
@@ -57,11 +59,35 @@ class InMemoryLibraryRepository : LibraryRepository {
     /** Returns all tracks sorted by title, then artist. */
     override fun tracks(): List<LibraryTrack> =
         tracks.values
+            .map { track ->
+                metadataOverrides[track.id]?.applyTo(track) ?: track
+            }
             .sortedWith(
                 compareBy<LibraryTrack> { it.title.lowercase() }
                     .thenBy { it.artist.lowercase() },
             )
             .map { it.withoutArtwork() }
+
+    override fun metadataForTrack(trackId: String): TrackMetadataEditorData? =
+        tracks[trackId]?.let { track ->
+            TrackMetadataEditorData(
+                scannedTrack = track.withoutArtwork(),
+                overrides =
+                    metadataOverrides[trackId] ?: TrackMetadataOverride(),
+            )
+        }
+
+    override fun setTrackMetadataOverride(
+        trackId: String,
+        overrides: TrackMetadataOverride
+    ): Boolean {
+        val normalized = overrides.normalizedForStorage()
+        if (!tracks.containsKey(trackId)) return false
+        if (normalized == TrackMetadataOverride())
+            metadataOverrides.remove(trackId)
+        else metadataOverrides[trackId] = normalized
+        return true
+    }
 
     override fun favoriteTrackIds(): Set<String> = favoriteIds.toSet()
 
@@ -228,6 +254,7 @@ class InMemoryLibraryRepository : LibraryRepository {
                 .map { it.id }
         ids.forEach {
             tracks.remove(it)
+            metadataOverrides.remove(it)
             favoriteIds.remove(it)
             playHistory.remove(it)
         }
@@ -262,6 +289,7 @@ class InMemoryLibraryRepository : LibraryRepository {
             tracks[trackId]?.sourceId == sourceId
         }
         tracks.entries.removeAll { it.value.sourceId == sourceId }
+        metadataOverrides.keys.retainAll(tracks.keys)
         sources.remove(sourceId)
     }
 
@@ -269,6 +297,7 @@ class InMemoryLibraryRepository : LibraryRepository {
     override fun clearAll() {
         sources.clear()
         tracks.clear()
+        metadataOverrides.clear()
         favoriteIds.clear()
         playHistory.clear()
         scanSessions.clear()

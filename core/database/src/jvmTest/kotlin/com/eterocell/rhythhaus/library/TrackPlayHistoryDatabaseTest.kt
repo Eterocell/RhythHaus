@@ -17,7 +17,6 @@ class TrackPlayHistoryDatabaseTest {
             assertEquals(
                 RhythHausDatabase.Schema.version,
                 driverUserVersion(libraryDatabase.driver))
-            assertEquals(5L, RhythHausDatabase.Schema.version)
             seedTrack(database)
 
             database.trackPlayHistoryQueries.recordTrackPlayed("track-1", 10L)

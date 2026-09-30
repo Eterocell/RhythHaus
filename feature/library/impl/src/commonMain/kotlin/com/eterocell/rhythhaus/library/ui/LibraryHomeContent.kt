@@ -106,6 +106,7 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  * @param onBrowseFavoriteOnlyChange requests favorite-only filter state.
  * @param onBrowseArtworkOnlyChange requests artwork-only filter state.
  * @param onBrowseSourceIdChange requests the source filter or all sources.
+ * @param onEditTrackMetadata requests editing app-local metadata for a track.
  */
 @Composable
 public fun LibraryHomeContent(
@@ -151,6 +152,7 @@ public fun LibraryHomeContent(
     onBrowseFavoriteOnlyChange: (Boolean) -> Unit,
     onBrowseArtworkOnlyChange: (Boolean) -> Unit,
     onBrowseSourceIdChange: (String?) -> Unit,
+    onEditTrackMetadata: ((String) -> Unit)? = null,
 ) {
     // Keep projection at the presentation boundary so grouping, ordering, and
     // playback consume the same visible queue.
@@ -426,6 +428,10 @@ public fun LibraryHomeContent(
                                             onSetTrackFavorite(
                                                 track.id, favorite)
                                         },
+                                        onEditMetadata =
+                                            onEditTrackMetadata?.let { edit ->
+                                                { edit(track.id) }
+                                            },
                                     )
                                 }
                             }

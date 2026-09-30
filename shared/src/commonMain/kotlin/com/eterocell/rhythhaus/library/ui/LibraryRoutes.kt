@@ -568,6 +568,8 @@ internal fun LibraryRouteContent(
     favoriteTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
     playHistory: Map<String, TrackPlayHistory> = emptyMap(),
+    onEditTrackMetadata: ((String) -> Unit)? = null,
+    metadataEditorOpen: Boolean = false,
 ) {
     val playlistDestinationId =
         destinationId ?: LibraryDestinationId(route, "unpresented")
@@ -583,7 +585,7 @@ internal fun LibraryRouteContent(
         is LibraryRoute.AlbumDetail -> {
             val albumTracks = albumDetailTracks(tracks, route.album)
             if (albumTracks.isEmpty()) {
-                LaunchedEffect(route) { onBack() }
+                if (!metadataEditorOpen) LaunchedEffect(route) { onBack() }
                 Box(modifier = Modifier.fillMaxSize())
             } else {
                 DrillDownView(
@@ -641,6 +643,7 @@ internal fun LibraryRouteContent(
                     bottomContentPadding = bottomContentPadding,
                     favoriteTrackIds = favoriteTrackIds,
                     onSetTrackFavorite = onSetTrackFavorite,
+                    onEditTrackMetadata = onEditTrackMetadata,
                 )
             }
         }
@@ -648,7 +651,7 @@ internal fun LibraryRouteContent(
         is LibraryRoute.ArtistDetail -> {
             val artistTracks = artistDetailTracks(tracks, route.artist)
             if (artistTracks.isEmpty()) {
-                LaunchedEffect(route) { onBack() }
+                if (!metadataEditorOpen) LaunchedEffect(route) { onBack() }
                 Box(modifier = Modifier.fillMaxSize())
             } else {
                 DrillDownView(
@@ -710,6 +713,7 @@ internal fun LibraryRouteContent(
                     bottomContentPadding = bottomContentPadding,
                     favoriteTrackIds = favoriteTrackIds,
                     onSetTrackFavorite = onSetTrackFavorite,
+                    onEditTrackMetadata = onEditTrackMetadata,
                 )
             }
         }

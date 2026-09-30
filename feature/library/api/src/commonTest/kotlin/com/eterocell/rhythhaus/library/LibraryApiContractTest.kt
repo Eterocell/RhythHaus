@@ -149,6 +149,17 @@ private class RecordingLibraryRepository : LibraryRepository {
         return listOf(track)
     }
 
+    override fun metadataForTrack(trackId: String): TrackMetadataEditorData? =
+        if (::track.isInitialized && track.id == trackId)
+            TrackMetadataEditorData(track, TrackMetadataOverride())
+        else null
+
+    override fun setTrackMetadataOverride(
+        trackId: String,
+        overrides: TrackMetadataOverride
+    ): Boolean =
+        error("Metadata mutation is not exercised by this contract test")
+
     override fun favoriteTrackIds(): Set<String> {
         calls += LibraryRepositoryMethod.FavoriteTrackIds
         return favoriteIds.toSet()

@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -63,6 +64,8 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.TrackArtwork
+import com.eterocell.rhythhaus.library.TrackMetadataEditorData
+import com.eterocell.rhythhaus.library.TrackMetadataOverride
 import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
@@ -79,7 +82,9 @@ import com.eterocell.rhythhaus.ui.RhythHausBackdrop
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.ui.rememberRhythHausBackdrop
 import com.eterocell.rhythhaus.ui.verticalSheetGesture
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.adaptive_detail_placeholder
@@ -103,6 +108,16 @@ import rhythhaus.shared.generated.resources.track_artist_album_format
 import top.yukonga.miuix.kmp.basic.Surface
 
 internal const val NowPlayingShellPlacementTestTag = "NowPlayingShellPlacement"
+
+private data class MetadataEditorSession(
+    val token: Long,
+    val destination: LibraryDestinationId,
+    val data: TrackMetadataEditorData?,
+    val draft: TrackMetadataDraft,
+    val saving: Boolean = false,
+    val failed: Boolean = false,
+)
+
 internal const val SelectionShellPlacementTestTag = "SelectionShellPlacement"
 
 /**
@@ -260,6 +275,10 @@ fun LibraryHomeScreen(
     createdAtByTrackId: Map<String, Long> = emptyMap(),
     onSetTrackFavorite: (trackId: String, favorite: Boolean) -> Unit = { _, _ ->
     },
+    onLoadTrackMetadata: (suspend (String) -> TrackMetadataEditorData?)? = null,
+    onSetTrackMetadataOverride:
+        (suspend (String, TrackMetadataOverride) -> Boolean)? =
+        null,
     modifier: Modifier = Modifier,
 ) {
     val playbackState by playbackController.state.collectAsState()
@@ -366,6 +385,48 @@ fun LibraryHomeScreen(
     fun clearSelection() {
         dispatchTrackSelection(TrackSelectionAction.RouteChanged(null))
     }
+    val editScope = rememberCoroutineScope()
+    var metadataEditor by remember {
+        mutableStateOf<MetadataEditorSession?>(null)
+    }
+    var metadataEditRequest by remember { mutableStateOf(0L) }
+    LaunchedEffect(appState.activeDestinationId) {
+        metadataEditRequest++
+        metadataEditor = null
+    }
+    fun requestMetadataEdit(trackId: String) {
+        val load = onLoadTrackMetadata ?: return
+        if (onSetTrackMetadataOverride == null) return
+        val destination = appState.activeDestinationId
+        val request = ++metadataEditRequest
+        editScope.launch {
+            val data =
+                try {
+                    load(trackId)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Throwable) {
+                    null
+                }
+            if (request == metadataEditRequest &&
+                destination == appState.activeDestinationId) {
+                metadataEditor =
+                    MetadataEditorSession(
+                        token = request,
+                        destination = destination,
+                        data = data,
+                        draft =
+                            data?.let(TrackMetadataDraft::from)
+                                ?: TrackMetadataDraft(),
+                        failed = data == null,
+                    )
+            }
+        }
+    }
+    val editAction: ((String) -> Unit)? =
+        if (onLoadTrackMetadata != null && onSetTrackMetadataOverride != null)
+            ::requestMetadataEdit
+        else null
     val playlistDetailRouteOrchestrator =
         PlaylistDetailRouteOrchestrator(
             appState = appState,
@@ -400,6 +461,8 @@ fun LibraryHomeScreen(
                 )
             }
     fun pushRoute(route: LibraryRoute) {
+        metadataEditor = null
+        metadataEditRequest++
         clearSelection()
         appState.pushRoute(route)
     }
@@ -433,6 +496,57 @@ fun LibraryHomeScreen(
     SideEffect {
         appState.publishSelectionPort(selectionPort)
         appState.reconcileBackSession(selectionPort)
+    }
+    val activeEditor = metadataEditor
+    fun currentDetailIsEmpty(): Boolean {
+        val route = appState.navigation.current
+        return when (route) {
+            is LibraryRoute.AlbumDetail ->
+                snapshot.tracks.none { it.album == route.album }
+            is LibraryRoute.ArtistDetail ->
+                snapshot.tracks.none { it.artist == route.artist }
+            else -> false
+        }
+    }
+    LaunchedEffect(
+        metadataEditor, appState.navigation.current, snapshot.tracks) {
+            if (metadataEditor == null && currentDetailIsEmpty()) {
+                appState.popRoute()
+            }
+        }
+    LaunchedEffect(activeEditor?.token, libraryTracks) {
+        val editor = metadataEditor ?: return@LaunchedEffect
+        val load = onLoadTrackMetadata ?: return@LaunchedEffect
+        val trackId = editor.data?.scannedTrack?.id ?: return@LaunchedEffect
+        val refreshed = load(trackId) ?: return@LaunchedEffect
+        metadataEditor
+            ?.takeIf { it.token == editor.token }
+            ?.let { liveEditor ->
+                metadataEditor = liveEditor.copy(data = refreshed)
+            }
+    }
+    DisposableEffect(activeEditor?.token, appState.activeDestinationId) {
+        val editor = activeEditor
+        val dispose =
+            if (editor != null &&
+                editor.destination == appState.activeDestinationId) {
+                val target =
+                    LibraryBackTarget.FeatureModal(
+                        LibraryBackTargetId(
+                            editor.destination, "metadata-${editor.token}"),
+                    )
+                appState.registerBackSurface(
+                    LibraryBackSurfacePort(editor.destination, target) {
+                        requested ->
+                        if (requested == target &&
+                            metadataEditor?.token == editor.token) {
+                            metadataEditor = null
+                            LibraryBackFeatureRequestResult.Started
+                        } else LibraryBackFeatureRequestResult.Rejected
+                    },
+                )
+            } else ({})
+        onDispose { dispose() }
     }
     val requestLibraryBack: () -> Unit = {
         performLibraryBack(
@@ -588,6 +702,8 @@ fun LibraryHomeScreen(
             favoriteTrackIds = favoriteTrackIds,
             playHistory = playHistory,
             onSetTrackFavorite = onSetTrackFavorite,
+            onEditTrackMetadata = editAction,
+            metadataEditorOpen = metadataEditor != null,
             homeContent = { onOpenDetailRoute ->
                 LibraryHomeContent(
                     title = snapshot.title,
@@ -618,6 +734,7 @@ fun LibraryHomeScreen(
                     sourceIdByTrackId = sourceIdByTrackId,
                     modifiedAtByTrackId = modifiedAtByTrackId,
                     onSetTrackFavorite = onSetTrackFavorite,
+                    onEditTrackMetadata = editAction,
                     onBrowseSortChange = appState::setBrowseSort,
                     onBrowseSortDirectionChange =
                         appState::setBrowseSortDirection,
@@ -754,6 +871,7 @@ fun LibraryHomeScreen(
                             sourceIdByTrackId = sourceIdByTrackId,
                             modifiedAtByTrackId = modifiedAtByTrackId,
                             onSetTrackFavorite = onSetTrackFavorite,
+                            onEditTrackMetadata = editAction,
                             onBrowseSortChange = appState::setBrowseSort,
                             onBrowseSortDirectionChange =
                                 appState::setBrowseSortDirection,
@@ -1052,6 +1170,55 @@ fun LibraryHomeScreen(
                     },
                 )
             }
+        }
+        metadataEditor?.let { session ->
+            TrackMetadataEditDialog(
+                data = session.data,
+                draft = session.draft,
+                saving = session.saving,
+                failed = session.failed,
+                onDraft = { next ->
+                    if (metadataEditor?.token == session.token &&
+                        !session.saving) {
+                        metadataEditor =
+                            session.copy(draft = next, failed = false)
+                    }
+                },
+                onDismiss = {
+                    if (metadataEditor?.token == session.token) {
+                        metadataEditRequest++
+                        metadataEditor = null
+                    }
+                },
+                onSave = { correction ->
+                    val save = onSetTrackMetadataOverride
+                    val trackId = session.data?.scannedTrack?.id
+                    if (save != null &&
+                        trackId != null &&
+                        metadataEditor?.token == session.token &&
+                        !session.saving) {
+                        metadataEditor =
+                            session.copy(saving = true, failed = false)
+                        editScope.launch {
+                            val succeeded =
+                                try {
+                                    save(trackId, correction)
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (_: Throwable) {
+                                    false
+                                }
+                            if (metadataEditor?.token == session.token) {
+                                metadataEditor =
+                                    if (succeeded) null
+                                    else
+                                        session.copy(
+                                            saving = false, failed = true)
+                            }
+                        }
+                    }
+                },
+            )
         }
     }
 }

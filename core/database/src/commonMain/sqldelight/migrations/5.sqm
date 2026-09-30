@@ -1,0 +1,8 @@
+CREATE TABLE track_metadata_override (
+    trackId TEXT NOT NULL PRIMARY KEY REFERENCES library_track(id) ON DELETE CASCADE,
+    title TEXT,
+    artist TEXT,
+    album TEXT,
+    trackNumber INTEGER CHECK (trackNumber IS NULL OR trackNumber > 0),
+    discNumber INTEGER CHECK (discNumber IS NULL OR discNumber > 0)
+);
