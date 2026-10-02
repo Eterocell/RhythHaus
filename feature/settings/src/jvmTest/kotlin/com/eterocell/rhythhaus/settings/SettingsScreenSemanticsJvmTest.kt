@@ -71,6 +71,42 @@ import rhythhaus.feature.settings.generated.resources.unnamed_folder
 public class SettingsScreenSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
+    public fun deviceAudioActionsRespectPermissionAndMutationGate(): Unit =
+        runComposeUiTest {
+            var variant by
+                mutableStateOf<MediaStoreAudioRecovery?>(
+                    MediaStoreAudioRecovery.Requestable)
+            var enabled by mutableStateOf(true)
+            val actions = mutableListOf<String>()
+            setContent {
+                Box(Modifier.size(600.dp, 400.dp)) {
+                    content(
+                        mediaStoreAudioRecovery = variant,
+                        mutations = enabled,
+                        onRequestAudio = { actions += "request" },
+                        onOpenAudioSettings = { actions += "settings" },
+                        onAddAudio = { actions += "add" },
+                    )
+                }
+            }
+            onNodeWithTag("settings-device-audio-action")
+                .assertIsEnabled()
+                .performClick()
+            assertEquals(listOf("request"), actions)
+            runOnIdle { variant = MediaStoreAudioRecovery.SettingsRequired }
+            onNodeWithTag("settings-device-audio-action").performClick()
+            runOnIdle { variant = MediaStoreAudioRecovery.Add }
+            onNodeWithTag("settings-device-audio-action").performClick()
+            assertEquals(listOf("request", "settings", "add"), actions)
+            runOnIdle { enabled = false }
+            onNodeWithTag("settings-device-audio-action").assertIsNotEnabled()
+            runOnIdle { variant = null }
+            onAllNodesWithTag("settings-device-audio-action")
+                .assertCountEquals(0)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     public fun reviewOnboardingRowIsAccessibleAndDispatchesExactlyOnce(): Unit =
         runComposeUiTest {
             var dispatches = 0
@@ -624,6 +660,10 @@ private fun content(
     scanOutcomeSlot: (@Composable () -> Unit)? = null,
     clearSlot: (@Composable () -> Unit)? = null,
     notificationRecovery: MediaNotificationRecovery? = null,
+    mediaStoreAudioRecovery: MediaStoreAudioRecovery? = null,
+    onRequestAudio: () -> Unit = {},
+    onOpenAudioSettings: () -> Unit = {},
+    onAddAudio: () -> Unit = {},
     onTheme: (RhythHausThemeMode) -> Unit = {},
     onAdd: () -> Unit = {},
     onClear: () -> Unit = {},
@@ -650,6 +690,10 @@ private fun content(
         scanOutcomeContent = scanOutcomeSlot,
         clearLibraryDialog = clearSlot,
         notificationRecovery = notificationRecovery,
+        mediaStoreAudioRecovery = mediaStoreAudioRecovery,
+        onRequestMediaStoreAudio = onRequestAudio,
+        onOpenMediaStoreSettings = onOpenAudioSettings,
+        onAddMediaStoreAudio = onAddAudio,
         onThemeModeSelected = onTheme,
         onAddMusicFolder = onAdd,
         onRescanSource = onRescan,

@@ -23,6 +23,16 @@ public interface LibraryRepository {
     /** Stores or updates a track. */
     public fun upsertTrack(track: LibraryTrack): TrackUpsertResult
 
+    /**
+     * Marks an existing source-local track seen without replacing tags,
+     * artwork, or user state.
+     */
+    public fun markTrackSeen(
+        sourceId: String,
+        sourceLocalKey: String,
+        scanId: String
+    )
+
     /** Returns all tracks. */
     public fun tracks(): List<LibraryTrack>
 

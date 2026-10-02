@@ -123,6 +123,12 @@ private class ThreadCapturingRepository : LibraryRepository {
 
     override fun sources(): List<LibrarySource> = emptyList()
 
+    override fun markTrackSeen(
+        sourceId: String,
+        sourceLocalKey: String,
+        scanId: String
+    ) = error("Not used by this test")
+
     override fun upsertTrack(track: LibraryTrack): TrackUpsertResult =
         TrackUpsertResult.Added
 

@@ -4,4 +4,7 @@
 <string name="notification_permission_body">In-app playback keeps working, but Android notification and lock-screen media controls need notification permission.</string>
 <string name="notification_permission_request">Allow notifications</string>
 <string name="notification_permission_settings">Open notification settings</string><string name="review_onboarding">Review onboarding</string>
+<string name="device_audio">Device audio</string><string name="add_device_audio">Allow device audio</string><string name="device_audio_unavailable">Read music indexed on this device without copying files. Allow audio access, add the source, then scan it.</string>
+<string name="device_audio_add">Add device audio source</string>
+<string name="device_audio_settings">Open app settings</string>
 </resources>

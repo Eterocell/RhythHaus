@@ -27,6 +27,7 @@ import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.Track
+import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
@@ -42,6 +43,7 @@ import com.eterocell.rhythhaus.library.selectDynamicOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
 import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
 import com.eterocell.rhythhaus.library.toPlayableTrack
+import com.eterocell.rhythhaus.mediastore.MediaStoreAudioPermissionState
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
 import com.eterocell.rhythhaus.onboarding.OnboardingScreen
 import com.eterocell.rhythhaus.onboarding.currentOnboardingPlatform
@@ -54,6 +56,7 @@ import com.eterocell.rhythhaus.playlistbackup.PlaylistDocumentFormat
 import com.eterocell.rhythhaus.search.SearchContent
 import com.eterocell.rhythhaus.search.SearchSharedLabels
 import com.eterocell.rhythhaus.settings.MediaNotificationRecovery
+import com.eterocell.rhythhaus.settings.MediaStoreAudioRecovery
 import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
 import com.eterocell.rhythhaus.settings.SettingsAboutScreen
 import com.eterocell.rhythhaus.settings.SettingsScreen
@@ -176,6 +179,11 @@ internal fun LibraryRouteOverlays(
         MediaNotificationPermissionState.Unavailable,
     onRequestNotificationPermission: () -> Unit = {},
     onOpenNotificationSettings: () -> Unit = {},
+    mediaStorePermission: MediaStoreAudioPermissionState =
+        MediaStoreAudioPermissionState.Unavailable,
+    onRequestMediaStoreAudio: () -> Unit = {},
+    onOpenMediaStoreSettings: () -> Unit = {},
+    onAddMediaStoreAudio: () -> Unit = {},
     settingsListState: LazyListState? = null,
     settingsReportVisible: Boolean? = null,
     onSettingsReportVisibleChanged: (Boolean) -> Unit = {},
@@ -339,6 +347,25 @@ internal fun LibraryRouteOverlays(
                 notificationRecovery =
                     mediaNotificationPermission
                         .toSettingsNotificationRecovery(),
+                mediaStoreAudioRecovery =
+                    when (mediaStorePermission) {
+                        MediaStoreAudioPermissionState.Unavailable -> null
+                        MediaStoreAudioPermissionState.Granted ->
+                            MediaStoreAudioRecovery.Add.takeIf {
+                                sources.none {
+                                    it.platformKind ==
+                                        LibraryPlatformKind
+                                            .AndroidMediaStoreAudio
+                                }
+                            }
+                        MediaStoreAudioPermissionState.Requestable ->
+                            MediaStoreAudioRecovery.Requestable
+                        MediaStoreAudioPermissionState.SettingsRequired ->
+                            MediaStoreAudioRecovery.SettingsRequired
+                    },
+                onRequestMediaStoreAudio = onRequestMediaStoreAudio,
+                onOpenMediaStoreSettings = onOpenMediaStoreSettings,
+                onAddMediaStoreAudio = onAddMediaStoreAudio,
                 onThemeModeSelected = onThemeModeSelected,
                 onAddMusicFolder = folderPickerLauncher::launch,
                 onRescanSource = { id ->
@@ -348,7 +375,19 @@ internal fun LibraryRouteOverlays(
                             onRescanSource(source)
                         }
                 },
-                onRecoverSource = { folderPickerLauncher.launch() },
+                onRecoverSource = { id ->
+                    if (sources.firstOrNull { it.id == id }?.platformKind ==
+                        LibraryPlatformKind.AndroidMediaStoreAudio) {
+                        if (mediaStorePermission ==
+                            MediaStoreAudioPermissionState.SettingsRequired) {
+                            onOpenMediaStoreSettings()
+                        } else {
+                            onRequestMediaStoreAudio()
+                        }
+                    } else {
+                        folderPickerLauncher.launch()
+                    }
+                },
                 onRemoveSource = { id ->
                     sources
                         .firstOrNull { it.id == id }

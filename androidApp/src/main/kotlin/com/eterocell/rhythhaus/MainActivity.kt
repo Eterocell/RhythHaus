@@ -11,17 +11,21 @@ class MainActivity : ComponentActivity() {
 
     private val notificationPermissionController =
         AndroidNotificationPermissionController(this)
+    private val mediaStorePermissionController =
+        AndroidMediaStoreAudioPermissionController(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         notificationPermissionController.refresh()
         notificationPermissionController.requestPermissionOnLaunchIfNeeded()
+        mediaStorePermissionController.refresh()
 
         setContent {
             App(
                 notificationPermissionController =
                     notificationPermissionController,
+                mediaStorePermissionController = mediaStorePermissionController,
             )
         }
     }
@@ -32,6 +36,7 @@ class MainActivity : ComponentActivity() {
         // application notification settings so the recovery surface follows
         // the authoritative permission state.
         notificationPermissionController.refresh()
+        mediaStorePermissionController.refresh()
     }
 }
 

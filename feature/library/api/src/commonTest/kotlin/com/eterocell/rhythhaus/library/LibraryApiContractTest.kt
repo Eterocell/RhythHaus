@@ -138,6 +138,12 @@ private class RecordingLibraryRepository : LibraryRepository {
         return listOf(source)
     }
 
+    override fun markTrackSeen(
+        sourceId: String,
+        sourceLocalKey: String,
+        scanId: String
+    ) = error("Not used by this test")
+
     override fun upsertTrack(track: LibraryTrack): TrackUpsertResult {
         calls += LibraryRepositoryMethod.UpsertTrack
         this.track = track

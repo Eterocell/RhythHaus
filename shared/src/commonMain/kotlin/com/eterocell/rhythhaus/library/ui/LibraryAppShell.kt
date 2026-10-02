@@ -68,6 +68,7 @@ import com.eterocell.rhythhaus.library.TrackMetadataEditorData
 import com.eterocell.rhythhaus.library.TrackMetadataOverride
 import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.library.selectLibraryTrackForPlayback
+import com.eterocell.rhythhaus.mediastore.MediaStoreAudioPermissionState
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBar
 import com.eterocell.rhythhaus.nowplaying.NowPlayingBarLabels
@@ -268,6 +269,11 @@ fun LibraryHomeScreen(
         MediaNotificationPermissionState.Unavailable,
     onRequestNotificationPermission: () -> Unit = {},
     onOpenNotificationSettings: () -> Unit = {},
+    mediaStorePermission: MediaStoreAudioPermissionState =
+        MediaStoreAudioPermissionState.Unavailable,
+    onRequestMediaStoreAudio: () -> Unit = {},
+    onOpenMediaStoreSettings: () -> Unit = {},
+    onAddMediaStoreAudio: () -> Unit = {},
     initialOnboarding: OnboardingLaunchMode? = null,
     onboardingSaving: Boolean = false,
     onboardingCompletionError: String? = null,
@@ -636,6 +642,10 @@ fun LibraryHomeScreen(
             mediaNotificationPermission = mediaNotificationPermission,
             onRequestNotificationPermission = onRequestNotificationPermission,
             onOpenNotificationSettings = onOpenNotificationSettings,
+            mediaStorePermission = mediaStorePermission,
+            onRequestMediaStoreAudio = onRequestMediaStoreAudio,
+            onOpenMediaStoreSettings = onOpenMediaStoreSettings,
+            onAddMediaStoreAudio = onAddMediaStoreAudio,
             settingsListState = settingsListState,
             settingsReportVisible = settingsReportVisible,
             onSettingsReportVisibleChanged = {

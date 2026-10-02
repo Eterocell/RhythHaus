@@ -19,6 +19,74 @@ import kotlin.test.assertTrue
 
 class SqlDelightLibraryRepositoryJvmTest {
     @Test
+    fun observedUnreadableMediaStoreTrackSurvivesRemoveMissingWithUserState() {
+        val file =
+            Files.createTempFile("rhythhaus-mediastore-skipped", ".db").toFile()
+        file.deleteOnExit()
+        openRepository(file).use { open ->
+            val source =
+                testSource()
+                    .copy(
+                        platformKind =
+                            LibraryPlatformKind.AndroidMediaStoreAudio)
+            val original =
+                testTrack(
+                        "seen",
+                        sourceLocalKey = "mediastore:7",
+                        title = "Raw",
+                        artist = "Artist")
+                    .copy(
+                        artworkBytes = byteArrayOf(1, 2, 3),
+                        artworkMimeType = "image/png")
+            open.repository.upsertSource(source)
+            open.repository.upsertTrack(original)
+            open.repository.upsertTrack(
+                testTrack(
+                    "absent",
+                    sourceLocalKey = "mediastore:8",
+                    title = "Absent",
+                    artist = "Artist"))
+            open.repository.setTrackFavorite("seen", true)
+            open.repository.recordTrackPlayed("seen", 50L)
+            open.repository.setTrackMetadataOverride(
+                "seen", TrackMetadataOverride(title = "Edited"))
+            val scanner =
+                LibraryScanner(
+                    open.repository,
+                    object : PlatformAudioScanner {
+                        override fun scan(source: LibrarySource) =
+                            sequenceOf(
+                                PlatformScanEvent.Skipped(
+                                    "mediastore:7",
+                                    "seven.mp3",
+                                    "Temporary I/O failure",
+                                    true))
+                    },
+                    now = { 100L },
+                    idFactory = { "$it-current" })
+            val session = scanner.scan(source)
+            assertEquals(ScanStatus.Completed, session.status)
+            assertEquals(
+                RemoveMissingTracksResult.Removed(1),
+                open.repository.removeMissingTracks(source.id, session.id))
+            assertEquals(listOf("seen"), open.repository.tracks().map { it.id })
+            assertEquals("Edited", open.repository.tracks().single().title)
+            assertEquals(setOf("seen"), open.repository.favoriteTrackIds())
+            assertEquals(
+                1L, open.repository.playHistory().getValue("seen").playCount)
+            val retained =
+                assertNotNull(open.repository.metadataForTrack("seen"))
+                    .scannedTrack
+            assertEquals("Raw", retained.title)
+            assertEquals(
+                original.updatedAtEpochMillis, retained.updatedAtEpochMillis)
+            assertContentEquals(
+                original.artworkBytes,
+                assertNotNull(open.repository.artworkForTrack("seen")).bytes)
+        }
+    }
+
+    @Test
     fun persistedCorrectionSurvivesRescanAndRestartWhileRestoreUsesNewRawTag() {
         val databaseFile =
             Files.createTempFile("rhythhaus-correction", ".db").toFile()

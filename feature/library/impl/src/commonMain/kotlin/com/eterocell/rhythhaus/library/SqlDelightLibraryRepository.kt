@@ -170,6 +170,15 @@ internal class SqlDelightLibraryRepository(
         }
     }
 
+    override fun markTrackSeen(
+        sourceId: String,
+        sourceLocalKey: String,
+        scanId: String
+    ) {
+        database.libraryTrackQueries.markTrackSeen(
+            scanId, sourceId, sourceLocalKey)
+    }
+
     /** Returns all tracks. */
     override fun tracks(): List<LibraryTrack> {
         val overrides = overridesByTrackId()

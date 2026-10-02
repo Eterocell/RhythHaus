@@ -1688,6 +1688,12 @@ private class BarrierRecordingLibraryRepository : LibraryRepository {
 
     override fun sources(): List<LibrarySource> = sources
 
+    override fun markTrackSeen(
+        sourceId: String,
+        sourceLocalKey: String,
+        scanId: String
+    ) = error("Not used by this test")
+
     override fun upsertTrack(track: LibraryTrack): TrackUpsertResult =
         error("Not used by this test")
 

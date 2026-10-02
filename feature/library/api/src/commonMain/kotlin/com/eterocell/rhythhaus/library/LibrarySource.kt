@@ -5,6 +5,9 @@ public enum class LibraryPlatformKind {
     /** Android Storage Access Framework tree. */
     AndroidSafTree,
 
+    /** Android read-only MediaStore audio collection. */
+    AndroidMediaStoreAudio,
+
     /** JVM filesystem folder. */
     JvmFolder,
 
@@ -39,3 +42,15 @@ public data class LibrarySource(
     public val accessStatus: LibrarySourceAccessStatus =
         LibrarySourceAccessStatus.Available,
 )
+
+/** The stable read-only Android MediaStore audio source. */
+public fun androidMediaStoreAudioSource(
+    createdAtEpochMillis: Long,
+): LibrarySource =
+    LibrarySource(
+        id = "android-mediastore-audio",
+        platformKind = LibraryPlatformKind.AndroidMediaStoreAudio,
+        displayName = "Device audio",
+        handle = "android-mediastore-audio",
+        createdAtEpochMillis = createdAtEpochMillis,
+    )

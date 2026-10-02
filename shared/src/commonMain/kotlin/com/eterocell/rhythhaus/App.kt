@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibraryScanner
 import com.eterocell.rhythhaus.library.LibrarySource
@@ -42,6 +43,9 @@ import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.library.ui.reducePlaylistState
+import com.eterocell.rhythhaus.mediastore.MediaStoreAudioPermissionController
+import com.eterocell.rhythhaus.mediastore.UnavailableMediaStoreAudioPermissionController
+import com.eterocell.rhythhaus.mediastore.registerMediaStoreAudioSource
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionController
 import com.eterocell.rhythhaus.notificationpermission.UnavailableMediaNotificationPermissionController
 import com.eterocell.rhythhaus.onboarding.OnboardingEligibility
@@ -57,6 +61,7 @@ import com.eterocell.rhythhaus.playlistbackup.createPlaylistBackupController
 import com.eterocell.rhythhaus.playlistbackup.rememberPlatformPlaylistBackupDocumentLauncher
 import com.eterocell.rhythhaus.playlistbackup.rememberPlaylistTrackReadability
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
+import com.eterocell.rhythhaus.settings.deviceAudioSourceDisplayName
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.LocalHausColors
@@ -150,6 +155,8 @@ internal fun AppOnboardingGate(
 fun App(
     notificationPermissionController: MediaNotificationPermissionController =
         UnavailableMediaNotificationPermissionController,
+    mediaStorePermissionController: MediaStoreAudioPermissionController =
+        UnavailableMediaStoreAudioPermissionController,
 ) {
     val controller = koinInject<PlaybackController>()
     val tagLibReader = koinInject<TagLibReader>()
@@ -172,7 +179,25 @@ fun App(
         mutableStateOf(InitialLibraryPublicationState())
     }
     val appLibraryContentState = remember { AppLibraryContentState() }
-    val libraryContent = appLibraryContentState.content
+    val deviceAudioLabel = deviceAudioSourceDisplayName()
+    val publishedLibraryContent = appLibraryContentState.content
+    val libraryContent =
+        remember(publishedLibraryContent, deviceAudioLabel) {
+            if (publishedLibraryContent.sources.none {
+                it.platformKind == LibraryPlatformKind.AndroidMediaStoreAudio &&
+                    it.displayName != deviceAudioLabel
+            })
+                publishedLibraryContent
+            else
+                publishedLibraryContent.copy(
+                    sources =
+                        publishedLibraryContent.sources.map { source ->
+                            if (source.platformKind ==
+                                LibraryPlatformKind.AndroidMediaStoreAudio)
+                                source.copy(displayName = deviceAudioLabel)
+                            else source
+                        })
+        }
     var libraryRevision by remember { mutableStateOf(0L) }
     var playlistState by remember {
         mutableStateOf(PlaylistState(isLoading = true))
@@ -212,6 +237,8 @@ fun App(
             RhythHausThemeMode.System)
     val notificationPermissionState by
         notificationPermissionController.state.collectAsState()
+    val mediaStorePermissionState by
+        mediaStorePermissionController.state.collectAsState()
     suspend fun applyLibraryPublication(
         publication: AuthoritativeLibraryPublication,
     ): Boolean =
@@ -411,6 +438,18 @@ fun App(
             }
         }
     }
+
+    LaunchedEffect(
+        mediaStorePermissionState, initialPublication.mutationsAllowed) {
+            if (initialPublication.mutationsAllowed &&
+                libraryContent.sources.any {
+                    it.platformKind ==
+                        LibraryPlatformKind.AndroidMediaStoreAudio
+                }) {
+                updateLibraryContent(
+                    loadLibraryContent(repository, platformAccess))
+            }
+        }
 
     /**
      * Launches the follow-up scan of a successful iOS import terminal.
@@ -694,6 +733,45 @@ fun App(
                     scanErrors = scanErrors,
                     scanJob = scanJob,
                     mediaNotificationPermission = notificationPermissionState,
+                    mediaStorePermission = mediaStorePermissionState,
+                    onRequestMediaStoreAudio = {
+                        if (mutationsEnabled)
+                            mediaStorePermissionController.requestPermission()
+                    },
+                    onOpenMediaStoreSettings =
+                        mediaStorePermissionController::openSettings,
+                    onAddMediaStoreAudio = {
+                        if (mutationsEnabled) {
+                            scope.launch {
+                                libraryOrchestrator.launch(
+                                    LibraryOperationKind.AddSource) { token ->
+                                        withContext(NonCancellable) {
+                                            withContext(Dispatchers.Default) {
+                                                    registerMediaStoreAudioSource(
+                                                        repository,
+                                                        mediaStorePermissionController
+                                                            .state
+                                                            .value,
+                                                        com.eterocell.rhythhaus
+                                                            .library
+                                                            .currentTimeMillis(),
+                                                    )
+                                                }
+                                                ?.let {
+                                                    libraryOrchestrator
+                                                        .publishIfCurrent(
+                                                            token) {
+                                                                updateLibraryContent(
+                                                                    loadLibraryContent(
+                                                                        repository,
+                                                                        platformAccess))
+                                                            }
+                                                }
+                                        }
+                                    }
+                            }
+                        }
+                    },
                     onRequestNotificationPermission = {
                         notificationPermissionController.requestPermission()
                     },
@@ -817,7 +895,11 @@ fun App(
                             }
                         }
                     },
-                    onRescanSource = ::launchSourceScan,
+                    onRescanSource = { displayedSource ->
+                        publishedLibraryContent.sources
+                            .firstOrNull { it.id == displayedSource.id }
+                            ?.let(::launchSourceScan)
+                    },
                     onRemoveSource = { source ->
                         if (mutationsEnabled) {
                             scope.launch {

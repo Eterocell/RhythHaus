@@ -59,8 +59,13 @@ import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.settings.generated.resources.Res
 import rhythhaus.feature.settings.generated.resources.about
+import rhythhaus.feature.settings.generated.resources.add_device_audio
 import rhythhaus.feature.settings.generated.resources.appearance
 import rhythhaus.feature.settings.generated.resources.configured_folders
+import rhythhaus.feature.settings.generated.resources.device_audio
+import rhythhaus.feature.settings.generated.resources.device_audio_add
+import rhythhaus.feature.settings.generated.resources.device_audio_settings
+import rhythhaus.feature.settings.generated.resources.device_audio_unavailable
 import rhythhaus.feature.settings.generated.resources.manage_music
 import rhythhaus.feature.settings.generated.resources.notification_permission_body
 import rhythhaus.feature.settings.generated.resources.notification_permission_request
@@ -108,6 +113,16 @@ public data class SettingsSharedLabels(
     /** Shared-owned generic removal wording. */
     public val remove: String,
 )
+
+/** Host-neutral recovery state for the optional device-audio source. */
+public enum class MediaStoreAudioRecovery {
+    /** Access is available and the user can explicitly register the source. */
+    Add,
+    /** The host can request audio permission. */
+    Requestable,
+    /** Permission recovery requires system app settings. */
+    SettingsRequired,
+}
 
 /**
  * Immutable, feature-safe rendering projection for one authoritative Library
@@ -249,6 +264,7 @@ public fun SettingsScreen(
     scanOutcomeContent: (@Composable () -> Unit)? = null,
     clearLibraryDialog: (@Composable () -> Unit)?,
     notificationRecovery: MediaNotificationRecovery?,
+    mediaStoreAudioRecovery: MediaStoreAudioRecovery? = null,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onAddMusicFolder: () -> Unit,
     onRescanSource: (String) -> Unit,
@@ -259,6 +275,9 @@ public fun SettingsScreen(
     onReviewOnboarding: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
+    onRequestMediaStoreAudio: () -> Unit = {},
+    onOpenMediaStoreSettings: () -> Unit = {},
+    onAddMediaStoreAudio: () -> Unit = {},
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyListState? = null,
@@ -326,6 +345,19 @@ public fun SettingsScreen(
                                             variant,
                                             onRequestNotificationPermission,
                                             onOpenNotificationSettings)
+                                    }
+                                }
+                                mediaStoreAudioRecovery?.let { variant ->
+                                    item {
+                                        MediaStoreAudioRecoveryCard(
+                                            variant = variant,
+                                            enabled = mutationsEnabled,
+                                            onRequest =
+                                                onRequestMediaStoreAudio,
+                                            onOpenSettings =
+                                                onOpenMediaStoreSettings,
+                                            onAdd = onAddMediaStoreAudio,
+                                        )
                                     }
                                 }
                                 item {
@@ -804,6 +836,68 @@ private fun MediaNotificationRecoveryCard(
 }
 
 @Composable
+private fun MediaStoreAudioRecoveryCard(
+    variant: MediaStoreAudioRecovery,
+    enabled: Boolean,
+    onRequest: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onAdd: () -> Unit,
+) {
+    val action =
+        when (variant) {
+            MediaStoreAudioRecovery.Add -> onAdd
+            MediaStoreAudioRecovery.Requestable -> onRequest
+            MediaStoreAudioRecovery.SettingsRequired -> onOpenSettings
+        }
+    val actionLabel =
+        stringResource(
+            when (variant) {
+                MediaStoreAudioRecovery.Add -> Res.string.device_audio_add
+                MediaStoreAudioRecovery.Requestable ->
+                    Res.string.add_device_audio
+                MediaStoreAudioRecovery.SettingsRequired ->
+                    Res.string.device_audio_settings
+            })
+    Column(
+        Modifier.fillMaxWidth()
+            .background(
+                HausColors.current.panel.copy(alpha = .54f),
+                RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(Res.string.device_audio),
+                color = HausColors.current.ink,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Black)
+            Text(
+                stringResource(Res.string.device_audio_unavailable),
+                color = HausColors.current.muted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium)
+            Button(
+                onClick = action,
+                enabled = enabled,
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("settings-device-audio-action"),
+                cornerRadius = 16.dp,
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color = HausColors.current.ink,
+                        contentColor = HausColors.current.paper)) {
+                    Text(
+                        actionLabel,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold)
+                }
+        }
+}
+
+@Composable
 private fun RemoveSourceDialog(
     source: SettingsSourceItem,
     labels: SettingsSharedLabels,
@@ -905,6 +999,11 @@ private fun AppearanceDropdown(
         renderInRootScaffold = false,
         onSelectedIndexChange = { options.getOrNull(it)?.let(onSelected) })
 }
+
+/** Localized system-owned source name for Shared source presentations. */
+@Composable
+public fun deviceAudioSourceDisplayName(): String =
+    stringResource(Res.string.device_audio)
 
 @Composable
 private fun RhythHausThemeMode.label(): String =

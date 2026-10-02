@@ -21,8 +21,9 @@ internal fun audioCandidateForSourceFile(
     cleanupMetadataAudioSource: (() -> Unit)? = null,
     sizeBytes: Long? = null,
     modifiedAtEpochMillis: Long? = null,
+    supportedByMimeType: Boolean = false,
 ): PlatformScanEvent =
-    if (isSupportedAudioName(displayName)) {
+    if (supportedByMimeType || isSupportedAudioName(displayName)) {
         PlatformScanEvent.AudioCandidate(
             AudioScanCandidate(
                 sourceId = source.id,
@@ -61,3 +62,11 @@ fun Iterable<String>.sourceLocalKey(): String =
 /** Normalizes this path into a stable source-local key. */
 fun String.normalizedSourceLocalKey(): String =
     replace('\\', '/').split('/').filter { it.isNotBlank() }.joinToString("/")
+
+/** Stable identity for the one Android MediaStore audio source. */
+const val ANDROID_MEDIA_STORE_AUDIO_SOURCE_ID: String =
+    "android-mediastore-audio"
+
+/** Stable persisted handle for the Android MediaStore audio source. */
+const val ANDROID_MEDIA_STORE_AUDIO_SOURCE_HANDLE: String =
+    "android-mediastore-audio"

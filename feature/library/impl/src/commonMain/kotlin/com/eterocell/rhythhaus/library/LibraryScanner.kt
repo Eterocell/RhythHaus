@@ -59,8 +59,15 @@ class LibraryScanner(
                                 foldersVisited = session.foldersVisited + 1,
                             )
 
-                        is PlatformScanEvent.Skipped ->
+                        is PlatformScanEvent.Skipped -> {
+                            if (source.platformKind ==
+                                LibraryPlatformKind.AndroidMediaStoreAudio &&
+                                event.recoverable) {
+                                repository.markTrackSeen(
+                                    source.id, event.sourceLocalKey, scanId)
+                            }
                             session.recordSkipped(scanId, event)
+                        }
 
                         is PlatformScanEvent.AudioCandidate ->
                             session.importCandidate(scanId, event.candidate)

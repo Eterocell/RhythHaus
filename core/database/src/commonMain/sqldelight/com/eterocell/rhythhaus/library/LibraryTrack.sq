@@ -72,6 +72,9 @@ SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     NULL AS artworkMimeType
 FROM library_track WHERE sourceId = ? AND sourceLocalKey = ?;
 
+markTrackSeen:
+UPDATE library_track SET lastSeenScanId = ? WHERE sourceId = ? AND sourceLocalKey = ?;
+
 selectTrackForMetadataEditor:
 SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,

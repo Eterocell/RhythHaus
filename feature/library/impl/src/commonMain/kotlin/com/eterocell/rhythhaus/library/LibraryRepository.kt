@@ -56,6 +56,18 @@ class InMemoryLibraryRepository : LibraryRepository {
         }
     }
 
+    override fun markTrackSeen(
+        sourceId: String,
+        sourceLocalKey: String,
+        scanId: String
+    ) {
+        val track =
+            tracks.values.firstOrNull {
+                it.sourceId == sourceId && it.sourceLocalKey == sourceLocalKey
+            } ?: return
+        tracks[track.id] = track.copy(lastSeenScanId = scanId)
+    }
+
     /** Returns all tracks sorted by title, then artist. */
     override fun tracks(): List<LibraryTrack> =
         tracks.values

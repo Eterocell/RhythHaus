@@ -4,4 +4,7 @@
 <string name="notification_permission_body">应用内播放不受影响，但 Android 通知与锁屏媒体控制需要通知权限。</string>
 <string name="notification_permission_request">允许通知</string>
 <string name="notification_permission_settings">打开通知设置</string><string name="review_onboarding">查看使用指南</string>
+<string name="device_audio">设备音乐</string><string name="add_device_audio">允许访问设备音乐</string><string name="device_audio_unavailable">只读访问系统索引的设备音乐，不复制文件。允许音频访问权限后，添加来源并手动扫描。</string>
+<string name="device_audio_add">添加设备音乐来源</string>
+<string name="device_audio_settings">打开应用设置</string>
 </resources>
