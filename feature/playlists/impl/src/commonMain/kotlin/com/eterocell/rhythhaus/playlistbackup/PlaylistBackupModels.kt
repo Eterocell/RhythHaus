@@ -54,7 +54,8 @@ internal enum class PlaylistInteroperabilityValidationError {
 internal object PlaylistInteroperabilityLimits {
     const val MAX_LINE_CODE_POINTS =
         PlaylistBackupLimits.MAX_STRING_CODE_POINTS * 2
-    const val MAX_PLS_ENTRY_FIELDS = PlaylistBackupLimits.MAX_TOTAL_ENTRIES
+    const val MAX_PLS_ENTRY_FIELDS =
+        PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST
 }
 
 internal enum class PlaylistBackupValidationError {

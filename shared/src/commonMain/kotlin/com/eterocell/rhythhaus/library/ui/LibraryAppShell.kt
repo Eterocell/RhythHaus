@@ -74,6 +74,7 @@ import com.eterocell.rhythhaus.nowplaying.NowPlayingBarLabels
 import com.eterocell.rhythhaus.nowplaying.NowPlayingScreen
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
+import com.eterocell.rhythhaus.playlistbackup.PlaylistDocumentFormat
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
@@ -242,6 +243,8 @@ fun LibraryHomeScreen(
         (PlaylistRepository.() -> Unit, (PlaylistStateAction) -> Unit) -> Unit,
     onExportPlaylists: () -> Unit,
     onOpenPlaylistBackup: () -> Unit,
+    onExportPlaylistFormat: (String, PlaylistDocumentFormat) -> Unit,
+    onOpenPlaylistFormat: (PlaylistDocumentFormat) -> Unit,
     onConfirmPlaylistBackup: () -> Unit,
     onPlaylistBackupAction: (PlaylistBackupUiAction) -> Unit,
     sources: List<LibrarySource>,
@@ -611,6 +614,8 @@ fun LibraryHomeScreen(
             onPlaylistMutation = onPlaylistMutation,
             onExportPlaylists = onExportPlaylists,
             onOpenPlaylistBackup = onOpenPlaylistBackup,
+            onExportPlaylistFormat = onExportPlaylistFormat,
+            onOpenPlaylistFormat = onOpenPlaylistFormat,
             onConfirmPlaylistBackup = onConfirmPlaylistBackup,
             onPlaylistBackupAction = onPlaylistBackupAction,
             sources = sources,

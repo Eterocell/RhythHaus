@@ -2,7 +2,7 @@
 
 ## Boundary
 
-Keep the existing JSON backup codec and document launcher unchanged. Add a separate format-neutral interoperability codec in `feature/playlists/impl` that decodes bounded M3U/M3U8 and PLS documents into ordered metadata entries and encodes static playlist snapshots into the selected format. The codec has no repository or platform dependencies.
+Keep the existing JSON backup codec and JSON recovery behavior unchanged. Extend the document launcher with explicit format selection; JSON remains the default for existing callers. A separate format-neutral interoperability codec in `feature/playlists/impl` decodes bounded M3U/M3U8 and PLS documents into ordered metadata entries and encodes a selected static playlist snapshot into the selected format. The codec has no repository or platform dependencies.
 
 ## Matching and persistence
 

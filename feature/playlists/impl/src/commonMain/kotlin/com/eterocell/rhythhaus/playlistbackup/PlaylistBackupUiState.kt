@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus.playlistbackup
 
+import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.ui.PlaylistImportOwnerResult
@@ -406,6 +407,7 @@ internal constructor(
     private val revisionGuard: PlaylistBackupRevisionGuard,
 ) {
     private val gate = PlaylistBackupDocumentOperationGate()
+    private var openFormat = PlaylistDocumentFormat.RhythHausJson
     /**
      * The single retained import plan. Only the latest preview is reachable
      * through [PlaylistBackupUiState.preview], so retaining every plan would
@@ -437,6 +439,9 @@ internal constructor(
         snapshot: PlaylistSnapshot,
         authoritativeTracks: List<LibraryTrack>,
         exportedAtEpochMillis: Long,
+        format: PlaylistDocumentFormat = PlaylistDocumentFormat.RhythHausJson,
+        playlistId: String? = null,
+        canReadTrack: (AudioSource) -> Boolean = { false },
     ): PlaylistBackupUiState {
         if (!gate.tryStart()) return state
         val exporting =
@@ -446,11 +451,41 @@ internal constructor(
                     PlaylistBackupOperation.Exporting))
         return try {
             when (val preparation =
-                preparePlaylistBackupExport(
-                    snapshot,
-                    authoritativeTracks,
-                    exportedAtEpochMillis,
-                    dispatcher)) {
+                if (format == PlaylistDocumentFormat.RhythHausJson) {
+                    preparePlaylistBackupExport(
+                        snapshot,
+                        authoritativeTracks,
+                        exportedAtEpochMillis,
+                        dispatcher)
+                } else {
+                    withContext(dispatcher) {
+                        val byId = authoritativeTracks.associateBy { it.id }
+                        if (playlistId == null ||
+                            snapshot.playlist(playlistId) == null ||
+                            snapshot.entries(playlistId).any { occurrence ->
+                                val track = byId[occurrence.trackId]
+                                track == null ||
+                                    !canReadTrack(track.audioSource)
+                            }) {
+                            PlaylistBackupExportPreparation.Failed(
+                                PlaylistBackupUiError.ExportMissingTrack)
+                        } else {
+                            when (val result =
+                                exportPlaylistInteroperability(
+                                    snapshot,
+                                    playlistId,
+                                    authoritativeTracks,
+                                    format.interoperabilityFormat())) {
+                                is PlaylistInteroperabilityExportResult.Success ->
+                                    PlaylistBackupExportPreparation.Ready(
+                                        result.bytes)
+                                is PlaylistInteroperabilityExportResult.Failure ->
+                                    PlaylistBackupExportPreparation.Failed(
+                                        PlaylistBackupUiError.ExportInvalidData)
+                            }
+                        }
+                    }
+                }) {
                 is PlaylistBackupExportPreparation.Failed ->
                     settle(
                         exporting,
@@ -466,7 +501,12 @@ internal constructor(
                             exporting,
                             PlaylistBackupUiAction.OperationStarted(
                                 PlaylistBackupOperation.Saving))
-                    launcher.save("rhythhaus-playlists", preparation.bytes)
+                    launcher.save(
+                        playlistId?.let { snapshot.playlist(it)?.name }
+                            ?: "rhythhaus-playlists",
+                        preparation.bytes,
+                        format,
+                    )
                     saving
                 }
             }
@@ -485,8 +525,12 @@ internal constructor(
      * Requests open when no other document operation is active, otherwise
      * retaining [state].
      */
-    public fun beginOpen(state: PlaylistBackupUiState): PlaylistBackupUiState {
+    public fun beginOpen(
+        state: PlaylistBackupUiState,
+        format: PlaylistDocumentFormat = PlaylistDocumentFormat.RhythHausJson,
+    ): PlaylistBackupUiState {
         if (!gate.tryStart()) return state
+        openFormat = format
         val opening =
             reduce(
                 state,
@@ -499,9 +543,12 @@ internal constructor(
                     PlaylistBackupUiAction.Failed(
                         PlaylistBackupUiError.Unavailable))
             else {
-                launcher.open()
+                launcher.open(format)
                 opening
             }
+        } catch (cancelled: CancellationException) {
+            gate.finish()
+            throw cancelled
         } catch (_: Throwable) {
             settle(
                 opening,
@@ -575,13 +622,55 @@ internal constructor(
                             PlaylistBackupUiAction.OperationStarted(
                                 PlaylistBackupOperation.Planning))
                     when (val preparation =
-                        preparePlaylistBackupImport(
-                            result.bytes,
-                            destinationTracks,
-                            existingPlaylistNames,
-                            importedSuffix,
-                            libraryRevision,
-                            dispatcher)) {
+                        if (openFormat ==
+                            PlaylistDocumentFormat.RhythHausJson) {
+                            preparePlaylistBackupImport(
+                                result.bytes,
+                                destinationTracks,
+                                existingPlaylistNames,
+                                importedSuffix,
+                                libraryRevision,
+                                dispatcher)
+                        } else {
+                            withContext(dispatcher) {
+                                when (val decoded =
+                                    PlaylistInteroperabilityCodec.decode(
+                                        result.bytes,
+                                        openFormat.interoperabilityFormat())) {
+                                    is PlaylistInteroperabilityDecodeResult.Success ->
+                                        PlaylistBackupImportPreparation.Ready(
+                                            planPlaylistInteroperabilityImport(
+                                                decoded.document,
+                                                destinationTracks,
+                                                existingPlaylistNames,
+                                                importedSuffix,
+                                                libraryRevision))
+                                    is PlaylistInteroperabilityDecodeResult.Invalid ->
+                                        PlaylistBackupImportPreparation.Failed(
+                                            when (decoded.error) {
+                                                PlaylistInteroperabilityValidationError
+                                                    .INPUT_TOO_LARGE ->
+                                                    PlaylistBackupUiError
+                                                        .Oversized
+                                                PlaylistInteroperabilityValidationError
+                                                    .MALFORMED_UTF8,
+                                                PlaylistInteroperabilityValidationError
+                                                    .MALFORMED_M3U,
+                                                PlaylistInteroperabilityValidationError
+                                                    .MALFORMED_PLS ->
+                                                    PlaylistBackupUiError
+                                                        .Malformed
+                                                PlaylistInteroperabilityValidationError
+                                                    .UNSUPPORTED_VERSION ->
+                                                    PlaylistBackupUiError
+                                                        .UnsupportedVersion
+                                                else ->
+                                                    PlaylistBackupUiError
+                                                        .InvalidData
+                                            })
+                                }
+                            }
+                        }) {
                         is PlaylistBackupImportPreparation.Failed ->
                             settle(
                                 planning,
@@ -600,6 +689,10 @@ internal constructor(
         } catch (cancelled: CancellationException) {
             gate.finish()
             throw cancelled
+        } catch (_: Exception) {
+            settle(
+                state,
+                PlaylistBackupUiAction.Failed(PlaylistBackupUiError.ReadFailed))
         }
     }
 
@@ -691,6 +784,16 @@ internal constructor(
         return reduce(state, action)
     }
 }
+
+private fun PlaylistDocumentFormat.interoperabilityFormat():
+    PlaylistInteroperabilityFormat =
+    when (this) {
+        PlaylistDocumentFormat.M3u -> PlaylistInteroperabilityFormat.M3U
+        PlaylistDocumentFormat.M3u8 -> PlaylistInteroperabilityFormat.M3U8
+        PlaylistDocumentFormat.Pls -> PlaylistInteroperabilityFormat.PLS
+        PlaylistDocumentFormat.RhythHausJson ->
+            error("JSON uses its recovery codec")
+    }
 
 internal fun PlaylistImportPlan.importResult(): PlaylistBackupImportResult =
     PlaylistBackupImportResult(

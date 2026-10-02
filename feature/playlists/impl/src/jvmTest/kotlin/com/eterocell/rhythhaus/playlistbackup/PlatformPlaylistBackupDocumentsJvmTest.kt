@@ -37,6 +37,26 @@ class PlatformPlaylistBackupDocumentsJvmTest {
     }
 
     @Test
+    fun formatAwareSavePreservesSelectedExtensionAndOpenFilter() {
+        val selected = File(createTempDirectory().toFile(), "mix")
+        var writtenFile: File? = null
+
+        val result =
+            saveJvmPlaylistBackupDocument(
+                bytes = byteArrayOf(1),
+                format = PlaylistDocumentFormat.Pls,
+                selectFile = { selected },
+                writeFile = { file, _ -> writtenFile = file },
+            )
+
+        assertIs<PlaylistBackupDocumentSaveResult.Success>(result)
+        assertEquals("mix.pls", writtenFile?.name)
+        val filter = playlistDocumentExtensionFilter(PlaylistDocumentFormat.Pls)
+        assertEquals(true, filter.accept(selected.parentFile, "mix.pls"))
+        assertEquals(false, filter.accept(selected.parentFile, "mix.m3u"))
+    }
+
+    @Test
     fun saveCancellationIsSilentAndDoesNotWrite() {
         var writes = 0
         val result =

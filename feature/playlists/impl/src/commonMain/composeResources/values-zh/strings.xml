@@ -77,7 +77,16 @@
     <string name="playlist_backup_repository_error">无法导入播放列表。没有播放列表被更改。</string>
     <string name="smart_create">创建智能播放列表</string>
     <string name="smart_rules">智能播放列表</string>
-    <string name="smart_backup_note">JSON 备份不包含智能播放列表</string>
+    <string name="smart_backup_note">JSON 备份以及 M3U、M3U8 和 PLS 导出仅包含静态播放列表，不包含智能播放列表规则。导入文件中未匹配或有歧义的条目不会恢复。</string>
+    <string name="playlist_backup_export_json">导出完整 JSON 备份</string>
+    <string name="playlist_backup_import_json">导入 RhythHaus JSON 备份</string>
+    <string name="playlist_backup_interoperability">互操作播放列表文件</string>
+    <string name="playlist_backup_static_playlist">已保存的播放列表</string>
+    <string name="playlist_backup_no_static_playlists">没有可导出的已保存播放列表。</string>
+    <string name="playlist_backup_export_selected">导出所选播放列表</string>
+    <string name="playlist_backup_import_format">导入所选格式</string>
+    <string name="playlist_backup_selected">已选择</string>
+    <string name="playlist_backup_not_selected">未选择</string>
     <string name="smart_rule">规则</string>
     <string name="smart_favorites">收藏</string>
     <string name="smart_recent_played">最近播放</string>

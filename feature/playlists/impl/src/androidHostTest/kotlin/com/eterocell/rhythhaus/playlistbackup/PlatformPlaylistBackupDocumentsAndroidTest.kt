@@ -18,6 +18,27 @@ class PlatformPlaylistBackupDocumentsAndroidTest {
     }
 
     @Test
+    fun selectedFormatUsesItsCreateDocumentMimeType() {
+        assertEquals(
+            PlaylistBackupMimeType,
+            androidPlaylistDocumentMimeType(
+                PlaylistDocumentFormat.RhythHausJson),
+        )
+        assertEquals(
+            "audio/x-mpegurl",
+            androidPlaylistDocumentMimeType(PlaylistDocumentFormat.M3u),
+        )
+        assertEquals(
+            "application/vnd.apple.mpegurl",
+            androidPlaylistDocumentMimeType(PlaylistDocumentFormat.M3u8),
+        )
+        assertEquals(
+            "audio/x-scpls",
+            androidPlaylistDocumentMimeType(PlaylistDocumentFormat.Pls),
+        )
+    }
+
+    @Test
     fun saveWritesCompletePayloadExactlyOnce() {
         val payload = byteArrayOf(1, 2, 3, 4)
         val output = ByteArrayOutputStream()

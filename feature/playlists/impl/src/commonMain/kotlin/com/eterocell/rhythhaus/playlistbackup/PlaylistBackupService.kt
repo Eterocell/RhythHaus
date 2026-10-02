@@ -133,6 +133,22 @@ internal fun planPlaylistImport(
     existingPlaylistNames: List<String>,
     importedSuffix: String,
     libraryRevision: Long,
+): PlaylistImportPlan =
+    planPlaylistImport(
+        document.playlists,
+        destinationTracks,
+        existingPlaylistNames,
+        importedSuffix,
+        libraryRevision,
+    )
+
+/** Plans bounded source playlists through the authoritative revision guard. */
+internal fun planPlaylistImport(
+    playlists: List<PlaylistBackupPlaylist>,
+    destinationTracks: List<LibraryTrack>,
+    existingPlaylistNames: List<String>,
+    importedSuffix: String,
+    libraryRevision: Long,
 ): PlaylistImportPlan {
     require(importedSuffix.isNotBlank())
     val matcher = PlaylistBackupMatcher(destinationTracks)
@@ -143,7 +159,7 @@ internal fun planPlaylistImport(
     val issues = mutableListOf<PlaylistImportIssue>()
     var totalCounts = PlaylistImportCounts(0, 0, 0)
 
-    document.playlists.forEachIndexed { playlistIndex, playlist ->
+    playlists.forEachIndexed { playlistIndex, playlist ->
         val trackIds = mutableListOf<String>()
         var unmatched = 0
         var ambiguous = 0
@@ -205,8 +221,7 @@ internal fun planPlaylistImport(
         totals =
             PlaylistImportTotals(
                 playlistsToCreate = plannedPlaylists.size,
-                playlistsSkipped =
-                    document.playlists.size - plannedPlaylists.size,
+                playlistsSkipped = playlists.size - plannedPlaylists.size,
                 entries = totalCounts,
             ),
         issues = issues.toList(),

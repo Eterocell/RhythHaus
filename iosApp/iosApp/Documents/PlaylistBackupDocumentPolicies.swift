@@ -18,12 +18,21 @@ enum PlaylistBackupDocumentPolicyOutcome: Equatable {
 enum PlaylistBackupDocumentTypePolicy {
     static func contentTypes(for format: String? = nil) -> [UTType] {
         switch format?.lowercased() {
-        case ".m3u":
-            return [UTType(mimeType: "audio/x-mpegurl"), .mpegURL].compactMap { $0 }
-        case ".m3u8":
-            return [UTType(mimeType: "application/vnd.apple.mpegurl"), .mpegURL].compactMap { $0 }
-        case ".pls":
-            return [UTType(mimeType: "audio/x-scpls")].compactMap { $0 }
+        case ".m3u", "m3u", "audio/x-mpegurl", "audio/mpegurl":
+            return interchangeContentTypes(
+                fileExtension: "m3u",
+                mimeTypes: ["audio/x-mpegurl", "audio/mpegurl"]
+            )
+        case ".m3u8", "m3u8", "application/vnd.apple.mpegurl":
+            return interchangeContentTypes(
+                fileExtension: "m3u8",
+                mimeTypes: ["application/vnd.apple.mpegurl", "audio/x-mpegurl"]
+            )
+        case ".pls", "pls", "audio/x-scpls":
+            return interchangeContentTypes(
+                fileExtension: "pls",
+                mimeTypes: ["audio/x-scpls"]
+            )
         default:
             return [UTType(mimeType: PlatformPlaylistBackupDocumentsKt.PlaylistBackupMimeType), .json].compactMap { $0 }
         }
@@ -31,6 +40,44 @@ enum PlaylistBackupDocumentTypePolicy {
 
     static func contentTypes() -> [UTType] {
         contentTypes(for: nil)
+    }
+
+    static func fileName(_ fileName: String, format: String) -> String {
+        guard let fileExtension = playlistFileExtension(for: format) else {
+            return URL(fileURLWithPath: fileName).lastPathComponent
+        }
+        let safeName = URL(fileURLWithPath: fileName).lastPathComponent
+        guard !safeName.lowercased().hasSuffix(".\(fileExtension)") else {
+            return safeName
+        }
+        return "\(safeName).\(fileExtension)"
+    }
+
+    private static func playlistFileExtension(for format: String) -> String? {
+        switch format.lowercased() {
+        case ".m3u", "m3u": return "m3u"
+        case ".m3u8", "m3u8": return "m3u8"
+        case ".pls", "pls": return "pls"
+        case ".rhythhaus-playlists.json", "rhythhaus-playlists.json":
+            return "rhythhaus-playlists.json"
+        default: return nil
+        }
+    }
+
+    private static func interchangeContentTypes(
+        fileExtension: String,
+        mimeTypes: [String]
+    ) -> [UTType] {
+        var types: [UTType] = []
+        if let extensionType = UTType(filenameExtension: fileExtension) {
+            types.append(extensionType)
+        }
+        for mimeType in mimeTypes {
+            if let mimeType = UTType(mimeType: mimeType), !types.contains(mimeType) {
+                types.append(mimeType)
+            }
+        }
+        return types
     }
 }
 

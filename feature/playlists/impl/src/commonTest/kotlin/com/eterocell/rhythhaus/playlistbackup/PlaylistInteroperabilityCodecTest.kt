@@ -216,7 +216,7 @@ class PlaylistInteroperabilityCodecTest {
             bytes =
                 pls(
                     "[playlist]",
-                    "NumberOfEntries=${PlaylistBackupLimits.MAX_TOTAL_ENTRIES + 1}",
+                    "NumberOfEntries=${PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST + 1}",
                     "Version=2",
                 ),
             format = PlaylistInteroperabilityFormat.PLS,
@@ -264,7 +264,7 @@ class PlaylistInteroperabilityCodecTest {
         assertInvalid(
             bytes = buildString {
                     append("#EXTM3U\n")
-                    repeat(PlaylistBackupLimits.MAX_TOTAL_ENTRIES + 1) {
+                    repeat(PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST + 1) {
                         append("#EXTINF:0,\n/path\n")
                     }
                 }
@@ -318,6 +318,48 @@ class PlaylistInteroperabilityCodecTest {
                 PlaylistInteroperabilityFormat.M3U8,
             )
         }
+        assertFailsWith<IllegalArgumentException> {
+            PlaylistInteroperabilityCodec.encode(
+                document.copy(
+                    entries =
+                        List(
+                            PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST + 1,
+                        ) {
+                            entry
+                        },
+                ),
+                PlaylistInteroperabilityFormat.PLS,
+            )
+        }
+    }
+
+    @Test
+    fun encodingValidatesPathsForRequestedOutputFormat() {
+        val commentPath = entry.copy(path = "#intro.mp3")
+
+        assertFailsWith<IllegalArgumentException> {
+            PlaylistInteroperabilityCodec.encode(
+                document.copy(
+                    format = PlaylistInteroperabilityFormat.PLS,
+                    entries = listOf(commentPath),
+                ),
+                PlaylistInteroperabilityFormat.M3U,
+            )
+        }
+
+        assertEquals(
+            "#intro.mp3",
+            decode(
+                    PlaylistInteroperabilityFormat.PLS,
+                    PlaylistInteroperabilityCodec.encode(
+                        document.copy(entries = listOf(commentPath)),
+                        PlaylistInteroperabilityFormat.PLS,
+                    ),
+                )
+                .entries
+                .single()
+                .path,
+        )
     }
 
     private fun decode(

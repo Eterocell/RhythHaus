@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 
 class PlaylistInteroperabilityServiceTest {
     @Test
-    fun importPlanUsesExistingMatcherAndReportsUnmatchedEntries() {
+    fun importPlanUsesGuardedProjectionAndPreservesIssueOrderAndDuplicates() {
         val track = track("one", "Song", 10_000)
         val document =
             PlaylistInteroperabilityDocument(
@@ -19,15 +19,75 @@ class PlaylistInteroperabilityServiceTest {
                             "Song", "Artist", "Album", 10, "/one.mp3"),
                         PlaylistInteroperabilityEntry(
                             "Missing", "Artist", "Album", 10, "/missing.mp3"),
+                        PlaylistInteroperabilityEntry(
+                            "Choice", "Artist", "Album", 10, "/choice.mp3"),
+                        PlaylistInteroperabilityEntry(
+                            "Song", "Artist", "Album", 10, "/one-again.mp3"),
                     ),
             )
 
-        val plan = planPlaylistInteroperabilityImport(document, listOf(track))
+        val plan =
+            planPlaylistInteroperabilityImport(
+                document = document,
+                destinationTracks =
+                    listOf(
+                        track,
+                        track("two", "Choice", 10_000),
+                        track("three", "Choice", 10_000),
+                    ),
+                existingPlaylistNames = listOf("External"),
+                importedSuffix = "Imported",
+                libraryRevision = 37L,
+            )
 
-        assertEquals("External", plan.name)
-        assertEquals(listOf("one"), plan.trackIds)
-        assertEquals(1, plan.unmatched)
-        assertEquals(0, plan.ambiguous)
+        assertEquals(37L, plan.libraryRevision)
+        assertEquals(
+            listOf(
+                PlaylistImportPlaylist(
+                    sourcePlaylistIndex = 0,
+                    name = "External (Imported)",
+                    trackIds = listOf("one", "one"),
+                ),
+            ),
+            plan.playlists,
+        )
+        assertEquals(
+            listOf(
+                PlaylistImportPlaylistReport(
+                    sourcePlaylistIndex = 0,
+                    sourceName = "External",
+                    plannedName = "External (Imported)",
+                    counts =
+                        PlaylistImportCounts(
+                            restorable = 2,
+                            unmatched = 1,
+                            ambiguous = 1,
+                        ),
+                ),
+            ),
+            plan.reports,
+        )
+        assertEquals(
+            listOf(
+                PlaylistImportIssue(
+                    playlistIndex = 0,
+                    entryIndex = 1,
+                    entry =
+                        PlaylistBackupEntry("Missing", "Artist", "Album", 10),
+                    kind = PlaylistImportIssueKind.UNMATCHED,
+                    candidateTrackIds = emptyList(),
+                ),
+                PlaylistImportIssue(
+                    playlistIndex = 0,
+                    entryIndex = 2,
+                    entry =
+                        PlaylistBackupEntry("Choice", "Artist", "Album", 10),
+                    kind = PlaylistImportIssueKind.AMBIGUOUS,
+                    candidateTrackIds = listOf("two", "three"),
+                ),
+            ),
+            plan.issues,
+        )
     }
 
     @Test

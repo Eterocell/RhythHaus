@@ -12,6 +12,28 @@ final class PlaylistBackupDocumentPoliciesTests: XCTestCase {
         XCTAssertTrue(types.contains(.json))
     }
 
+    func testDocumentFiltersAcceptNativePlaylistFileTypesButNotJson() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let json = directory.appendingPathComponent("backup.json")
+        try Data("{}".utf8).write(to: json)
+        let jsonType = try XCTUnwrap(json.resourceValues(forKeys: [.contentTypeKey]).contentType)
+
+        for (extensionName, mime) in [
+            ("m3u", "audio/x-mpegurl"),
+            ("m3u8", "application/vnd.apple.mpegurl"),
+            ("pls", "audio/x-scpls"),
+        ] {
+            let file = directory.appendingPathComponent("playlist.\(extensionName)")
+            try Data().write(to: file)
+            let fileType = try XCTUnwrap(file.resourceValues(forKeys: [.contentTypeKey]).contentType)
+            let allowedTypes = PlaylistBackupDocumentTypePolicy.contentTypes(for: mime)
+            XCTAssertTrue(allowedTypes.contains { fileType.conforms(to: $0) }, extensionName)
+            XCTAssertFalse(allowedTypes.contains { jsonType.conforms(to: $0) }, extensionName)
+        }
+    }
+
     func testBoundedReadAcceptsExactLimitAndRejectsLimitPlusOneAndClosesHandle() throws {
         let limit = Int(PlatformPlaylistBackupDocumentsKt.PlaylistBackupMaxBytes)
         let exactHandle = FakeBoundedReadHandle(data: Data(count: limit))
@@ -154,6 +176,23 @@ final class PlaylistBackupDocumentPoliciesTests: XCTestCase {
 
         XCTAssertEqual(storage.removedURLs, [storage.root.appendingPathComponent("failure-uuid", isDirectory: true)])
     }
+
+    func testTemporaryExportPreservesInteroperabilityFileName() throws {
+        let storage = FakeTemporaryStorage()
+
+        let prepared = try PlaylistBackupDocumentTemporaryExport.prepare(
+            fileName: "mix.pls",
+            data: Data([1]),
+            storage: storage,
+            uuid: { "playlist-uuid" }
+        )
+
+        XCTAssertEqual(prepared.fileURL.lastPathComponent, "mix.pls")
+        XCTAssertEqual(
+            storage.writtenURLs,
+            [storage.root.appendingPathComponent("playlist-uuid/mix.pls")]
+        )
+    }
 }
 
 private enum TestError: Error { case failure }
@@ -199,11 +238,13 @@ private final class FakeTemporaryStorage: PlaylistBackupDocumentTemporaryStorage
     let root = URL(fileURLWithPath: "/tmp/rhythhaus-tests", isDirectory: true)
     let writeError: Error?
     var removedURLs: [URL] = []
+    var writtenURLs: [URL] = []
     init(writeError: Error? = nil) { self.writeError = writeError }
     func temporaryDirectory() -> URL { root }
     func createDirectory(at url: URL) throws { }
     func write(_ data: Data, to url: URL) throws {
         if let writeError { throw writeError }
+        writtenURLs.append(url)
     }
     func removeItem(at url: URL) throws { removedURLs.append(url) }
 }

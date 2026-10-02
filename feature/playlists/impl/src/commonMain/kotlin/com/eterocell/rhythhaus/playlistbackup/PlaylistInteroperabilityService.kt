@@ -2,7 +2,6 @@ package com.eterocell.rhythhaus.playlistbackup
 
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
-import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 
 /** Result of exporting one static playlist to an interoperable document. */
@@ -15,20 +14,6 @@ public sealed interface PlaylistInteroperabilityExportResult {
     public data class Failure(val trackId: String?) :
         PlaylistInteroperabilityExportResult
 }
-
-internal data class PlaylistInteroperabilityImportPlan(
-    val name: String,
-    val trackIds: List<String>,
-    val unmatched: Int,
-    val ambiguous: Int,
-    val issues: List<PlaylistInteroperabilityIssue> = emptyList(),
-)
-
-internal data class PlaylistInteroperabilityIssue(
-    val entryIndex: Int,
-    val entry: PlaylistInteroperabilityEntry,
-    val candidateTrackIds: List<String> = emptyList(),
-)
 
 /** Export one static playlist; smart rules are intentionally not serialized. */
 public fun exportPlaylistInteroperability(
@@ -79,38 +64,31 @@ public fun exportPlaylistInteroperability(
 internal fun planPlaylistInteroperabilityImport(
     document: PlaylistInteroperabilityDocument,
     destinationTracks: List<LibraryTrack>,
-): PlaylistInteroperabilityImportPlan {
-    val matcher = PlaylistBackupMatcher(destinationTracks)
-    val ids = mutableListOf<String>()
-    val issues = mutableListOf<PlaylistInteroperabilityIssue>()
-    var unmatched = 0
-    var ambiguous = 0
-    document.entries.forEachIndexed { index, entry ->
-        when (val match =
-            matcher.match(
-                PlaylistBackupEntry(
-                    entry.title,
-                    entry.artist,
-                    entry.album,
-                    entry.durationSeconds))) {
-            is PlaylistBackupMatch.Unique -> ids += match.trackId
-            PlaylistBackupMatch.Unmatched -> {
-                unmatched++
-                issues += PlaylistInteroperabilityIssue(index, entry)
-            }
-            is PlaylistBackupMatch.Ambiguous -> {
-                ambiguous++
-                issues +=
-                    PlaylistInteroperabilityIssue(index, entry, match.trackIds)
-            }
-        }
-    }
-    return PlaylistInteroperabilityImportPlan(
-        document.name, ids, unmatched, ambiguous, issues)
-}
-
-internal fun PlaylistInteroperabilityImportPlan.toMutation():
-    PlaylistImportMutation = PlaylistImportMutation(name, trackIds)
+    existingPlaylistNames: List<String>,
+    importedSuffix: String,
+    libraryRevision: Long,
+): PlaylistImportPlan =
+    planPlaylistImport(
+        playlists =
+            listOf(
+                PlaylistBackupPlaylist(
+                    name = document.name,
+                    entries =
+                        document.entries.map { entry ->
+                            PlaylistBackupEntry(
+                                title = entry.title,
+                                artist = entry.artist,
+                                album = entry.album,
+                                durationSeconds = entry.durationSeconds,
+                            )
+                        },
+                ),
+            ),
+        destinationTracks = destinationTracks,
+        existingPlaylistNames = existingPlaylistNames,
+        importedSuffix = importedSuffix,
+        libraryRevision = libraryRevision,
+    )
 
 private fun AudioSource.interoperabilityPath(): String =
     when (this) {

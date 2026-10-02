@@ -488,6 +488,52 @@ class AppScanCancellationTest {
         }
 
     @Test
+    fun backupExportPublishesBusyBeforeSuspendedPreparation() = runBlocking {
+        var state = PlaylistBackupUiState()
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val controller =
+            createPlaylistBackupController(
+                owner =
+                    PlaylistStateOwner(
+                        EmptyPlaylistRepository, Dispatchers.Default),
+                dispatcher = Dispatchers.Default,
+                launcher = RecordingPlaylistBackupDocumentLauncher(),
+                revisionGuard =
+                    object : PlaylistBackupRevisionGuard {
+                        override suspend fun <T> withCurrentRevision(
+                            expectedRevision: Long,
+                            block: suspend () -> T,
+                        ): PlaylistBackupRevisionGuardResult<T> =
+                            PlaylistBackupRevisionGuardResult.Current(block())
+                    },
+            )
+        val operation =
+            async(start = CoroutineStart.UNDISPATCHED) {
+                runPlaylistBackupOperation(
+                    currentState = { state },
+                    publishState = { state = it },
+                    reduce = controller::reduce,
+                    operation = PlaylistBackupOperation.Exporting,
+                ) {
+                    entered.complete(Unit)
+                    release.await()
+                    controller.beginExport(
+                        state, PlaylistSnapshot(), emptyList(), 0L)
+                }
+            }
+        entered.await()
+        try {
+            assertTrue(state.isBusy)
+            assertEquals(PlaylistBackupOperation.Exporting, state.operation)
+        } finally {
+            release.complete(Unit)
+        }
+        assertEquals(
+            PlaylistBackupOperation.Saving, operation.await().operation)
+    }
+
+    @Test
     fun backupOrchestrationPublishesIdleRetainedPreviewBeforeRethrowingCancellation() =
         runBlocking {
             val launcher = RecordingPlaylistBackupDocumentLauncher()

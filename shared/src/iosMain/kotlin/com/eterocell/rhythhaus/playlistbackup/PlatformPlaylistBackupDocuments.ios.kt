@@ -34,21 +34,25 @@ public interface IOSPlaylistBackupDocumentProvider {
         maxBytes: Int,
         completion: IOSPlaylistBackupDocumentCompletion
     )
+}
 
-    /** Optional format-aware save; default preserves legacy JSON providers. */
+/** Native providers implementing this capability support non-JSON documents. */
+public interface IOSFormattedPlaylistBackupDocumentProvider :
+    IOSPlaylistBackupDocumentProvider {
+    /** Saves a document using the requested extension and format. */
     fun saveDocumentWithFormat(
         fileName: String,
         bytes: ByteArray,
         format: String,
         completion: IOSPlaylistBackupDocumentCompletion,
-    ) = saveDocument(fileName, bytes, completion)
+    )
 
-    /** Optional format-aware open; default preserves legacy JSON providers. */
+    /** Opens a document using the requested content types. */
     fun openDocumentWithFormats(
         maxBytes: Int,
         mimeTypes: List<String>,
         completion: IOSPlaylistBackupDocumentCompletion,
-    ) = openDocument(maxBytes, completion)
+    )
 }
 
 /** ABI singleton retaining the current injected iOS document provider. */
@@ -97,10 +101,7 @@ internal fun iosPlaylistBackupDocumentLauncher(
                 onSaveResult(iosPlaylistBackupUnavailableSaveResult())
                 return
             }
-            provider.saveDocumentWithFormat(
-                iosPlaylistBackupFileName(suggestedFileName),
-                bytes,
-                format.extension,
+            val completion =
                 object : IOSPlaylistBackupDocumentCompletion {
                     override fun complete(
                         status: Int,
@@ -110,8 +111,21 @@ internal fun iosPlaylistBackupDocumentLauncher(
                         onSaveResult(
                             iosPlaylistBackupSaveResult(status, message))
                     }
-                },
-            )
+                }
+            if (format == PlaylistDocumentFormat.RhythHausJson) {
+                provider.saveDocument(
+                    iosPlaylistBackupFileName(suggestedFileName, format),
+                    bytes,
+                    completion)
+            } else if (provider is IOSFormattedPlaylistBackupDocumentProvider) {
+                provider.saveDocumentWithFormat(
+                    iosPlaylistBackupFileName(suggestedFileName, format),
+                    bytes,
+                    format.extension,
+                    completion)
+            } else {
+                onSaveResult(iosPlaylistBackupUnavailableSaveResult())
+            }
         }
 
         override fun open() {
@@ -124,9 +138,7 @@ internal fun iosPlaylistBackupDocumentLauncher(
                 onOpenResult(iosPlaylistBackupUnavailableOpenResult())
                 return
             }
-            provider.openDocumentWithFormats(
-                PlaylistBackupMaxBytes,
-                format.mimeTypes,
+            val completion =
                 object : IOSPlaylistBackupDocumentCompletion {
                     override fun complete(
                         status: Int,
@@ -136,8 +148,15 @@ internal fun iosPlaylistBackupDocumentLauncher(
                         onOpenResult(
                             iosPlaylistBackupOpenResult(status, bytes, message))
                     }
-                },
-            )
+                }
+            if (format == PlaylistDocumentFormat.RhythHausJson) {
+                provider.openDocument(PlaylistBackupMaxBytes, completion)
+            } else if (provider is IOSFormattedPlaylistBackupDocumentProvider) {
+                provider.openDocumentWithFormats(
+                    PlaylistBackupMaxBytes, format.mimeTypes, completion)
+            } else {
+                onOpenResult(iosPlaylistBackupUnavailableOpenResult())
+            }
         }
     }
 
@@ -197,14 +216,17 @@ internal fun iosPlaylistBackupOpenResult(
                 message ?: "Could not open playlist backup")
     }
 
-internal fun iosPlaylistBackupFileName(suggestedFileName: String): String {
+internal fun iosPlaylistBackupFileName(
+    suggestedFileName: String,
+    format: PlaylistDocumentFormat = PlaylistDocumentFormat.RhythHausJson,
+): String {
     val safe =
         suggestedFileName
             .substringAfterLast('/')
             .substringAfterLast('\\')
             .trim()
             .ifBlank { "rhythhaus-playlists" }
-    val extension = ".rhythhaus-playlists.json"
+    val extension = format.extension
     return if (safe.endsWith(extension, ignoreCase = true)) safe
     else safe + extension
 }

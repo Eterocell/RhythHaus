@@ -54,6 +54,7 @@ import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.onboarding.OnboardingCloseTestTag
 import com.eterocell.rhythhaus.onboarding.OnboardingRootTestTag
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
+import com.eterocell.rhythhaus.playlistbackup.PlaylistDocumentFormat
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
@@ -1108,6 +1109,10 @@ class LibraryAppShellJvmTest {
                         onPlaylistMutation = { _, _ -> },
                         onExportPlaylists = {},
                         onOpenPlaylistBackup = {},
+                        onExportPlaylistFormat = { _, _: PlaylistDocumentFormat
+                            ->
+                        },
+                        onOpenPlaylistFormat = { _: PlaylistDocumentFormat -> },
                         onConfirmPlaylistBackup = {},
                         onPlaylistBackupAction = {},
                         sources = listOf(source),

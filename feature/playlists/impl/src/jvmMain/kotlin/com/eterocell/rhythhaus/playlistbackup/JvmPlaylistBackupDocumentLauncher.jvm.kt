@@ -6,6 +6,7 @@ import java.awt.FileDialog
 import java.awt.Frame
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FilenameFilter
 import java.io.InputStream
 
 /**
@@ -25,13 +26,29 @@ public fun rememberJvmPlaylistBackupDocumentLauncher(
             override val isAvailable: Boolean = true
 
             override fun save(suggestedFileName: String, bytes: ByteArray) {
+                save(
+                    suggestedFileName,
+                    bytes,
+                    PlaylistDocumentFormat.RhythHausJson,
+                )
+            }
+
+            override fun save(
+                suggestedFileName: String,
+                bytes: ByteArray,
+                format: PlaylistDocumentFormat,
+            ) {
                 onSaveResult(
                     saveJvmPlaylistBackupDocument(
                         bytes = bytes,
+                        format = format,
                         selectFile = {
                             openJvmPlaylistBackupDialog(
                                 FileDialog.SAVE,
-                                playlistBackupFileName(suggestedFileName))
+                                playlistDocumentFileName(
+                                    suggestedFileName, format),
+                                format,
+                            )
                         },
                         writeFile = { file, payload ->
                             file.outputStream().use { it.write(payload) }
@@ -41,10 +58,15 @@ public fun rememberJvmPlaylistBackupDocumentLauncher(
             }
 
             override fun open() {
+                open(PlaylistDocumentFormat.RhythHausJson)
+            }
+
+            override fun open(format: PlaylistDocumentFormat) {
                 onOpenResult(
                     openJvmPlaylistBackupDocument(
                         selectFile = {
-                            openJvmPlaylistBackupDialog(FileDialog.LOAD, null)
+                            openJvmPlaylistBackupDialog(
+                                FileDialog.LOAD, null, format)
                         },
                         readFile = { file ->
                             file
@@ -59,6 +81,7 @@ public fun rememberJvmPlaylistBackupDocumentLauncher(
 
 internal fun saveJvmPlaylistBackupDocument(
     bytes: ByteArray,
+    format: PlaylistDocumentFormat,
     selectFile: () -> File?,
     writeFile: (File, ByteArray) -> Unit,
 ): PlaylistBackupDocumentSaveResult =
@@ -66,13 +89,27 @@ internal fun saveJvmPlaylistBackupDocument(
         val selected =
             selectFile() ?: return PlaylistBackupDocumentSaveResult.Cancelled
         val destination =
-            File(selected.parentFile, playlistBackupFileName(selected.name))
+            File(
+                selected.parentFile,
+                playlistDocumentFileName(selected.name, format))
         writeFile(destination, bytes)
         PlaylistBackupDocumentSaveResult.Success
     } catch (exception: Exception) {
         PlaylistBackupDocumentSaveResult.Failure(
             exception.message ?: "Could not save playlist backup")
     }
+
+internal fun saveJvmPlaylistBackupDocument(
+    bytes: ByteArray,
+    selectFile: () -> File?,
+    writeFile: (File, ByteArray) -> Unit,
+): PlaylistBackupDocumentSaveResult =
+    saveJvmPlaylistBackupDocument(
+        bytes = bytes,
+        format = PlaylistDocumentFormat.RhythHausJson,
+        selectFile = selectFile,
+        writeFile = writeFile,
+    )
 
 internal fun openJvmPlaylistBackupDocument(
     selectFile: () -> File?,
@@ -129,7 +166,8 @@ internal fun <T> withJvmDocumentDialogMode(
 
 private fun openJvmPlaylistBackupDialog(
     mode: Int,
-    suggestedFileName: String?
+    suggestedFileName: String?,
+    format: PlaylistDocumentFormat,
 ): File? = withJvmDocumentDialogMode {
     val dialog =
         FileDialog(
@@ -140,12 +178,19 @@ private fun openJvmPlaylistBackupDialog(
     try {
         dialog.directory = System.getProperty("user.home")
         dialog.file = suggestedFileName
+        dialog.filenameFilter = playlistDocumentExtensionFilter(format)
         dialog.isVisible = true
         dialog.files.firstOrNull()
             ?: dialog.file?.let { File(dialog.directory ?: "", it) }
     } finally {
         dialog.dispose()
     }
+}
+
+internal fun playlistDocumentExtensionFilter(
+    format: PlaylistDocumentFormat,
+): FilenameFilter = FilenameFilter { _, name ->
+    name.endsWith(format.extension, ignoreCase = true)
 }
 
 internal fun readJvmPlaylistBackupBounded(input: InputStream): ByteArray {

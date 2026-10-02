@@ -36,7 +36,7 @@ internal object PlaylistInteroperabilityCodec {
         document: PlaylistInteroperabilityDocument,
         format: PlaylistInteroperabilityFormat = document.format,
     ): ByteArray {
-        validateDocument(document)
+        validateDocument(document, format)
         val writer = BoundedUtf8Writer()
         when (format) {
             PlaylistInteroperabilityFormat.M3U,
@@ -273,7 +273,7 @@ internal object PlaylistInteroperabilityCodec {
                         PlaylistInteroperabilityValidationError.MALFORMED_M3U,
                     )
                     if (entries.size ==
-                        PlaylistBackupLimits.MAX_TOTAL_ENTRIES) {
+                        PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST) {
                         fail(
                             PlaylistInteroperabilityValidationError
                                 .ENTRY_LIMIT_EXCEEDED)
@@ -376,7 +376,8 @@ internal object PlaylistInteroperabilityCodec {
                                 .INVALID_INTEGER)
                     }
                     if (parsed >
-                        PlaylistBackupLimits.MAX_TOTAL_ENTRIES.toLong()) {
+                        PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST
+                            .toLong()) {
                         fail(
                             PlaylistInteroperabilityValidationError
                                 .ENTRY_LIMIT_EXCEEDED)
@@ -500,7 +501,7 @@ internal object PlaylistInteroperabilityCodec {
             existing
                 ?: run {
                     if (fieldsByIndex.size ==
-                        PlaylistBackupLimits.MAX_TOTAL_ENTRIES) {
+                        PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST) {
                         fail(
                             PlaylistInteroperabilityValidationError
                                 .ENTRY_LIMIT_EXCEEDED)
@@ -555,10 +556,14 @@ internal object PlaylistInteroperabilityCodec {
             ?: fail(PlaylistInteroperabilityValidationError.NUMERIC_OVERFLOW)
     }
 
-    private fun validateDocument(document: PlaylistInteroperabilityDocument) {
+    private fun validateDocument(
+        document: PlaylistInteroperabilityDocument,
+        outputFormat: PlaylistInteroperabilityFormat,
+    ) {
         requireValidName(document.name)
         require(
-            document.entries.size <= PlaylistBackupLimits.MAX_TOTAL_ENTRIES) {
+            document.entries.size <=
+                PlaylistBackupLimits.MAX_ENTRIES_PER_PLAYLIST) {
                 "Playlist interoperability document exceeds the entry limit"
             }
         document.entries.forEach { entry ->
@@ -568,7 +573,7 @@ internal object PlaylistInteroperabilityCodec {
             requireValidPath(
                 entry.path,
                 rejectCommentMarker =
-                    document.format != PlaylistInteroperabilityFormat.PLS,
+                    outputFormat != PlaylistInteroperabilityFormat.PLS,
             )
             require(
                 entry.durationSeconds in

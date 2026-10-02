@@ -52,8 +52,10 @@ import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupRevisionGuard
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupRevisionGuardResult
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
+import com.eterocell.rhythhaus.playlistbackup.PlaylistDocumentFormat
 import com.eterocell.rhythhaus.playlistbackup.createPlaylistBackupController
 import com.eterocell.rhythhaus.playlistbackup.rememberPlatformPlaylistBackupDocumentLauncher
+import com.eterocell.rhythhaus.playlistbackup.rememberPlaylistTrackReadability
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.DarkHausPalette
@@ -464,13 +466,17 @@ fun App(
     val backupDocumentLauncher =
         rememberPlatformPlaylistBackupDocumentLauncher(
             onSaveResult = { result ->
-                backupControllerHolder[0]?.let { controller ->
-                    playlistBackupState =
-                        controller.receiveSave(playlistBackupState, result)
+                scope.launch {
+                    kotlinx.coroutines.yield()
+                    backupControllerHolder[0]?.let { controller ->
+                        playlistBackupState =
+                            controller.receiveSave(playlistBackupState, result)
+                    }
                 }
             },
             onOpenResult = { result ->
                 scope.launch {
+                    kotlinx.coroutines.yield()
                     backupControllerHolder[0]?.let { controller ->
                         playlistBackupState =
                             runPlaylistBackupOperation(
@@ -512,7 +518,12 @@ fun App(
             }
     backupControllerHolder[0] = backupController
 
-    fun exportPlaylists() {
+    val canReadPlaylistTrack = rememberPlaylistTrackReadability()
+
+    fun exportPlaylistDocument(
+        playlistId: String?,
+        format: PlaylistDocumentFormat,
+    ) {
         if (playlistBackupState.isBusy) return
         scope.launch {
             playlistBackupState =
@@ -520,6 +531,7 @@ fun App(
                     currentState = { playlistBackupState },
                     publishState = { state -> playlistBackupState = state },
                     reduce = backupController::reduce,
+                    operation = PlaylistBackupOperation.Exporting,
                 ) {
                     backupController.beginExport(
                         state = playlistBackupState,
@@ -527,14 +539,26 @@ fun App(
                         authoritativeTracks = libraryContent.tracks,
                         exportedAtEpochMillis =
                             com.eterocell.rhythhaus.library.currentTimeMillis(),
+                        format = format,
+                        playlistId = playlistId,
+                        canReadTrack = canReadPlaylistTrack,
                     )
                 }
         }
     }
 
-    fun openPlaylistBackup() {
+    fun exportPlaylists() {
+        exportPlaylistDocument(null, PlaylistDocumentFormat.RhythHausJson)
+    }
+
+    fun openPlaylistDocument(format: PlaylistDocumentFormat) {
         if (playlistBackupState.isBusy) return
-        playlistBackupState = backupController.beginOpen(playlistBackupState)
+        playlistBackupState =
+            backupController.beginOpen(playlistBackupState, format)
+    }
+
+    fun openPlaylistBackup() {
+        openPlaylistDocument(PlaylistDocumentFormat.RhythHausJson)
     }
 
     fun confirmPlaylistBackup() {
@@ -650,6 +674,8 @@ fun App(
                     onPlaylistMutation = ::launchPlaylistMutation,
                     onExportPlaylists = ::exportPlaylists,
                     onOpenPlaylistBackup = ::openPlaylistBackup,
+                    onExportPlaylistFormat = ::exportPlaylistDocument,
+                    onOpenPlaylistFormat = ::openPlaylistDocument,
                     onConfirmPlaylistBackup = ::confirmPlaylistBackup,
                     onPlaylistBackupAction = { action ->
                         playlistBackupState =
@@ -936,9 +962,17 @@ internal suspend fun <T> runPlaylistBackupOperation(
         (
             PlaylistBackupUiState,
             PlaylistBackupUiAction) -> PlaylistBackupUiState,
+    operation: PlaylistBackupOperation? = null,
     block: suspend () -> T,
 ): T =
     try {
+        if (operation != null) {
+            publishState(
+                reduce(
+                    currentState(),
+                    PlaylistBackupUiAction.OperationStarted(operation)),
+            )
+        }
         block()
     } catch (cancelled: CancellationException) {
         publishState(

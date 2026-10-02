@@ -2,7 +2,7 @@ import Foundation
 import Shared
 import UIKit
 
-final class RhythHausPlaylistBackupDocumentProvider: NSObject, IOSPlaylistBackupDocumentProvider {
+final class RhythHausPlaylistBackupDocumentProvider: NSObject, IOSFormattedPlaylistBackupDocumentProvider {
     private let operationState = PlaylistBackupDocumentOperationState()
     private var importMaxBytes: Int = 0
     private var importedBytes: KotlinByteArray?
@@ -13,21 +13,7 @@ final class RhythHausPlaylistBackupDocumentProvider: NSObject, IOSPlaylistBackup
         bytes: KotlinByteArray,
         completion: IOSPlaylistBackupDocumentCompletion
     ) {
-        guard beginOperation(completion: completion) else { return }
-        do {
-            let prepared = try PlaylistBackupDocumentTemporaryExport.prepare(
-                fileName: fileName,
-                data: bytes.toData(),
-                storage: FileManagerPlaylistBackupDocumentTemporaryStorage(fileManager: .default)
-            )
-            isExportOperation = true
-            present(
-                UIDocumentPickerViewController(forExporting: [prepared.fileURL], asCopy: true),
-                cleanup: prepared.cleanup
-            )
-        } catch {
-            operationState.finishCurrent(outcome: .failure(error.localizedDescription))
-        }
+        savePreparedDocument(fileName: fileName, bytes: bytes, completion: completion)
     }
 
     func openDocument(maxBytes: Int32, completion: IOSPlaylistBackupDocumentCompletion) {
@@ -38,6 +24,18 @@ final class RhythHausPlaylistBackupDocumentProvider: NSObject, IOSPlaylistBackup
         fileName: String,
         bytes: KotlinByteArray,
         format: String,
+        completion: IOSPlaylistBackupDocumentCompletion
+    ) {
+        savePreparedDocument(
+            fileName: PlaylistBackupDocumentTypePolicy.fileName(fileName, format: format),
+            bytes: bytes,
+            completion: completion
+        )
+    }
+
+    private func savePreparedDocument(
+        fileName: String,
+        bytes: KotlinByteArray,
         completion: IOSPlaylistBackupDocumentCompletion
     ) {
         guard beginOperation(completion: completion) else { return }

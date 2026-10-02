@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,11 +17,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.ui.PlaylistDismissalAppearance
 import com.eterocell.rhythhaus.library.ui.PlaylistFeatureAppearanceSource
 import com.eterocell.rhythhaus.library.ui.PlaylistFeatureDestination
@@ -37,6 +43,28 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 
 internal const val PlaylistBackupPreviewListTag = "playlist-backup-preview-list"
+internal const val PlaylistBackupStaticExportTag =
+    "playlist-backup-static-export"
+internal const val PlaylistBackupFormatImportTag =
+    "playlist-backup-format-import"
+
+private val InteroperablePlaylistFormats =
+    listOf(
+        PlaylistDocumentFormat.M3u,
+        PlaylistDocumentFormat.M3u8,
+        PlaylistDocumentFormat.Pls,
+    )
+
+private fun formatLabel(format: PlaylistDocumentFormat): String =
+    when (format) {
+        PlaylistDocumentFormat.RhythHausJson -> "JSON"
+        PlaylistDocumentFormat.M3u -> "M3U"
+        PlaylistDocumentFormat.M3u8 -> "M3U8"
+        PlaylistDocumentFormat.Pls -> "PLS"
+    }
+
+private fun playlistBackupFormatTag(format: PlaylistDocumentFormat): String =
+    "playlist-backup-format-${formatLabel(format).lowercase()}"
 
 /**
  * Shared-owned labels rendered unchanged by the feature settings surfaces.
@@ -67,9 +95,21 @@ public fun PlaylistBackupSettingsSection(
     onOpen: () -> Unit,
     onAction: (PlaylistBackupUiAction) -> Unit,
     modifier: Modifier = Modifier,
-    onExportFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
-    onOpenFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
+    staticPlaylists: List<PlaylistSummary> = emptyList(),
+    onExportPlaylistFormat: ((String, PlaylistDocumentFormat) -> Unit)? = null,
+    onOpenPlaylistFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
 ) {
+    var selectedFormat by remember {
+        mutableStateOf(PlaylistDocumentFormat.M3u)
+    }
+    var selectedStaticPlaylistId by
+        remember(staticPlaylists) {
+            mutableStateOf(staticPlaylists.firstOrNull()?.id)
+        }
+    val selectedStaticPlaylist = staticPlaylists.firstOrNull {
+        it.id == selectedStaticPlaylistId
+    }
+    val actionsEnabled = launcherAvailable && !state.isBusy
     Column(
         modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             DialogTitle(stringResource(Res.string.playlist_backup_section))
@@ -79,17 +119,11 @@ public fun PlaylistBackupSettingsSection(
                         if (state.operation ==
                             PlaylistBackupOperation.Exporting)
                             Res.string.playlist_backup_exporting
-                        else Res.string.playlist_backup_export),
-                onClick = {
-                    onExportFormat?.invoke(PlaylistDocumentFormat.M3u)
-                        ?: onExport()
-                },
-                enabled = launcherAvailable && !state.isBusy,
+                        else Res.string.playlist_backup_export_json),
+                onClick = onExport,
+                enabled = actionsEnabled,
                 primary = true,
-            )
-            Text(
-                stringResource(Res.string.smart_backup_note),
-                color = HausColors.current.muted,
+                testTag = "playlist-backup-json-export",
             )
             SettingsSectionButton(
                 label =
@@ -98,12 +132,84 @@ public fun PlaylistBackupSettingsSection(
                             PlaylistBackupOperation.Opening ||
                             state.operation == PlaylistBackupOperation.Planning)
                             Res.string.playlist_backup_importing
-                        else Res.string.playlist_backup_import),
-                onClick = {
-                    onOpenFormat?.invoke(PlaylistDocumentFormat.M3u) ?: onOpen()
-                },
-                enabled = launcherAvailable && !state.isBusy,
+                        else Res.string.playlist_backup_import_json),
+                onClick = onOpen,
+                enabled = actionsEnabled,
                 primary = false,
+                testTag = "playlist-backup-json-import",
+            )
+            Text(
+                stringResource(Res.string.smart_backup_note),
+                color = HausColors.current.muted,
+            )
+            DialogTitle(
+                stringResource(Res.string.playlist_backup_interoperability),
+            )
+            PlaylistDocumentFormatSelector(
+                selectedFormat = selectedFormat,
+                enabled = actionsEnabled,
+                onSelected = { selectedFormat = it },
+            )
+            Text(
+                stringResource(Res.string.playlist_backup_static_playlist),
+                color = HausColors.current.muted,
+            )
+            if (staticPlaylists.isEmpty()) {
+                CountLine(
+                    stringResource(
+                        Res.string.playlist_backup_no_static_playlists),
+                )
+            } else {
+                staticPlaylists.forEach { playlist ->
+                    PlaylistStaticSelectionButton(
+                        playlist = playlist,
+                        selected = playlist.id == selectedStaticPlaylistId,
+                        enabled = actionsEnabled,
+                        onClick = { selectedStaticPlaylistId = playlist.id },
+                    )
+                }
+            }
+            SettingsSectionButton(
+                label =
+                    stringResource(
+                        if (state.operation ==
+                            PlaylistBackupOperation.Exporting) {
+                            Res.string.playlist_backup_exporting
+                        } else {
+                            Res.string.playlist_backup_export_selected
+                        },
+                    ),
+                onClick = {
+                    selectedStaticPlaylist?.let { playlist ->
+                        onExportPlaylistFormat?.invoke(
+                            playlist.id, selectedFormat)
+                    }
+                },
+                enabled =
+                    actionsEnabled &&
+                        selectedStaticPlaylist != null &&
+                        onExportPlaylistFormat != null,
+                primary = true,
+                testTag = PlaylistBackupStaticExportTag,
+            )
+            SettingsSectionButton(
+                label =
+                    stringResource(
+                        if (state.operation ==
+                            PlaylistBackupOperation.Opening ||
+                            state.operation ==
+                                PlaylistBackupOperation.Planning) {
+                            Res.string.playlist_backup_importing
+                        } else {
+                            Res.string.playlist_backup_import_format
+                        },
+                    ),
+                onClick = {
+                    onOpenPlaylistFormat?.invoke(selectedFormat)
+                },
+                enabled = actionsEnabled && onOpenPlaylistFormat != null,
+                primary = false,
+                testTag = PlaylistBackupFormatImportTag,
             )
             state.error?.let { error ->
                 CountLine(stringResource(error.resource))
@@ -120,16 +226,120 @@ public fun PlaylistBackupSettingsSection(
  * Primary uses ink/paper; secondary uses the shared muted tint.
  */
 @Composable
+private fun PlaylistDocumentFormatSelector(
+    selectedFormat: PlaylistDocumentFormat,
+    enabled: Boolean,
+    onSelected: (PlaylistDocumentFormat) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        InteroperablePlaylistFormats.forEach { format ->
+            val selected = format == selectedFormat
+            val selectionDescription =
+                stringResource(
+                    if (selected) Res.string.playlist_backup_selected
+                    else Res.string.playlist_backup_not_selected)
+            Button(
+                onClick = { onSelected(format) },
+                enabled = enabled,
+                modifier =
+                    Modifier.weight(1f)
+                        .height(44.dp)
+                        .testTag(playlistBackupFormatTag(format))
+                        .semantics {
+                            role = Role.RadioButton
+                            this.selected = selected
+                            stateDescription = selectionDescription
+                        },
+                cornerRadius = 12.dp,
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color =
+                            if (selected) {
+                                HausColors.current.ink
+                            } else {
+                                HausColors.current.muted.copy(alpha = 0.15f)
+                            },
+                        contentColor =
+                            if (selected) {
+                                HausColors.current.paper
+                            } else {
+                                HausColors.current.muted
+                            },
+                        disabledColor =
+                            HausColors.current.muted.copy(alpha = 0.28f),
+                        disabledContentColor = HausColors.current.muted,
+                    ),
+            ) {
+                Text(
+                    formatLabel(format),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistStaticSelectionButton(
+    playlist: PlaylistSummary,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val selectionDescription =
+        stringResource(
+            if (selected) Res.string.playlist_backup_selected
+            else Res.string.playlist_backup_not_selected)
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier =
+            Modifier.fillMaxWidth()
+                .height(44.dp)
+                .testTag("playlist-backup-static-${playlist.id}")
+                .semantics {
+                    role = Role.RadioButton
+                    this.selected = selected
+                    stateDescription = selectionDescription
+                },
+        cornerRadius = 12.dp,
+        colors =
+            ButtonDefaults.buttonColors(
+                color =
+                    if (selected) {
+                        HausColors.current.ink
+                    } else {
+                        HausColors.current.muted.copy(alpha = 0.15f)
+                    },
+                contentColor =
+                    if (selected) {
+                        HausColors.current.paper
+                    } else {
+                        HausColors.current.muted
+                    },
+                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
+                disabledContentColor = HausColors.current.muted,
+            ),
+    ) {
+        Text(playlist.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
 private fun SettingsSectionButton(
     label: String,
     onClick: () -> Unit,
     primary: Boolean,
     enabled: Boolean = true,
+    testTag: String? = null,
 ) {
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.fillMaxWidth().height(48.dp),
+        modifier =
+            Modifier.fillMaxWidth()
+                .height(48.dp)
+                .then(testTag?.let(Modifier::testTag) ?: Modifier),
         cornerRadius = 16.dp,
         colors =
             ButtonDefaults.buttonColors(
@@ -166,8 +376,9 @@ public fun PlaylistBackupSettingsHost(
     onConfirmPreview: () -> Unit,
     onDismissResult: () -> Unit,
     modifier: Modifier = Modifier,
-    onExportFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
-    onOpenFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
+    staticPlaylists: List<PlaylistSummary> = emptyList(),
+    onExportPlaylistFormat: ((String, PlaylistDocumentFormat) -> Unit)? = null,
+    onOpenPlaylistFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
 ) {
     var previewAppearance by remember {
         mutableStateOf<PlaylistDismissalAppearance?>(null)
@@ -191,8 +402,9 @@ public fun PlaylistBackupSettingsHost(
         onOpen = onOpen,
         onAction = onAction,
         modifier = modifier,
-        onExportFormat = onExportFormat,
-        onOpenFormat = onOpenFormat,
+        staticPlaylists = staticPlaylists,
+        onExportPlaylistFormat = onExportPlaylistFormat,
+        onOpenPlaylistFormat = onOpenPlaylistFormat,
     )
     state.preview?.let { preview ->
         PlaylistBackupPreviewDialog(

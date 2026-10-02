@@ -50,6 +50,7 @@ import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsHost
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsLabels
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
+import com.eterocell.rhythhaus.playlistbackup.PlaylistDocumentFormat
 import com.eterocell.rhythhaus.search.SearchContent
 import com.eterocell.rhythhaus.search.SearchSharedLabels
 import com.eterocell.rhythhaus.settings.MediaNotificationRecovery
@@ -152,6 +153,8 @@ internal fun LibraryRouteOverlays(
         (PlaylistRepository.() -> Unit, (PlaylistStateAction) -> Unit) -> Unit,
     onExportPlaylists: () -> Unit,
     onOpenPlaylistBackup: () -> Unit,
+    onExportPlaylistFormat: ((String, PlaylistDocumentFormat) -> Unit)? = null,
+    onOpenPlaylistFormat: ((PlaylistDocumentFormat) -> Unit)? = null,
     onConfirmPlaylistBackup: () -> Unit,
     onPlaylistBackupAction: (PlaylistBackupUiAction) -> Unit,
     sources: List<LibrarySource>,
@@ -286,6 +289,10 @@ internal fun LibraryRouteOverlays(
                             ),
                         onExport = onExportPlaylists,
                         onOpen = onOpenPlaylistBackup,
+                        staticPlaylists =
+                            playlistState.confirmedSnapshot.playlists,
+                        onExportPlaylistFormat = onExportPlaylistFormat,
+                        onOpenPlaylistFormat = onOpenPlaylistFormat,
                         onAction = onPlaylistBackupAction,
                         onDismissPreview = {
                             onPlaylistBackupAction(

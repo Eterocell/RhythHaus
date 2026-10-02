@@ -1,10 +1,10 @@
-# Spec Delta
+# Playlist Interoperability Specification
 
 ## Purpose
 
 Exchange static saved playlists as bounded UTF-8 M3U, M3U8, or PLS documents while preserving ordered duplicate entries, previewing metadata matches, and keeping library access and playback unchanged.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Export static playlists as M3U or PLS
 

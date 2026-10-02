@@ -31,14 +31,48 @@ public fun rememberAndroidPlaylistBackupDocumentLauncher(
             onOpenResult = { currentOpenResult.value(it) },
         )
     }
-    val saveLauncher =
+    val jsonSaveLauncher =
         rememberLauncherForActivityResult(
-            ActivityResultContracts.CreateDocument(PlaylistBackupMimeType)) {
-                uri ->
-                coordinator.completeSave(uri) { selected, _ ->
-                    context.contentResolver.openOutputStream(selected, "w")
-                }
+            ActivityResultContracts.CreateDocument(
+                androidPlaylistDocumentMimeType(
+                    PlaylistDocumentFormat.RhythHausJson,
+                ),
+            ),
+        ) { uri ->
+            coordinator.completeSave(uri) { selected, _ ->
+                context.contentResolver.openOutputStream(selected, "w")
             }
+        }
+    val m3uSaveLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument(
+                androidPlaylistDocumentMimeType(PlaylistDocumentFormat.M3u),
+            ),
+        ) { uri ->
+            coordinator.completeSave(uri) { selected, _ ->
+                context.contentResolver.openOutputStream(selected, "w")
+            }
+        }
+    val m3u8SaveLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument(
+                androidPlaylistDocumentMimeType(PlaylistDocumentFormat.M3u8),
+            ),
+        ) { uri ->
+            coordinator.completeSave(uri) { selected, _ ->
+                context.contentResolver.openOutputStream(selected, "w")
+            }
+        }
+    val plsSaveLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument(
+                androidPlaylistDocumentMimeType(PlaylistDocumentFormat.Pls),
+            ),
+        ) { uri ->
+            coordinator.completeSave(uri) { selected, _ ->
+                context.contentResolver.openOutputStream(selected, "w")
+            }
+        }
     val openLauncher =
         rememberLauncherForActivityResult(
             ActivityResultContracts.OpenDocument()) { uri ->
@@ -47,7 +81,13 @@ public fun rememberAndroidPlaylistBackupDocumentLauncher(
                 }
             }
 
-    return remember(saveLauncher, openLauncher) {
+    return remember(
+        jsonSaveLauncher,
+        m3uSaveLauncher,
+        m3u8SaveLauncher,
+        plsSaveLauncher,
+        openLauncher,
+    ) {
         object : PlaylistBackupDocumentLauncher {
             override val isAvailable: Boolean = true
 
@@ -55,7 +95,8 @@ public fun rememberAndroidPlaylistBackupDocumentLauncher(
                 save(
                     suggestedFileName,
                     bytes,
-                    PlaylistDocumentFormat.RhythHausJson)
+                    PlaylistDocumentFormat.RhythHausJson,
+                )
             }
 
             override fun save(
@@ -64,8 +105,19 @@ public fun rememberAndroidPlaylistBackupDocumentLauncher(
                 format: PlaylistDocumentFormat,
             ) {
                 coordinator.launchSave(bytes) {
-                    saveLauncher.launch(
-                        playlistDocumentFileName(suggestedFileName, format))
+                    val fileName =
+                        playlistDocumentFileName(suggestedFileName, format)
+                    when (format) {
+                        PlaylistDocumentFormat.RhythHausJson ->
+                            jsonSaveLauncher.launch(fileName)
+
+                        PlaylistDocumentFormat.M3u ->
+                            m3uSaveLauncher.launch(fileName)
+                        PlaylistDocumentFormat.M3u8 ->
+                            m3u8SaveLauncher.launch(fileName)
+                        PlaylistDocumentFormat.Pls ->
+                            plsSaveLauncher.launch(fileName)
+                    }
                 }
             }
 
@@ -81,6 +133,16 @@ public fun rememberAndroidPlaylistBackupDocumentLauncher(
         }
     }
 }
+
+internal fun androidPlaylistDocumentMimeType(
+    format: PlaylistDocumentFormat,
+): String =
+    when (format) {
+        PlaylistDocumentFormat.RhythHausJson -> PlaylistBackupMimeType
+        PlaylistDocumentFormat.M3u -> "audio/x-mpegurl"
+        PlaylistDocumentFormat.M3u8 -> "application/vnd.apple.mpegurl"
+        PlaylistDocumentFormat.Pls -> "audio/x-scpls"
+    }
 
 internal class AndroidPlaylistBackupDocumentCoordinator(
     private val onSaveResult: (PlaylistBackupDocumentSaveResult) -> Unit,

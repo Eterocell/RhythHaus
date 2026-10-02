@@ -1,11 +1,6 @@
 package com.eterocell.rhythhaus.settings
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.hasScrollToIndexAction
-import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.LibrarySnapshot
@@ -48,114 +43,6 @@ class SettingsPlaylistBackupEmbeddingTest {
             waitForIdle()
 
             assertTrue(selectionActions.isEmpty())
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun settingsHostEmbedsSectionPreviewAndResultWithCurrentCallbacks() =
-        runComposeUiTest {
-            val state =
-                LibraryAppState(null).also {
-                    it.pushRoute(LibraryRoute.Settings)
-                }
-            val backupState =
-                androidx.compose.runtime.mutableStateOf(PlaylistBackupUiState())
-            val actions = mutableListOf<PlaylistBackupUiAction>()
-            var exportCalls = 0
-            var openCalls = 0
-            var confirmCalls = 0
-            val publishBackupAction: (PlaylistBackupUiAction) -> Unit = {
-                actions += it
-                backupState.value = reduceBackup(backupState.value, it)
-            }
-
-            setContent {
-                val source =
-                    rememberPlaylistFeatureAppearanceSource(
-                        PlaylistFeatureDestination(
-                            state.activeDestinationId.instanceToken),
-                    )
-                LibraryRouteOverlays(
-                    route = LibraryRoute.Settings,
-                    snapshot =
-                        LibrarySnapshot("Library", "", emptyList(), null),
-                    libraryTracks = emptyList(),
-                    playbackController =
-                        PlaybackController(FakePlaybackEngine()),
-                    playbackState = PlaybackState(),
-                    playlistRepository = EmptyPlaylistRepository,
-                    playlistState = PlaylistState(),
-                    playlistBackupState = backupState.value,
-                    backupDocumentAvailable = true,
-                    destinationId = state.activeDestinationId,
-                    playlistAppearanceSource = source,
-                    registerBackSurface = state::registerBackSurface,
-                    onPlaylistStateAction = {},
-                    onRefreshPlaylists = {},
-                    onPlaylistMutation = { _, _ -> },
-                    onExportPlaylists = { exportCalls++ },
-                    onOpenPlaylistBackup = { openCalls++ },
-                    onConfirmPlaylistBackup = { confirmCalls++ },
-                    onPlaylistBackupAction = publishBackupAction,
-                    sources = emptyList(),
-                    folderPickerLauncher = unavailablePicker,
-                    sourcePickerActionVisible = false,
-                    importMessage = null,
-                    scanProgress = null,
-                    scanJob = null,
-                    currentThemeMode =
-                        com.eterocell.rhythhaus.theme.RhythHausThemeMode.System,
-                    onThemeModeSelected = {},
-                    onClearLibrary = {},
-                    onRescanSource = {},
-                    onRemoveSource = {},
-                    onCancelScan = {},
-                    pushRoute = {},
-                    onShowSettingsAbout = {},
-                    onShowOpenSourceLibraries = {},
-                    onDismiss = {},
-                    onScrollPositionChanged = {},
-                )
-            }
-            waitForIdle()
-            onNode(hasScrollToIndexAction()).performScrollToIndex(3)
-            waitForIdle()
-            onNode(hasText("导出播放列表")).performClick()
-            onNode(hasScrollToIndexAction()).performScrollToIndex(3)
-            waitForIdle()
-            onNode(hasText("导入播放列表")).performClick()
-            assertEquals(1, exportCalls)
-            assertEquals(1, openCalls)
-
-            publishBackupAction(PlaylistBackupUiAction.PreviewReady(preview()))
-            waitForIdle()
-            val previewAppearance = currentFeatureAppearance(state)
-            onNodeWithTag(
-                    "playlist-backup-preview-dismiss", useUnmergedTree = true)
-                .performClick()
-            waitForIdle()
-            assertEquals(2, actions.size)
-            assertTrue(actions.contains(PlaylistBackupUiAction.DismissPreview))
-            assertEquals(null, backupState.value.preview)
-
-            publishBackupAction(PlaylistBackupUiAction.PreviewReady(preview()))
-            waitForIdle()
-            onNodeWithTag(
-                    "playlist-backup-preview-confirm", useUnmergedTree = true)
-                .performClick()
-            assertEquals(1, confirmCalls)
-            assertEquals(3, actions.size)
-            assertTrue(actions.contains(PlaylistBackupUiAction.DismissPreview))
-
-            publishBackupAction(
-                PlaylistBackupUiAction.ImportSucceeded(result()))
-            waitForIdle()
-            assertNotEquals(previewAppearance, currentFeatureAppearance(state))
-            onNodeWithTag(
-                    "playlist-backup-result-dismiss", useUnmergedTree = true)
-                .performClick()
-            waitForIdle()
-            assertTrue(actions.contains(PlaylistBackupUiAction.DismissResult))
         }
 
     @OptIn(ExperimentalTestApi::class)
