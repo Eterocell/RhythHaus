@@ -15,6 +15,51 @@ import kotlin.test.assertFailsWith
 
 class LibraryScannerTest {
     @Test
+    fun completedScanPublishesBoundedChangeSummary() {
+        val repository = InMemoryLibraryRepository()
+        val source =
+            LibrarySource(
+                "source-1",
+                LibraryPlatformKind.JvmFolder,
+                "Music",
+                "/Music",
+                1L)
+        val platform =
+            FakePlatformAudioScanner(
+                events =
+                    listOf(
+                        PlatformScanEvent.AudioCandidate(
+                            AudioScanCandidate(
+                                sourceId = source.id,
+                                sourceLocalKey = "one.mp3",
+                                displayPath = "/Music/one.mp3",
+                                displayName = "one.mp3",
+                                audioSource =
+                                    AudioSource.FilePath("/Music/one.mp3"),
+                            ),
+                        ),
+                    ),
+            )
+
+        val result =
+            LibraryScanner(
+                    repository = repository,
+                    platformScanner = platform,
+                    now = { 100L },
+                    idFactory = { prefix -> "$prefix-id" },
+                )
+                .scan(source)
+
+        assertEquals(ScanStatus.Completed, result.status)
+        assertEquals(1, result.changeSummary?.addedCount)
+        assertEquals(0, result.changeSummary?.modifiedCount)
+        assertEquals(0, result.changeSummary?.unchangedCount)
+        assertEquals(0, result.changeSummary?.missingCount)
+        assertEquals(
+            listOf("/Music/one.mp3"), result.changeSummary?.addedDetails)
+    }
+
+    @Test
     fun scannerImportsCandidatesAndRecordsSkippedFiles() {
         val repository = InMemoryLibraryRepository()
         val source =
