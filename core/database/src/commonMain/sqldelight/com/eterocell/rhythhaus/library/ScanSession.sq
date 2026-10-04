@@ -32,6 +32,12 @@ WHERE sourceId = ? AND status = 'Completed' AND completedAtEpochMillis IS NOT NU
 ORDER BY completedAtEpochMillis DESC, startedAtEpochMillis DESC, id DESC
 LIMIT 1;
 
+selectLatestCompletedScanSession:
+SELECT * FROM scan_session
+WHERE status = 'Completed' AND completedAtEpochMillis IS NOT NULL
+ORDER BY completedAtEpochMillis DESC, startedAtEpochMillis DESC, id DESC
+LIMIT 1;
+
 selectLatestTerminalScanSession:
 SELECT * FROM scan_session
 WHERE status IN ('Completed', 'Cancelled', 'Failed')

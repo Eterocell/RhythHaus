@@ -93,6 +93,7 @@ import rhythhaus.feature.library.generated.resources.hide_scan_report
 import rhythhaus.feature.library.generated.resources.import_card_description
 import rhythhaus.feature.library.generated.resources.import_card_title
 import rhythhaus.feature.library.generated.resources.import_card_title_with_tracks
+import rhythhaus.feature.library.generated.resources.latest_completed_scan_format
 import rhythhaus.feature.library.generated.resources.metadata_edit_action
 import rhythhaus.feature.library.generated.resources.remove_missing
 import rhythhaus.feature.library.generated.resources.rescan
@@ -1058,6 +1059,10 @@ public fun ScanningCard(
  * toggle, and remove-missing actions.
  *
  * @param session the terminal scan session to display.
+ * @param completedSummarySession the separate completed session whose summary
+ *   is retained after a failed or cancelled terminal report.
+ * @param completedSummarySource the configured source for the retained
+ *   completed session, if it still exists.
  * @param source the source the session scanned, if still configured.
  * @param errors file errors recorded for the displayed scan session.
  * @param reportVisible whether the error report is expanded.
@@ -1070,6 +1075,8 @@ public fun ScanningCard(
 @Composable
 public fun ScanOutcomePanel(
     session: ScanSession,
+    completedSummarySession: ScanSession?,
+    completedSummarySource: LibrarySource?,
     source: LibrarySource?,
     errors: List<ScanError>,
     reportVisible: Boolean,
@@ -1103,7 +1110,21 @@ public fun ScanOutcomePanel(
                 session.filesSkipped),
             color = HausColors.current.muted,
             fontSize = 12.sp)
-        session.changeSummary?.let { summary ->
+        val summarySession =
+            if (session.status == ScanStatus.Completed) session
+            else completedSummarySession
+        summarySession?.changeSummary?.let { summary ->
+            if (summarySession.id != session.id) {
+                Text(
+                    stringResource(
+                        Res.string.latest_completed_scan_format,
+                        completedSummarySource?.displayName
+                            ?: summarySession.sourceId,
+                        summarySession.id,
+                    ),
+                    color = HausColors.current.muted,
+                    fontSize = 12.sp)
+            }
             Text(
                 stringResource(
                     Res.string.scan_changes_format,

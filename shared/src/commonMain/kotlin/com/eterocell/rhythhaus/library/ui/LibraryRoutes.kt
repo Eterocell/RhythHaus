@@ -165,6 +165,7 @@ internal fun LibraryRouteOverlays(
     sourcePickerActionVisible: Boolean,
     importMessage: String?,
     scanProgress: ScanProgress?,
+    latestCompletedScanSession: ScanSession?,
     scanErrors: List<ScanError> = emptyList(),
     scanJob: Job?,
     mutationsEnabled: Boolean = true,
@@ -225,6 +226,18 @@ internal fun LibraryRouteOverlays(
                     {
                         ScanOutcomePanel(
                             session = terminalSession,
+                            completedSummarySession =
+                                latestCompletedScanSession?.takeIf {
+                                    it.id != terminalSession.id
+                                },
+                            completedSummarySource =
+                                latestCompletedScanSession
+                                    ?.takeIf { it.id != terminalSession.id }
+                                    ?.let { summary ->
+                                        sources.firstOrNull {
+                                            it.id == summary.sourceId
+                                        }
+                                    },
                             source =
                                 sources.firstOrNull {
                                     it.id == terminalSession.sourceId

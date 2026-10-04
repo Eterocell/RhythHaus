@@ -92,6 +92,7 @@ class LibraryResourceOwnershipJvmTest {
             "scan_report_error_format",
             "scan_changes_format",
             "scan_changes_details",
+            "latest_completed_scan_format",
         )
 
     private val sharedOwnedKeys =

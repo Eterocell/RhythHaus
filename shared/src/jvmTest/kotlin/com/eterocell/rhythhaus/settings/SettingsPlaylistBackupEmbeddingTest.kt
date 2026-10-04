@@ -159,6 +159,7 @@ class SettingsPlaylistBackupEmbeddingTest {
             sourcePickerActionVisible = false,
             importMessage = null,
             scanProgress = null,
+            latestCompletedScanSession = null,
             scanJob = null,
             currentThemeMode =
                 com.eterocell.rhythhaus.theme.RhythHausThemeMode.System,

@@ -39,6 +39,7 @@ private val favoriteTables = setOf("track_favorite")
 private val playHistoryTables = setOf("track_play_history")
 private val smartPlaylistTables = setOf("smart_playlist")
 private val metadataOverrideTables = setOf("track_metadata_override")
+private const val changeSummarySchemaVersion = 7L
 
 private fun foreignKeyProperties(): Properties =
     Properties().apply { put("foreign_keys", "true") }
@@ -74,7 +75,11 @@ private fun bootstrapLegacyVersionZeroDatabase(
                         playHistoryTables +
                         smartPlaylistTables +
                         metadataOverrideTables ->
-                    RhythHausDatabase.Schema.version
+                    if (driver.hasColumn("scan_session", "changeSummaryJson")) {
+                        changeSummarySchemaVersion
+                    } else {
+                        6L
+                    }
                 else -> return
             }
         driver.execute(null, "PRAGMA user_version = $legacyVersion", 0).value
@@ -90,6 +95,21 @@ private fun JdbcSqliteDriver.userVersion(): Long =
             mapper = { cursor ->
                 QueryResult.Value(
                     if (cursor.next().value) cursor.getLong(0) ?: 0L else 0L)
+            },
+            parameters = 0,
+        )
+        .value
+
+private fun JdbcSqliteDriver.hasColumn(table: String, column: String): Boolean =
+    executeQuery(
+            identifier = null,
+            sql = "PRAGMA table_info($table)",
+            mapper = { cursor ->
+                var found = false
+                while (cursor.next().value) {
+                    if (cursor.getString(1) == column) found = true
+                }
+                QueryResult.Value(found)
             },
             parameters = 0,
         )

@@ -73,4 +73,5 @@
     <string name="scan_report_error_format">%1$s: %2$s</string>
     <string name="scan_changes_format">Added %1$d · Modified %2$d · Unchanged %3$d · Missing %4$d</string>
     <string name="scan_changes_details">Changed files</string>
+    <string name="latest_completed_scan_format">Latest completed scan: %1$s (%2$s)</string>
 </resources>

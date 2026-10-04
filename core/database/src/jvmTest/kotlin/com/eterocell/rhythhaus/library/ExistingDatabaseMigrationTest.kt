@@ -260,6 +260,87 @@ class ExistingDatabaseMigrationTest {
     }
 
     @Test
+    fun unversionedPreSummaryMetadataOverrideDatabaseMigratesThroughVersionSix() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-pre-summary-metadata-v0", ".db")
+                .toFile()
+        Files.copy(
+            File("src/commonMain/sqldelight/databases/4.db").toPath(),
+            databaseFile.toPath(),
+            StandardCopyOption.REPLACE_EXISTING,
+        )
+        seedVersionTwoLibrary(databaseFile)
+        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
+            .use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute(
+                        "CREATE TABLE smart_playlist (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, ruleKind TEXT NOT NULL, argument TEXT, secondArgument TEXT, itemCount INTEGER, createdAtEpochMillis INTEGER NOT NULL, updatedAtEpochMillis INTEGER NOT NULL)")
+                    statement.execute(
+                        "CREATE TABLE track_metadata_override (trackId TEXT NOT NULL PRIMARY KEY REFERENCES library_track(id) ON DELETE CASCADE, title TEXT, artist TEXT, album TEXT, trackNumber INTEGER CHECK (trackNumber IS NULL OR trackNumber > 0), discNumber INTEGER CHECK (discNumber IS NULL OR discNumber > 0))")
+                    statement.execute(
+                        "INSERT INTO track_metadata_override(trackId, title, artist, album, trackNumber, discNumber) VALUES ('legacy-track', 'Edited', NULL, NULL, NULL, NULL)")
+                    statement.execute("PRAGMA user_version = 0")
+                }
+            }
+
+        val libraryDatabase = LibraryDatabase(databaseFile)
+        try {
+            assertEquals(
+                RhythHausDatabase.Schema.version,
+                driverUserVersion(libraryDatabase.driver),
+            )
+            assertEquals(
+                "Edited",
+                libraryDatabase.database.trackMetadataOverrideQueries
+                    .selectOverrideForTrack("legacy-track")
+                    .executeAsOne()
+                    .title,
+            )
+            assertTrue(
+                hasColumn(databaseFile, "scan_session", "changeSummaryJson"))
+        } finally {
+            libraryDatabase.driver.close()
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun freshCurrentDatabaseReopensAtCurrentSchemaVersion() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-fresh-current", ".db")
+                .toFile()
+                .also(File::delete)
+
+        LibraryDatabase(databaseFile).let { fresh ->
+            try {
+                assertEquals(
+                    RhythHausDatabase.Schema.version,
+                    driverUserVersion(fresh.driver),
+                )
+                assertTrue(
+                    hasColumn(
+                        databaseFile, "scan_session", "changeSummaryJson"))
+            } finally {
+                fresh.driver.close()
+            }
+        }
+        LibraryDatabase(databaseFile).let { reopened ->
+            try {
+                assertEquals(
+                    RhythHausDatabase.Schema.version,
+                    driverUserVersion(reopened.driver),
+                )
+                assertTrue(
+                    hasColumn(
+                        databaseFile, "scan_session", "changeSummaryJson"))
+            } finally {
+                reopened.driver.close()
+                databaseFile.delete()
+            }
+        }
+    }
+
+    @Test
     fun unversionedPreFavoritesDatabaseBootstrapsAtVersionTwoBeforeMigrating() {
         val databaseFile = copyVersionTwoDatabase()
         DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
@@ -393,6 +474,24 @@ class ExistingDatabaseMigrationTest {
                         ->
                         check(result.next())
                         result.getLong(1)
+                    }
+                }
+            }
+
+    private fun hasColumn(
+        databaseFile: File,
+        table: String,
+        column: String,
+    ): Boolean =
+        DriverManager.getConnection("jdbc:sqlite:${databaseFile.absolutePath}")
+            .use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("PRAGMA table_info($table)").use {
+                        result ->
+                        generateSequence {
+                            if (result.next()) result.getString(2) else null
+                        }
+                            .any { it == column }
                     }
                 }
             }

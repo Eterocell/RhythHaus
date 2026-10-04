@@ -123,6 +123,14 @@ public interface LibraryRepository {
      */
     public fun latestTerminalScanSession(): ScanSession?
 
+    /**
+     * Returns the globally latest valid completed scan session. This is
+     * separate from [latestTerminalScanSession] so a failed or cancelled
+     * terminal report cannot be mistaken for the authoritative completed
+     * summary.
+     */
+    public fun latestCompletedScanSession(): ScanSession?
+
     /** Removes a source and its owned records. */
     public fun removeSource(sourceId: String)
 

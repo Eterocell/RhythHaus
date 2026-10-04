@@ -454,6 +454,10 @@ class LibraryRepositoryContractTest {
             testScanSession(
                 "completed-c", "source-1", ScanStatus.Completed, 11L, 20L))
         assertEquals(
+            "completed-c",
+            repository.latestCompletedScanSession()?.id,
+        )
+        assertEquals(
             RemoveMissingTracksResult.Rejected(
                 RemoveMissingTracksRejectionReason.StaleCompletedScan),
             repository.removeMissingTracks("source-1", "completed-b"),
@@ -512,6 +516,7 @@ class LibraryRepositoryContractTest {
         assertEquals(
             "terminal-later-completion",
             repository.latestTerminalScanSession()?.id)
+        assertEquals("completed-z", repository.latestCompletedScanSession()?.id)
     }
 }
 

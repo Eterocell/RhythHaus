@@ -55,6 +55,7 @@ class LibraryApiContractTest {
             RemoveMissingTracksResult.Removed(1),
             repository.removeMissingTracks(source.id, session.id))
         assertNull(repository.latestTerminalScanSession())
+        assertNull(repository.latestCompletedScanSession())
         repository.removeSource(source.id)
         repository.clearAll()
         assertTrue(
@@ -116,6 +117,7 @@ private enum class LibraryRepositoryMethod {
     ScanErrors,
     RemoveMissingTracks,
     LatestTerminalScanSession,
+    LatestCompletedScanSession,
     RemoveSource,
     ClearAll,
 }
@@ -243,6 +245,11 @@ private class RecordingLibraryRepository : LibraryRepository {
 
     override fun latestTerminalScanSession(): ScanSession? {
         calls += LibraryRepositoryMethod.LatestTerminalScanSession
+        return null
+    }
+
+    override fun latestCompletedScanSession(): ScanSession? {
+        calls += LibraryRepositoryMethod.LatestCompletedScanSession
         return null
     }
 

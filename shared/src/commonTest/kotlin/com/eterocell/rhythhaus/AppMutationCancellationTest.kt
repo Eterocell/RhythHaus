@@ -249,6 +249,8 @@ private class MutationLibraryRepository : LibraryRepository {
 
     override fun latestTerminalScanSession(): ScanSession? = null
 
+    override fun latestCompletedScanSession(): ScanSession? = null
+
     override fun removeSource(sourceId: String) {
         sources = emptyList()
     }

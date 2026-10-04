@@ -1058,6 +1058,8 @@ private class FailingMutationRepository(
 
     override fun latestTerminalScanSession(): ScanSession? = null
 
+    override fun latestCompletedScanSession(): ScanSession? = null
+
     override fun removeSource(sourceId: String): Unit =
         throw IllegalStateException("remove failed")
 

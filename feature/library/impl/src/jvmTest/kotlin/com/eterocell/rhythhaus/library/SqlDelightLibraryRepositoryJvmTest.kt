@@ -1218,6 +1218,134 @@ class SqlDelightLibraryRepositoryJvmTest {
         }
     }
 
+    @Test
+    fun completedSummaryRoundTripsAcrossReopenAndOutlivesLaterFailure() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-summary-reopen", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+        val expected =
+            ScanChangeSummary(
+                addedCount = 7,
+                modifiedCount = 11,
+                unchangedCount = 13,
+                missingCount = 17,
+                addedDetails = listOf("/Music/pipe|separator\u001f.mp3"),
+                modifiedDetails = listOf("/Music/100%/音楽.mp3"),
+                missingDetails = emptyList(),
+            )
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.insertScanSession(
+                ScanSession(
+                    id = "completed",
+                    sourceId = "source-1",
+                    status = ScanStatus.Completed,
+                    startedAtEpochMillis = 10L,
+                    completedAtEpochMillis = 20L,
+                    changeSummary = expected,
+                ),
+            )
+            assertTrue(
+                open.database.scanSessionQueries
+                    .selectScanSessionById("completed")
+                    .executeAsOne()
+                    .changeSummaryJson
+                    ?.startsWith("scan-summary-v1:") == true,
+            )
+            open.repository.insertScanSession(
+                testScanSession(
+                    id = "failed",
+                    sourceId = "source-1",
+                    status = ScanStatus.Failed,
+                    startedAtEpochMillis = 30L,
+                    completedAtEpochMillis = 40L,
+                ),
+            )
+        }
+
+        openRepository(databaseFile).use { reopened ->
+            assertEquals(
+                "failed",
+                reopened.repository.latestTerminalScanSession()?.id,
+            )
+            assertNull(
+                reopened.repository.latestTerminalScanSession()?.changeSummary,
+            )
+            val completed =
+                assertNotNull(reopened.repository.latestCompletedScanSession())
+            assertEquals("completed", completed.id)
+            assertEquals(
+                expected.addedCount, completed.changeSummary?.addedCount)
+            assertEquals(
+                expected.modifiedCount,
+                completed.changeSummary?.modifiedCount,
+            )
+            assertEquals(
+                expected.unchangedCount,
+                completed.changeSummary?.unchangedCount,
+            )
+            assertEquals(
+                expected.missingCount,
+                completed.changeSummary?.missingCount,
+            )
+            assertEquals(
+                expected.addedDetails,
+                completed.changeSummary?.addedDetails,
+            )
+            assertEquals(
+                expected.modifiedDetails,
+                completed.changeSummary?.modifiedDetails,
+            )
+            assertEquals(
+                expected.missingDetails,
+                completed.changeSummary?.missingDetails,
+            )
+        }
+    }
+
+    @Test
+    fun legacyDelimitedSummaryRemainsReadableAfterDatabaseReopen() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-legacy-summary", ".db")
+                .toFile()
+        databaseFile.deleteOnExit()
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.database.scanSessionQueries.insertScanSession(
+                id = "legacy",
+                sourceId = "source-1",
+                status = ScanStatus.Completed.name,
+                startedAtEpochMillis = 10L,
+                completedAtEpochMillis = 20L,
+                foldersVisited = 0L,
+                filesVisited = 0L,
+                tracksAdded = 0L,
+                tracksUpdated = 0L,
+                filesSkipped = 0L,
+                changeSummaryJson =
+                    "1|2|3|4|/Music/added.mp3\u001f/Music/added-2.mp3|/Music/changed.mp3|",
+                terminalMessage = null,
+            )
+        }
+
+        openRepository(databaseFile).use { reopened ->
+            assertEquals(
+                ScanChangeSummary(
+                    addedCount = 1,
+                    modifiedCount = 2,
+                    unchangedCount = 3,
+                    missingCount = 4,
+                    addedDetails =
+                        listOf("/Music/added.mp3", "/Music/added-2.mp3"),
+                    modifiedDetails = listOf("/Music/changed.mp3"),
+                    missingDetails = emptyList(),
+                ),
+                reopened.repository.latestTerminalScanSession()?.changeSummary,
+            )
+        }
+    }
+
     private fun openRepository(databaseFile: java.io.File): OpenRepository {
         val database = LibraryDatabase(databaseFile)
         return OpenRepository(

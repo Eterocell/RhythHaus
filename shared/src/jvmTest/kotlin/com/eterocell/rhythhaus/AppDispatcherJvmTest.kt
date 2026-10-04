@@ -177,6 +177,8 @@ private class ThreadCapturingRepository : LibraryRepository {
 
     override fun latestTerminalScanSession(): ScanSession? = null
 
+    override fun latestCompletedScanSession(): ScanSession? = null
+
     override fun removeSource(sourceId: String) = Unit
 
     override fun clearAll() {

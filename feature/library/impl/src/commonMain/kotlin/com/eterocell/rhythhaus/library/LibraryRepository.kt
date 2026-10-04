@@ -283,6 +283,14 @@ class InMemoryLibraryRepository : LibraryRepository {
             }
             .maxWithOrNull(scanSessionTerminalComparator)
 
+    override fun latestCompletedScanSession(): ScanSession? =
+        scanSessions.values
+            .filter {
+                it.status == ScanStatus.Completed &&
+                    it.completedAtEpochMillis != null
+            }
+            .maxWithOrNull(scanSessionAuthorityComparator)
+
     /**
      * Removes a source and all of its owned records.
      *

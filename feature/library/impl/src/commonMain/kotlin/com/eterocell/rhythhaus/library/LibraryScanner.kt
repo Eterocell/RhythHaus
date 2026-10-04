@@ -71,8 +71,13 @@ class LibraryScanner(
                             if (source.platformKind ==
                                 LibraryPlatformKind.AndroidMediaStoreAudio &&
                                 event.recoverable) {
+                                observedKeys += event.sourceLocalKey
                                 repository.markTrackSeen(
                                     source.id, event.sourceLocalKey, scanId)
+                                if (previousByKey.containsKey(
+                                    event.sourceLocalKey)) {
+                                    unchangedCount++
+                                }
                             }
                             session.recordSkipped(scanId, event)
                         }
@@ -94,11 +99,19 @@ class LibraryScanner(
                                                     candidate.displayPath
                                             }
                                         }
-                                        previous.sizeBytes !=
-                                            candidate.sizeBytes ||
-                                            previous.modifiedAtEpochMillis !=
+                                        (previous.sizeBytes != null &&
+                                            candidate.sizeBytes != null &&
+                                            previous.sizeBytes !=
+                                                candidate.sizeBytes) ||
+                                            (previous.modifiedAtEpochMillis !=
+                                                null &&
                                                 candidate
-                                                    .modifiedAtEpochMillis -> {
+                                                    .modifiedAtEpochMillis !=
+                                                    null &&
+                                                previous
+                                                    .modifiedAtEpochMillis !=
+                                                    candidate
+                                                        .modifiedAtEpochMillis) -> {
                                             modifiedCount++
                                             if (modifiedDetails.size <
                                                 SUMMARY_DETAIL_LIMIT) {
@@ -142,7 +155,7 @@ class LibraryScanner(
                                             it.sourceLocalKey !in observedKeys
                                         }
                                         .take(SUMMARY_DETAIL_LIMIT)
-                                        .map { it.displayName }
+                                        .map { it.sourceLocalKey }
                                         .toList(),
                             ),
                     )

@@ -73,4 +73,5 @@
     <string name="scan_report_error_format">%1$s：%2$s</string>
     <string name="scan_changes_format">新增 %1$d · 修改 %2$d · 未变 %3$d · 缺失 %4$d</string>
     <string name="scan_changes_details">变更文件</string>
+    <string name="latest_completed_scan_format">最近完成的扫描：%1$s（%2$s）</string>
 </resources>

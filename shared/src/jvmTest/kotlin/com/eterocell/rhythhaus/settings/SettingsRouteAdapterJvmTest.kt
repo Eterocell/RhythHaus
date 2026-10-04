@@ -715,6 +715,52 @@ class SettingsRouteAdapterJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun settingsShowsRetainedCompletedSummaryWithoutAttributingItToFailedReport() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val source = source("source", scanned = true)
+                val completedSource =
+                    source("completed-source", name = "Music", scanned = true)
+                val failed = scanSession(ScanStatus.Failed, id = "failed-scan")
+                val completed =
+                    scanSession(ScanStatus.Completed, id = "completed-scan")
+                        .copy(
+                            sourceId = completedSource.id,
+                            changeSummary =
+                                com.eterocell.rhythhaus.library
+                                    .ScanChangeSummary(
+                                        addedCount = 3,
+                                        missingCount = 2,
+                                        missingDetails =
+                                            listOf("albums/one/song.mp3"),
+                                    ),
+                        )
+                setContent {
+                    Box(Modifier.size(500.dp, 1600.dp)) {
+                        Harness(
+                            sources = listOf(source, completedSource),
+                            scanProgress = ScanProgress(failed),
+                            latestCompletedScanSession = completed,
+                            scanErrors = listOf(scanError(failed)),
+                        )
+                    }
+                }
+                waitForIdle()
+
+                onNode(hasText("Scan failed")).assertExists()
+                onNode(hasText("Latest completed scan: Music (completed-scan)"))
+                    .assertExists()
+                onNode(
+                        hasText(
+                            "Added 3 · Modified 0 · Unchanged 0 · Missing 2"))
+                    .assertExists()
+                onNode(hasText("albums/one/song.mp3")).assertExists()
+                onNode(hasText("Remove missing files")).assertDoesNotExist()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun settingsOutcomeReportSurvivesListItemRecreation() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
@@ -982,6 +1028,7 @@ class SettingsRouteAdapterJvmTest {
         sources: List<LibrarySource> = emptyList(),
         hasTracks: Boolean = false,
         scanProgress: ScanProgress? = null,
+        latestCompletedScanSession: ScanSession? = null,
         scanErrors: List<ScanError> = emptyList(),
         scanJob: Job? = null,
         mutationsEnabled: Boolean = true,
@@ -1058,6 +1105,7 @@ class SettingsRouteAdapterJvmTest {
             sourcePickerActionVisible = true,
             importMessage = null,
             scanProgress = scanProgress,
+            latestCompletedScanSession = latestCompletedScanSession,
             scanErrors = scanErrors,
             scanJob = scanJob,
             mutationsEnabled = mutationsEnabled,

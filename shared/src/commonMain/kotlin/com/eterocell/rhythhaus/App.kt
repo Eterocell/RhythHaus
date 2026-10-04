@@ -208,6 +208,9 @@ fun App(
     var importMessage by remember { mutableStateOf<String?>(null) }
     var followUpScanPending by remember { mutableStateOf(false) }
     var scanProgress by remember { mutableStateOf<ScanProgress?>(null) }
+    var latestCompletedScanSession by remember {
+        mutableStateOf<ScanSession?>(null)
+    }
     var scanErrors by remember { mutableStateOf(emptyList<ScanError>()) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
     val scanCancellationRequested = remember { MutableStateFlow(false) }
@@ -344,6 +347,11 @@ fun App(
                     libraryOrchestrator.publishIfCurrent(token) {
                         withContext(Dispatchers.Main) {
                             scanProgress = latestProgress
+                            if (latestProgress.session?.status ==
+                                ScanStatus.Completed) {
+                                latestCompletedScanSession =
+                                    latestProgress.session
+                            }
                         }
                     }
                 }
@@ -419,6 +427,7 @@ fun App(
             },
         )
         val restoredSession = repository.latestTerminalScanSession()
+        val restoredCompletedSession = repository.latestCompletedScanSession()
         val restoredState =
             restoredTerminalScanState(
                 restoredSession,
@@ -426,6 +435,11 @@ fun App(
                 restoredSession?.let { repository.scanErrors(it.id) }.orEmpty(),
             )
         scanProgress = restoredState.progress
+        latestCompletedScanSession =
+            restoredCompletedScanSession(
+                restoredCompletedSession,
+                initialLibraryContent.sources,
+            )
         scanErrors = restoredState.errors
 
         defaultPlatformLibrarySource()?.let { defaultSource ->
@@ -730,6 +744,7 @@ fun App(
                         ),
                     importMessage = importMessage,
                     scanProgress = scanProgress,
+                    latestCompletedScanSession = latestCompletedScanSession,
                     scanErrors = scanErrors,
                     scanJob = scanJob,
                     mediaNotificationPermission = notificationPermissionState,
@@ -1751,6 +1766,14 @@ internal fun restoredTerminalScanProgress(
         }
         ?.takeIf { terminal -> sources.any { it.id == terminal.sourceId } }
         ?.let(::ScanProgress)
+
+internal fun restoredCompletedScanSession(
+    session: ScanSession?,
+    sources: List<LibrarySource>,
+): ScanSession? =
+    session
+        ?.takeIf { it.status == ScanStatus.Completed }
+        ?.takeIf { completed -> sources.any { it.id == completed.sourceId } }
 
 internal data class RestoredTerminalScanState(
     val progress: ScanProgress?,

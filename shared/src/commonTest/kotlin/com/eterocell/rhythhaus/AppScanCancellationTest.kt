@@ -10,6 +10,7 @@ import com.eterocell.rhythhaus.library.PlaylistImportMutation
 import com.eterocell.rhythhaus.library.PlaylistRepository
 import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.RemoveMissingTracksResult
+import com.eterocell.rhythhaus.library.ScanChangeSummary
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
@@ -430,6 +431,32 @@ class AppScanCancellationTest {
             restoredTerminalScanProgress(
                 testScanSession(ScanStatus.Cancelling), listOf(source)),
         )
+    }
+
+    @Test
+    fun restartRetainsCompletedSummarySeparatelyFromFailedTerminalReport() {
+        val failed = testScanSession(ScanStatus.Failed).copy(id = "failed")
+        val completed =
+            testScanSession(ScanStatus.Completed)
+                .copy(
+                    id = "completed",
+                    changeSummary = ScanChangeSummary(addedCount = 2),
+                )
+
+        val terminal =
+            restoredTerminalScanState(
+                failed,
+                listOf(testSource()),
+                errors = listOf(testScanError().copy(scanId = failed.id)),
+            )
+        val retainedSummary =
+            restoredCompletedScanSession(completed, listOf(testSource()))
+
+        assertEquals(failed, terminal.progress?.session)
+        assertEquals("failed", terminal.progress?.session?.id)
+        assertEquals(completed, retainedSummary)
+        assertEquals(2, retainedSummary?.changeSummary?.addedCount)
+        assertEquals(null, terminal.progress?.session?.changeSummary)
     }
 
     @Test
@@ -1745,6 +1772,8 @@ private class BarrierRecordingLibraryRepository : LibraryRepository {
     ): RemoveMissingTracksResult = RemoveMissingTracksResult.Removed(0)
 
     override fun latestTerminalScanSession(): ScanSession? = null
+
+    override fun latestCompletedScanSession(): ScanSession? = null
 
     override fun removeSource(sourceId: String) {
         removeCalls++

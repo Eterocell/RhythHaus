@@ -294,6 +294,7 @@ class SearchRouteAdapterJvmTest {
             sourcePickerActionVisible = false,
             importMessage = null,
             scanProgress = null,
+            latestCompletedScanSession = null,
             scanJob = null,
             currentThemeMode = RhythHausThemeMode.System,
             onThemeModeSelected = {},

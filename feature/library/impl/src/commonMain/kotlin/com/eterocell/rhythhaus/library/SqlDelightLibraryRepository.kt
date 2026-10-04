@@ -2,32 +2,103 @@ package com.eterocell.rhythhaus.library
 
 import com.eterocell.rhythhaus.AudioSource
 
-private fun ScanChangeSummary.encodeScanSummary(): String =
-    listOf(
-            addedCount,
-            modifiedCount,
-            unchangedCount,
-            missingCount,
-            addedDetails.joinToString("\u001f"),
-            modifiedDetails.joinToString("\u001f"),
-            missingDetails.joinToString("\u001f"))
-        .joinToString("|")
+private const val scanSummaryEncodingV1 = "scan-summary-v1:"
+private const val scanSummaryDetailLimit = 100
 
-private fun String.decodeScanSummary(): ScanChangeSummary? = runCatching {
-    val fields = split('|')
-    require(fields.size == 7)
-    fun details(index: Int) =
-        fields[index].split("\u001f").filter(String::isNotEmpty).take(100)
-    ScanChangeSummary(
-        fields[0].toInt(),
-        fields[1].toInt(),
-        fields[2].toInt(),
-        fields[3].toInt(),
-        details(4),
-        details(5),
-        details(6))
+private fun ScanChangeSummary.encodeScanSummary(): String = buildString {
+    append(scanSummaryEncodingV1)
+    appendLengthPrefixed(addedCount.toString())
+    appendLengthPrefixed(modifiedCount.toString())
+    appendLengthPrefixed(unchangedCount.toString())
+    appendLengthPrefixed(missingCount.toString())
+    appendDetails(addedDetails)
+    appendDetails(modifiedDetails)
+    appendDetails(missingDetails)
 }
+
+private fun StringBuilder.appendDetails(details: List<String>) {
+    details.take(scanSummaryDetailLimit).let { boundedDetails ->
+        appendLengthPrefixed(boundedDetails.size.toString())
+        boundedDetails.forEach { appendLengthPrefixed(it) }
+    }
+}
+
+private fun StringBuilder.appendLengthPrefixed(value: String) {
+    append(value.length)
+    append(':')
+    append(value)
+}
+
+private fun String.decodeScanSummary(): ScanChangeSummary? =
+    if (startsWith(scanSummaryEncodingV1)) {
+        decodeLengthPrefixedScanSummary()
+    } else {
+        decodeLegacyDelimitedScanSummary()
+    }
+
+private fun String.decodeLengthPrefixedScanSummary(): ScanChangeSummary? =
+    runCatching {
+        val decoder =
+            LengthPrefixedSummaryDecoder(this, scanSummaryEncodingV1.length)
+        ScanChangeSummary(
+                addedCount = decoder.nextField().toInt(),
+                modifiedCount = decoder.nextField().toInt(),
+                unchangedCount = decoder.nextField().toInt(),
+                missingCount = decoder.nextField().toInt(),
+                addedDetails = decoder.nextDetails(),
+                modifiedDetails = decoder.nextDetails(),
+                missingDetails = decoder.nextDetails(),
+            )
+            .also { decoder.requireFinished() }
+    }
     .getOrNull()
+
+private fun String.decodeLegacyDelimitedScanSummary(): ScanChangeSummary? =
+    runCatching {
+        val fields = split('|')
+        require(fields.size == 7)
+        fun details(index: Int) =
+            fields[index]
+                .split("\u001f")
+                .filter(String::isNotEmpty)
+                .take(scanSummaryDetailLimit)
+        ScanChangeSummary(
+            fields[0].toInt(),
+            fields[1].toInt(),
+            fields[2].toInt(),
+            fields[3].toInt(),
+            details(4),
+            details(5),
+            details(6))
+    }
+    .getOrNull()
+
+private class LengthPrefixedSummaryDecoder(
+    private val encoded: String,
+    private var offset: Int,
+) {
+    fun nextDetails(): List<String> {
+        val count = nextField().toInt()
+        require(count in 0..scanSummaryDetailLimit)
+        return List(count) { nextField() }
+    }
+
+    fun nextField(): String {
+        val delimiter = encoded.indexOf(':', offset)
+        require(delimiter >= offset)
+        val length = encoded.substring(offset, delimiter).toInt()
+        require(length >= 0)
+        val valueStart = delimiter + 1
+        val valueEnd = valueStart + length
+        require(valueEnd >= valueStart && valueEnd <= encoded.length)
+        offset = valueEnd
+        return encoded.substring(valueStart, valueEnd)
+    }
+
+    fun requireFinished() {
+        require(offset == encoded.length)
+    }
+}
 
 internal const val ARTWORK_CHUNK_SIZE_BYTES = 256 * 1024
 
@@ -716,6 +787,38 @@ internal class SqlDelightLibraryRepository(
     override fun latestTerminalScanSession(): ScanSession? =
         database.scanSessionQueries
             .selectLatestTerminalScanSession {
+                id,
+                sourceId,
+                status,
+                startedAtEpochMillis,
+                completedAtEpochMillis,
+                foldersVisited,
+                filesVisited,
+                tracksAdded,
+                tracksUpdated,
+                filesSkipped,
+                changeSummaryJson,
+                terminalMessage ->
+                ScanSession(
+                    id = id,
+                    sourceId = sourceId,
+                    status = ScanStatus.valueOf(status),
+                    startedAtEpochMillis = startedAtEpochMillis,
+                    completedAtEpochMillis = completedAtEpochMillis,
+                    foldersVisited = foldersVisited.toInt(),
+                    filesVisited = filesVisited.toInt(),
+                    tracksAdded = tracksAdded.toInt(),
+                    tracksUpdated = tracksUpdated.toInt(),
+                    filesSkipped = filesSkipped.toInt(),
+                    changeSummary = changeSummaryJson?.decodeScanSummary(),
+                    terminalMessage = terminalMessage,
+                )
+            }
+            .executeAsOneOrNull()
+
+    override fun latestCompletedScanSession(): ScanSession? =
+        database.scanSessionQueries
+            .selectLatestCompletedScanSession {
                 id,
                 sourceId,
                 status,

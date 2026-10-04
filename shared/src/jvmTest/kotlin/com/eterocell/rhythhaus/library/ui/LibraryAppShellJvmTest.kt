@@ -1120,6 +1120,7 @@ class LibraryAppShellJvmTest {
                         sourcePickerActionVisible = true,
                         importMessage = null,
                         scanProgress = ScanProgress(scanSession),
+                        latestCompletedScanSession = null,
                         scanErrors = scanErrors,
                         scanJob = null,
                         coordinatorMutationsEnabled = true,
