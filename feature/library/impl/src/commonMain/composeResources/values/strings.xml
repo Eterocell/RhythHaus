@@ -71,4 +71,6 @@
     <string name="hide_scan_report">Hide scan report</string>
     <string name="scan_report_empty">No file errors were recorded.</string>
     <string name="scan_report_error_format">%1$s: %2$s</string>
+    <string name="scan_changes_format">Added %1$d · Modified %2$d · Unchanged %3$d · Missing %4$d</string>
+    <string name="scan_changes_details">Changed files</string>
 </resources>

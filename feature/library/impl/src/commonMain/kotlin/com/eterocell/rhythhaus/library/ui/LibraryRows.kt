@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -97,6 +98,8 @@ import rhythhaus.feature.library.generated.resources.remove_missing
 import rhythhaus.feature.library.generated.resources.rescan
 import rhythhaus.feature.library.generated.resources.retry_scan
 import rhythhaus.feature.library.generated.resources.scan_cancelled
+import rhythhaus.feature.library.generated.resources.scan_changes_details
+import rhythhaus.feature.library.generated.resources.scan_changes_format
 import rhythhaus.feature.library.generated.resources.scan_completed
 import rhythhaus.feature.library.generated.resources.scan_failed
 import rhythhaus.feature.library.generated.resources.scan_progress_format
@@ -1100,6 +1103,34 @@ public fun ScanOutcomePanel(
                 session.filesSkipped),
             color = HausColors.current.muted,
             fontSize = 12.sp)
+        session.changeSummary?.let { summary ->
+            Text(
+                stringResource(
+                    Res.string.scan_changes_format,
+                    summary.addedCount,
+                    summary.modifiedCount,
+                    summary.unchangedCount,
+                    summary.missingCount),
+                color = HausColors.current.muted,
+                fontSize = 12.sp,
+                modifier = Modifier.semantics { heading() })
+            val details =
+                summary.addedDetails +
+                    summary.modifiedDetails +
+                    summary.missingDetails
+            if (details.isNotEmpty()) {
+                Text(
+                    stringResource(Res.string.scan_changes_details),
+                    color = HausColors.current.muted,
+                    fontSize = 12.sp)
+                details.take(100).forEach { detail ->
+                    Text(
+                        detail,
+                        color = HausColors.current.muted,
+                        fontSize = 12.sp)
+                }
+            }
+        }
         session.terminalMessage?.takeIf(String::isNotBlank)?.let {
             Text(it, color = HausColors.current.pulse, fontSize = 12.sp)
         }

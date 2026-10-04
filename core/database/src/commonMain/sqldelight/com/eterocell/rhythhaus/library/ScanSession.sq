@@ -9,17 +9,18 @@ CREATE TABLE IF NOT EXISTS scan_session (
     tracksAdded INTEGER NOT NULL DEFAULT 0,
     tracksUpdated INTEGER NOT NULL DEFAULT 0,
     filesSkipped INTEGER NOT NULL DEFAULT 0,
+    changeSummaryJson TEXT,
     terminalMessage TEXT
 );
 
 insertScanSession:
 INSERT INTO scan_session(id, sourceId, status, startedAtEpochMillis, completedAtEpochMillis,
-    foldersVisited, filesVisited, tracksAdded, tracksUpdated, filesSkipped, terminalMessage)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    foldersVisited, filesVisited, tracksAdded, tracksUpdated, filesSkipped, changeSummaryJson, terminalMessage)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 updateScanSession:
 UPDATE scan_session SET status = ?, completedAtEpochMillis = ?, foldersVisited = ?,
-    filesVisited = ?, tracksAdded = ?, tracksUpdated = ?, filesSkipped = ?, terminalMessage = ?
+    filesVisited = ?, tracksAdded = ?, tracksUpdated = ?, filesSkipped = ?, changeSummaryJson = ?, terminalMessage = ?
 WHERE id = ?;
 
 selectScanSessionById:

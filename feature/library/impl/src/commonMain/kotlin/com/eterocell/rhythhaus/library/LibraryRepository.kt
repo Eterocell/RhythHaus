@@ -185,6 +185,7 @@ class InMemoryLibraryRepository : LibraryRepository {
                 tracksAdded = session.tracksAdded,
                 tracksUpdated = session.tracksUpdated,
                 filesSkipped = session.filesSkipped,
+                changeSummary = session.changeSummary,
                 terminalMessage = session.terminalMessage,
             )
     }

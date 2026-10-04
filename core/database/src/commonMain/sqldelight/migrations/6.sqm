@@ -1,0 +1,1 @@
+ALTER TABLE scan_session ADD COLUMN changeSummaryJson TEXT;

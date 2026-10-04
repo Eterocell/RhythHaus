@@ -16,6 +16,27 @@ public enum class ScanStatus {
     Failed,
 }
 
+/** Bounded, non-destructive explanation of a completed scan's changes. */
+public data class ScanChangeSummary(
+    /** Number of newly observed source-local items. */
+    public val addedCount: Int = 0,
+    /** Number of previously observed items whose known file facts changed. */
+    public val modifiedCount: Int = 0,
+    /**
+     * Number of previously observed items whose known file facts did not
+     * change.
+     */
+    public val unchangedCount: Int = 0,
+    /** Number of previously observed items absent from this scan. */
+    public val missingCount: Int = 0,
+    /** Bounded paths for newly observed items. */
+    public val addedDetails: List<String> = emptyList(),
+    /** Bounded paths for modified items. */
+    public val modifiedDetails: List<String> = emptyList(),
+    /** Bounded paths for missing items. */
+    public val missingDetails: List<String> = emptyList(),
+)
+
 /** Persisted progress and outcome for one source scan. */
 public data class ScanSession(
     /** Stable scan identifier. */
@@ -38,6 +59,8 @@ public data class ScanSession(
     public val tracksUpdated: Int = 0,
     /** Number of files skipped. */
     public val filesSkipped: Int = 0,
+    /** Change summary from the completed scan, or null before completion. */
+    public val changeSummary: ScanChangeSummary? = null,
     /** Terminal status message when available. */
     public val terminalMessage: String? = null,
 )

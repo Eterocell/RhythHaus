@@ -2,6 +2,33 @@ package com.eterocell.rhythhaus.library
 
 import com.eterocell.rhythhaus.AudioSource
 
+private fun ScanChangeSummary.encodeScanSummary(): String =
+    listOf(
+            addedCount,
+            modifiedCount,
+            unchangedCount,
+            missingCount,
+            addedDetails.joinToString("\u001f"),
+            modifiedDetails.joinToString("\u001f"),
+            missingDetails.joinToString("\u001f"))
+        .joinToString("|")
+
+private fun String.decodeScanSummary(): ScanChangeSummary? = runCatching {
+    val fields = split('|')
+    require(fields.size == 7)
+    fun details(index: Int) =
+        fields[index].split("\u001f").filter(String::isNotEmpty).take(100)
+    ScanChangeSummary(
+        fields[0].toInt(),
+        fields[1].toInt(),
+        fields[2].toInt(),
+        fields[3].toInt(),
+        details(4),
+        details(5),
+        details(6))
+}
+    .getOrNull()
+
 internal const val ARTWORK_CHUNK_SIZE_BYTES = 256 * 1024
 
 /**
@@ -532,6 +559,7 @@ internal class SqlDelightLibraryRepository(
             tracksAdded = session.tracksAdded.toLong(),
             tracksUpdated = session.tracksUpdated.toLong(),
             filesSkipped = session.filesSkipped.toLong(),
+            changeSummaryJson = session.changeSummary?.encodeScanSummary(),
             terminalMessage = session.terminalMessage,
         )
     }
@@ -550,6 +578,7 @@ internal class SqlDelightLibraryRepository(
             tracksAdded = session.tracksAdded.toLong(),
             tracksUpdated = session.tracksUpdated.toLong(),
             filesSkipped = session.filesSkipped.toLong(),
+            changeSummaryJson = session.changeSummary?.encodeScanSummary(),
             terminalMessage = session.terminalMessage,
             id = session.id,
         )
@@ -697,6 +726,7 @@ internal class SqlDelightLibraryRepository(
                 tracksAdded,
                 tracksUpdated,
                 filesSkipped,
+                changeSummaryJson,
                 terminalMessage ->
                 ScanSession(
                     id = id,
@@ -709,6 +739,7 @@ internal class SqlDelightLibraryRepository(
                     tracksAdded = tracksAdded.toInt(),
                     tracksUpdated = tracksUpdated.toInt(),
                     filesSkipped = filesSkipped.toInt(),
+                    changeSummary = changeSummaryJson?.decodeScanSummary(),
                     terminalMessage = terminalMessage,
                 )
             }

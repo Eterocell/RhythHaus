@@ -71,4 +71,6 @@
     <string name="hide_scan_report">隐藏扫描报告</string>
     <string name="scan_report_empty">未记录文件错误。</string>
     <string name="scan_report_error_format">%1$s：%2$s</string>
+    <string name="scan_changes_format">新增 %1$d · 修改 %2$d · 未变 %3$d · 缺失 %4$d</string>
+    <string name="scan_changes_details">变更文件</string>
 </resources>

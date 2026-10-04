@@ -27,6 +27,14 @@ class LibraryScanner(
         isCancelled: () -> Boolean = { false },
         onProgress: (ScanProgress) -> Unit = {},
     ): ScanSession {
+        val previousTracks = repository.tracksForSource(source.id)
+        val previousByKey = previousTracks.associateBy { it.sourceLocalKey }
+        val observedKeys = linkedSetOf<String>()
+        val addedDetails = mutableListOf<String>()
+        val modifiedDetails = mutableListOf<String>()
+        var addedCount = 0
+        var modifiedCount = 0
+        var unchangedCount = 0
         val scanId = idFactory("scan")
         var session =
             ScanSession(
@@ -70,7 +78,37 @@ class LibraryScanner(
                         }
 
                         is PlatformScanEvent.AudioCandidate ->
-                            session.importCandidate(scanId, event.candidate)
+                            session
+                                .importCandidate(scanId, event.candidate)
+                                .also {
+                                    val candidate = event.candidate
+                                    observedKeys += candidate.sourceLocalKey
+                                    val previous =
+                                        previousByKey[candidate.sourceLocalKey]
+                                    when {
+                                        previous == null -> {
+                                            addedCount++
+                                            if (addedDetails.size <
+                                                SUMMARY_DETAIL_LIMIT) {
+                                                addedDetails +=
+                                                    candidate.displayPath
+                                            }
+                                        }
+                                        previous.sizeBytes !=
+                                            candidate.sizeBytes ||
+                                            previous.modifiedAtEpochMillis !=
+                                                candidate
+                                                    .modifiedAtEpochMillis -> {
+                                            modifiedCount++
+                                            if (modifiedDetails.size <
+                                                SUMMARY_DETAIL_LIMIT) {
+                                                modifiedDetails +=
+                                                    candidate.displayPath
+                                            }
+                                        }
+                                        else -> unchangedCount++
+                                    }
+                                }
                     }
                 repository.updateScanSession(session)
                 onProgress(
@@ -86,6 +124,27 @@ class LibraryScanner(
                     session.copy(
                         status = ScanStatus.Completed,
                         completedAtEpochMillis = completedAt,
+                        changeSummary =
+                            ScanChangeSummary(
+                                addedCount = addedCount,
+                                modifiedCount = modifiedCount,
+                                unchangedCount = unchangedCount,
+                                missingCount =
+                                    previousTracks.count {
+                                        it.sourceLocalKey !in observedKeys
+                                    },
+                                addedDetails = addedDetails,
+                                modifiedDetails = modifiedDetails,
+                                missingDetails =
+                                    previousTracks
+                                        .asSequence()
+                                        .filter {
+                                            it.sourceLocalKey !in observedKeys
+                                        }
+                                        .take(SUMMARY_DETAIL_LIMIT)
+                                        .map { it.displayName }
+                                        .toList(),
+                            ),
                     )
                 repository.upsertSource(
                     source.copy(lastScanAtEpochMillis = completedAt))
@@ -173,6 +232,8 @@ class LibraryScanner(
             terminalMessage = "Scan cancelled",
         )
 }
+
+private const val SUMMARY_DETAIL_LIMIT = 100
 
 private fun AudioScanCandidate.toLibraryTrack(
     scanId: String,
