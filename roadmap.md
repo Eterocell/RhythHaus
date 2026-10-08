@@ -82,7 +82,7 @@ RhythHaus already provides:
 | Playlist interoperability | Integrated: M3U/M3U8/PLS import/export; the existing JSON backup remains a recovery format. User-owned device/file-picker acceptance remains pending. |
 | Android media discovery | Integrated: optional indexed-audio source beside SAF, explicit permission/add/scan and recovery. User-owned device acceptance pending. |
 | Incremental scanning | Integrated: persisted explicit added/modified/unchanged/missing summary and bounded paths; non-destructive missing reporting, no watcher. User-owned device/restart acceptance pending. |
-| Import ergonomics | Desktop drag-and-drop implementation complete on the independent feature branch; not yet integrated into main. Bounded folder/file admission, stable reference sources, modal gating, retry and partial-failure feedback. Desktop references media without copying; iOS keeps sandbox-copy import, Android keeps SAF/MediaStore access. Native Finder drag/restart/playback acceptance remains user-owned and pending. |
+| Import ergonomics | Desktop drag-and-drop integrated into main. Bounded folder/file admission, stable reference sources, modal gating, retry and partial-failure feedback. Desktop references media without copying; iOS keeps sandbox-copy import, Android keeps SAF/MediaStore access. Final UI close-review was interrupted without a verdict; native Finder drag/restart/playback acceptance remains user-owned and pending. |
 | Sleep timer | Implemented: timed/current/N-track stop and reversible ten-second fade. Physical/listening/background/system-control acceptance remains user-owned and pending. |
 
 ### P1 — advanced player
