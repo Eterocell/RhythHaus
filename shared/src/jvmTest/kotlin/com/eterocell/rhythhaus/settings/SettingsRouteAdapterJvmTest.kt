@@ -894,6 +894,42 @@ class SettingsRouteAdapterJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun unavailableDroppedSourceRecoveryRescansOriginalSetWithoutPicker() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val picker = CountingPicker()
+                val file =
+                    java.nio.file.Files.createTempFile("drop-recovery", ".mp3")
+                        .toFile()
+                val dropped =
+                    com.eterocell.rhythhaus.library
+                        .validateDesktopDrop(listOf(file.path), 1L)
+                        .sources
+                        .single()
+                        .copy(
+                            accessStatus = LibrarySourceAccessStatus.LostAccess)
+                val rescanned = mutableListOf<LibrarySource>()
+                setContent {
+                    Box(Modifier.size(500.dp, 1600.dp)) {
+                        Harness(
+                            sources = listOf(dropped),
+                            folderPickerLauncher = picker,
+                            onRescan = { rescanned += it })
+                    }
+                }
+                onNodeWithTag(
+                        "settings-recover-" + dropped.id,
+                        useUnmergedTree = true)
+                    .performScrollTo()
+                    .performClick()
+                assertEquals(listOf(dropped), rescanned)
+                assertEquals(0, picker.launchCalls)
+                file.delete()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun lostAccessSourceRecoveryLaunchesFolderPicker() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {

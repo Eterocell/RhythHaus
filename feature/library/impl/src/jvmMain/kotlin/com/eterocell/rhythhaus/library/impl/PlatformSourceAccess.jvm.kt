@@ -5,9 +5,15 @@ import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
+import com.eterocell.rhythhaus.library.droppedFilesFromSource
+import com.eterocell.rhythhaus.library.isJvmDroppedFilesSource
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.LinkOption
 
-/** JVM filesystem-folder-based [PlatformSourceAccess] for library sources. */
+/**
+ * JVM filesystem [PlatformSourceAccess] for folders and dropped audio files.
+ */
 class JvmFolderSourceAccess : PlatformSourceAccess {
     /**
      * Returns the access status for the given source.
@@ -17,6 +23,18 @@ class JvmFolderSourceAccess : PlatformSourceAccess {
     override fun accessStatus(
         source: LibrarySource
     ): LibrarySourceAccessStatus {
+        if (isJvmDroppedFilesSource(source)) {
+            val hasReadableFile = runCatching {
+                droppedFilesFromSource(source)
+            }
+                .getOrDefault(emptyList())
+                .any { file -> file.isFile && file.canRead() }
+            return if (hasReadableFile) {
+                LibrarySourceAccessStatus.Available
+            } else {
+                LibrarySourceAccessStatus.LostAccess
+            }
+        }
         val folder = File(source.handle)
         return if (source.platformKind == LibraryPlatformKind.JvmFolder &&
             folder.isDirectory &&
@@ -33,7 +51,11 @@ class JvmFolderSourceAccess : PlatformSourceAccess {
      * @param source the library source to scan.
      */
     override fun scan(source: LibrarySource): Sequence<PlatformScanEvent> =
-        scanJvmFolderSource(source)
+        if (isJvmDroppedFilesSource(source)) {
+            scanJvmDroppedFilesSource(source)
+        } else {
+            scanJvmFolderSource(source)
+        }
 }
 
 /**
@@ -52,6 +74,42 @@ fun scanJvmFolderSource(source: LibrarySource): Sequence<PlatformScanEvent> =
         }
         yieldAll(scanFolder(source, root, root))
     }
+
+/** Scans the fixed original file paths of a desktop dropped-files source. */
+fun scanJvmDroppedFilesSource(
+    source: LibrarySource,
+): Sequence<PlatformScanEvent> = sequence {
+    droppedFilesFromSource(source).forEach { originalFile ->
+        val file = originalFile
+        if (!file.isFile || !file.canRead()) {
+            val path = originalFile.path
+            yield(
+                PlatformScanEvent.Skipped(
+                    sourceLocalKey = path.normalizedSourceLocalKey(),
+                    displayPath = path,
+                    reason = "Cannot read dropped audio file",
+                    recoverable = true,
+                    identityObserved =
+                        !Files.notExists(
+                            file.toPath(), LinkOption.NOFOLLOW_LINKS),
+                ),
+            )
+        } else {
+            yield(
+                audioCandidateForSourceFile(
+                    source = source,
+                    sourceLocalKey = file.path,
+                    displayPath = file.path,
+                    displayName = file.name,
+                    audioSource = AudioSource.FilePath(file.path),
+                    sizeBytes = file.length(),
+                    modifiedAtEpochMillis =
+                        file.lastModified().takeIf { it > 0L },
+                ),
+            )
+        }
+    }
+}
 
 private fun scanFolder(
     source: LibrarySource,

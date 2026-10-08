@@ -36,4 +36,14 @@
     <string name="close">Close</string>
     <string name="playlist_backup_imported_suffix">Imported</string>
     <string name="ios_import_summary_format">Imported %1$d, duplicates %2$d, unsupported %3$d, failed %4$d</string>
+    <string name="desktop_drop_title">Drop music files here.</string>
+    <string name="desktop_drop_hint">Drag folders or supported audio files here.</string>
+    <string name="desktop_drop_active">Release to add folders or audio files.</string>
+    <string name="desktop_drop_choose_folder">Choose music folder</string>
+    <string name="desktop_drop_added_format">Added %1$d sources</string>
+    <string name="desktop_drop_busy">Finish the current library operation before importing.</string>
+    <string name="desktop_drop_duplicate">Reusing existing music sources.</string>
+    <string name="desktop_drop_rejected">No readable folders or supported audio files were dropped.</string>
+    <string name="desktop_drop_summary_format">Added %1$d sources, reused %2$d, rejected %3$d items</string>
+    <string name="desktop_drop_failed_format">%1$d sources failed to scan: %2$s</string>
 </resources>

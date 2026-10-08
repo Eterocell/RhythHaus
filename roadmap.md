@@ -33,7 +33,7 @@
 | Phase | Goal | Ordered deliverables |
 | --- | --- | --- |
 | Phase 2 — daily use | Make the existing library and player efficient to use every day. | ~~Favorites; play history/recently played/recently added; sorting and filtering; sleep timer; save Queue as playlist; smart playlists~~. All implementations complete; pending manual acceptance remains release evidence. |
-| Phase 3 — library management | Give users safe control over imported metadata and sources. | ~~App-local metadata overrides; M3U/PLS import/export; Android MediaStore source; explicit-scan change summaries~~; desktop drag-and-drop and remaining cross-platform import policy. |
+| Phase 3 — library management | Give users safe control over imported metadata and sources. | ~~App-local metadata overrides; M3U/PLS import/export; Android MediaStore source; explicit-scan change summaries; desktop drag-and-drop~~. Current platform import policy is preserved: desktop references, iOS sandbox copies, Android SAF/MediaStore access. Manual acceptance remains pending. |
 | Phase 4 — advanced playback | Improve listening quality without adding network dependence. | ReplayGain/normalization; crossfade; basic EQ; gapless playback; local and embedded lyrics. |
 
 Sorting and filtering is integrated into `main`: Shared owns an ephemeral query, flat Library modes use deterministic sort/filter projections, artwork presence is read without loading image blobs, and accessible EN/ZH controls preserve visible selection and playback order. Android packaging is still blocked by the TagLib native toolchain, and the known full Shared JVM playback-selection timeout prevents claiming a green full-suite gate. Physical-platform acceptance remains a release check; no metadata writes or saved sort presets were added.
@@ -82,7 +82,7 @@ RhythHaus already provides:
 | Playlist interoperability | Integrated: M3U/M3U8/PLS import/export; the existing JSON backup remains a recovery format. User-owned device/file-picker acceptance remains pending. |
 | Android media discovery | Integrated: optional indexed-audio source beside SAF, explicit permission/add/scan and recovery. User-owned device acceptance pending. |
 | Incremental scanning | Integrated: persisted explicit added/modified/unchanged/missing summary and bounded paths; non-destructive missing reporting, no watcher. User-owned device/restart acceptance pending. |
-| Import ergonomics | Desktop drag-and-drop plus an explicit remaining copy-versus-reference policy; preserve current iOS sandbox-copy decision. |
+| Import ergonomics | Desktop drag-and-drop implementation complete on the independent feature branch; not yet integrated into main. Bounded folder/file admission, stable reference sources, modal gating, retry and partial-failure feedback. Desktop references media without copying; iOS keeps sandbox-copy import, Android keeps SAF/MediaStore access. Native Finder drag/restart/playback acceptance remains user-owned and pending. |
 | Sleep timer | Implemented: timed/current/N-track stop and reversible ten-second fade. Physical/listening/background/system-control acceptance remains user-owned and pending. |
 
 ### P1 — advanced player

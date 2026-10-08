@@ -32,4 +32,14 @@
     <string name="close">关闭</string>
     <string name="playlist_backup_imported_suffix">导入</string>
     <string name="ios_import_summary_format">已导入 %1$d，重复 %2$d，不支持 %3$d，失败 %4$d</string>
+    <string name="desktop_drop_title">将音乐文件拖放到此处。</string>
+    <string name="desktop_drop_hint">拖放文件夹或支持的音频文件。</string>
+    <string name="desktop_drop_active">松开以添加文件夹或音频文件。</string>
+    <string name="desktop_drop_choose_folder">选择音乐文件夹</string>
+    <string name="desktop_drop_added_format">已添加 %1$d 个来源</string>
+    <string name="desktop_drop_busy">请先完成当前曲库操作。</string>
+    <string name="desktop_drop_duplicate">正在复用已有音乐来源。</string>
+    <string name="desktop_drop_rejected">拖放内容中没有可读文件夹或支持的音频文件。</string>
+    <string name="desktop_drop_summary_format">新增 %1$d 个来源，复用 %2$d 个，拒绝 %3$d 项</string>
+    <string name="desktop_drop_failed_format">%1$d 个来源扫描失败：%2$s</string>
 </resources>

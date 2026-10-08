@@ -15,6 +15,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -22,6 +23,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -62,6 +64,7 @@ import com.eterocell.rhythhaus.toPlayableTrack
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class LibraryAppShellJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -1016,6 +1019,174 @@ class LibraryAppShellJvmTest {
             }
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun desktopDropTargetIsLocalizedAccessibleAndRetainsPickerFallback() =
+        listOf(Locale.ENGLISH, Locale.SIMPLIFIED_CHINESE).forEach { locale ->
+            withDefaultLocale(locale) {
+                runComposeUiTest {
+                    val picker = CountingPicker()
+                    var active by mutableStateOf(false)
+
+                    fun mountFor(locale: Locale) {
+                        withDefaultLocale(locale) {
+                            mount(
+                                width = 420.dp,
+                                source = source(),
+                                scanSession =
+                                    ScanSession(
+                                        id = "desktop-drop-$locale",
+                                        sourceId = "source",
+                                        status = ScanStatus.Completed,
+                                        startedAtEpochMillis = 1L,
+                                    ),
+                                picker = picker,
+                                callbacks = CallbackRecorder(),
+                                desktopDropTarget = {
+                                    DesktopDropTargetPresentation(
+                                        isAvailable = true,
+                                        isActive = active,
+                                    )
+                                },
+                            )
+                        }
+                    }
+
+                    val chinese = locale == Locale.SIMPLIFIED_CHINESE
+                    val title =
+                        if (chinese) "将音乐文件拖放到此处。" else "Drop music files here."
+                    val idleHint =
+                        if (chinese) "拖放文件夹或支持的音频文件。"
+                        else "Drag folders or supported audio files here."
+                    val activeHint =
+                        if (chinese) "松开以添加文件夹或音频文件。"
+                        else "Release to add folders or audio files."
+                    val choose =
+                        if (chinese) "选择音乐文件夹" else "Choose music folder"
+                    mountFor(locale)
+                    onNode(
+                            hasContentDescription("$title $idleHint"),
+                        )
+                        .assertIsDisplayed()
+                    onNode(hasContentDescription(choose)).performClick()
+                    assertEquals(1, picker.launchCalls)
+
+                    active = true
+                    waitForIdle()
+                    onNode(
+                            hasContentDescription("$title $activeHint"),
+                        )
+                        .assertIsDisplayed()
+
+                    active = false
+                    waitForIdle()
+                    onNode(
+                            hasContentDescription(
+                                "$title $idleHint",
+                            ),
+                        )
+                        .assertIsDisplayed()
+                    onNode(hasContentDescription(choose)).performClick()
+                    assertEquals(2, picker.launchCalls)
+                }
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun desktopImportActionDisappearsDuringSourceRemovalAndOnboarding() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                mount(
+                    width = 600.dp,
+                    height = 400.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "drop-modal",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                    desktopDropTarget = {
+                        DesktopDropTargetPresentation(
+                            true, false, "Unsupported item")
+                    },
+                )
+                onNode(hasText("Unsupported item"), useUnmergedTree = true)
+                    .assertIsDisplayed()
+                onNodeWithTag("NowPlayingBarSettings", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onNodeWithTag("settings-list", useUnmergedTree = true)
+                    .performScrollToNode(hasContentDescription("Remove Music"))
+                onNodeWithTag("settings-remove-source", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onAllNodes(hasContentDescription("Choose music folder"))
+                    .assertCountEquals(0)
+                onNodeWithTag("settings-remove-dismiss", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                onNode(hasContentDescription("Choose music folder"))
+                    .assertIsDisplayed()
+                onNodeWithTag("settings-list", useUnmergedTree = true)
+                    .performScrollToNode(hasText("Review onboarding"))
+                onNode(hasText("Review onboarding"), useUnmergedTree = true)
+                    .performClick()
+                onNodeWithTag(OnboardingRootTestTag).assertIsDisplayed()
+                onAllNodes(hasContentDescription("Choose music folder"))
+                    .assertCountEquals(0)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun desktopBannerLeavesCompactSearchFieldReachable() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val picker = CountingPicker()
+                mount(
+                    width = 600.dp,
+                    height = 400.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "drop-search",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    picker = picker,
+                    callbacks = CallbackRecorder(),
+                    desktopDropTarget = {
+                        DesktopDropTargetPresentation(
+                            true, false, "Unsupported item")
+                    },
+                )
+                onNodeWithTag("NowPlayingBarSearch", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                val field = onNode(hasSetTextAction())
+                field.assertIsDisplayed()
+                val bannerButton =
+                    onNode(hasContentDescription("Choose music folder"))
+                bannerButton.assertIsDisplayed()
+                assertTrue(
+                    bannerButton.fetchSemanticsNode().boundsInRoot.bottom <=
+                        field.fetchSemanticsNode().boundsInRoot.top,
+                    "Import action must not overlap the search field",
+                )
+                field.performClick().performTextInput("reachable")
+                waitForIdle()
+                assertEquals(0, picker.launchCalls)
+                onNode(hasText("Unsupported item"), useUnmergedTree = true)
+                    .assertIsDisplayed()
+            }
+        }
+
     private inline fun <T> withDefaultLocale(
         locale: Locale,
         block: () -> T,
@@ -1046,6 +1217,9 @@ class LibraryAppShellJvmTest {
         createdAtByTrackId: Map<String, Long> = emptyMap(),
         onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
         onPlaylistStateAction: (PlaylistStateAction) -> Unit = {},
+        desktopDropTarget: () -> DesktopDropTargetPresentation = {
+            DesktopDropTargetPresentation.Disabled
+        },
     ) {
         mount(
             width = { width },
@@ -1062,6 +1236,7 @@ class LibraryAppShellJvmTest {
             createdAtByTrackId = createdAtByTrackId,
             onSetTrackFavorite = onSetTrackFavorite,
             onPlaylistStateAction = onPlaylistStateAction,
+            desktopDropTarget = desktopDropTarget,
         )
     }
 
@@ -1082,6 +1257,9 @@ class LibraryAppShellJvmTest {
         createdAtByTrackId: Map<String, Long> = emptyMap(),
         onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
         onPlaylistStateAction: (PlaylistStateAction) -> Unit = {},
+        desktopDropTarget: () -> DesktopDropTargetPresentation = {
+            DesktopDropTargetPresentation.Disabled
+        },
     ) {
         setContent {
             CompositionLocalProvider(
@@ -1137,6 +1315,7 @@ class LibraryAppShellJvmTest {
                         playHistory = playHistory,
                         createdAtByTrackId = createdAtByTrackId,
                         onSetTrackFavorite = onSetTrackFavorite,
+                        desktopDropTarget = desktopDropTarget(),
                     )
                 }
             }

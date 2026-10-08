@@ -68,9 +68,11 @@ class LibraryScanner(
                             )
 
                         is PlatformScanEvent.Skipped -> {
-                            if (source.platformKind ==
-                                LibraryPlatformKind.AndroidMediaStoreAudio &&
-                                event.recoverable) {
+                            if (event.identityObserved ||
+                                (source.platformKind ==
+                                    LibraryPlatformKind
+                                        .AndroidMediaStoreAudio &&
+                                    event.recoverable)) {
                                 observedKeys += event.sourceLocalKey
                                 repository.markTrackSeen(
                                     source.id, event.sourceLocalKey, scanId)

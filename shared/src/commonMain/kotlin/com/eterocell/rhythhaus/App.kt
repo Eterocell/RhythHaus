@@ -10,10 +10,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import com.eterocell.rhythhaus.library.DesktopDropResult
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibraryScanner
@@ -36,6 +38,7 @@ import com.eterocell.rhythhaus.library.registerMissingDefaultLibrarySource
 import com.eterocell.rhythhaus.library.rememberPlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.sourcePickerActionVisible
 import com.eterocell.rhythhaus.library.toPlayableTrack
+import com.eterocell.rhythhaus.library.ui.DesktopDropTargetPresentation
 import com.eterocell.rhythhaus.library.ui.LibraryHomeScreen
 import com.eterocell.rhythhaus.library.ui.LocalTrackArtworkLoader
 import com.eterocell.rhythhaus.library.ui.OnboardingLaunchMode
@@ -43,6 +46,7 @@ import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.PlaylistStateAction
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
 import com.eterocell.rhythhaus.library.ui.reducePlaylistState
+import com.eterocell.rhythhaus.library.validateDesktopDrop
 import com.eterocell.rhythhaus.mediastore.MediaStoreAudioPermissionController
 import com.eterocell.rhythhaus.mediastore.UnavailableMediaStoreAudioPermissionController
 import com.eterocell.rhythhaus.mediastore.registerMediaStoreAudioSource
@@ -87,6 +91,12 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 import rhythhaus.shared.generated.resources.Res
+import rhythhaus.shared.generated.resources.desktop_drop_added_format
+import rhythhaus.shared.generated.resources.desktop_drop_busy
+import rhythhaus.shared.generated.resources.desktop_drop_duplicate
+import rhythhaus.shared.generated.resources.desktop_drop_failed_format
+import rhythhaus.shared.generated.resources.desktop_drop_rejected
+import rhythhaus.shared.generated.resources.desktop_drop_summary_format
 import rhythhaus.shared.generated.resources.ios_import_summary_format
 import rhythhaus.shared.generated.resources.playlist_backup_imported_suffix
 import rhythhaus.shared.generated.resources.playlist_loading
@@ -157,7 +167,11 @@ fun App(
         UnavailableMediaNotificationPermissionController,
     mediaStorePermissionController: MediaStoreAudioPermissionController =
         UnavailableMediaStoreAudioPermissionController,
+    desktopDropEvents: Flow<List<String>>? = null,
+    desktopDropActive: Boolean = false,
+    onDesktopDropAvailabilityChanged: (Boolean) -> Unit = {},
 ) {
+    var desktopModalFree by remember { mutableStateOf(false) }
     val controller = koinInject<PlaybackController>()
     val tagLibReader = koinInject<TagLibReader>()
     val repository = koinInject<LibraryRepository>()
@@ -231,6 +245,15 @@ fun App(
         )
     }
     val scanCompleteFormat = stringResource(Res.string.scan_complete_format)
+    val desktopDropAddedFormat =
+        stringResource(Res.string.desktop_drop_added_format)
+    val desktopDropBusy = stringResource(Res.string.desktop_drop_busy)
+    val desktopDropFailedFormat =
+        stringResource(Res.string.desktop_drop_failed_format)
+    val desktopDropDuplicate = stringResource(Res.string.desktop_drop_duplicate)
+    val desktopDropRejected = stringResource(Res.string.desktop_drop_rejected)
+    val desktopDropSummaryFormat =
+        stringResource(Res.string.desktop_drop_summary_format)
     val iosImportSummaryFormat =
         stringResource(Res.string.ios_import_summary_format)
     val importedSuffix =
@@ -322,9 +345,12 @@ fun App(
     suspend fun performSourceScan(
         source: LibrarySource,
         token: LibraryOperationToken,
-    ) {
+        resetCancellation: Boolean = true,
+    ): ScanSession {
         scanJob = currentCoroutineContext()[Job]
-        scanCancellationRequested.value = false
+        if (resetCancellation) {
+            scanCancellationRequested.value = false
+        }
         var progressCallbacks: OrderedScanProgressCallbacks? = null
         try {
             val progress =
@@ -399,9 +425,61 @@ fun App(
                     }
                 },
             )
+            return session
         } finally {
             withContext(NonCancellable) {
                 progressCallbacks?.awaitPublished()
+            }
+        }
+    }
+
+    /**
+     * Scans all sources from one desktop drop under a single coordinator token.
+     */
+    suspend fun performDesktopDropScans(
+        sources: List<LibrarySource>,
+        token: LibraryOperationToken,
+    ) {
+        scanJob = currentCoroutineContext()[Job]
+        scanCancellationRequested.value = false
+        val outcomes =
+            registerAndScanDesktopSources(
+                sources = sources,
+                repository = repository,
+                publishRegistered = {
+                    libraryOrchestrator.publishIfCurrent(token) {
+                        withContext(Dispatchers.Main) {
+                            updateLibraryContent(
+                                loadLibraryContent(repository, platformAccess))
+                        }
+                    }
+                },
+                scan = { source ->
+                    performSourceScan(
+                        source = source,
+                        token = token,
+                        resetCancellation = false,
+                    )
+                },
+                cancellationRequested = { scanCancellationRequested.value },
+            )
+        val failures = outcomes.filter { it.status == ScanStatus.Failed }
+        if (failures.isNotEmpty()) {
+            val details =
+                failures.joinToString("; ") { session ->
+                    val name =
+                        sources
+                            .firstOrNull { it.id == session.sourceId }
+                            ?.displayName ?: session.sourceId
+                    session.terminalMessage?.let { "$name: $it" } ?: name
+                }
+            libraryOrchestrator.publishIfCurrent(token) {
+                withContext(Dispatchers.Main) {
+                    importMessage =
+                        desktopDropFailedFormat
+                            .replace("%1\$d", failures.size.toString())
+                            .replace("%2\$s", details)
+                }
             }
         }
     }
@@ -694,6 +772,84 @@ fun App(
             importActive = folderPickerLauncher.isImportActive,
             followUpScanPending = followUpScanPending,
         )
+    suspend fun handleDesktopDrop(paths: List<String>) {
+        if (!desktopModalFree || !mutationsEnabled) {
+            importMessage = desktopDropBusy
+            return
+        }
+        val action =
+            resolveDesktopDropTerminal(
+                result =
+                    withContext(Dispatchers.Default) {
+                        validateDesktopDrop(
+                            paths = paths,
+                            createdAtEpochMillis =
+                                com.eterocell.rhythhaus.library
+                                    .currentTimeMillis(),
+                        )
+                    },
+                existingSources = libraryContent.sources,
+            )
+        if (!desktopModalFree ||
+            !initialPublication.mutationsAllowed ||
+            folderPickerLauncher.isImportActive ||
+            followUpScanPending ||
+            operationCoordinator.state.value !is LibraryOperationState.Idle) {
+            importMessage = desktopDropBusy
+            return
+        }
+        if (action.sourcesToScan.isEmpty()) {
+            importMessage = desktopDropRejected
+            return
+        }
+        val acceptedMessage =
+            when {
+                action.rejectedEntryCount > 0 || action.reusedSourceCount > 0 ->
+                    desktopDropSummaryFormat
+                        .replaceFirst(
+                            "%1\$d", action.addedSourceCount.toString())
+                        .replaceFirst(
+                            "%2\$d", action.reusedSourceCount.toString())
+                        .replaceFirst(
+                            "%3\$d", action.rejectedEntryCount.toString())
+
+                action.addedSourceCount == 0 -> desktopDropDuplicate
+
+                else ->
+                    desktopDropAddedFormat.replaceFirst(
+                        "%1\$d", action.addedSourceCount.toString())
+            }
+        val admitted =
+            withContext(Dispatchers.Default) {
+                libraryOrchestrator.launchScan { token ->
+                    if (!withContext(Dispatchers.Main) { desktopModalFree }) {
+                        withContext(Dispatchers.Main) {
+                            importMessage = desktopDropBusy
+                        }
+                        return@launchScan
+                    }
+                    libraryOrchestrator.publishIfCurrent(token) {
+                        withContext(Dispatchers.Main) {
+                            importMessage = acceptedMessage
+                        }
+                    }
+                    performDesktopDropScans(
+                        sources = action.sourcesToScan,
+                        token = token,
+                    )
+                }
+            }
+        if (!admitted) importMessage = desktopDropBusy
+    }
+    val currentDesktopDropHandler =
+        rememberUpdatedState<suspend (List<String>) -> Unit>(
+            newValue = ::handleDesktopDrop,
+        )
+    LaunchedEffect(desktopDropEvents) {
+        desktopDropEvents?.collect { paths ->
+            currentDesktopDropHandler.value(paths)
+        }
+    }
     val snapshot =
         remember(libraryContent.tracks) {
             librarySnapshot(libraryContent.tracks)
@@ -848,6 +1004,18 @@ fun App(
                                 },
                             )
                         }
+                    },
+                    desktopDropTarget =
+                        DesktopDropTargetPresentation(
+                            isAvailable = desktopDropEvents != null,
+                            isActive =
+                                desktopDropEvents != null && desktopDropActive,
+                            feedback = importMessage,
+                        ),
+                    onDesktopDropAvailabilityChanged = { modalFree ->
+                        desktopModalFree = modalFree
+                        onDesktopDropAvailabilityChanged(
+                            modalFree && mutationsEnabled)
                     },
                     coordinatorMutationsEnabled = mutationsEnabled,
                     currentThemeMode = selectedThemeMode,
@@ -1639,6 +1807,65 @@ internal data class LibraryPickerTerminalAction(
     val scanSource: LibrarySource?,
     val holdsFollowUpScanGate: Boolean = false,
 )
+
+/** App effects resolved from one validated desktop drop. */
+internal suspend fun registerAndScanDesktopSources(
+    sources: List<LibrarySource>,
+    repository: LibraryRepository,
+    publishRegistered: suspend () -> Unit,
+    scan: suspend (LibrarySource) -> ScanSession,
+    cancellationRequested: () -> Boolean,
+): List<ScanSession> {
+    withContext(NonCancellable) {
+        sources.forEach(repository::upsertSource)
+        publishRegistered()
+    }
+    val outcomes = mutableListOf<ScanSession>()
+    for (source in sources) {
+        if (cancellationRequested()) break
+        outcomes += scan(source)
+    }
+    return outcomes
+}
+
+/** App effects resolved from one validated desktop drop. */
+internal data class DesktopDropTerminalAction(
+    val sourcesToScan: List<LibrarySource>,
+    val addedSourceCount: Int,
+    val reusedSourceCount: Int,
+    val rejectedEntryCount: Int,
+)
+
+/**
+ * Reuses existing source identities before the App-owned scan coordinator
+ * admits a desktop drop. The resulting sources are unique, so scanner upserts
+ * cannot create a duplicate source when a path is dropped again.
+ */
+internal fun resolveDesktopDropTerminal(
+    result: DesktopDropResult,
+    existingSources: List<LibrarySource>,
+): DesktopDropTerminalAction {
+    val existingSourceIds = existingSources.mapTo(mutableSetOf()) { it.id }
+    val normalizedSources =
+        result.sources
+            .map { source -> normalizePickedSource(source, existingSources) }
+            .distinctBy(LibrarySource::id)
+    val collapsedSourceCount = result.sources.size - normalizedSources.size
+    return DesktopDropTerminalAction(
+        sourcesToScan = normalizedSources,
+        addedSourceCount =
+            normalizedSources.count { source ->
+                source.id !in existingSourceIds
+            },
+        reusedSourceCount =
+            result.duplicatePathCount +
+                collapsedSourceCount +
+                normalizedSources.count { source ->
+                    source.id in existingSourceIds
+                },
+        rejectedEntryCount = result.rejectedEntryCount,
+    )
+}
 
 /**
  * Resolves one terminal picker result into App effects.

@@ -1,5 +1,8 @@
 package com.eterocell.rhythhaus
 
+import com.eterocell.rhythhaus.library.DesktopDropFailure
+import com.eterocell.rhythhaus.library.DesktopDropFailureReason
+import com.eterocell.rhythhaus.library.DesktopDropResult
 import com.eterocell.rhythhaus.library.InMemoryLibraryRepository
 import com.eterocell.rhythhaus.library.LibraryImportSummary
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
@@ -26,6 +29,74 @@ import kotlinx.coroutines.runBlocking
  * window folds into the existing source-mutation gate.
  */
 class AppLibraryImportTest {
+    @Test
+    fun laterSuccessfulScanRetainsEarlierFailedSibling() = runBlocking {
+        val repository = InMemoryLibraryRepository()
+        val sources =
+            listOf("failed", "successful").map { id ->
+                LibrarySource(id, LibraryPlatformKind.JvmFolder, id, "/$id", 1L)
+            }
+        val outcomes =
+            registerAndScanDesktopSources(
+                sources = sources,
+                repository = repository,
+                publishRegistered = {},
+                scan = { source ->
+                    com.eterocell.rhythhaus.library.ScanSession(
+                        id = source.id,
+                        sourceId = source.id,
+                        status =
+                            if (source.id == "failed")
+                                com.eterocell.rhythhaus.library.ScanStatus
+                                    .Failed
+                            else
+                                com.eterocell.rhythhaus.library.ScanStatus
+                                    .Completed,
+                        startedAtEpochMillis = 1L,
+                        terminalMessage =
+                            if (source.id == "failed") "Access lost" else null,
+                    )
+                },
+                cancellationRequested = { false },
+            )
+        assertEquals(
+            listOf("failed", "successful"), outcomes.map { it.sourceId })
+        assertEquals("Access lost", outcomes.first().terminalMessage)
+        assertEquals(sources, repository.sources())
+    }
+
+    @Test
+    fun cancellingFirstDesktopScanLeavesEveryAdmittedSourceRegistered() =
+        runBlocking {
+            val repository = InMemoryLibraryRepository()
+            val sources =
+                listOf("first", "second").map { id ->
+                    LibrarySource(
+                        id, LibraryPlatformKind.JvmFolder, id, "/$id", 1L)
+                }
+            var publishedSources = emptyList<LibrarySource>()
+            val scanned = mutableListOf<String>()
+            try {
+                registerAndScanDesktopSources(
+                    sources = sources,
+                    repository = repository,
+                    publishRegistered = {
+                        publishedSources = repository.sources()
+                    },
+                    scan = { source ->
+                        scanned += source.id
+                        throw CancellationException("cancel first scan")
+                    },
+                    cancellationRequested = { false },
+                )
+                error("Expected cancellation")
+            } catch (_: CancellationException) {
+                assertEquals(sources, repository.sources())
+                assertEquals(sources, publishedSources)
+                assertEquals(listOf("first"), scanned)
+            }
+        }
+
     private val managedFolder = "/managed/RhythHaus Music"
 
     private val pickedIosSource =
@@ -202,6 +273,70 @@ class AppLibraryImportTest {
         val scanSource = assertNotNull(action.scanSource)
         assertEquals(existing.id, scanSource.id)
         assertEquals(42L, scanSource.createdAtEpochMillis)
+    }
+
+    @Test
+    fun desktopDropKeepsValidSiblingAndReportsUnsupportedInput() {
+        val folder =
+            LibrarySource(
+                id = "jvm-folder:/Music",
+                platformKind = LibraryPlatformKind.JvmFolder,
+                displayName = "Music",
+                handle = "/Music",
+                createdAtEpochMillis = 42L,
+            )
+
+        val action =
+            resolveDesktopDropTerminal(
+                result =
+                    DesktopDropResult(
+                        sources = listOf(folder),
+                        failures =
+                            listOf(
+                                DesktopDropFailure(
+                                    path = "/Music/readme.txt",
+                                    reason =
+                                        DesktopDropFailureReason.Unsupported,
+                                ),
+                            ),
+                        duplicatePathCount = 0,
+                    ),
+                existingSources = emptyList(),
+            )
+
+        assertEquals(listOf(folder), action.sourcesToScan)
+        assertEquals(1, action.addedSourceCount)
+        assertEquals(0, action.reusedSourceCount)
+        assertEquals(1, action.rejectedEntryCount)
+    }
+
+    @Test
+    fun duplicateDesktopDropReusesExistingSourceWithoutASecondRegistration() {
+        val existing =
+            LibrarySource(
+                id = "jvm-folder:/Music",
+                platformKind = LibraryPlatformKind.JvmFolder,
+                displayName = "Music",
+                handle = "/Music",
+                createdAtEpochMillis = 42L,
+            )
+
+        val action =
+            resolveDesktopDropTerminal(
+                result =
+                    DesktopDropResult(
+                        sources =
+                            listOf(existing.copy(createdAtEpochMillis = 99L)),
+                        failures = emptyList(),
+                        duplicatePathCount = 1,
+                    ),
+                existingSources = listOf(existing),
+            )
+
+        assertEquals(listOf(existing), action.sourcesToScan)
+        assertEquals(0, action.addedSourceCount)
+        assertEquals(2, action.reusedSourceCount)
+        assertEquals(0, action.rejectedEntryCount)
     }
 
     @Test

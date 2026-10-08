@@ -46,6 +46,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -95,6 +100,10 @@ import rhythhaus.shared.generated.resources.album_art
 import rhythhaus.shared.generated.resources.album_artwork
 import rhythhaus.shared.generated.resources.cancel
 import rhythhaus.shared.generated.resources.clear_library
+import rhythhaus.shared.generated.resources.desktop_drop_active
+import rhythhaus.shared.generated.resources.desktop_drop_choose_folder
+import rhythhaus.shared.generated.resources.desktop_drop_hint
+import rhythhaus.shared.generated.resources.desktop_drop_title
 import rhythhaus.shared.generated.resources.folder_picker_unavailable
 import rhythhaus.shared.generated.resources.library
 import rhythhaus.shared.generated.resources.library_queue
@@ -108,6 +117,7 @@ import rhythhaus.shared.generated.resources.select_track_format
 import rhythhaus.shared.generated.resources.settings
 import rhythhaus.shared.generated.resources.track_artist_album_format
 import top.yukonga.miuix.kmp.basic.Surface
+import top.yukonga.miuix.kmp.basic.Text
 
 internal const val NowPlayingShellPlacementTestTag = "NowPlayingShellPlacement"
 
@@ -289,6 +299,9 @@ fun LibraryHomeScreen(
     onSetTrackMetadataOverride:
         (suspend (String, TrackMetadataOverride) -> Boolean)? =
         null,
+    desktopDropTarget: DesktopDropTargetPresentation =
+        DesktopDropTargetPresentation.Disabled,
+    onDesktopDropAvailabilityChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val playbackState by playbackController.state.collectAsState()
@@ -314,6 +327,9 @@ fun LibraryHomeScreen(
             ?.instanceToken
     val settingsListState =
         remember(settingsDestinationToken) { LazyListState() }
+    var settingsExclusiveModal by
+        remember(settingsDestinationToken) { mutableStateOf(false) }
+    var desktopBannerHeight by remember { mutableFloatStateOf(0f) }
     var settingsReportVisible by
         remember(settingsDestinationToken, scanProgress?.session?.id) {
             mutableStateOf(false)
@@ -508,6 +524,20 @@ fun LibraryHomeScreen(
         appState.reconcileBackSession(selectionPort)
     }
     val activeEditor = metadataEditor
+    val desktopModalFree =
+        appState.navigation.current !is LibraryRoute.Onboarding &&
+            !settingsExclusiveModal &&
+            metadataEditor == null &&
+            !appState.hasExclusiveFeatureSurface &&
+            !appState.showNowPlaying
+    val latestDropAvailability =
+        androidx.compose.runtime.rememberUpdatedState(
+            onDesktopDropAvailabilityChanged)
+    SideEffect {
+        latestDropAvailability.value(
+            desktopDropTarget.isAvailable && desktopModalFree)
+    }
+    DisposableEffect(Unit) { onDispose { latestDropAvailability.value(false) } }
     fun currentDetailIsEmpty(): Boolean {
         val route = appState.navigation.current
         return when (route) {
@@ -653,6 +683,7 @@ fun LibraryHomeScreen(
             onSettingsReportVisibleChanged = {
                 settingsReportVisible = it
             },
+            onSettingsExclusiveModalChanged = { settingsExclusiveModal = it },
             onboardingSaving = onboardingSaving,
             onboardingCompletionError = onboardingCompletionError,
             onCompleteOnboarding = onCompleteOnboarding,
@@ -842,154 +873,232 @@ fun LibraryHomeScreen(
                 route = route, adaptiveLayoutMode = adaptiveLayoutMode)
         }
 
-        if (appState.navigation.current is LibraryRoute.Onboarding) {
-            // Do not compose the library base beneath onboarding: an opaque
-            // visual overlay alone still leaves its semantics and pointer
-            // targets reachable in wide layouts.
-            RenderEntry(entry = appState.navigation.currentEntry)
-        } else if (adaptiveLayoutMode == LibraryAdaptiveLayoutMode.ListDetail) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier =
-                        Modifier.fillMaxSize()
-                            .recordRhythHausBackdrop(rootBackdrop),
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxHeight().weight(0.42f),
-                    ) {
-                        LibraryHomeContent(
-                            title = snapshot.title,
-                            subtitle = snapshot.subtitle,
-                            tracks = snapshot.tracks,
-                            browseMode = appState.browseMode,
-                            folderPickerLauncher = folderPickerLauncher,
-                            sourcePickerActionVisible =
-                                sourcePickerActionVisible,
-                            importMessage = importMessage,
-                            scanProgress = scanProgress,
-                            mutationsEnabled = coordinatorMutationsEnabled,
-                            currentTrackId = playbackState.currentTrack?.id,
-                            selectionModeActive =
-                                trackSelectionState.pageKey ==
-                                    TrackSelectionPageKey.HomeSongs &&
-                                    trackSelectionState.selectedTrackIds
-                                        .isNotEmpty(),
-                            selectedTrackIds =
-                                if (trackSelectionState.pageKey ==
-                                    TrackSelectionPageKey.HomeSongs)
-                                    trackSelectionState.selectedTrackIds
-                                else emptySet(),
-                            favoriteTrackIds = favoriteTrackIds,
-                            artworkTrackIds = artworkTrackIds,
-                            playHistory = playHistory,
-                            createdAtByTrackId = createdAtByTrackId,
-                            browseQuery = appState.browseQuery,
-                            sourceOptions = sourceOptions,
-                            sourceIdByTrackId = sourceIdByTrackId,
-                            modifiedAtByTrackId = modifiedAtByTrackId,
-                            onSetTrackFavorite = onSetTrackFavorite,
-                            onEditTrackMetadata = editAction,
-                            onBrowseSortChange = appState::setBrowseSort,
-                            onBrowseSortDirectionChange =
-                                appState::setBrowseSortDirection,
-                            onBrowseFavoriteOnlyChange =
-                                appState::setBrowseFavoriteOnly,
-                            onBrowseArtworkOnlyChange =
-                                appState::setBrowseArtworkOnly,
-                            onBrowseSourceIdChange =
-                                appState::setBrowseSourceId,
-                            labels = librarySharedLabels(),
-                            homeBackdrop = rememberRhythHausBackdrop(),
-                            artworkLoader = { id -> artworkLoader(id)?.bytes },
-                            onBrowseModeChange = { next ->
-                                dispatchHomeBrowseModeChange(
-                                    appState.browseMode,
-                                    next,
-                                    ::dispatchTrackSelection,
-                                    appState::setBrowseMode,
+        Box(
+            Modifier.fillMaxSize()
+                .padding(
+                    top =
+                        if (desktopDropTarget.isAvailable && desktopModalFree)
+                            with(density) { desktopBannerHeight.toDp() }
+                        else 0.dp)) {
+                if (appState.navigation.current is LibraryRoute.Onboarding) {
+                    // Do not compose the library base beneath onboarding: an
+                    // opaque
+                    // visual overlay alone still leaves its semantics and
+                    // pointer
+                    // targets reachable in wide layouts.
+                    RenderEntry(entry = appState.navigation.currentEntry)
+                } else if (adaptiveLayoutMode ==
+                    LibraryAdaptiveLayoutMode.ListDetail) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Row(
+                            modifier =
+                                Modifier.fillMaxSize()
+                                    .recordRhythHausBackdrop(rootBackdrop),
+                        ) {
+                            Box(
+                                modifier =
+                                    Modifier.fillMaxHeight().weight(0.42f),
+                            ) {
+                                LibraryHomeContent(
+                                    title = snapshot.title,
+                                    subtitle = snapshot.subtitle,
+                                    tracks = snapshot.tracks,
+                                    browseMode = appState.browseMode,
+                                    folderPickerLauncher = folderPickerLauncher,
+                                    sourcePickerActionVisible =
+                                        sourcePickerActionVisible,
+                                    importMessage = importMessage,
+                                    scanProgress = scanProgress,
+                                    mutationsEnabled =
+                                        coordinatorMutationsEnabled,
+                                    currentTrackId =
+                                        playbackState.currentTrack?.id,
+                                    selectionModeActive =
+                                        trackSelectionState.pageKey ==
+                                            TrackSelectionPageKey.HomeSongs &&
+                                            trackSelectionState.selectedTrackIds
+                                                .isNotEmpty(),
+                                    selectedTrackIds =
+                                        if (trackSelectionState.pageKey ==
+                                            TrackSelectionPageKey.HomeSongs)
+                                            trackSelectionState.selectedTrackIds
+                                        else emptySet(),
+                                    favoriteTrackIds = favoriteTrackIds,
+                                    artworkTrackIds = artworkTrackIds,
+                                    playHistory = playHistory,
+                                    createdAtByTrackId = createdAtByTrackId,
+                                    browseQuery = appState.browseQuery,
+                                    sourceOptions = sourceOptions,
+                                    sourceIdByTrackId = sourceIdByTrackId,
+                                    modifiedAtByTrackId = modifiedAtByTrackId,
+                                    onSetTrackFavorite = onSetTrackFavorite,
+                                    onEditTrackMetadata = editAction,
+                                    onBrowseSortChange =
+                                        appState::setBrowseSort,
+                                    onBrowseSortDirectionChange =
+                                        appState::setBrowseSortDirection,
+                                    onBrowseFavoriteOnlyChange =
+                                        appState::setBrowseFavoriteOnly,
+                                    onBrowseArtworkOnlyChange =
+                                        appState::setBrowseArtworkOnly,
+                                    onBrowseSourceIdChange =
+                                        appState::setBrowseSourceId,
+                                    labels = librarySharedLabels(),
+                                    homeBackdrop = rememberRhythHausBackdrop(),
+                                    artworkLoader = { id ->
+                                        artworkLoader(id)?.bytes
+                                    },
+                                    onBrowseModeChange = { next ->
+                                        dispatchHomeBrowseModeChange(
+                                            appState.browseMode,
+                                            next,
+                                            ::dispatchTrackSelection,
+                                            appState::setBrowseMode,
+                                        )
+                                    },
+                                    onClearLibrary = onClearLibrary,
+                                    onCancelScan = onCancelScan,
+                                    onOpenAlbum = { album ->
+                                        openDetailRoute(
+                                            LibraryRoute.AlbumDetail(album))
+                                    },
+                                    onOpenArtist = { artist ->
+                                        openDetailRoute(
+                                            LibraryRoute.ArtistDetail(artist))
+                                    },
+                                    onShowPlaylists = {
+                                        pushRoute(LibraryRoute.PlaylistHub)
+                                    },
+                                    onPlayTrack = { orderedTracks, selectedTrack
+                                        ->
+                                        appState.setSelectedTrackId(
+                                            selectedTrack.id)
+                                        selectTrackFromTracks(
+                                            orderedTracks, selectedTrack)
+                                    },
+                                    onToggleSelection = { id ->
+                                        dispatchTrackSelection(
+                                            TrackSelectionAction.Toggle(
+                                                TrackSelectionPageKey.HomeSongs,
+                                                id))
+                                    },
+                                    onStartSelection = { id ->
+                                        dispatchTrackSelection(
+                                            TrackSelectionAction.Start(
+                                                TrackSelectionPageKey.HomeSongs,
+                                                id))
+                                    },
+                                    onVisibleTrackIdsChanged = { ids ->
+                                        dispatchTrackSelection(
+                                            TrackSelectionAction
+                                                .ReconcileVisible(
+                                                    TrackSelectionPageKey
+                                                        .HomeSongs,
+                                                    ids))
+                                    },
+                                    onScrollPositionChanged = { index, offset ->
+                                        appState
+                                            .updateNowPlayingBarVisibilityForScroll(
+                                                LibraryScrollPosition(
+                                                    index, offset))
+                                    },
+                                    bottomContentPadding =
+                                        activeBottomBarClearance,
                                 )
-                            },
-                            onClearLibrary = onClearLibrary,
-                            onCancelScan = onCancelScan,
-                            onOpenAlbum = { album ->
-                                openDetailRoute(LibraryRoute.AlbumDetail(album))
-                            },
-                            onOpenArtist = { artist ->
-                                openDetailRoute(
-                                    LibraryRoute.ArtistDetail(artist))
-                            },
-                            onShowPlaylists = {
-                                pushRoute(LibraryRoute.PlaylistHub)
-                            },
-                            onPlayTrack = { orderedTracks, selectedTrack ->
-                                appState.setSelectedTrackId(selectedTrack.id)
-                                selectTrackFromTracks(
-                                    orderedTracks, selectedTrack)
-                            },
-                            onToggleSelection = { id ->
-                                dispatchTrackSelection(
-                                    TrackSelectionAction.Toggle(
-                                        TrackSelectionPageKey.HomeSongs, id))
-                            },
-                            onStartSelection = { id ->
-                                dispatchTrackSelection(
-                                    TrackSelectionAction.Start(
-                                        TrackSelectionPageKey.HomeSongs, id))
-                            },
-                            onVisibleTrackIdsChanged = { ids ->
-                                dispatchTrackSelection(
-                                    TrackSelectionAction.ReconcileVisible(
-                                        TrackSelectionPageKey.HomeSongs, ids))
-                            },
-                            onScrollPositionChanged = { index, offset ->
-                                appState.updateNowPlayingBarVisibilityForScroll(
-                                    LibraryScrollPosition(index, offset))
-                            },
-                            bottomContentPadding = activeBottomBarClearance,
-                        )
-                    }
-                    Box(
-                        modifier = Modifier.fillMaxHeight().weight(0.58f),
-                    ) {
-                        when (val route = appState.navigation.current) {
-                            is LibraryRoute.AlbumDetail,
-                            is LibraryRoute.ArtistDetail,
-                            is LibraryRoute.PlaylistDetail,
-                            is LibraryRoute.SmartPlaylistDetail,
-                            LibraryRoute.PlaylistHub,
-                            -> {
-                                RouteContent(
-                                    entry = appState.navigation.currentEntry)
                             }
+                            Box(
+                                modifier =
+                                    Modifier.fillMaxHeight().weight(0.58f),
+                            ) {
+                                when (val route = appState.navigation.current) {
+                                    is LibraryRoute.AlbumDetail,
+                                    is LibraryRoute.ArtistDetail,
+                                    is LibraryRoute.PlaylistDetail,
+                                    is LibraryRoute.SmartPlaylistDetail,
+                                    LibraryRoute.PlaylistHub,
+                                    -> {
+                                        RouteContent(
+                                            entry =
+                                                appState.navigation
+                                                    .currentEntry)
+                                    }
 
-                            else -> AdaptiveDetailPlaceholder()
+                                    else -> AdaptiveDetailPlaceholder()
+                                }
+                            }
+                        }
+                        if (libraryRouteRendersAsActiveOverlay(
+                            route = appState.navigation.current,
+                            mode = adaptiveLayoutMode,
+                        )) {
+                            RouteOverlays(route = appState.navigation.current)
                         }
                     }
-                }
-                if (libraryRouteRendersAsActiveOverlay(
-                    route = appState.navigation.current,
-                    mode = adaptiveLayoutMode,
-                )) {
-                    RouteOverlays(route = appState.navigation.current)
+                } else {
+                    if (predictiveBackProgress > 0f && previousEntry != null) {
+                        RenderEntry(entry = previousEntry)
+                    }
+                    AnimatedContent(
+                        targetState = appState.navigation.currentEntry,
+                        transitionSpec = {
+                            routeContentTransform(
+                                appState.lastNavigationTransition)
+                        },
+                        label = "LibraryRouteTransition",
+                        modifier =
+                            Modifier.fillMaxSize()
+                                .recordRhythHausBackdrop(rootBackdrop)
+                                .offset(x = predictiveBackOffset.value.dp),
+                    ) { currentEntry ->
+                        RenderEntry(entry = currentEntry)
+                    }
                 }
             }
-        } else {
-            if (predictiveBackProgress > 0f && previousEntry != null) {
-                RenderEntry(entry = previousEntry)
-            }
-            AnimatedContent(
-                targetState = appState.navigation.currentEntry,
-                transitionSpec = {
-                    routeContentTransform(appState.lastNavigationTransition)
-                },
-                label = "LibraryRouteTransition",
+        if (desktopDropTarget.isAvailable && desktopModalFree) {
+            val title = stringResource(Res.string.desktop_drop_title)
+            val hint =
+                stringResource(
+                    if (desktopDropTarget.isActive)
+                        Res.string.desktop_drop_active
+                    else Res.string.desktop_drop_hint)
+            val choose = stringResource(Res.string.desktop_drop_choose_folder)
+            Surface(
                 modifier =
-                    Modifier.fillMaxSize()
-                        .recordRhythHausBackdrop(rootBackdrop)
-                        .offset(x = predictiveBackOffset.value.dp),
-            ) { currentEntry ->
-                RenderEntry(entry = currentEntry)
-            }
+                    Modifier.align(Alignment.TopCenter)
+                        .onSizeChanged {
+                            desktopBannerHeight = it.height.toFloat()
+                        }
+                        .padding(8.dp)) {
+                    Column(
+                        modifier =
+                            Modifier.padding(12.dp).semantics {
+                                contentDescription = "$title $hint"
+                                stateDescription = hint
+                            }) {
+                            Text(title)
+                            Text(hint)
+                            desktopDropTarget.feedback?.let { feedback ->
+                                Text(
+                                    feedback,
+                                    modifier =
+                                        Modifier.semantics {
+                                            liveRegion = LiveRegionMode.Polite
+                                        })
+                            }
+                            top.yukonga.miuix.kmp.basic.Button(
+                                onClick = folderPickerLauncher::launch,
+                                enabled =
+                                    coordinatorMutationsEnabled &&
+                                        folderPickerLauncher.isAvailable,
+                                modifier =
+                                    Modifier.semantics {
+                                        contentDescription = choose
+                                    },
+                            ) {
+                                Text(choose)
+                            }
+                        }
+                }
         }
 
         // Fixed bottom bar (outside AnimatedContent). It stays in composition

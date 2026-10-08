@@ -1,10 +1,10 @@
-# Spec Delta
+# Desktop Drag Import Specification
 
 ## Purpose
 
 Desktop drag import makes local music discovery immediate while preserving RhythHaus's local-first source lifecycle and explicit scan semantics.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Desktop drops admit folders and audio files
 The desktop application MUST accept dropped directories and supported audio files. A directory MUST become a reference-backed folder source. A file drop MUST become a stable source whose scan observes the dropped files without copying them.
@@ -41,14 +41,24 @@ Desktop drops MUST enter the existing source registration and App-owned scan coo
 - **WHEN** a drop scan fails or is cancelled
 - **THEN** the source remains available for retry according to existing source lifecycle rules and no partial source mutation is reported as complete.
 
+#### Scenario: Cancellation of the first sibling scan
+- **WHEN** a drop admits multiple sources and the first scan is cancelled
+- **THEN** every admitted source remains registered for explicit retry and later scans do not start.
+
+#### Scenario: Partial batch failure
+- **WHEN** an earlier source scan fails and a later sibling succeeds
+- **THEN** terminal feedback retains the failed source and its explanation rather than presenting the entire batch as successful.
+
+#### Scenario: Exclusive modal or rejected admission
+- **WHEN** onboarding or an exclusive modal is foreground, or scan admission is rejected
+- **THEN** no drop source is registered and no successful import is announced.
+
 ### Requirement: Desktop drop target is accessible and discoverable
 The desktop drop surface MUST expose localized visible and accessibility text for accepting folders and audio files, expose active/inactive state to accessibility services, and retain the existing folder picker as a keyboard-equivalent fallback.
 
 #### Scenario: Drag target receives focus
 - **WHEN** a keyboard or accessibility user focuses the import surface
 - **THEN** it exposes the same import action and localized description without requiring a drag gesture.
-
-## MODIFIED Requirements
 
 ### Requirement: Local library scanning preserves source boundaries
 The local-library scanner MUST preserve source-local identity, source-scoped deduplication, explicit scan admission, and existing missing-file confirmation for desktop dropped sources.

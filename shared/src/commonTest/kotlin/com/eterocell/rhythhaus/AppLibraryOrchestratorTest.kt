@@ -14,6 +14,23 @@ import kotlinx.coroutines.withTimeout
 
 class AppLibraryOrchestratorTest {
     @Test
+    fun rejectedDesktopScanDoesNotPublishSuccessOrRegisterSources() =
+        runBlocking {
+            val coordinator = AppLibraryOperationCoordinator {}
+            val active =
+                coordinator.admitScan() as LibraryOperationAdmission.Admitted
+            val orchestrator = AppLibraryOrchestrator(coordinator) { error(it) }
+            var registered = false
+            val admitted = orchestrator.launchScan { registered = true }
+            assertEquals<Any>(false, admitted)
+            assertEquals(false, registered)
+            assertEquals(
+                LibraryOperationState.Running(active.token),
+                coordinator.state.value)
+            coordinator.complete(active.token)
+        }
+
+    @Test
     fun cancelledAdmittedScanCompletesAndAllowsSubsequentOperation() =
         runBlocking {
             assertCancelledOperationCompletesAndAllowsSubsequentOperation(

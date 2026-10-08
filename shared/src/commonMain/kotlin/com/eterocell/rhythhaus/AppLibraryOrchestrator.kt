@@ -30,8 +30,8 @@ internal class AppLibraryOrchestrator(
     private suspend fun run(
         admission: LibraryOperationAdmission,
         operation: suspend (LibraryOperationToken) -> Unit,
-    ) {
-        if (admission !is LibraryOperationAdmission.Admitted) return
+    ): Boolean {
+        if (admission !is LibraryOperationAdmission.Admitted) return false
         val token = admission.token
         try {
             operation(token)
@@ -46,6 +46,7 @@ internal class AppLibraryOrchestrator(
                 coordinator.complete(token)
             }
         }
+        return true
     }
 }
 

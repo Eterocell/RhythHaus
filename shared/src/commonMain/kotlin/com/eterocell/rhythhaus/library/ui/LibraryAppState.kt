@@ -62,6 +62,18 @@ internal class LibraryAppState(
     private var acceptedBackSurface: RegisteredBackSurface? by
         mutableStateOf(null)
     private var nextBackSurfaceRegistrationToken = 0L
+    internal val hasExclusiveFeatureSurface: Boolean
+        get() =
+            acceptedBackSurface
+                ?.takeIf {
+                    it.port.destinationId == activeDestinationId
+                }
+                ?.target
+                .let {
+                    it is LibraryBackTarget.FeatureModal ||
+                        it is LibraryBackTarget.FeatureEdit
+                }
+
     private var activeSelectionPort: LibraryBackSelectionPort? by
         mutableStateOf(null)
 

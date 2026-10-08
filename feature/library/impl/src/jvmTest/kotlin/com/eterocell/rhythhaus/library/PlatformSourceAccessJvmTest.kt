@@ -4,6 +4,7 @@ import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.impl.JvmFolderSourceAccess
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
 import com.eterocell.rhythhaus.library.impl.createPlatformSourceAccess
+import com.eterocell.rhythhaus.library.impl.normalizedSourceLocalKey
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -112,6 +113,217 @@ class PlatformSourceAccessJvmTest {
                     ),
                 )
                 .toList()
+        }
+    }
+
+    @Test
+    fun jvmScanOfDroppedFilesPreservesDropOrderAndOriginalPaths() {
+        val root = Files.createTempDirectory("rhythhaus-jvm-drop-scan").toFile()
+        try {
+            val second =
+                root.resolve("02 Second.mp3").apply {
+                    writeBytes(byteArrayOf(2))
+                }
+            val first =
+                root.resolve("01 First.flac").apply {
+                    writeBytes(byteArrayOf(1))
+                }
+            val source =
+                validateDesktopDrop(
+                        paths = listOf(second.path, first.path),
+                        createdAtEpochMillis = 1L,
+                    )
+                    .sources
+                    .single()
+
+            val candidates =
+                createPlatformSourceAccess()
+                    .scan(source)
+                    .filterIsInstance<PlatformScanEvent.AudioCandidate>()
+                    .map(PlatformScanEvent.AudioCandidate::candidate)
+                    .toList()
+
+            assertEquals(
+                listOf(second.canonicalPath, first.canonicalPath).map {
+                    it.normalizedSourceLocalKey()
+                },
+                candidates.map { it.sourceLocalKey },
+            )
+            assertEquals(
+                listOf(
+                    AudioSource.FilePath(second.canonicalPath),
+                    AudioSource.FilePath(first.canonicalPath),
+                ),
+                candidates.map { it.audioSource },
+            )
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun deletedDroppedFileRemainsUntilExplicitRemoveMissing() {
+        val root = Files.createTempDirectory("rhythhaus-drop-missing").toFile()
+        try {
+            val file =
+                root.resolve("Original.mp3").apply {
+                    writeBytes(byteArrayOf(1))
+                }
+            val source =
+                validateDesktopDrop(listOf(file.path), 1L).sources.single()
+            val repository = InMemoryLibraryRepository()
+            var sequence = 0L
+            val scanner =
+                LibraryScanner(
+                    repository = repository,
+                    platformScanner = createPlatformSourceAccess(),
+                    now = { ++sequence },
+                    idFactory = { prefix -> "$prefix-${++sequence}" },
+                )
+            assertEquals(ScanStatus.Completed, scanner.scan(source).status)
+            val track = repository.tracks().single()
+            repository.setTrackFavorite(track.id, true)
+            repository.recordTrackPlayed(track.id, 10L)
+            assertTrue(file.delete())
+            val rescan = scanner.scan(source)
+            assertEquals(ScanStatus.Completed, rescan.status)
+            assertEquals(1, rescan.changeSummary?.missingCount)
+            assertEquals(track.id, repository.tracks().single().id)
+            assertTrue(track.id in repository.favoriteTrackIds())
+            assertEquals(1L, repository.playHistory()[track.id]?.playCount)
+            assertEquals(
+                RemoveMissingTracksResult.Removed(1),
+                repository.removeMissingTracks(source.id, rescan.id))
+            assertTrue(repository.tracks().isEmpty())
+            assertTrue(repository.favoriteTrackIds().isEmpty())
+            assertTrue(repository.playHistory().isEmpty())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun replacingDroppedPathWithSymlinkPreservesTrackAndUserState() {
+        val root = Files.createTempDirectory("rhythhaus-drop-link").toFile()
+        try {
+            val file =
+                root.resolve("Original.mp3").apply {
+                    writeBytes(byteArrayOf(1))
+                }
+            val target =
+                root.resolve("Target.mp3").apply { writeBytes(byteArrayOf(2)) }
+            val source =
+                validateDesktopDrop(listOf(file.path), 1L).sources.single()
+            val repository = InMemoryLibraryRepository()
+            var sequence = 0L
+            val scanner =
+                LibraryScanner(
+                    repository = repository,
+                    platformScanner = createPlatformSourceAccess(),
+                    now = { ++sequence },
+                    idFactory = { prefix -> "$prefix-${++sequence}" },
+                )
+            assertEquals(ScanStatus.Completed, scanner.scan(source).status)
+            val track = repository.tracks().single()
+            repository.setTrackFavorite(track.id, true)
+            repository.recordTrackPlayed(track.id, 10L)
+            assertTrue(file.delete())
+            Files.createSymbolicLink(file.toPath(), target.toPath())
+            val rescan = scanner.scan(source)
+            assertEquals(ScanStatus.Completed, rescan.status)
+            assertEquals(0, rescan.changeSummary?.missingCount)
+            assertEquals(track.id, repository.tracks().single().id)
+            assertEquals(
+                track.audioSource, repository.tracks().single().audioSource)
+            assertTrue(track.id in repository.favoriteTrackIds())
+            assertEquals(1L, repository.playHistory()[track.id]?.playCount)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun existingNonRegularDroppedPathCannotAuthorizeMissingRemoval() {
+        val root =
+            Files.createTempDirectory("rhythhaus-drop-unreadable").toFile()
+        try {
+            val file =
+                root.resolve("Original.mp3").apply {
+                    writeBytes(byteArrayOf(1))
+                }
+            val source =
+                validateDesktopDrop(listOf(file.path), 1L).sources.single()
+            val repository = InMemoryLibraryRepository()
+            var sequence = 0L
+            val scanner =
+                LibraryScanner(
+                    repository = repository,
+                    platformScanner = createPlatformSourceAccess(),
+                    now = { ++sequence },
+                    idFactory = { prefix -> "$prefix-${++sequence}" },
+                )
+            scanner.scan(source)
+            val track = repository.tracks().single()
+            repository.setTrackFavorite(track.id, true)
+            repository.recordTrackPlayed(track.id, 10L)
+            assertTrue(file.delete())
+            assertTrue(file.mkdir())
+            val rescan = scanner.scan(source)
+            assertEquals(ScanStatus.Completed, rescan.status)
+            assertEquals(0, rescan.changeSummary?.missingCount)
+            assertEquals(
+                RemoveMissingTracksResult.Removed(0),
+                repository.removeMissingTracks(source.id, rescan.id))
+            assertEquals(track.id, repository.tracks().single().id)
+            assertTrue(track.id in repository.favoriteTrackIds())
+            assertEquals(1L, repository.playHistory()[track.id]?.playCount)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun danglingDroppedSymlinkPreservesTrackUntilPathIsActuallyRemoved() {
+        val root = Files.createTempDirectory("rhythhaus-drop-dangling").toFile()
+        try {
+            val file =
+                root.resolve("Original.mp3").apply {
+                    writeBytes(byteArrayOf(1))
+                }
+            val source =
+                validateDesktopDrop(listOf(file.path), 1L).sources.single()
+            val repository = InMemoryLibraryRepository()
+            var sequence = 0L
+            val scanner =
+                LibraryScanner(
+                    repository = repository,
+                    platformScanner = createPlatformSourceAccess(),
+                    now = { ++sequence },
+                    idFactory = { prefix -> "$prefix-${++sequence}" },
+                )
+            scanner.scan(source)
+            val track = repository.tracks().single()
+            repository.setTrackFavorite(track.id, true)
+            repository.recordTrackPlayed(track.id, 10L)
+            assertTrue(file.delete())
+            Files.createSymbolicLink(
+                file.toPath(), root.resolve("Missing.mp3").toPath())
+            val rescan = scanner.scan(source)
+            assertEquals(0, rescan.changeSummary?.missingCount)
+            assertEquals(
+                RemoveMissingTracksResult.Removed(0),
+                repository.removeMissingTracks(source.id, rescan.id))
+            assertEquals(track.id, repository.tracks().single().id)
+            assertTrue(track.id in repository.favoriteTrackIds())
+            assertEquals(1L, repository.playHistory()[track.id]?.playCount)
+            Files.delete(file.toPath())
+            val missing = scanner.scan(source)
+            assertEquals(1, missing.changeSummary?.missingCount)
+            assertEquals(
+                RemoveMissingTracksResult.Removed(1),
+                repository.removeMissingTracks(source.id, missing.id))
+        } finally {
+            root.deleteRecursively()
         }
     }
 

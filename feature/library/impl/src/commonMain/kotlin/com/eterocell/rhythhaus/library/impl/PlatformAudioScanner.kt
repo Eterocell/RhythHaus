@@ -18,6 +18,8 @@ sealed interface PlatformScanEvent {
         val displayPath: String,
         val reason: String,
         val recoverable: Boolean,
+        /** True when this identity was observed despite a read failure. */
+        val identityObserved: Boolean = false,
     ) : PlatformScanEvent
 }
 

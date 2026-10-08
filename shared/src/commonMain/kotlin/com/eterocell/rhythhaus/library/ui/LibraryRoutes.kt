@@ -188,6 +188,7 @@ internal fun LibraryRouteOverlays(
     settingsListState: LazyListState? = null,
     settingsReportVisible: Boolean? = null,
     onSettingsReportVisibleChanged: (Boolean) -> Unit = {},
+    onSettingsExclusiveModalChanged: (Boolean) -> Unit = {},
     onboardingSaving: Boolean = false,
     onboardingCompletionError: String? = null,
     onCompleteOnboarding: () -> Unit = {},
@@ -343,6 +344,7 @@ internal fun LibraryRouteOverlays(
                         null
                     },
                 scanOutcomeContent = scanOutcomeContent,
+                onExclusiveModalChanged = onSettingsExclusiveModalChanged,
                 clearLibraryDialog =
                     if (showClearLibraryDialog) {
                         {
@@ -389,7 +391,12 @@ internal fun LibraryRouteOverlays(
                         }
                 },
                 onRecoverSource = { id ->
-                    if (sources.firstOrNull { it.id == id }?.platformKind ==
+                    val source = sources.firstOrNull { it.id == id }
+                    if (source?.platformKind == LibraryPlatformKind.JvmFolder &&
+                        source.handle.startsWith(
+                            "rhythhaus:jvm-dropped-files:v1:")) {
+                        onRescanSource(source)
+                    } else if (source?.platformKind ==
                         LibraryPlatformKind.AndroidMediaStoreAudio) {
                         if (mediaStorePermission ==
                             MediaStoreAudioPermissionState.SettingsRequired) {

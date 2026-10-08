@@ -31,9 +31,12 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -248,6 +251,7 @@ internal const val SettingsThemeTestTag = "settings-theme"
  *   the [MediaNotificationRecovery.SettingsRequired] variant.
  * @param onDismiss navigates back.
  * @param modifier applied to the root container.
+ * @param onExclusiveModalChanged reports foreground destructive confirmations.
  */
 @Composable
 public fun SettingsScreen(
@@ -281,9 +285,18 @@ public fun SettingsScreen(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyListState? = null,
+    onExclusiveModalChanged: (Boolean) -> Unit = {},
 ) {
     var sourcePendingRemoval by remember {
         mutableStateOf<SettingsSourceItem?>(null)
+    }
+    val currentModalCallback by rememberUpdatedState(onExclusiveModalChanged)
+    SideEffect {
+        currentModalCallback(
+            clearLibraryDialog != null || sourcePendingRemoval != null)
+    }
+    DisposableEffect(Unit) {
+        onDispose { currentModalCallback(false) }
     }
     val policy = CompactSettingsLayoutPolicy
     val effectiveListState = listState ?: rememberLazyListState()
