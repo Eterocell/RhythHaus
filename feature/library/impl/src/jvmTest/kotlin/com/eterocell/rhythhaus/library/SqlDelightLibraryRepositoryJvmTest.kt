@@ -2,6 +2,7 @@ package com.eterocell.rhythhaus.library
 
 import app.cash.sqldelight.db.SqlDriver
 import com.eterocell.rhythhaus.AudioSource
+import com.eterocell.rhythhaus.library.impl.AudioMetadata
 import com.eterocell.rhythhaus.library.impl.AudioMetadataReader
 import com.eterocell.rhythhaus.library.impl.PlatformAudioScanner
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
@@ -18,6 +19,153 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SqlDelightLibraryRepositoryJvmTest {
+    @Test
+    fun successfulRescansUpdateThenClearReplayGainFactsWithoutChangingIdentityOrUserState() {
+        val file =
+            Files.createTempFile("rhythhaus-replaygain-rescan", ".db").toFile()
+        val source = testSource()
+        var metadata =
+            AudioMetadata(
+                title = "Raw title",
+                artist = "Artist",
+                album = "Album",
+                durationMillis = 123_000L,
+                replayGainTrackGainDb = -6.0,
+                replayGainTrackPeak = 1.2,
+                replayGainAlbumGainDb = -4.0,
+                replayGainAlbumPeak = 1.1,
+            )
+        var nextId = 0
+        var timestamp = 100L
+        fun scanner(repository: LibraryRepository) =
+            LibraryScanner(
+                repository = repository,
+                platformScanner =
+                    PlatformAudioScanner {
+                        sequenceOf(
+                            PlatformScanEvent.AudioCandidate(
+                                AudioScanCandidate(
+                                    sourceId = source.id,
+                                    sourceLocalKey = "song.flac",
+                                    displayPath = "/Music/song.flac",
+                                    displayName = "song.flac",
+                                    audioSource =
+                                        AudioSource.FilePath(
+                                            "/Music/song.flac"),
+                                ),
+                            ))
+                    },
+                metadataReader =
+                    AudioMetadataReader(
+                        tagLibReader = UnsupportedTagLibReader,
+                        platformMetadataReader = { metadata },
+                    ),
+                now = { timestamp },
+                idFactory = { "$it-${++nextId}" },
+            )
+        var trackId = ""
+        try {
+            openRepository(file).use { open ->
+                val scanner = scanner(open.repository)
+                assertEquals(ScanStatus.Completed, scanner.scan(source).status)
+                val initial = open.repository.tracks().single()
+                trackId = initial.id
+                assertReplayGainFacts(initial, listOf(-6.0, 1.2, -4.0, 1.1))
+                open.repository.setTrackFavorite(trackId, true)
+                open.repository.recordTrackPlayed(trackId, 120L)
+                open.repository.setTrackMetadataOverride(
+                    trackId,
+                    TrackMetadataOverride(
+                        title = "Corrected",
+                        artist = "Editor",
+                        album = "Edited album",
+                        trackNumber = 2,
+                        discNumber = 3))
+                open.database.playlistQueries.insertPlaylist(
+                    "playlist", "Saved", 100L, 100L)
+                open.database.playlistQueries.insertEntry(
+                    "entry", "playlist", trackId, 0L, 100L)
+                metadata =
+                    metadata.copy(
+                        replayGainTrackGainDb = -9.0,
+                        replayGainTrackPeak = null,
+                        replayGainAlbumGainDb = -7.0,
+                        replayGainAlbumPeak = 1.4,
+                    )
+                timestamp = 200L
+                assertEquals(ScanStatus.Completed, scanner.scan(source).status)
+                val updated = open.repository.tracks().single()
+                assertEquals(trackId, updated.id)
+                assertEquals(
+                    initial.createdAtEpochMillis, updated.createdAtEpochMillis)
+                assertEquals("Corrected", updated.title)
+                assertEquals("Editor", updated.artist)
+                assertEquals("Edited album", updated.album)
+                assertEquals(2, updated.trackNumber)
+                assertEquals(3, updated.discNumber)
+                assertReplayGainFacts(updated, listOf(-9.0, null, -7.0, 1.4))
+            }
+            openRepository(file).use { reopened ->
+                assertReplayGainFacts(
+                    reopened.repository.tracks().single(),
+                    listOf(-9.0, null, -7.0, 1.4))
+                assertReplayGainFacts(
+                    reopened.repository.tracksForSource(source.id).single(),
+                    listOf(-9.0, null, -7.0, 1.4))
+                val scanned =
+                    assertNotNull(reopened.repository.metadataForTrack(trackId))
+                        .scannedTrack
+                assertEquals("Raw title", scanned.title)
+                assertReplayGainFacts(scanned, listOf(-9.0, null, -7.0, 1.4))
+                reopened.repository.setTrackMetadataOverride(
+                    trackId, TrackMetadataOverride())
+                val restored = reopened.repository.tracks().single()
+                assertEquals("Raw title", restored.title)
+                assertReplayGainFacts(restored, listOf(-9.0, null, -7.0, 1.4))
+                reopened.repository.setTrackMetadataOverride(
+                    trackId, TrackMetadataOverride(title = "Corrected"))
+                metadata =
+                    metadata.copy(
+                        replayGainTrackGainDb = null,
+                        replayGainTrackPeak = null,
+                        replayGainAlbumGainDb = null,
+                        replayGainAlbumPeak = null,
+                    )
+                timestamp = 300L
+                assertEquals(
+                    ScanStatus.Completed,
+                    scanner(reopened.repository).scan(source).status)
+            }
+            openRepository(file).use { cleared ->
+                val track = cleared.repository.tracks().single()
+                assertEquals(trackId, track.id)
+                assertEquals("Corrected", track.title)
+                assertEquals(100L, track.createdAtEpochMillis)
+                assertReplayGainFacts(track, listOf(null, null, null, null))
+                assertReplayGainFacts(
+                    cleared.repository.tracksForSource(source.id).single(),
+                    listOf(null, null, null, null))
+                assertReplayGainFacts(
+                    assertNotNull(cleared.repository.metadataForTrack(trackId))
+                        .scannedTrack,
+                    listOf(null, null, null, null))
+                assertEquals(
+                    setOf(trackId), cleared.repository.favoriteTrackIds())
+                assertEquals(
+                    TrackPlayHistory(trackId, 1L, 120L),
+                    cleared.repository.playHistory()[trackId])
+                assertEquals(
+                    trackId,
+                    cleared.database.playlistQueries
+                        .selectEntries("playlist")
+                        .executeAsOne()
+                        .trackId)
+            }
+        } finally {
+            file.delete()
+        }
+    }
+
     @Test
     fun observedUnreadableMediaStoreTrackSurvivesRemoveMissingWithUserState() {
         val file =
@@ -37,7 +185,11 @@ class SqlDelightLibraryRepositoryJvmTest {
                         artist = "Artist")
                     .copy(
                         artworkBytes = byteArrayOf(1, 2, 3),
-                        artworkMimeType = "image/png")
+                        artworkMimeType = "image/png",
+                        replayGainTrackGainDb = -6.0,
+                        replayGainTrackPeak = 1.2,
+                        replayGainAlbumGainDb = -4.0,
+                        replayGainAlbumPeak = 1.1)
             open.repository.upsertSource(source)
             open.repository.upsertTrack(original)
             open.repository.upsertTrack(
@@ -78,11 +230,21 @@ class SqlDelightLibraryRepositoryJvmTest {
                 assertNotNull(open.repository.metadataForTrack("seen"))
                     .scannedTrack
             assertEquals("Raw", retained.title)
+            assertReplayGainFacts(retained, listOf(-6.0, 1.2, -4.0, 1.1))
+            assertReplayGainFacts(
+                open.repository.tracks().single(), listOf(-6.0, 1.2, -4.0, 1.1))
             assertEquals(
                 original.updatedAtEpochMillis, retained.updatedAtEpochMillis)
             assertContentEquals(
                 original.artworkBytes,
                 assertNotNull(open.repository.artworkForTrack("seen")).bytes)
+        }
+        openRepository(file).use { reopened ->
+            assertReplayGainFacts(
+                reopened.repository.tracks().single(),
+                listOf(-6.0, 1.2, -4.0, 1.1))
+            assertEquals(setOf("seen"), reopened.repository.favoriteTrackIds())
+            assertEquals("Edited", reopened.repository.tracks().single().title)
         }
     }
 
@@ -1344,6 +1506,20 @@ class SqlDelightLibraryRepositoryJvmTest {
                 reopened.repository.latestTerminalScanSession()?.changeSummary,
             )
         }
+    }
+
+    private fun assertReplayGainFacts(
+        track: LibraryTrack,
+        expected: List<Double?>
+    ) {
+        assertEquals(
+            expected,
+            listOf(
+                track.replayGainTrackGainDb,
+                track.replayGainTrackPeak,
+                track.replayGainAlbumGainDb,
+                track.replayGainAlbumPeak,
+            ))
     }
 
     private fun openRepository(databaseFile: java.io.File): OpenRepository {

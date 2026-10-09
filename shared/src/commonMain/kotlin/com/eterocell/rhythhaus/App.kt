@@ -179,6 +179,9 @@ fun App(
     val platformAccess = koinInject<PlatformSourceAccess>()
     val scanner = koinInject<LibraryScanner>()
     val themePreferenceStore = koinInject<ThemePreferenceStore>()
+    val replayGainPreferenceOwner =
+        koinInject<com.eterocell.rhythhaus.playback.ReplayGainPreferenceOwner>()
+    val replayGainState by replayGainPreferenceOwner.state.collectAsState()
     val onboardingPreferenceStore = koinInject<OnboardingPreferenceStore>()
     val playbackLifecycle = koinInject<PlaybackProcessLifecycle>()
     val playbackReconciler = koinInject<PlaybackSessionReconciler>()
@@ -1019,6 +1022,10 @@ fun App(
                     },
                     coordinatorMutationsEnabled = mutationsEnabled,
                     currentThemeMode = selectedThemeMode,
+                    replayGainState = replayGainState,
+                    onReplayGainModeSelected = { mode ->
+                        scope.launch { replayGainPreferenceOwner.select(mode) }
+                    },
                     onThemeModeSelected = { mode ->
                         scope.launch {
                             themePreferenceStore.setSelectedThemeMode(mode)

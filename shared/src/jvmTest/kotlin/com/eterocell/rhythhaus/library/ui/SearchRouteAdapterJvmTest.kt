@@ -297,6 +297,10 @@ class SearchRouteAdapterJvmTest {
             latestCompletedScanSession = null,
             scanJob = null,
             currentThemeMode = RhythHausThemeMode.System,
+            replayGainState =
+                com.eterocell.rhythhaus.playback.ReplayGainPreferenceState(
+                    isBusy = false),
+            onReplayGainModeSelected = {},
             onThemeModeSelected = {},
             onClearLibrary = {},
             onRescanSource = {},

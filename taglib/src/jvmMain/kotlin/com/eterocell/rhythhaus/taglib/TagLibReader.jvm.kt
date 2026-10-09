@@ -58,6 +58,10 @@ internal data class NativeTagLibReadResult(
     val channels: Int,
     val artworkMimeType: String?,
     val artworkBytes: ByteArray?,
+    val replayGainTrackGain: String? = null,
+    val replayGainTrackPeak: String? = null,
+    val replayGainAlbumGain: String? = null,
+    val replayGainAlbumPeak: String? = null,
 ) {
     fun toTagReadResult(): TagReadResult =
         when (status) {
@@ -87,6 +91,10 @@ internal data class NativeTagLibReadResult(
                             } else {
                                 null
                             },
+                        replayGainTrackGain = replayGainTrackGain,
+                        replayGainTrackPeak = replayGainTrackPeak,
+                        replayGainAlbumGain = replayGainAlbumGain,
+                        replayGainAlbumPeak = replayGainAlbumPeak,
                     ),
                 )
 

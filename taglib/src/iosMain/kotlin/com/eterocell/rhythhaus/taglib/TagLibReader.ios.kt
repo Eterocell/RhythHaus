@@ -14,8 +14,8 @@ actual fun createTagLibReader(): TagLibReader = IosNativeTagLibReader()
 private class IosNativeTagLibReader : TagLibReader {
     override fun readPath(path: String): TagReadResult {
         val result = rh_taglib_read_path(path)
-        val status = result.useContents { status }
-        val tagResult =
+        return try {
+            val status = result.useContents { status }
             when (status) {
                 STATUS_FOUND ->
                     TagReadResult.Found(
@@ -45,6 +45,18 @@ private class IosNativeTagLibReader : TagLibReader {
                                     metadata.sample_rate.positiveOrNull(),
                                 channels = metadata.channels.positiveOrNull(),
                                 artwork = iosArtwork(metadata),
+                                replayGainTrackGain =
+                                    metadata.replay_gain_track_gain
+                                        ?.toKString(),
+                                replayGainTrackPeak =
+                                    metadata.replay_gain_track_peak
+                                        ?.toKString(),
+                                replayGainAlbumGain =
+                                    metadata.replay_gain_album_gain
+                                        ?.toKString(),
+                                replayGainAlbumPeak =
+                                    metadata.replay_gain_album_peak
+                                        ?.toKString(),
                             )
                         },
                     )
@@ -65,8 +77,9 @@ private class IosNativeTagLibReader : TagLibReader {
                     TagReadResult.Failed(
                         "Native TagLib reader returned unknown status: $status")
             }
-        rh_taglib_free_result(result)
-        return tagResult
+        } finally {
+            rh_taglib_free_result(result)
+        }
     }
 
     override fun readProperties(path: String): Map<String, String> = emptyMap()

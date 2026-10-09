@@ -6,6 +6,65 @@ import kotlin.test.assertNotEquals
 
 class ModelContractTest {
     @Test
+    fun replayGainChangesParticipateInPlayableTrackEqualityAndHashCode() {
+        val original = playableTrack(byteArrayOf(1, 2))
+        val changed =
+            listOf(
+                original.copy(replayGainTrackGainDb = -6.0),
+                original.copy(replayGainTrackPeak = 1.2),
+                original.copy(replayGainAlbumGainDb = -4.0),
+                original.copy(replayGainAlbumPeak = 1.1),
+            )
+        for (track in changed) {
+            assertNotEquals(original, track)
+            assertNotEquals(original.hashCode(), track.hashCode())
+            val sameFacts = track.copy(artworkBytes = byteArrayOf(1, 2))
+            assertEquals(track, sameFacts)
+            assertEquals(track.hashCode(), sameFacts.hashCode())
+        }
+    }
+
+    @Test
+    fun replayGainChangesParticipateInPresentationTrackEqualityAndHashCode() {
+        val original = track(byteArrayOf(1, 2))
+        val changed =
+            listOf(
+                original.copy(replayGainTrackGainDb = -6.0),
+                original.copy(replayGainTrackPeak = 1.2),
+                original.copy(replayGainAlbumGainDb = -4.0),
+                original.copy(replayGainAlbumPeak = 1.1),
+            )
+        for (track in changed) {
+            assertNotEquals(original, track)
+            assertNotEquals(original.hashCode(), track.hashCode())
+            val sameFacts = track.copy(artworkBytes = byteArrayOf(1, 2))
+            assertEquals(track, sameFacts)
+            assertEquals(track.hashCode(), sameFacts.hashCode())
+        }
+    }
+
+    @Test
+    fun signedZeroReplayGainFactsKeepPlayableAndPresentationEqualityHashConsistent() {
+        val playableNegative =
+            playableTrack(byteArrayOf(1)).copy(replayGainTrackGainDb = -0.0)
+        val playablePositive =
+            playableTrack(byteArrayOf(1)).copy(replayGainTrackGainDb = 0.0)
+        if (playableNegative == playablePositive) {
+            assertEquals(
+                playableNegative.hashCode(), playablePositive.hashCode())
+        }
+        val presentationNegative =
+            track(byteArrayOf(1)).copy(replayGainTrackGainDb = -0.0)
+        val presentationPositive =
+            track(byteArrayOf(1)).copy(replayGainTrackGainDb = 0.0)
+        if (presentationNegative == presentationPositive) {
+            assertEquals(
+                presentationNegative.hashCode(),
+                presentationPositive.hashCode())
+        }
+    }
+
+    @Test
     fun trackRetainsDataClassCopyAndComponentOrder() {
         val original = track(artworkBytes = byteArrayOf(1, 2, 3))
         val copied = original.copy(title = "Updated")

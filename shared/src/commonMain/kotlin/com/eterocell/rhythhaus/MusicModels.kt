@@ -37,6 +37,10 @@ fun librarySnapshot(tracks: List<LibraryTrack>): LibrarySnapshot {
             trackNumber = track.trackNumber,
             discNumber = track.discNumber,
             artworkBytes = track.artworkBytes,
+            replayGainTrackGainDb = track.replayGainTrackGainDb,
+            replayGainTrackPeak = track.replayGainTrackPeak,
+            replayGainAlbumGainDb = track.replayGainAlbumGainDb,
+            replayGainAlbumPeak = track.replayGainAlbumPeak,
         )
     }
     return LibrarySnapshot(
@@ -56,4 +60,8 @@ fun Track.toPlayableTrack(): PlayableTrack =
         durationMillis = durationSeconds.takeIf { it > 0 }?.times(1_000L),
         source = source,
         artworkBytes = artworkBytes,
+        replayGainTrackGainDb = replayGainTrackGainDb,
+        replayGainTrackPeak = replayGainTrackPeak,
+        replayGainAlbumGainDb = replayGainAlbumGainDb,
+        replayGainAlbumPeak = replayGainAlbumPeak,
     )

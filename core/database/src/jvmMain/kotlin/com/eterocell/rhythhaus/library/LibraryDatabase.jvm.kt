@@ -40,6 +40,7 @@ private val playHistoryTables = setOf("track_play_history")
 private val smartPlaylistTables = setOf("smart_playlist")
 private val metadataOverrideTables = setOf("track_metadata_override")
 private const val changeSummarySchemaVersion = 7L
+private const val replayGainSchemaVersion = 8L
 
 private fun foreignKeyProperties(): Properties =
     Properties().apply { put("foreign_keys", "true") }
@@ -75,10 +76,13 @@ private fun bootstrapLegacyVersionZeroDatabase(
                         playHistoryTables +
                         smartPlaylistTables +
                         metadataOverrideTables ->
-                    if (driver.hasColumn("scan_session", "changeSummaryJson")) {
-                        changeSummarySchemaVersion
-                    } else {
-                        6L
+                    when {
+                        driver.hasColumn(
+                            "library_track", "replayGainTrackGainDb") ->
+                            replayGainSchemaVersion
+                        driver.hasColumn("scan_session", "changeSummaryJson") ->
+                            changeSummarySchemaVersion
+                        else -> 6L
                     }
                 else -> return
             }

@@ -183,9 +183,15 @@ class LibraryScannerTest {
         repository.upsertSource(source)
         repository.upsertTrack(
             storedTrack(
-                sourceLocalKey = "42",
-                audioPath = "content://media/external/audio/media/42",
-            ),
+                    sourceLocalKey = "42",
+                    audioPath = "content://media/external/audio/media/42",
+                )
+                .copy(
+                    replayGainTrackGainDb = -6.0,
+                    replayGainTrackPeak = 1.2,
+                    replayGainAlbumGainDb = -4.0,
+                    replayGainAlbumPeak = 1.1,
+                ),
         )
         val trackId = repository.tracksForSource(source.id).single().id
         repository.setTrackFavorite(trackId, favorite = true)
@@ -229,6 +235,11 @@ class LibraryScannerTest {
             "Pinned MediaStore title",
             repository.metadataForTrack(trackId)?.overrides?.title,
         )
+        val retained = repository.tracksForSource(source.id).single()
+        assertEquals(-6.0, retained.replayGainTrackGainDb)
+        assertEquals(1.2, retained.replayGainTrackPeak)
+        assertEquals(-4.0, retained.replayGainAlbumGainDb)
+        assertEquals(1.1, retained.replayGainAlbumPeak)
     }
 
     @Test

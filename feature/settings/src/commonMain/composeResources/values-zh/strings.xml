@@ -7,4 +7,11 @@
 <string name="device_audio">设备音乐</string><string name="add_device_audio">允许访问设备音乐</string><string name="device_audio_unavailable">只读访问系统索引的设备音乐，不复制文件。允许音频访问权限后，添加来源并手动扫描。</string>
 <string name="device_audio_add">添加设备音乐来源</string>
 <string name="device_audio_settings">打开应用设置</string>
+<string name="replaygain_title">ReplayGain 音量均衡</string>
+<string name="replaygain_off">关闭</string>
+<string name="replaygain_track">单曲</string>
+<string name="replaygain_album">专辑</string>
+<string name="replaygain_explanation">仅根据已有 ReplayGain 标签降低音量。没有标签的曲目保持原音量，正增益不会被放大。</string>
+<string name="replaygain_saving">正在保存音量均衡设置…</string>
+<string name="replaygain_error">无法保存音量均衡设置。仍使用上次选择的模式，请重新选择模式以重试。</string>
 </resources>

@@ -167,6 +167,10 @@ class TrackPlayHistoryDatabaseTest {
             discNumber = null,
             artworkBytes = null,
             artworkMimeType = null,
+            replayGainTrackGainDb = null,
+            replayGainTrackPeak = null,
+            replayGainAlbumGainDb = null,
+            replayGainAlbumPeak = null,
         )
     }
 

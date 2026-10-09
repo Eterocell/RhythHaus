@@ -1,0 +1,4 @@
+ALTER TABLE library_track ADD COLUMN replayGainTrackGainDb REAL DEFAULT NULL;
+ALTER TABLE library_track ADD COLUMN replayGainTrackPeak REAL DEFAULT NULL;
+ALTER TABLE library_track ADD COLUMN replayGainAlbumGainDb REAL DEFAULT NULL;
+ALTER TABLE library_track ADD COLUMN replayGainAlbumPeak REAL DEFAULT NULL;

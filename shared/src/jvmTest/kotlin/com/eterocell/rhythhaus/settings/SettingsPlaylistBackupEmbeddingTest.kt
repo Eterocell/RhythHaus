@@ -163,6 +163,10 @@ class SettingsPlaylistBackupEmbeddingTest {
             scanJob = null,
             currentThemeMode =
                 com.eterocell.rhythhaus.theme.RhythHausThemeMode.System,
+            replayGainState =
+                com.eterocell.rhythhaus.playback.ReplayGainPreferenceState(
+                    isBusy = false),
+            onReplayGainModeSelected = {},
             onThemeModeSelected = {},
             onClearLibrary = {},
             onRescanSource = {},

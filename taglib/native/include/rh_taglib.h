@@ -24,6 +24,11 @@ typedef struct RhTagLibMetadata {
     char* artwork_mime_type;
     unsigned char* artwork_data;
     int artwork_size;
+    // Optional raw property values; owned and freed with the complete result.
+    char* replay_gain_track_gain;
+    char* replay_gain_track_peak;
+    char* replay_gain_album_gain;
+    char* replay_gain_album_peak;
 } RhTagLibMetadata;
 
 typedef struct RhTagLibResult {

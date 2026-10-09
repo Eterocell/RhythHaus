@@ -24,6 +24,14 @@ public data class Track(
     public val discNumber: Int? = null,
     /** Optional artwork bytes. */
     public val artworkBytes: ByteArray? = null,
+    /** Optional scanned track ReplayGain in decibels. */
+    public val replayGainTrackGainDb: Double? = null,
+    /** Optional scanned track peak amplitude. */
+    public val replayGainTrackPeak: Double? = null,
+    /** Optional scanned album ReplayGain in decibels. */
+    public val replayGainAlbumGainDb: Double? = null,
+    /** Optional scanned album peak amplitude. */
+    public val replayGainAlbumPeak: Double? = null,
 ) {
     /** Compares all metadata and artwork byte content. */
     public override fun equals(other: Any?): Boolean =
@@ -37,7 +45,15 @@ public data class Track(
             source == other.source &&
             trackNumber == other.trackNumber &&
             discNumber == other.discNumber &&
-            artworkBytes.contentEquals(other.artworkBytes)
+            artworkBytes.contentEquals(other.artworkBytes) &&
+            (replayGainTrackGainDb?.equals(other.replayGainTrackGainDb)
+                ?: (other.replayGainTrackGainDb == null)) &&
+            (replayGainTrackPeak?.equals(other.replayGainTrackPeak)
+                ?: (other.replayGainTrackPeak == null)) &&
+            (replayGainAlbumGainDb?.equals(other.replayGainAlbumGainDb)
+                ?: (other.replayGainAlbumGainDb == null)) &&
+            (replayGainAlbumPeak?.equals(other.replayGainAlbumPeak)
+                ?: (other.replayGainAlbumPeak == null))
 
     /**
      * Returns a hash code derived from all metadata and artwork byte content.
@@ -53,6 +69,10 @@ public data class Track(
         result = 31 * result + (trackNumber ?: 0)
         result = 31 * result + (discNumber ?: 0)
         result = 31 * result + (artworkBytes?.contentHashCode() ?: 0)
+        result = 31 * result + (replayGainTrackGainDb?.hashCode() ?: 0)
+        result = 31 * result + (replayGainTrackPeak?.hashCode() ?: 0)
+        result = 31 * result + (replayGainAlbumGainDb?.hashCode() ?: 0)
+        result = 31 * result + (replayGainAlbumPeak?.hashCode() ?: 0)
         return result
     }
 }
@@ -103,6 +123,14 @@ public data class PlayableTrack(
     public val source: AudioSource,
     /** Optional artwork bytes. */
     public val artworkBytes: ByteArray? = null,
+    /** Optional scanned track ReplayGain in decibels. */
+    public val replayGainTrackGainDb: Double? = null,
+    /** Optional scanned track peak amplitude. */
+    public val replayGainTrackPeak: Double? = null,
+    /** Optional scanned album ReplayGain in decibels. */
+    public val replayGainAlbumGainDb: Double? = null,
+    /** Optional scanned album peak amplitude. */
+    public val replayGainAlbumPeak: Double? = null,
 ) {
     /** Compares all metadata and artwork byte content. */
     public override fun equals(other: Any?): Boolean =
@@ -113,7 +141,15 @@ public data class PlayableTrack(
             album == other.album &&
             durationMillis == other.durationMillis &&
             source == other.source &&
-            artworkBytes.contentEquals(other.artworkBytes)
+            artworkBytes.contentEquals(other.artworkBytes) &&
+            (replayGainTrackGainDb?.equals(other.replayGainTrackGainDb)
+                ?: (other.replayGainTrackGainDb == null)) &&
+            (replayGainTrackPeak?.equals(other.replayGainTrackPeak)
+                ?: (other.replayGainTrackPeak == null)) &&
+            (replayGainAlbumGainDb?.equals(other.replayGainAlbumGainDb)
+                ?: (other.replayGainAlbumGainDb == null)) &&
+            (replayGainAlbumPeak?.equals(other.replayGainAlbumPeak)
+                ?: (other.replayGainAlbumPeak == null))
 
     /**
      * Returns a hash code derived from all metadata and artwork byte content.
@@ -126,6 +162,10 @@ public data class PlayableTrack(
         result = 31 * result + (durationMillis?.hashCode() ?: 0)
         result = 31 * result + source.hashCode()
         result = 31 * result + (artworkBytes?.contentHashCode() ?: 0)
+        result = 31 * result + (replayGainTrackGainDb?.hashCode() ?: 0)
+        result = 31 * result + (replayGainTrackPeak?.hashCode() ?: 0)
+        result = 31 * result + (replayGainAlbumGainDb?.hashCode() ?: 0)
+        result = 31 * result + (replayGainAlbumPeak?.hashCode() ?: 0)
         return result
     }
 }

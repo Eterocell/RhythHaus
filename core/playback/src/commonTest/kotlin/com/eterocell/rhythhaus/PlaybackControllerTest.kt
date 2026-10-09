@@ -31,6 +31,448 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class PlaybackControllerTest {
     @Test
+    fun replayGainComposesWithFadeAndCancelRestoresNormalization() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val tagged =
+                testTracks(1)
+                    .single()
+                    .copy(
+                        durationMillis = 20_000L,
+                        replayGainTrackGainDb = 0.0,
+                        replayGainTrackPeak = 2.0,
+                    )
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.setQueue(listOf(tagged))
+            engine.awaitLoad()
+            controller.play()
+            engine.awaitEvent { it == EngineEvent.Play }
+            controller.armSleepTimerAfterCompletions(1, fadeEnabled = true)
+            engine.listener?.onPlaybackProgress(
+                engine.activeGeneration, 16_000L, 20_000L)
+            engine.awaitEvent { it == EngineEvent.Gain(0.2f) }
+            val before = controller.state.value
+            engine.clearEvents()
+            controller.cancelSleepTimer()
+            engine.awaitEvent { it == EngineEvent.Gain(0.5f) }
+            assertEquals(before, controller.state.value)
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            assertFalse(
+                engine.eventSnapshot().any {
+                    it is EngineEvent.Load ||
+                        it is EngineEvent.Seek ||
+                        it == EngineEvent.Play
+                })
+            controller.release()
+        }
+
+    @Test
+    fun disablingNormalizationDuringFadePreservesTimerAndSleepGain() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.setQueue(
+                listOf(
+                    testTracks(1)
+                        .single()
+                        .copy(
+                            durationMillis = 20_000L,
+                            replayGainTrackGainDb = 0.0,
+                            replayGainTrackPeak = 2.0,
+                        )))
+            engine.awaitLoad()
+            controller.play()
+            engine.awaitEvent { it == EngineEvent.Play }
+            controller.armSleepTimerAfterCompletions(1, fadeEnabled = true)
+            engine.listener?.onPlaybackProgress(
+                engine.activeGeneration, 16_000L, 20_000L)
+            engine.awaitEvent { it == EngineEvent.Gain(0.2f) }
+            val timer = controller.sleepTimerState.value
+            val before = controller.state.value
+            engine.clearEvents()
+            controller.setReplayGainMode(ReplayGainMode.Off)
+            engine.awaitEvent { it == EngineEvent.Gain(0.4f) }
+            assertEquals(timer, controller.sleepTimerState.value)
+            assertEquals(before, controller.state.value)
+            assertFalse(
+                engine.eventSnapshot().any {
+                    it is EngineEvent.Load ||
+                        it is EngineEvent.Seek ||
+                        it == EngineEvent.Play
+                })
+            controller.release()
+        }
+
+    @Test
+    fun remoteResumeAppliesComposedGainBeforePlayWithoutReloadOrSeek() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val track = normalizedTrack(1, peak = 2.0)
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("tagged", track)), autoPlay = true)
+            assertEquals(0.5f, engine.awaitPlayedGain())
+            controller.armSleepTimerAfterCompletions(1, fadeEnabled = true)
+            engine.listener?.onPlaybackProgress(
+                engine.activeGeneration, 16_000L, 20_000L)
+            engine.awaitEvent { it == EngineEvent.Gain(0.2f) }
+            engine.listener?.onPauseRequested(engine.activeGeneration)
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Paused
+            }
+            val before = controller.state.value
+            val timer = controller.sleepTimerState.value
+            engine.clearEvents()
+
+            engine.listener?.onPlayRequested(engine.activeGeneration)
+
+            val events = engine.awaitEventsThroughPlay()
+            assertEquals(
+                EngineEvent.Gain(0.2f),
+                events.filterIsInstance<EngineEvent.Gain>().last())
+            assertEquals(0.2f, engine.awaitPlayedGain())
+            assertFalse(
+                events.any { it is EngineEvent.Load || it is EngineEvent.Seek })
+            assertEquals(
+                before.engineGeneration,
+                controller.state.value.engineGeneration)
+            assertEquals(
+                before.currentOccurrenceId,
+                controller.state.value.currentOccurrenceId)
+            assertEquals(
+                before.positionMillis, controller.state.value.positionMillis)
+            assertEquals(timer, controller.sleepTimerState.value)
+            controller.release()
+        }
+
+    @Test
+    fun factOnlyMetadataRefreshRetainsFadeAndUpdatesEveryDuplicateWithoutTransportChanges() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val track = normalizedTrack(1, peak = 2.0)
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence("current", track),
+                    QueueOccurrence("duplicate", track)),
+                autoPlay = true,
+            )
+            engine.awaitPlayedGain()
+            controller.setRepeatMode(RepeatMode.RepeatOne)
+            controller.setShuffleMode(ShuffleMode.On)
+            controller.armSleepTimerAfterCompletions(1, fadeEnabled = true)
+            engine.listener?.onPlaybackProgress(
+                engine.activeGeneration, 16_000L, 20_000L)
+            engine.awaitEvent { it == EngineEvent.Gain(0.2f) }
+            val before = controller.state.value
+            val timer = controller.sleepTimerState.value
+            engine.clearEvents()
+
+            controller.refreshTrackMetadata(
+                listOf(track.copy(replayGainTrackPeak = 4.0)))
+
+            engine.awaitEvent { it == EngineEvent.Gain(0.1f) }
+            assertEquals(
+                listOf(4.0, 4.0),
+                controller.state.value.queue.map {
+                    it.track.replayGainTrackPeak
+                })
+            assertEquals(
+                before.copy(queue = controller.state.value.queue),
+                controller.state.value)
+            assertEquals(timer, controller.sleepTimerState.value)
+            assertFalse(
+                engine.eventSnapshot().any {
+                    it is EngineEvent.Load ||
+                        it is EngineEvent.Seek ||
+                        it == EngineEvent.Play
+                })
+            controller.release()
+        }
+
+    @Test
+    fun sameIdReconciliationRecomputesGainAndMetadataRefreshStillReachesLoadedTrack() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val track = normalizedTrack(1, peak = 2.0)
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("current", track)), autoPlay = true)
+            engine.awaitPlayedGain()
+            controller.armSleepTimerAfterCompletions(1, fadeEnabled = true)
+            engine.listener?.onPlaybackProgress(
+                engine.activeGeneration, 16_000L, 20_000L)
+            engine.awaitEvent { it == EngineEvent.Gain(0.2f) }
+            val before = controller.state.value
+            val timer = controller.sleepTimerState.value
+            val refreshed =
+                track.copy(title = "Rescanned", replayGainTrackPeak = 4.0)
+            engine.clearEvents()
+
+            controller.reconcileSession(listOf(refreshed))
+            engine.awaitEvent { it == EngineEvent.Gain(0.1f) }
+            controller.refreshTrackMetadata(listOf(refreshed))
+
+            engine.awaitEvent { it == EngineEvent.Metadata("Rescanned") }
+            assertEquals(
+                before.engineGeneration,
+                controller.state.value.engineGeneration)
+            assertEquals(
+                before.currentOccurrenceId,
+                controller.state.value.currentOccurrenceId)
+            assertEquals(
+                before.positionMillis, controller.state.value.positionMillis)
+            assertEquals(before.status, controller.state.value.status)
+            assertEquals(timer, controller.sleepTimerState.value)
+            assertFalse(
+                engine.eventSnapshot().any {
+                    it is EngineEvent.Load ||
+                        it is EngineEvent.Seek ||
+                        it == EngineEvent.Play
+                })
+            controller.release()
+        }
+
+    @Test
+    fun queuedOldModeAndMetadataGainCannotAffectReplacementWaitingForEngineMutex() =
+        runBlocking {
+            val engine =
+                RecordingPlaybackEngine(seekGate = CompletableDeferred())
+            val controller = timerController(engine)
+            val old =
+                normalizedTrack(1, peak = 2.0)
+                    .copy(
+                        replayGainAlbumGainDb = 0.0, replayGainAlbumPeak = 4.0)
+            val replacement =
+                normalizedTrack(2, peak = 4.0)
+                    .copy(
+                        replayGainAlbumGainDb = 0.0, replayGainAlbumPeak = 4.0)
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("old", old)), autoPlay = true)
+            assertEquals(0.5f, engine.awaitPlayedGain())
+            controller.armSleepTimerAfterCompletions(1, fadeEnabled = true)
+            engine.listener?.onPlaybackProgress(
+                engine.activeGeneration, 16_000L, 20_000L)
+            engine.awaitEvent { it == EngineEvent.Gain(0.2f) }
+            controller.seekTo(16_000L)
+            engine.awaitSeekStarted()
+            engine.clearEvents()
+            controller.setReplayGainMode(ReplayGainMode.Album)
+            controller.refreshTrackMetadata(
+                listOf(old.copy(replayGainAlbumPeak = 8.0)))
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("replacement", replacement)),
+                autoPlay = true)
+            val winner = controller.state.value
+            engine.releaseSeek()
+
+            val events = engine.awaitEventsThroughPlay()
+            assertEquals(0.25f, engine.awaitPlayedGain())
+            assertTrue(
+                events.filterIsInstance<EngineEvent.Gain>().all {
+                    it.gain == 0.25f
+                })
+            assertEquals(
+                EngineEvent.Load(replacement.id),
+                events.filterIsInstance<EngineEvent.Load>().single())
+            assertEquals(
+                winner.engineGeneration,
+                controller.state.value.engineGeneration)
+            assertEquals(
+                "replacement", controller.state.value.currentOccurrenceId)
+            assertEquals(1, controller.sleepTimerState.value.remainingTracks)
+            controller.release()
+        }
+
+    @Test
+    fun cancellingFadeFencesQueuedAttenuationAndResumesAtSelectedNormalization() =
+        runBlocking {
+            val engine =
+                RecordingPlaybackEngine(seekGate = CompletableDeferred())
+            val controller = timerController(engine)
+            val track = normalizedTrack(1, peak = 2.0)
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("current", track)), autoPlay = true)
+            engine.awaitPlayedGain()
+            controller.armSleepTimerAfterCompletions(1, fadeEnabled = true)
+            engine.awaitEvent { it == EngineEvent.Gain(0.5f) }
+            controller.seekTo(16_000L)
+            engine.awaitSeekStarted()
+            engine.clearEvents()
+            controller.cancelSleepTimer()
+            controller.setReplayGainMode(ReplayGainMode.Album)
+            controller.play()
+            engine.releaseSeek()
+
+            val events = engine.awaitEventsThroughPlay()
+            // Album falls back to the track pair; neither the old .2 fade nor a
+            // transient unity restoration may reach the player after
+            // cancellation.
+            assertEquals(0.5f, engine.awaitPlayedGain())
+            assertTrue(
+                events.filterIsInstance<EngineEvent.Gain>().all {
+                    it.gain == 0.5f
+                })
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            assertFalse(events.any { it is EngineEvent.Load })
+            controller.release()
+        }
+
+    @Test
+    fun restoredAndReconciledReplacementReceiveTheirFactorBeforeRemotePlay() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val tracks =
+                listOf(normalizedTrack(1, 2.0), normalizedTrack(2, 4.0))
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.restoreSession(
+                PlaybackSessionSnapshot(
+                    queue =
+                        listOf(
+                            SessionQueueEntry("first", tracks[0].id),
+                            SessionQueueEntry("second", tracks[1].id)),
+                    currentOccurrenceId = "first",
+                    positionMillis = 700L,
+                ),
+                tracks,
+            )
+            engine.awaitEvent { it == EngineEvent.Gain(0.5f) }
+            engine.clearEvents()
+            engine.listener?.onPlayRequested(engine.activeGeneration)
+            assertEquals(0.5f, engine.awaitPlayedGain())
+            assertFalse(
+                engine.awaitEventsThroughPlay().any {
+                    it is EngineEvent.Load || it is EngineEvent.Seek
+                })
+
+            controller.reconcileSession(listOf(tracks[1]))
+            engine.awaitEvent { it == EngineEvent.Gain(0.25f) }
+            engine.clearEvents()
+            engine.listener?.onPlayRequested(engine.activeGeneration)
+            assertEquals(0.25f, engine.awaitPlayedGain())
+            assertFalse(
+                engine.awaitEventsThroughPlay().any {
+                    it is EngineEvent.Load || it is EngineEvent.Seek
+                })
+            assertEquals("second", controller.state.value.currentOccurrenceId)
+            controller.release()
+        }
+
+    @Test
+    fun retryAndAutomaticAdvanceApplyEachSelectedTrackFactorBeforeSound() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            val tracks =
+                listOf(normalizedTrack(1, 2.0), normalizedTrack(2, 4.0))
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.setOccurrenceQueue(
+                listOf(
+                    QueueOccurrence("first", tracks[0]),
+                    QueueOccurrence("second", tracks[1])),
+                autoPlay = true,
+            )
+            assertEquals(0.5f, engine.awaitPlayedGain())
+            engine.listener?.onPlaybackError(
+                engine.activeGeneration, PlaybackError("retry"))
+            controller.retryFailedTrack()
+            assertEquals(0.5f, engine.awaitPlayedGain())
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Playing
+            }
+            engine.listener?.onPlaybackCompleted(
+                engine.activeGeneration, engine.activePlaybackRunId)
+            assertEquals(0.25f, engine.awaitPlayedGain())
+            assertEquals("second", controller.state.value.currentOccurrenceId)
+            assertEquals(
+                listOf(tracks[0].id, tracks[0].id, tracks[1].id),
+                engine.loadedTracks.map { it.id })
+            controller.release()
+        }
+
+    @Test
+    fun stoppedResumeAndRestartRestoreNormalizationBeforePlayInsteadOfUnity() =
+        runBlocking {
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine)
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("current", normalizedTrack(1, 2.0))),
+                autoPlay = true)
+            engine.awaitPlayedGain()
+            controller.stop()
+            engine.awaitEvent { it == EngineEvent.Stop }
+            engine.awaitEvent { it == EngineEvent.Gain(1f) }
+            engine.listener?.onPlaybackStatus(
+                engine.activeGeneration, PlaybackStatus.Stopped)
+            engine.clearEvents()
+            controller.play()
+            assertEquals(0.5f, engine.awaitPlayedGain())
+            assertEquals(
+                EngineEvent.Gain(0.5f),
+                engine
+                    .awaitEventsThroughPlay()
+                    .filterIsInstance<EngineEvent.Gain>()
+                    .last())
+
+            controller.stop()
+            engine.awaitEvent { it == EngineEvent.Stop }
+            engine.awaitEvent { it == EngineEvent.Gain(1f) }
+            engine.listener?.onPlaybackStatus(
+                engine.activeGeneration, PlaybackStatus.Stopped)
+            engine.clearEvents()
+            controller.restartCurrentTrack()
+            assertEquals(0.5f, engine.awaitPlayedGain())
+            val restarted = engine.awaitEventsThroughPlay()
+            assertEquals(
+                EngineEvent.Gain(0.5f),
+                restarted.filterIsInstance<EngineEvent.Gain>().last())
+            assertEquals(
+                listOf(EngineEvent.Seek(0L)),
+                restarted.filterIsInstance<EngineEvent.Seek>())
+            assertFalse(restarted.any { it is EngineEvent.Load })
+            controller.release()
+        }
+
+    @Test
+    fun timedFadeModeChangesPreserveDeadlineAndRearmingRestoresOnlySleepFactor() =
+        runBlocking {
+            val runtime = ManualSleepTimerRuntime()
+            val engine = RecordingPlaybackEngine()
+            val controller = timerController(engine, runtime)
+            val track =
+                normalizedTrack(1, 2.0)
+                    .copy(
+                        replayGainAlbumGainDb = 0.0, replayGainAlbumPeak = 4.0)
+            controller.setReplayGainMode(ReplayGainMode.Track)
+            controller.setOccurrenceQueue(
+                listOf(QueueOccurrence("current", track)), autoPlay = true)
+            engine.awaitPlayedGain()
+            controller.armSleepTimer(1, fadeEnabled = true)
+            runtime.advanceTo(56_000L)
+            engine.awaitEvent { it == EngineEvent.Gain(0.2f) }
+            val timer = controller.sleepTimerState.value
+            controller.setReplayGainMode(ReplayGainMode.Album)
+            engine.awaitEvent { it == EngineEvent.Gain(0.1f) }
+            assertEquals(timer, controller.sleepTimerState.value)
+            controller.armSleepTimerAfterCompletions(2, fadeEnabled = true)
+            engine.awaitEvent { it == EngineEvent.Gain(0.25f) }
+            assertEquals(2, controller.sleepTimerState.value.remainingTracks)
+            controller.cancelSleepTimer()
+            engine.awaitEvent { it == EngineEvent.Gain(0.25f) }
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            controller.release()
+        }
+
+    @Test
     fun metadataRefreshUpdatesEveryMatchingOccurrenceWithoutChangingPlaybackIdentity() =
         runBlocking {
             val engine = RecordingPlaybackEngine()
@@ -3780,6 +4222,15 @@ class PlaybackControllerTest {
             )
         }
 
+    private fun normalizedTrack(index: Int, peak: Double): PlayableTrack =
+        testTracks(index)
+            .last()
+            .copy(
+                durationMillis = 20_000L,
+                replayGainTrackGainDb = 0.0,
+                replayGainTrackPeak = peak,
+            )
+
     private fun occurrenceQueue(): List<QueueOccurrence> {
         val tracks = testTracks(3)
         return listOf(
@@ -3967,6 +4418,8 @@ class PlaybackControllerTest {
 
         var nextLoadFailure: Throwable? = null
         private val events = Channel<EngineEvent>(Channel.UNLIMITED)
+        private val playedGains = Channel<Float>(Channel.UNLIMITED)
+        private var playbackGain = 1f
         private val loadStarted = CompletableDeferred<Unit>()
         private val loadSignal = CompletableDeferred<Unit>()
         private val loadCountSignals = Channel<Int>(Channel.UNLIMITED)
@@ -4045,6 +4498,19 @@ class PlaybackControllerTest {
                 List(count) { events.receive() }
             }
 
+        suspend fun awaitPlayedGain(): Float =
+            withTimeout(5_000) { playedGains.receive() }
+
+        suspend fun awaitEventsThroughPlay(): List<EngineEvent> =
+            withTimeout(5_000) {
+                buildList {
+                    do {
+                        val event = events.receive()
+                        add(event)
+                    } while (event != EngineEvent.Play)
+                }
+            }
+
         suspend fun awaitEvent(
             predicate: (EngineEvent) -> Boolean,
         ): EngineEvent =
@@ -4058,6 +4524,7 @@ class PlaybackControllerTest {
 
         override fun play(playbackRunId: Long) {
             activePlaybackRunId = playbackRunId
+            check(playedGains.trySend(playbackGain).isSuccess)
             record(EngineEvent.Play)
             listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
         }
@@ -4103,6 +4570,7 @@ class PlaybackControllerTest {
 
         override fun setPlaybackGain(gain: Float) {
             require(gain.isFinite() && gain in 0f..1f)
+            playbackGain = gain
             record(EngineEvent.Gain(gain))
         }
 

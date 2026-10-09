@@ -76,6 +76,50 @@ char* rh_taglib_duplicate_tag_string(const TagLib::String& value) {
     return rh_taglib_duplicate(value.to8Bit(true).c_str());
 }
 
+char* rh_replay_gain_property(const TagLib::PropertyMap& properties, const TagLib::String& key) {
+    const auto property = properties.find(key);
+    if (property == properties.end() || property->second.isEmpty()) {
+        return nullptr;
+    }
+    return rh_taglib_duplicate_tag_string(property->second.front());
+}
+
+void rh_extract_replay_gain(RhTagLibMetadata& metadata, TagLib::FileRef& file) {
+    static const TagLib::String track_gain_key("REPLAYGAIN_TRACK_GAIN");
+    static const TagLib::String track_peak_key("REPLAYGAIN_TRACK_PEAK");
+    static const TagLib::String album_gain_key("REPLAYGAIN_ALBUM_GAIN");
+    static const TagLib::String album_peak_key("REPLAYGAIN_ALBUM_PEAK");
+    const auto properties = file.file()->properties();
+    metadata.replay_gain_track_gain = rh_replay_gain_property(properties, track_gain_key);
+    metadata.replay_gain_track_peak = rh_replay_gain_property(properties, track_peak_key);
+    metadata.replay_gain_album_gain = rh_replay_gain_property(properties, album_gain_key);
+    metadata.replay_gain_album_peak = rh_replay_gain_property(properties, album_peak_key);
+
+    if (metadata.replay_gain_track_gain != nullptr && metadata.replay_gain_track_peak != nullptr &&
+        metadata.replay_gain_album_gain != nullptr && metadata.replay_gain_album_peak != nullptr) {
+        return;
+    }
+    if (auto* mpeg_file = dynamic_cast<TagLib::MPEG::File*>(file.file())) {
+        if (auto* ape_tag = mpeg_file->APETag()) {
+            // MPEG properties expose only the first non-empty tag (normally ID3v2).
+            // Fill missing ReplayGain values without replacing primary or display tags.
+            const auto ape_properties = ape_tag->properties();
+            if (metadata.replay_gain_track_gain == nullptr) {
+                metadata.replay_gain_track_gain = rh_replay_gain_property(ape_properties, track_gain_key);
+            }
+            if (metadata.replay_gain_track_peak == nullptr) {
+                metadata.replay_gain_track_peak = rh_replay_gain_property(ape_properties, track_peak_key);
+            }
+            if (metadata.replay_gain_album_gain == nullptr) {
+                metadata.replay_gain_album_gain = rh_replay_gain_property(ape_properties, album_gain_key);
+            }
+            if (metadata.replay_gain_album_peak == nullptr) {
+                metadata.replay_gain_album_peak = rh_replay_gain_property(ape_properties, album_peak_key);
+            }
+        }
+    }
+}
+
 void rh_extract_album_artist(RhTagLibMetadata& metadata, TagLib::FileRef& fileRef) {
     if (auto* mpegFile = dynamic_cast<TagLib::MPEG::File*>(fileRef.file())) {
         if (auto* id3v2Tag = mpegFile->ID3v2Tag()) {
@@ -380,6 +424,7 @@ RhTagLibResult rh_taglib_read_file_ref(TagLib::FileRef& file) {
     rh_extract_album_artist(result.metadata, file);
     rh_extract_disc_track_totals(result.metadata, file);
     rh_extract_artwork(result.metadata, file);
+    rh_extract_replay_gain(result.metadata, file);
 
     return result;
 }
@@ -449,6 +494,10 @@ extern "C" void rh_taglib_free_result(RhTagLibResult result) {
     std::free(result.metadata.comment);
     std::free(result.metadata.artwork_mime_type);
     std::free(result.metadata.artwork_data);
+    std::free(result.metadata.replay_gain_track_gain);
+    std::free(result.metadata.replay_gain_track_peak);
+    std::free(result.metadata.replay_gain_album_gain);
+    std::free(result.metadata.replay_gain_album_peak);
 }
 
 extern "C" RhTagLibProperties rh_taglib_read_properties(const char* path) {

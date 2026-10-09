@@ -94,6 +94,10 @@ class TrackMetadataOverrideDatabaseTest {
                     null,
                     null,
                     null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null)
                 queries.trackMetadataOverrideQueries.upsertOverride(
                     id, "Corrected", null, null, 2L, null)

@@ -17,6 +17,11 @@ data class TagMetadata(
     val sampleRate: Int? = null,
     val channels: Int? = null,
     val artwork: EmbeddedArtwork? = null,
+    // Raw optional tags; Library validates gain/peak independently.
+    val replayGainTrackGain: String? = null,
+    val replayGainTrackPeak: String? = null,
+    val replayGainAlbumGain: String? = null,
+    val replayGainAlbumPeak: String? = null,
 )
 
 data class EmbeddedArtwork(

@@ -171,6 +171,8 @@ internal fun LibraryRouteOverlays(
     mutationsEnabled: Boolean = true,
     currentThemeMode: RhythHausThemeMode,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
+    replayGainState: com.eterocell.rhythhaus.playback.ReplayGainPreferenceState,
+    onReplayGainModeSelected: (com.eterocell.rhythhaus.ReplayGainMode) -> Unit,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit = { _, _ -> },
@@ -275,6 +277,16 @@ internal fun LibraryRouteOverlays(
                         remove = stringResource(Res.string.remove),
                     ),
                 currentThemeMode = currentThemeMode,
+                replayGainMode =
+                    com.eterocell.rhythhaus.settings.SettingsReplayGainMode
+                        .valueOf(replayGainState.selectedMode.name),
+                replayGainBusy = replayGainState.isBusy,
+                replayGainError = replayGainState.saveFailed,
+                onReplayGainModeSelected = { mode ->
+                    onReplayGainModeSelected(
+                        com.eterocell.rhythhaus.ReplayGainMode.valueOf(
+                            mode.name))
+                },
                 sources =
                     sources.map {
                         SettingsSourceItem(

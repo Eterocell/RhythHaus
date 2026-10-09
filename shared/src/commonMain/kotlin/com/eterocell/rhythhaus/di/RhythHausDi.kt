@@ -35,11 +35,12 @@ fun rhythHausModule(): Module = module {
     single<PlatformPlaybackEngine> { createPlatformPlaybackEngine() }
     single {
         PlaybackController(
-            engine = get(),
-            artworkLoader = { trackId ->
-                get<LibraryRepository>().artworkForTrack(trackId)?.bytes
-            },
-        )
+                engine = get(),
+                artworkLoader = { trackId ->
+                    get<LibraryRepository>().artworkForTrack(trackId)?.bytes
+                },
+            )
+            .also { it.setCommandsEnabled(false) }
     }
     single<PlaybackSessionController> { get<PlaybackController>() }
     single<PlaybackSessionStore> { createPlaybackSessionStore() }
@@ -52,9 +53,27 @@ fun rhythHausModule(): Module = module {
     }
     single<PlaybackSessionReconciler> { get<PlaybackSessionCoordinator>() }
     single {
-        PlaybackProcessLifecycle(coordinator = get(), processScope = get())
+        val coordinator = get<PlaybackSessionCoordinator>()
+        val normalization =
+            get<com.eterocell.rhythhaus.playback.ReplayGainPreferenceOwner>()
+        PlaybackProcessLifecycle(
+            restoreAction = { tracks ->
+                normalization.restore()
+                coordinator.restoreOnce(tracks)
+            },
+            processScope = get(),
+        )
     }
     single<ThemePreferenceStore> { createThemePreferenceStore() }
+    single<com.eterocell.rhythhaus.playback.ReplayGainPreferenceStore> {
+        com.eterocell.rhythhaus.playback.createReplayGainPreferenceStore()
+    }
+    single {
+        com.eterocell.rhythhaus.playback.ReplayGainPreferenceOwner(
+            store = get(),
+            applyMode = get<PlaybackController>()::setReplayGainMode,
+        )
+    }
     single<OnboardingPreferenceStore> { createOnboardingPreferenceStore() }
 }
 

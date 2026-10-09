@@ -1,8 +1,26 @@
 package com.eterocell.rhythhaus.library.impl
 
 import android.media.MediaMetadataRetriever
+import android.net.Uri
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryDatabaseContext
+
+internal actual fun openPlatformAudioMetadataUri(
+    source: AudioSource.Uri,
+): AudioMetadataUriDescriptor? {
+    val uri = Uri.parse(source.value)
+    val descriptor =
+        LibraryDatabaseContext.applicationContext.contentResolver
+            .openFileDescriptor(uri, "r") ?: return null
+    return AudioMetadataUriDescriptor(
+        source =
+            AudioSource.FileDescriptor(
+                fd = descriptor.fd,
+                displayName = uri.lastPathSegment ?: source.value,
+            ),
+        close = descriptor::close,
+    )
+}
 
 internal actual fun readPlatformAudioMetadata(
     source: AudioSource
@@ -22,9 +40,7 @@ private fun readAndroidMediaMetadataFromFileDescriptor(
 
 private fun readAndroidMediaMetadataFromUri(uri: String): AudioMetadata? =
     readAndroidMediaMetadata {
-        setDataSource(
-            LibraryDatabaseContext.applicationContext,
-            android.net.Uri.parse(uri))
+        setDataSource(LibraryDatabaseContext.applicationContext, Uri.parse(uri))
     }
 
 private fun readAndroidMediaMetadata(

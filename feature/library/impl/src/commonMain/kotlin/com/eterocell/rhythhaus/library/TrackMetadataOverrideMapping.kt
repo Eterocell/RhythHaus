@@ -18,6 +18,7 @@ internal fun TrackMetadataOverride.normalizedForStorage():
     )
 }
 
+/** Applies display corrections without replacing scanned audio facts. */
 internal fun TrackMetadataOverride.applyTo(track: LibraryTrack): LibraryTrack =
     track.copy(
         title = title ?: track.title,

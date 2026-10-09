@@ -9,9 +9,35 @@ import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ExistingDatabaseMigrationTest {
+    @Test
+    fun versionSevenAndUnversionedSummaryDatabasesPreserveUserStateThroughMigrationAndReopen() {
+        for (priorVersion in listOf(7, 0)) {
+            val file = copyVersionSevenDatabase(priorVersion)
+            try {
+                LibraryDatabase(file).let { migrated ->
+                    try {
+                        assertMigratedReplayGainUserState(migrated)
+                    } finally {
+                        migrated.driver.close()
+                    }
+                }
+                LibraryDatabase(file).let { reopened ->
+                    try {
+                        assertMigratedReplayGainUserState(reopened)
+                    } finally {
+                        reopened.driver.close()
+                    }
+                }
+            } finally {
+                file.delete()
+            }
+        }
+    }
+
     @Test
     fun unversionedHistoryDatabaseBootstrapsAsFourBeforeSmartMigration() {
         val file =
@@ -408,6 +434,94 @@ class ExistingDatabaseMigrationTest {
             StandardCopyOption.REPLACE_EXISTING,
         )
         return target
+    }
+
+    private fun copyVersionSevenDatabase(priorVersion: Int): File {
+        val file =
+            Files.createTempFile("rhythhaus-replaygain-v$priorVersion", ".db")
+                .toFile()
+        Files.copy(
+            File("src/commonMain/sqldelight/databases/4.db").toPath(),
+            file.toPath(),
+            StandardCopyOption.REPLACE_EXISTING,
+        )
+        seedVersionTwoLibrary(file)
+        DriverManager.getConnection("jdbc:sqlite:${file.absolutePath}").use {
+            connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("PRAGMA foreign_keys = ON")
+                statement.execute(
+                    "CREATE TABLE smart_playlist (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, ruleKind TEXT NOT NULL, argument TEXT, secondArgument TEXT, itemCount INTEGER, createdAtEpochMillis INTEGER NOT NULL, updatedAtEpochMillis INTEGER NOT NULL)")
+                statement.execute(
+                    "CREATE TABLE track_metadata_override (trackId TEXT NOT NULL PRIMARY KEY REFERENCES library_track(id) ON DELETE CASCADE, title TEXT, artist TEXT, album TEXT, trackNumber INTEGER CHECK (trackNumber IS NULL OR trackNumber > 0), discNumber INTEGER CHECK (discNumber IS NULL OR discNumber > 0))")
+                statement.execute(
+                    "ALTER TABLE scan_session ADD COLUMN changeSummaryJson TEXT")
+                statement.execute(
+                    "INSERT INTO track_favorite(trackId, favoritedAtEpochMillis) VALUES ('legacy-track', 50)")
+                statement.execute(
+                    "INSERT INTO track_play_history(trackId, playCount, lastPlayedAtEpochMillis) VALUES ('legacy-track', 3, 100)")
+                statement.execute(
+                    "INSERT INTO track_metadata_override(trackId, title, artist, album, trackNumber, discNumber) VALUES ('legacy-track', 'Corrected', 'Edited artist', 'Edited album', 4, 2)")
+                statement.execute("PRAGMA user_version = $priorVersion")
+            }
+        }
+        return file
+    }
+
+    private fun assertMigratedReplayGainUserState(
+        libraryDatabase: LibraryDatabase
+    ) {
+        val database = libraryDatabase.database
+        assertEquals(8L, driverUserVersion(libraryDatabase.driver))
+        val source =
+            database.librarySourceQueries.selectAllSources().executeAsOne()
+        assertEquals("source-1", source.id)
+        assertEquals("/Music", source.handle)
+        val track =
+            database.libraryTrackQueries.selectAllTracks().executeAsOne()
+        assertEquals("legacy-track", track.id)
+        assertEquals("source-1", track.sourceId)
+        assertEquals("legacy.mp3", track.sourceLocalKey)
+        assertEquals("Legacy", track.title)
+        assertEquals(1L, track.createdAtEpochMillis)
+        assertEquals(2L, track.updatedAtEpochMillis)
+        assertNull(track.replayGainTrackGainDb)
+        assertNull(track.replayGainTrackPeak)
+        assertNull(track.replayGainAlbumGainDb)
+        assertNull(track.replayGainAlbumPeak)
+        assertEquals(
+            listOf("legacy-track"),
+            database.trackFavoriteQueries
+                .selectFavoriteTrackIds()
+                .executeAsList())
+        assertEquals(
+            50L,
+            database.trackFavoriteQueries
+                .selectFavoriteTrack("legacy-track")
+                .executeAsOne()
+                .favoritedAtEpochMillis)
+        val history =
+            database.trackPlayHistoryQueries.selectPlayHistory().executeAsOne()
+        assertEquals("legacy-track", history.trackId)
+        assertEquals(3L, history.playCount)
+        assertEquals(100L, history.lastPlayedAtEpochMillis)
+        val correction =
+            database.trackMetadataOverrideQueries
+                .selectOverrideForTrack("legacy-track")
+                .executeAsOne()
+        assertEquals("Corrected", correction.title)
+        assertEquals("Edited artist", correction.artist)
+        assertEquals("Edited album", correction.album)
+        assertEquals(4L, correction.trackNumber)
+        assertEquals(2L, correction.discNumber)
+        assertEquals(
+            "Migrated",
+            database.playlistQueries.selectAllPlaylists().executeAsOne().name)
+        val entry =
+            database.playlistQueries.selectEntries("playlist-1").executeAsOne()
+        assertEquals("entry-1", entry.id)
+        assertEquals("legacy-track", entry.trackId)
+        assertEquals(0L, entry.position)
     }
 
     private fun copyVersionTwoDatabase(): File {

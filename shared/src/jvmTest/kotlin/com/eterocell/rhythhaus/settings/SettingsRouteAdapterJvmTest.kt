@@ -1149,6 +1149,10 @@ class SettingsRouteAdapterJvmTest {
             onRequestNotificationPermission = onRequestNotificationPermission,
             onOpenNotificationSettings = onOpenNotificationSettings,
             currentThemeMode = RhythHausThemeMode.System,
+            replayGainState =
+                com.eterocell.rhythhaus.playback.ReplayGainPreferenceState(
+                    isBusy = false),
+            onReplayGainModeSelected = {},
             onThemeModeSelected = {},
             onClearLibrary = onClear,
             onRescanSource = onRescan,

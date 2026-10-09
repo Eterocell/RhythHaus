@@ -2,9 +2,12 @@ package com.eterocell.rhythhaus.taglib
 
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.security.MessageDigest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class JvmTagLibReaderTest {
@@ -22,6 +25,67 @@ class JvmTagLibReaderTest {
         assertEquals(1_000L, found.metadata.durationMillis)
         assertEquals(8_000, found.metadata.sampleRate)
         assertEquals(1, found.metadata.channels)
+        assertNull(found.metadata.replayGainTrackGain)
+        assertNull(found.metadata.replayGainTrackPeak)
+        assertNull(found.metadata.replayGainAlbumGain)
+        assertNull(found.metadata.replayGainAlbumPeak)
+    }
+
+    @Test
+    fun nativeReaderExtractsAllReplayGainTagsWithoutChangingMedia() {
+        val fixture =
+            createWavInfoFixture(
+                "replaygain_track_gain" to "-6.00 dB",
+                "REPLAYGAIN_TRACK_PEAK" to "1.2",
+                "REPLAYGAIN_ALBUM_GAIN" to "-4.00 dB",
+                "REPLAYGAIN_ALBUM_PEAK" to "1.1",
+            )
+        try {
+            val before = fixture.sha256()
+
+            val found =
+                assertIs<TagReadResult.Found>(
+                    createTagLibReader().readPath(fixture.absolutePath))
+
+            assertEquals("-6.00 dB", found.metadata.replayGainTrackGain)
+            assertEquals("1.2", found.metadata.replayGainTrackPeak)
+            assertEquals("-4.00 dB", found.metadata.replayGainAlbumGain)
+            assertEquals("1.1", found.metadata.replayGainAlbumPeak)
+            assertEquals("Native Fixture Title", found.metadata.title)
+            assertEquals("Native Fixture Artist", found.metadata.artist)
+            assertEquals(1_000L, found.metadata.durationMillis)
+            assertContentEquals(before, fixture.sha256())
+        } finally {
+            fixture.delete()
+        }
+    }
+
+    @Test
+    fun malformedReplayGainRemainsRawAndDoesNotInvalidateNativeMetadata() {
+        val fixture =
+            createWavInfoFixture(
+                "REPLAYGAIN_TRACK_GAIN" to "-6 dB",
+                "REPLAYGAIN_TRACK_PEAK" to "2",
+                "REPLAYGAIN_ALBUM_GAIN" to "NaN dB",
+                "REPLAYGAIN_ALBUM_PEAK" to "junk",
+            )
+        try {
+            val before = fixture.sha256()
+
+            val found =
+                assertIs<TagReadResult.Found>(
+                    createTagLibReader().readPath(fixture.absolutePath))
+
+            assertEquals("-6 dB", found.metadata.replayGainTrackGain)
+            assertEquals("2", found.metadata.replayGainTrackPeak)
+            assertEquals("NaN dB", found.metadata.replayGainAlbumGain)
+            assertEquals("junk", found.metadata.replayGainAlbumPeak)
+            assertEquals("Native Fixture Title", found.metadata.title)
+            assertEquals(8_000, found.metadata.sampleRate)
+            assertContentEquals(before, fixture.sha256())
+        } finally {
+            fixture.delete()
+        }
     }
 
     @Test
@@ -47,6 +111,10 @@ class JvmTagLibReaderTest {
                     channels = 2,
                     artworkMimeType = null,
                     artworkBytes = null,
+                    replayGainTrackGain = "-6 dB",
+                    replayGainTrackPeak = "2",
+                    replayGainAlbumGain = "-4 dB",
+                    replayGainAlbumPeak = "1.1",
                 )
                 .toTagReadResult()
 
@@ -62,6 +130,10 @@ class JvmTagLibReaderTest {
         assertEquals(320, found.metadata.bitrate)
         assertEquals(44_100, found.metadata.sampleRate)
         assertEquals(2, found.metadata.channels)
+        assertEquals("-6 dB", found.metadata.replayGainTrackGain)
+        assertEquals("2", found.metadata.replayGainTrackPeak)
+        assertEquals("-4 dB", found.metadata.replayGainAlbumGain)
+        assertEquals("1.1", found.metadata.replayGainAlbumPeak)
     }
 
     @Test
@@ -112,7 +184,9 @@ class JvmTagLibReaderTest {
         )
     }
 
-    private fun createWavInfoFixture(): File {
+    private fun createWavInfoFixture(
+        vararg replayGainTags: Pair<String, String>
+    ): File {
         val sampleRate = 8_000
         val channels = 1
         val bitsPerSample = 8
@@ -126,9 +200,14 @@ class JvmTagLibReaderTest {
                 "IPRD" to "Native Fixture Album",
                 "IGNR" to "Test Genre",
             )
+        val replayGainChunk = id3ReplayGainChunk(replayGainTags)
         val formatChunkSize = 16
         val riffSize =
-            4 + (8 + formatChunkSize) + (8 + dataSize) + infoChunk.size
+            4 +
+                (8 + formatChunkSize) +
+                (8 + dataSize) +
+                infoChunk.size +
+                replayGainChunk.size
         val wav = ByteArrayOutputStream()
 
         wav.writeAscii("RIFF")
@@ -146,6 +225,7 @@ class JvmTagLibReaderTest {
         wav.writeIntLe(dataSize)
         wav.write(ByteArray(dataSize) { 0x80.toByte() })
         wav.write(infoChunk)
+        wav.write(replayGainChunk)
 
         return File.createTempFile("rhythhaus-taglib-info-fixture", ".wav")
             .apply {
@@ -153,6 +233,49 @@ class JvmTagLibReaderTest {
                 deleteOnExit()
             }
     }
+
+    private fun id3ReplayGainChunk(
+        entries: Array<out Pair<String, String>>
+    ): ByteArray {
+        if (entries.isEmpty()) return byteArrayOf()
+        val frames = ByteArrayOutputStream()
+        entries.forEach { (key, value) ->
+            val text =
+                byteArrayOf(0) +
+                    key.encodeToByteArray() +
+                    byteArrayOf(0) +
+                    value.encodeToByteArray() +
+                    byteArrayOf(0)
+            frames.writeAscii("TXXX")
+            frames.writeIntBe(text.size)
+            frames.write(byteArrayOf(0, 0))
+            frames.write(text)
+        }
+        val frameBytes = frames.toByteArray()
+        val tag =
+            ByteArrayOutputStream()
+                .apply {
+                    writeAscii("ID3")
+                    write(byteArrayOf(3, 0, 0)) // ID3v2.3, no flags
+                    write((frameBytes.size ushr 21) and 0x7f)
+                    write((frameBytes.size ushr 14) and 0x7f)
+                    write((frameBytes.size ushr 7) and 0x7f)
+                    write(frameBytes.size and 0x7f)
+                    write(frameBytes)
+                }
+                .toByteArray()
+        return ByteArrayOutputStream()
+            .apply {
+                writeAscii("ID3 ")
+                writeIntLe(tag.size)
+                write(tag)
+                if (tag.size % 2 != 0) write(0)
+            }
+            .toByteArray()
+    }
+
+    private fun File.sha256(): ByteArray =
+        MessageDigest.getInstance("SHA-256").digest(readBytes())
 
     private fun listInfoChunk(vararg entries: Pair<String, String>): ByteArray {
         val payload = ByteArrayOutputStream()
@@ -191,5 +314,12 @@ class JvmTagLibReaderTest {
         write((value ushr 8) and 0xff)
         write((value ushr 16) and 0xff)
         write((value ushr 24) and 0xff)
+    }
+
+    private fun ByteArrayOutputStream.writeIntBe(value: Int) {
+        write((value ushr 24) and 0xff)
+        write((value ushr 16) and 0xff)
+        write((value ushr 8) and 0xff)
+        write(value and 0xff)
     }
 }

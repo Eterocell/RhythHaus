@@ -7,4 +7,11 @@
 <string name="device_audio">Device audio</string><string name="add_device_audio">Allow device audio</string><string name="device_audio_unavailable">Read music indexed on this device without copying files. Allow audio access, add the source, then scan it.</string>
 <string name="device_audio_add">Add device audio source</string>
 <string name="device_audio_settings">Open app settings</string>
+<string name="replaygain_title">ReplayGain normalization</string>
+<string name="replaygain_off">Off</string>
+<string name="replaygain_track">Track</string>
+<string name="replaygain_album">Album</string>
+<string name="replaygain_explanation">Uses existing ReplayGain tags to reduce volume only. Untagged tracks are unchanged, and positive gain is never amplified.</string>
+<string name="replaygain_saving">Saving normalization…</string>
+<string name="replaygain_error">Could not save normalization. Your previous mode is still selected. Choose a mode again to retry.</string>
 </resources>

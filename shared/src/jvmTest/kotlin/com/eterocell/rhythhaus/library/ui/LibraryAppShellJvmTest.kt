@@ -1303,6 +1303,10 @@ class LibraryAppShellJvmTest {
                         scanJob = null,
                         coordinatorMutationsEnabled = true,
                         currentThemeMode = RhythHausThemeMode.System,
+                        replayGainState =
+                            com.eterocell.rhythhaus.playback
+                                .ReplayGainPreferenceState(isBusy = false),
+                        onReplayGainModeSelected = {},
                         onThemeModeSelected = {},
                         onClearLibrary = {},
                         onRescanSource = {},

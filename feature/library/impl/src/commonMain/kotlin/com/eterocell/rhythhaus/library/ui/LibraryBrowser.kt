@@ -291,4 +291,8 @@ internal fun LibraryTrack.toUiTrack(): Track =
         trackNumber = trackNumber,
         discNumber = discNumber,
         artworkBytes = artworkBytes,
+        replayGainTrackGainDb = replayGainTrackGainDb,
+        replayGainTrackPeak = replayGainTrackPeak,
+        replayGainAlbumGainDb = replayGainAlbumGainDb,
+        replayGainAlbumPeak = replayGainAlbumPeak,
     )

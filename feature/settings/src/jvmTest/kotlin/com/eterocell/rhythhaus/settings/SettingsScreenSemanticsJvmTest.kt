@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -32,11 +33,14 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -49,6 +53,7 @@ import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import org.jetbrains.compose.resources.stringResource
@@ -69,6 +74,185 @@ import rhythhaus.feature.settings.generated.resources.theme_dark_label
 import rhythhaus.feature.settings.generated.resources.unnamed_folder
 
 public class SettingsScreenSemanticsJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun replayGainChoicesAreInertDuringEitherConfirmation(): Unit =
+        runComposeUiTest {
+            var clearVisible by mutableStateOf(false)
+            val requests = mutableListOf<SettingsReplayGainMode>()
+            setContent {
+                Box(Modifier.size(600.dp, 900.dp)) {
+                    content(
+                        sources = listOf(item()),
+                        clearSlot =
+                            if (clearVisible) ({ slot("clear-confirmation") })
+                            else null,
+                        onReplayGain = { requests += it })
+                }
+            }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(
+                    hasTestTag(SettingsReplayGainPrefix + "track"))
+            runOnIdle { clearVisible = true }
+            onNodeWithTag(SettingsReplayGainPrefix + "track")
+                .assertNoClickOrFocusSemantics()
+            runOnIdle { clearVisible = false }
+            onNodeWithTag(SettingsReplayGainPrefix + "track")
+                .assertHasClickAction()
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsRemovePrefix + "one"))
+            onNodeWithTag(SettingsRemovePrefix + "one", useUnmergedTree = true)
+                .performClick()
+            onNodeWithTag(SettingsReplayGainPrefix + "track")
+                .assertNoClickOrFocusSemantics()
+            assertEquals(emptyList(), requests)
+            onNodeWithTag(SettingsRemoveDismissTestTag, useUnmergedTree = true)
+                .performClick()
+            onNodeWithTag(SettingsReplayGainPrefix + "track")
+                .assertHasClickAction()
+        }
+
+    @Test
+    public fun englishReplayGainChoicesUseAcceptedSelectionAndRecoverableErrors():
+        Unit =
+        verifyReplayGainSemantics(
+            Locale.ENGLISH,
+            "ReplayGain normalization",
+            listOf("Off", "Track", "Album"),
+            "Uses existing ReplayGain tags to reduce volume only. Untagged tracks are unchanged, and positive gain is never amplified.",
+            "Could not save normalization. Your previous mode is still selected. Choose a mode again to retry.")
+
+    @Test
+    public fun chineseReplayGainChoicesUseAcceptedSelectionAndRecoverableErrors():
+        Unit =
+        verifyReplayGainSemantics(
+            Locale.SIMPLIFIED_CHINESE,
+            "ReplayGain 音量均衡",
+            listOf("关闭", "单曲", "专辑"),
+            "仅根据已有 ReplayGain 标签降低音量。没有标签的曲目保持原音量，正增益不会被放大。",
+            "无法保存音量均衡设置。仍使用上次选择的模式，请重新选择模式以重试。")
+
+    @OptIn(ExperimentalTestApi::class)
+    private fun verifyReplayGainSemantics(
+        locale: Locale,
+        title: String,
+        optionLabels: List<String>,
+        explanation: String,
+        failureMessage: String
+    ) {
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(locale)
+            runComposeUiTest {
+                var accepted by mutableStateOf(SettingsReplayGainMode.Off)
+                var busy by mutableStateOf(false)
+                var saveFailed by mutableStateOf(false)
+                val requests = mutableListOf<SettingsReplayGainMode>()
+                setContent {
+                    Box(Modifier.size(600.dp, 900.dp)) {
+                        content(
+                            mutations = false,
+                            replayGainMode = accepted,
+                            replayGainBusy = busy,
+                            replayGainError = saveFailed,
+                            onReplayGain = { requests += it })
+                    }
+                }
+                onNodeWithText(title, useUnmergedTree = true).assertExists()
+                val modes =
+                    listOf(
+                        SettingsReplayGainMode.Off,
+                        SettingsReplayGainMode.Track,
+                        SettingsReplayGainMode.Album)
+                modes.forEachIndexed { index, mode ->
+                    val tag = SettingsReplayGainPrefix + mode.name.lowercase()
+                    onNodeWithTag(SettingsListTestTag)
+                        .performScrollToNode(hasTestTag(tag))
+                    onNodeWithTag(tag)
+                        .assertIsEnabled()
+                        .assertHasClickAction()
+                        .assert(
+                            SemanticsMatcher("radio-button role") { node ->
+                                node.config.getOrNull(
+                                    SemanticsProperties.Role) ==
+                                    Role.RadioButton
+                            })
+                        .assert(hasText(optionLabels[index]))
+                }
+                onNodeWithTag(SettingsReplayGainPrefix + "off")
+                    .assertIsSelected()
+                onNodeWithTag(SettingsReplayGainPrefix + "track").performClick()
+                assertEquals(listOf(SettingsReplayGainMode.Track), requests)
+                onNodeWithTag(SettingsReplayGainPrefix + "off")
+                    .assertIsSelected()
+                onNodeWithTag(SettingsReplayGainPrefix + "track")
+                    .assertIsNotSelected()
+                runOnIdle { accepted = SettingsReplayGainMode.Track }
+                onNodeWithTag(SettingsReplayGainPrefix + "track")
+                    .assertIsSelected()
+
+                runOnIdle { busy = true }
+                modes.forEach { mode ->
+                    val tag = SettingsReplayGainPrefix + mode.name.lowercase()
+                    onNodeWithTag(tag)
+                        .assertIsNotEnabled()
+                        .assertHasNoClickAction()
+                    onNodeWithTag(tag, useUnmergedTree = true)
+                        .assertHasNoClickAction()
+                        .performTouchInput { click(center) }
+                }
+                assertEquals(listOf(SettingsReplayGainMode.Track), requests)
+                onNodeWithTag(SettingsReplayGainSavingTestTag)
+                    .assert(
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.LiveRegion,
+                            LiveRegionMode.Polite))
+
+                runOnIdle {
+                    busy = false
+                    saveFailed = true
+                }
+                onNodeWithTag(SettingsListTestTag)
+                    .performScrollToNode(
+                        hasTestTag(SettingsReplayGainErrorTestTag))
+                onNodeWithText(failureMessage, useUnmergedTree = true)
+                    .assertExists()
+                onNodeWithTag(SettingsReplayGainErrorTestTag)
+                    .assert(
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.LiveRegion,
+                            LiveRegionMode.Polite))
+                onNodeWithTag(SettingsReplayGainPrefix + "track")
+                    .assertIsSelected()
+                onNodeWithTag(SettingsReplayGainPrefix + "album")
+                    .assertIsEnabled()
+                    .performClick()
+                assertEquals(
+                    listOf(
+                        SettingsReplayGainMode.Track,
+                        SettingsReplayGainMode.Album),
+                    requests)
+                runOnIdle {
+                    accepted = SettingsReplayGainMode.Album
+                    saveFailed = false
+                }
+                onNodeWithTag(SettingsReplayGainPrefix + "album")
+                    .assertIsSelected()
+                onNodeWithTag(SettingsReplayGainErrorTestTag)
+                    .assertDoesNotExist()
+                onNodeWithTag(SettingsReplayGainSavingTestTag)
+                    .assertDoesNotExist()
+                onNodeWithTag(SettingsListTestTag)
+                    .performScrollToNode(
+                        hasTestTag(SettingsReplayGainExplanationTestTag))
+                onNodeWithText(explanation, useUnmergedTree = true)
+                    .assertExists()
+            }
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun deviceAudioActionsRespectPermissionAndMutationGate(): Unit =
@@ -652,6 +836,9 @@ private fun slot(name: String): Unit =
 private fun content(
     sourcePickerActionVisible: Boolean = true,
     sourcePickerAvailable: Boolean = true,
+    replayGainMode: SettingsReplayGainMode = SettingsReplayGainMode.Off,
+    replayGainBusy: Boolean = false,
+    replayGainError: Boolean = false,
     mutations: Boolean = true,
     hasTracks: Boolean = true,
     sources: List<SettingsSourceItem> = emptyList(),
@@ -665,6 +852,7 @@ private fun content(
     onOpenAudioSettings: () -> Unit = {},
     onAddAudio: () -> Unit = {},
     onTheme: (RhythHausThemeMode) -> Unit = {},
+    onReplayGain: (SettingsReplayGainMode) -> Unit = {},
     onAdd: () -> Unit = {},
     onClear: () -> Unit = {},
     onRescan: (String) -> Unit = {},
@@ -679,6 +867,9 @@ private fun content(
     SettingsScreen(
         labels = labels(),
         currentThemeMode = RhythHausThemeMode.System,
+        replayGainMode = replayGainMode,
+        replayGainBusy = replayGainBusy,
+        replayGainError = replayGainError,
         sources = sources,
         sourcePickerActionVisible = sourcePickerActionVisible,
         sourcePickerAvailable = sourcePickerAvailable,
@@ -695,6 +886,7 @@ private fun content(
         onOpenMediaStoreSettings = onOpenAudioSettings,
         onAddMediaStoreAudio = onAddAudio,
         onThemeModeSelected = onTheme,
+        onReplayGainModeSelected = onReplayGain,
         onAddMusicFolder = onAdd,
         onRescanSource = onRescan,
         onRecoverSource = onRecover,

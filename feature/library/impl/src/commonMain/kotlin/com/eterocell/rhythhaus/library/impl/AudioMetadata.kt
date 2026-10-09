@@ -7,7 +7,10 @@ import com.eterocell.rhythhaus.taglib.TagMetadata
 import com.eterocell.rhythhaus.taglib.TagReadResult
 import com.eterocell.rhythhaus.taglib.createTagLibReader
 
-/** Metadata extracted from an audio source. */
+/**
+ * Read-only metadata extracted from an audio source, including optional
+ * ReplayGain facts.
+ */
 data class AudioMetadata(
     val title: String? = null,
     val artist: String? = null,
@@ -17,6 +20,10 @@ data class AudioMetadata(
     val discNumber: Int? = null,
     val artworkBytes: ByteArray? = null,
     val artworkMimeType: String? = null,
+    val replayGainTrackGainDb: Double? = null,
+    val replayGainTrackPeak: Double? = null,
+    val replayGainAlbumGainDb: Double? = null,
+    val replayGainAlbumPeak: Double? = null,
 ) {
     override fun equals(other: Any?): Boolean =
         other is AudioMetadata &&
@@ -27,7 +34,15 @@ data class AudioMetadata(
             trackNumber == other.trackNumber &&
             discNumber == other.discNumber &&
             artworkMimeType == other.artworkMimeType &&
-            artworkBytes.contentEquals(other.artworkBytes)
+            artworkBytes.contentEquals(other.artworkBytes) &&
+            (replayGainTrackGainDb?.equals(other.replayGainTrackGainDb)
+                ?: (other.replayGainTrackGainDb == null)) &&
+            (replayGainTrackPeak?.equals(other.replayGainTrackPeak)
+                ?: (other.replayGainTrackPeak == null)) &&
+            (replayGainAlbumGainDb?.equals(other.replayGainAlbumGainDb)
+                ?: (other.replayGainAlbumGainDb == null)) &&
+            (replayGainAlbumPeak?.equals(other.replayGainAlbumPeak)
+                ?: (other.replayGainAlbumPeak == null))
 
     override fun hashCode(): Int {
         var result = title?.hashCode() ?: 0
@@ -38,16 +53,32 @@ data class AudioMetadata(
         result = 31 * result + (discNumber ?: 0)
         result = 31 * result + (artworkMimeType?.hashCode() ?: 0)
         result = 31 * result + (artworkBytes?.contentHashCode() ?: 0)
+        result = 31 * result + (replayGainTrackGainDb?.hashCode() ?: 0)
+        result = 31 * result + (replayGainTrackPeak?.hashCode() ?: 0)
+        result = 31 * result + (replayGainAlbumGainDb?.hashCode() ?: 0)
+        result = 31 * result + (replayGainAlbumPeak?.hashCode() ?: 0)
         return result
     }
 }
 
 /** Reads audio metadata from file paths, descriptors, and URIs. */
-class AudioMetadataReader(
-    private val tagLibReader: TagLibReader = createTagLibReader(),
-    private val platformMetadataReader: (AudioSource) -> AudioMetadata? =
-        ::readPlatformAudioMetadata,
+class AudioMetadataReader
+internal constructor(
+    private val tagLibReader: TagLibReader,
+    private val platformMetadataReader: (AudioSource) -> AudioMetadata?,
+    private val uriDescriptorOpener:
+        (AudioSource.Uri) -> AudioMetadataUriDescriptor?,
 ) {
+    constructor(
+        tagLibReader: TagLibReader = createTagLibReader(),
+        platformMetadataReader: (AudioSource) -> AudioMetadata? =
+            ::readPlatformAudioMetadata,
+    ) : this(
+        tagLibReader,
+        platformMetadataReader,
+        ::openPlatformAudioMetadataUri,
+    )
+
     fun read(source: AudioSource): AudioMetadata? {
         val result =
             when (source) {
@@ -56,7 +87,7 @@ class AudioMetadataReader(
                 is AudioSource.FileDescriptor ->
                     RhythHausTagLib.readFd(
                         source.fd, source.displayName, tagLibReader)
-                is AudioSource.Uri -> return platformMetadataReader(source)
+                is AudioSource.Uri -> readUriTags(source)
             }
 
         val tagMetadata =
@@ -73,6 +104,27 @@ class AudioMetadataReader(
             }
         return tagMetadata.mergeMissing(fallbackMetadata) ?: fallbackMetadata
     }
+
+    private fun readUriTags(source: AudioSource.Uri): TagReadResult {
+        return try {
+            val descriptor =
+                uriDescriptorOpener(source)
+                    ?: return TagReadResult.Unsupported(
+                        "URI descriptor unavailable")
+            try {
+                RhythHausTagLib.readFd(
+                    descriptor.source.fd,
+                    descriptor.source.displayName,
+                    tagLibReader)
+            } finally {
+                descriptor.close()
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            TagReadResult.Unsupported("URI tag read unavailable")
+        }
+    }
 }
 
 // Metadata enrichment handled by LibraryScanner using AudioMetadataReader
@@ -81,6 +133,16 @@ class AudioMetadataReader(
 internal expect fun readPlatformAudioMetadata(
     source: AudioSource
 ): AudioMetadata?
+
+/** An opened URI descriptor owned by the metadata reader, not the scanner. */
+internal class AudioMetadataUriDescriptor(
+    val source: AudioSource.FileDescriptor,
+    val close: () -> Unit,
+)
+
+internal expect fun openPlatformAudioMetadataUri(
+    source: AudioSource.Uri,
+): AudioMetadataUriDescriptor?
 
 private fun TagMetadata.toAudioMetadata(): AudioMetadata =
     AudioMetadata(
@@ -92,6 +154,10 @@ private fun TagMetadata.toAudioMetadata(): AudioMetadata =
         discNumber = discNumber?.takeIf { it > 0 },
         artworkBytes = artwork?.bytes?.takeIf { it.isNotEmpty() },
         artworkMimeType = artwork?.mimeType,
+        replayGainTrackGainDb = parseReplayGainDb(replayGainTrackGain),
+        replayGainTrackPeak = parseReplayGainPeak(replayGainTrackPeak),
+        replayGainAlbumGainDb = parseReplayGainDb(replayGainAlbumGain),
+        replayGainAlbumPeak = parseReplayGainPeak(replayGainAlbumPeak),
     )
 
 private fun AudioMetadata?.mergeMissing(

@@ -3,11 +3,46 @@ package com.eterocell.rhythhaus.library.ui
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.TrackPlayHistory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class LibraryBrowserTest {
+    @Test
+    fun detailTrackProjectionRetainsScannedReplayGainFacts() {
+        val projected =
+            LibraryTrack(
+                    id = "track",
+                    sourceId = "source",
+                    sourceLocalKey = "song.flac",
+                    audioSource = AudioSource.FilePath("/Music/song.flac"),
+                    displayName = "song.flac",
+                    title = "Song",
+                    artist = "Artist",
+                    album = "Album",
+                    durationMillis = 123_000L,
+                    sizeBytes = null,
+                    modifiedAtEpochMillis = null,
+                    lastSeenScanId = "scan",
+                    createdAtEpochMillis = 1L,
+                    updatedAtEpochMillis = 1L,
+                    replayGainTrackGainDb = -6.0,
+                    replayGainTrackPeak = 1.2,
+                    replayGainAlbumGainDb = -4.0,
+                    replayGainAlbumPeak = 1.1,
+                )
+                .toUiTrack()
+        assertEquals(
+            listOf(-6.0, 1.2, -4.0, 1.1),
+            listOf(
+                projected.replayGainTrackGainDb,
+                projected.replayGainTrackPeak,
+                projected.replayGainAlbumGainDb,
+                projected.replayGainAlbumPeak,
+            ))
+    }
+
     @Test
     fun browseModesIncludeFavoritesAfterTheStandardModes() {
         assertEquals(

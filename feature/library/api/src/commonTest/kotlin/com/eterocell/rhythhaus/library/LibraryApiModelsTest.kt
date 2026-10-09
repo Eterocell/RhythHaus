@@ -3,8 +3,37 @@ package com.eterocell.rhythhaus.library
 import com.eterocell.rhythhaus.AudioSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 
 class LibraryApiModelsTest {
+    @Test
+    fun replayGainChangesParticipateInTrackEqualityAndHashCode() {
+        val original = track(artworkBytes = byteArrayOf(1, 2))
+        val changed =
+            listOf(
+                original.copy(replayGainTrackGainDb = -6.0),
+                original.copy(replayGainTrackPeak = 1.2),
+                original.copy(replayGainAlbumGainDb = -4.0),
+                original.copy(replayGainAlbumPeak = 1.1),
+            )
+        for (track in changed) {
+            assertNotEquals(original, track)
+            assertNotEquals(original.hashCode(), track.hashCode())
+            val sameFacts = track.copy(artworkBytes = byteArrayOf(1, 2))
+            assertEquals(track, sameFacts)
+            assertEquals(track.hashCode(), sameFacts.hashCode())
+        }
+    }
+
+    @Test
+    fun signedZeroReplayGainFactsKeepEqualityHashConsistent() {
+        val negativeZero = track().copy(replayGainTrackGainDb = -0.0)
+        val positiveZero = track().copy(replayGainTrackGainDb = 0.0)
+        if (negativeZero == positiveZero) {
+            assertEquals(negativeZero.hashCode(), positiveZero.hashCode())
+        }
+    }
+
     @Test
     fun libraryTrackUsesContentEqualityAndHashCodeForNullableArtworkBytes() {
         val withArtwork = track(artworkBytes = byteArrayOf(1, 2))

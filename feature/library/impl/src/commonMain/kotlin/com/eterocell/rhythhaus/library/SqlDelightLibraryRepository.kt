@@ -191,7 +191,11 @@ internal class SqlDelightLibraryRepository(
                         trackNumber,
                         discNumber,
                         artworkBytes,
-                        artworkMimeType ->
+                        artworkMimeType,
+                        replayGainTrackGainDb,
+                        replayGainTrackPeak,
+                        replayGainAlbumGainDb,
+                        replayGainAlbumPeak ->
                         DomainTrackRow(
                             id = id,
                             sourceId = sourceId,
@@ -212,6 +216,10 @@ internal class SqlDelightLibraryRepository(
                             discNumber = discNumber,
                             artworkBytes = artworkBytes,
                             artworkMimeType = artworkMimeType,
+                            replayGainTrackGainDb = replayGainTrackGainDb,
+                            replayGainTrackPeak = replayGainTrackPeak,
+                            replayGainAlbumGainDb = replayGainAlbumGainDb,
+                            replayGainAlbumPeak = replayGainAlbumPeak,
                         )
                     },
                 )
@@ -239,6 +247,10 @@ internal class SqlDelightLibraryRepository(
                 discNumber = track.discNumber?.toLong(),
                 artworkBytes = track.artworkBytes,
                 artworkMimeType = track.artworkMimeType,
+                replayGainTrackGainDb = track.replayGainTrackGainDb,
+                replayGainTrackPeak = track.replayGainTrackPeak,
+                replayGainAlbumGainDb = track.replayGainAlbumGainDb,
+                replayGainAlbumPeak = track.replayGainAlbumPeak,
             )
             TrackUpsertResult.Added
         } else {
@@ -263,6 +275,10 @@ internal class SqlDelightLibraryRepository(
                 discNumber = track.discNumber?.toLong(),
                 artworkBytes = track.artworkBytes,
                 artworkMimeType = track.artworkMimeType,
+                replayGainTrackGainDb = track.replayGainTrackGainDb,
+                replayGainTrackPeak = track.replayGainTrackPeak,
+                replayGainAlbumGainDb = track.replayGainAlbumGainDb,
+                replayGainAlbumPeak = track.replayGainAlbumPeak,
             )
             TrackUpsertResult.Updated
         }
@@ -300,7 +316,11 @@ internal class SqlDelightLibraryRepository(
                 trackNumber,
                 discNumber,
                 artworkBytes,
-                artworkMimeType ->
+                artworkMimeType,
+                replayGainTrackGainDb,
+                replayGainTrackPeak,
+                replayGainAlbumGainDb,
+                replayGainAlbumPeak ->
                 LibraryTrack(
                     id = id,
                     sourceId = sourceId,
@@ -321,6 +341,10 @@ internal class SqlDelightLibraryRepository(
                     discNumber = discNumber?.toInt(),
                     artworkBytes = artworkBytes,
                     artworkMimeType = artworkMimeType,
+                    replayGainTrackGainDb = replayGainTrackGainDb,
+                    replayGainTrackPeak = replayGainTrackPeak,
+                    replayGainAlbumGainDb = replayGainAlbumGainDb,
+                    replayGainAlbumPeak = replayGainAlbumPeak,
                 )
             }
             .executeAsList()
@@ -372,7 +396,11 @@ internal class SqlDelightLibraryRepository(
                     trackNumber,
                     discNumber,
                     artworkBytes,
-                    artworkMimeType ->
+                    artworkMimeType,
+                    replayGainTrackGainDb,
+                    replayGainTrackPeak,
+                    replayGainAlbumGainDb,
+                    replayGainAlbumPeak ->
                     LibraryTrack(
                         id = id,
                         sourceId = sourceId,
@@ -393,6 +421,10 @@ internal class SqlDelightLibraryRepository(
                         discNumber = discNumber?.toInt(),
                         artworkBytes = artworkBytes,
                         artworkMimeType = artworkMimeType,
+                        replayGainTrackGainDb = replayGainTrackGainDb,
+                        replayGainTrackPeak = replayGainTrackPeak,
+                        replayGainAlbumGainDb = replayGainAlbumGainDb,
+                        replayGainAlbumPeak = replayGainAlbumPeak,
                     )
                 }
                 .executeAsOneOrNull() ?: return null
@@ -534,7 +566,11 @@ internal class SqlDelightLibraryRepository(
                 trackNumber,
                 discNumber,
                 artworkBytes,
-                artworkMimeType ->
+                artworkMimeType,
+                replayGainTrackGainDb,
+                replayGainTrackPeak,
+                replayGainAlbumGainDb,
+                replayGainAlbumPeak ->
                 LibraryTrack(
                     id = id,
                     sourceId = srcId,
@@ -555,6 +591,10 @@ internal class SqlDelightLibraryRepository(
                     discNumber = discNumber?.toInt(),
                     artworkBytes = artworkBytes,
                     artworkMimeType = artworkMimeType,
+                    replayGainTrackGainDb = replayGainTrackGainDb,
+                    replayGainTrackPeak = replayGainTrackPeak,
+                    replayGainAlbumGainDb = replayGainAlbumGainDb,
+                    replayGainAlbumPeak = replayGainAlbumPeak,
                 )
             }
             .executeAsList()
@@ -900,6 +940,10 @@ private data class DomainTrackRow(
     val discNumber: Long?,
     val artworkBytes: ByteArray?,
     val artworkMimeType: String?,
+    val replayGainTrackGainDb: Double?,
+    val replayGainTrackPeak: Double?,
+    val replayGainAlbumGainDb: Double?,
+    val replayGainAlbumPeak: Double?,
 )
 
 private val AudioSource.kindName: String

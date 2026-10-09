@@ -288,6 +288,10 @@ private fun AudioScanCandidate.toLibraryTrack(
         discNumber = metadata?.discNumber,
         artworkBytes = metadata?.artworkBytes,
         artworkMimeType = metadata?.artworkMimeType,
+        replayGainTrackGainDb = metadata?.replayGainTrackGainDb,
+        replayGainTrackPeak = metadata?.replayGainTrackPeak,
+        replayGainAlbumGainDb = metadata?.replayGainAlbumGainDb,
+        replayGainAlbumPeak = metadata?.replayGainAlbumPeak,
     )
 }
 

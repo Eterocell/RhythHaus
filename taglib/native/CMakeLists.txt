@@ -6,6 +6,7 @@ include(FetchContent)
 
 option(RHYTHHAUS_TAGLIB_BUILD_JNI "Build the JVM JNI entrypoints into rhythhaus_taglib" OFF)
 option(RHYTHHAUS_TAGLIB_BUILD_STATIC "Build rhythhaus_taglib as a static library" OFF)
+option(RHYTHHAUS_TAGLIB_BUILD_TESTS "Build native metadata reader regressions" OFF)
 
 # TagLib is linked into the RhythHaus shared library, so the upstream static
 # archive must be built as position-independent code.
@@ -111,4 +112,15 @@ elseif(TARGET taglib)
     target_compile_definitions(rhythhaus_taglib PRIVATE RH_TAGLIB_HAS_TAGLIB=1)
 else()
     message(FATAL_ERROR "Fetched TagLib did not expose a known CMake target")
+endif()
+
+if(RHYTHHAUS_TAGLIB_BUILD_TESTS)
+    enable_testing()
+    add_executable(rhythhaus_taglib_read_test tests/rh_taglib_read_test.cpp)
+    target_compile_features(rhythhaus_taglib_read_test PRIVATE cxx_std_17)
+    target_compile_definitions(rhythhaus_taglib_read_test PRIVATE
+        RH_TAGLIB_TEST_MP3_FIXTURE="${taglib_SOURCE_DIR}/tests/data/bladeenc.mp3"
+    )
+    target_link_libraries(rhythhaus_taglib_read_test PRIVATE rhythhaus_taglib)
+    add_test(NAME rhythhaus_taglib_read_test COMMAND rhythhaus_taglib_read_test)
 endif()

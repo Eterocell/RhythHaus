@@ -430,6 +430,8 @@ internal constructor(
     private var activeSleepTimer: ArmedSleepTimer? = null
     private var sleepTimerJob: Job? = null
     private var timerStopClaim: TimerStopClaim? = null
+    private var replayGainMode: ReplayGainMode = ReplayGainMode.Off
+    private var sleepAttenuation: Float = 1f
     private var desiredPlaybackGain: Float = 1f
     private var desiredPlaybackGainGeneration: Long? = null
     private var playbackGainVersion: Long = 0L
@@ -518,7 +520,7 @@ internal constructor(
             activeSleepTimer = timer
             _sleepTimerState.value = timer.toState(durationMillis)
             gainRequest =
-                setDesiredPlaybackGainLocked(
+                setSleepAttenuationLocked(
                     gain = 1f,
                     generation = _state.value.engineGeneration,
                     force = true,
@@ -552,7 +554,7 @@ internal constructor(
             activeSleepTimer = timer
             _sleepTimerState.value = timer.toState()
             gainRequest =
-                setDesiredPlaybackGainLocked(
+                setSleepAttenuationLocked(
                     gain = 1f,
                     generation = _state.value.engineGeneration,
                     force = true,
@@ -565,6 +567,16 @@ internal constructor(
     public fun cancelSleepTimer() {
         if (!commandsEnabled.value) return
         cancelSleepTimerAndRestoreGain()
+    }
+
+    /** Changes normalization without changing transport or sleep ownership. */
+    public fun setReplayGainMode(mode: ReplayGainMode) {
+        val request = selectionGate.withLock {
+            if (released || replayGainMode == mode) return@withLock null
+            replayGainMode = mode
+            recomputeDesiredPlaybackGainLocked(_state.value.engineGeneration)
+        }
+        request?.let(::launchPlaybackGain)
     }
 
     private fun nextSleepTimerTokenLocked(): Long = ++nextSleepTimerToken
@@ -582,11 +594,24 @@ internal constructor(
             fadeEnabled = fadeEnabled,
         )
 
-    private fun setDesiredPlaybackGainLocked(
+    private fun setSleepAttenuationLocked(
         gain: Float,
         generation: Long,
         force: Boolean = false,
     ): PlaybackGainRequest? {
+        if (released || _state.value.engineGeneration != generation) return null
+        sleepAttenuation = gain
+        return recomputeDesiredPlaybackGainLocked(generation, force)
+    }
+
+    private fun recomputeDesiredPlaybackGainLocked(
+        generation: Long,
+        force: Boolean = false,
+    ): PlaybackGainRequest? {
+        if (released || _state.value.engineGeneration != generation) return null
+        val gain =
+            replayGainFactor(_state.value.currentTrack, replayGainMode) *
+                sleepAttenuation
         if (!force &&
             desiredPlaybackGain == gain &&
             desiredPlaybackGainGeneration == generation)
@@ -594,7 +619,13 @@ internal constructor(
         desiredPlaybackGain = gain
         if (gain != 1f) playbackGainMayBeAttenuated = true
         desiredPlaybackGainGeneration = generation
-        return PlaybackGainRequest(++playbackGainVersion, generation, gain)
+        val version = ++playbackGainVersion
+        if (!force &&
+            gain == 1f &&
+            activeSleepTimer == null &&
+            !playbackGainMayBeAttenuated)
+            return null
+        return PlaybackGainRequest(version, generation, gain)
     }
 
     private fun applyPlaybackGainWhileEngineLocked(
@@ -608,9 +639,8 @@ internal constructor(
         if (current) {
             engine.setPlaybackGain(request.gain)
             selectionGate.withLock {
-                if (request.version == playbackGainVersion &&
-                    request.gain == 1f)
-                    playbackGainMayBeAttenuated = false
+                if (request.version == playbackGainVersion)
+                    playbackGainMayBeAttenuated = request.gain != 1f
             }
         }
     }
@@ -623,18 +653,27 @@ internal constructor(
     }
 
     private fun applyCurrentPlaybackGainBeforePlay(generation: Long) {
-        val gain = selectionGate.withLock {
-            if (_state.value.engineGeneration != generation ||
-                _state.value.status == PlaybackStatus.Stopped)
-                null
-            else
-                desiredPlaybackGain.takeIf {
-                    activeSleepTimer != null ||
-                        it != 1f ||
-                        playbackGainMayBeAttenuated
-                }
+        val request = selectionGate.withLock {
+            if (released ||
+                _state.value.engineGeneration != generation ||
+                timerStopClaim?.generation == generation)
+                return@withLock null
+            // Elapsed-time fades must be current before resuming; completion
+            // fades instead retain their frozen paused attenuation.
+            val updated =
+                if (activeSleepTimer?.mode == SleepTimerMode.Timed)
+                    setSleepAttenuationLocked(
+                        selectionSleepAttenuationLocked(), generation)
+                else recomputeDesiredPlaybackGainLocked(generation)
+            updated
+                ?: if (activeSleepTimer != null ||
+                    desiredPlaybackGain != 1f ||
+                    playbackGainMayBeAttenuated)
+                    PlaybackGainRequest(
+                        playbackGainVersion, generation, desiredPlaybackGain)
+                else null
         }
-        if (gain != null) engine.setPlaybackGain(gain)
+        request?.let(::applyPlaybackGainWhileEngineLocked)
     }
 
     private fun beginPlaybackRun(generation: Long): Long? =
@@ -654,23 +693,49 @@ internal constructor(
         }
     }
 
-    private fun resetPlaybackGainForStop(
-        generation: Long
-    ): PlaybackGainRequest? = selectionGate.withLock {
-        if (desiredPlaybackGain != 1f)
-            setDesiredPlaybackGainLocked(1f, generation, force = true)
-        else null
+    private fun resetSleepAttenuationForStop(generation: Long) =
+        selectionGate.withLock {
+            if (_state.value.engineGeneration != generation) return@withLock
+            sleepAttenuation = 1f
+            desiredPlaybackGain =
+                replayGainFactor(_state.value.currentTrack, replayGainMode)
+            desiredPlaybackGainGeneration = generation
+            // Invalidate queued fade writes, retaining policy for the next
+            // resume.
+            playbackGainVersion++
+            Unit
+        }
+
+    /** Called only after the native engine has stopped or cleared its media. */
+    private fun resetStoppedPlaybackGainWhileEngineLocked(
+        generation: Long,
+        force: Boolean = false,
+    ) {
+        val version =
+            selectionGate.withLock {
+                playbackGainVersion.takeIf {
+                    !released &&
+                        _state.value.engineGeneration == generation &&
+                        (force || playbackGainMayBeAttenuated)
+                }
+            } ?: return
+        engine.setPlaybackGain(1f)
+        selectionGate.withLock {
+            if (_state.value.engineGeneration == generation &&
+                playbackGainVersion == version)
+                playbackGainMayBeAttenuated = false
+        }
     }
 
     private fun cancelSleepTimerAndRestoreGain() {
         val reset = selectionGate.withLock {
-            if (activeSleepTimer == null && desiredPlaybackGain == 1f)
+            if (activeSleepTimer == null && sleepAttenuation == 1f)
                 return@withLock null
             activeSleepTimer = null
             sleepTimerJob?.cancel()
             sleepTimerJob = null
             _sleepTimerState.value = SleepTimerState()
-            setDesiredPlaybackGainLocked(
+            setSleepAttenuationLocked(
                 1f, _state.value.engineGeneration, force = true)
         }
         reset?.let(::launchPlaybackGain)
@@ -697,17 +762,16 @@ internal constructor(
                 }
             } ?: return
         engine.stop()
-        engine.setPlaybackGain(1f)
+        resetStoppedPlaybackGainWhileEngineLocked(generation, force = true)
         selectionGate.withLock {
             if (timerStopClaim == claim) {
                 timerStopClaim = null
-                playbackGainMayBeAttenuated = false
             }
         }
     }
 
     private fun cancelTimerForEmptyQueue(generation: Long) {
-        val reset = selectionGate.withLock {
+        selectionGate.withLock {
             val current = _state.value
             if (current.engineGeneration != generation ||
                 current.queue.isNotEmpty())
@@ -721,21 +785,23 @@ internal constructor(
             sleepTimerJob = null
             timerStopClaim = null
             _sleepTimerState.value = SleepTimerState()
-            setDesiredPlaybackGainLocked(1f, generation, force = true)
+            sleepAttenuation = 1f
+            desiredPlaybackGain = 1f
+            desiredPlaybackGainGeneration = generation
+            playbackGainVersion++
         }
-        reset?.let(::launchPlaybackGain)
     }
 
-    private fun retargetGainForSelection(generation: Long) {
-        val request = selectionGate.withLock {
-            if (_state.value.engineGeneration != generation ||
-                activeSleepTimer == null &&
-                    desiredPlaybackGain == 1f &&
-                    !playbackGainMayBeAttenuated)
-                return@withLock null
-            setDesiredPlaybackGainLocked(1f, generation, force = true)
-        }
-        request?.let(::launchPlaybackGain)
+    private fun selectionSleepAttenuationLocked(): Float {
+        val remaining =
+            activeSleepTimer
+                ?.takeIf { it.mode == SleepTimerMode.Timed && it.fadeEnabled }
+                ?.deadlineMillis
+                ?.minus(sleepTimerRuntime.nowMillis())
+        return if (remaining != null &&
+            remaining in 1 until sleepTimerFadeWindowMillis)
+            remaining.toFloat() / sleepTimerFadeWindowMillis
+        else 1f
     }
 
     /**
@@ -767,7 +833,11 @@ internal constructor(
         resetProgressCheckpointKey()
         emitImmediateCheckpoint(
             stopped.toSessionSnapshot(), stopped.checkpointRevision)
-        setDesiredPlaybackGainLocked(1f, generation, force = true)
+        sleepAttenuation = 1f
+        desiredPlaybackGain =
+            replayGainFactor(stopped.currentTrack, replayGainMode)
+        desiredPlaybackGainGeneration = generation
+        playbackGainVersion++
         return TimerStopRequest(timer.token, generation, atTrackEnd)
     }
 
@@ -802,7 +872,7 @@ internal constructor(
                                 remaining.toFloat() / sleepTimerFadeWindowMillis
                             else 1f
                         val gain =
-                            setDesiredPlaybackGainLocked(
+                            setSleepAttenuationLocked(
                                 targetGain, state.engineGeneration)
                         val interval =
                             if (timer.fadeEnabled &&
@@ -841,7 +911,7 @@ internal constructor(
                 remaining < sleepTimerFadeWindowMillis)
                 remaining.toFloat() / sleepTimerFadeWindowMillis
             else 1f
-        return setDesiredPlaybackGainLocked(gain, state.engineGeneration)
+        return setSleepAttenuationLocked(gain, state.engineGeneration)
     }
 
     private fun refreshCompletionFadeForProgress(generation: Long) {
@@ -857,9 +927,9 @@ internal constructor(
         generation: Long,
     ): PlaybackGainRequest? = selectionGate.withLock {
         if (activeSleepTimer?.mode != SleepTimerMode.TrackCount ||
-            desiredPlaybackGain == 1f)
+            sleepAttenuation == 1f)
             null
-        else setDesiredPlaybackGainLocked(1f, generation, force = true)
+        else setSleepAttenuationLocked(1f, generation, force = true)
     }
 
     /** Replaces the queue and selects the first matching [selectedTrackId]. */
@@ -887,27 +957,35 @@ internal constructor(
             occurrences.firstOrNull { it.id == selectedOccurrenceId }
                 ?: occurrences.firstOrNull()
         if (selected == null) {
-            val hadTimerGain = selectionGate.withLock {
-                activeSleepTimer != null || desiredPlaybackGain != 1f
-            }
-            cancelSleepTimerAndRestoreGain()
             cancelSelectionRequest()
             val generation = nextGeneration()
             resetProgressCheckpointKey()
-            val published = publishState { previous ->
-                PlaybackState(
-                    queue = occurrences,
-                    repeatMode = previous.repeatMode,
-                    shuffleMode = previous.shuffleMode,
-                    engineGeneration = generation,
-                )
+            val published = selectionGate.withLock {
+                val cleared = publishState { previous ->
+                    PlaybackState(
+                        queue = occurrences,
+                        repeatMode = previous.repeatMode,
+                        shuffleMode = previous.shuffleMode,
+                        engineGeneration = generation,
+                    )
+                }
+                activeSleepTimer = null
+                sleepTimerJob?.cancel()
+                sleepTimerJob = null
+                timerStopClaim = null
+                _sleepTimerState.value = SleepTimerState()
+                sleepAttenuation = 1f
+                desiredPlaybackGain = 1f
+                desiredPlaybackGainGeneration = generation
+                playbackGainVersion++
+                cleared
             }
             emitImmediateCheckpoint(
                 published.toSessionSnapshot(), published.checkpointRevision)
             launchEngineAction(generation) {
                 if (_state.value.engineGeneration == generation) {
                     engine.clear(generation)
-                    if (hadTimerGain) engine.setPlaybackGain(1f)
+                    resetStoppedPlaybackGainWhileEngineLocked(generation)
                 }
             }
         } else {
@@ -922,57 +1000,78 @@ internal constructor(
     }
 
     /**
-     * Updates only display metadata for indexed queue tracks, preserving
-     * transport ownership.
+     * Updates indexed display metadata and ReplayGain facts, preserving
+     * transport ownership and the current sleep attenuation.
      */
     public fun refreshTrackMetadata(tracks: List<PlayableTrack>) {
         val metadataById = tracks.associateBy { it.id }
         var loaded: Pair<Long, PlayableTrack>? = null
-        while (true) {
-            if (released) return
-            val previous = _state.value
-            val updatedQueue =
-                previous.queue.map { occurrence ->
-                    val latest =
-                        metadataById[occurrence.track.id]
-                            ?: return@map occurrence
-                    val original = occurrence.track
-                    if (original.title == latest.title &&
-                        original.artist == latest.artist &&
-                        original.album == latest.album)
-                        occurrence
-                    else
-                        occurrence.copy(
-                            track =
-                                original.copy(
-                                    title = latest.title,
-                                    artist = latest.artist,
-                                    album = latest.album))
-                }
-            if (updatedQueue == previous.queue) {
-                previous.currentTrack
+        var gainRequest: PlaybackGainRequest? = null
+        selectionGate.withLock {
+            if (released) return@withLock
+            while (true) {
+                val previous = _state.value
+                val updatedQueue =
+                    previous.queue.map { occurrence ->
+                        val latest =
+                            metadataById[occurrence.track.id]
+                                ?: return@map occurrence
+                        val original = occurrence.track
+                        if (original.title == latest.title &&
+                            original.artist == latest.artist &&
+                            original.album == latest.album &&
+                            original.replayGainTrackGainDb ==
+                                latest.replayGainTrackGainDb &&
+                            original.replayGainTrackPeak ==
+                                latest.replayGainTrackPeak &&
+                            original.replayGainAlbumGainDb ==
+                                latest.replayGainAlbumGainDb &&
+                            original.replayGainAlbumPeak ==
+                                latest.replayGainAlbumPeak)
+                            occurrence
+                        else
+                            occurrence.copy(
+                                track =
+                                    original.copy(
+                                        title = latest.title,
+                                        artist = latest.artist,
+                                        album = latest.album,
+                                        replayGainTrackGainDb =
+                                            latest.replayGainTrackGainDb,
+                                        replayGainTrackPeak =
+                                            latest.replayGainTrackPeak,
+                                        replayGainAlbumGainDb =
+                                            latest.replayGainAlbumGainDb,
+                                        replayGainAlbumPeak =
+                                            latest.replayGainAlbumPeak,
+                                    ))
+                    }
+                // Session persistence stores IDs, not metadata: no checkpoint.
+                val updated =
+                    if (updatedQueue == previous.queue) previous
+                    else previous.copy(queue = updatedQueue)
+                if (updated !== previous &&
+                    !_state.compareAndSet(previous, updated))
+                    continue
+                updated.currentTrack
                     ?.takeIf { metadataById.containsKey(it.id) }
                     ?.let { current ->
-                        loaded = previous.engineGeneration to current
-                    }
-                break
-            }
-            // Session persistence stores occurrence and track IDs, not labels:
-            // no checkpoint.
-            val updated = previous.copy(queue = updatedQueue)
-            if (_state.compareAndSet(previous, updated)) {
-                updated.currentTrack
-                    ?.takeIf { current ->
-                        previous.currentTrack != current &&
-                            updated.status != PlaybackStatus.Loading &&
-                            updated.status != PlaybackStatus.Idle
-                    }
-                    ?.let { current ->
-                        loaded = updated.engineGeneration to current
+                        // Reconciliation may already have published these
+                        // facts.
+                        // Recompute policy and refresh the native label
+                        // regardless.
+                        gainRequest =
+                            recomputeDesiredPlaybackGainLocked(
+                                updated.engineGeneration)
+                        if (updated.status != PlaybackStatus.Loading &&
+                            updated.status != PlaybackStatus.Idle) {
+                            loaded = updated.engineGeneration to current
+                        }
                     }
                 break
             }
         }
+        gainRequest?.let(::launchPlaybackGain)
         loaded?.let { (generation, current) ->
             launchNonFatalEngineAction {
                 val stillCurrent = selectionGate.withLock {
@@ -1003,6 +1102,10 @@ internal constructor(
         val snapshot = _state.value
         val current =
             snapshot.currentTrack?.let { metadataById[it.id] } ?: return
+        val gainRequest = selectionGate.withLock {
+            recomputeDesiredPlaybackGainLocked(snapshot.engineGeneration)
+        }
+        gainRequest?.let(::launchPlaybackGain)
         if (snapshot.status == PlaybackStatus.Loading ||
             snapshot.status == PlaybackStatus.Idle)
             return
@@ -1132,10 +1235,10 @@ internal constructor(
         resetProgressCheckpointKey()
         val generation = _state.value.engineGeneration
         invalidatePlaybackRun(generation)
-        val gainReset = resetPlaybackGainForStop(generation)
+        resetSleepAttenuationForStop(generation)
         launchEngineAction(generation) {
             engine.stop()
-            gainReset?.let(::applyPlaybackGainWhileEngineLocked)
+            resetStoppedPlaybackGainWhileEngineLocked(generation)
         }
         emitImmediateCheckpoint()
     }
@@ -1204,6 +1307,8 @@ internal constructor(
                             published.engineGeneration)
                         engine.seekTo(0L)
                         gainReset?.let(::applyPlaybackGainWhileEngineLocked)
+                        applyCurrentPlaybackGainBeforePlay(
+                            published.engineGeneration)
                         beginPlaybackRun(published.engineGeneration)
                             ?.let(engine::play)
                     }
@@ -1463,6 +1568,7 @@ internal constructor(
                 if (!_state.compareAndSet(previous, idle)) continue
                 if (remaining.isEmpty())
                     cancelTimerForEmptyQueue(cleanupGeneration)
+                else resetSleepAttenuationForStop(cleanupGeneration)
                 selectionGate.withLock {
                     val failedRequest = selectionRequest.value
                     if (failedRequest?.generation == recorded) {
@@ -1480,6 +1586,8 @@ internal constructor(
                 engineMutex.withLock {
                     if (_state.value.engineGeneration == cleanupGeneration) {
                         engine.clear(cleanupGeneration)
+                        resetStoppedPlaybackGainWhileEngineLocked(
+                            cleanupGeneration)
                     }
                 }
                 return@withLock QueueMutationResult.Applied
@@ -1496,11 +1604,13 @@ internal constructor(
             sleepTimerJob = null
             timerStopClaim = null
             _sleepTimerState.value = SleepTimerState()
+            sleepAttenuation = 1f
             desiredPlaybackGain = 1f
             playbackGainVersion++
         }
         scope.cancel()
         engine.listener = null
+        engine.stop()
         engine.setPlaybackGain(1f)
         engine.release()
         playbackStartedChannel.close()
@@ -1561,21 +1671,23 @@ internal constructor(
         val base = _state.value
         val generation = nextGeneration()
         val claimed =
-            claimPausedSessionState(
-                base,
-                reconciledQueue,
-                restoredCurrent,
-                snapshot.repeatMode,
-                snapshot.shuffleMode,
-                generation,
-            ) ?: return@withLock revisionedSessionSnapshot()
-        retargetGainForSelection(claimed.engineGeneration)
+            selectionGate.withLock {
+                claimPausedSessionState(
+                    base,
+                    reconciledQueue,
+                    restoredCurrent,
+                    snapshot.repeatMode,
+                    snapshot.shuffleMode,
+                    generation,
+                )
+            } ?: return@withLock revisionedSessionSnapshot()
         publishRuntimeShuffleOrder(claimed)
         if (restoredCurrent == null) {
             cancelTimerForEmptyQueue(generation)
             engineMutex.withLock {
                 if (_state.value.engineGeneration == generation) {
                     engine.clear(generation)
+                    resetStoppedPlaybackGainWhileEngineLocked(generation)
                 }
             }
             emitImmediateCheckpoint()
@@ -1583,10 +1695,15 @@ internal constructor(
         }
         try {
             engineMutex.withLock {
+                if (!ownsSelection(generation, restoredCurrent.id))
+                    return@withLock
                 val loaded =
                     engine.loadPaused(
                         restoredCurrent.track.withLazyArtwork(), generation)
                 check(loaded.generation == generation)
+                if (!ownsSelection(generation, restoredCurrent.id))
+                    return@withLock
+                applyCurrentPlaybackGainBeforePlay(generation)
                 val clamped =
                     loaded.durationMillis?.let {
                         restoredPosition.coerceIn(0L, it)
@@ -1634,6 +1751,8 @@ internal constructor(
                 if (_state.value.engineGeneration ==
                     fallback.engineGeneration) {
                     engine.clear(fallback.engineGeneration)
+                    resetStoppedPlaybackGainWhileEngineLocked(
+                        fallback.engineGeneration)
                 }
             }
             if (!emitImmediateCheckpointIfOwner(fallback)) {
@@ -1677,7 +1796,18 @@ internal constructor(
                             queue = reconciledQueue,
                             checkpointRevision = reserveCheckpointRevision(),
                         )
-                    if (!_state.compareAndSet(previous, published)) continue
+                    var gainRequest: PlaybackGainRequest? = null
+                    val committed = selectionGate.withLock {
+                        if (!_state.compareAndSet(previous, published)) false
+                        else {
+                            gainRequest =
+                                recomputeDesiredPlaybackGainLocked(
+                                    published.engineGeneration)
+                            true
+                        }
+                    }
+                    if (!committed) continue
+                    gainRequest?.let(::launchPlaybackGain)
                     publishRuntimeShuffleOrder(published)
                     emitImmediateCheckpoint(
                         published.toSessionSnapshot(),
@@ -1714,7 +1844,18 @@ internal constructor(
                         engineGeneration = previous.engineGeneration,
                         checkpointRevision = reserveCheckpointRevision(),
                     )
-                if (!_state.compareAndSet(previous, published)) continue
+                var gainRequest: PlaybackGainRequest? = null
+                val committed = selectionGate.withLock {
+                    if (!_state.compareAndSet(previous, published)) false
+                    else {
+                        gainRequest =
+                            recomputeDesiredPlaybackGainLocked(
+                                published.engineGeneration)
+                        true
+                    }
+                }
+                if (!committed) continue
+                gainRequest?.let(::launchPlaybackGain)
                 publishRuntimeShuffleOrder(published)
                 emitImmediateCheckpoint(
                     published.toSessionSnapshot(),
@@ -1728,19 +1869,22 @@ internal constructor(
                 // publish an empty paused session from the captured state.
                 val generation = nextGeneration()
                 val cleared =
-                    claimPausedSessionState(
-                        previous,
-                        emptyList(),
-                        null,
-                        previous.repeatMode,
-                        previous.shuffleMode,
-                        generation,
-                    ) ?: continue
+                    selectionGate.withLock {
+                        claimPausedSessionState(
+                            previous,
+                            emptyList(),
+                            null,
+                            previous.repeatMode,
+                            previous.shuffleMode,
+                            generation,
+                        )
+                    } ?: continue
                 cancelTimerForEmptyQueue(generation)
                 publishRuntimeShuffleOrder(cleared)
                 engineMutex.withLock {
                     if (_state.value.engineGeneration == generation) {
                         engine.clear(generation)
+                        resetStoppedPlaybackGainWhileEngineLocked(generation)
                     }
                 }
                 emitImmediateCheckpoint()
@@ -1751,22 +1895,28 @@ internal constructor(
             // so a concurrent replacement can never be overwritten or cleared.
             val generation = nextGeneration()
             val claimed =
-                claimPausedSessionState(
-                    previous,
-                    reconciledQueue,
-                    replacement,
-                    previous.repeatMode,
-                    previous.shuffleMode,
-                    generation,
-                ) ?: return@withLock revisionedSessionSnapshot()
-            retargetGainForSelection(generation)
+                selectionGate.withLock {
+                    claimPausedSessionState(
+                        previous,
+                        reconciledQueue,
+                        replacement,
+                        previous.repeatMode,
+                        previous.shuffleMode,
+                        generation,
+                    )
+                } ?: return@withLock revisionedSessionSnapshot()
             publishRuntimeShuffleOrder(claimed, replacement.id)
             try {
                 engineMutex.withLock {
+                    if (!ownsSelection(generation, replacement.id))
+                        return@withLock
                     val loaded =
                         engine.loadPaused(
                             replacement.track.withLazyArtwork(), generation)
                     check(loaded.generation == generation)
+                    if (!ownsSelection(generation, replacement.id))
+                        return@withLock
+                    applyCurrentPlaybackGainBeforePlay(generation)
                     engine.seekTo(0L)
                     engine.pause()
                     mutateIfOwner(generation, advanceRevision = true) { state ->
@@ -1808,6 +1958,8 @@ internal constructor(
                         if (_state.value.engineGeneration ==
                             failSafe.engineGeneration) {
                             engine.clear(failSafe.engineGeneration)
+                            resetStoppedPlaybackGainWhileEngineLocked(
+                                failSafe.engineGeneration)
                         }
                     }
                     if (!emitImmediateCheckpointIfOwner(failSafe)) {
@@ -1885,21 +2037,8 @@ internal constructor(
         resetProgressCheckpointKey()
         publishRuntimeShuffleOrder(claimed, occurrence.id)
         timerStopClaim = null
-        val remaining =
-            activeSleepTimer
-                ?.takeIf { it.mode == SleepTimerMode.Timed && it.fadeEnabled }
-                ?.deadlineMillis
-                ?.minus(sleepTimerRuntime.nowMillis())
-        val gain =
-            if (remaining != null &&
-                remaining in 1 until sleepTimerFadeWindowMillis)
-                remaining.toFloat() / sleepTimerFadeWindowMillis
-            else 1f
-        if (activeSleepTimer != null ||
-            desiredPlaybackGain != 1f ||
-            playbackGainMayBeAttenuated)
-            setDesiredPlaybackGainLocked(gain, generation, force = true)
-                ?.let(::launchPlaybackGain)
+        setSleepAttenuationLocked(selectionSleepAttenuationLocked(), generation)
+            ?.let(::launchPlaybackGain)
         // Ownership transferred: supersede the captured displaced request.
         displaced?.job?.cancel()
         request.job.start()
@@ -2030,7 +2169,7 @@ internal constructor(
                     applyCurrentPlaybackGainBeforePlay(generation)
                     beginPlaybackRun(generation)?.let(engine::play)
                 }
-            }
+            } else applyCurrentPlaybackGainBeforePlay(generation)
         }
     }
 
@@ -2090,7 +2229,8 @@ internal constructor(
      * Claims [queue]/[current] and the repeat/shuffle modes as a paused session
      * state carrying [generation], CAS-published from the exact captured
      * [base]. Returns null when a concurrent transition superseded [base], in
-     * which case the caller must not apply any engine effect.
+     * which case the caller must not apply any engine effect. The caller holds
+     * selectionGate so the gain owner changes with the session token.
      */
     private fun claimPausedSessionState(
         base: PlaybackState,
@@ -2114,7 +2254,21 @@ internal constructor(
                 engineGeneration = generation,
                 checkpointRevision = reserveCheckpointRevision(),
             )
-        return if (_state.compareAndSet(base, updated)) updated else null
+        if (!_state.compareAndSet(base, updated)) return null
+        timerStopClaim = null
+        if (current != null) {
+            setSleepAttenuationLocked(
+                    selectionSleepAttenuationLocked(), generation)
+                ?.let(::launchPlaybackGain)
+        } else {
+            // Fence prior gain writes, but restore native unity only after
+            // the caller clears the displaced media under the engine mutex.
+            sleepAttenuation = 1f
+            desiredPlaybackGain = 1f
+            desiredPlaybackGainGeneration = generation
+            playbackGainVersion++
+        }
+        return updated
     }
 
     private fun publishRuntimeShuffleOrder(
@@ -2320,7 +2474,11 @@ internal constructor(
     ) {
         try {
             engineMutex.withLock {
-                action()
+                val current = selectionGate.withLock {
+                    !released &&
+                        _state.value.engineGeneration == errorGeneration
+                }
+                if (current) action()
             }
         } catch (throwable: Throwable) {
             if (throwable is CancellationException) throw throwable
@@ -2461,6 +2619,11 @@ internal constructor(
                 published.toSessionSnapshot(),
                 published.checkpointRevision,
             )
+            sleepAttenuation = 1f
+            desiredPlaybackGain =
+                replayGainFactor(published.currentTrack, replayGainMode)
+            desiredPlaybackGainGeneration = generation
+            playbackGainVersion++
             true
         }
 
@@ -2634,8 +2797,7 @@ internal constructor(
                 } else {
                     _sleepTimerState.value = timer.toState()
                     gainReset =
-                        setDesiredPlaybackGainLocked(
-                            1f, generation, force = true)
+                        setSleepAttenuationLocked(1f, generation, force = true)
                 }
                 true
             }

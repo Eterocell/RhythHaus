@@ -24,6 +24,59 @@ import kotlinx.coroutines.yield
 
 class JvmPlaybackEngineTest {
     @Test
+    fun replayGainChangesNativeVolumeWithoutReloadAndTimerCancelKeepsNormalization() =
+        runBlocking {
+            val file = createSilentWavFile(durationMillis = 10_000)
+            val originalBytes = Files.readAllBytes(file)
+            val bridge = MacAudioPlayerBridge()
+            val controller =
+                PlaybackController(MacOSNativePlaybackEngine(bridge))
+            try {
+                controller.setReplayGainMode(ReplayGainMode.Track)
+                controller.setQueue(
+                    listOf(
+                        macWavTrack("normalized-native", file)
+                            .copy(replayGainTrackGainDb = -6.0)))
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Paused
+                }
+                controller.play()
+                awaitPlaybackState(controller) {
+                    it.status == PlaybackStatus.Playing
+                }
+                withTimeout(5_000) {
+                    while (kotlin.math.abs(
+                        bridge.playerVolumeForTest() - 0.5011872f) >
+                        0.001f) yield()
+                }
+                val generation = controller.state.value.engineGeneration
+                controller.armSleepTimerAfterCompletions(1, false)
+                controller.cancelSleepTimer()
+                withTimeout(5_000) {
+                    while (kotlin.math.abs(
+                        bridge.playerVolumeForTest() - 0.5011872f) >
+                        0.001f) yield()
+                }
+                controller.setReplayGainMode(ReplayGainMode.Off)
+                withTimeout(5_000) {
+                    while (bridge.playerVolumeForTest() != 1f) yield()
+                }
+                assertEquals(
+                    generation, controller.state.value.engineGeneration)
+                assertEquals(
+                    PlaybackStatus.Playing, controller.state.value.status)
+                assertEquals(
+                    "normalized-native",
+                    controller.state.value.currentTrack?.id)
+                assertTrue(
+                    originalBytes.contentEquals(Files.readAllBytes(file)))
+            } finally {
+                controller.release()
+                file.deleteIfExists()
+            }
+        }
+
+    @Test
     fun seekingToNativeEndpointDoesNotConsumeSleepTimerCompletion() =
         runBlocking {
             val file = createSilentWavFile(durationMillis = 2_000)

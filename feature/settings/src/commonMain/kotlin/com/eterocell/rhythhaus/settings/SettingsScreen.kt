@@ -22,12 +22,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -40,15 +44,21 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -78,6 +88,13 @@ import rhythhaus.feature.settings.generated.resources.recover_source_format
 import rhythhaus.feature.settings.generated.resources.remove_folder
 import rhythhaus.feature.settings.generated.resources.remove_folder_message
 import rhythhaus.feature.settings.generated.resources.remove_source_format
+import rhythhaus.feature.settings.generated.resources.replaygain_album
+import rhythhaus.feature.settings.generated.resources.replaygain_error
+import rhythhaus.feature.settings.generated.resources.replaygain_explanation
+import rhythhaus.feature.settings.generated.resources.replaygain_off
+import rhythhaus.feature.settings.generated.resources.replaygain_saving
+import rhythhaus.feature.settings.generated.resources.replaygain_title
+import rhythhaus.feature.settings.generated.resources.replaygain_track
 import rhythhaus.feature.settings.generated.resources.rescan_source_format
 import rhythhaus.feature.settings.generated.resources.review_onboarding
 import rhythhaus.feature.settings.generated.resources.source_access_available
@@ -158,6 +175,18 @@ public enum class MediaNotificationRecovery {
     SettingsRequired,
 }
 
+/** Neutral listener choices mapped to the playback policy by Shared. */
+public enum class SettingsReplayGainMode {
+    /** Keep the original application gain. */
+    Off,
+    /** Select the track's ReplayGain tags. */
+    Track,
+    /**
+     * Select album tags, falling back to track tags when album gain is absent.
+     */
+    Album,
+}
+
 internal enum class SettingsSourceAccess {
     Available,
     Lost,
@@ -213,6 +242,12 @@ internal const val SettingsNotificationRecoveryTestTag =
 internal const val SettingsPointerShieldTestTag = "settings-pointer-shield"
 internal const val SettingsListTestTag = "settings-list"
 internal const val SettingsThemeTestTag = "settings-theme"
+internal const val SettingsReplayGainPrefix = "settings-replaygain-"
+internal const val SettingsReplayGainExplanationTestTag =
+    "settings-replaygain-explanation"
+internal const val SettingsReplayGainSavingTestTag =
+    "settings-replaygain-saving"
+internal const val SettingsReplayGainErrorTestTag = "settings-replaygain-error"
 
 /**
  * Renders Settings from scalar state, source projections, callbacks, and
@@ -220,6 +255,11 @@ internal const val SettingsThemeTestTag = "settings-theme"
  *
  * @param labels Shared-owned wording and actions injected into this screen.
  * @param currentThemeMode the theme mode currently in effect.
+ * @param replayGainMode the last restored or durably accepted normalization
+ *   mode.
+ * @param replayGainBusy excludes normalization input during restoration or
+ *   save.
+ * @param replayGainError shows a localized recoverable preference-write error.
  * @param sources the authoritative projection of configured library sources.
  * @param sourcePickerActionVisible whether to render the add-folder action.
  * @param sourcePickerAvailable whether the platform folder picker can launch.
@@ -237,6 +277,8 @@ internal const val SettingsThemeTestTag = "settings-theme"
  *   permission to recover, or null when no card, action, or accessibility node
  *   may be rendered.
  * @param onThemeModeSelected dispatches the selected theme mode.
+ * @param onReplayGainModeSelected requests a mode without changing selection
+ *   optimistically; the caller publishes only a successfully saved mode.
  * @param onAddMusicFolder dispatches the add-folder action.
  * @param onRescanSource dispatches a rescan with the source id.
  * @param onRecoverSource dispatches a lost-access recovery (folder re-pick)
@@ -257,6 +299,9 @@ internal const val SettingsThemeTestTag = "settings-theme"
 public fun SettingsScreen(
     labels: SettingsSharedLabels,
     currentThemeMode: RhythHausThemeMode,
+    replayGainMode: SettingsReplayGainMode,
+    replayGainBusy: Boolean,
+    replayGainError: Boolean,
     sources: List<SettingsSourceItem>,
     sourcePickerActionVisible: Boolean,
     sourcePickerAvailable: Boolean,
@@ -270,6 +315,7 @@ public fun SettingsScreen(
     notificationRecovery: MediaNotificationRecovery?,
     mediaStoreAudioRecovery: MediaStoreAudioRecovery? = null,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
+    onReplayGainModeSelected: (SettingsReplayGainMode) -> Unit,
     onAddMusicFolder: () -> Unit,
     onRescanSource: (String) -> Unit,
     onRecoverSource: (String) -> Unit,
@@ -380,6 +426,16 @@ public fun SettingsScreen(
                                         policy
                                             .appearanceHorizontalInsidePadding,
                                         policy.appearanceVerticalInsidePadding)
+                                }
+                                item {
+                                    ReplayGainPreference(
+                                        current = replayGainMode,
+                                        busy = replayGainBusy,
+                                        modalVisible =
+                                            clearLibraryDialog != null ||
+                                                sourcePendingRemoval != null,
+                                        saveFailed = replayGainError,
+                                        onSelected = onReplayGainModeSelected)
                                 }
                                 item {
                                     Text(
@@ -992,6 +1048,133 @@ private fun RemoveSourceDialog(
                 }
         })
 }
+
+@Composable
+private fun ReplayGainPreference(
+    current: SettingsReplayGainMode,
+    busy: Boolean,
+    modalVisible: Boolean,
+    saveFailed: Boolean,
+    onSelected: (SettingsReplayGainMode) -> Unit,
+) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(
+                HausColors.current.panel.copy(alpha = .54f),
+                RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                stringResource(Res.string.replaygain_title),
+                modifier = Modifier.semantics { heading() },
+                color = HausColors.current.ink,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Black)
+            Row(
+                Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsReplayGainMode.entries.forEach { mode ->
+                        val label = mode.label()
+                        val isSelected = mode == current
+                        val interaction =
+                            if (busy || modalVisible) {
+                                Modifier.clearAndSetSemantics {
+                                    contentDescription = label
+                                    selected = isSelected
+                                    role = Role.RadioButton
+                                    disabled()
+                                }
+                            } else {
+                                Modifier.selectable(
+                                    selected = isSelected,
+                                    role = Role.RadioButton,
+                                    onClick = { onSelected(mode) })
+                            }
+                        Row(
+                            Modifier.weight(1f)
+                                .heightIn(min = 48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) HausColors.current.ink
+                                    else HausColors.current.paper)
+                                .testTag(mode.testTag())
+                                .then(interaction)
+                                .padding(horizontal = 8.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement =
+                                Arrangement.spacedBy(6.dp)) {
+                                val color =
+                                    (if (isSelected) HausColors.current.paper
+                                        else HausColors.current.ink)
+                                        .copy(
+                                            alpha =
+                                                if (busy || modalVisible) .5f
+                                                else 1f)
+                                Icon(
+                                    if (isSelected)
+                                        Icons.Default.RadioButtonChecked
+                                    else Icons.Default.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = color)
+                                Text(
+                                    label,
+                                    color = color,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold)
+                            }
+                    }
+                }
+            Text(
+                stringResource(Res.string.replaygain_explanation),
+                modifier =
+                    Modifier.testTag(SettingsReplayGainExplanationTestTag),
+                color = HausColors.current.muted,
+                fontSize = 12.sp,
+                lineHeight = 17.sp)
+            if (busy) {
+                Text(
+                    stringResource(Res.string.replaygain_saving),
+                    modifier =
+                        Modifier.testTag(SettingsReplayGainSavingTestTag)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                    color = HausColors.current.muted,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp)
+            }
+            if (saveFailed) {
+                val message = stringResource(Res.string.replaygain_error)
+                Text(
+                    message,
+                    modifier =
+                        Modifier.testTag(SettingsReplayGainErrorTestTag)
+                            .semantics {
+                                liveRegion = LiveRegionMode.Polite
+                                error(message)
+                            },
+                    color = HausColors.current.pulse,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp)
+            }
+        }
+}
+
+@Composable
+private fun SettingsReplayGainMode.label(): String =
+    stringResource(
+        when (this) {
+            SettingsReplayGainMode.Off -> Res.string.replaygain_off
+            SettingsReplayGainMode.Track -> Res.string.replaygain_track
+            SettingsReplayGainMode.Album -> Res.string.replaygain_album
+        })
+
+private fun SettingsReplayGainMode.testTag(): String =
+    when (this) {
+        SettingsReplayGainMode.Off -> "settings-replaygain-off"
+        SettingsReplayGainMode.Track -> "settings-replaygain-track"
+        SettingsReplayGainMode.Album -> "settings-replaygain-album"
+    }
 
 @Composable
 private fun AppearanceDropdown(
