@@ -94,6 +94,43 @@ class PlatformSourceAccessJvmTest {
     }
 
     @Test
+    fun jvmScanReadsOnlySameStemLrcAndIgnoresOversizedSidecars() {
+        val root = Files.createTempDirectory("rhythhaus-jvm-lyrics").toFile()
+        try {
+            root.resolve("Song.MP3").writeBytes(byteArrayOf(1))
+            root
+                .resolve("sOnG.LrC")
+                .writeText("[00:01.00]matching", Charsets.UTF_8)
+            root.resolve("Song Extra.lrc").writeText("wrong", Charsets.UTF_8)
+            val matched =
+                createPlatformSourceAccess()
+                    .scan(folderSource(root.absolutePath))
+                    .filterIsInstance<PlatformScanEvent.AudioCandidate>()
+                    .single()
+                    .candidate
+            assertEquals("Song.MP3", matched.sourceLocalKey)
+            assertEquals("[00:01.00]matching", matched.sidecarLyrics)
+            val sidecarScan =
+                createPlatformSourceAccess()
+                    .scan(folderSource(root.absolutePath))
+                    .toList()
+            assertTrue(sidecarScan.none { it is PlatformScanEvent.Skipped })
+
+            root.resolve("sOnG.LrC").writeBytes(ByteArray(512 * 1024 + 1))
+            val oversized =
+                createPlatformSourceAccess()
+                    .scan(folderSource(root.absolutePath))
+                    .filterIsInstance<PlatformScanEvent.AudioCandidate>()
+                    .single()
+                    .candidate
+            assertEquals(null, oversized.sidecarLyrics)
+            assertEquals("Song.MP3", oversized.sourceLocalKey)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun jvmScanOfMissingOrForeignFolderFailsClosed() {
         val access = createPlatformSourceAccess()
         assertFails {

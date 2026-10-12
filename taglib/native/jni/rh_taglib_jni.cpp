@@ -46,7 +46,7 @@ jobject map_read_result(JNIEnv* env, RhTagLibResult result) {
     jmethodID constructor = env->GetMethodID(
         result_class,
         "<init>",
-        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IIIIIIIIILjava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"
+        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IIIIIIIIILjava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"
     );
     if (constructor == nullptr) {
         rh_taglib_free_result(result);
@@ -78,7 +78,8 @@ jobject map_read_result(JNIEnv* env, RhTagLibResult result) {
         nullable_string(env, result.metadata.replay_gain_track_gain),
         nullable_string(env, result.metadata.replay_gain_track_peak),
         nullable_string(env, result.metadata.replay_gain_album_gain),
-        nullable_string(env, result.metadata.replay_gain_album_peak)
+        nullable_string(env, result.metadata.replay_gain_album_peak),
+        nullable_string(env, result.metadata.lyrics)
     );
 
     rh_taglib_free_result(result);

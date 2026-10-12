@@ -28,6 +28,7 @@ private class IosNativeTagLibReader : TagLibReader {
                                     metadata.album_artist?.toKString(),
                                 genre = metadata.genre?.toKString(),
                                 comment = metadata.comment?.toKString(),
+                                lyrics = metadata.lyrics?.toKString(),
                                 year = metadata.year.positiveOrNull(),
                                 trackNumber = metadata.track.positiveOrNull(),
                                 trackTotal =

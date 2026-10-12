@@ -13,6 +13,7 @@ internal fun LibraryTrack.toPlayableTrack(): PlayableTrack =
         durationMillis = durationMillis,
         source = audioSource,
         artworkBytes = artworkBytes,
+        lyrics = lyrics,
         replayGainTrackGainDb = replayGainTrackGainDb,
         replayGainTrackPeak = replayGainTrackPeak,
         replayGainAlbumGainDb = replayGainAlbumGainDb,

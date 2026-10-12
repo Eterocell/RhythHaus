@@ -1,5 +1,6 @@
 #include "rh_taglib.h"
 
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -38,6 +39,7 @@ namespace {
 constexpr int RH_TAGLIB_STATUS_FOUND = 0;
 constexpr int RH_TAGLIB_STATUS_UNSUPPORTED = 1;
 constexpr int RH_TAGLIB_STATUS_FAILED = 2;
+constexpr std::size_t RH_TAGLIB_MAX_LYRICS_BYTES = 512 * 1024;
 
 char* rh_taglib_duplicate(const char* value) {
     if (value == nullptr) {
@@ -414,6 +416,16 @@ RhTagLibResult rh_taglib_read_file_ref(TagLib::FileRef& file) {
         result.metadata.track = static_cast<int>(tag->track());
     }
 
+    static const TagLib::String lyrics_key("LYRICS");
+    const auto tag_properties = file.file()->properties();
+    const auto lyrics = tag_properties.find(lyrics_key);
+    if (lyrics != tag_properties.end() && !lyrics->second.isEmpty()) {
+        const auto value = lyrics->second.front().to8Bit(true);
+        if (value.size() <= RH_TAGLIB_MAX_LYRICS_BYTES) {
+            result.metadata.lyrics = rh_taglib_duplicate(value.c_str());
+        }
+    }
+
     if (auto* properties = file.audioProperties()) {
         result.metadata.duration_seconds = properties->lengthInSeconds();
         result.metadata.bitrate = properties->bitrate();
@@ -492,6 +504,7 @@ extern "C" void rh_taglib_free_result(RhTagLibResult result) {
     std::free(result.metadata.album_artist);
     std::free(result.metadata.genre);
     std::free(result.metadata.comment);
+    std::free(result.metadata.lyrics);
     std::free(result.metadata.artwork_mime_type);
     std::free(result.metadata.artwork_data);
     std::free(result.metadata.replay_gain_track_gain);

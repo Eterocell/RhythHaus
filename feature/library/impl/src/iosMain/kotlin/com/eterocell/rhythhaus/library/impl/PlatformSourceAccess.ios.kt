@@ -5,12 +5,19 @@ import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
+import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.allocArray
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.readBytes
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSURL
 import platform.Foundation.NSUserDomainMask
+import platform.posix.fclose
+import platform.posix.fopen
+import platform.posix.fread
 
 /** iOS app-local folder [PlatformSourceAccess] for library sources. */
 class IOSAppLocalSourceAccess : PlatformSourceAccess {
@@ -70,6 +77,10 @@ private fun scanIosFolder(
         val path = "$folderPath/$name"
         if (isDirectory(path)) {
             yieldAll(scanIosFolder(source, path, pathSegments + name))
+        } else if (name
+            .substringAfterLast('.', "")
+            .equals("lrc", ignoreCase = true)) {
+            return@forEach
         } else {
             val relativeSegments = pathSegments + name
             val relativePath = relativeSegments.sourceLocalKey()
@@ -82,11 +93,52 @@ private fun scanIosFolder(
                     audioSource = AudioSource.FilePath(relativePath),
                     sizeBytes = fileSize(path),
                     modifiedAtEpochMillis = null,
+                    sidecarLyrics = readAdjacentLrc(folderPath, name),
                 ),
             )
         }
     }
 }
+
+@OptIn(ExperimentalForeignApi::class)
+private fun readAdjacentLrc(folderPath: String, audioName: String): String? {
+    val stem = audioName.substringBeforeLast('.', audioName)
+    val sibling =
+        NSFileManager.defaultManager
+            .contentsOfDirectoryAtPath(folderPath, error = null)
+            ?.filterIsInstance<String>()
+            ?.firstOrNull { candidate ->
+                candidate
+                    .substringBeforeLast('.', candidate)
+                    .equals(stem, ignoreCase = true) &&
+                    candidate
+                        .substringAfterLast('.', "")
+                        .equals("lrc", ignoreCase = true)
+            } ?: return null
+    val path = "$folderPath/$sibling"
+    val size = fileSize(path) ?: return null
+    if (size > MAX_LRC_BYTES) return null
+    return memScoped {
+        val file = fopen(path, "rb") ?: return null
+        try {
+            val buffer = allocArray<ByteVar>((MAX_LRC_BYTES + 1L).toInt())
+            val total =
+                fread(
+                        buffer,
+                        1u,
+                        (MAX_LRC_BYTES + 1L).toULong(),
+                        file,
+                    )
+                    .toInt()
+            if (total > MAX_LRC_BYTES) null
+            else buffer.readBytes(total).decodeToString()
+        } finally {
+            fclose(file)
+        }
+    }
+}
+
+private const val MAX_LRC_BYTES = 512 * 1024L
 
 /** Returns the app-local music folder path. */
 @OptIn(ExperimentalForeignApi::class)

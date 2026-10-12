@@ -32,6 +32,7 @@ class AndroidTagLibReaderTest {
                     replayGainTrackPeak = "2",
                     replayGainAlbumGain = "NaN dB",
                     replayGainAlbumPeak = "1.1",
+                    lyrics = "[00:01.00]First line",
                 )
                 .toTagReadResult()
 
@@ -44,5 +45,6 @@ class AndroidTagLibReaderTest {
         assertEquals("2", metadata.replayGainTrackPeak)
         assertEquals("NaN dB", metadata.replayGainAlbumGain)
         assertEquals("1.1", metadata.replayGainAlbumPeak)
+        assertEquals("[00:01.00]First line", metadata.lyrics)
     }
 }

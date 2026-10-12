@@ -105,6 +105,7 @@ fun scanJvmDroppedFilesSource(
                     sizeBytes = file.length(),
                     modifiedAtEpochMillis =
                         file.lastModified().takeIf { it > 0L },
+                    sidecarLyrics = file.readAdjacentLrc(),
                 ),
             )
         }
@@ -126,6 +127,8 @@ private fun scanFolder(
         ?.forEach { child ->
             when {
                 child.isDirectory -> yieldAll(scanFolder(source, root, child))
+                child.isFile &&
+                    child.extension.equals("lrc", ignoreCase = true) -> Unit
                 child.isFile -> yield(child.toScanEvent(source, root))
             }
         }
@@ -144,8 +147,32 @@ private fun File.toScanEvent(
         audioSource = AudioSource.FilePath(absolutePath),
         sizeBytes = length(),
         modifiedAtEpochMillis = lastModified().takeIf { it > 0L },
+        sidecarLyrics = readAdjacentLrc(),
     )
 }
+
+private fun File.readAdjacentLrc(): String? = runCatching {
+    val expected = name.substringBeforeLast('.', name)
+    parentFile
+        ?.listFiles()
+        ?.firstOrNull {
+            it.isFile &&
+                it.name
+                    .substringBeforeLast('.', it.name)
+                    .equals(expected, ignoreCase = true) &&
+                it.extension.equals("lrc", ignoreCase = true) &&
+                it.length() <= MAX_LRC_BYTES
+        }
+        ?.inputStream()
+        ?.use { input ->
+            val bytes = input.readNBytes((MAX_LRC_BYTES + 1L).toInt())
+            if (bytes.size.toLong() > MAX_LRC_BYTES) null
+            else bytes.toString(Charsets.UTF_8)
+        }
+}
+    .getOrNull()
+
+private const val MAX_LRC_BYTES = 512 * 1024L
 
 private fun File.displayPath(root: File, fallback: String): String {
     if (canonicalPath == root.canonicalPath) return fallback

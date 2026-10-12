@@ -24,6 +24,7 @@ data class AudioMetadata(
     val replayGainTrackPeak: Double? = null,
     val replayGainAlbumGainDb: Double? = null,
     val replayGainAlbumPeak: Double? = null,
+    val lyrics: String? = null,
 ) {
     override fun equals(other: Any?): Boolean =
         other is AudioMetadata &&
@@ -42,7 +43,8 @@ data class AudioMetadata(
             (replayGainAlbumGainDb?.equals(other.replayGainAlbumGainDb)
                 ?: (other.replayGainAlbumGainDb == null)) &&
             (replayGainAlbumPeak?.equals(other.replayGainAlbumPeak)
-                ?: (other.replayGainAlbumPeak == null))
+                ?: (other.replayGainAlbumPeak == null)) &&
+            lyrics == other.lyrics
 
     override fun hashCode(): Int {
         var result = title?.hashCode() ?: 0
@@ -57,6 +59,7 @@ data class AudioMetadata(
         result = 31 * result + (replayGainTrackPeak?.hashCode() ?: 0)
         result = 31 * result + (replayGainAlbumGainDb?.hashCode() ?: 0)
         result = 31 * result + (replayGainAlbumPeak?.hashCode() ?: 0)
+        result = 31 * result + (lyrics?.hashCode() ?: 0)
         return result
     }
 }
@@ -158,6 +161,7 @@ private fun TagMetadata.toAudioMetadata(): AudioMetadata =
         replayGainTrackPeak = parseReplayGainPeak(replayGainTrackPeak),
         replayGainAlbumGainDb = parseReplayGainDb(replayGainAlbumGain),
         replayGainAlbumPeak = parseReplayGainPeak(replayGainAlbumPeak),
+        lyrics = lyrics.boundedLyricsOrNull(),
     )
 
 private fun AudioMetadata?.mergeMissing(
@@ -174,6 +178,7 @@ private fun AudioMetadata?.mergeMissing(
         discNumber = discNumber ?: fallback.discNumber,
         artworkBytes = artworkBytes ?: fallback.artworkBytes,
         artworkMimeType = artworkMimeType ?: fallback.artworkMimeType,
+        lyrics = lyrics ?: fallback.lyrics,
     )
 }
 
@@ -196,3 +201,12 @@ fun readAudioMetadata(path: String): AudioMetadata? =
 
 private fun String?.normalizedOrNull(): String? =
     this?.trim()?.takeIf { it.isNotBlank() }
+
+private fun String?.boundedLyricsOrNull(): String? {
+    val normalized = normalizedOrNull() ?: return null
+    return normalized.takeIf {
+        it.encodeToByteArray().size <= MAX_EMBEDDED_LYRICS_BYTES
+    }
+}
+
+private const val MAX_EMBEDDED_LYRICS_BYTES = 512 * 1024

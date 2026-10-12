@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.nowplaying
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -45,6 +46,122 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 public class NowPlayingContentSemanticsJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun lyricsActionIsAbsentWhenCurrentTrackHasNoLyrics(): Unit =
+        runComposeUiTest {
+            setContent {
+                mountedRecoveryNowPlaying(
+                    displayTrack().copy(lyrics = null),
+                    PlaybackState(),
+                    PlaybackController(ImmediatePlaybackEngine()),
+                )
+            }
+            onNodeWithTag(NowPlayingLyricsButtonTestTag).assertDoesNotExist()
+            onNodeWithTag(NowPlayingLyricsDialogTestTag).assertDoesNotExist()
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun lyricsDialogTracksPlaybackPositionWithoutChangingPlayback():
+        Unit = runComposeUiTest {
+        val controller = PlaybackController(ImmediatePlaybackEngine())
+        val playback =
+            mutableStateOf(
+                PlaybackState(
+                    positionMillis = 0L,
+                    durationMillis = 60_000L,
+                    status = PlaybackStatus.Playing,
+                ),
+            )
+        val track =
+            displayTrack()
+                .copy(
+                    lyrics = "[00:01.00]First line\n[00:02.00]Second line",
+                )
+        val before = controller.state.value
+        setContent {
+            Box(Modifier.size(390.dp, 844.dp)) {
+                NowPlayingContent(
+                    track = track,
+                    playbackState = playback.value,
+                    playbackController = controller,
+                    labels = recoveryLabels,
+                    artworkLoader = { null },
+                    onBack = {},
+                    sleepTimerState = SleepTimerState(),
+                    onArmSleepTimer = { _, _ -> },
+                    onArmSleepTimerAfterCompletions = { _, _ -> },
+                    onCancelSleepTimer = {},
+                )
+            }
+        }
+
+        onNodeWithTag(NowPlayingLyricsButtonTestTag)
+            .assertExists()
+            .performClick()
+        onNodeWithTag(NowPlayingLyricsDialogTestTag).assertExists()
+        onNodeWithTag(NowPlayingLyricLineTestTag + "-0").assertExists()
+        playback.value = playback.value.copy(positionMillis = 2_000L)
+        waitForIdle()
+        onNodeWithTag(NowPlayingLyricLineTestTag + "-1").assertExists()
+        val activeLineSemantics =
+            onNodeWithTag(NowPlayingLyricLineTestTag + "-1")
+                .fetchSemanticsNode()
+                .config
+        assertEquals(
+            true,
+            activeLineSemantics.contains(SemanticsProperties.StateDescription),
+        )
+        assertEquals(before, controller.state.value)
+        onNodeWithTag(NowPlayingLyricsCloseTestTag).performClick()
+        onNodeWithTag(NowPlayingLyricsDialogTestTag).assertDoesNotExist()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun plainLyricsRemainScrollableAtCompactAndSplitWindowSizes(): Unit =
+        runComposeUiTest {
+            val lyrics = List(30) { "Plain line ${it + 1}" }.joinToString("\n")
+            val track = displayTrack().copy(lyrics = lyrics)
+            for ((width, height) in
+                listOf(390.dp to 844.dp, 600.dp to 400.dp)) {
+                setContent {
+                    Box(Modifier.size(width, height)) {
+                        NowPlayingContent(
+                            track = track,
+                            playbackState = PlaybackState(),
+                            playbackController =
+                                PlaybackController(ImmediatePlaybackEngine()),
+                            labels = recoveryLabels,
+                            artworkLoader = { null },
+                            onBack = {},
+                            sleepTimerState = SleepTimerState(),
+                            onArmSleepTimer = { _, _ -> },
+                            onArmSleepTimerAfterCompletions = { _, _ -> },
+                            onCancelSleepTimer = {},
+                        )
+                    }
+                }
+                onNodeWithTag(NowPlayingLyricsButtonTestTag)
+                    .performScrollTo()
+                    .performClick()
+                repeat(8) {
+                    onNodeWithTag(NowPlayingLyricsListTestTag)
+                        .performTouchInput {
+                            swipe(
+                                Offset(center.x, center.y + 120f),
+                                Offset(center.x, center.y - 120f),
+                            )
+                        }
+                }
+                onAllNodes(hasText("Plain line 30"))[0].assertExists()
+                onNodeWithTag(NowPlayingLyricsCloseTestTag).performClick()
+                onNodeWithTag(NowPlayingLyricsDialogTestTag)
+                    .assertDoesNotExist()
+            }
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun favoriteActionExposesCheckedStateAndOnlyMutatesFavoriteCallback():

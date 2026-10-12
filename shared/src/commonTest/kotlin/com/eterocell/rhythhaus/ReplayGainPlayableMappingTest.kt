@@ -28,6 +28,7 @@ class ReplayGainPlayableMappingTest {
                 replayGainTrackPeak = 1.2,
                 replayGainAlbumGainDb = -4.0,
                 replayGainAlbumPeak = 1.1,
+                lyrics = "[00:01.00]Local lyric",
             )
         val routes =
             listOf(
@@ -41,6 +42,7 @@ class ReplayGainPlayableMappingTest {
             assertEquals("track", playable.id)
             assertEquals(
                 AudioSource.FilePath("/Music/song.flac"), playable.source)
+            assertEquals("[00:01.00]Local lyric", playable.lyrics)
             assertEquals(
                 listOf(-6.0, 1.2, -4.0, 1.1),
                 listOf(

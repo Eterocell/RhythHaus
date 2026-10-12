@@ -13,6 +13,7 @@ import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
 import com.eterocell.rhythhaus.library.PlatformSourceAccess
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 
@@ -270,6 +271,9 @@ private fun scanDocumentTree(
                 ?: document.name
                 ?: document.uri.lastPathSegment
                 ?: "unnamed"
+        if (name.substringAfterLast('.', "").equals("lrc", ignoreCase = true)) {
+            return@sequence
+        }
         val key =
             pathSegments.sourceLocalKey().ifBlank { document.uri.toString() }
         val displayPath = pathSegments.joinToString("/").ifBlank { name }
@@ -277,6 +281,12 @@ private fun scanDocumentTree(
         val metadataDescriptor =
             if (isSupportedAudioName(name)) {
                 openDocumentForMetadata(context, document)
+            } else {
+                null
+            }
+        val sidecarLyrics =
+            if (source.platformKind == LibraryPlatformKind.AndroidSafTree) {
+                readAdjacentLrc(context, document)
             } else {
                 null
             }
@@ -298,10 +308,48 @@ private fun scanDocumentTree(
                 sizeBytes = document.length().takeIf { it >= 0L },
                 modifiedAtEpochMillis =
                     document.lastModified().takeIf { it > 0L },
+                sidecarLyrics = sidecarLyrics,
             ),
         )
     }
 }
+
+private fun readAdjacentLrc(
+    context: Context,
+    audioDocument: DocumentFile,
+): String? = runCatching {
+    val audioName = audioDocument.name ?: return null
+    val stem = audioName.substringBeforeLast('.', audioName)
+    val sidecar =
+        audioDocument.parentFile?.listFiles()?.firstOrNull { sibling ->
+            val siblingName = sibling.name ?: return@firstOrNull false
+            sibling.isFile &&
+                siblingName
+                    .substringBeforeLast('.', siblingName)
+                    .equals(stem, ignoreCase = true) &&
+                siblingName
+                    .substringAfterLast('.', "")
+                    .equals("lrc", ignoreCase = true)
+        } ?: return null
+    if (sidecar.length() !in 0..MAX_LRC_BYTES) return null
+    context.contentResolver.openInputStream(sidecar.uri)?.use { input ->
+        val bytes = ByteArrayOutputStream()
+        val buffer = ByteArray(8 * 1024)
+        var total = 0
+        while (true) {
+            val remaining = (MAX_LRC_BYTES + 1L - total).toInt()
+            val read = input.read(buffer, 0, minOf(buffer.size, remaining))
+            if (read < 0) break
+            total += read
+            if (total > MAX_LRC_BYTES) return@use null
+            bytes.write(buffer, 0, read)
+        }
+        bytes.toByteArray().toString(Charsets.UTF_8)
+    }
+}
+    .getOrNull()
+
+private const val MAX_LRC_BYTES = 512 * 1024L
 
 private fun openDocumentForMetadata(
     context: Context,

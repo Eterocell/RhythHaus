@@ -62,6 +62,7 @@ internal data class NativeTagLibReadResult(
     val replayGainTrackPeak: String? = null,
     val replayGainAlbumGain: String? = null,
     val replayGainAlbumPeak: String? = null,
+    val lyrics: String? = null,
 ) {
     fun toTagReadResult(): TagReadResult =
         when (status) {
@@ -74,6 +75,7 @@ internal data class NativeTagLibReadResult(
                         albumArtist = albumArtist,
                         genre = genre,
                         comment = comment,
+                        lyrics = lyrics,
                         year = year.positiveOrNull(),
                         trackNumber = track.positiveOrNull(),
                         trackTotal = trackTotal.positiveOrNull(),

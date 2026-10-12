@@ -13,6 +13,51 @@ import kotlin.test.assertTrue
 
 class AudioMetadataUriTest {
     @Test
+    fun embeddedLyricsAreTrimmedAndRejectedWhenOverBound() {
+        val tags =
+            TagMetadata(
+                title = "Complete Title",
+                artist = "Complete Artist",
+                album = "Complete Album",
+                durationMillis = 123_000L,
+                lyrics = "  [00:01.00]line  \n",
+            )
+        val reader =
+            object : TagLibReader {
+                override fun readPath(path: String) = TagReadResult.Found(tags)
+
+                override fun readProperties(path: String) =
+                    emptyMap<String, String>()
+            }
+        val metadata =
+            AudioMetadataReader(
+                    tagLibReader = reader,
+                    platformMetadataReader = { null },
+                )
+                .read(AudioSource.FilePath("/tmp/song.flac"))
+
+        assertEquals("[00:01.00]line", metadata?.lyrics)
+
+        val oversized =
+            AudioMetadataReader(
+                    tagLibReader =
+                        object : TagLibReader {
+                            override fun readPath(path: String) =
+                                TagReadResult.Found(
+                                    tags.copy(
+                                        lyrics = "x".repeat(512 * 1024 + 1)),
+                                )
+
+                            override fun readProperties(path: String) =
+                                emptyMap<String, String>()
+                        },
+                    platformMetadataReader = { null },
+                )
+                .read(AudioSource.FilePath("/tmp/song.flac"))
+        assertNull(oversized?.lyrics)
+    }
+
+    @Test
     fun uriMetadataReadsAndParsesReplayGainThroughItsOwnedDescriptor() {
         val descriptor = FixtureUriDescriptor()
         val reader =

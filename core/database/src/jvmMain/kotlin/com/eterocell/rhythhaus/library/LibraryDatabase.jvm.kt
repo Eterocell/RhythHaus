@@ -41,6 +41,7 @@ private val smartPlaylistTables = setOf("smart_playlist")
 private val metadataOverrideTables = setOf("track_metadata_override")
 private const val changeSummarySchemaVersion = 7L
 private const val replayGainSchemaVersion = 8L
+private const val lyricsSchemaVersion = 10L
 
 private fun foreignKeyProperties(): Properties =
     Properties().apply { put("foreign_keys", "true") }
@@ -77,6 +78,8 @@ private fun bootstrapLegacyVersionZeroDatabase(
                         smartPlaylistTables +
                         metadataOverrideTables ->
                     when {
+                        driver.hasColumn("library_track", "lyrics") ->
+                            lyricsSchemaVersion
                         driver.hasColumn(
                             "library_track", "replayGainTrackGainDb") ->
                             replayGainSchemaVersion

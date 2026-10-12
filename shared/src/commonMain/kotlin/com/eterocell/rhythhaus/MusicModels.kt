@@ -41,6 +41,7 @@ fun librarySnapshot(tracks: List<LibraryTrack>): LibrarySnapshot {
             replayGainTrackPeak = track.replayGainTrackPeak,
             replayGainAlbumGainDb = track.replayGainAlbumGainDb,
             replayGainAlbumPeak = track.replayGainAlbumPeak,
+            lyrics = track.lyrics,
         )
     }
     return LibrarySnapshot(
@@ -60,6 +61,7 @@ fun Track.toPlayableTrack(): PlayableTrack =
         durationMillis = durationSeconds.takeIf { it > 0 }?.times(1_000L),
         source = source,
         artworkBytes = artworkBytes,
+        lyrics = lyrics,
         replayGainTrackGainDb = replayGainTrackGainDb,
         replayGainTrackPeak = replayGainTrackPeak,
         replayGainAlbumGainDb = replayGainAlbumGainDb,

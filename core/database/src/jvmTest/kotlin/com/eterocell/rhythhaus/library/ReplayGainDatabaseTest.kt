@@ -84,7 +84,7 @@ class ReplayGainDatabaseTest {
                 try {
                     assertFactsInEveryProjection(
                         reopened.database, listOf(-6.0, 1.2, -4.0, 1.1))
-                    assertVersionEight(file)
+                    assertVersionNine(file)
                 } finally {
                     reopened.driver.close()
                 }
@@ -125,6 +125,7 @@ class ReplayGainDatabaseTest {
             replayGainTrackPeak = trackPeak,
             replayGainAlbumGainDb = albumGain,
             replayGainAlbumPeak = albumPeak,
+            lyrics = null,
         )
     }
 
@@ -175,13 +176,15 @@ class ReplayGainDatabaseTest {
                 editor.replayGainAlbumPeak))
     }
 
-    private fun assertVersionEight(file: File) {
+    private fun assertVersionNine(file: File) {
         DriverManager.getConnection("jdbc:sqlite:${file.absolutePath}").use {
             connection ->
             connection.createStatement().use { statement ->
                 statement.executeQuery("PRAGMA user_version").use { result ->
                     check(result.next())
-                    assertEquals(8, result.getInt(1))
+                    assertEquals(
+                        RhythHausDatabase.Schema.version.toInt(),
+                        result.getInt(1))
                 }
             }
         }

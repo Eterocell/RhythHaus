@@ -7,6 +7,7 @@ data class TagMetadata(
     val albumArtist: String? = null,
     val genre: String? = null,
     val comment: String? = null,
+    val lyrics: String? = null,
     val year: Int? = null,
     val trackNumber: Int? = null,
     val trackTotal: Int? = null,

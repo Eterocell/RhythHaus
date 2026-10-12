@@ -472,7 +472,9 @@ class ExistingDatabaseMigrationTest {
         libraryDatabase: LibraryDatabase
     ) {
         val database = libraryDatabase.database
-        assertEquals(8L, driverUserVersion(libraryDatabase.driver))
+        assertEquals(
+            RhythHausDatabase.Schema.version.toLong(),
+            driverUserVersion(libraryDatabase.driver))
         val source =
             database.librarySourceQueries.selectAllSources().executeAsOne()
         assertEquals("source-1", source.id)

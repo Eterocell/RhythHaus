@@ -32,6 +32,8 @@ public data class Track(
     public val replayGainAlbumGainDb: Double? = null,
     /** Optional scanned album peak amplitude. */
     public val replayGainAlbumPeak: Double? = null,
+    /** Optional local lyrics. */
+    public val lyrics: String? = null,
 ) {
     /** Compares all metadata and artwork byte content. */
     public override fun equals(other: Any?): Boolean =
@@ -53,7 +55,8 @@ public data class Track(
             (replayGainAlbumGainDb?.equals(other.replayGainAlbumGainDb)
                 ?: (other.replayGainAlbumGainDb == null)) &&
             (replayGainAlbumPeak?.equals(other.replayGainAlbumPeak)
-                ?: (other.replayGainAlbumPeak == null))
+                ?: (other.replayGainAlbumPeak == null)) &&
+            lyrics == other.lyrics
 
     /**
      * Returns a hash code derived from all metadata and artwork byte content.
@@ -73,6 +76,7 @@ public data class Track(
         result = 31 * result + (replayGainTrackPeak?.hashCode() ?: 0)
         result = 31 * result + (replayGainAlbumGainDb?.hashCode() ?: 0)
         result = 31 * result + (replayGainAlbumPeak?.hashCode() ?: 0)
+        result = 31 * result + (lyrics?.hashCode() ?: 0)
         return result
     }
 }
@@ -131,6 +135,8 @@ public data class PlayableTrack(
     public val replayGainAlbumGainDb: Double? = null,
     /** Optional scanned album peak amplitude. */
     public val replayGainAlbumPeak: Double? = null,
+    /** Optional local lyrics. */
+    public val lyrics: String? = null,
 ) {
     /** Compares all metadata and artwork byte content. */
     public override fun equals(other: Any?): Boolean =
@@ -149,7 +155,8 @@ public data class PlayableTrack(
             (replayGainAlbumGainDb?.equals(other.replayGainAlbumGainDb)
                 ?: (other.replayGainAlbumGainDb == null)) &&
             (replayGainAlbumPeak?.equals(other.replayGainAlbumPeak)
-                ?: (other.replayGainAlbumPeak == null))
+                ?: (other.replayGainAlbumPeak == null)) &&
+            lyrics == other.lyrics
 
     /**
      * Returns a hash code derived from all metadata and artwork byte content.
@@ -166,6 +173,7 @@ public data class PlayableTrack(
         result = 31 * result + (replayGainTrackPeak?.hashCode() ?: 0)
         result = 31 * result + (replayGainAlbumGainDb?.hashCode() ?: 0)
         result = 31 * result + (replayGainAlbumPeak?.hashCode() ?: 0)
+        result = 31 * result + (lyrics?.hashCode() ?: 0)
         return result
     }
 }

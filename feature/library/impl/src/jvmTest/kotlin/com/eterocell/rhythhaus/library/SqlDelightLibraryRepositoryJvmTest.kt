@@ -4,11 +4,16 @@ import app.cash.sqldelight.db.SqlDriver
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.impl.AudioMetadata
 import com.eterocell.rhythhaus.library.impl.AudioMetadataReader
+import com.eterocell.rhythhaus.library.impl.JvmFolderSourceAccess
 import com.eterocell.rhythhaus.library.impl.PlatformAudioScanner
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
+import com.eterocell.rhythhaus.parseLyrics
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.taglib.TagReadResult
+import com.eterocell.rhythhaus.taglib.createTagLibReader
+import java.io.ByteArrayOutputStream
 import java.nio.file.Files
+import java.security.MessageDigest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -19,6 +24,109 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SqlDelightLibraryRepositoryJvmTest {
+    @Test
+    fun realWavSidecarLyricsScanPersistAndReopenWithoutChangingMedia() {
+        val directory =
+            Files.createTempDirectory("rhythhaus-lyrics-smoke").toFile()
+        val audio = directory.resolve("song.wav")
+        val databaseFile = directory.resolve("library.db")
+        try {
+            audio.writeBytes(lyricsSmokeWav("[00:09.00]Embedded fallback"))
+            directory
+                .resolve("song.LRC")
+                .writeText("[00:01.25]Local line", Charsets.UTF_8)
+            val checksumBefore =
+                MessageDigest.getInstance("SHA-256").digest(audio.readBytes())
+            val embedded = createTagLibReader().readPath(audio.absolutePath)
+            assertTrue(embedded is TagReadResult.Found)
+            assertEquals(
+                "[00:09.00]Embedded fallback",
+                (embedded as TagReadResult.Found).metadata.lyrics)
+            val source =
+                LibrarySource(
+                    id = "lyrics-smoke-source",
+                    platformKind = LibraryPlatformKind.JvmFolder,
+                    displayName = "Music",
+                    handle = directory.absolutePath,
+                    createdAtEpochMillis = 1L,
+                )
+
+            val trackId =
+                openRepository(databaseFile).use { opened ->
+                    opened.repository.upsertSource(source)
+                    val sourceAccess = JvmFolderSourceAccess()
+                    val scanner =
+                        LibraryScanner(
+                            repository = opened.repository,
+                            platformScanner =
+                                PlatformAudioScanner(sourceAccess::scan),
+                            now = { 10L },
+                            idFactory = { prefix -> "$prefix-lyrics-smoke" },
+                        )
+                    assertEquals(
+                        ScanStatus.Completed, scanner.scan(source).status)
+                    val track =
+                        opened.repository.tracksForSource(source.id).single()
+                    assertEquals("song.wav", track.sourceLocalKey)
+                    assertEquals("[00:01.25]Local line", track.lyrics)
+                    track.id
+                }
+
+            openRepository(databaseFile).use { reopened ->
+                val track =
+                    reopened.repository.tracksForSource(source.id).single()
+                assertEquals(trackId, track.id)
+                assertEquals("[00:01.25]Local line", track.lyrics)
+                assertEquals(
+                    listOf(
+                        com.eterocell.rhythhaus.LyricLine(
+                            1_250L, "Local line")),
+                    parseLyrics(track.lyrics!!),
+                )
+            }
+            assertContentEquals(
+                checksumBefore,
+                MessageDigest.getInstance("SHA-256").digest(audio.readBytes()))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun lyricsPersistUpdateAndClearForStableTrackIdentity() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-library-lyrics", ".db").toFile()
+        databaseFile.deleteOnExit()
+        val originalId = "track-lyrics"
+        openRepository(databaseFile).use { open ->
+            open.repository.upsertSource(testSource())
+            open.repository.upsertTrack(
+                testTrack(
+                    id = originalId,
+                    sourceLocalKey = "lyrics/song.flac",
+                    title = "Song",
+                    artist = "Artist",
+                    lyrics = "[00:01.00]first",
+                ),
+            )
+        }
+
+        openRepository(databaseFile).use { reopened ->
+            val persisted = reopened.repository.tracks().single()
+            assertEquals(originalId, persisted.id)
+            assertEquals("[00:01.00]first", persisted.lyrics)
+            reopened.repository.upsertTrack(
+                persisted.copy(lyrics = "[00:02.00]second"),
+            )
+            assertEquals(
+                "[00:02.00]second",
+                reopened.repository.tracks().single().lyrics)
+            reopened.repository.upsertTrack(persisted.copy(lyrics = null))
+            assertEquals(null, reopened.repository.tracks().single().lyrics)
+        }
+        databaseFile.delete()
+    }
+
     @Test
     fun successfulRescansUpdateThenClearReplayGainFactsWithoutChangingIdentityOrUserState() {
         val file =
@@ -1567,6 +1675,7 @@ private fun testTrack(
     title: String,
     artist: String,
     lastSeenScanId: String = "scan-1",
+    lyrics: String? = null,
 ) =
     LibraryTrack(
         id = id,
@@ -1583,6 +1692,7 @@ private fun testTrack(
         lastSeenScanId = lastSeenScanId,
         createdAtEpochMillis = 1L,
         updatedAtEpochMillis = 2L,
+        lyrics = lyrics,
     )
 
 private fun testScanSession(
@@ -1614,3 +1724,107 @@ private fun testScanError(
         recoverable = true,
         createdAtEpochMillis = createdAtEpochMillis,
     )
+
+private fun lyricsSmokeWav(embeddedLyrics: String): ByteArray {
+    val sampleRate = 8_000
+    val data = ByteArray(sampleRate) { 0x80.toByte() }
+    val infoPayload =
+        ByteArrayOutputStream()
+            .apply {
+                writeAscii("INFO")
+                listOf(
+                        "INAM" to "Lyrics Smoke",
+                        "IART" to "Test Artist",
+                        "IPRD" to "Test Album")
+                    .forEach { (id, value) ->
+                        val text = value.encodeToByteArray() + byteArrayOf(0)
+                        writeAscii(id)
+                        writeIntLe(text.size)
+                        write(text)
+                        if (text.size % 2 != 0) write(0)
+                    }
+            }
+            .toByteArray()
+    val infoChunk =
+        ByteArrayOutputStream()
+            .apply {
+                writeAscii("LIST")
+                writeIntLe(infoPayload.size)
+                write(infoPayload)
+            }
+            .toByteArray()
+    val id3Payload =
+        ByteArrayOutputStream()
+            .apply {
+                writeAscii("ID3")
+                write(byteArrayOf(3, 0, 0))
+                val framePayload =
+                    byteArrayOf(0) +
+                        "LYRICS".encodeToByteArray() +
+                        byteArrayOf(0) +
+                        embeddedLyrics.encodeToByteArray() +
+                        byteArrayOf(0)
+                writeSynchsafe(framePayload.size + 10)
+                writeAscii("TXXX")
+                writeIntBe(framePayload.size)
+                write(byteArrayOf(0, 0))
+                write(framePayload)
+            }
+            .toByteArray()
+    val id3Chunk =
+        ByteArrayOutputStream()
+            .apply {
+                writeAscii("ID3 ")
+                writeIntLe(id3Payload.size)
+                write(id3Payload)
+                if (id3Payload.size % 2 != 0) write(0)
+            }
+            .toByteArray()
+    val riffSize = 4 + 24 + 8 + data.size + infoChunk.size + id3Chunk.size
+    return ByteArrayOutputStream()
+        .apply {
+            writeAscii("RIFF")
+            writeIntLe(riffSize)
+            writeAscii("WAVEfmt ")
+            writeIntLe(16)
+            writeShortLe(1)
+            writeShortLe(1)
+            writeIntLe(sampleRate)
+            writeIntLe(sampleRate)
+            writeShortLe(1)
+            writeShortLe(8)
+            writeAscii("data")
+            writeIntLe(data.size)
+            write(data)
+            write(infoChunk)
+            write(id3Chunk)
+        }
+        .toByteArray()
+}
+
+private fun ByteArrayOutputStream.writeIntBe(value: Int) {
+    write((value ushr 24) and 0xff)
+    write((value ushr 16) and 0xff)
+    write((value ushr 8) and 0xff)
+    write(value and 0xff)
+}
+
+private fun ByteArrayOutputStream.writeSynchsafe(value: Int) {
+    write((value ushr 21) and 0x7f)
+    write((value ushr 14) and 0x7f)
+    write((value ushr 7) and 0x7f)
+    write(value and 0x7f)
+}
+
+private fun ByteArrayOutputStream.writeAscii(value: String) {
+    write(value.encodeToByteArray())
+}
+
+private fun ByteArrayOutputStream.writeIntLe(value: Int) {
+    repeat(4) { shift -> write((value ushr (shift * 8)) and 0xff) }
+}
+
+private fun ByteArrayOutputStream.writeShortLe(value: Int) {
+    write(value and 0xff)
+    write((value ushr 8) and 0xff)
+}

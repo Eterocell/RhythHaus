@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS library_track (
     replayGainTrackGainDb REAL DEFAULT NULL,
     replayGainTrackPeak REAL DEFAULT NULL,
     replayGainAlbumGainDb REAL DEFAULT NULL,
-    replayGainAlbumPeak REAL DEFAULT NULL
+    replayGainAlbumPeak REAL DEFAULT NULL,
+    lyrics TEXT DEFAULT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS library_track_source_key ON library_track(sourceId, sourceLocalKey);
@@ -31,8 +32,8 @@ INSERT INTO library_track(id, sourceId, sourceLocalKey, audioSourceKind, audioSo
     displayName, title, artist, album, durationMillis, sizeBytes, modifiedAtEpochMillis,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis,
     trackNumber, discNumber, artworkBytes, artworkMimeType,
-    replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak, lyrics)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     sourceId = excluded.sourceId,
     sourceLocalKey = excluded.sourceLocalKey,
@@ -55,7 +56,8 @@ ON CONFLICT(id) DO UPDATE SET
     replayGainTrackGainDb = excluded.replayGainTrackGainDb,
     replayGainTrackPeak = excluded.replayGainTrackPeak,
     replayGainAlbumGainDb = excluded.replayGainAlbumGainDb,
-    replayGainAlbumPeak = excluded.replayGainAlbumPeak;
+    replayGainAlbumPeak = excluded.replayGainAlbumPeak,
+    lyrics = excluded.lyrics;
 
 selectAllTracks:
 SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
@@ -63,7 +65,7 @@ SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
     NULL AS artworkBytes,
     NULL AS artworkMimeType,
-    replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak
+    replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak, lyrics
 FROM library_track ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
 
 selectTracksForSource:
@@ -72,7 +74,7 @@ SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
     NULL AS artworkBytes,
     NULL AS artworkMimeType,
-    replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak
+    replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak, lyrics
 FROM library_track WHERE sourceId = ? ORDER BY title COLLATE NOCASE ASC, artist COLLATE NOCASE ASC;
 
 selectTrackBySourceKey:
@@ -81,7 +83,7 @@ SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
     NULL AS artworkBytes,
     NULL AS artworkMimeType,
-    replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak
+    replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak, lyrics
 FROM library_track WHERE sourceId = ? AND sourceLocalKey = ?;
 
 markTrackSeen:
@@ -93,7 +95,7 @@ SELECT id, sourceId, sourceLocalKey, audioSourceKind, audioSourceValue,
     lastSeenScanId, createdAtEpochMillis, updatedAtEpochMillis, trackNumber, discNumber,
     NULL AS artworkBytes,
     NULL AS artworkMimeType,
-    replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak
+    replayGainTrackGainDb, replayGainTrackPeak, replayGainAlbumGainDb, replayGainAlbumPeak, lyrics
 FROM library_track WHERE id = ?;
 
 selectArtworkMetadataForTrack:

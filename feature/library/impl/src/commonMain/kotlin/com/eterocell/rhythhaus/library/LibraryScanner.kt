@@ -292,6 +292,14 @@ private fun AudioScanCandidate.toLibraryTrack(
         replayGainTrackPeak = metadata?.replayGainTrackPeak,
         replayGainAlbumGainDb = metadata?.replayGainAlbumGainDb,
         replayGainAlbumPeak = metadata?.replayGainAlbumPeak,
+        lyrics =
+            sidecarLyrics
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.takeIf { it.encodeToByteArray().size <= 512 * 1024 }
+                ?: metadata?.lyrics?.trim()?.takeIf {
+                    it.isNotBlank() && it.encodeToByteArray().size <= 512 * 1024
+                },
     )
 }
 

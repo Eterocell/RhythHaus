@@ -295,4 +295,5 @@ internal fun LibraryTrack.toUiTrack(): Track =
         replayGainTrackPeak = replayGainTrackPeak,
         replayGainAlbumGainDb = replayGainAlbumGainDb,
         replayGainAlbumPeak = replayGainAlbumPeak,
+        lyrics = lyrics,
     )

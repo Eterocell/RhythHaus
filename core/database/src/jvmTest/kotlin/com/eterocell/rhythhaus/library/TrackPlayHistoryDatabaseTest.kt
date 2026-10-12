@@ -171,6 +171,7 @@ class TrackPlayHistoryDatabaseTest {
             replayGainTrackPeak = null,
             replayGainAlbumGainDb = null,
             replayGainAlbumPeak = null,
+            lyrics = null,
         )
     }
 

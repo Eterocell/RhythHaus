@@ -16,6 +16,166 @@ import kotlin.test.assertNull
 
 class LibraryScannerTest {
     @Test
+    fun sidecarLyricsTakePrecedenceOverEmbeddedLyrics() {
+        val repository = InMemoryLibraryRepository()
+        val source =
+            LibrarySource(
+                "source-1",
+                LibraryPlatformKind.JvmFolder,
+                "Music",
+                "/Music",
+                1L)
+        val scanner =
+            LibraryScanner(
+                repository = repository,
+                platformScanner =
+                    PlatformAudioScanner {
+                        sequenceOf(
+                            PlatformScanEvent.AudioCandidate(
+                                AudioScanCandidate(
+                                    sourceId = source.id,
+                                    sourceLocalKey = "song.flac",
+                                    displayPath = "song.flac",
+                                    displayName = "song.flac",
+                                    audioSource =
+                                        AudioSource.FilePath(
+                                            "/Music/song.flac"),
+                                    sidecarLyrics = "[00:02.00]sidecar",
+                                ),
+                            ),
+                        )
+                    },
+                metadataReader =
+                    AudioMetadataReader(
+                        tagLibReader =
+                            object : TagLibReader {
+                                override fun readPath(path: String) =
+                                    TagReadResult.Found(
+                                        TagMetadata(
+                                            lyrics = "[00:01.00]embedded"))
+
+                                override fun readProperties(path: String) =
+                                    emptyMap<String, String>()
+                            },
+                        platformMetadataReader = { null },
+                    ),
+                now = { 1L },
+                idFactory = { "id" },
+            )
+
+        scanner.scan(source)
+
+        assertEquals("[00:02.00]sidecar", repository.tracks().single().lyrics)
+    }
+
+    @Test
+    fun blankSidecarFallsBackToEmbeddedLyrics() {
+        val repository = InMemoryLibraryRepository()
+        val source =
+            LibrarySource(
+                "source-1",
+                LibraryPlatformKind.JvmFolder,
+                "Music",
+                "/Music",
+                1L)
+        val scanner =
+            LibraryScanner(
+                repository = repository,
+                platformScanner =
+                    PlatformAudioScanner {
+                        sequenceOf(
+                            PlatformScanEvent.AudioCandidate(
+                                AudioScanCandidate(
+                                    sourceId = source.id,
+                                    sourceLocalKey = "song.flac",
+                                    displayPath = "song.flac",
+                                    displayName = "song.flac",
+                                    audioSource =
+                                        AudioSource.FilePath(
+                                            "/Music/song.flac"),
+                                    sidecarLyrics = " \n ",
+                                ),
+                            ),
+                        )
+                    },
+                metadataReader =
+                    AudioMetadataReader(
+                        tagLibReader =
+                            object : TagLibReader {
+                                override fun readPath(path: String) =
+                                    TagReadResult.Found(
+                                        TagMetadata(lyrics = "embedded"))
+
+                                override fun readProperties(path: String) =
+                                    emptyMap<String, String>()
+                            },
+                        platformMetadataReader = { null },
+                    ),
+                now = { 1L },
+                idFactory = { "id" },
+            )
+
+        scanner.scan(source)
+
+        assertEquals("embedded", repository.tracks().single().lyrics)
+    }
+
+    @Test
+    fun explicitRescanRefreshesLyricsWithoutAudioFactChanges() {
+        val repository = InMemoryLibraryRepository()
+        val source =
+            LibrarySource(
+                "source-1",
+                LibraryPlatformKind.JvmFolder,
+                "Music",
+                "/Music",
+                1L)
+        var sidecarLyrics = "[00:01.00]first"
+        val platform = PlatformAudioScanner {
+            sequenceOf(
+                PlatformScanEvent.AudioCandidate(
+                    AudioScanCandidate(
+                        sourceId = source.id,
+                        sourceLocalKey = "song.flac",
+                        displayPath = "/Music/song.flac",
+                        displayName = "song.flac",
+                        audioSource = AudioSource.FilePath("/Music/song.flac"),
+                        sizeBytes = 10L,
+                        modifiedAtEpochMillis = 1L,
+                        sidecarLyrics = sidecarLyrics,
+                    ),
+                ),
+            )
+        }
+        var nextTrackId = 0
+        val scanner =
+            LibraryScanner(
+                repository = repository,
+                platformScanner = platform,
+                now = { 100L },
+                idFactory = { prefix ->
+                    if (prefix == "track") "track-${nextTrackId++}"
+                    else "$prefix-id"
+                },
+            )
+
+        scanner.scan(source)
+        val first = repository.tracksForSource(source.id).single()
+        assertEquals("[00:01.00]first", first.lyrics)
+
+        sidecarLyrics = "[00:02.00]refreshed"
+        scanner.scan(source)
+
+        val rescanned = repository.tracksForSource(source.id).single()
+        assertEquals(first.id, rescanned.id)
+        assertEquals(first.sourceLocalKey, rescanned.sourceLocalKey)
+        assertEquals(first.sizeBytes, rescanned.sizeBytes)
+        assertEquals(
+            first.modifiedAtEpochMillis, rescanned.modifiedAtEpochMillis)
+        assertEquals("[00:02.00]refreshed", rescanned.lyrics)
+    }
+
+    @Test
     fun completedScanPublishesBoundedChangeSummary() {
         val repository = InMemoryLibraryRepository()
         val source =

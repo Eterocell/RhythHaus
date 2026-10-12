@@ -18,6 +18,10 @@ data class AudioScanCandidate(
     val cleanupMetadataAudioSource: (() -> Unit)? = null,
     val sizeBytes: Long? = null,
     val modifiedAtEpochMillis: Long? = null,
+    /**
+     * Optional same-stem sidecar lyrics read within authorized source access.
+     */
+    val sidecarLyrics: String? = null,
 )
 
 /** Progress emitted while a source scan is running. */

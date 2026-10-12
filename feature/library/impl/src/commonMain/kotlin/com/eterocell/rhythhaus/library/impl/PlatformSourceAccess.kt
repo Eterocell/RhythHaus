@@ -21,6 +21,7 @@ internal fun audioCandidateForSourceFile(
     cleanupMetadataAudioSource: (() -> Unit)? = null,
     sizeBytes: Long? = null,
     modifiedAtEpochMillis: Long? = null,
+    sidecarLyrics: String? = null,
     supportedByMimeType: Boolean = false,
 ): PlatformScanEvent =
     if (supportedByMimeType || isSupportedAudioName(displayName)) {
@@ -35,6 +36,7 @@ internal fun audioCandidateForSourceFile(
                 cleanupMetadataAudioSource = cleanupMetadataAudioSource,
                 sizeBytes = sizeBytes,
                 modifiedAtEpochMillis = modifiedAtEpochMillis,
+                sidecarLyrics = sidecarLyrics,
             ),
         )
     } else {

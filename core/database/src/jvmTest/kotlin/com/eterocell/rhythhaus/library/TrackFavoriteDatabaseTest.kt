@@ -166,6 +166,7 @@ class TrackFavoriteDatabaseTest {
             replayGainTrackPeak = null,
             replayGainAlbumGainDb = null,
             replayGainAlbumPeak = null,
+            lyrics = null,
         )
     }
 

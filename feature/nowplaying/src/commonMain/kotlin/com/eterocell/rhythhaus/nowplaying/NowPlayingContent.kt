@@ -13,10 +13,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,8 +38,12 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -53,6 +61,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.eterocell.rhythhaus.LyricLine
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackFailureKind
 import com.eterocell.rhythhaus.PlaybackState
@@ -62,6 +72,7 @@ import com.eterocell.rhythhaus.ShuffleMode
 import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.nowplaying.ui.MusicProgressScrubber
+import com.eterocell.rhythhaus.parseLyrics
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
@@ -73,6 +84,10 @@ import rhythhaus.feature.nowplaying.generated.resources.Res
 import rhythhaus.feature.nowplaying.generated.resources.favorite_action
 import rhythhaus.feature.nowplaying.generated.resources.favorite_selected
 import rhythhaus.feature.nowplaying.generated.resources.favorite_unselected
+import rhythhaus.feature.nowplaying.generated.resources.lyrics_action
+import rhythhaus.feature.nowplaying.generated.resources.lyrics_close
+import rhythhaus.feature.nowplaying.generated.resources.lyrics_current_line
+import rhythhaus.feature.nowplaying.generated.resources.lyrics_title
 import rhythhaus.feature.nowplaying.generated.resources.next_track
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_access_lost
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_decoder_failure
@@ -119,6 +134,11 @@ internal const val NowPlayingRetryFailureTestTag = "NowPlayingRetryFailure"
 internal const val NowPlayingSkipFailureTestTag = "NowPlayingSkipFailure"
 internal const val NowPlayingRemoveFailureTestTag = "NowPlayingRemoveFailure"
 internal const val NowPlayingFavoriteTestTag = "NowPlayingFavorite"
+internal const val NowPlayingLyricsButtonTestTag = "NowPlayingLyricsButton"
+internal const val NowPlayingLyricsDialogTestTag = "NowPlayingLyricsDialog"
+internal const val NowPlayingLyricsCloseTestTag = "NowPlayingLyricsClose"
+internal const val NowPlayingLyricsListTestTag = "NowPlayingLyricsList"
+internal const val NowPlayingLyricLineTestTag = "NowPlayingLyricLine"
 
 /** Immutable shared-resolved labels used by [NowPlayingContent]. */
 public data class NowPlayingScreenLabels(
@@ -200,6 +220,12 @@ public fun NowPlayingContent(
                     stringResource(Res.string.shuffle_on)
                 else stringResource(Res.string.shuffle_off),
         )
+    val lyrics =
+        remember(track.lyrics) {
+            track.lyrics?.let(::parseLyrics).orEmpty()
+        }
+    val lyricsText = track.lyrics
+    var lyricsVisible by remember(track.id) { mutableStateOf(false) }
     Surface(
         modifier =
             modifier
@@ -225,7 +251,9 @@ public fun NowPlayingContent(
                             sleepTimerState,
                             onArmSleepTimer,
                             onArmSleepTimerAfterCompletions,
-                            onCancelSleepTimer)
+                            onCancelSleepTimer,
+                            onOpenLyrics = { lyricsVisible = true },
+                        )
                     NowPlayingAdaptiveLayoutMode.Split ->
                         WideNowPlayingLayout(
                             track,
@@ -241,7 +269,17 @@ public fun NowPlayingContent(
                             sleepTimerState,
                             onArmSleepTimer,
                             onArmSleepTimerAfterCompletions,
-                            onCancelSleepTimer)
+                            onCancelSleepTimer,
+                            onOpenLyrics = { lyricsVisible = true },
+                        )
+                }
+                if (lyricsVisible && !lyricsText.isNullOrBlank()) {
+                    LyricsDialog(
+                        lines = lyrics,
+                        rawLyrics = lyricsText,
+                        positionMillis = uiState.positionMillis,
+                        onDismiss = { lyricsVisible = false },
+                    )
                 }
             }
         }
@@ -296,6 +334,7 @@ private fun NowPlayingControlsPane(
     onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
     onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
     onCancelSleepTimer: () -> Unit,
+    onOpenLyrics: () -> Unit,
 ) {
     Column(modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -322,6 +361,26 @@ private fun NowPlayingControlsPane(
                     color = HausColors.current.muted,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium)
+            }
+            val lyricsActionLabel = stringResource(Res.string.lyrics_action)
+            if (!track.lyrics.isNullOrBlank()) {
+                Box(
+                    Modifier.height(44.dp)
+                        .testTag(NowPlayingLyricsButtonTestTag)
+                        .semantics {
+                            contentDescription = lyricsActionLabel
+                        }
+                        .hausClickable(onOpenLyrics)
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Text(
+                        lyricsActionLabel,
+                        color = HausColors.current.pulse,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
             if (isCurrentTrackAvailableInLibrary) {
                 val checked = track.id in favoriteTrackIds
@@ -596,6 +655,7 @@ private fun CompactNowPlayingLayout(
     onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
     onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
     onCancelSleepTimer: () -> Unit,
+    onOpenLyrics: () -> Unit,
 ) {
     Column(
         Modifier.testTag(NowPlayingCompactLayoutTestTag)
@@ -632,7 +692,9 @@ private fun CompactNowPlayingLayout(
                 sleepTimerState,
                 onArmSleepTimer,
                 onArmSleepTimerAfterCompletions,
-                onCancelSleepTimer)
+                onCancelSleepTimer,
+                onOpenLyrics,
+            )
         }
 }
 
@@ -652,6 +714,7 @@ private fun WideNowPlayingLayout(
     onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
     onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
     onCancelSleepTimer: () -> Unit,
+    onOpenLyrics: () -> Unit,
 ) {
     Row(
         Modifier.testTag(NowPlayingSplitLayoutTestTag)
@@ -691,9 +754,116 @@ private fun WideNowPlayingLayout(
                         sleepTimerState,
                         onArmSleepTimer,
                         onArmSleepTimerAfterCompletions,
-                        onCancelSleepTimer)
+                        onCancelSleepTimer,
+                        onOpenLyrics,
+                    )
                 }
         }
+}
+
+@Composable
+private fun LyricsDialog(
+    lines: List<LyricLine>,
+    rawLyrics: String,
+    positionMillis: Long,
+    onDismiss: () -> Unit,
+) {
+    val visibleLines =
+        remember(lines, rawLyrics) {
+            lines.ifEmpty { listOf(LyricLine(null, rawLyrics.trim())) }
+        }
+    val activeIndex = activeTimedLyricIndex(visibleLines, positionMillis)
+    val listState = rememberLazyListState()
+    LaunchedEffect(activeIndex) {
+        if (activeIndex >= 0) listState.animateScrollToItem(activeIndex)
+    }
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier =
+                Modifier.fillMaxWidth()
+                    .heightIn(max = 600.dp)
+                    .testTag(NowPlayingLyricsDialogTestTag),
+            cornerRadius = 24.dp,
+            colors =
+                CardDefaults.defaultColors(color = HausColors.current.panel),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val closeLabel = stringResource(Res.string.lyrics_close)
+                    Text(
+                        stringResource(Res.string.lyrics_title),
+                        color = HausColors.current.ink,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                    )
+                    Box(
+                        Modifier.height(44.dp)
+                            .testTag(NowPlayingLyricsCloseTestTag)
+                            .semantics {
+                                contentDescription = closeLabel
+                            }
+                            .hausClickable(onDismiss)
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            stringResource(Res.string.lyrics_close),
+                            color = HausColors.current.pulse,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                LazyColumn(
+                    modifier =
+                        Modifier.fillMaxWidth()
+                            .heightIn(max = 500.dp)
+                            .testTag(NowPlayingLyricsListTestTag),
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    itemsIndexed(visibleLines) { index, line ->
+                        val active = index == activeIndex
+                        val activeLineLabel =
+                            stringResource(Res.string.lyrics_current_line)
+                        Text(
+                            line.text,
+                            modifier =
+                                Modifier.fillMaxWidth()
+                                    .testTag(
+                                        "$NowPlayingLyricLineTestTag-$index")
+                                    .semantics {
+                                        if (active) {
+                                            stateDescription = activeLineLabel
+                                        }
+                                    },
+                            color =
+                                if (active) HausColors.current.pulse
+                                else HausColors.current.ink,
+                            fontSize = if (active) 18.sp else 16.sp,
+                            fontWeight =
+                                if (active) FontWeight.Bold
+                                else FontWeight.Medium,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun activeTimedLyricIndex(
+    lines: List<LyricLine>,
+    positionMillis: Long,
+): Int = lines.indexOfLast { line ->
+    line.timestampMillis?.let { it <= positionMillis } == true
 }
 
 @Composable

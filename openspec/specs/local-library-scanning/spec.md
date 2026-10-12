@@ -310,3 +310,18 @@ The scanner SHALL persist nullable track/album ReplayGain gain and peak facts fr
 #### Scenario: Display corrections
 - **WHEN** a listener edits or restores title, artist, album, track or disc display fields
 - **THEN** the scanned ReplayGain facts remain unchanged.
+
+### Requirement: Scans persist locally available lyrics
+The scanner SHALL persist bounded locally available lyrics with the stable source-local track record. Sidecar lookup SHALL use only source access paths that expose sibling files, and optional lyric failures SHALL NOT fail or skip otherwise readable audio.
+
+#### Scenario: Sidecar and embedded lyrics are available
+- **WHEN** a supported source scan reads an audio item with a readable same-stem `.lrc` and embedded lyrics
+- **THEN** the scan persists the sidecar lyrics on the existing stable track identity.
+
+#### Scenario: Embedded lyrics fallback during scan
+- **WHEN** an audio item has embedded lyrics but no readable sidecar
+- **THEN** the scan persists embedded lyrics and continues using the existing audio-source identity.
+
+#### Scenario: Optional lyrics cannot be read
+- **WHEN** no valid bounded lyric candidate can be read
+- **THEN** scanning persists the audio track without lyrics and continues without a lyric-specific failure.

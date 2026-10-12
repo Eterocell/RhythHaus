@@ -195,7 +195,8 @@ internal class SqlDelightLibraryRepository(
                         replayGainTrackGainDb,
                         replayGainTrackPeak,
                         replayGainAlbumGainDb,
-                        replayGainAlbumPeak ->
+                        replayGainAlbumPeak,
+                        lyrics ->
                         DomainTrackRow(
                             id = id,
                             sourceId = sourceId,
@@ -220,6 +221,7 @@ internal class SqlDelightLibraryRepository(
                             replayGainTrackPeak = replayGainTrackPeak,
                             replayGainAlbumGainDb = replayGainAlbumGainDb,
                             replayGainAlbumPeak = replayGainAlbumPeak,
+                            lyrics = lyrics,
                         )
                     },
                 )
@@ -251,6 +253,7 @@ internal class SqlDelightLibraryRepository(
                 replayGainTrackPeak = track.replayGainTrackPeak,
                 replayGainAlbumGainDb = track.replayGainAlbumGainDb,
                 replayGainAlbumPeak = track.replayGainAlbumPeak,
+                lyrics = track.lyrics,
             )
             TrackUpsertResult.Added
         } else {
@@ -279,6 +282,7 @@ internal class SqlDelightLibraryRepository(
                 replayGainTrackPeak = track.replayGainTrackPeak,
                 replayGainAlbumGainDb = track.replayGainAlbumGainDb,
                 replayGainAlbumPeak = track.replayGainAlbumPeak,
+                lyrics = track.lyrics,
             )
             TrackUpsertResult.Updated
         }
@@ -320,7 +324,8 @@ internal class SqlDelightLibraryRepository(
                 replayGainTrackGainDb,
                 replayGainTrackPeak,
                 replayGainAlbumGainDb,
-                replayGainAlbumPeak ->
+                replayGainAlbumPeak,
+                lyrics ->
                 LibraryTrack(
                     id = id,
                     sourceId = sourceId,
@@ -345,6 +350,7 @@ internal class SqlDelightLibraryRepository(
                     replayGainTrackPeak = replayGainTrackPeak,
                     replayGainAlbumGainDb = replayGainAlbumGainDb,
                     replayGainAlbumPeak = replayGainAlbumPeak,
+                    lyrics = lyrics,
                 )
             }
             .executeAsList()
@@ -400,7 +406,8 @@ internal class SqlDelightLibraryRepository(
                     replayGainTrackGainDb,
                     replayGainTrackPeak,
                     replayGainAlbumGainDb,
-                    replayGainAlbumPeak ->
+                    replayGainAlbumPeak,
+                    lyrics ->
                     LibraryTrack(
                         id = id,
                         sourceId = sourceId,
@@ -425,6 +432,7 @@ internal class SqlDelightLibraryRepository(
                         replayGainTrackPeak = replayGainTrackPeak,
                         replayGainAlbumGainDb = replayGainAlbumGainDb,
                         replayGainAlbumPeak = replayGainAlbumPeak,
+                        lyrics = lyrics,
                     )
                 }
                 .executeAsOneOrNull() ?: return null
@@ -570,7 +578,8 @@ internal class SqlDelightLibraryRepository(
                 replayGainTrackGainDb,
                 replayGainTrackPeak,
                 replayGainAlbumGainDb,
-                replayGainAlbumPeak ->
+                replayGainAlbumPeak,
+                lyrics ->
                 LibraryTrack(
                     id = id,
                     sourceId = srcId,
@@ -595,6 +604,7 @@ internal class SqlDelightLibraryRepository(
                     replayGainTrackPeak = replayGainTrackPeak,
                     replayGainAlbumGainDb = replayGainAlbumGainDb,
                     replayGainAlbumPeak = replayGainAlbumPeak,
+                    lyrics = lyrics,
                 )
             }
             .executeAsList()
@@ -944,6 +954,7 @@ private data class DomainTrackRow(
     val replayGainTrackPeak: Double?,
     val replayGainAlbumGainDb: Double?,
     val replayGainAlbumPeak: Double?,
+    val lyrics: String?,
 )
 
 private val AudioSource.kindName: String

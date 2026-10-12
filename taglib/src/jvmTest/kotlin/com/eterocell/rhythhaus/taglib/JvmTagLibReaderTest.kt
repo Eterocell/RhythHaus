@@ -32,6 +32,37 @@ class JvmTagLibReaderTest {
     }
 
     @Test
+    fun nativeReaderExtractsLyricsPropertyWithoutChangingMedia() {
+        val fixture = createWavInfoFixture("LYRICS" to "[00:01.00]First line")
+        try {
+            val before = fixture.sha256()
+
+            val found =
+                assertIs<TagReadResult.Found>(
+                    createTagLibReader().readPath(fixture.absolutePath))
+
+            assertEquals("[00:01.00]First line", found.metadata.lyrics)
+            assertContentEquals(before, fixture.sha256())
+        } finally {
+            fixture.delete()
+        }
+    }
+
+    @Test
+    fun nativeReaderDropsEmbeddedLyricsAboveDocumentLimit() {
+        val fixture =
+            createWavInfoFixture("LYRICS" to "x".repeat(512 * 1024 + 1))
+        try {
+            val found =
+                assertIs<TagReadResult.Found>(
+                    createTagLibReader().readPath(fixture.absolutePath))
+            assertNull(found.metadata.lyrics)
+        } finally {
+            fixture.delete()
+        }
+    }
+
+    @Test
     fun nativeReaderExtractsAllReplayGainTagsWithoutChangingMedia() {
         val fixture =
             createWavInfoFixture(
@@ -115,6 +146,7 @@ class JvmTagLibReaderTest {
                     replayGainTrackPeak = "2",
                     replayGainAlbumGain = "-4 dB",
                     replayGainAlbumPeak = "1.1",
+                    lyrics = "[00:01.00]First line",
                 )
                 .toTagReadResult()
 
@@ -134,6 +166,7 @@ class JvmTagLibReaderTest {
         assertEquals("2", found.metadata.replayGainTrackPeak)
         assertEquals("-4 dB", found.metadata.replayGainAlbumGain)
         assertEquals("1.1", found.metadata.replayGainAlbumPeak)
+        assertEquals("[00:01.00]First line", found.metadata.lyrics)
     }
 
     @Test
