@@ -22,4 +22,10 @@
 <string name="crossfade_explanation">符合条件的队列曲目按所选时长上限重叠播放。短曲目会缩短淡入淡出时长。启用睡眠定时器、单曲循环、播放当前曲目后停止或时长未知时不生效。</string>
 <string name="crossfade_saving">正在恢复或保存交叉淡入淡出设置…</string>
 <string name="crossfade_error">无法保存交叉淡入淡出设置。仍使用上次选择的时长，请重新选择时长以重试。</string>
+<string name="gapless_title">无缝播放</string>
+<string name="gapless_off">关闭</string>
+<string name="gapless_on">开启</string>
+<string name="gapless_explanation">在当前曲目结束前准备队列中的下一首曲目。启用交叉淡入淡出时优先使用交叉淡入淡出。</string>
+<string name="gapless_saving">正在恢复或保存无缝播放设置…</string>
+<string name="gapless_error">无法保存无缝播放设置。仍使用上次选择的设置，请重新选择以重试。</string>
 </resources>

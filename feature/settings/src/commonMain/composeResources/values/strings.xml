@@ -22,4 +22,10 @@
 <string name="crossfade_explanation">Overlaps eligible queue tracks by up to the selected duration. Short tracks use a shorter fade. Disabled with a sleep timer, Repeat One, Stop After Current, or unknown duration.</string>
 <string name="crossfade_saving">Restoring or saving crossfade…</string>
 <string name="crossfade_error">Could not save crossfade. Your previous duration is still selected. Choose a duration again to retry.</string>
+<string name="gapless_title">Gapless playback</string>
+<string name="gapless_off">Off</string>
+<string name="gapless_on">On</string>
+<string name="gapless_explanation">Prepare the next queue track before this one ends. Crossfade takes precedence when enabled.</string>
+<string name="gapless_saving">Restoring or saving gapless playback…</string>
+<string name="gapless_error">Could not save gapless playback. Your previous setting is still selected. Choose again to retry.</string>
 </resources>

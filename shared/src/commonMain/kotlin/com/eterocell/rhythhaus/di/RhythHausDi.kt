@@ -58,10 +58,13 @@ fun rhythHausModule(): Module = module {
             get<com.eterocell.rhythhaus.playback.ReplayGainPreferenceOwner>()
         val crossfade =
             get<com.eterocell.rhythhaus.playback.CrossfadePreferenceOwner>()
+        val gapless =
+            get<com.eterocell.rhythhaus.playback.GaplessPreferenceOwner>()
         PlaybackProcessLifecycle(
             restoreAction = { tracks ->
                 normalization.restore()
                 crossfade.restore()
+                gapless.restore()
                 coordinator.restoreOnce(tracks)
             },
             processScope = get(),
@@ -84,6 +87,18 @@ fun rhythHausModule(): Module = module {
         com.eterocell.rhythhaus.playback.CrossfadePreferenceOwner(
             store = get(),
             applyDuration = get<PlaybackController>()::setCrossfadeDuration,
+        )
+    }
+    single<com.eterocell.rhythhaus.playback.GaplessPreferenceStore> {
+        com.eterocell.rhythhaus.playback.createGaplessPreferenceStore()
+    }
+    single {
+        com.eterocell.rhythhaus.playback.GaplessPreferenceOwner(
+            store = get(),
+            applyMode = { mode ->
+                get<PlaybackController>().setGaplessEnabled(
+                    mode == com.eterocell.rhythhaus.playback.GaplessPlaybackMode.On)
+            },
         )
     }
     single<OnboardingPreferenceStore> { createOnboardingPreferenceStore() }

@@ -61,6 +61,7 @@ import com.eterocell.rhythhaus.settings.MediaStoreAudioRecovery
 import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
 import com.eterocell.rhythhaus.settings.SettingsAboutScreen
 import com.eterocell.rhythhaus.settings.SettingsCrossfadeDuration
+import com.eterocell.rhythhaus.settings.SettingsGaplessMode
 import com.eterocell.rhythhaus.settings.SettingsScreen
 import com.eterocell.rhythhaus.settings.SettingsSharedLabels
 import com.eterocell.rhythhaus.settings.SettingsSourceItem
@@ -177,6 +178,8 @@ internal fun LibraryRouteOverlays(
     onReplayGainModeSelected: (com.eterocell.rhythhaus.ReplayGainMode) -> Unit,
     crossfadeState: com.eterocell.rhythhaus.playback.CrossfadePreferenceState,
     onCrossfadeDurationSelected: (CrossfadeDuration) -> Unit,
+    gaplessState: com.eterocell.rhythhaus.playback.GaplessPreferenceState = com.eterocell.rhythhaus.playback.GaplessPreferenceState(isBusy = false),
+    onGaplessModeSelected: (com.eterocell.rhythhaus.playback.GaplessPlaybackMode) -> Unit = {},
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit = { _, _ -> },
@@ -303,6 +306,12 @@ internal fun LibraryRouteOverlays(
                     },
                 crossfadeBusy = crossfadeState.isBusy,
                 crossfadeError = crossfadeState.saveFailed,
+                gaplessMode = if (gaplessState.selectedMode == com.eterocell.rhythhaus.playback.GaplessPlaybackMode.On) SettingsGaplessMode.On else SettingsGaplessMode.Off,
+                gaplessBusy = gaplessState.isBusy,
+                gaplessError = gaplessState.saveFailed,
+                onGaplessModeSelected = { mode ->
+                    onGaplessModeSelected(if (mode == SettingsGaplessMode.On) com.eterocell.rhythhaus.playback.GaplessPlaybackMode.On else com.eterocell.rhythhaus.playback.GaplessPlaybackMode.Off)
+                },
                 onCrossfadeDurationSelected = { duration ->
                     onCrossfadeDurationSelected(
                         when (duration) {

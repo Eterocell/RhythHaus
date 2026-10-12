@@ -83,6 +83,12 @@ import rhythhaus.feature.settings.generated.resources.crossfade_explanation
 import rhythhaus.feature.settings.generated.resources.crossfade_off
 import rhythhaus.feature.settings.generated.resources.crossfade_saving
 import rhythhaus.feature.settings.generated.resources.crossfade_title
+import rhythhaus.feature.settings.generated.resources.gapless_title
+import rhythhaus.feature.settings.generated.resources.gapless_off
+import rhythhaus.feature.settings.generated.resources.gapless_on
+import rhythhaus.feature.settings.generated.resources.gapless_explanation
+import rhythhaus.feature.settings.generated.resources.gapless_saving
+import rhythhaus.feature.settings.generated.resources.gapless_error
 import rhythhaus.feature.settings.generated.resources.device_audio
 import rhythhaus.feature.settings.generated.resources.device_audio_add
 import rhythhaus.feature.settings.generated.resources.device_audio_settings
@@ -207,6 +213,8 @@ public enum class SettingsCrossfadeDuration {
     Seconds8,
 }
 
+public enum class SettingsGaplessMode { Off, On }
+
 internal enum class SettingsSourceAccess {
     Available,
     Lost,
@@ -273,6 +281,7 @@ internal const val SettingsCrossfadeExplanationTestTag =
     "settings-crossfade-explanation"
 internal const val SettingsCrossfadeSavingTestTag = "settings-crossfade-saving"
 internal const val SettingsCrossfadeErrorTestTag = "settings-crossfade-error"
+internal const val SettingsGaplessPrefix = "settings-gapless-"
 
 /**
  * Renders Settings from scalar state, source projections, callbacks, and
@@ -336,6 +345,9 @@ public fun SettingsScreen(
     crossfadeDuration: SettingsCrossfadeDuration,
     crossfadeBusy: Boolean,
     crossfadeError: Boolean,
+    gaplessMode: SettingsGaplessMode = SettingsGaplessMode.Off,
+    gaplessBusy: Boolean = false,
+    gaplessError: Boolean = false,
     sources: List<SettingsSourceItem>,
     sourcePickerActionVisible: Boolean,
     sourcePickerAvailable: Boolean,
@@ -351,6 +363,7 @@ public fun SettingsScreen(
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onReplayGainModeSelected: (SettingsReplayGainMode) -> Unit,
     onCrossfadeDurationSelected: (SettingsCrossfadeDuration) -> Unit,
+    onGaplessModeSelected: (SettingsGaplessMode) -> Unit = {},
     onAddMusicFolder: () -> Unit,
     onRescanSource: (String) -> Unit,
     onRecoverSource: (String) -> Unit,
@@ -482,6 +495,14 @@ public fun SettingsScreen(
                                         saveFailed = crossfadeError,
                                         onSelected =
                                             onCrossfadeDurationSelected)
+                                }
+                                item {
+                                    GaplessPreference(
+                                        current = gaplessMode,
+                                        busy = gaplessBusy,
+                                        modalVisible = clearLibraryDialog != null || sourcePendingRemoval != null,
+                                        saveFailed = gaplessError,
+                                        onSelected = onGaplessModeSelected)
                                 }
                                 item {
                                     Text(
@@ -1353,6 +1374,45 @@ private fun CrossfadePreference(
                     lineHeight = 17.sp)
             }
         }
+}
+
+@Composable
+private fun GaplessPreference(
+    current: SettingsGaplessMode,
+    busy: Boolean,
+    modalVisible: Boolean,
+    saveFailed: Boolean,
+    onSelected: (SettingsGaplessMode) -> Unit,
+) {
+    val enabled = !busy && !modalVisible
+    Column(
+        Modifier.fillMaxWidth().background(HausColors.current.panel.copy(alpha = .54f), RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(stringResource(Res.string.gapless_title), modifier = Modifier.semantics { heading() },
+            color = HausColors.current.ink, fontSize = 16.sp, fontWeight = FontWeight.Black)
+        Text(stringResource(Res.string.gapless_explanation), color = HausColors.current.muted, fontSize = 13.sp)
+        Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsGaplessMode.entries.forEach { mode ->
+                val selected = mode == current
+                val label = stringResource(if (mode == SettingsGaplessMode.On) Res.string.gapless_on else Res.string.gapless_off)
+                Row(Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                    .background(if (selected) HausColors.current.ink else HausColors.current.paper)
+                    .testTag(SettingsGaplessPrefix + mode.name.lowercase())
+                    .then(if (enabled) Modifier.selectable(selected, Role.RadioButton) { onSelected(mode) }
+                        else Modifier.clearAndSetSemantics { contentDescription = label; this.selected = selected; role = Role.RadioButton; disabled() })
+                    .padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val tint = (if (selected) HausColors.current.paper else HausColors.current.ink).copy(alpha = if (enabled) 1f else .5f)
+                    Icon(if (selected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
+                        contentDescription = null, modifier = Modifier.size(18.dp), tint = tint)
+                    Text(label, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        if (busy) Text(stringResource(Res.string.gapless_saving), Modifier.testTag("settings-gapless-saving").semantics { liveRegion = LiveRegionMode.Polite }, color = HausColors.current.muted, fontSize = 12.sp)
+        if (saveFailed) Text(stringResource(Res.string.gapless_error), Modifier.testTag("settings-gapless-error").semantics { liveRegion = LiveRegionMode.Assertive; error(stringResource(Res.string.gapless_error)) }, color = HausColors.current.muted, fontSize = 12.sp)
+    }
 }
 
 @Composable
