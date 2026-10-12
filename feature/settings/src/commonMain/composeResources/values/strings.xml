@@ -14,4 +14,12 @@
 <string name="replaygain_explanation">Uses existing ReplayGain tags to reduce volume only. Untagged tracks are unchanged, and positive gain is never amplified.</string>
 <string name="replaygain_saving">Saving normalization…</string>
 <string name="replaygain_error">Could not save normalization. Your previous mode is still selected. Choose a mode again to retry.</string>
+<string name="crossfade_title">Crossfade</string>
+<string name="crossfade_off">Off</string>
+<string name="crossfade_3_seconds">3 seconds</string>
+<string name="crossfade_5_seconds">5 seconds</string>
+<string name="crossfade_8_seconds">8 seconds</string>
+<string name="crossfade_explanation">Overlaps eligible queue tracks by up to the selected duration. Short tracks use a shorter fade. Disabled with a sleep timer, Repeat One, Stop After Current, or unknown duration.</string>
+<string name="crossfade_saving">Restoring or saving crossfade…</string>
+<string name="crossfade_error">Could not save crossfade. Your previous duration is still selected. Choose a duration again to retry.</string>
 </resources>

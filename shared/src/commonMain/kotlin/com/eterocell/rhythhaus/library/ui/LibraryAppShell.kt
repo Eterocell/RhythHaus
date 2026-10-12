@@ -271,6 +271,9 @@ fun LibraryHomeScreen(
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     replayGainState: com.eterocell.rhythhaus.playback.ReplayGainPreferenceState,
     onReplayGainModeSelected: (com.eterocell.rhythhaus.ReplayGainMode) -> Unit,
+    crossfadeState: com.eterocell.rhythhaus.playback.CrossfadePreferenceState,
+    onCrossfadeDurationSelected:
+        (com.eterocell.rhythhaus.CrossfadeDuration) -> Unit,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveSource: (LibrarySource) -> Unit,
@@ -670,6 +673,8 @@ fun LibraryHomeScreen(
             onThemeModeSelected = onThemeModeSelected,
             replayGainState = replayGainState,
             onReplayGainModeSelected = onReplayGainModeSelected,
+            crossfadeState = crossfadeState,
+            onCrossfadeDurationSelected = onCrossfadeDurationSelected,
             onClearLibrary = onClearLibrary,
             onRescanSource = onRescanSource,
             onRemoveMissingTracks = onRemoveMissingTracks,

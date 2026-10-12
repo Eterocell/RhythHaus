@@ -75,6 +75,14 @@ import rhythhaus.feature.settings.generated.resources.about
 import rhythhaus.feature.settings.generated.resources.add_device_audio
 import rhythhaus.feature.settings.generated.resources.appearance
 import rhythhaus.feature.settings.generated.resources.configured_folders
+import rhythhaus.feature.settings.generated.resources.crossfade_3_seconds
+import rhythhaus.feature.settings.generated.resources.crossfade_5_seconds
+import rhythhaus.feature.settings.generated.resources.crossfade_8_seconds
+import rhythhaus.feature.settings.generated.resources.crossfade_error
+import rhythhaus.feature.settings.generated.resources.crossfade_explanation
+import rhythhaus.feature.settings.generated.resources.crossfade_off
+import rhythhaus.feature.settings.generated.resources.crossfade_saving
+import rhythhaus.feature.settings.generated.resources.crossfade_title
 import rhythhaus.feature.settings.generated.resources.device_audio
 import rhythhaus.feature.settings.generated.resources.device_audio_add
 import rhythhaus.feature.settings.generated.resources.device_audio_settings
@@ -187,6 +195,18 @@ public enum class SettingsReplayGainMode {
     Album,
 }
 
+/** Neutral overlap choices mapped to the playback policy by Shared. */
+public enum class SettingsCrossfadeDuration {
+    /** Preserve ordinary non-overlapping playback. */
+    Off,
+    /** Overlap eligible tracks for up to three seconds. */
+    Seconds3,
+    /** Overlap eligible tracks for up to five seconds. */
+    Seconds5,
+    /** Overlap eligible tracks for up to eight seconds. */
+    Seconds8,
+}
+
 internal enum class SettingsSourceAccess {
     Available,
     Lost,
@@ -248,6 +268,11 @@ internal const val SettingsReplayGainExplanationTestTag =
 internal const val SettingsReplayGainSavingTestTag =
     "settings-replaygain-saving"
 internal const val SettingsReplayGainErrorTestTag = "settings-replaygain-error"
+internal const val SettingsCrossfadePrefix = "settings-crossfade-"
+internal const val SettingsCrossfadeExplanationTestTag =
+    "settings-crossfade-explanation"
+internal const val SettingsCrossfadeSavingTestTag = "settings-crossfade-saving"
+internal const val SettingsCrossfadeErrorTestTag = "settings-crossfade-error"
 
 /**
  * Renders Settings from scalar state, source projections, callbacks, and
@@ -260,6 +285,10 @@ internal const val SettingsReplayGainErrorTestTag = "settings-replaygain-error"
  * @param replayGainBusy excludes normalization input during restoration or
  *   save.
  * @param replayGainError shows a localized recoverable preference-write error.
+ * @param crossfadeDuration the last restored or durably accepted overlap
+ *   choice.
+ * @param crossfadeBusy excludes overlap input during restoration or save.
+ * @param crossfadeError shows a localized recoverable overlap-save error.
  * @param sources the authoritative projection of configured library sources.
  * @param sourcePickerActionVisible whether to render the add-folder action.
  * @param sourcePickerAvailable whether the platform folder picker can launch.
@@ -279,6 +308,8 @@ internal const val SettingsReplayGainErrorTestTag = "settings-replaygain-error"
  * @param onThemeModeSelected dispatches the selected theme mode.
  * @param onReplayGainModeSelected requests a mode without changing selection
  *   optimistically; the caller publishes only a successfully saved mode.
+ * @param onCrossfadeDurationSelected requests a duration without changing the
+ *   accepted selection optimistically.
  * @param onAddMusicFolder dispatches the add-folder action.
  * @param onRescanSource dispatches a rescan with the source id.
  * @param onRecoverSource dispatches a lost-access recovery (folder re-pick)
@@ -302,6 +333,9 @@ public fun SettingsScreen(
     replayGainMode: SettingsReplayGainMode,
     replayGainBusy: Boolean,
     replayGainError: Boolean,
+    crossfadeDuration: SettingsCrossfadeDuration,
+    crossfadeBusy: Boolean,
+    crossfadeError: Boolean,
     sources: List<SettingsSourceItem>,
     sourcePickerActionVisible: Boolean,
     sourcePickerAvailable: Boolean,
@@ -316,6 +350,7 @@ public fun SettingsScreen(
     mediaStoreAudioRecovery: MediaStoreAudioRecovery? = null,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     onReplayGainModeSelected: (SettingsReplayGainMode) -> Unit,
+    onCrossfadeDurationSelected: (SettingsCrossfadeDuration) -> Unit,
     onAddMusicFolder: () -> Unit,
     onRescanSource: (String) -> Unit,
     onRecoverSource: (String) -> Unit,
@@ -436,6 +471,17 @@ public fun SettingsScreen(
                                                 sourcePendingRemoval != null,
                                         saveFailed = replayGainError,
                                         onSelected = onReplayGainModeSelected)
+                                }
+                                item {
+                                    CrossfadePreference(
+                                        current = crossfadeDuration,
+                                        busy = crossfadeBusy,
+                                        modalVisible =
+                                            clearLibraryDialog != null ||
+                                                sourcePendingRemoval != null,
+                                        saveFailed = crossfadeError,
+                                        onSelected =
+                                            onCrossfadeDurationSelected)
                                 }
                                 item {
                                     Text(
@@ -1174,6 +1220,157 @@ private fun SettingsReplayGainMode.testTag(): String =
         SettingsReplayGainMode.Off -> "settings-replaygain-off"
         SettingsReplayGainMode.Track -> "settings-replaygain-track"
         SettingsReplayGainMode.Album -> "settings-replaygain-album"
+    }
+
+@Composable
+private fun CrossfadePreference(
+    current: SettingsCrossfadeDuration,
+    busy: Boolean,
+    modalVisible: Boolean,
+    saveFailed: Boolean,
+    onSelected: (SettingsCrossfadeDuration) -> Unit,
+) {
+    val interactionEnabled = !busy && !modalVisible
+    Column(
+        Modifier.fillMaxWidth()
+            .background(
+                HausColors.current.panel.copy(alpha = .54f),
+                RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                stringResource(Res.string.crossfade_title),
+                modifier = Modifier.semantics { heading() },
+                color = HausColors.current.ink,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Black)
+            Column(
+                Modifier.fillMaxWidth().selectableGroup(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(2) { rowIndex ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement =
+                                Arrangement.spacedBy(8.dp)) {
+                                for (index in
+                                    rowIndex * 2 until rowIndex * 2 + 2) {
+                                    val duration =
+                                        SettingsCrossfadeDuration.entries[index]
+                                    val label = duration.label()
+                                    val isSelected = duration == current
+                                    val interaction =
+                                        if (interactionEnabled) {
+                                            Modifier.selectable(
+                                                selected = isSelected,
+                                                role = Role.RadioButton,
+                                                onClick = {
+                                                    onSelected(duration)
+                                                })
+                                        } else {
+                                            Modifier.clearAndSetSemantics {
+                                                contentDescription = label
+                                                selected = isSelected
+                                                role = Role.RadioButton
+                                                disabled()
+                                            }
+                                        }
+                                    Row(
+                                        Modifier.weight(1f)
+                                            .heightIn(min = 48.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(
+                                                if (isSelected)
+                                                    HausColors.current.ink
+                                                else HausColors.current.paper)
+                                            .testTag(duration.testTag())
+                                            .then(interaction)
+                                            .padding(
+                                                horizontal = 8.dp,
+                                                vertical = 10.dp),
+                                        verticalAlignment =
+                                            Alignment.CenterVertically,
+                                        horizontalArrangement =
+                                            Arrangement.spacedBy(6.dp)) {
+                                            val color =
+                                                (if (isSelected)
+                                                        HausColors.current.paper
+                                                    else HausColors.current.ink)
+                                                    .copy(
+                                                        alpha =
+                                                            if (interactionEnabled)
+                                                                1f
+                                                            else .5f)
+                                            Icon(
+                                                if (isSelected)
+                                                    Icons.Default
+                                                        .RadioButtonChecked
+                                                else
+                                                    Icons.Default
+                                                        .RadioButtonUnchecked,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = color)
+                                            Text(
+                                                label,
+                                                color = color,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold)
+                                        }
+                                }
+                            }
+                    }
+                }
+            Text(
+                stringResource(Res.string.crossfade_explanation),
+                modifier =
+                    Modifier.testTag(SettingsCrossfadeExplanationTestTag),
+                color = HausColors.current.muted,
+                fontSize = 12.sp,
+                lineHeight = 17.sp)
+            if (busy) {
+                Text(
+                    stringResource(Res.string.crossfade_saving),
+                    modifier =
+                        Modifier.testTag(SettingsCrossfadeSavingTestTag)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                    color = HausColors.current.muted,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp)
+            }
+            if (saveFailed) {
+                val message = stringResource(Res.string.crossfade_error)
+                Text(
+                    message,
+                    modifier =
+                        Modifier.testTag(SettingsCrossfadeErrorTestTag)
+                            .semantics {
+                                liveRegion = LiveRegionMode.Polite
+                                error(message)
+                            },
+                    color = HausColors.current.pulse,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp)
+            }
+        }
+}
+
+@Composable
+private fun SettingsCrossfadeDuration.label(): String =
+    stringResource(
+        when (this) {
+            SettingsCrossfadeDuration.Off -> Res.string.crossfade_off
+            SettingsCrossfadeDuration.Seconds3 -> Res.string.crossfade_3_seconds
+            SettingsCrossfadeDuration.Seconds5 -> Res.string.crossfade_5_seconds
+            SettingsCrossfadeDuration.Seconds8 -> Res.string.crossfade_8_seconds
+        })
+
+private fun SettingsCrossfadeDuration.testTag(): String =
+    when (this) {
+        SettingsCrossfadeDuration.Off -> "settings-crossfade-off"
+        SettingsCrossfadeDuration.Seconds3 -> "settings-crossfade-3"
+        SettingsCrossfadeDuration.Seconds5 -> "settings-crossfade-5"
+        SettingsCrossfadeDuration.Seconds8 -> "settings-crossfade-8"
     }
 
 @Composable

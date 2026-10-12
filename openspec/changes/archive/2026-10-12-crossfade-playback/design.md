@@ -14,7 +14,7 @@ Add `CrossfadePlaybackEngine : PlatformPlaybackEngine` in `core/playback/src/com
 - `startIncoming(playbackRunId: Long)`: start staged successor at its configured zero gain and atomically make it the engine's logical current; normal status/progress/errors now carry incoming generation/run.
 - `setCrossfadeGains(outgoingGain: Float, incomingGain: Float)`: update both voices; validate finite 0..1 independently.
 - `finishCrossfade()`: release only outgoing resources, preserving incoming generation/run/position.
-- `cancelPreparedIncoming()`: release a staged, not-promoted voice without altering outgoing.
+- `cancelPreparedIncoming()`: release a staged voice or roll back any started incoming voice while outgoing is retained, restoring outgoing logical identity/run/gain without restarting its audio. Controller admission, not native emission, commits Playing: a native Playing callback may lose a cancellation race and be rejected. The controller calls cancel only for unpromoted/rejected transitions, and uses `finishCrossfade()` after accepted promotion. Confirmed incoming failures remain incoming errors and cannot roll back.
 
 After startIncoming, ordinary play/pause act on both while outgoing remains; seek retires outgoing before seeking current; stop/clear/release dispose both and restore unity. `setPlaybackGain` targets logical current. Old outgoing completion may be delivered with captured identity and is consumed only by the retiring transaction; it must not be reinterpreted using the incoming token. One native session and remote-transport dispatcher remain. Existing fake/test engines need not acquire this capability; all production first-platform factories must return capable engines.
 

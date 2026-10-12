@@ -239,7 +239,41 @@ private data class PlaybackGainRequest(
     val version: Long,
     val generation: Long?,
     val gain: Float,
+    val crossfadeToken: Long? = null,
+    val outgoingGain: Float? = null,
 )
+
+private data class CrossfadeAttemptKey(
+    val generation: Long,
+    val playbackRunId: Long,
+    val successorId: String,
+)
+
+private class CrossfadeTransition(
+    val outgoing: QueueOccurrence,
+    val outgoingGeneration: Long,
+    var outgoingRunId: Long,
+    val incoming: QueueOccurrence,
+    val incomingGeneration: Long,
+    val outgoingDurationMillis: Long,
+    var outgoingPositionMillis: Long,
+    var outgoingPositionUpdatedAtMillis: Long,
+) {
+    var incomingDurationMillis: Long? = null
+    var incomingRunId: Long = 0L
+    var incomingPositionMillis: Long = 0L
+    var incomingPositionUpdatedAtMillis: Long = 0L
+    var outgoingAdvancing: Boolean = true
+    var incomingAdvancing: Boolean = false
+    var prepared: Boolean = false
+    var started: Boolean = false
+    var promoted: Boolean = false
+    var outgoingCompleted: Boolean = false
+    var outgoingCompletionTimerToken: Long? = null
+    var windowMillis: Long = 0L
+    var preparationJob: Job? = null
+    var tickJob: Job? = null
+}
 
 private data class TimerStopRequest(
     val token: Long,
@@ -433,6 +467,8 @@ internal constructor(
     private var replayGainMode: ReplayGainMode = ReplayGainMode.Off
     private var sleepAttenuation: Float = 1f
     private var desiredPlaybackGain: Float = 1f
+    private var desiredOutgoingCrossfadeGain: Float? = null
+    private var desiredCrossfadeToken: Long? = null
     private var desiredPlaybackGainGeneration: Long? = null
     private var playbackGainVersion: Long = 0L
     private var playbackGainMayBeAttenuated: Boolean = false
@@ -440,6 +476,15 @@ internal constructor(
     private var nextPlaybackRunId = 0L
     private var activePlaybackRunId: Long? = null
     private var activePlaybackRunGeneration: Long? = null
+    private val crossfadeEngine = engine as? CrossfadePlaybackEngine
+    private val crossfadeRuntime = CrossfadeRuntime(sleepTimerRuntime)
+    private var crossfadeDuration: CrossfadeDuration = CrossfadeDuration.Off
+    // Transaction fields are gate-owned; the native slot is engine-mutex-owned.
+    private var crossfadeTransition: CrossfadeTransition? = null
+    private var nativeCrossfadeTransition: CrossfadeTransition? = null
+    private var lastCrossfadeAttempt: CrossfadeAttemptKey? = null
+    private var lastDeferredCompletionGeneration: Long? = null
+    private var lastDeferredCompletionRunId: Long? = null
 
     // Unlimited buffering preserves events while keeping platform callbacks
     // non-blocking.
@@ -506,6 +551,7 @@ internal constructor(
         var gainRequest: PlaybackGainRequest? = null
         selectionGate.withLock {
             if (released) return@withLock
+            cancelCrossfadeLocked()
             sleepTimerJob?.cancel()
             val timer =
                 ArmedSleepTimer(
@@ -542,6 +588,7 @@ internal constructor(
         var gainRequest: PlaybackGainRequest? = null
         selectionGate.withLock {
             if (released) return@withLock
+            cancelCrossfadeLocked()
             sleepTimerJob?.cancel()
             sleepTimerJob = null
             val timer =
@@ -579,6 +626,368 @@ internal constructor(
         request?.let(::launchPlaybackGain)
     }
 
+    /** Selects process-local overlap policy without changing the selection. */
+    public fun setCrossfadeDuration(duration: CrossfadeDuration) {
+        selectionGate.withLock {
+            if (released || crossfadeDuration == duration) return@withLock
+            crossfadeDuration = duration
+            revalidateCrossfadeLocked()
+            considerCrossfadeLocked()
+        }
+    }
+
+    private fun crossfadePolicyEligibleLocked(state: PlaybackState): Boolean =
+        !released &&
+            crossfadeEngine != null &&
+            crossfadeDuration != CrossfadeDuration.Off &&
+            activeSleepTimer == null &&
+            timerStopClaim == null &&
+            state.repeatMode != RepeatMode.RepeatOne &&
+            state.repeatMode != RepeatMode.StopAfterCurrent &&
+            state.queue.size > 1
+
+    private fun ownsCrossfadeLocked(transition: CrossfadeTransition): Boolean {
+        if (crossfadeTransition !== transition) return false
+        val state = _state.value
+        if (!crossfadePolicyEligibleLocked(state)) return false
+        val expectedGeneration =
+            if (transition.promoted) transition.incomingGeneration
+            else transition.outgoingGeneration
+        val expectedOccurrence =
+            if (transition.promoted) transition.incoming.id
+            else transition.outgoing.id
+        if (!ownsSelection(state, expectedGeneration, expectedOccurrence))
+            return false
+        val outgoing =
+            state.queue.firstOrNull { it.id == transition.outgoing.id }
+                ?: return false
+        val incoming =
+            state.queue.firstOrNull { it.id == transition.incoming.id }
+                ?: return false
+        if (outgoing.track.source != transition.outgoing.track.source ||
+            incoming.track.source != transition.incoming.track.source)
+            return false
+        return nextTrackFrom(
+                state,
+                wrap = state.repeatMode == RepeatMode.RepeatPlaylist,
+                currentId = transition.outgoing.id,
+            )
+            ?.id == incoming.id
+    }
+
+    private fun cancelCrossfadeLocked(
+        settleDeferredCompletion: Boolean = true
+    ) {
+        val transition = crossfadeTransition ?: return
+        crossfadeTransition = null
+        transition.preparationJob?.cancel()
+        transition.tickJob?.cancel()
+        desiredCrossfadeToken = null
+        desiredOutgoingCrossfadeGain = null
+        playbackGainVersion++
+        // Cleanup is bound to the native transaction slot, not today's engine
+        // generation. A queued cleanup can therefore never retire a winner.
+        launchNonFatalEngineAction {
+            cleanupCrossfadeWhileEngineLocked()
+            if (settleDeferredCompletion &&
+                !transition.promoted &&
+                transition.outgoingCompleted) {
+                settlePlaybackCompletion(
+                    transition.outgoingGeneration,
+                    transition.outgoingRunId,
+                    transition.outgoingCompletionTimerToken,
+                    deferredOutgoingOccurrenceId = transition.outgoing.id,
+                )
+            }
+        }
+    }
+
+    private fun cancelCrossfade() {
+        selectionGate.withLock {
+            // Explicit transport supersedes natural traversal; it must not
+            // replay a completion after seek, restart, or manual selection.
+            cancelCrossfadeLocked(settleDeferredCompletion = false)
+        }
+    }
+
+    private fun revalidateCrossfadeLocked() {
+        val transition = crossfadeTransition ?: return
+        if (!ownsCrossfadeLocked(transition)) cancelCrossfadeLocked()
+    }
+
+    private fun considerCrossfadeLocked() {
+        revalidateCrossfadeLocked()
+        val state = _state.value
+        val active = crossfadeTransition
+        if (active != null) {
+            if (state.status == PlaybackStatus.Playing &&
+                (active.prepared || active.promoted)) {
+                // Progress can jump straight to the start boundary while the
+                // monotonic wakeup is pending (including deterministic tests).
+                if (!active.started) {
+                    active.tickJob?.cancel()
+                    active.tickJob = null
+                }
+                startCrossfadeTicksLocked(active)
+            } else if (state.status != PlaybackStatus.Playing) {
+                active.tickJob?.cancel()
+                active.tickJob = null
+            }
+            return
+        }
+        if (!crossfadePolicyEligibleLocked(state) ||
+            state.status != PlaybackStatus.Playing)
+            return
+        val current = state.currentOccurrence ?: return
+        val duration = state.durationMillis?.takeIf { it > 0L } ?: return
+        val remaining = duration - state.positionMillis
+        if (remaining < 250L || remaining > crossfadeDuration.millis + 2_000L)
+            return
+        val successor =
+            nextTrackFrom(
+                state, wrap = state.repeatMode == RepeatMode.RepeatPlaylist)
+                ?: return
+        if (successor.id == current.id) return
+        val incomingDuration = successor.track.durationMillis ?: return
+        if (effectiveCrossfadeWindowMillis(
+            crossfadeDuration.millis, duration, incomingDuration, remaining) ==
+            null)
+            return
+        val run =
+            activePlaybackRunId?.takeIf {
+                activePlaybackRunGeneration == state.engineGeneration
+            } ?: return
+        val key = CrossfadeAttemptKey(state.engineGeneration, run, successor.id)
+        if (lastCrossfadeAttempt == key) return
+        lastCrossfadeAttempt = key
+        val transition =
+            CrossfadeTransition(
+                current,
+                state.engineGeneration,
+                run,
+                successor,
+                nextGeneration(),
+                duration,
+                state.positionMillis,
+                crossfadeRuntime.nowMillis(),
+            )
+        crossfadeTransition = transition
+        transition.preparationJob =
+            scope
+                .launch(start = CoroutineStart.LAZY) {
+                    prepareCrossfade(transition)
+                }
+                .also { it.start() }
+    }
+
+    private fun cleanupCrossfadeWhileEngineLocked() {
+        val native = nativeCrossfadeTransition ?: return
+        val retained = selectionGate.withLock {
+            !released && ownsCrossfadeLocked(native)
+        }
+        if (retained) return
+        nativeCrossfadeTransition = null
+        val isReleased = selectionGate.withLock { released }
+        if (isReleased) return // release already disposed both native voices.
+        if (native.promoted) crossfadeEngine?.finishCrossfade()
+        else crossfadeEngine?.cancelPreparedIncoming()
+        val generation =
+            if (native.promoted) native.incomingGeneration
+            else native.outgoingGeneration
+        val gain = selectionGate.withLock {
+            recomputeDesiredPlaybackGainLocked(generation, force = true)
+        }
+        gain?.let(::applyPlaybackGainWhileEngineLocked)
+    }
+
+    private suspend fun prepareCrossfade(transition: CrossfadeTransition) {
+        val capable = crossfadeEngine ?: return
+        try {
+            engineMutex.withLock {
+                cleanupCrossfadeWhileEngineLocked()
+                if (!selectionGate.withLock { ownsCrossfadeLocked(transition) })
+                    return@withLock
+                nativeCrossfadeTransition = transition
+                try {
+                    val loaded =
+                        capable.prepareIncoming(
+                            transition.incoming.track.withLazyArtwork(),
+                            transition.incomingGeneration,
+                        )
+                    check(loaded.generation == transition.incomingGeneration)
+                    val ready = selectionGate.withLock {
+                        if (!ownsCrossfadeLocked(transition))
+                            return@withLock false
+                        transition.incomingDurationMillis =
+                            loaded.durationMillis
+                                ?: transition.incoming.track.durationMillis
+                        transition.prepared = true
+                        if (crossfadeWindowLocked(transition) == null) {
+                            cancelCrossfadeLocked()
+                            return@withLock false
+                        }
+                        true
+                    }
+                    if (ready) {
+                        startPreparedCrossfadeWhileEngineLocked(transition)
+                        selectionGate.withLock {
+                            if (ownsCrossfadeLocked(transition) &&
+                                _state.value.status == PlaybackStatus.Playing)
+                                startCrossfadeTicksLocked(transition)
+                        }
+                    }
+                } finally {
+                    // Includes non-cancellable late preparation and cancelled
+                    // cooperative preparation, before another load gets the
+                    // mutex.
+                    cleanupCrossfadeWhileEngineLocked()
+                }
+            }
+        } catch (failure: Throwable) {
+            if (failure is CancellationException) {
+                selectionGate.withLock {
+                    if (crossfadeTransition === transition)
+                        cancelCrossfadeLocked()
+                }
+                throw failure
+            }
+            playbackLog.e { failure.stackTraceToString() }
+            onPlaybackError(
+                transition.incomingGeneration,
+                (failure as? PlaybackFailureException)?.error
+                    ?: PlaybackError("Playback failed", failure.message),
+            )
+            launchNonFatalEngineAction { cleanupCrossfadeWhileEngineLocked() }
+        }
+    }
+
+    private fun outgoingRemainingLocked(transition: CrossfadeTransition): Long {
+        val elapsed =
+            if (transition.outgoingAdvancing)
+                (crossfadeRuntime.nowMillis() -
+                        transition.outgoingPositionUpdatedAtMillis)
+                    .coerceAtLeast(0L)
+            else 0L
+        return transition.outgoingDurationMillis -
+            transition.outgoingPositionMillis -
+            elapsed
+    }
+
+    private fun crossfadeWindowLocked(transition: CrossfadeTransition): Long? {
+        val incomingDuration = transition.incomingDurationMillis ?: return null
+        return effectiveCrossfadeWindowMillis(
+            crossfadeDuration.millis,
+            transition.outgoingDurationMillis,
+            incomingDuration,
+            outgoingRemainingLocked(transition),
+        )
+    }
+
+    private fun incomingPositionLocked(transition: CrossfadeTransition): Long {
+        val elapsed =
+            if (transition.incomingAdvancing)
+                (crossfadeRuntime.nowMillis() -
+                        transition.incomingPositionUpdatedAtMillis)
+                    .coerceAtLeast(0L)
+            else 0L
+        return transition.incomingPositionMillis + elapsed
+    }
+
+    private fun startPreparedCrossfadeWhileEngineLocked(
+        transition: CrossfadeTransition
+    ) {
+        val admitted = selectionGate.withLock {
+            if (!ownsCrossfadeLocked(transition) ||
+                !transition.prepared ||
+                transition.started ||
+                _state.value.status != PlaybackStatus.Playing)
+                return@withLock false
+            val incomingDuration =
+                transition.incomingDurationMillis ?: return@withLock false
+            val fullWindow =
+                effectiveCrossfadeWindowMillis(
+                    crossfadeDuration.millis,
+                    transition.outgoingDurationMillis,
+                    incomingDuration,
+                    transition.outgoingDurationMillis,
+                ) ?: return@withLock false
+            val remaining = outgoingRemainingLocked(transition)
+            if (remaining > fullWindow) return@withLock false
+            val window = crossfadeWindowLocked(transition)
+            if (window == null) {
+                cancelCrossfadeLocked()
+                return@withLock false
+            }
+            transition.windowMillis = window
+            transition.incomingRunId = ++nextPlaybackRunId
+            transition.started = true
+            true
+        }
+        if (!admitted) return
+        val outgoingGain = selectionGate.withLock {
+            replayGainFactor(
+                _state.value.queue
+                    .firstOrNull { it.id == transition.outgoing.id }
+                    ?.track,
+                replayGainMode,
+            )
+        }
+        // Both values are written before native play, even when normalization
+        // is Off; a staged voice must never start at unity.
+        crossfadeEngine?.setCrossfadeGains(outgoingGain, 0f)
+        crossfadeEngine?.startIncoming(transition.incomingRunId)
+    }
+
+    private fun startCrossfadeTicksLocked(transition: CrossfadeTransition) {
+        if (transition.tickJob?.isActive == true) return
+        transition.tickJob =
+            scope
+                .launch(start = CoroutineStart.LAZY) {
+                    runCrossfadeTicks(transition)
+                }
+                .also { it.start() }
+    }
+
+    private suspend fun runCrossfadeTicks(transition: CrossfadeTransition) {
+        try {
+            while (true) {
+                engineMutex.withLock {
+                    cleanupCrossfadeWhileEngineLocked()
+                    val active = selectionGate.withLock {
+                        ownsCrossfadeLocked(transition) &&
+                            _state.value.status == PlaybackStatus.Playing
+                    }
+                    if (!active) return
+                    startPreparedCrossfadeWhileEngineLocked(transition)
+                    val gain = selectionGate.withLock {
+                        if (!ownsCrossfadeLocked(transition) ||
+                            !transition.promoted)
+                            return@withLock null
+                        if (incomingPositionLocked(transition) >=
+                            transition.windowMillis) {
+                            cancelCrossfadeLocked()
+                            null
+                        } else
+                            recomputeDesiredPlaybackGainLocked(
+                                transition.incomingGeneration)
+                    }
+                    cleanupCrossfadeWhileEngineLocked()
+                    gain?.let(::applyPlaybackGainWhileEngineLocked)
+                }
+                crossfadeRuntime.delay(50L)
+            }
+        } catch (failure: Throwable) {
+            if (failure is CancellationException) throw failure
+            onPlaybackError(
+                transition.incomingGeneration,
+                (failure as? PlaybackFailureException)?.error
+                    ?: PlaybackError("Playback failed", failure.message),
+            )
+            launchNonFatalEngineAction { cleanupCrossfadeWhileEngineLocked() }
+            playbackLog.e { failure.stackTraceToString() }
+        }
+    }
+
     private fun nextSleepTimerTokenLocked(): Long = ++nextSleepTimerToken
 
     private fun saturatedDeadline(now: Long, duration: Long): Long =
@@ -609,23 +1018,58 @@ internal constructor(
         force: Boolean = false,
     ): PlaybackGainRequest? {
         if (released || _state.value.engineGeneration != generation) return null
+        val state = _state.value
+        val transition = crossfadeTransition?.takeIf {
+            it.started && ownsCrossfadeLocked(it)
+        }
+        var outgoingGain: Float? = null
         val gain =
-            replayGainFactor(_state.value.currentTrack, replayGainMode) *
-                sleepAttenuation
+            if (transition == null) {
+                replayGainFactor(state.currentTrack, replayGainMode) *
+                    sleepAttenuation
+            } else {
+                val fraction =
+                    if (transition.promoted)
+                        (incomingPositionLocked(transition).toDouble() /
+                                transition.windowMillis)
+                            .toFloat()
+                            .coerceIn(0f, 1f)
+                    else 0f
+                outgoingGain =
+                    replayGainFactor(
+                        state.queue
+                            .firstOrNull { it.id == transition.outgoing.id }
+                            ?.track,
+                        replayGainMode,
+                    ) * (1f - fraction)
+                replayGainFactor(
+                    state.queue
+                        .firstOrNull { it.id == transition.incoming.id }
+                        ?.track,
+                    replayGainMode,
+                ) * fraction
+            }
+        val crossfadeToken = transition?.incomingGeneration
         if (!force &&
             desiredPlaybackGain == gain &&
-            desiredPlaybackGainGeneration == generation)
+            desiredPlaybackGainGeneration == generation &&
+            desiredOutgoingCrossfadeGain == outgoingGain &&
+            desiredCrossfadeToken == crossfadeToken)
             return null
         desiredPlaybackGain = gain
+        desiredOutgoingCrossfadeGain = outgoingGain
+        desiredCrossfadeToken = crossfadeToken
         if (gain != 1f) playbackGainMayBeAttenuated = true
         desiredPlaybackGainGeneration = generation
         val version = ++playbackGainVersion
         if (!force &&
             gain == 1f &&
             activeSleepTimer == null &&
+            transition == null &&
             !playbackGainMayBeAttenuated)
             return null
-        return PlaybackGainRequest(version, generation, gain)
+        return PlaybackGainRequest(
+            version, generation, gain, crossfadeToken, outgoingGain)
     }
 
     private fun applyPlaybackGainWhileEngineLocked(
@@ -634,13 +1078,21 @@ internal constructor(
         val current = selectionGate.withLock {
             !released &&
                 request.version == playbackGainVersion &&
-                request.generation == _state.value.engineGeneration
+                request.generation == _state.value.engineGeneration &&
+                (request.crossfadeToken == null ||
+                    crossfadeTransition?.incomingGeneration ==
+                        request.crossfadeToken &&
+                        nativeCrossfadeTransition === crossfadeTransition)
         }
         if (current) {
-            engine.setPlaybackGain(request.gain)
+            if (request.outgoingGain != null) {
+                crossfadeEngine?.setCrossfadeGains(
+                    request.outgoingGain, request.gain)
+            } else engine.setPlaybackGain(request.gain)
             selectionGate.withLock {
                 if (request.version == playbackGainVersion)
-                    playbackGainMayBeAttenuated = request.gain != 1f
+                    playbackGainMayBeAttenuated =
+                        request.gain != 1f || request.outgoingGain != null
             }
         }
     }
@@ -664,7 +1116,10 @@ internal constructor(
                 if (activeSleepTimer?.mode == SleepTimerMode.Timed)
                     setSleepAttenuationLocked(
                         selectionSleepAttenuationLocked(), generation)
-                else recomputeDesiredPlaybackGainLocked(generation)
+                else
+                    recomputeDesiredPlaybackGainLocked(
+                        generation,
+                        force = crossfadeTransition?.promoted == true)
             updated
                 ?: if (activeSleepTimer != null ||
                     desiredPlaybackGain != 1f ||
@@ -683,7 +1138,21 @@ internal constructor(
                     timerStopClaim != null)
                 return@withLock null
             activePlaybackRunGeneration = generation
-            (++nextPlaybackRunId).also { activePlaybackRunId = it }
+            (++nextPlaybackRunId).also {
+                activePlaybackRunId = it
+                crossfadeTransition
+                    ?.takeIf { transition ->
+                        transition.promoted &&
+                            transition.incomingGeneration == generation
+                    }
+                    ?.incomingRunId = it
+                crossfadeTransition
+                    ?.takeIf { transition ->
+                        !transition.promoted &&
+                            transition.outgoingGeneration == generation
+                    }
+                    ?.outgoingRunId = it
+            }
         }
 
     private fun invalidatePlaybackRun(generation: Long) {
@@ -695,16 +1164,18 @@ internal constructor(
 
     private fun resetSleepAttenuationForStop(generation: Long) =
         selectionGate.withLock {
-            if (_state.value.engineGeneration != generation) return@withLock
-            sleepAttenuation = 1f
-            desiredPlaybackGain =
-                replayGainFactor(_state.value.currentTrack, replayGainMode)
-            desiredPlaybackGainGeneration = generation
-            // Invalidate queued fade writes, retaining policy for the next
-            // resume.
-            playbackGainVersion++
-            Unit
+            resetSleepAttenuationForStopLocked(generation)
         }
+
+    private fun resetSleepAttenuationForStopLocked(generation: Long) {
+        if (_state.value.engineGeneration != generation) return
+        sleepAttenuation = 1f
+        desiredPlaybackGain =
+            replayGainFactor(_state.value.currentTrack, replayGainMode)
+        desiredPlaybackGainGeneration = generation
+        // Invalidate queued fade writes, retaining policy for the next resume.
+        playbackGainVersion++
+    }
 
     /** Called only after the native engine has stopped or cleared its media. */
     private fun resetStoppedPlaybackGainWhileEngineLocked(
@@ -961,6 +1432,7 @@ internal constructor(
             val generation = nextGeneration()
             resetProgressCheckpointKey()
             val published = selectionGate.withLock {
+                cancelCrossfadeLocked()
                 val cleared = publishState { previous ->
                     PlaybackState(
                         queue = occurrences,
@@ -1150,7 +1622,13 @@ internal constructor(
         if (!commandsEnabled.value) return
         val previous = _state.value.repeatMode
         if (previous == mode) return
-        val published = publishState { it.copy(repeatMode = mode) }
+        val published = selectionGate.withLock {
+            publishState { it.copy(repeatMode = mode) }
+                .also {
+                    revalidateCrossfadeLocked()
+                    considerCrossfadeLocked()
+                }
+        }
         emitImmediateCheckpoint(
             published.toSessionSnapshot(), published.checkpointRevision)
         playbackLog.d { "RepeatMode changed: $previous -> $mode" }
@@ -1176,9 +1654,15 @@ internal constructor(
         if (!commandsEnabled.value) return
         val previous = _state.value.shuffleMode
         if (previous == mode) return
-        val published = publishState { it.copy(shuffleMode = mode) }
+        val published = selectionGate.withLock {
+            publishState { it.copy(shuffleMode = mode) }
+                .also {
+                    publishRuntimeShuffleOrder(it)
+                    revalidateCrossfadeLocked()
+                    considerCrossfadeLocked()
+                }
+        }
         playbackLog.d { "ShuffleMode changed: $previous -> $mode" }
-        publishRuntimeShuffleOrder(published)
         playbackLog.d {
             "Shuffle mode applied, effective order: ${effectiveOrder(published)}"
         }
@@ -1222,44 +1706,78 @@ internal constructor(
 
     /** Pauses media and emits a persistence checkpoint. */
     public fun pause() {
-        if (!commandsEnabled.value) return
-        setPendingAutoplay(false)
-        launchEngineAction(_state.value.engineGeneration) { engine.pause() }
-        emitImmediateCheckpoint()
+        pauseOwner()
+    }
+
+    private fun pauseOwner(externalGeneration: Long? = null) {
+        selectionGate.withLock {
+            val owner =
+                transportOwnerLocked(externalGeneration) ?: return@withLock
+            if (crossfadeTransition?.let { it.started && !it.promoted } == true)
+                cancelCrossfadeLocked(settleDeferredCompletion = false)
+            setPendingAutoplayLocked(false, owner.engineGeneration)
+            launchEngineAction(owner.engineGeneration) { engine.pause() }
+            emitImmediateCheckpoint(
+                owner.toSessionSnapshot(), owner.checkpointRevision)
+        }
     }
 
     /** Stops media and emits a persistence checkpoint. */
     public fun stop() {
-        if (!commandsEnabled.value) return
-        setPendingAutoplay(false)
-        resetProgressCheckpointKey()
-        val generation = _state.value.engineGeneration
-        invalidatePlaybackRun(generation)
-        resetSleepAttenuationForStop(generation)
-        launchEngineAction(generation) {
-            engine.stop()
-            resetStoppedPlaybackGainWhileEngineLocked(generation)
+        stopOwner()
+    }
+
+    private fun stopOwner(externalGeneration: Long? = null) {
+        selectionGate.withLock {
+            val owner =
+                transportOwnerLocked(externalGeneration) ?: return@withLock
+            val generation = owner.engineGeneration
+            cancelCrossfadeLocked(settleDeferredCompletion = false)
+            setPendingAutoplayLocked(false, generation)
+            resetProgressCheckpointKey()
+            if (activePlaybackRunGeneration == generation)
+                activePlaybackRunId = null
+            resetSleepAttenuationForStopLocked(generation)
+            launchEngineAction(generation) {
+                engine.stop()
+                resetStoppedPlaybackGainWhileEngineLocked(generation)
+            }
+            emitImmediateCheckpoint(
+                owner.toSessionSnapshot(), owner.checkpointRevision)
         }
-        emitImmediateCheckpoint()
     }
 
     /** Clamps and applies a new playback position. */
     public fun seekTo(positionMillis: Long) {
-        if (!commandsEnabled.value) return
-        val duration = _state.value.durationMillis
-        val safePosition =
-            if (duration == null) max(0L, positionMillis)
-            else positionMillis.coerceIn(0L, duration)
-        val published = publishState {
-            it.copy(positionMillis = safePosition, error = null)
+        seekOwner(positionMillis)
+    }
+
+    private fun seekOwner(
+        positionMillis: Long,
+        externalGeneration: Long? = null
+    ) {
+        var published: PlaybackState? = null
+        selectionGate.withLock {
+            val owner =
+                transportOwnerLocked(externalGeneration) ?: return@withLock
+            cancelCrossfadeLocked(settleDeferredCompletion = false)
+            val safePosition =
+                owner.durationMillis?.let { positionMillis.coerceIn(0L, it) }
+                    ?: max(0L, positionMillis)
+            val updated = publishState {
+                it.copy(positionMillis = safePosition, error = null)
+            }
+            published = updated
+            resetProgressCheckpointKey()
+            launchEngineAction(updated.engineGeneration) {
+                engine.seekTo(safePosition)
+            }
+            emitImmediateCheckpoint(
+                updated.toSessionSnapshot(), updated.checkpointRevision)
         }
-        resetProgressCheckpointKey()
-        launchEngineAction(_state.value.engineGeneration) {
-            engine.seekTo(safePosition)
+        published?.let {
+            refreshCompletionFadeForProgress(it.engineGeneration)
         }
-        refreshCompletionFadeForProgress(published.engineGeneration)
-        emitImmediateCheckpoint(
-            published.toSessionSnapshot(), published.checkpointRevision)
     }
 
     /** Pauses active playback or starts the selected occurrence. */
@@ -1271,6 +1789,7 @@ internal constructor(
     /** Restarts the selected occurrence from position zero. */
     public fun restartCurrentTrack() {
         if (!commandsEnabled.value) return
+        cancelCrossfade()
         val current = _state.value.currentOccurrence ?: return
         val published = publishState {
             it.copy(positionMillis = 0L, error = null)
@@ -1358,6 +1877,7 @@ internal constructor(
     /** Loads the next occurrence, wrapping only for playlist repeat. */
     public fun skipToNext() {
         if (!commandsEnabled.value) return
+        cancelCrossfade()
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
         nextTrack(wrap)?.let {
             if (loadSelected(it, autoPlay = true)) {
@@ -1369,6 +1889,7 @@ internal constructor(
     /** Loads the previous occurrence, wrapping only for playlist repeat. */
     public fun skipToPrevious() {
         if (!commandsEnabled.value) return
+        cancelCrossfade()
         val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
         previousTrack(wrap)?.let {
             if (loadSelected(it, autoPlay = true)) {
@@ -1584,6 +2105,7 @@ internal constructor(
                 emitImmediateCheckpoint(
                     idle.toSessionSnapshot(), idle.checkpointRevision)
                 engineMutex.withLock {
+                    cleanupCrossfadeWhileEngineLocked()
                     if (_state.value.engineGeneration == cleanupGeneration) {
                         engine.clear(cleanupGeneration)
                         resetStoppedPlaybackGainWhileEngineLocked(
@@ -1599,6 +2121,7 @@ internal constructor(
     public fun release() {
         selectionGate.withLock {
             released = true
+            cancelCrossfadeLocked()
             activeSleepTimer = null
             sleepTimerJob?.cancel()
             sleepTimerJob = null
@@ -1685,6 +2208,7 @@ internal constructor(
         if (restoredCurrent == null) {
             cancelTimerForEmptyQueue(generation)
             engineMutex.withLock {
+                cleanupCrossfadeWhileEngineLocked()
                 if (_state.value.engineGeneration == generation) {
                     engine.clear(generation)
                     resetStoppedPlaybackGainWhileEngineLocked(generation)
@@ -1695,6 +2219,7 @@ internal constructor(
         }
         try {
             engineMutex.withLock {
+                cleanupCrossfadeWhileEngineLocked()
                 if (!ownsSelection(generation, restoredCurrent.id))
                     return@withLock
                 val loaded =
@@ -1748,6 +2273,7 @@ internal constructor(
             cancelTimerForEmptyQueue(fallback.engineGeneration)
             publishRuntimeShuffleOrder(fallback)
             engineMutex.withLock {
+                cleanupCrossfadeWhileEngineLocked()
                 if (_state.value.engineGeneration ==
                     fallback.engineGeneration) {
                     engine.clear(fallback.engineGeneration)
@@ -1800,6 +2326,8 @@ internal constructor(
                     val committed = selectionGate.withLock {
                         if (!_state.compareAndSet(previous, published)) false
                         else {
+                            publishRuntimeShuffleOrder(published)
+                            revalidateCrossfadeLocked()
                             gainRequest =
                                 recomputeDesiredPlaybackGainLocked(
                                     published.engineGeneration)
@@ -1808,7 +2336,6 @@ internal constructor(
                     }
                     if (!committed) continue
                     gainRequest?.let(::launchPlaybackGain)
-                    publishRuntimeShuffleOrder(published)
                     emitImmediateCheckpoint(
                         published.toSessionSnapshot(),
                         published.checkpointRevision,
@@ -1848,6 +2375,9 @@ internal constructor(
                 val committed = selectionGate.withLock {
                     if (!_state.compareAndSet(previous, published)) false
                     else {
+                        publishRuntimeShuffleOrder(published)
+                        revalidateCrossfadeLocked()
+                        considerCrossfadeLocked()
                         gainRequest =
                             recomputeDesiredPlaybackGainLocked(
                                 published.engineGeneration)
@@ -1856,7 +2386,6 @@ internal constructor(
                 }
                 if (!committed) continue
                 gainRequest?.let(::launchPlaybackGain)
-                publishRuntimeShuffleOrder(published)
                 emitImmediateCheckpoint(
                     published.toSessionSnapshot(),
                     published.checkpointRevision,
@@ -1882,6 +2411,7 @@ internal constructor(
                 cancelTimerForEmptyQueue(generation)
                 publishRuntimeShuffleOrder(cleared)
                 engineMutex.withLock {
+                    cleanupCrossfadeWhileEngineLocked()
                     if (_state.value.engineGeneration == generation) {
                         engine.clear(generation)
                         resetStoppedPlaybackGainWhileEngineLocked(generation)
@@ -1908,6 +2438,7 @@ internal constructor(
             publishRuntimeShuffleOrder(claimed, replacement.id)
             try {
                 engineMutex.withLock {
+                    cleanupCrossfadeWhileEngineLocked()
                     if (!ownsSelection(generation, replacement.id))
                         return@withLock
                     val loaded =
@@ -1955,6 +2486,7 @@ internal constructor(
                     cancelTimerForEmptyQueue(failSafe.engineGeneration)
                     publishRuntimeShuffleOrder(failSafe)
                     engineMutex.withLock {
+                        cleanupCrossfadeWhileEngineLocked()
                         if (_state.value.engineGeneration ==
                             failSafe.engineGeneration) {
                             engine.clear(failSafe.engineGeneration)
@@ -1993,10 +2525,16 @@ internal constructor(
         replacementQueue: List<QueueOccurrence>? = null,
         from: PlaybackState? = null,
         requireCommandsEnabled: Boolean = false,
+        requiredPlaybackRunId: Long? = null,
     ): Boolean = selectionGate.withLock {
         if (requireCommandsEnabled && !commandsEnabled.value) {
             return@withLock false
         }
+        if (requiredPlaybackRunId != null &&
+            (from == null ||
+                activePlaybackRunGeneration != from.engineGeneration ||
+                activePlaybackRunId != requiredPlaybackRunId))
+            return@withLock false
         val displaced = selectionRequest.value
         val generation = nextGeneration()
         val intent = MutableStateFlow(autoPlay)
@@ -2034,6 +2572,7 @@ internal constructor(
             request.job.cancel()
             return@withLock false
         }
+        cancelCrossfadeLocked()
         resetProgressCheckpointKey()
         publishRuntimeShuffleOrder(claimed, occurrence.id)
         timerStopClaim = null
@@ -2055,12 +2594,14 @@ internal constructor(
         occurrence: QueueOccurrence,
         autoPlay: Boolean,
         replacementQueue: List<QueueOccurrence>? = null,
+        requiredPlaybackRunId: Long? = null,
     ): Boolean =
         loadSelected(
             occurrence,
             autoPlay,
             replacementQueue = replacementQueue,
             from = captured,
+            requiredPlaybackRunId = requiredPlaybackRunId,
         )
 
     private fun claimLoadingFrom(
@@ -2255,6 +2796,7 @@ internal constructor(
                 checkpointRevision = reserveCheckpointRevision(),
             )
         if (!_state.compareAndSet(base, updated)) return null
+        cancelCrossfadeLocked()
         timerStopClaim = null
         if (current != null) {
             setSleepAttenuationLocked(
@@ -2313,7 +2855,7 @@ internal constructor(
     private fun applyUpcomingQueueMutation(
         previous: PlaybackState,
         upcoming: List<QueueOccurrence>,
-    ): Boolean {
+    ): Boolean = selectionGate.withLock {
         val currentIndex =
             previous.queue.indexOfFirst {
                 it.id == previous.currentOccurrenceId
@@ -2326,11 +2868,13 @@ internal constructor(
                 queue = preserved + upcoming,
                 checkpointRevision = reserveCheckpointRevision(),
             )
-        if (!_state.compareAndSet(previous, updated)) return false
+        if (!_state.compareAndSet(previous, updated)) return@withLock false
         publishRuntimeShuffleOrder(updated)
+        revalidateCrossfadeLocked()
+        considerCrossfadeLocked()
         emitImmediateCheckpoint(
             updated.toSessionSnapshot(), updated.checkpointRevision)
-        return true
+        true
     }
 
     private fun publishState(
@@ -2424,6 +2968,13 @@ internal constructor(
         enabled: Boolean,
         generation: Long? = null,
     ): Boolean = selectionGate.withLock {
+        setPendingAutoplayLocked(enabled, generation)
+    }
+
+    private fun setPendingAutoplayLocked(
+        enabled: Boolean,
+        generation: Long? = null,
+    ): Boolean {
         val request =
             when {
                 generation == null -> selectionRequest.value
@@ -2431,7 +2982,7 @@ internal constructor(
                     selectionRequest.value?.takeIf {
                         it.generation == generation
                     }
-            } ?: return@withLock false
+            } ?: return false
         val state = _state.value
         val owned =
             state.status == PlaybackStatus.Loading &&
@@ -2439,7 +2990,7 @@ internal constructor(
         if (owned) {
             request.playWhenLoaded.value = enabled
         }
-        owned
+        return owned
     }
 
     private fun PlayableTrack.withLazyArtwork(): PlayableTrack {
@@ -2460,7 +3011,10 @@ internal constructor(
     private fun launchNonFatalEngineAction(action: suspend () -> Unit) {
         scope.launch {
             try {
-                engineMutex.withLock { action() }
+                engineMutex.withLock {
+                    cleanupCrossfadeWhileEngineLocked()
+                    action()
+                }
             } catch (throwable: Throwable) {
                 if (throwable is CancellationException) throw throwable
                 playbackLog.e { throwable.stackTraceToString() }
@@ -2474,6 +3028,7 @@ internal constructor(
     ) {
         try {
             engineMutex.withLock {
+                cleanupCrossfadeWhileEngineLocked()
                 val current = selectionGate.withLock {
                     !released &&
                         _state.value.engineGeneration == errorGeneration
@@ -2551,10 +3106,11 @@ internal constructor(
     private fun nextTrackFrom(
         state: PlaybackState,
         wrap: Boolean,
+        currentId: String? = state.currentOccurrenceId,
     ): QueueOccurrence? {
         val order = effectiveOrder(state)
         if (order.isEmpty()) return null
-        val currentIndex = order.indexOf(state.currentOccurrenceId)
+        val currentIndex = order.indexOf(currentId)
         if (currentIndex < 0) return null
         val nextId =
             order.getOrNull(currentIndex + 1)
@@ -2595,53 +3151,122 @@ internal constructor(
      * section under the ownership lock, so a replacement claiming right after
      * the mutation can never receive a stale Stopped checkpoint out of order.
      */
-    private fun stopAtCurrentTrackEnd(generation: Long): Boolean =
-        selectionGate.withLock {
-            var published: PlaybackState? = null
-            while (published == null) {
-                val state = _state.value
-                if (state.engineGeneration != generation) return@withLock false
-                val candidate =
-                    state.copy(
-                        status = PlaybackStatus.Stopped,
-                        positionMillis =
-                            state.durationMillis
-                                ?: max(0L, state.positionMillis),
-                        error = null,
-                        checkpointRevision = reserveCheckpointRevision(),
-                    )
-                if (_state.compareAndSet(state, candidate)) {
-                    published = candidate
-                }
+    private fun stopAtCurrentTrackEnd(
+        captured: PlaybackState,
+        playbackRunId: Long,
+    ): Boolean = selectionGate.withLock {
+        val generation = captured.engineGeneration
+        var published: PlaybackState? = null
+        while (published == null) {
+            val state = _state.value
+            if (state != captured ||
+                activePlaybackRunGeneration != generation ||
+                activePlaybackRunId != playbackRunId)
+                return@withLock false
+            val candidate =
+                state.copy(
+                    status = PlaybackStatus.Stopped,
+                    positionMillis =
+                        state.durationMillis ?: max(0L, state.positionMillis),
+                    error = null,
+                    checkpointRevision = reserveCheckpointRevision(),
+                )
+            if (_state.compareAndSet(state, candidate)) {
+                published = candidate
             }
-            resetProgressCheckpointKey()
-            emitImmediateCheckpoint(
-                published.toSessionSnapshot(),
-                published.checkpointRevision,
-            )
-            sleepAttenuation = 1f
-            desiredPlaybackGain =
-                replayGainFactor(published.currentTrack, replayGainMode)
-            desiredPlaybackGainGeneration = generation
-            playbackGainVersion++
-            true
         }
+        resetProgressCheckpointKey()
+        emitImmediateCheckpoint(
+            published.toSessionSnapshot(),
+            published.checkpointRevision,
+        )
+        sleepAttenuation = 1f
+        desiredPlaybackGain =
+            replayGainFactor(published.currentTrack, replayGainMode)
+        desiredPlaybackGainGeneration = generation
+        playbackGainVersion++
+        true
+    }
 
     /** Applies a status callback only while [generation] owns the state. */
     public override fun onPlaybackStatus(
         generation: Long,
         status: PlaybackStatus
     ) {
+        var statusGeneration = generation
         var gainRequest: PlaybackGainRequest? = null
         var metadataRefresh: PlayableTrack? = null
         selectionGate.withLock {
-            if (timerStopClaim?.generation == generation &&
+            if (released) return@withLock
+            var transition = crossfadeTransition
+            if (transition != null &&
+                transition.started &&
+                !transition.promoted &&
+                generation == transition.incomingGeneration &&
+                status == PlaybackStatus.Paused &&
+                ownsCrossfadeLocked(transition)) {
+                // Native transport already targets incoming after start, but
+                // unconfirmed playback still belongs to outgoing authority.
+                statusGeneration = transition.outgoingGeneration
+                cancelCrossfadeLocked(settleDeferredCompletion = false)
+                transition = null
+            }
+            if (transition != null &&
+                transition.started &&
+                generation == transition.incomingGeneration &&
+                !transition.promoted) {
+                if (!ownsCrossfadeLocked(transition)) {
+                    cancelCrossfadeLocked()
+                    return@withLock
+                }
+                if (status != PlaybackStatus.Playing) return@withLock
+                val state = _state.value
+                val promoted =
+                    state.copy(
+                        currentOccurrenceId = transition.incoming.id,
+                        engineGeneration = transition.incomingGeneration,
+                        status = PlaybackStatus.Playing,
+                        positionMillis = transition.incomingPositionMillis,
+                        durationMillis = transition.incomingDurationMillis,
+                        error = null,
+                        errorGeneration = null,
+                        checkpointRevision = reserveCheckpointRevision(),
+                    )
+                if (!_state.compareAndSet(state, promoted)) return@withLock
+                transition.promoted = true
+                transition.incomingPositionUpdatedAtMillis =
+                    crossfadeRuntime.nowMillis()
+                transition.incomingAdvancing = true
+                activePlaybackRunGeneration = transition.incomingGeneration
+                activePlaybackRunId = transition.incomingRunId
+                selectionRequest.value
+                    ?.takeIf {
+                        it.generation == transition.outgoingGeneration
+                    }
+                    ?.let { selectionRequest.value = null }
+                lastProgressCheckpointKey.value =
+                    ProgressCheckpointKey(
+                        generation,
+                        transition.incoming.id,
+                        transition.incomingPositionMillis / 1_000L,
+                    )
+                emitPlaybackStartedIfNew(promoted)
+                emitImmediateCheckpoint(
+                    promoted.toSessionSnapshot(), promoted.checkpointRevision)
+                gainRequest =
+                    recomputeDesiredPlaybackGainLocked(generation, force = true)
+                metadataRefresh = promoted.currentTrack
+                if (transition.outgoingCompleted) cancelCrossfadeLocked()
+                else startCrossfadeTicksLocked(transition)
+                return@withLock
+            }
+            if (timerStopClaim?.generation == statusGeneration &&
                 _state.value.status == PlaybackStatus.Stopped)
                 return@withLock
             var published: PlaybackState? = null
             while (published == null) {
                 val state = _state.value
-                if (state.engineGeneration != generation) return@withLock
+                if (state.engineGeneration != statusGeneration) return@withLock
                 if (state.status == PlaybackStatus.Error &&
                     status != PlaybackStatus.Error)
                     return@withLock
@@ -2650,8 +3275,47 @@ internal constructor(
                     published = updated
                 }
             }
+            if (transition != null &&
+                transition.started &&
+                !transition.promoted &&
+                statusGeneration == transition.outgoingGeneration &&
+                status == PlaybackStatus.Paused) {
+                // An async native start may be canceled by the pause. Keeping
+                // started=true would prevent both a retry and normal
+                // completion.
+                cancelCrossfadeLocked(settleDeferredCompletion = false)
+                transition = null
+            }
+            if (transition != null) {
+                val now = crossfadeRuntime.nowMillis()
+                if (transition.promoted &&
+                    statusGeneration == transition.incomingGeneration) {
+                    transition.incomingPositionMillis =
+                        incomingPositionLocked(transition)
+                    transition.incomingPositionUpdatedAtMillis = now
+                    transition.incomingAdvancing =
+                        status == PlaybackStatus.Playing
+                }
+                if (!transition.promoted &&
+                    statusGeneration == transition.outgoingGeneration ||
+                    transition.promoted &&
+                        statusGeneration == transition.incomingGeneration) {
+                    transition.outgoingPositionMillis =
+                        transition.outgoingDurationMillis -
+                            outgoingRemainingLocked(transition)
+                    transition.outgoingPositionUpdatedAtMillis = now
+                    transition.outgoingAdvancing =
+                        status == PlaybackStatus.Playing
+                }
+            }
             emitPlaybackStartedIfNew(checkNotNull(published))
-            gainRequest = updateCompletionFadeLocked(checkNotNull(published))
+            gainRequest =
+                updateCompletionFadeLocked(checkNotNull(published))
+                    ?: recomputeDesiredPlaybackGainLocked(statusGeneration)
+            if (status == PlaybackStatus.Stopped ||
+                status == PlaybackStatus.Error) {
+                cancelCrossfadeLocked()
+            } else considerCrossfadeLocked()
             if (status == PlaybackStatus.Paused ||
                 status == PlaybackStatus.Playing) {
                 metadataRefresh = published.currentTrack
@@ -2662,11 +3326,11 @@ internal constructor(
             launchNonFatalEngineAction {
                 val stillCurrent = selectionGate.withLock {
                     val state = _state.value
-                    state.engineGeneration == generation &&
+                    state.engineGeneration == statusGeneration &&
                         state.currentTrack == track
                 }
                 if (stillCurrent)
-                    engine.refreshLoadedMetadata(track, generation)
+                    engine.refreshLoadedMetadata(track, statusGeneration)
             }
         }
     }
@@ -2703,6 +3367,23 @@ internal constructor(
     ) {
         var gainRequest: PlaybackGainRequest? = null
         selectionGate.withLock {
+            if (released) return@withLock
+            val transition = crossfadeTransition
+            if (transition != null) {
+                if (generation == transition.incomingGeneration) {
+                    transition.incomingPositionMillis = max(0L, positionMillis)
+                    transition.incomingPositionUpdatedAtMillis =
+                        crossfadeRuntime.nowMillis()
+                    transition.incomingDurationMillis =
+                        durationMillis ?: transition.incomingDurationMillis
+                    if (!transition.promoted) return@withLock
+                } else if (generation == transition.outgoingGeneration) {
+                    transition.outgoingPositionMillis = max(0L, positionMillis)
+                    transition.outgoingPositionUpdatedAtMillis =
+                        crossfadeRuntime.nowMillis()
+                    if (transition.promoted) return@withLock
+                }
+            }
             if (timerStopClaim?.generation == generation &&
                 _state.value.status == PlaybackStatus.Stopped)
                 return@withLock
@@ -2721,7 +3402,13 @@ internal constructor(
                 }
             }
             val settled = checkNotNull(applied)
-            gainRequest = updateCompletionFadeLocked(settled)
+            gainRequest =
+                updateCompletionFadeLocked(settled)
+                    ?: recomputeDesiredPlaybackGainLocked(generation)
+            if (transition?.promoted == true &&
+                transition.incomingPositionMillis >= transition.windowMillis) {
+                cancelCrossfadeLocked()
+            } else considerCrossfadeLocked()
             val currentId = settled.currentOccurrenceId ?: return@withLock
             if (settled.status != PlaybackStatus.Playing) return@withLock
             val key =
@@ -2756,6 +3443,52 @@ internal constructor(
         generation: Long,
         playbackRunId: Long
     ) {
+        var completionTimerToken: Long? = null
+        val consumedByCrossfade = selectionGate.withLock {
+            if (released) return@withLock true
+            // Cancellation removes the transition before native rollback can
+            // run. Duplicate receipts in that gap still belong to the original
+            // deferred event, never to a newly armed completion timer.
+            if (lastDeferredCompletionGeneration == generation &&
+                lastDeferredCompletionRunId == playbackRunId)
+                return@withLock true
+            completionTimerToken = activeSleepTimer?.token
+            val transition = crossfadeTransition ?: return@withLock false
+            if (generation == transition.outgoingGeneration &&
+                playbackRunId == transition.outgoingRunId) {
+                if (transition.promoted) {
+                    cancelCrossfadeLocked()
+                    return@withLock true
+                }
+                if (transition.started) {
+                    lastDeferredCompletionGeneration = generation
+                    lastDeferredCompletionRunId = playbackRunId
+                    transition.outgoingCompleted = true
+                    transition.outgoingCompletionTimerToken =
+                        completionTimerToken
+                    return@withLock true
+                }
+                // Preparation did not start in time; ordinary outgoing
+                // completion still owns traversal and any completion timer.
+                cancelCrossfadeLocked()
+            } else if (generation == transition.incomingGeneration) {
+                if (!transition.promoted) return@withLock true
+                if (playbackRunId == transition.incomingRunId)
+                    cancelCrossfadeLocked()
+            }
+            false
+        }
+        if (consumedByCrossfade) return
+        settlePlaybackCompletion(
+            generation, playbackRunId, completionTimerToken)
+    }
+
+    private fun settlePlaybackCompletion(
+        generation: Long,
+        playbackRunId: Long,
+        completionTimerToken: Long?,
+        deferredOutgoingOccurrenceId: String? = null,
+    ) {
         var admittedCompletion: SleepTimerCompletionKey? = null
         while (true) {
             val state = _state.value
@@ -2765,6 +3498,7 @@ internal constructor(
             var timerStop: TimerStopRequest? = null
             var gainReset: PlaybackGainRequest? = null
             val admitted = selectionGate.withLock {
+                if (released) return@withLock false
                 val current = _state.value
                 if (current.engineGeneration != generation ||
                     current.status == PlaybackStatus.Stopped ||
@@ -2773,8 +3507,16 @@ internal constructor(
                 if (activePlaybackRunGeneration != generation ||
                     activePlaybackRunId != playbackRunId)
                     return@withLock false
+                if (deferredOutgoingOccurrenceId != null &&
+                    (current.currentOccurrenceId !=
+                        deferredOutgoingOccurrenceId ||
+                        current.status != PlaybackStatus.Playing))
+                    return@withLock false
                 val timer = activeSleepTimer
-                if (timer?.mode != SleepTimerMode.TrackCount)
+                // A completion received before a timer was armed cannot be
+                // charged to that new timer during deferred rollback.
+                if (timer?.mode != SleepTimerMode.TrackCount ||
+                    timer.token != completionTimerToken)
                     return@withLock true
                 if (current.status != PlaybackStatus.Playing)
                     return@withLock false
@@ -2812,9 +3554,12 @@ internal constructor(
                     RepeatMode.RepeatOne -> {
                         val current = state.currentOccurrence
                         if (current == null) {
-                            stopAtCurrentTrackEnd(generation)
+                            stopAtCurrentTrackEnd(state, playbackRunId)
                         } else if (loadSelectedFrom(
-                            state, current, autoPlay = true)) {
+                            state,
+                            current,
+                            autoPlay = true,
+                            requiredPlaybackRunId = playbackRunId)) {
                             emitImmediateCheckpoint()
                             true
                         } else {
@@ -2825,9 +3570,12 @@ internal constructor(
                     RepeatMode.RepeatPlaylist -> {
                         val next = nextTrackFrom(state, wrap = true)
                         if (next == null) {
-                            stopAtCurrentTrackEnd(generation)
+                            stopAtCurrentTrackEnd(state, playbackRunId)
                         } else if (loadSelectedFrom(
-                            state, next, autoPlay = true)) {
+                            state,
+                            next,
+                            autoPlay = true,
+                            requiredPlaybackRunId = playbackRunId)) {
                             emitImmediateCheckpoint()
                             true
                         } else {
@@ -2836,14 +3584,17 @@ internal constructor(
                     }
 
                     RepeatMode.StopAfterCurrent ->
-                        stopAtCurrentTrackEnd(generation)
+                        stopAtCurrentTrackEnd(state, playbackRunId)
 
                     RepeatMode.StopAfterQueue -> {
                         val next = nextTrackFrom(state, wrap = false)
                         if (next == null) {
-                            stopAtCurrentTrackEnd(generation)
+                            stopAtCurrentTrackEnd(state, playbackRunId)
                         } else if (loadSelectedFrom(
-                            state, next, autoPlay = true)) {
+                            state,
+                            next,
+                            autoPlay = true,
+                            requiredPlaybackRunId = playbackRunId)) {
                             emitImmediateCheckpoint()
                             true
                         } else {
@@ -2863,6 +3614,19 @@ internal constructor(
         error: PlaybackError
     ) {
         selectionGate.withLock {
+            if (released) return@withLock
+            val transition = crossfadeTransition
+            if (transition != null &&
+                generation == transition.incomingGeneration &&
+                !transition.promoted) {
+                cancelCrossfadeLocked()
+                return@withLock
+            }
+            if (transition != null &&
+                (generation == transition.incomingGeneration ||
+                    generation == transition.outgoingGeneration)) {
+                cancelCrossfadeLocked()
+            }
             if (timerStopClaim?.generation == generation &&
                 _state.value.status == PlaybackStatus.Stopped)
                 return@withLock
@@ -2906,16 +3670,12 @@ internal constructor(
 
     /** Routes external Pause through the canonical transport command. */
     public override fun onPauseRequested(generation: Long) {
-        if (commandsEnabled.value &&
-            _state.value.engineGeneration == generation)
-            pause()
+        pauseOwner(generation)
     }
 
     /** Routes external Stop through the canonical transport command. */
     public override fun onStopRequested(generation: Long) {
-        if (commandsEnabled.value &&
-            _state.value.engineGeneration == generation)
-            stop()
+        stopOwner(generation)
     }
 
     /** Routes external seek through the controller's bounded position. */
@@ -2923,16 +3683,37 @@ internal constructor(
         generation: Long,
         positionMillis: Long
     ) {
-        if (commandsEnabled.value &&
-            _state.value.engineGeneration == generation)
-            seekTo(positionMillis)
+        seekOwner(positionMillis, generation)
+    }
+
+    private fun transportOwnerLocked(generation: Long? = null): PlaybackState? {
+        if (released || !commandsEnabled.value) return null
+        val state = _state.value
+        if (generation == null || state.engineGeneration == generation)
+            return state
+        val transition = crossfadeTransition ?: return null
+        if (transition.started &&
+            !transition.promoted &&
+            generation == transition.incomingGeneration &&
+            activePlaybackRunGeneration == transition.outgoingGeneration &&
+            activePlaybackRunId == transition.outgoingRunId &&
+            ownsCrossfadeLocked(transition))
+            return state
+        return null
     }
 
     private fun skipOwner(generation: Long, previous: Boolean) {
+        val ownedGeneration =
+            selectionGate.withLock {
+                val owner =
+                    transportOwnerLocked(generation) ?: return@withLock null
+                cancelCrossfadeLocked(settleDeferredCompletion = false)
+                owner.engineGeneration
+            } ?: return
         while (true) {
             if (!commandsEnabled.value) return
             val state = _state.value
-            if (state.engineGeneration != generation) return
+            if (state.engineGeneration != ownedGeneration) return
             val wrap = state.repeatMode == RepeatMode.RepeatPlaylist
             val target =
                 if (previous) {

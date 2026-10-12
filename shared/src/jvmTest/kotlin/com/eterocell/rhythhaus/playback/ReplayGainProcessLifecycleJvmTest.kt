@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus.playback
 
+import com.eterocell.rhythhaus.CrossfadeDuration
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.PlatformPlaybackEngine
 import com.eterocell.rhythhaus.PlaybackController
@@ -39,6 +40,9 @@ class ReplayGainProcessLifecycleJvmTest {
                         single<CoroutineScope> { scope }
                         single<PlatformPlaybackEngine> { FakePlaybackEngine() }
                         single<ReplayGainPreferenceStore> { preferences }
+                        single<CrossfadePreferenceStore> {
+                            InMemoryCrossfadePreferences()
+                        }
                     })
             }
             try {
@@ -79,6 +83,9 @@ class ReplayGainProcessLifecycleJvmTest {
                         single<CoroutineScope> { scope }
                         single<PlatformPlaybackEngine> { FakePlaybackEngine() }
                         single<ReplayGainPreferenceStore> { preferences }
+                        single<CrossfadePreferenceStore> {
+                            InMemoryCrossfadePreferences()
+                        }
                         single<PlaybackSessionStore> {
                             object : PlaybackSessionStore {
                                 override suspend fun read():
@@ -129,6 +136,17 @@ class ReplayGainProcessLifecycleJvmTest {
                 application.close()
             }
         }
+
+    private class InMemoryCrossfadePreferences : CrossfadePreferenceStore {
+        override val selectedDuration = MutableStateFlow(CrossfadeDuration.Off)
+
+        override suspend fun readDuration(): CrossfadeDuration =
+            selectedDuration.value
+
+        override suspend fun setDuration(duration: CrossfadeDuration) {
+            selectedDuration.value = duration
+        }
+    }
 
     private class DelayedPreferences(private val blockRead: Boolean = false) :
         ReplayGainPreferenceStore {

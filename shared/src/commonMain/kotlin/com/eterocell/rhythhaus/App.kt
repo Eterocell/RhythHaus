@@ -182,6 +182,9 @@ fun App(
     val replayGainPreferenceOwner =
         koinInject<com.eterocell.rhythhaus.playback.ReplayGainPreferenceOwner>()
     val replayGainState by replayGainPreferenceOwner.state.collectAsState()
+    val crossfadePreferenceOwner =
+        koinInject<com.eterocell.rhythhaus.playback.CrossfadePreferenceOwner>()
+    val crossfadeState by crossfadePreferenceOwner.state.collectAsState()
     val onboardingPreferenceStore = koinInject<OnboardingPreferenceStore>()
     val playbackLifecycle = koinInject<PlaybackProcessLifecycle>()
     val playbackReconciler = koinInject<PlaybackSessionReconciler>()
@@ -1025,6 +1028,12 @@ fun App(
                     replayGainState = replayGainState,
                     onReplayGainModeSelected = { mode ->
                         scope.launch { replayGainPreferenceOwner.select(mode) }
+                    },
+                    crossfadeState = crossfadeState,
+                    onCrossfadeDurationSelected = { duration ->
+                        scope.launch {
+                            crossfadePreferenceOwner.select(duration)
+                        }
                     },
                     onThemeModeSelected = { mode ->
                         scope.launch {

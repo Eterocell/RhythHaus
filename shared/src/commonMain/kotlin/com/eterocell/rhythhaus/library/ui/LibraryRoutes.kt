@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.eterocell.rhythhaus.CrossfadeDuration
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
@@ -59,6 +60,7 @@ import com.eterocell.rhythhaus.settings.MediaNotificationRecovery
 import com.eterocell.rhythhaus.settings.MediaStoreAudioRecovery
 import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
 import com.eterocell.rhythhaus.settings.SettingsAboutScreen
+import com.eterocell.rhythhaus.settings.SettingsCrossfadeDuration
 import com.eterocell.rhythhaus.settings.SettingsScreen
 import com.eterocell.rhythhaus.settings.SettingsSharedLabels
 import com.eterocell.rhythhaus.settings.SettingsSourceItem
@@ -173,6 +175,8 @@ internal fun LibraryRouteOverlays(
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
     replayGainState: com.eterocell.rhythhaus.playback.ReplayGainPreferenceState,
     onReplayGainModeSelected: (com.eterocell.rhythhaus.ReplayGainMode) -> Unit,
+    crossfadeState: com.eterocell.rhythhaus.playback.CrossfadePreferenceState,
+    onCrossfadeDurationSelected: (CrossfadeDuration) -> Unit,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit = { _, _ -> },
@@ -286,6 +290,32 @@ internal fun LibraryRouteOverlays(
                     onReplayGainModeSelected(
                         com.eterocell.rhythhaus.ReplayGainMode.valueOf(
                             mode.name))
+                },
+                crossfadeDuration =
+                    when (crossfadeState.selectedDuration) {
+                        CrossfadeDuration.Off -> SettingsCrossfadeDuration.Off
+                        CrossfadeDuration.Seconds3 ->
+                            SettingsCrossfadeDuration.Seconds3
+                        CrossfadeDuration.Seconds5 ->
+                            SettingsCrossfadeDuration.Seconds5
+                        CrossfadeDuration.Seconds8 ->
+                            SettingsCrossfadeDuration.Seconds8
+                    },
+                crossfadeBusy = crossfadeState.isBusy,
+                crossfadeError = crossfadeState.saveFailed,
+                onCrossfadeDurationSelected = { duration ->
+                    onCrossfadeDurationSelected(
+                        when (duration) {
+                            SettingsCrossfadeDuration.Off ->
+                                CrossfadeDuration.Off
+                            SettingsCrossfadeDuration.Seconds3 ->
+                                CrossfadeDuration.Seconds3
+                            SettingsCrossfadeDuration.Seconds5 ->
+                                CrossfadeDuration.Seconds5
+                            SettingsCrossfadeDuration.Seconds8 ->
+                                CrossfadeDuration.Seconds8
+                        },
+                    )
                 },
                 sources =
                     sources.map {

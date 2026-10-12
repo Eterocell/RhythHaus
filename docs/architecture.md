@@ -144,6 +144,17 @@ Shared retains `scanning`, `scan_progress_format`, `scan_complete_format`,
 render them; they do not cross into Settings. Settings owns `manage_music` with its source-management
 resource set under the same EN/ZH parity and ownership controls.
 
+Shared owns the process-singleton crossfade preference owner and its dedicated
+`crossfade.preferences_pb` DataStore. The store's initial Off StateFlow value is
+not restoration evidence: startup awaits the durable read, after ReplayGain
+restoration and before session restoration enables commands. An admitted write
+settles persistence and controller publication together even if its UI requester
+is cancelled; failed writes retain the accepted duration and expose a retryable
+error. Settings receives only its neutral Off/3/5/8-second projection and required
+selected/busy/error inputs and action callback, with EN/ZH feature resources. Duration
+radios remove pointer, click, and focus actions during writes or destructive
+confirmations; overlap itself remains a core playback/controller responsibility.
+
 ## Contracts And Composition
 
 Every migration is contract-first: relocate an explicit stable contract before its

@@ -19,6 +19,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.contentDescription
@@ -76,12 +77,188 @@ import rhythhaus.feature.settings.generated.resources.unnamed_folder
 public class SettingsScreenSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
+    public fun crossfadeChoicesAreInertDuringEitherConfirmation(): Unit =
+        runComposeUiTest {
+            var clearVisible by mutableStateOf(false)
+            val requests = mutableListOf<SettingsCrossfadeDuration>()
+            setContent {
+                Box(Modifier.size(600.dp, 1_200.dp)) {
+                    content(
+                        sources = listOf(item()),
+                        clearSlot =
+                            if (clearVisible) ({ slot("clear-confirmation") })
+                            else null,
+                        onCrossfade = { requests += it })
+                }
+            }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsCrossfadePrefix + "5"))
+            runOnIdle { clearVisible = true }
+            onNodeWithTag(SettingsCrossfadePrefix + "5")
+                .assertIsNotEnabled()
+                .assertNoClickOrFocusSemantics()
+            onNodeWithTag(SettingsCrossfadePrefix + "5", useUnmergedTree = true)
+                .performTouchInput { click(center) }
+            runOnIdle { clearVisible = false }
+            onNodeWithTag(SettingsCrossfadePrefix + "5").assertHasClickAction()
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsRemovePrefix + "one"))
+            onNodeWithTag(SettingsRemovePrefix + "one", useUnmergedTree = true)
+                .performClick()
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsCrossfadePrefix + "5"))
+            onNodeWithTag(SettingsCrossfadePrefix + "5")
+                .assertIsNotEnabled()
+                .assertNoClickOrFocusSemantics()
+            assertEquals(emptyList(), requests)
+            onNodeWithTag(SettingsRemoveDismissTestTag, useUnmergedTree = true)
+                .performClick()
+            onNodeWithTag(SettingsCrossfadePrefix + "5").assertHasClickAction()
+        }
+
+    @Test
+    public fun englishCrossfadeChoicesUseAcceptedSelectionAndRecoverableErrors():
+        Unit =
+        verifyCrossfadeSemantics(
+            Locale.ENGLISH,
+            "Crossfade",
+            listOf("Off", "3 seconds", "5 seconds", "8 seconds"),
+            "Overlaps eligible queue tracks by up to the selected duration. Short tracks use a shorter fade. Disabled with a sleep timer, Repeat One, Stop After Current, or unknown duration.",
+            "Could not save crossfade. Your previous duration is still selected. Choose a duration again to retry.")
+
+    @Test
+    public fun chineseCrossfadeChoicesUseAcceptedSelectionAndRecoverableErrors():
+        Unit =
+        verifyCrossfadeSemantics(
+            Locale.SIMPLIFIED_CHINESE,
+            "交叉淡入淡出",
+            listOf("关闭", "3 秒", "5 秒", "8 秒"),
+            "符合条件的队列曲目按所选时长上限重叠播放。短曲目会缩短淡入淡出时长。启用睡眠定时器、单曲循环、播放当前曲目后停止或时长未知时不生效。",
+            "无法保存交叉淡入淡出设置。仍使用上次选择的时长，请重新选择时长以重试。")
+
+    @OptIn(ExperimentalTestApi::class)
+    private fun verifyCrossfadeSemantics(
+        locale: Locale,
+        title: String,
+        optionLabels: List<String>,
+        explanation: String,
+        failureMessage: String,
+    ) {
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(locale)
+            runComposeUiTest {
+                var accepted by mutableStateOf(SettingsCrossfadeDuration.Off)
+                var busy by mutableStateOf(false)
+                var saveFailed by mutableStateOf(false)
+                val requests = mutableListOf<SettingsCrossfadeDuration>()
+                setContent {
+                    Box(Modifier.size(600.dp, 1_200.dp)) {
+                        content(
+                            mutations = false,
+                            crossfadeDuration = accepted,
+                            crossfadeBusy = busy,
+                            crossfadeError = saveFailed,
+                            onCrossfade = { requests += it })
+                    }
+                }
+                onNodeWithText(title, useUnmergedTree = true).assertExists()
+                val tags = listOf("off", "3", "5", "8")
+                tags.forEachIndexed { index, suffix ->
+                    val tag = SettingsCrossfadePrefix + suffix
+                    onNodeWithTag(SettingsListTestTag)
+                        .performScrollToNode(hasTestTag(tag))
+                    onNodeWithTag(tag)
+                        .assertIsEnabled()
+                        .assertHasClickAction()
+                        .assert(
+                            SemanticsMatcher.expectValue(
+                                SemanticsProperties.Role, Role.RadioButton))
+                        .assert(hasText(optionLabels[index]))
+                }
+                onNodeWithTag(SettingsCrossfadePrefix + "off")
+                    .assertIsSelected()
+                onNodeWithTag(SettingsCrossfadePrefix + "5").performClick()
+                assertEquals(
+                    listOf(SettingsCrossfadeDuration.Seconds5), requests)
+                onNodeWithTag(SettingsCrossfadePrefix + "off")
+                    .assertIsSelected()
+                onNodeWithTag(SettingsCrossfadePrefix + "5")
+                    .assertIsNotSelected()
+                runOnIdle { accepted = SettingsCrossfadeDuration.Seconds5 }
+                onNodeWithTag(SettingsCrossfadePrefix + "5").assertIsSelected()
+
+                runOnIdle { busy = true }
+                tags.forEach { suffix ->
+                    val tag = SettingsCrossfadePrefix + suffix
+                    onNodeWithTag(SettingsListTestTag)
+                        .performScrollToNode(hasTestTag(tag))
+                    onNodeWithTag(tag)
+                        .assertIsNotEnabled()
+                        .assertNoClickOrFocusSemantics()
+                    onNodeWithTag(tag, useUnmergedTree = true)
+                        .assertHasNoClickAction()
+                        .performTouchInput { click(center) }
+                }
+                assertEquals(
+                    listOf(SettingsCrossfadeDuration.Seconds5), requests)
+                onNodeWithTag(SettingsCrossfadeSavingTestTag)
+                    .assert(
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.LiveRegion,
+                            LiveRegionMode.Polite))
+                runOnIdle {
+                    busy = false
+                    saveFailed = true
+                }
+                onNodeWithTag(SettingsListTestTag)
+                    .performScrollToNode(
+                        hasTestTag(SettingsCrossfadeErrorTestTag))
+                onNodeWithText(failureMessage, useUnmergedTree = true)
+                    .assertExists()
+                onNodeWithTag(SettingsCrossfadeErrorTestTag)
+                    .assert(
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.LiveRegion,
+                            LiveRegionMode.Polite))
+                    .assert(
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.Error, failureMessage))
+                onNodeWithTag(SettingsCrossfadePrefix + "5").assertIsSelected()
+                onNodeWithTag(SettingsCrossfadePrefix + "8").performClick()
+                assertEquals(
+                    listOf(
+                        SettingsCrossfadeDuration.Seconds5,
+                        SettingsCrossfadeDuration.Seconds8),
+                    requests)
+                runOnIdle {
+                    accepted = SettingsCrossfadeDuration.Seconds8
+                    saveFailed = false
+                }
+                onNodeWithTag(SettingsCrossfadePrefix + "8").assertIsSelected()
+                onNodeWithTag(SettingsCrossfadeErrorTestTag)
+                    .assertDoesNotExist()
+                onNodeWithTag(SettingsCrossfadeSavingTestTag)
+                    .assertDoesNotExist()
+                onNodeWithTag(SettingsListTestTag)
+                    .performScrollToNode(
+                        hasTestTag(SettingsCrossfadeExplanationTestTag))
+                onNodeWithText(explanation, useUnmergedTree = true)
+                    .assertExists()
+            }
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     public fun replayGainChoicesAreInertDuringEitherConfirmation(): Unit =
         runComposeUiTest {
             var clearVisible by mutableStateOf(false)
             val requests = mutableListOf<SettingsReplayGainMode>()
             setContent {
-                Box(Modifier.size(600.dp, 900.dp)) {
+                Box(Modifier.size(600.dp, 1_200.dp)) {
                     content(
                         sources = listOf(item()),
                         clearSlot =
@@ -103,6 +280,9 @@ public class SettingsScreenSemanticsJvmTest {
                 .performScrollToNode(hasTestTag(SettingsRemovePrefix + "one"))
             onNodeWithTag(SettingsRemovePrefix + "one", useUnmergedTree = true)
                 .performClick()
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(
+                    hasTestTag(SettingsReplayGainPrefix + "track"))
             onNodeWithTag(SettingsReplayGainPrefix + "track")
                 .assertNoClickOrFocusSemantics()
             assertEquals(emptyList(), requests)
@@ -299,6 +479,9 @@ public class SettingsScreenSemanticsJvmTest {
                 label = stringResource(SettingsRes.string.review_onboarding)
                 content(onReviewOnboarding = { dispatches++ })
             }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(
+                    hasTestTag(SettingsReviewOnboardingTestTag))
             onNodeWithTag(
                     SettingsReviewOnboardingTestTag, useUnmergedTree = true)
                 .assertHasClickAction()
@@ -368,6 +551,9 @@ public class SettingsScreenSemanticsJvmTest {
         onNodeWithTag(SettingsPointerShieldTestTag, useUnmergedTree = true)
             .performTouchInput { click(Offset(2f, 2f)) }
         assertEquals(0, behind)
+        onNodeWithTag(SettingsListTestTag, useUnmergedTree = true)
+            .performScrollToNode(hasTestTag("settings-terminal-probe"))
+        waitForIdle()
         val terminalBefore = terminalTop
         onNodeWithTag(SettingsListTestTag, useUnmergedTree = true)
             .performTouchInput { swipe(center, Offset(center.x, 12f)) }
@@ -402,6 +588,8 @@ public class SettingsScreenSemanticsJvmTest {
             setContent {
                 content(sourcePickerAvailable = false, onAdd = { adds++ })
             }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsPickerTestTag))
             onNodeWithTag(SettingsPickerTestTag)
                 .assertIsNotEnabled()
                 .assertHasNoClickAction()
@@ -409,6 +597,8 @@ public class SettingsScreenSemanticsJvmTest {
                 .assertHasNoClickAction()
                 .assert(hasContentDescription(labels().folderPickerUnavailable))
             setContent { content(onAdd = { adds++ }) }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsPickerTestTag))
             onNodeWithTag(SettingsPickerTestTag).performClick()
             assertEquals(1, adds)
         }
@@ -425,6 +615,8 @@ public class SettingsScreenSemanticsJvmTest {
                     onClear = { requests++ },
                     clearSlot = { BasicText("clear-slot") })
             }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsClearTestTag))
             onNodeWithTag(SettingsClearTestTag).performClick()
             onNodeWithText("clear-slot").assertExists()
             assertEquals(1, requests)
@@ -441,18 +633,24 @@ public class SettingsScreenSemanticsJvmTest {
                 onClear = { calls++ },
                 sources = listOf(item()))
         }
+        onNodeWithTag(SettingsListTestTag)
+            .performScrollToNode(hasTestTag(SettingsPickerTestTag))
         onNodeWithTag(SettingsPickerTestTag)
             .assertIsNotEnabled()
             .assertHasNoClickAction()
         onNodeWithTag(SettingsPickerTestTag, useUnmergedTree = true)
             .assertHasNoClickAction()
             .assert(hasContentDescription(labels().addMusicFolder))
+        onNodeWithTag(SettingsListTestTag)
+            .performScrollToNode(hasTestTag(SettingsClearTestTag))
         onNodeWithTag(SettingsClearTestTag)
             .assertIsNotEnabled()
             .assertHasNoClickAction()
         onNodeWithTag(SettingsClearTestTag, useUnmergedTree = true)
             .assertHasNoClickAction()
             .assert(hasContentDescription(labels().clearLibrary))
+        onNodeWithTag(SettingsListTestTag)
+            .performScrollToNode(hasTestTag(SettingsRescanPrefix + "one"))
         onNodeWithTag(SettingsRescanPrefix + "one", useUnmergedTree = true)
             .assertIsNotEnabled()
             .assertHasNoClickAction()
@@ -474,6 +672,8 @@ public class SettingsScreenSemanticsJvmTest {
                     onRescan = { rescan = it },
                     onRemove = { removed = it })
             }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsRescanPrefix + "one"))
             onNodeWithTag(SettingsRescanPrefix + "one", useUnmergedTree = true)
                 .performClick()
             assertEquals("one", rescan)
@@ -500,6 +700,8 @@ public class SettingsScreenSemanticsJvmTest {
                     onRecover = { recovered = it },
                     onRemove = { removed = it })
             }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsRecoverPrefix + "one"))
             onNodeWithTag(SettingsRecoverPrefix + "one", useUnmergedTree = true)
                 .performClick()
             assertEquals("one", recovered)
@@ -554,12 +756,18 @@ public class SettingsScreenSemanticsJvmTest {
                                 "opaque-lost", "Lost folder", false, true),
                             SettingsSourceItem("opaque-blank", "", true, true)))
             }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasText("Available folder"))
             onNodeWithText("Available folder", useUnmergedTree = true)
                 .assertExists()
             onNodeWithText(availableNever, useUnmergedTree = true)
                 .assertExists()
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasText("Lost folder"))
             onNodeWithText("Lost folder", useUnmergedTree = true).assertExists()
             onNodeWithText(lostScanned, useUnmergedTree = true).assertExists()
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasText(unnamedFolder))
             onNodeWithText(unnamedFolder, useUnmergedTree = true).assertExists()
             onNodeWithText(unnamedScanned, useUnmergedTree = true)
                 .assertExists()
@@ -587,6 +795,8 @@ public class SettingsScreenSemanticsJvmTest {
                     sources = listOf(item(name = name)),
                     onRemove = { removed += it })
             }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsRemovePrefix + "one"))
             onNodeWithTag(SettingsRemovePrefix + "one", useUnmergedTree = true)
                 .performClick()
             onNodeWithContentDescription(name, useUnmergedTree = true)
@@ -608,11 +818,13 @@ public class SettingsScreenSemanticsJvmTest {
     public fun slotsRenderInPlaylistScanAndClearOrder(): Unit =
         runComposeUiTest {
             setContent {
-                content(
-                    playlistSlot = { slot("playlist") },
-                    scanSlot = { slot("scan") },
-                    scanOutcomeSlot = { slot("outcome") },
-                    clearSlot = { slot("clear") })
+                Box(Modifier.size(600.dp, 1_200.dp)) {
+                    content(
+                        playlistSlot = { slot("playlist") },
+                        scanSlot = { slot("scan") },
+                        scanOutcomeSlot = { slot("outcome") },
+                        clearSlot = { slot("clear") })
+                }
             }
             val renderedSlots =
                 onNodeWithTag(SettingsRootTestTag, useUnmergedTree = true)
@@ -657,6 +869,8 @@ public class SettingsScreenSemanticsJvmTest {
             var about = 0
             var dismissed = 0
             setContent { content(onAbout = { about++ }) }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(SettingsAboutTestTag))
             onNodeWithTag(SettingsAboutTestTag).performClick()
             assertEquals(1, about)
             var backLabel = ""
@@ -805,7 +1019,12 @@ public class SettingsScreenSemanticsJvmTest {
                 onRequestNotificationPermission = { requests++ },
                 onOpenNotificationSettings = { settings++ })
         }
+        onNodeWithTag(SettingsListTestTag)
+            .performScrollToNode(hasTestTag(SettingsPickerTestTag))
         onNodeWithTag(SettingsPickerTestTag).assertIsNotEnabled()
+        onNodeWithTag(SettingsListTestTag)
+            .performScrollToNode(
+                hasTestTag(SettingsNotificationRecoveryTestTag))
         onNodeWithTag(
                 SettingsNotificationRecoveryTestTag, useUnmergedTree = true)
             .assertIsEnabled()
@@ -839,6 +1058,10 @@ private fun content(
     replayGainMode: SettingsReplayGainMode = SettingsReplayGainMode.Off,
     replayGainBusy: Boolean = false,
     replayGainError: Boolean = false,
+    crossfadeDuration: SettingsCrossfadeDuration =
+        SettingsCrossfadeDuration.Off,
+    crossfadeBusy: Boolean = false,
+    crossfadeError: Boolean = false,
     mutations: Boolean = true,
     hasTracks: Boolean = true,
     sources: List<SettingsSourceItem> = emptyList(),
@@ -853,6 +1076,7 @@ private fun content(
     onAddAudio: () -> Unit = {},
     onTheme: (RhythHausThemeMode) -> Unit = {},
     onReplayGain: (SettingsReplayGainMode) -> Unit = {},
+    onCrossfade: (SettingsCrossfadeDuration) -> Unit = {},
     onAdd: () -> Unit = {},
     onClear: () -> Unit = {},
     onRescan: (String) -> Unit = {},
@@ -870,6 +1094,9 @@ private fun content(
         replayGainMode = replayGainMode,
         replayGainBusy = replayGainBusy,
         replayGainError = replayGainError,
+        crossfadeDuration = crossfadeDuration,
+        crossfadeBusy = crossfadeBusy,
+        crossfadeError = crossfadeError,
         sources = sources,
         sourcePickerActionVisible = sourcePickerActionVisible,
         sourcePickerAvailable = sourcePickerAvailable,
@@ -887,6 +1114,7 @@ private fun content(
         onAddMediaStoreAudio = onAddAudio,
         onThemeModeSelected = onTheme,
         onReplayGainModeSelected = onReplayGain,
+        onCrossfadeDurationSelected = onCrossfade,
         onAddMusicFolder = onAdd,
         onRescanSource = onRescan,
         onRecoverSource = onRecover,
@@ -910,6 +1138,9 @@ private fun SemanticsNodeInteraction.assertNoClickOrFocusSemantics(): Unit {
     assertEquals(
         null,
         fetchSemanticsNode().config.getOrNull(SemanticsProperties.Focused))
+    assertEquals(
+        null,
+        fetchSemanticsNode().config.getOrNull(SemanticsActions.RequestFocus))
 }
 
 private fun SemanticsNode.renderedTexts(): List<String> =

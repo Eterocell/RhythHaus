@@ -5,28 +5,38 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
+import com.eterocell.rhythhaus.CrossfadeDuration
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlaybackController
@@ -56,6 +66,9 @@ import com.eterocell.rhythhaus.library.ui.PlaylistState
 import com.eterocell.rhythhaus.library.ui.rememberPlaylistFeatureAppearanceSource
 import com.eterocell.rhythhaus.notificationpermission.MediaNotificationPermissionState
 import com.eterocell.rhythhaus.onboarding.OnboardingCloseTestTag
+import com.eterocell.rhythhaus.playback.CrossfadePreferenceOwner
+import com.eterocell.rhythhaus.playback.CrossfadePreferenceState
+import com.eterocell.rhythhaus.playback.CrossfadePreferenceStore
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupCounts
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupImportResult
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupPlaylistReport
@@ -71,7 +84,11 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.core.ui.generated.resources.Res as CoreUiRes
 import rhythhaus.core.ui.generated.resources.back as coreBack
@@ -87,6 +104,156 @@ import rhythhaus.shared.generated.resources.settings as sharedSettings
 class SettingsRouteAdapterJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun crossfadeRouteMapsAcceptedOwnerStateAcrossEnglishAndChineseRecreation() {
+        for (locale in listOf(Locale.ENGLISH, Locale.SIMPLIFIED_CHINESE)) {
+            withDefaultLocale(locale) {
+                runComposeUiTest {
+                    val controller = PlaybackController(FakePlaybackEngine())
+                    val preferences = RouteCrossfadePreferences()
+                    val owner =
+                        CrossfadePreferenceOwner(
+                            preferences, controller::setCrossfadeDuration)
+                    var consumerGeneration by mutableStateOf(0)
+                    runBlocking { owner.restore() }
+                    try {
+                        setContent {
+                            key(consumerGeneration) {
+                                val acceptedState by
+                                    owner.state.collectAsState()
+                                val scope = rememberCoroutineScope()
+                                Box(Modifier.size(600.dp, 1600.dp)) {
+                                    Harness(
+                                        crossfadeState = acceptedState,
+                                        onCrossfadeDurationSelected = {
+                                            scope.launch { owner.select(it) }
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                        val expectedLabel =
+                            if (locale == Locale.ENGLISH) "5 seconds" else "5 秒"
+                        onNodeWithTag(
+                                "settings-crossfade-5", useUnmergedTree = true)
+                            .performScrollTo()
+                            .assertIsSelected()
+                            .assertContentDescriptionEquals(expectedLabel)
+
+                        val choices =
+                            listOf(
+                                "settings-crossfade-8" to
+                                    CrossfadeDuration.Seconds8,
+                                "settings-crossfade-off" to
+                                    CrossfadeDuration.Off,
+                                "settings-crossfade-3" to
+                                    CrossfadeDuration.Seconds3,
+                                "settings-crossfade-5" to
+                                    CrossfadeDuration.Seconds5,
+                            )
+                        for ((tag, duration) in choices) {
+                            onNodeWithTag(tag, useUnmergedTree = true)
+                                .performScrollTo()
+                                .performClick()
+                            waitUntil(timeoutMillis = 5_000) {
+                                !owner.state.value.isBusy &&
+                                    owner.state.value.selectedDuration ==
+                                        duration
+                            }
+                            assertEquals(
+                                duration, preferences.selectedDuration.value)
+                            consumerGeneration++
+                            waitForIdle()
+                            onNodeWithTag(tag, useUnmergedTree = true)
+                                .performScrollTo()
+                                .assertIsSelected()
+                        }
+                    } finally {
+                        controller.release()
+                    }
+                }
+            }
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun crossfadeRouteProjectsOwnerBusyAndFailedWriteWithoutOptimisticSelection() =
+        runComposeUiTest {
+            val controller = PlaybackController(FakePlaybackEngine())
+            val preferences = RouteCrossfadePreferences()
+            val allowWrite = CompletableDeferred<Unit>()
+            preferences.allowWrite = allowWrite
+            preferences.failWrites = true
+            val owner =
+                CrossfadePreferenceOwner(
+                    preferences, controller::setCrossfadeDuration)
+            runBlocking { owner.restore() }
+            try {
+                setContent {
+                    val acceptedState by owner.state.collectAsState()
+                    val scope = rememberCoroutineScope()
+                    Box(Modifier.size(600.dp, 1600.dp)) {
+                        Harness(
+                            crossfadeState = acceptedState,
+                            onCrossfadeDurationSelected = {
+                                scope.launch { owner.select(it) }
+                            },
+                        )
+                    }
+                }
+                onNodeWithTag("settings-crossfade-3", useUnmergedTree = true)
+                    .performScrollTo()
+                    .performClick()
+                waitUntil(timeoutMillis = 5_000) { owner.state.value.isBusy }
+                onNodeWithTag("settings-crossfade-5", useUnmergedTree = true)
+                    .assertIsSelected()
+                    .assertIsNotEnabled()
+                    .assert(
+                        SemanticsMatcher(
+                            "Busy crossfade excludes click and focus actions") {
+                                it.config.getOrNull(SemanticsActions.OnClick) ==
+                                    null &&
+                                    it.config.getOrNull(
+                                        SemanticsActions.RequestFocus) == null
+                            },
+                    )
+                onNodeWithTag(
+                        "settings-crossfade-saving", useUnmergedTree = true)
+                    .assertExists()
+                allowWrite.complete(Unit)
+                waitUntil(timeoutMillis = 5_000) {
+                    !owner.state.value.isBusy && owner.state.value.saveFailed
+                }
+                onNodeWithTag("settings-crossfade-5", useUnmergedTree = true)
+                    .assertIsSelected()
+                onNodeWithTag(
+                        "settings-crossfade-error", useUnmergedTree = true)
+                    .assertExists()
+                assertEquals(
+                    CrossfadeDuration.Seconds5,
+                    preferences.selectedDuration.value)
+
+                preferences.failWrites = false
+                onNodeWithTag("settings-crossfade-3", useUnmergedTree = true)
+                    .performClick()
+                waitUntil(timeoutMillis = 5_000) {
+                    !owner.state.value.isBusy &&
+                        owner.state.value.selectedDuration ==
+                            CrossfadeDuration.Seconds3
+                }
+                onNodeWithTag("settings-crossfade-3", useUnmergedTree = true)
+                    .assertIsSelected()
+                onNodeWithTag(
+                        "settings-crossfade-error", useUnmergedTree = true)
+                    .assertDoesNotExist()
+            } finally {
+                allowWrite.complete(Unit)
+                controller.release()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun settingsAdapterPushesReviewPageZero() = runComposeUiTest {
         val route = mutableStateOf<LibraryRoute>(LibraryRoute.Settings)
         val state = LibraryAppState(null)
@@ -95,8 +262,7 @@ class SettingsRouteAdapterJvmTest {
             Harness(
                 route = route, appState = state, pushRoute = state::pushRoute)
         }
-        onNodeWithTag("settings-review-onboarding", useUnmergedTree = true)
-            .performClick()
+        settingsControl("settings-review-onboarding").performClick()
         assertEquals(
             LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0),
             state.navigation.current)
@@ -121,8 +287,7 @@ class SettingsRouteAdapterJvmTest {
                 },
                 onCoreBackLabelResolved = { backLabel = it })
         }
-        onNodeWithTag("settings-review-onboarding", useUnmergedTree = true)
-            .performClick()
+        settingsControl("settings-review-onboarding").performClick()
         route.value = state.navigation.current
         assertEquals(
             LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0),
@@ -136,19 +301,6 @@ class SettingsRouteAdapterJvmTest {
     @Test
     fun projectsSourcesAndSuppliesPickerScanningPlaylistAndClearSlots() =
         runComposeUiTest {
-            fun clickableTextLabels(): List<String> =
-                onAllNodes(
-                        SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick),
-                        useUnmergedTree = false,
-                    )
-                    .fetchSemanticsNodes()
-                    .mapNotNull { node ->
-                        node.config
-                            .getOrNull(SemanticsProperties.Text)
-                            ?.joinToString(separator = "") { it.text }
-                            ?.takeIf(String::isNotBlank)
-                    }
-
             val authoritativeSource =
                 source(
                     id = "private-source-id-alpha",
@@ -160,6 +312,7 @@ class SettingsRouteAdapterJvmTest {
             val rescans = mutableListOf<LibrarySource>()
             var cancelCalls = 0
             var clearCalls = 0
+            var resolvedLabels: SharedSettingsLabels? = null
             val backupState = mutableStateOf(PlaylistBackupUiState())
             val backupActions = mutableListOf<PlaylistBackupUiAction>()
             val scanProgress = mutableStateOf<ScanProgress?>(null)
@@ -174,10 +327,12 @@ class SettingsRouteAdapterJvmTest {
                     onClear = { clearCalls++ },
                     onRescan = { rescans += it },
                     onCancelScan = { cancelCalls++ },
+                    onSharedLabelsResolved = { resolvedLabels = it },
                 )
             }
             onNodeWithTag("settings-root", useUnmergedTree = true)
                 .assertExists()
+            scrollSettingsTo(hasText(authoritativeSource.displayName))
             onNode(
                     hasText(authoritativeSource.displayName),
                     useUnmergedTree = true)
@@ -199,12 +354,9 @@ class SettingsRouteAdapterJvmTest {
             assertEquals(1, rescans.size)
             assertSame(authoritativeSource, rescans.single())
 
-            onNodeWithTag("settings-picker", useUnmergedTree = true)
-                .performScrollTo()
-                .performClick()
+            settingsControl("settings-picker").performScrollTo().performClick()
             assertEquals(1, picker.launchCalls)
 
-            val labelsBeforeScan = clickableTextLabels()
             val latestItem = "latest-scan-item-marker"
             scanProgress.value =
                 ScanProgress(
@@ -217,16 +369,18 @@ class SettingsRouteAdapterJvmTest {
                     latestItem = latestItem,
                 )
             waitForIdle()
+            scrollSettingsTo(hasText(latestItem))
             onNode(hasText(latestItem), useUnmergedTree = true)
                 .performScrollTo()
                 .assertExists()
-            val cancelLabels = clickableTextLabels() - labelsBeforeScan.toSet()
-            assertEquals(1, cancelLabels.size)
-            onNode(hasText(cancelLabels.single()), useUnmergedTree = true)
-                .performClick()
+            val scanCancel =
+                clickableText(requireNotNull(resolvedLabels).cancel)
+            onAllNodes(scanCancel, useUnmergedTree = false).assertCountEquals(1)
+            onNode(scanCancel, useUnmergedTree = false).performClick()
             assertEquals(1, cancelCalls)
 
             scanProgress.value = null
+            scrollSettingsTo(hasTestTag("playlist-backup-json-export"))
             backupState.value =
                 PlaylistBackupUiState(
                     preview = backupPreview("backup-preview-marker"))
@@ -281,9 +435,7 @@ class SettingsRouteAdapterJvmTest {
 
             backupState.value = PlaylistBackupUiState()
             waitForIdle()
-            onNodeWithTag("settings-clear", useUnmergedTree = true)
-                .performScrollTo()
-                .performClick()
+            settingsControl("settings-clear").performScrollTo().performClick()
             onAllNodes(dialogMatcher, useUnmergedTree = true)
                 .assertCountEquals(1)
             assertEquals(0, clearCalls)
@@ -307,21 +459,18 @@ class SettingsRouteAdapterJvmTest {
             )
         }
         sources[0] = current
-        onNodeWithTag("settings-rescan-$sourceId", useUnmergedTree = true)
-            .performClick()
+        settingsControl("settings-rescan-$sourceId").performClick()
         assertEquals(1, rescans.size)
         assertSame(current, rescans.single())
 
-        onNodeWithTag("settings-remove-$sourceId", useUnmergedTree = true)
-            .performClick()
+        settingsControl("settings-remove-$sourceId").performClick()
         sources[0] = replacement
         onNodeWithTag("settings-remove-confirm", useUnmergedTree = true)
             .performClick()
         assertEquals(1, removals.size)
         assertSame(replacement, removals.single())
 
-        onNodeWithTag("settings-remove-$sourceId", useUnmergedTree = true)
-            .performClick()
+        settingsControl("settings-remove-$sourceId").performClick()
         sources.clear()
         onNodeWithTag("settings-remove-confirm", useUnmergedTree = true)
             .performClick()
@@ -348,10 +497,8 @@ class SettingsRouteAdapterJvmTest {
                 onRemove = { removals += it },
             )
         }
-        onNodeWithTag("settings-rescan-one", useUnmergedTree = true)
-            .performClick()
-        onNodeWithTag("settings-remove-one", useUnmergedTree = true)
-            .performClick()
+        settingsControl("settings-rescan-one").performClick()
+        settingsControl("settings-remove-one").performClick()
         onNodeWithTag("settings-remove-confirm", useUnmergedTree = true)
             .assertDoesNotExist()
         assertEquals(0, rescanCalls)
@@ -361,11 +508,10 @@ class SettingsRouteAdapterJvmTest {
         waitForIdle()
         val failure =
             assertFailsWith<IllegalStateException> {
-                onNodeWithTag("settings-rescan-one", useUnmergedTree = true)
+                settingsControl("settings-rescan-one")
                     .performSemanticsAction(SemanticsActions.OnClick)
             }
-        onNodeWithTag("settings-remove-one", useUnmergedTree = true)
-            .performClick()
+        settingsControl("settings-remove-one").performClick()
         onNodeWithTag("settings-remove-confirm", useUnmergedTree = true)
             .performClick()
         assertEquals(listOf(source), removals)
@@ -402,25 +548,21 @@ class SettingsRouteAdapterJvmTest {
         }
         val shared = labels.value ?: error("Shared labels were not resolved")
         onNode(hasText(shared.settings), useUnmergedTree = true).assertExists()
-        onNodeWithTag("settings-picker", useUnmergedTree = true)
-            .performScrollTo()
-            .performClick()
+        settingsControl("settings-picker").performScrollTo().performClick()
         assertEquals(1, picker.launchCalls)
         onNode(hasText(shared.addMusicFolder), useUnmergedTree = true)
             .assertExists()
         onNode(hasText(shared.clearLibrary), useUnmergedTree = true)
             .assertExists()
 
-        onNodeWithTag("settings-remove-${source.id}", useUnmergedTree = true)
-            .performClick()
+        settingsControl("settings-remove-${source.id}").performClick()
         onNodeWithTag("settings-remove-dismiss", useUnmergedTree = true)
             .assertExists()
             .performClick()
         onNodeWithTag("settings-remove-confirm", useUnmergedTree = true)
             .assertDoesNotExist()
 
-        onNodeWithTag("settings-remove-${source.id}", useUnmergedTree = true)
-            .performClick()
+        settingsControl("settings-remove-${source.id}").performClick()
         onNodeWithTag("settings-remove-confirm", useUnmergedTree = true)
             .assertExists()
         onNode(hasText(shared.cancel), useUnmergedTree = true).assertExists()
@@ -430,11 +572,11 @@ class SettingsRouteAdapterJvmTest {
         waitForIdle()
         onNodeWithTag("settings-remove-dismiss", useUnmergedTree = true)
             .performClick()
-        onNodeWithTag("settings-picker", useUnmergedTree = true).assertExists()
+        settingsControl("settings-picker").assertExists()
         onNode(hasText(shared.folderPickerUnavailable), useUnmergedTree = true)
             .assertExists()
 
-        onNodeWithTag("settings-about", useUnmergedTree = true).performClick()
+        settingsControl("settings-about").performClick()
         assertEquals(1, aboutCalls)
         assertEquals(LibraryRoute.SettingsAbout, route.value)
         waitForIdle()
@@ -467,8 +609,7 @@ class SettingsRouteAdapterJvmTest {
             }
             val shared =
                 labels.value ?: error("Shared labels were not resolved")
-            onNodeWithTag("settings-clear", useUnmergedTree = true)
-                .performClick()
+            settingsControl("settings-clear").performClick()
             onAllNodes(dialogMatcher, useUnmergedTree = true)
                 .assertCountEquals(1)
             onNode(clickableText(shared.cancel), useUnmergedTree = false)
@@ -478,8 +619,7 @@ class SettingsRouteAdapterJvmTest {
                 .assertCountEquals(0)
             assertEquals(0, clearCalls)
 
-            onNodeWithTag("settings-clear", useUnmergedTree = true)
-                .performClick()
+            settingsControl("settings-clear").performClick()
             onNode(clickableText(shared.clearAction), useUnmergedTree = false)
                 .performClick()
             waitForIdle()
@@ -529,8 +669,8 @@ class SettingsRouteAdapterJvmTest {
             val settingsDestination = appState.activeDestinationId
             val back =
                 backLabel.value ?: error("Core Back label was not resolved")
-            onNodeWithTag("settings-clear", useUnmergedTree = true)
-                .performClick()
+            settingsControl("settings-clear").performClick()
+            scrollSettingsTo(backButton(back))
             onNode(backButton(back), useUnmergedTree = false)
                 .performSemanticsAction(SemanticsActions.OnClick)
             waitForIdle()
@@ -549,9 +689,8 @@ class SettingsRouteAdapterJvmTest {
             onAllNodes(dialogMatcher, useUnmergedTree = true)
                 .assertCountEquals(0)
 
-            onNodeWithTag("settings-clear", useUnmergedTree = true)
-                .performClick()
-            onNodeWithTag("settings-about", useUnmergedTree = true)
+            settingsControl("settings-clear").performClick()
+            settingsControl("settings-about")
                 .performSemanticsAction(SemanticsActions.OnClick)
             waitForIdle()
             assertEquals(LibraryRoute.SettingsAbout, route.value)
@@ -628,7 +767,7 @@ class SettingsRouteAdapterJvmTest {
         assertEquals(settingsDestination, appState.activeDestinationId)
         assertEquals(LibraryRoute.Settings, route.value)
 
-        onNodeWithTag("settings-about", useUnmergedTree = true).performClick()
+        settingsControl("settings-about").performClick()
         waitForIdle()
         assertEquals(1, aboutCalls)
         assertEquals(LibraryRoute.SettingsAbout, route.value)
@@ -661,6 +800,7 @@ class SettingsRouteAdapterJvmTest {
             dismissals,
         )
 
+        scrollSettingsTo(backButton(back))
         onNode(backButton(back), useUnmergedTree = false).performClick()
         waitForIdle()
         assertEquals(
@@ -783,6 +923,7 @@ class SettingsRouteAdapterJvmTest {
                 }
                 waitForIdle()
 
+                scrollSettingsTo(hasText("View scan report"))
                 onNode(hasText("View scan report")).performClick()
                 onNode(hasText("broken.mp3: Unsupported file")).assertExists()
                 // LazyColumn keeps the item holding focus composed even far
@@ -790,15 +931,12 @@ class SettingsRouteAdapterJvmTest {
                 // otherwise the panel below could never be disposed.
                 // Scroll the row into view so the click lands regardless of
                 // how tall the sections above it are.
-                onNode(hasScrollToIndexAction()).performScrollToIndex(5)
+                settingsControl("settings-rescan-source0").performClick()
                 waitForIdle()
-                onNodeWithTag("settings-rescan-source0", useUnmergedTree = true)
-                    .performClick()
-                waitForIdle()
-                onNode(hasScrollToIndexAction()).performScrollToIndex(60)
+                scrollSettingsTo(hasTestTag("settings-rescan-source59"))
                 waitForIdle()
                 onAllNodes(hasText("Hide scan report")).assertCountEquals(0)
-                onNode(hasScrollToIndexAction()).performScrollToIndex(0)
+                scrollSettingsTo(hasText("Hide scan report"))
                 waitForIdle()
 
                 onNode(hasText("Hide scan report")).assertExists()
@@ -1056,6 +1194,20 @@ class SettingsRouteAdapterJvmTest {
             assertEquals(1, settings)
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    private fun ComposeUiTest.scrollSettingsTo(matcher: SemanticsMatcher) {
+        onNodeWithTag("settings-list", useUnmergedTree = true)
+            .performScrollToNode(matcher)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    private fun ComposeUiTest.settingsControl(
+        tag: String
+    ): SemanticsNodeInteraction {
+        scrollSettingsTo(hasTestTag(tag))
+        return onNodeWithTag(tag, useUnmergedTree = true)
+    }
+
     @Composable
     private fun Harness(
         route: MutableState<LibraryRoute> =
@@ -1091,6 +1243,9 @@ class SettingsRouteAdapterJvmTest {
         onDismiss: () -> Unit = {},
         onSharedLabelsResolved: (SharedSettingsLabels) -> Unit = {},
         onCoreBackLabelResolved: (String) -> Unit = {},
+        crossfadeState: CrossfadePreferenceState =
+            CrossfadePreferenceState(isBusy = false),
+        onCrossfadeDurationSelected: (CrossfadeDuration) -> Unit = {},
     ) {
         val state =
             appState
@@ -1153,6 +1308,8 @@ class SettingsRouteAdapterJvmTest {
                 com.eterocell.rhythhaus.playback.ReplayGainPreferenceState(
                     isBusy = false),
             onReplayGainModeSelected = {},
+            crossfadeState = crossfadeState,
+            onCrossfadeDurationSelected = onCrossfadeDurationSelected,
             onThemeModeSelected = {},
             onClearLibrary = onClear,
             onRescanSource = onRescan,
@@ -1165,6 +1322,22 @@ class SettingsRouteAdapterJvmTest {
             onDismiss = onDismiss,
             onScrollPositionChanged = {},
         )
+    }
+
+    private class RouteCrossfadePreferences : CrossfadePreferenceStore {
+        override val selectedDuration =
+            MutableStateFlow(CrossfadeDuration.Seconds5)
+        var allowWrite: CompletableDeferred<Unit>? = null
+        var failWrites = false
+
+        override suspend fun readDuration(): CrossfadeDuration =
+            selectedDuration.value
+
+        override suspend fun setDuration(duration: CrossfadeDuration) {
+            allowWrite?.await()
+            check(!failWrites) { "Controlled route preference save failure" }
+            selectedDuration.value = duration
+        }
     }
 
     private fun backupPreview(marker: String) =

@@ -34,7 +34,7 @@
 | --- | --- | --- |
 | Phase 2 — daily use | Make the existing library and player efficient to use every day. | ~~Favorites; play history/recently played/recently added; sorting and filtering; sleep timer; save Queue as playlist; smart playlists~~. All implementations complete; pending manual acceptance remains release evidence. |
 | Phase 3 — library management | Give users safe control over imported metadata and sources. | ~~App-local metadata overrides; M3U/PLS import/export; Android MediaStore source; explicit-scan change summaries; desktop drag-and-drop~~. Current platform import policy is preserved: desktop references, iOS sandbox copies, Android SAF/MediaStore access. Manual acceptance remains pending. |
-| Phase 4 — advanced playback | Improve listening quality without adding network dependence. | ~~ReplayGain/normalization~~ (integrated into main); crossfade; basic EQ; gapless playback; local and embedded lyrics. |
+| Phase 4 — advanced playback | Improve listening quality without adding network dependence. | ~~ReplayGain/normalization; crossfade~~ (implemented; user-owned device/listening acceptance remains pending); basic EQ; gapless playback; local and embedded lyrics. |
 
 Sorting and filtering is integrated into `main`: Shared owns an ephemeral query, flat Library modes use deterministic sort/filter projections, artwork presence is read without loading image blobs, and accessible EN/ZH controls preserve visible selection and playback order. Android packaging is still blocked by the TagLib native toolchain, and the known full Shared JVM playback-selection timeout prevents claiming a green full-suite gate. Physical-platform acceptance remains a release check; no metadata writes or saved sort presets were added.
 
@@ -92,7 +92,7 @@ RhythHaus already provides:
 | Area | First useful version |
 | --- | --- |
 | Equalizer and effects | Replace visual-only `EqualizerStrip` with a real basic EQ; defer larger DSP scope until platform seams are designed. |
-| Normalization and transitions | ReplayGain/volume normalization, crossfade, and gapless playback. |
+| Normalization and transitions | ReplayGain is integrated; crossfade is implemented with persisted Off/3/5/8-second choices and genuine dual-player transitions on Android, iOS and macOS. User-owned device/listening/system-control acceptance remains pending. Gapless playback remains planned. |
 | Lyrics | Local `.lrc` and embedded lyrics only; remote lyrics requires a separate privacy/network decision. |
 | Output and session settings | Output/session status, automatic-resume policy, cache clearing, and interruption preferences. |
 

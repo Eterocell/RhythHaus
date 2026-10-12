@@ -55,7 +55,9 @@ public interface IOSAudioPlayerLoadHandler {
 
 /** Swift-owned operations exposed to the Kotlin playback engine. */
 public interface IOSAudioPlayerProvider {
-    /** Receives playback-completion notifications. */
+    /**
+     * Captured by the logical current voice at the next [playAsync] request.
+     */
     public var completionHandler: IOSAudioPlayerCompletionHandler?
 
     /** Receives system interruption and route notifications. */
@@ -72,13 +74,54 @@ public interface IOSAudioPlayerProvider {
      */
     public fun playAsync(handler: IOSAudioPlayerPlaybackStartHandler)
 
-    /** Pauses playback. */
+    /**
+     * Prepares a silent incoming voice without replacing the audible current.
+     */
+    public fun prepareIncomingAsync(
+        filePath: String,
+        handler: IOSAudioPlayerLoadHandler
+    )
+
+    /**
+     * Returns the prepared incoming duration without changing logical current.
+     */
+    public fun incomingDurationMillis(): Long?
+
+    /**
+     * Starts the staged voice at its retained gain and promotes it only after
+     * native playback succeeds. [completionHandler] belongs to that voice/run.
+     */
+    public fun startIncomingAsync(
+        completionHandler: IOSAudioPlayerCompletionHandler,
+        handler: IOSAudioPlayerPlaybackStartHandler,
+    )
+
+    /** Applies finite unit-range gains to the outgoing and incoming voices. */
+    public fun setCrossfadeGains(outgoingGain: Float, incomingGain: Float)
+
+    /**
+     * Commits the controller-admitted incoming voice by disposing only retiring
+     * resources.
+     */
+    public fun finishCrossfade()
+
+    /**
+     * Cancels staging or rolls back a started incoming voice while outgoing is
+     * retained. Native Playing does not commit controller admission. Restore
+     * outgoing player, run, gain and position without replay; after
+     * [finishCrossfade] cancellation cannot roll back.
+     */
+    public fun cancelPreparedIncoming()
+
+    /** Pauses both audible voices without changing their gains. */
     public fun pause(): Unit
 
-    /** Stops playback. */
+    /**
+     * Disposes both voices; retains logical media for a later ordinary play.
+     */
     public fun stop(): Unit
 
-    /** Seeks to [positionMillis]. */
+    /** Retires outgoing and seeks logical current to [positionMillis]. */
     public fun seekTo(positionMillis: Long): Unit
 
     /** Returns the current playback position. */
@@ -90,7 +133,9 @@ public interface IOSAudioPlayerProvider {
     /** Returns whether playback is active. */
     public fun isPlaying(): Boolean
 
-    /** Applies a finite playback-only gain between 0 and 1. */
+    /**
+     * Applies a finite playback-only gain between 0 and 1 to logical current.
+     */
     public fun setPlaybackGain(gain: Float): Unit
 
     /** Fades out then stops playback. */

@@ -51,6 +51,17 @@ The timer SHALL coordinate with the authoritative playback controller; elapsed c
 - **WHEN** a timed deadline expires while a new track is loading
 - **THEN** pending autoplay is cancelled and that load cannot begin audible playback after the timer has stopped it
 
+### Requirement: Sleep stops take precedence over overlapping transitions
+An active sleep timer SHALL suppress new crossfade transitions. Arming a timer during an overlap SHALL retire the outgoing voice and retain the authoritative incoming occurrence before admitting future timer completion events. Retiring outgoing completions SHALL NOT count toward a newly armed timer or advance the queue.
+
+#### Scenario: Timer already active
+- **WHEN** the current occurrence nears an otherwise eligible crossfade window with a sleep timer armed
+- **THEN** it uses existing ordinary completion and timer stop precedence rather than starting overlap
+
+#### Scenario: Timer armed during overlap
+- **WHEN** a listener arms a track-count timer while two voices overlap
+- **THEN** outgoing playback retires and only subsequent natural completion of the authoritative current occurrence counts toward that timer
+
 ### Requirement: Optional playback-only fade-out
 
 The listener MAY enable a ten-second fade before either stop boundary. Fade SHALL attenuate only the app's playback gain, not hardware or system volume. Its attenuation SHALL multiply any active normalization factor. Cancellation, rearming, track changes and stopping SHALL restore the sleep attenuation to unity rather than overriding normalization; subsequent playback SHALL use the current track's normal effective gain.

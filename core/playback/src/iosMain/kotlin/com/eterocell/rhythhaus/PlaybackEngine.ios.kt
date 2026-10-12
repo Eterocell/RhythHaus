@@ -6,11 +6,12 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
 import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
@@ -44,7 +45,7 @@ internal const val IOS_TRACK_SWITCH_SILENT_VOLUME: Float = 0.0f
 @OptIn(ExperimentalForeignApi::class)
 private class IOSPlaybackEngine(
     private val relativeFilePathResolver: IOSRelativeFilePathResolver,
-) : PlatformPlaybackEngine {
+) : CrossfadePlaybackEngine {
     private var confinedListener: PlaybackEngineListener? = null
     override var listener: PlaybackEngineListener?
         get() = withIOSPlaybackMainThread { confinedListener }
@@ -55,7 +56,10 @@ private class IOSPlaybackEngine(
     private var durationMillis: Long? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var progressJob: Job? = null
-    private var completionReported: Boolean = false
+    private var activeRun: VoiceRun? = null
+    private var retiringRun: VoiceRun? = null
+    private var outgoingSnapshot: OutgoingSnapshot? = null
+    private var preparedIncoming: PendingIncoming? = null
     private var playbackActive: Boolean = false
     private var playbackGain: Float = 1.0f
     private var wasPlayingBeforeInterruption: Boolean = false
@@ -64,9 +68,42 @@ private class IOSPlaybackEngine(
     private var artworkTrackId: String? = null
     private var activeGeneration: Long = 0L
     private var sourceVersion: Long = 0L
+    private var sourceSequence: Long = 0L
     private var playRequestSequence: Long = 0L
     private var pendingPlayRequest: Long? = null
     private val remoteTransportGate = IOSRemoteTransportGate()
+
+    private class VoiceRun(
+        val generation: Long,
+        val version: Long,
+        val playbackRunId: Long,
+    ) {
+        var terminal: Boolean = false
+    }
+
+    private data class OutgoingSnapshot(
+        val track: PlayableTrack?,
+        val duration: Long?,
+        val generation: Long,
+        val version: Long,
+        val run: VoiceRun?,
+        val gain: Float,
+    )
+
+    private class PendingIncoming(
+        val provider: IOSAudioPlayerProvider,
+        val path: String,
+        val track: PlayableTrack,
+        val generation: Long,
+        val version: Long,
+        val outgoingGeneration: Long,
+        val outgoingVersion: Long,
+    ) {
+        var durationMillis: Long? = null
+        var ready: Boolean = false
+        var gain: Float = 0f
+        var startingRequest: Long? = null
+    }
 
     private data class PendingTrackLoad(
         val provider: IOSAudioPlayerProvider,
@@ -90,17 +127,26 @@ private class IOSPlaybackEngine(
         registerRemoteCommands()
     }
 
-    private fun completionHandler(
-        generation: Long,
-        version: Long,
-        playbackRunId: Long
-    ) =
+    private fun completionHandler(run: VoiceRun) =
         object : IOSAudioPlayerCompletionHandler {
             override fun onPlaybackCompleted() {
                 withIOSPlaybackMainThread completion@{
-                    if (!isCurrentSource(generation, version)) return@completion
-                    if (completionReported) return@completion
-                    completionReported = true
+                    if (run.terminal) return@completion
+                    if (retiringRun === run) {
+                        run.terminal = true
+                        listener?.onPlaybackCompleted(
+                            run.generation, run.playbackRunId)
+                        return@completion
+                    }
+                    if (activeRun !== run ||
+                        !isCurrentSource(run.generation, run.version))
+                        return@completion
+                    run.terminal = true
+                    if (preparedIncoming?.startingRequest == null)
+                        pendingPlayRequest = null
+                    if (outgoingSnapshot == null) {
+                        cancelPreparedIncomingSerialized()
+                    }
                     playbackActive = false
                     wasPlayingBeforeInterruption = false
                     progressJob?.cancel()
@@ -109,21 +155,31 @@ private class IOSPlaybackEngine(
                             ?: durationMillis
                             ?: 0L
                     listener?.onPlaybackProgress(
-                        generation, pos, durationMillis)
-                    listener?.onPlaybackCompleted(generation, playbackRunId)
+                        run.generation, pos, durationMillis)
+                    listener?.onPlaybackCompleted(
+                        run.generation, run.playbackRunId)
                 }
             }
 
             override fun onPlaybackFailed() {
-                withIOSPlaybackMainThread {
-                    if (isCurrentSource(generation, version) &&
-                        !completionReported) {
-                        completionReported = true
-                        listener?.onPlaybackError(
-                            generation,
-                            PlaybackError(
-                                "iOS audio playback ended unsuccessfully"))
+                withIOSPlaybackMainThread failed@{
+                    if (run.terminal) return@failed
+                    if (activeRun !== run && retiringRun !== run) return@failed
+                    run.terminal = true
+                    if (activeRun === run) {
+                        if (preparedIncoming?.startingRequest == null)
+                            pendingPlayRequest = null
+                        playbackActive = false
+                        wasPlayingBeforeInterruption = false
+                        progressJob?.cancel()
+                        if (outgoingSnapshot == null) {
+                            cancelPreparedIncomingSerialized()
+                        }
                     }
+                    listener?.onPlaybackError(
+                        run.generation,
+                        PlaybackError(
+                            "iOS audio playback ended unsuccessfully"))
                 }
             }
         }
@@ -133,9 +189,12 @@ private class IOSPlaybackEngine(
             override fun onInterruptionBegan() {
                 withIOSPlaybackMainThread began@{
                     if (!isCurrentSource(generation, version) ||
-                        !playbackActive)
+                        (!playbackActive &&
+                            preparedIncoming?.startingRequest == null))
                         return@began
                     wasPlayingBeforeInterruption = true
+                    if (preparedIncoming?.startingRequest == null)
+                        pendingPlayRequest = null
                     playbackActive = false
                     progressJob?.cancel()
                     val provider = audioProvider ?: return@began
@@ -165,7 +224,11 @@ private class IOSPlaybackEngine(
                 withIOSPlaybackMainThread route@{
                     if (!isCurrentSource(generation, version)) return@route
                     wasPlayingBeforeInterruption = false
-                    if (!playbackActive) return@route
+                    if (preparedIncoming?.startingRequest == null)
+                        pendingPlayRequest = null
+                    if (!playbackActive &&
+                        preparedIncoming?.startingRequest == null)
+                        return@route
                     playbackActive = false
                     progressJob?.cancel()
                     val provider = audioProvider ?: return@route
@@ -191,6 +254,9 @@ private class IOSPlaybackEngine(
         val result = CompletableDeferred<Boolean>()
         return try {
             withIOSPlaybackMainContext {
+                if (!isCurrentSource(load.generation, load.version)) {
+                    throw CancellationException("iOS track load became stale")
+                }
                 if (load.isManagedLocalFile &&
                     !iosFileExistsAtPath(load.path)) {
                     val failure =
@@ -206,6 +272,9 @@ private class IOSPlaybackEngine(
                 }
             }
             withIOSPlaybackMainThread {
+                if (!isCurrentSource(load.generation, load.version)) {
+                    throw CancellationException("iOS track load became stale")
+                }
                 load.provider.loadAsync(
                     load.path,
                     object : IOSAudioPlayerLoadHandler {
@@ -220,6 +289,10 @@ private class IOSPlaybackEngine(
             }
             if (!result.await()) {
                 withIOSPlaybackMainContext {
+                    if (!isCurrentSource(load.generation, load.version)) {
+                        throw CancellationException(
+                            "iOS track load became stale")
+                    }
                     val managedFileMissing =
                         load.isManagedLocalFile &&
                             !iosFileExistsAtPath(load.path)
@@ -240,21 +313,258 @@ private class IOSPlaybackEngine(
                 finishTrackLoad(load)
             }
         } catch (t: Throwable) {
-            withIOSPlaybackMainContext {
-                if (isCurrentSource(load.generation, load.version)) {
-                    clearFailedLoad(load.provider)
+            withContext(NonCancellable) {
+                withIOSPlaybackMainContext {
+                    if (isCurrentSource(load.generation, load.version)) {
+                        clearFailedLoad(load.provider)
+                    }
                 }
             }
             throw t
         }
     }
 
+    override suspend fun prepareIncoming(
+        track: PlayableTrack,
+        generation: Long
+    ): LoadedPlayback {
+        val incoming = withIOSPlaybackMainContext {
+            val provider = requireNotNull(audioProvider) { "No player loaded" }
+            check(retiringRun == null) { "A retiring voice is still retained" }
+            cancelPreparedIncomingSerialized()
+            val path =
+                try {
+                    track.source.iosFilePath(relativeFilePathResolver)
+                } catch (failure: Throwable) {
+                    throw PlaybackFailureException(
+                        PlaybackError(
+                            "Could not resolve player path: ${track.title} (${failure.message})"))
+                }
+            PendingIncoming(
+                    provider = provider,
+                    path = path,
+                    track = track,
+                    generation = generation,
+                    version = ++sourceSequence,
+                    outgoingGeneration = activeGeneration,
+                    outgoingVersion = sourceVersion,
+                )
+                .also { preparedIncoming = it }
+        }
+        val result = CompletableDeferred<Boolean>()
+        try {
+            withIOSPlaybackMainContext {
+                if (!ownsPendingIncoming(incoming))
+                    throw CancellationException(
+                        "iOS incoming load became stale")
+                if (incoming.track.source is AudioSource.FilePath &&
+                    !iosFileExistsAtPath(incoming.path)) {
+                    throw PlaybackFailureException(
+                        iosLoadFailureError(
+                            incoming.path, managedFileMissing = true))
+                }
+                incoming.provider.prepareIncomingAsync(
+                    incoming.path,
+                    object : IOSAudioPlayerLoadHandler {
+                        override fun onAudioLoaded() {
+                            result.complete(true)
+                        }
+
+                        override fun onAudioLoadFailed() {
+                            result.complete(false)
+                        }
+                    },
+                )
+            }
+            val loaded = result.await()
+            return withIOSPlaybackMainContext {
+                if (!ownsPendingIncoming(incoming))
+                    throw CancellationException(
+                        "iOS incoming load became stale")
+                if (!loaded) {
+                    throw PlaybackFailureException(
+                        iosLoadFailureError(
+                            incoming.path,
+                            managedFileMissing =
+                                incoming.track.source is AudioSource.FilePath &&
+                                    !iosFileExistsAtPath(incoming.path),
+                        ))
+                }
+                incoming.durationMillis =
+                    track.durationMillis
+                        ?: incoming.provider.incomingDurationMillis()
+                incoming.ready = true
+                LoadedPlayback(generation, incoming.durationMillis)
+            }
+        } catch (failure: Throwable) {
+            withContext(NonCancellable) {
+                withIOSPlaybackMainContext {
+                    if (preparedIncoming === incoming)
+                        cancelPreparedIncomingSerialized()
+                }
+            }
+            throw failure
+        }
+    }
+
+    override fun startIncoming(playbackRunId: Long) {
+        withIOSPlaybackMainThread {
+            val incoming =
+                requireNotNull(preparedIncoming) {
+                    "No incoming voice prepared"
+                }
+            check(incoming.ready && ownsPendingIncoming(incoming)) {
+                "Incoming voice is not ready"
+            }
+            check(incoming.startingRequest == null && playbackActive) {
+                "Outgoing voice is not playing"
+            }
+            val request = ++playRequestSequence
+            incoming.startingRequest = request
+            pendingPlayRequest = request
+            outgoingSnapshot =
+                OutgoingSnapshot(
+                    loadedTrack,
+                    durationMillis,
+                    activeGeneration,
+                    sourceVersion,
+                    activeRun,
+                    playbackGain,
+                )
+            val run =
+                VoiceRun(incoming.generation, incoming.version, playbackRunId)
+            incoming.provider.startIncomingAsync(
+                completionHandler(run),
+                object : IOSAudioPlayerPlaybackStartHandler {
+                    override fun onPlaybackStarted() {
+                        withIOSPlaybackMainThread {
+                            if (!ownsPendingIncoming(incoming) ||
+                                pendingPlayRequest != request ||
+                                incoming.startingRequest != request)
+                                return@withIOSPlaybackMainThread
+                            retiringRun = activeRun
+                            activeRun = run
+                            activeGeneration = incoming.generation
+                            sourceVersion = incoming.version
+                            loadedTrack = incoming.track
+                            durationMillis = incoming.durationMillis
+                            playbackGain = incoming.gain
+                            preparedIncoming = null
+                            wasPlayingBeforeInterruption = false
+                            incoming.provider.interruptionHandler =
+                                interruptionHandler(
+                                    activeGeneration, sourceVersion)
+                            finishPlayRequest(
+                                request,
+                                activeGeneration,
+                                sourceVersion,
+                                incoming.provider)
+                        }
+                    }
+
+                    override fun onPlaybackStartFailed() {
+                        withIOSPlaybackMainThread {
+                            if (!ownsPendingIncoming(incoming) ||
+                                pendingPlayRequest != request ||
+                                incoming.startingRequest != request)
+                                return@withIOSPlaybackMainThread
+                            cancelPreparedIncomingSerialized()
+                            listener?.onPlaybackError(
+                                incoming.generation,
+                                PlaybackError(
+                                    "Could not start playback: ${incoming.track.title}"),
+                            )
+                        }
+                    }
+                },
+            )
+        }
+    }
+
+    override fun setCrossfadeGains(outgoingGain: Float, incomingGain: Float) {
+        require(
+            outgoingGain.isFinite() &&
+                outgoingGain >= 0f &&
+                outgoingGain <= 1f) {
+                "Outgoing gain must be finite and within 0..1"
+            }
+        require(
+            incomingGain.isFinite() &&
+                incomingGain >= 0f &&
+                incomingGain <= 1f) {
+                "Incoming gain must be finite and within 0..1"
+            }
+        withIOSPlaybackMainThread {
+            playbackGain =
+                if (retiringRun != null) incomingGain else outgoingGain
+            preparedIncoming?.gain = incomingGain
+            audioProvider?.setCrossfadeGains(outgoingGain, incomingGain)
+        }
+    }
+
+    override fun finishCrossfade() {
+        withIOSPlaybackMainThread { finishCrossfadeSerialized() }
+    }
+
+    private fun finishCrossfadeSerialized() {
+        outgoingSnapshot = null
+        retiringRun = null
+        audioProvider?.finishCrossfade()
+    }
+
+    private fun retireCrossfadeForTransportSerialized() {
+        // Ordinary transport targets logical current. Commit any native handoff
+        // before
+        // cancelling staged work so cancellation cannot restore an accepted old
+        // source.
+        finishCrossfadeSerialized()
+        cancelPreparedIncomingSerialized()
+    }
+
+    override fun cancelPreparedIncoming() {
+        withIOSPlaybackMainThread { cancelPreparedIncomingSerialized() }
+    }
+
+    private fun cancelPreparedIncomingSerialized() {
+        val incoming = preparedIncoming
+        val outgoing = outgoingSnapshot
+        if (incoming == null && outgoing == null) return
+        preparedIncoming = null
+        pendingPlayRequest = null
+        (incoming?.provider ?: audioProvider)?.cancelPreparedIncoming()
+        outgoingSnapshot = null
+        if (outgoing != null) {
+            loadedTrack = outgoing.track
+            durationMillis = outgoing.duration
+            activeGeneration = outgoing.generation
+            sourceVersion = outgoing.version
+            activeRun = outgoing.run
+            retiringRun = null
+            playbackGain = outgoing.gain
+            audioProvider?.let { provider ->
+                provider.setPlaybackGain(outgoing.gain)
+                provider.interruptionHandler =
+                    interruptionHandler(activeGeneration, sourceVersion)
+                playbackActive = provider.isPlaying()
+                updateNowPlayingInfo(
+                    positionMillis = provider.currentPositionMillis())
+                startProgressLoop(activeGeneration, sourceVersion)
+            }
+        }
+    }
+
+    private fun ownsPendingIncoming(incoming: PendingIncoming): Boolean =
+        preparedIncoming === incoming &&
+            isCurrentSource(
+                incoming.outgoingGeneration, incoming.outgoingVersion)
+
     private fun beginTrackLoad(
         track: PlayableTrack,
         generation: Long,
     ): PendingTrackLoad {
         activeGeneration = generation
-        val version = ++sourceVersion
+        val version = ++sourceSequence
+        sourceVersion = version
         releaseForTrackSwitch()
         wasPlayingBeforeInterruption = false
         playbackActive = false
@@ -305,7 +615,7 @@ private class IOSPlaybackEngine(
         loadedTrack = load.track
         durationMillis =
             load.track.durationMillis ?: provider.currentDurationMillis()
-        completionReported = false
+        activeRun = null
         updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         provider.setPlaybackGain(playbackGain)
         provider.pause()
@@ -321,11 +631,13 @@ private class IOSPlaybackEngine(
         provider.setPlaybackGain(playbackGain)
         provider.completionHandler = null
         provider.interruptionHandler = null
+        retireCrossfadeForTransportSerialized()
+        activeRun = null
+        retiringRun = null
         progressJob?.cancel()
         audioProvider = null
         loadedTrack = null
         durationMillis = null
-        completionReported = false
         playbackActive = false
         wasPlayingBeforeInterruption = false
         artworkTrackId = null
@@ -335,7 +647,7 @@ private class IOSPlaybackEngine(
     override fun clear(generation: Long) {
         withIOSPlaybackMainThread {
             activeGeneration = generation
-            sourceVersion++
+            sourceVersion = ++sourceSequence
             releaseForTrackSwitch()
             restorePlaybackGain()
             MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
@@ -379,10 +691,11 @@ private class IOSPlaybackEngine(
     override fun play(playbackRunId: Long) {
         withIOSPlaybackMainThread {
             val provider = requireNotNull(audioProvider) { "No player loaded" }
-            completionReported = false
-            provider.completionHandler =
-                completionHandler(
-                    activeGeneration, sourceVersion, playbackRunId)
+            val run = VoiceRun(activeGeneration, sourceVersion, playbackRunId)
+            activeRun = run
+            provider.completionHandler = completionHandler(run)
+            provider.interruptionHandler =
+                interruptionHandler(activeGeneration, sourceVersion)
             requestPlaySerialized(activeGeneration, sourceVersion)
         }
     }
@@ -432,6 +745,7 @@ private class IOSPlaybackEngine(
         }
         updateNowPlayingInfo(positionMillis = provider.currentPositionMillis())
         listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
+        if (!isCurrentSource(generation, version)) return
         listener?.onPlaybackProgress(
             generation, provider.currentPositionMillis(), durationMillis)
         startProgressLoop(generation, version)
@@ -482,7 +796,13 @@ private class IOSPlaybackEngine(
     }
 
     private fun pauseSerialized() {
-        pendingPlayRequest = null
+        // A pending incoming activation belongs to the controller transaction.
+        // Paused
+        // settles that unconfirmed transaction via explicit cancel; until then
+        // retain
+        // its native outcome instead of orphaning the controller's started
+        // latch.
+        if (preparedIncoming?.startingRequest == null) pendingPlayRequest = null
         progressJob?.cancel()
         playbackActive = false
         wasPlayingBeforeInterruption = false
@@ -500,10 +820,14 @@ private class IOSPlaybackEngine(
 
     private fun stopSerialized() {
         pendingPlayRequest = null
+        sourceVersion = ++sourceSequence
+        retireCrossfadeForTransportSerialized()
+        activeRun = null
+        retiringRun = null
         progressJob?.cancel()
         playbackActive = false
         wasPlayingBeforeInterruption = false
-        audioProvider?.stop()
+        (audioProvider ?: IOSAudioPlayerBridge.provider)?.stop()
         restorePlaybackGain()
         updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         listener?.onPlaybackProgress(activeGeneration, 0L, durationMillis)
@@ -512,6 +836,7 @@ private class IOSPlaybackEngine(
 
     override fun seekTo(positionMillis: Long) {
         withIOSPlaybackMainThread {
+            retireCrossfadeForTransportSerialized()
             audioProvider?.seekTo(positionMillis)
             updateNowPlayingInfo(positionMillis = positionMillis)
             listener?.onPlaybackProgress(
@@ -525,14 +850,18 @@ private class IOSPlaybackEngine(
 
     private fun releaseSerialized() {
         pendingPlayRequest = null
-        sourceVersion++
+        sourceVersion = ++sourceSequence
+        retireCrossfadeForTransportSerialized()
+        activeRun = null
+        retiringRun = null
         playbackActive = false
         wasPlayingBeforeInterruption = false
         progressJob?.cancel()
-        audioProvider?.stop()
+        val provider = audioProvider ?: IOSAudioPlayerBridge.provider
+        provider?.stop()
         restorePlaybackGain()
-        audioProvider?.completionHandler = null
-        audioProvider?.interruptionHandler = null
+        provider?.completionHandler = null
+        provider?.interruptionHandler = null
         audioProvider = null
         loadedTrack = null
         durationMillis = null
@@ -542,6 +871,9 @@ private class IOSPlaybackEngine(
 
     private fun releaseForTrackSwitch() {
         pendingPlayRequest = null
+        retireCrossfadeForTransportSerialized()
+        activeRun = null
+        retiringRun = null
         progressJob?.cancel()
         playbackActive = false
         wasPlayingBeforeInterruption = false

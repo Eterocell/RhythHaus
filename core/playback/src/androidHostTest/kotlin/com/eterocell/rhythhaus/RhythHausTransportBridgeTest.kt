@@ -115,31 +115,52 @@ class RhythHausTransportBridgeTest {
 
     @Test
     fun serviceBridgeRejectsPlayAndSeekWhenTransportDisabled() {
-        val bridge = RhythHausTransportBridge.forHostTest()
-        bridge.setTransportEnabled(false)
+        val bridge = ServiceTransportRouter()
+        val actions = mutableListOf<String>()
+        RhythHausTransportBridge.onPlay = { actions += "controller-play" }
+        RhythHausTransportBridge.onSeek = { actions += "controller-seek:$it" }
+        RhythHausTransportBridge.setTransportEnabled(false)
 
-        assertFalse(bridge.handleServicePlayForTest())
-        assertFalse(bridge.handleServiceSeekForTest(2_000L))
-        assertFalse(bridge.isCommandAvailableForTest(Player.COMMAND_PLAY_PAUSE))
+        assertFalse(bridge.play(false) { actions += "native-play" })
         assertFalse(
-            bridge.isCommandAvailableForTest(
-                Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
-        assertEquals(emptyList(), bridge.forwardedActionsForTest())
+            bridge.seekTo(2_000L, false) { actions += "native-seek:$it" })
+        assertFalse(
+            sessionPlayerCommandAllowed(false, Player.COMMAND_PLAY_PAUSE))
+        assertFalse(
+            sessionPlayerCommandAllowed(
+                false, Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
+        assertEquals(emptyList(), actions)
     }
 
     @Test
     fun serviceBridgePreservesEnabledPlaySeekAndSkipPaths() {
         val actions = mutableListOf<String>()
         val bridge = ServiceTransportRouter()
-        bridge.setTransportEnabled(true)
+        RhythHausTransportBridge.setTransportEnabled(true)
+        RhythHausTransportBridge.onPlay = { actions += "play" }
+        RhythHausTransportBridge.onPause = { actions += "pause" }
+        RhythHausTransportBridge.onStop = { actions += "stop" }
+        RhythHausTransportBridge.onSeek = { actions += "seek:$it" }
 
-        assertTrue(bridge.play { actions += "play" })
-        assertTrue(bridge.pause { actions += "pause" })
-        assertTrue(bridge.stop { actions += "stop" })
-        assertTrue(bridge.seekTo(2_000L) { actions += "seek:-1:$it" })
         assertTrue(
-            bridge.seekTo(4, 3_000L) { index, position ->
-                actions += "seek:$index:$position"
+            bridge.play(false) {
+                error("External play reached the native player")
+            })
+        assertTrue(
+            bridge.pause(false) {
+                error("External pause reached the native player")
+            })
+        assertTrue(
+            bridge.stop(false) {
+                error("External stop reached the native player")
+            })
+        assertTrue(
+            bridge.seekTo(2_000L, false) {
+                error("External seek reached the native player")
+            })
+        assertTrue(
+            bridge.seekTo(4, 3_000L, false) { _, _ ->
+                error("External indexed seek reached the native player")
             })
         assertTrue(bridge.next { actions += "next" })
         assertTrue(bridge.previous { actions += "previous" })
@@ -151,8 +172,8 @@ class RhythHausTransportBridgeTest {
                 "play",
                 "pause",
                 "stop",
-                "seek:-1:2000",
-                "seek:4:3000",
+                "seek:2000",
+                "seek:3000",
                 "next",
                 "previous"),
             actions,
@@ -189,7 +210,7 @@ class RhythHausTransportBridgeTest {
     fun disabledUserTransportDoesNotBlockControllerOwnedTimerStop() {
         val bridge = ServiceTransportRouter()
         val nativeActions = mutableListOf<String>()
-        bridge.setTransportEnabled(false)
+        RhythHausTransportBridge.setTransportEnabled(false)
 
         assertTrue(
             bridge.pause(internalController = true) {
@@ -211,7 +232,7 @@ class RhythHausTransportBridgeTest {
     @Test
     fun mediaSessionKeepsInternalPauseAndSeekAvailableWhileRejectingExternalRequests() {
         val bridge = ServiceTransportRouter()
-        bridge.setTransportEnabled(false)
+        RhythHausTransportBridge.setTransportEnabled(false)
         assertTrue(bridge.isCommandAvailable(Player.COMMAND_PLAY_PAUSE, true))
         assertTrue(
             bridge.isCommandAvailable(
@@ -231,15 +252,20 @@ class RhythHausTransportBridgeTest {
     fun productionRouterRejectsEveryGatedOperationWhenDisabled() {
         val actions = mutableListOf<String>()
         val bridge = ServiceTransportRouter()
-        bridge.setTransportEnabled(false)
+        RhythHausTransportBridge.setTransportEnabled(false)
+        RhythHausTransportBridge.onPlay = { actions += "play" }
+        RhythHausTransportBridge.onPause = { actions += "pause" }
+        RhythHausTransportBridge.onStop = { actions += "stop" }
+        RhythHausTransportBridge.onSeek = { actions += "seek:$it" }
 
-        assertFalse(bridge.play { actions += "play" })
-        assertFalse(bridge.pause { actions += "pause" })
-        assertFalse(bridge.stop { actions += "stop" })
-        assertFalse(bridge.seekTo(2_000L) { actions += "seek:-1:$it" })
+        assertFalse(bridge.play(false) { actions += "native-play" })
+        assertFalse(bridge.pause(false) { actions += "native-pause" })
+        assertFalse(bridge.stop(false) { actions += "native-stop" })
         assertFalse(
-            bridge.seekTo(4, 3_000L) { index, position ->
-                actions += "seek:$index:$position"
+            bridge.seekTo(2_000L, false) { actions += "native-seek:$it" })
+        assertFalse(
+            bridge.seekTo(4, 3_000L, false) { index, position ->
+                actions += "native-seek:$index:$position"
             })
         assertFalse(bridge.next { actions += "next" })
         assertFalse(bridge.previous { actions += "previous" })
@@ -250,5 +276,21 @@ class RhythHausTransportBridgeTest {
             bridge.isCommandAvailable(
                 Player.COMMAND_SEEK_TO_NEXT, delegateAvailable = true))
         assertEquals(emptyList(), actions)
+    }
+
+    @Test
+    fun mediaSessionAdmitsSourceAndGainMutationsOnlyThroughEngineProtocol() {
+        listOf(
+                Player.COMMAND_SET_MEDIA_ITEM,
+                Player.COMMAND_CHANGE_MEDIA_ITEMS,
+                Player.COMMAND_PREPARE,
+                Player.COMMAND_SET_VOLUME,
+                Player.COMMAND_SET_REPEAT_MODE,
+                Player.COMMAND_SET_SHUFFLE_MODE,
+            )
+            .forEach { command ->
+                assertFalse(sessionPlayerCommandAllowed(false, command))
+                assertFalse(sessionPlayerCommandAllowed(true, command))
+            }
     }
 }

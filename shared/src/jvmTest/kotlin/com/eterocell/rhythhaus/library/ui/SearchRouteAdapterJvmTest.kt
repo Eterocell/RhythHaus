@@ -301,6 +301,10 @@ class SearchRouteAdapterJvmTest {
                 com.eterocell.rhythhaus.playback.ReplayGainPreferenceState(
                     isBusy = false),
             onReplayGainModeSelected = {},
+            crossfadeState =
+                com.eterocell.rhythhaus.playback.CrossfadePreferenceState(
+                    isBusy = false),
+            onCrossfadeDurationSelected = {},
             onThemeModeSelected = {},
             onClearLibrary = {},
             onRescanSource = {},

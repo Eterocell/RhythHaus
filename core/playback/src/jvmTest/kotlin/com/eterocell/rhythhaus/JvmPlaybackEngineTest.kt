@@ -4,6 +4,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
 import java.nio.file.Path
+import java.security.MessageDigest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
@@ -18,11 +19,829 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 
 class JvmPlaybackEngineTest {
+    @Test
+    fun macOSNativeStartRejectionReportsPlaybackFailureWithoutPublishingPlaying() =
+        runBlocking {
+            val file = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val listener = RecordingMacPlaybackListener()
+            engine.listener = listener
+            try {
+                engine.loadPaused(macWavTrack("loaded", file), 10L)
+                val statuses = listener.statuses.toList()
+                bridge.withLifetimeBoundaryForTest {
+                    nativeInvalidateCurrentPlayerForTest(nativeHandle(bridge))
+                }
+                val failure =
+                    assertFailsWith<PlaybackFailureException> {
+                        engine.play(100L)
+                    }
+                assertEquals(PlaybackFailureKind.Unknown, failure.error.kind)
+                assertNotNull(failure.error.cause)
+                assertEquals(statuses, listener.statuses.toList())
+                assertEquals(0L, crossfadeSnapshot(bridge)[3])
+                assertTrue(listener.completions.isEmpty())
+            } finally {
+                engine.release()
+                file.deleteIfExists()
+            }
+            assertEquals(0L, nativeLiveAudioVoiceCountForTest())
+        }
+
+    @Test
+    fun macOSCrossfadeAdvancesBothVoicesAndPreservesHalfFadeOnResume() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val outgoingHash = wavSha256(outgoingFile)
+            val incomingHash = wavSha256(incomingFile)
+            val bridge = MacAudioPlayerBridge()
+            val engine = createJvmPlaybackEngine(bridge)
+            try {
+                assertTrue(engine is CrossfadePlaybackEngine)
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 11L)
+                engine.play(101L)
+                val handle = bridge.currentHandleIdentityForTest()
+                val loaded =
+                    engine.prepareIncoming(
+                        macWavTrack("incoming", incomingFile), 12L)
+                assertEquals(12L, loaded.generation)
+                assertEquals(5_000L, loaded.durationMillis)
+                assertEquals(listOf(1f, 0f), crossfadeVolumes(bridge).toList())
+                assertEquals(0L, crossfadeSnapshot(bridge)[2])
+
+                engine.startIncoming(102L)
+                assertEquals(listOf(0f, 1f), crossfadeVolumes(bridge).toList())
+                val initial = crossfadeSnapshot(bridge)
+                val advancing =
+                    awaitCrossfadeSnapshot(bridge) {
+                        it[0] >= initial[0] + 100L && it[1] >= initial[1] + 100L
+                    }
+                assertEquals(1L, advancing[3])
+                assertEquals(1L, advancing[4])
+                assertEquals(2L, advancing[5])
+                assertEquals(handle, bridge.currentHandleIdentityForTest())
+                assertEquals(2L, bridge.liveRouteListenerCountForTest())
+                assertEquals(5L, bridge.liveRemoteHandlerCountForTest())
+
+                engine.setCrossfadeGains(0.5f, 0.5f)
+                engine.pause()
+                val paused = crossfadeSnapshot(bridge)
+                assertEquals(0L, paused[3])
+                assertEquals(0L, paused[4])
+                delay(200)
+                val stillPaused = crossfadeSnapshot(bridge)
+                assertEquals(paused[0], stillPaused[0])
+                assertEquals(paused[1], stillPaused[1])
+                assertEquals(
+                    listOf(0.5f, 0.5f), crossfadeVolumes(bridge).toList())
+                engine.play(103L)
+                awaitCrossfadeSnapshot(bridge) {
+                    it[0] >= paused[0] + 100L && it[1] >= paused[1] + 100L
+                }
+                assertEquals(
+                    listOf(0.5f, 0.5f), crossfadeVolumes(bridge).toList())
+                engine.setPlaybackGain(0.3f)
+                assertEquals(
+                    listOf(0.3f, 0.5f), crossfadeVolumes(bridge).toList())
+                assertTrue(outgoingHash.contentEquals(wavSha256(outgoingFile)))
+                assertTrue(incomingHash.contentEquals(wavSha256(incomingFile)))
+            } finally {
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+            assertEquals(0L, nativeLiveAudioVoiceCountForTest())
+        }
+
+    @Test
+    fun macOSControllerCrossfadePromotesOneOccurrenceWhileBothNativeVoicesAdvance() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val outgoingHash = wavSha256(outgoingFile)
+            val incomingHash = wavSha256(incomingFile)
+            val bridge = MacAudioPlayerBridge()
+            val engine = createJvmPlaybackEngine(bridge)
+            val controller = PlaybackController(engine)
+            val started =
+                kotlinx.coroutines.channels.Channel<PlaybackStarted>(
+                    kotlinx.coroutines.channels.Channel.UNLIMITED,
+                )
+            val startedJob =
+                kotlinx.coroutines
+                    .CoroutineScope(
+                        kotlinx.coroutines.Dispatchers.Default,
+                    )
+                    .launch(
+                        start =
+                            kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                            controller.playbackStarted.collect {
+                                started.send(it)
+                            }
+                        }
+            try {
+                controller.setCrossfadeDuration(CrossfadeDuration.Seconds3)
+                controller.setOccurrenceQueue(
+                    listOf(
+                        QueueOccurrence(
+                            "outgoing",
+                            macWavTrack("outgoing", outgoingFile)
+                                .copy(durationMillis = 5_000L),
+                        ),
+                        QueueOccurrence(
+                            "incoming",
+                            macWavTrack("incoming", incomingFile)
+                                .copy(durationMillis = 5_000L),
+                        ),
+                    ),
+                    autoPlay = true,
+                )
+                assertEquals(
+                    "outgoing",
+                    withTimeout(5_000) { started.receive() }.occurrenceId)
+                val outgoingGeneration = controller.state.value.engineGeneration
+                controller.onPlaybackProgress(
+                    outgoingGeneration, 3_000L, 5_000L)
+                try {
+                    withTimeout(5_000) {
+                        while (controller.state.value.currentOccurrenceId !=
+                            "incoming") delay(10)
+                    }
+                } catch (
+                    timeout: kotlinx.coroutines.TimeoutCancellationException) {
+                    throw AssertionError(
+                        "Crossfade promotion stalled: ${controller.state.value}; " +
+                            "native=${crossfadeSnapshot(bridge).contentToString()}",
+                        timeout,
+                    )
+                }
+                assertEquals(
+                    "incoming",
+                    withTimeout(5_000) { started.receive() }.occurrenceId)
+                val initial = crossfadeSnapshot(bridge)
+                val advancing =
+                    awaitCrossfadeSnapshot(bridge) {
+                        it[0] >= initial[0] + 100L && it[1] >= initial[1] + 100L
+                    }
+                assertEquals(1L, advancing[3])
+                assertEquals(1L, advancing[4])
+                assertEquals(
+                    "incoming", controller.state.value.currentOccurrenceId)
+                assertTrue(outgoingHash.contentEquals(wavSha256(outgoingFile)))
+                assertTrue(incomingHash.contentEquals(wavSha256(incomingFile)))
+            } finally {
+                controller.release()
+                startedJob.cancel()
+                started.close()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+            assertEquals(0L, nativeLiveAudioVoiceCountForTest())
+        }
+
+    @Test
+    fun macOSCrossfadeCancelledAndFailedPreparationPreservesOutgoing() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val invalidFile = createTempFile(suffix = ".wav")
+            val missingFile = createTempFile(suffix = ".wav")
+            missingFile.deleteIfExists()
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val listener = RecordingMacPlaybackListener()
+            engine.listener = listener
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 21L)
+                engine.setPlaybackGain(0.37f)
+                engine.play(201L)
+                val handle = bridge.currentHandleIdentityForTest()
+                val statuses = listener.statuses.toList()
+                val loaded =
+                    engine.prepareIncoming(
+                        macWavTrack("prepared", incomingFile), 22L)
+                assertEquals(22L, loaded.generation)
+                assertEquals(statuses, listener.statuses.toList())
+                assertEquals(2L, crossfadeSnapshot(bridge)[5])
+                engine.cancelPreparedIncoming()
+                assertEquals(1L, crossfadeSnapshot(bridge)[5])
+                assertEquals(-1L, crossfadeSnapshot(bridge)[2])
+                assertEquals(0.37f, bridge.playerVolumeForTest(), 0.001f)
+
+                val missing =
+                    assertFailsWith<PlaybackFailureException> {
+                        engine.prepareIncoming(
+                            macWavTrack("missing", missingFile), 23L)
+                    }
+                assertEquals(
+                    PlaybackFailureKind.MissingFile, missing.error.kind)
+                val invalid =
+                    assertFailsWith<PlaybackFailureException> {
+                        engine.prepareIncoming(
+                            macWavTrack("invalid", invalidFile), 24L)
+                    }
+                assertEquals(PlaybackFailureKind.Unknown, invalid.error.kind)
+                assertEquals(1L, crossfadeSnapshot(bridge)[5])
+                assertEquals(handle, bridge.currentHandleIdentityForTest())
+                assertEquals(statuses, listener.statuses.toList())
+                val position = bridge.currentPositionMillis()
+                awaitCrossfadeSnapshot(bridge) { it[0] >= position + 100L }
+                assertTrue(listener.errors.isEmpty())
+                assertTrue(listener.completions.isEmpty())
+            } finally {
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+                invalidFile.deleteIfExists()
+            }
+            assertEquals(0L, nativeLiveAudioVoiceCountForTest())
+        }
+
+    @Test
+    fun macOSCrossfadeStartFailureBeforePlayingDisposesIncomingAndPreservesOutgoing() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val listener = RecordingMacPlaybackListener()
+            engine.listener = listener
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 25L)
+                engine.setPlaybackGain(0.37f)
+                engine.play(251L)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 26L)
+                val statuses = listener.statuses.toList()
+                bridge.withLifetimeBoundaryForTest {
+                    nativeInvalidatePreparedPlayerForTest(nativeHandle(bridge))
+                }
+                assertFailsWith<PlaybackFailureException> {
+                    engine.startIncoming(261L)
+                }
+                engine.cancelPreparedIncoming()
+                engine.publishProgressForTest()
+                assertEquals(statuses, listener.statuses.toList())
+                assertEquals(25L, listener.progress.last().first)
+                assertEquals(1L, crossfadeSnapshot(bridge)[5])
+                assertEquals(1L, crossfadeSnapshot(bridge)[3])
+                assertEquals(0.37f, bridge.playerVolumeForTest(), 0.001f)
+                assertTrue(listener.completions.isEmpty())
+                val position = bridge.currentPositionMillis()
+                awaitCrossfadeSnapshot(bridge) { it[0] >= position + 100L }
+            } finally {
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+            assertEquals(0L, nativeLiveAudioVoiceCountForTest())
+        }
+
+    @Test
+    fun macOSCrossfadeRejectedPlayingCancellationRestoresOutgoingWithoutRestart() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val listener = RecordingMacPlaybackListener()
+            engine.listener = listener
+            var callback = 0L
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 27L)
+                engine.setPlaybackGain(0.37f)
+                engine.play(271L)
+                engine.seekTo(600L)
+                callback = captureMacTerminalCallback(bridge)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 28L)
+                val outgoingPosition = bridge.currentPositionMillis()
+                val handle = bridge.currentHandleIdentityForTest()
+                engine.startIncoming(281L)
+                assertTrue(
+                    listener.statuses.contains(28L to PlaybackStatus.Playing))
+                engine.cancelPreparedIncoming()
+                engine.pauseProgressUpdatesForTest()
+                engine.publishProgressForTest()
+                assertEquals(27L, listener.progress.last().first)
+                assertEquals(1L, crossfadeSnapshot(bridge)[5])
+                assertEquals(1L, crossfadeSnapshot(bridge)[3])
+                assertEquals(0.37f, bridge.playerVolumeForTest(), 0.001f)
+                assertEquals(handle, bridge.currentHandleIdentityForTest())
+                assertEquals(
+                    1,
+                    listener.statuses.count {
+                        it == 27L to PlaybackStatus.Playing
+                    })
+                nativeDeliverCapturedTerminalCallbackForTest(callback, true)
+                callback = 0L
+                engine.publishProgressForTest()
+                assertEquals(listOf(27L to 271L), listener.completions.toList())
+            } finally {
+                if (callback != 0L)
+                    nativeDeliverCapturedTerminalCallbackForTest(callback, true)
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+            assertEquals(0L, nativeLiveAudioVoiceCountForTest())
+        }
+
+    @Test
+    fun macOSCrossfadeCancellationInsidePlayingCallbackRestoresOutgoingWithoutRestart() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val listener =
+                object : RecordingMacPlaybackListener() {
+                    override fun onPlaybackStatus(
+                        generation: Long,
+                        status: PlaybackStatus
+                    ) {
+                        super.onPlaybackStatus(generation, status)
+                        if (generation == 28L &&
+                            status == PlaybackStatus.Playing)
+                            engine.cancelPreparedIncoming()
+                    }
+                }
+            engine.listener = listener
+            var callback = 0L
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 27L)
+                engine.setPlaybackGain(0.37f)
+                engine.play(271L)
+                engine.seekTo(600L)
+                callback = captureMacTerminalCallback(bridge)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 28L)
+                val outgoingPosition = bridge.currentPositionMillis()
+                engine.startIncoming(281L)
+                assertTrue(
+                    listener.statuses.contains(28L to PlaybackStatus.Playing))
+                assertEquals(1L, crossfadeSnapshot(bridge)[5])
+                assertEquals(1L, crossfadeSnapshot(bridge)[3])
+                assertEquals(0.37f, bridge.playerVolumeForTest(), 0.001f)
+                awaitCrossfadeSnapshot(bridge) {
+                    it[0] >= outgoingPosition + 100L
+                }
+                engine.pauseProgressUpdatesForTest()
+                engine.publishProgressForTest()
+                assertEquals(27L, listener.progress.last().first)
+                assertEquals(
+                    1,
+                    listener.statuses.count {
+                        it == 27L to PlaybackStatus.Playing
+                    })
+                nativeDeliverCapturedTerminalCallbackForTest(callback, true)
+                callback = 0L
+                engine.publishProgressForTest()
+                assertEquals(listOf(27L to 271L), listener.completions.toList())
+            } finally {
+                if (callback != 0L)
+                    nativeDeliverCapturedTerminalCallbackForTest(callback, true)
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+            assertEquals(0L, nativeLiveAudioVoiceCountForTest())
+        }
+
+    @Test
+    fun macOSCrossfadeNativeStartedIncomingRollsBackWithoutRestartingOutgoing() {
+        val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+        val incomingFile = createSilentWavFile(durationMillis = 5_000)
+        val bridge = MacAudioPlayerBridge()
+        try {
+            assertTrue(bridge.load(outgoingFile.toString(), 27L))
+            bridge.setPlaybackGain(0.37f)
+            assertTrue(bridge.play(271L))
+            bridge.seekTo(600L)
+            assertTrue(bridge.prepareIncoming(incomingFile.toString(), 28L))
+            val handle = bridge.currentHandleIdentityForTest()
+            val outgoingPosition = bridge.currentPositionMillis()
+            assertTrue(bridge.startIncoming(281L))
+            bridge.cancelPreparedIncoming()
+            assertEquals(1L, crossfadeSnapshot(bridge)[5])
+            assertEquals(1L, crossfadeSnapshot(bridge)[3])
+            assertTrue(bridge.isPlayingForTest())
+            assertEquals(0.37f, bridge.playerVolumeForTest(), 0.001f)
+            assertEquals(handle, bridge.currentHandleIdentityForTest())
+            val callback = captureMacTerminalCallback(bridge)
+            nativeDeliverCapturedTerminalCallbackForTest(callback, true)
+            val completion = assertNotNull(bridge.consumePlaybackEvent())
+            assertEquals(27L, completion.generation)
+            assertEquals(271L, completion.playbackRunId)
+            assertFalse(completion.failed)
+        } finally {
+            bridge.releasePlayer()
+            outgoingFile.deleteIfExists()
+            incomingFile.deleteIfExists()
+        }
+        assertEquals(0L, nativeLiveAudioVoiceCountForTest())
+    }
+
+    @Test
+    fun macOSCrossfadeRetiringCompletionKeepsOriginalGenerationAndRun() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 450)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val listener = RecordingMacPlaybackListener()
+            engine.listener = listener
+            var capturedCallback = 0L
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 31L)
+                engine.play(301L)
+                engine.pauseProgressUpdatesForTest()
+                capturedCallback = captureMacTerminalCallback(bridge)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 32L)
+                engine.startIncoming(302L)
+                engine.pauseProgressUpdatesForTest()
+                engine.setCrossfadeGains(0.2f, 0.42f)
+                awaitCrossfadeSnapshot(bridge) { it[4] == 0L && it[0] >= 450L }
+                engine.publishProgressForTest()
+                engine.publishProgressForTest()
+                assertEquals(listOf(31L to 301L), listener.completions.toList())
+                assertEquals(32L, listener.progress.last().first)
+
+                val handle = bridge.currentHandleIdentityForTest()
+                val position = bridge.currentPositionMillis()
+                engine.finishCrossfade()
+                assertEquals(1L, crossfadeSnapshot(bridge)[5])
+                assertEquals(-1L, crossfadeSnapshot(bridge)[1])
+                assertTrue(bridge.currentPositionMillis() >= position)
+                assertEquals(0.42f, bridge.playerVolumeForTest(), 0.001f)
+                assertEquals(handle, bridge.currentHandleIdentityForTest())
+                assertEquals(2L, bridge.liveRouteListenerCountForTest())
+                assertEquals(5L, bridge.liveRemoteHandlerCountForTest())
+                nativeDeliverCapturedTerminalCallbackForTest(
+                    capturedCallback, true)
+                capturedCallback = 0L
+                engine.publishProgressForTest()
+                assertEquals(listOf(31L to 301L), listener.completions.toList())
+                val incomingPosition = bridge.currentPositionMillis()
+                awaitCrossfadeSnapshot(bridge) {
+                    it[0] >= incomingPosition + 100L
+                }
+            } finally {
+                if (capturedCallback != 0L)
+                    nativeDeliverCapturedTerminalCallbackForTest(
+                        capturedCallback, true)
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+            Unit
+        }
+
+    @Test
+    fun macOSCrossfadeCapturedOutgoingCallbackRetainsRunAcrossIncomingResume() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val listener = RecordingMacPlaybackListener()
+            engine.listener = listener
+            var outgoingCallback = 0L
+            var oldIncomingCallback = 0L
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 35L)
+                engine.play(351L)
+                outgoingCallback = captureMacTerminalCallback(bridge)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 36L)
+                engine.startIncoming(361L)
+                oldIncomingCallback = captureMacTerminalCallback(bridge)
+                engine.pause()
+                engine.play(362L)
+                engine.pauseProgressUpdatesForTest()
+                nativeDeliverCapturedTerminalCallbackForTest(
+                    outgoingCallback, true)
+                outgoingCallback = 0L
+                nativeDeliverCapturedTerminalCallbackForTest(
+                    oldIncomingCallback, true)
+                oldIncomingCallback = 0L
+                engine.publishProgressForTest()
+                assertEquals(listOf(35L to 351L), listener.completions.toList())
+                assertEquals(36L, listener.progress.last().first)
+                assertTrue(listener.errors.isEmpty())
+                assertEquals(1L, crossfadeSnapshot(bridge)[3])
+            } finally {
+                if (outgoingCallback != 0L)
+                    nativeDeliverCapturedTerminalCallbackForTest(
+                        outgoingCallback, true)
+                if (oldIncomingCallback != 0L)
+                    nativeDeliverCapturedTerminalCallbackForTest(
+                        oldIncomingCallback, true)
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+        }
+
+    @Test
+    fun macOSCrossfadeStaleNativeCallbacksCannotCompleteOrFailReplacement() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val listener = RecordingMacPlaybackListener()
+            engine.listener = listener
+            var completedCallback = 0L
+            var failedCallback = 0L
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 41L)
+                engine.play(401L)
+                completedCallback = captureMacTerminalCallback(bridge)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 42L)
+                engine.startIncoming(402L)
+                failedCallback = captureMacTerminalCallback(bridge)
+                engine.loadPaused(macWavTrack("replacement", outgoingFile), 43L)
+                engine.play(403L)
+                engine.pauseProgressUpdatesForTest()
+                nativeDeliverCapturedTerminalCallbackForTest(
+                    completedCallback, true)
+                completedCallback = 0L
+                nativeDeliverCapturedTerminalCallbackForTest(
+                    failedCallback, false)
+                failedCallback = 0L
+                engine.publishProgressForTest()
+                assertTrue(listener.completions.isEmpty())
+                assertTrue(listener.errors.isEmpty())
+                assertEquals(43L, listener.progress.last().first)
+                assertEquals(1L, crossfadeSnapshot(bridge)[5])
+                assertEquals(1L, crossfadeSnapshot(bridge)[3])
+            } finally {
+                if (completedCallback != 0L)
+                    nativeDeliverCapturedTerminalCallbackForTest(
+                        completedCallback, true)
+                if (failedCallback != 0L)
+                    nativeDeliverCapturedTerminalCallbackForTest(
+                        failedCallback, false)
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+        }
+
+    @Test
+    fun macOSCrossfadeIncomingFailureReportsIncomingWithoutResurrectingOutgoing() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val listener = RecordingMacPlaybackListener()
+            engine.listener = listener
+            var failedCallback = 0L
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 51L)
+                engine.play(501L)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 52L)
+                engine.startIncoming(502L)
+                engine.pauseProgressUpdatesForTest()
+                failedCallback = captureMacTerminalCallback(bridge)
+                nativeDeliverCapturedTerminalCallbackForTest(
+                    failedCallback, false)
+                failedCallback = 0L
+                engine.publishProgressForTest()
+                assertEquals(listOf(52L), listener.errors.map { it.first })
+                assertTrue(listener.completions.isEmpty())
+                assertEquals(0L, crossfadeSnapshot(bridge)[3])
+                assertEquals(0L, crossfadeSnapshot(bridge)[4])
+                assertEquals(52L, listener.progress.last().first)
+                engine.finishCrossfade()
+                assertEquals(1L, crossfadeSnapshot(bridge)[5])
+                assertEquals(0L, crossfadeSnapshot(bridge)[3])
+            } finally {
+                if (failedCallback != 0L)
+                    nativeDeliverCapturedTerminalCallbackForTest(
+                        failedCallback, false)
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+        }
+
+    @Test
+    fun macOSCrossfadeRemoteCommandsTargetPromotedGenerationAndBothVoices() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val remoteGenerations = mutableListOf<Long>()
+            engine.listener =
+                object : RecordingMacPlaybackListener() {
+                    override fun onPlayRequested(generation: Long) {
+                        remoteGenerations += generation
+                        engine.play(603L)
+                    }
+
+                    override fun onPauseRequested(generation: Long) {
+                        remoteGenerations += generation
+                        engine.pause()
+                    }
+
+                    override fun onSeekRequested(
+                        generation: Long,
+                        positionMillis: Long
+                    ) {
+                        remoteGenerations += generation
+                        engine.seekTo(positionMillis)
+                    }
+
+                    override fun onStopRequested(generation: Long) {
+                        remoteGenerations += generation
+                        engine.stop()
+                    }
+                }
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 61L)
+                engine.play(601L)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 62L)
+                engine.startIncoming(602L)
+                engine.setCrossfadeGains(0.5f, 0.5f)
+                engine.setUserTransportEnabled(false)
+                assertFalse(bridge.invokeRemotePauseForTest())
+                assertEquals(1L, crossfadeSnapshot(bridge)[3])
+                assertEquals(1L, crossfadeSnapshot(bridge)[4])
+                engine.setUserTransportEnabled(true)
+                assertTrue(bridge.invokeRemotePauseForTest())
+                assertEquals(0L, crossfadeSnapshot(bridge)[3])
+                assertEquals(0L, crossfadeSnapshot(bridge)[4])
+                assertTrue(bridge.invokeRemotePlayForTest())
+                assertEquals(1L, crossfadeSnapshot(bridge)[3])
+                assertEquals(1L, crossfadeSnapshot(bridge)[4])
+                assertEquals(
+                    listOf(0.5f, 0.5f), crossfadeVolumes(bridge).toList())
+                val handle = bridge.currentHandleIdentityForTest()
+                assertTrue(bridge.invokeRemoteSeekForTest(800L))
+                assertEquals(1L, crossfadeSnapshot(bridge)[5])
+                assertTrue(bridge.currentPositionMillis() >= 800L)
+                assertEquals(handle, bridge.currentHandleIdentityForTest())
+                assertTrue(bridge.invokeRemoteStopForTest())
+                assertEquals(0L, crossfadeSnapshot(bridge)[5])
+                assertEquals(listOf(62L, 62L, 62L, 62L), remoteGenerations)
+                assertEquals(5L, bridge.liveRemoteHandlerCountForTest())
+            } finally {
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+        }
+
+    @Test
+    fun macOSCrossfadeRouteLossPausesBothOnceWithoutChangingGains() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            val listener = RecordingMacPlaybackListener()
+            engine.listener = listener
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 71L)
+                bridge.simulateRouteSnapshotForTest(longArrayOf(10L), 10L)
+                engine.play(701L)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 72L)
+                engine.startIncoming(702L)
+                engine.pauseProgressUpdatesForTest()
+                engine.setCrossfadeGains(0.5f, 0.5f)
+                bridge.simulateRouteSnapshotForTest(longArrayOf(20L), 20L)
+                engine.publishProgressForTest()
+                engine.publishProgressForTest()
+                assertEquals(0L, crossfadeSnapshot(bridge)[3])
+                assertEquals(0L, crossfadeSnapshot(bridge)[4])
+                assertEquals(
+                    listOf(0.5f, 0.5f), crossfadeVolumes(bridge).toList())
+                assertEquals(
+                    1,
+                    listener.statuses.count {
+                        it == 72L to PlaybackStatus.Paused
+                    })
+                bridge.simulateRouteSnapshotForTest(longArrayOf(10L, 20L), 10L)
+                engine.publishProgressForTest()
+                assertEquals(0L, crossfadeSnapshot(bridge)[3])
+                assertEquals(0L, crossfadeSnapshot(bridge)[4])
+            } finally {
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+        }
+
+    @Test
+    fun macOSCrossfadeStopDisposesBothAndReplayReloadsCurrentAtUnity() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 81L)
+                engine.play(801L)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 82L)
+                engine.startIncoming(802L)
+                engine.setCrossfadeGains(0.25f, 0.4f)
+                engine.stop()
+                assertEquals(0L, crossfadeSnapshot(bridge)[5])
+                assertEquals(1f, bridge.playerVolumeForTest())
+                engine.play(803L)
+                awaitCrossfadeSnapshot(bridge) { it[0] >= 100L }
+                assertEquals(1L, crossfadeSnapshot(bridge)[5])
+                assertEquals(1f, bridge.playerVolumeForTest())
+                assertEquals(-1L, crossfadeSnapshot(bridge)[1])
+            } finally {
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+        }
+
+    @Test
+    fun macOSCrossfadeClearAndReleaseDisposePreparedAndRetiringVoices() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 91L)
+                engine.play(901L)
+                engine.prepareIncoming(
+                    macWavTrack("prepared", incomingFile), 92L)
+                engine.clear(93L)
+                assertEquals(0L, crossfadeSnapshot(bridge)[5])
+                assertEquals(1f, bridge.playerVolumeForTest())
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 94L)
+                engine.play(904L)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 95L)
+                engine.startIncoming(905L)
+                assertEquals(2L, crossfadeSnapshot(bridge)[5])
+            } finally {
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+            assertEquals(0L, nativeLiveAudioVoiceCountForTest())
+            assertEquals(0L, bridge.liveRouteListenerCountForTest())
+            assertEquals(0L, bridge.liveRemoteHandlerCountForTest())
+        }
+
+    @Test
+    fun macOSCrossfadeRejectsInvalidGainsWithoutMutatingEitherVoice() =
+        runBlocking {
+            val outgoingFile = createSilentWavFile(durationMillis = 5_000)
+            val incomingFile = createSilentWavFile(durationMillis = 5_000)
+            val bridge = MacAudioPlayerBridge()
+            val engine = MacOSNativePlaybackEngine(bridge)
+            try {
+                engine.loadPaused(macWavTrack("outgoing", outgoingFile), 101L)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 102L)
+                engine.startIncoming(1_002L)
+                engine.setCrossfadeGains(0.4f, 0.3f)
+                for (invalid in
+                    listOf(Float.NaN, Float.POSITIVE_INFINITY, -0.1f, 1.1f)) {
+                    assertFailsWith<IllegalArgumentException> {
+                        engine.setCrossfadeGains(invalid, 0.7f)
+                    }
+                    assertFailsWith<IllegalArgumentException> {
+                        engine.setCrossfadeGains(0.7f, invalid)
+                    }
+                    assertEquals(
+                        listOf(0.3f, 0.4f), crossfadeVolumes(bridge).toList())
+                }
+            } finally {
+                engine.release()
+                outgoingFile.deleteIfExists()
+                incomingFile.deleteIfExists()
+            }
+        }
+
     @Test
     fun replayGainChangesNativeVolumeWithoutReloadAndTimerCancelKeepsNormalization() =
         runBlocking {
@@ -1376,6 +2195,45 @@ class JvmPlaybackEngineTest {
             Files.write(path, buffer.array())
         }
 
+    private fun wavSha256(path: Path): ByteArray =
+        MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path))
+
+    private fun nativeHandle(bridge: MacAudioPlayerBridge): Long =
+        nativeHandleField.getLong(bridge)
+
+    // Current/outgoing/prepared positions, current/outgoing playing, live
+    // voices.
+    private fun crossfadeSnapshot(bridge: MacAudioPlayerBridge): LongArray =
+        bridge.withLifetimeBoundaryForTest {
+            nativeCrossfadeSnapshotForTest(nativeHandle(bridge))
+        }
+
+    // Current then outgoing, or prepared when promotion has not happened.
+    private fun crossfadeVolumes(bridge: MacAudioPlayerBridge): FloatArray =
+        bridge.withLifetimeBoundaryForTest {
+            nativeCrossfadeVolumesForTest(nativeHandle(bridge))
+        }
+
+    private fun captureMacTerminalCallback(bridge: MacAudioPlayerBridge): Long =
+        bridge.withLifetimeBoundaryForTest {
+            nativeCaptureTerminalCallbackForTest(nativeHandle(bridge)).also {
+                assertTrue(it != 0L)
+            }
+        }
+
+    private suspend fun awaitCrossfadeSnapshot(
+        bridge: MacAudioPlayerBridge,
+        predicate: (LongArray) -> Boolean,
+    ): LongArray =
+        withTimeout(5_000) {
+            while (true) {
+                val snapshot = crossfadeSnapshot(bridge)
+                if (predicate(snapshot)) return@withTimeout snapshot
+                delay(10)
+            }
+            error("Unreachable native crossfade wait")
+        }
+
     private fun macWavTrack(id: String, wavPath: Path): PlayableTrack =
         PlayableTrack(
             id = id,
@@ -1412,11 +2270,80 @@ class JvmPlaybackEngineTest {
         }
 
     private companion object {
+        val nativeHandleField =
+            MacAudioPlayerBridge::class.java.getDeclaredField("handle").apply {
+                isAccessible = true
+            }
+
+        @JvmStatic
+        private external fun nativeInvalidateCurrentPlayerForTest(handle: Long)
+
+        @JvmStatic
+        private external fun nativeInvalidatePreparedPlayerForTest(handle: Long)
+
+        @JvmStatic
+        private external fun nativeCrossfadeSnapshotForTest(
+            handle: Long
+        ): LongArray
+
+        @JvmStatic
+        private external fun nativeCrossfadeVolumesForTest(
+            handle: Long
+        ): FloatArray
+
+        @JvmStatic private external fun nativeLiveAudioVoiceCountForTest(): Long
+
+        @JvmStatic
+        private external fun nativeCaptureTerminalCallbackForTest(
+            handle: Long
+        ): Long
+
+        @JvmStatic
+        private external fun nativeDeliverCapturedTerminalCallbackForTest(
+            callback: Long,
+            completed: Boolean,
+        )
+
         @JvmStatic
         private external fun nativeReleaseOnRouteQueueForTest(
             handle: Long
         ): Boolean
     }
+}
+
+private open class RecordingMacPlaybackListener :
+    RejectingRemoteTransportListener() {
+    val statuses =
+        java.util.concurrent.CopyOnWriteArrayList<Pair<Long, PlaybackStatus>>()
+    val progress = java.util.concurrent.CopyOnWriteArrayList<Pair<Long, Long>>()
+    val completions =
+        java.util.concurrent.CopyOnWriteArrayList<Pair<Long, Long>>()
+    val errors =
+        java.util.concurrent.CopyOnWriteArrayList<Pair<Long, PlaybackError>>()
+
+    override fun onPlaybackStatus(generation: Long, status: PlaybackStatus) {
+        statuses += generation to status
+    }
+
+    override fun onPlaybackProgress(
+        generation: Long,
+        positionMillis: Long,
+        durationMillis: Long?
+    ) {
+        progress += generation to positionMillis
+    }
+
+    override fun onPlaybackCompleted(generation: Long, playbackRunId: Long) {
+        completions += generation to playbackRunId
+    }
+
+    override fun onPlaybackError(generation: Long, error: PlaybackError) {
+        errors += generation to error
+    }
+
+    override fun onSkipToNext(generation: Long) = Unit
+
+    override fun onSkipToPrevious(generation: Long) = Unit
 }
 
 private abstract class RejectingRemoteTransportListener :

@@ -11,19 +11,15 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 internal fun interface AndroidControllerExecutor {
     fun execute(action: () -> Unit)
@@ -59,9 +55,16 @@ internal class AndroidControllerLifecycle(
     private val releaseRequested = AtomicBoolean(false)
 
     fun dispatchControllerWork(action: () -> Unit) {
-        if (releaseRequested.get()) return
+        dispatchControllerWork(action, onDiscard = {})
+    }
+
+    fun dispatchControllerWork(action: () -> Unit, onDiscard: () -> Unit) {
+        if (releaseRequested.get()) {
+            onDiscard()
+            return
+        }
         operations.dispatch {
-            if (!releaseRequested.get()) action()
+            if (!releaseRequested.get()) action() else onDiscard()
         }
     }
 
@@ -69,8 +72,6 @@ internal class AndroidControllerLifecycle(
         if (!releaseRequested.compareAndSet(false, true)) return
         operations.dispatch(teardown)
     }
-
-    internal fun isDisposedForTest(): Boolean = releaseRequested.get()
 }
 
 internal const val FULL_ANDROID_PLAYBACK_GAIN: Float = 1f
@@ -78,12 +79,12 @@ internal const val RHYTHHAUS_ENGINE_CONTROLLER_HINT: String =
     "com.eterocell.rhythhaus.playback.ENGINE_CONTROLLER"
 
 /**
- * Retains the app-local gain that must be applied to each connected Media3
- * player. The owning [AndroidPlaybackEngine] confines mutation and application
- * to its controller executor.
+ * Retains the app-local gain sent before source preparation. The owning
+ * [AndroidPlaybackEngine] confines mutation to its controller executor.
  */
 internal class AndroidPlaybackGainState {
-    private var intendedGain: Float = FULL_ANDROID_PLAYBACK_GAIN
+    var intendedGain: Float = FULL_ANDROID_PLAYBACK_GAIN
+        private set
 
     fun set(gain: Float) {
         require(gain.isFinite() && gain >= 0f && gain <= 1f) {
@@ -94,11 +95,6 @@ internal class AndroidPlaybackGainState {
 
     fun reset() {
         intendedGain = FULL_ANDROID_PLAYBACK_GAIN
-    }
-
-    fun applyTo(player: Player) {
-        // Player.volume is Media3's app playback gain, not device volume.
-        player.volume = intendedGain
     }
 }
 
@@ -131,7 +127,16 @@ public fun createAndroidPlaybackEngine(): PlatformPlaybackEngine =
  * the service's ForwardingPlayer) and are forwarded to the shared listener so
  * queue navigation stays in one place.
  */
-private class AndroidPlaybackEngine : PlatformPlaybackEngine {
+internal class AndroidPlaybackEngine(
+    controllerExecutor: AndroidControllerExecutor = androidControllerExecutor,
+    private val sendServiceCommand:
+        ((AndroidServiceEngineCommand) -> ListenableFuture<
+                AndroidServiceEngineResult>)? =
+        null,
+    private val mediaItemFactory:
+        (PlayableTrack, Media3RequestToken) -> MediaItem =
+        ::buildAndroidPlaybackMediaItem,
+) : CrossfadePlaybackEngine {
     override var listener: PlaybackEngineListener? = null
         set(value) {
             field = value
@@ -159,65 +164,207 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
 
     private var controller: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
-    private var loadedTrackDurationMillis: Long? = null
-    private val scope =
-        CoroutineScope(SupervisorJob() + playbackEngineDispatcher)
-    private val controllerOperations = AndroidControllerOperations()
+    private val controllerOperations =
+        AndroidControllerOperations(controllerExecutor)
     private val controllerLifecycle =
         AndroidControllerLifecycle(controllerOperations)
-    private var progressJob: Job? = null
     private var activeGeneration: Long = 0L
-    private var activePlaybackRunId: Long? = null
-    private val requestState = AndroidPlaybackRequestState()
-    private val eventRouter = AndroidPlaybackEventRouter(requestState)
     private val playbackGain = AndroidPlaybackGainState()
 
-    /**
-     * True once [release] has run; guards async connection callbacks from
-     * resurrecting the engine.
-     */
-    private var disposed: Boolean = false
+    private class Voice(
+        val token: Media3RequestToken,
+        val fallbackDurationMillis: Long?,
+        val preparation: CompletableDeferred<LoadedPlayback>,
+        var gain: Float,
+    ) {
+        var playbackRunId: Long? = null
+        var completedRunId: Long? = null
+        var durationMillis: Long? = fallbackDurationMillis
+        var terminal = false
+    }
 
-    /**
-     * Actions queued while the async MediaController connection is still
-     * pending, run in order once connected. A FIFO queue (not a single slot) is
-     * required because the shared controller issues compound sequences such as
-     * load (setMediaItem + prepare) immediately followed by play — a single
-     * slot would drop the load and leave the player with no media item.
-     */
-    private val pendingActions = ArrayDeque<(MediaController) -> Unit>()
+    private var current: Voice? = null
+    private var preparedIncoming: Voice? = null
+    private var retiring: Voice? = null
+    private var outgoingGainBeforeIncoming: Float? = null
+    private var tokenNonce = 0L
 
-    private fun withController(action: (MediaController) -> Unit) {
-        controllerLifecycle.dispatchControllerWork {
-            if (disposed) return@dispatchControllerWork
-            val connected = controller
-            if (connected != null) {
-                action(connected)
-                return@dispatchControllerWork
+    private data class PendingCommand(
+        val operation: AndroidServiceEngineCommand,
+        val result: (AndroidServiceEngineResult) -> Unit,
+    )
+
+    private fun command(
+        operation: AndroidServiceEngineCommand,
+        result: (AndroidServiceEngineResult) -> Unit = {},
+    ) {
+        val request = PendingCommand(operation, result)
+        val nativeSender = sendServiceCommand
+        if (nativeSender != null) {
+            send(request, nativeSender)
+            return
+        }
+        val connected = controller
+        if (connected != null) {
+            send(request) { command ->
+                Futures.transform(
+                    connected.sendCustomCommand(
+                        androidEngineSessionCommand(),
+                        command.toAndroidBundle()),
+                    { requireNotNull(it).toAndroidEngineResult() },
+                    { runnable ->
+                        controllerLifecycle.dispatchControllerWork {
+                            runnable.run()
+                        }
+                    },
+                )
             }
-            pendingActions.addLast(action)
+        } else {
+            pendingCommands.addLast(request)
             ensureControllerConnecting()
         }
     }
 
+    private fun send(
+        request: PendingCommand,
+        sender:
+            (AndroidServiceEngineCommand) -> ListenableFuture<
+                    AndroidServiceEngineResult>,
+    ) {
+        val future =
+            try {
+                sender(request.operation)
+            } catch (failure: Exception) {
+                request.result(commandFailure(failure))
+                return
+            }
+        future.addListener(
+            {
+                val response =
+                    try {
+                        future.get()
+                    } catch (failure: Exception) {
+                        commandFailure(failure)
+                    }
+                request.result(response)
+            },
+            { runnable ->
+                controllerLifecycle.dispatchControllerWork { runnable.run() }
+            })
+    }
+
+    private fun commandFailure(failure: Exception): AndroidServiceEngineResult =
+        AndroidServiceEngineResult(
+            failure =
+                PlaybackError(
+                    "Android playback service command failed.",
+                    failure.message),
+        )
+
+    /**
+     * Receives source/run-owned events, never observations of MediaController's
+     * mutable player.
+     */
+    internal fun serviceEvent(event: AndroidServicePlaybackEvent) {
+        controllerLifecycle.dispatchControllerWork {
+            val voice =
+                when (event.token) {
+                    current?.token -> current
+                    retiring?.token -> retiring
+                    else -> null
+                } ?: return@dispatchControllerWork
+            if (voice.terminal || event.playbackRunId != voice.playbackRunId)
+                return@dispatchControllerWork
+            if (event.failure != null) {
+                failVoice(voice, event.failure)
+                return@dispatchControllerWork
+            }
+            if (current === voice) {
+                event.status?.let {
+                    listener?.onPlaybackStatus(voice.token.generation, it)
+                }
+                if (current !== voice || voice.terminal)
+                    return@dispatchControllerWork
+                event.positionMillis?.let {
+                    event.durationMillis?.let { duration ->
+                        voice.durationMillis = duration
+                    }
+                    listener?.onPlaybackProgress(
+                        voice.token.generation,
+                        it,
+                        event.durationMillis ?: voice.durationMillis)
+                }
+            }
+            if (event.completed &&
+                (current === voice || retiring === voice) &&
+                !voice.terminal) {
+                val run = event.playbackRunId ?: return@dispatchControllerWork
+                if (voice.playbackRunId == run && voice.completedRunId != run) {
+                    voice.completedRunId = run
+                    listener?.onPlaybackCompleted(voice.token.generation, run)
+                }
+            }
+        }
+    }
+
+    private fun failVoice(voice: Voice, failure: PlaybackError) {
+        if ((current !== voice && retiring !== voice) || voice.terminal) return
+        voice.terminal = true
+        voice.preparation.completeExceptionally(
+            PlaybackFailureException(failure))
+        // Outgoing can still be controller-current until incoming Playing is
+        // admitted. Forward its identity and leave cancel/finish to the
+        // controller.
+        listener?.onPlaybackError(voice.token.generation, failure)
+    }
+
+    private var disposed: Boolean = false
+
+    /**
+     * FIFO settlement also ensures connection failure completes every
+     * outstanding load.
+     */
+    private val pendingCommands = ArrayDeque<PendingCommand>()
+
     private fun ensureControllerConnecting() {
         if (controllerFuture != null) return
-        val context =
-            requireNotNull(rhythHausAndroidContext) {
-                "Android playback context is not configured"
-            }
-        val token =
-            SessionToken(
-                context,
-                ComponentName(context, RhythHausPlaybackService::class.java))
-        val hints =
-            Bundle().apply {
-                putBoolean(RHYTHHAUS_ENGINE_CONTROLLER_HINT, true)
-            }
         val future =
-            MediaController.Builder(context, token)
-                .setConnectionHints(hints)
-                .buildAsync()
+            try {
+                val context =
+                    requireNotNull(rhythHausAndroidContext) {
+                        "Android playback context is not configured"
+                    }
+                val token =
+                    SessionToken(
+                        context,
+                        ComponentName(
+                            context, RhythHausPlaybackService::class.java))
+                val hints =
+                    Bundle().apply {
+                        putBoolean(RHYTHHAUS_ENGINE_CONTROLLER_HINT, true)
+                    }
+                MediaController.Builder(context, token)
+                    .setConnectionHints(hints)
+                    .setListener(
+                        object : MediaController.Listener {
+                            override fun onCustomCommand(
+                                controller: MediaController,
+                                command: SessionCommand,
+                                args: Bundle
+                            ): ListenableFuture<SessionResult> {
+                                if (command.customAction ==
+                                    RHYTHHAUS_ENGINE_EVENT)
+                                    androidServicePlaybackEvent(args)
+                                        ?.let(::serviceEvent)
+                                return Futures.immediateFuture(
+                                    SessionResult(SessionResult.RESULT_SUCCESS))
+                            }
+                        })
+                    .buildAsync()
+            } catch (failure: Exception) {
+                connectionFailed(failure)
+                return
+            }
         controllerFuture = future
         future.addListener(
             {
@@ -230,25 +377,14 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
                 val connected =
                     try {
                         future.get()
-                    } catch (t: Throwable) {
-                        val failure =
-                            PlaybackError(
-                                message =
-                                    "Android could not start the playback service.",
-                                cause = t.message ?: t::class.simpleName,
-                            )
-                        requestState.failActive(
-                            PlaybackFailureException(failure))
-                        listener?.onPlaybackError(activeGeneration, failure)
-                        controllerFuture = null
-                        pendingActions.clear()
+                    } catch (failure: Exception) {
+                        connectionFailed(failure)
                         return@addListener
                     }
-                connected.addListener(AndroidPlayerListener())
                 controller = connected
-                playbackGain.applyTo(connected)
-                while (pendingActions.isNotEmpty()) {
-                    pendingActions.removeFirst().invoke(connected)
+                while (pendingCommands.isNotEmpty()) {
+                    val request = pendingCommands.removeFirst()
+                    command(request.operation, request.result)
                 }
             },
             // Run the completion callback on the main thread (controller is
@@ -259,47 +395,252 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
         )
     }
 
+    private fun connectionFailed(failure: Exception) {
+        controllerFuture = null
+        val response =
+            AndroidServiceEngineResult(
+                failure =
+                    PlaybackError(
+                        "Android could not start the playback service.",
+                        failure.message))
+        // Detach before settlement: a callback may enqueue a new connection
+        // attempt.
+        val failed = pendingCommands.toList()
+        pendingCommands.clear()
+        failed.forEach { it.result(response) }
+    }
+
     override suspend fun loadPaused(
         track: PlayableTrack,
         generation: Long
     ): LoadedPlayback {
-        activePlaybackRunId = null
-        val request =
-            requestState.begin(generation, track.source.androidLocalFile())
-        activeGeneration = generation
-        listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
-        loadedTrackDurationMillis = track.durationMillis
-        withController { controller ->
-            playbackGain.applyTo(controller)
-            controller.pause()
-            controller.playWhenReady = false
-            controller.setMediaItem(
-                buildAndroidPlaybackMediaItem(track, request.token))
-            controller.prepare()
-        }
-        return try {
-            request.result.await()
-        } finally {
-            requestState.cancelIfOwner(
-                request.token,
-                CancellationException(
-                    "Android paused load no longer owns the request"))
+        val result = CompletableDeferred<LoadedPlayback>()
+        controllerLifecycle.dispatchControllerWork(
+            action = {
+                if (result.isCancelled) return@dispatchControllerWork
+                invalidateVoices("Superseded Android playback load")
+                val voice =
+                    Voice(
+                        Media3RequestToken(generation, ++tokenNonce),
+                        track.durationMillis,
+                        result,
+                        playbackGain.intendedGain)
+                current = voice
+                activeGeneration = generation
+                listener?.onPlaybackStatus(generation, PlaybackStatus.Loading)
+                val item =
+                    try {
+                        mediaItemFactory(track, voice.token)
+                    } catch (failure: Exception) {
+                        settlePreparation(voice, commandFailure(failure))
+                        return@dispatchControllerWork
+                    }
+                command(
+                    AndroidServiceEngineCommand.LoadPaused(item, voice.gain)) {
+                        response ->
+                        if (current !== voice) return@command
+                        settlePreparation(voice, response)
+                        if (response.failure == null &&
+                            !voice.terminal &&
+                            voice.playbackRunId == null) {
+                            listener?.onPlaybackStatus(
+                                generation, PlaybackStatus.Paused)
+                        }
+                    }
+            },
+            onDiscard = {
+                result.cancel(
+                    CancellationException("Android playback engine released"))
+            })
+        return awaitPreparation(result, incoming = false)
+    }
+
+    private fun settlePreparation(
+        voice: Voice,
+        response: AndroidServiceEngineResult
+    ) {
+        if (response.failure != null) {
+            voice.terminal = true
+            voice.preparation.completeExceptionally(
+                PlaybackFailureException(response.failure))
+        } else {
+            voice.durationMillis =
+                response.durationMillis ?: voice.fallbackDurationMillis
+            voice.preparation.complete(
+                LoadedPlayback(
+                    voice.token.generation,
+                    response.durationMillis ?: voice.fallbackDurationMillis))
         }
     }
 
-    override fun clear(generation: Long) {
-        activePlaybackRunId = null
-        activeGeneration = generation
-        requestState.clear(CancellationException("Android playback cleared"))
-        progressJob?.cancel()
-        playbackGain.reset()
-        withController { controller ->
-            controller.pause()
-            controller.playWhenReady = false
-            playbackGain.applyTo(controller)
-            controller.clearMediaItems()
+    override suspend fun prepareIncoming(
+        track: PlayableTrack,
+        generation: Long
+    ): LoadedPlayback {
+        val result = CompletableDeferred<LoadedPlayback>()
+        controllerLifecycle.dispatchControllerWork(
+            action = {
+                if (result.isCancelled) return@dispatchControllerWork
+                if (retiring != null || current == null) {
+                    result.completeExceptionally(
+                        IllegalStateException(
+                            "Android outgoing playback cannot stage an incoming voice"))
+                    return@dispatchControllerWork
+                }
+                cancelIncoming()
+                val outgoing = requireNotNull(current)
+                val voice =
+                    Voice(
+                        Media3RequestToken(generation, ++tokenNonce),
+                        track.durationMillis,
+                        result,
+                        0f)
+                preparedIncoming = voice
+                outgoingGainBeforeIncoming = outgoing.gain
+                val item =
+                    try {
+                        mediaItemFactory(track, voice.token)
+                    } catch (failure: Exception) {
+                        settlePreparation(voice, commandFailure(failure))
+                        return@dispatchControllerWork
+                    }
+                command(
+                    AndroidServiceEngineCommand.PrepareIncoming(
+                        item, outgoing.token)) { response ->
+                        if (preparedIncoming === voice)
+                            settlePreparation(voice, response)
+                    }
+            },
+            onDiscard = {
+                result.cancel(
+                    CancellationException("Android playback engine released"))
+            })
+        return awaitPreparation(result, incoming = true)
+    }
+
+    private suspend fun awaitPreparation(
+        result: CompletableDeferred<LoadedPlayback>,
+        incoming: Boolean
+    ): LoadedPlayback =
+        try {
+            result.await()
+        } catch (failure: Throwable) {
+            result.cancel(
+                CancellationException(
+                    "Android playback preparation cancelled", failure))
+            controllerLifecycle.dispatchControllerWork {
+                if (incoming) {
+                    val voice =
+                        preparedIncoming ?: current?.takeIf { retiring != null }
+                    if (voice?.preparation === result) cancelIncoming()
+                } else {
+                    val voice = current
+                    if (voice != null &&
+                        voice.preparation === result &&
+                        failure is CancellationException) {
+                        current = null
+                        command(
+                            AndroidServiceEngineCommand.CancelLoad(voice.token))
+                    }
+                }
+            }
+            throw failure
         }
-        loadedTrackDurationMillis = null
+
+    override fun startIncoming(playbackRunId: Long) {
+        controllerLifecycle.dispatchControllerWork {
+            val incoming =
+                requireNotNull(preparedIncoming) {
+                    "No Android incoming voice is prepared"
+                }
+            check(incoming.preparation.isCompleted && !incoming.terminal) {
+                "Android incoming voice is not ready"
+            }
+            incoming.playbackRunId = playbackRunId
+            retiring = current
+            preparedIncoming = null
+            current = incoming
+            activeGeneration = incoming.token.generation
+            playbackGain.set(incoming.gain)
+            command(
+                AndroidServiceEngineCommand.StartIncoming(
+                    playbackRunId, incoming.token)) { response ->
+                    if (incoming.playbackRunId == playbackRunId)
+                        response.failure?.let { failVoice(incoming, it) }
+                }
+        }
+    }
+
+    override fun setCrossfadeGains(outgoingGain: Float, incomingGain: Float) {
+        require(
+            outgoingGain.isFinite() &&
+                outgoingGain in 0f..1f &&
+                incomingGain.isFinite() &&
+                incomingGain in 0f..1f)
+        controllerLifecycle.dispatchControllerWork {
+            val incoming =
+                preparedIncoming ?: current ?: return@dispatchControllerWork
+            val outgoing = if (preparedIncoming != null) current else retiring
+            outgoing?.gain = outgoingGain
+            incoming.gain = incomingGain
+            if (preparedIncoming == null) playbackGain.set(incomingGain)
+            command(
+                AndroidServiceEngineCommand.CrossfadeGains(
+                    outgoingGain, incomingGain, incoming.token)) { response ->
+                    response.failure?.let { failVoice(incoming, it) }
+                }
+        }
+    }
+
+    override fun finishCrossfade() {
+        controllerLifecycle.dispatchControllerWork {
+            val outgoing = retiring ?: return@dispatchControllerWork
+            retiring = null
+            outgoingGainBeforeIncoming = null
+            command(AndroidServiceEngineCommand.RetireOutgoing(outgoing.token))
+        }
+    }
+
+    override fun cancelPreparedIncoming() {
+        controllerLifecycle.dispatchControllerWork(::cancelIncoming)
+    }
+
+    private fun cancelIncoming() {
+        val incoming =
+            preparedIncoming ?: current?.takeIf { retiring != null } ?: return
+        val outgoing = retiring ?: current
+        preparedIncoming = null
+        retiring = null
+        if (outgoing != null) {
+            outgoingGainBeforeIncoming?.let { outgoing.gain = it }
+            current = outgoing
+            activeGeneration = outgoing.token.generation
+            playbackGain.set(outgoing.gain)
+        }
+        outgoingGainBeforeIncoming = null
+        incoming.preparation.cancel(
+            CancellationException("Android incoming playback cancelled"))
+        command(AndroidServiceEngineCommand.CancelIncoming(incoming.token))
+    }
+
+    private fun invalidateVoices(reason: String) {
+        val cause = CancellationException(reason)
+        current?.preparation?.cancel(cause)
+        preparedIncoming?.preparation?.cancel(cause)
+        retiring?.preparation?.cancel(cause)
+        current = null
+        preparedIncoming = null
+        retiring = null
+        outgoingGainBeforeIncoming = null
+    }
+
+    override fun clear(generation: Long) {
+        controllerLifecycle.dispatchControllerWork {
+            invalidateVoices("Android playback cleared")
+            activeGeneration = generation
+            playbackGain.reset()
+            command(AndroidServiceEngineCommand.Clear)
+        }
     }
 
     override fun setUserTransportEnabled(enabled: Boolean) {
@@ -307,170 +648,110 @@ private class AndroidPlaybackEngine : PlatformPlaybackEngine {
     }
 
     override fun setPlaybackGain(gain: Float) {
-        playbackGain.set(gain)
-        // A future connection applies the retained gain before its queued
-        // load can prepare. Do not start the service solely to change gain.
-        if (controller != null) {
-            withController { connected -> playbackGain.applyTo(connected) }
+        require(gain.isFinite() && gain in 0f..1f) {
+            "Playback gain must be finite and within 0..1, was $gain"
+        }
+        controllerLifecycle.dispatchControllerWork {
+            playbackGain.set(gain)
+            val voice = current ?: return@dispatchControllerWork
+            voice.gain = gain
+            command(AndroidServiceEngineCommand.Gain(gain, voice.token)) {
+                response ->
+                response.failure?.let { failVoice(voice, it) }
+            }
         }
     }
 
     override fun play(playbackRunId: Long) {
-        withController { controller ->
-            activePlaybackRunId = playbackRunId
-            controller.play()
-            // MediaController.play() is non-blocking. The Media3 listener's
-            // onIsPlayingChanged(true) callback is the sole actual-playing
-            // confirmation and therefore the sole Android Playing publisher.
-            publishProgress(controller)
-            startProgressLoop()
+        controllerLifecycle.dispatchControllerWork {
+            val voice = current ?: return@dispatchControllerWork
+            voice.playbackRunId = playbackRunId
+            command(
+                AndroidServiceEngineCommand.Play(playbackRunId, voice.token)) {
+                    response ->
+                    if (voice.playbackRunId == playbackRunId)
+                        response.failure?.let { failVoice(voice, it) }
+                }
         }
     }
 
     override fun pause() {
-        progressJob?.cancel()
-        withController { controller ->
-            controller.pause()
-            publishProgress(controller)
-            listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Paused)
+        controllerLifecycle.dispatchControllerWork {
+            val voice = current
+            command(AndroidServiceEngineCommand.Pause) { response ->
+                if (voice != null)
+                    response.failure?.let { failVoice(voice, it) }
+            }
         }
     }
 
     override fun stop() {
-        activePlaybackRunId = null
-        progressJob?.cancel()
-        playbackGain.reset()
-        val connected = controller
-        if (connected != null) {
-            connected.pause()
-            connected.seekTo(0L)
-            playbackGain.applyTo(connected)
-            publishProgress(connected)
-        } else {
-            listener?.onPlaybackProgress(
-                activeGeneration, 0L, loadedTrackDurationMillis)
+        controllerLifecycle.dispatchControllerWork {
+            preparedIncoming
+                ?.preparation
+                ?.cancel(CancellationException("Android playback stopped"))
+            retiring = null
+            preparedIncoming = null
+            outgoingGainBeforeIncoming = null
+            current?.playbackRunId = null
+            playbackGain.reset()
+            current?.gain = FULL_ANDROID_PLAYBACK_GAIN
+            command(AndroidServiceEngineCommand.Stop)
         }
-        listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Stopped)
     }
 
     override fun seekTo(positionMillis: Long) {
-        withController { controller ->
-            // Media3 can report STATE_ENDED when a seek lands on the media
-            // endpoint. That is not a natural completion of this run.
-            val duration =
-                controller.duration.takeIf { it > 0L }
-                    ?: loadedTrackDurationMillis
-            if (duration != null && positionMillis >= duration)
-                activePlaybackRunId = null
-            controller.seekTo(positionMillis)
-            publishProgress(controller)
+        controllerLifecycle.dispatchControllerWork {
+            val voice = current ?: return@dispatchControllerWork
+            preparedIncoming
+                ?.preparation
+                ?.cancel(
+                    CancellationException(
+                        "Android incoming playback cancelled by seek"))
+            preparedIncoming = null
+            retiring = null
+            outgoingGainBeforeIncoming = null
+            if (voice.durationMillis?.let { positionMillis >= it } == true)
+                voice.playbackRunId = null
+            command(
+                AndroidServiceEngineCommand.Seek(
+                    positionMillis, voice.token)) { response ->
+                    response.failure?.let { failVoice(voice, it) }
+                }
         }
     }
 
     override fun release() {
-        requestState.release()
-        progressJob?.cancel()
         RhythHausTransportBridge.onSkipToNext = null
         RhythHausTransportBridge.onSkipToPrevious = null
         RhythHausTransportBridge.onPlay = null
         RhythHausTransportBridge.onPause = null
         RhythHausTransportBridge.onStop = null
         RhythHausTransportBridge.onSeek = null
-        playbackGain.reset()
         controllerLifecycle.release {
             if (disposed) return@release
             disposed = true
-            pendingActions.clear()
+            invalidateVoices("Android playback engine released")
+            playbackGain.reset()
+            pendingCommands.clear()
             val connected = controller
-            if (connected != null) {
-                resetAndroidPlaybackGain(connected)
-                connected.release()
+            if (sendServiceCommand != null) {
+                sendServiceCommand.invoke(AndroidServiceEngineCommand.Release)
+            } else if (connected != null) {
+                val result =
+                    connected.sendCustomCommand(
+                        androidEngineSessionCommand(),
+                        AndroidServiceEngineCommand.Release.toAndroidBundle())
+                result.addListener(
+                    { connected.release() },
+                    { runnable ->
+                        controllerOperations.dispatch { runnable.run() }
+                    })
             } else {
                 controllerFuture?.let(MediaController::releaseFuture)
             }
             controller = null
             controllerFuture = null
-            loadedTrackDurationMillis = null
-            scope.cancel()
-        }
-    }
-
-    private fun publishProgress(controller: MediaController) {
-        val observedToken = currentRequestToken(controller)
-        val provenance = requestState.captureObservable(observedToken) ?: return
-        val positionMillis = controller.currentPosition.coerceAtLeast(0L)
-        val durationMillis =
-            controller.duration.takeIf { it > 0L } ?: loadedTrackDurationMillis
-        if (!requestState.revalidate(
-            provenance, currentRequestToken(controller)))
-            return
-        listener?.onPlaybackProgress(
-            provenance.generation,
-            positionMillis = positionMillis,
-            durationMillis = durationMillis,
-        )
-    }
-
-    private fun startProgressLoop() {
-        progressJob?.cancel()
-        progressJob = scope.launch {
-            while (isActive) {
-                delay(250)
-                val c = controller ?: break
-                if (!c.isPlaying) continue
-                publishProgress(c)
-            }
-        }
-    }
-
-    private inner class AndroidPlayerListener : Player.Listener {
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            val c = controller ?: return
-            val token = currentRequestToken(c) ?: return
-            val generation = requestState.observableGeneration(token) ?: return
-            when (playbackState) {
-                Player.STATE_BUFFERING ->
-                    listener?.onPlaybackStatus(
-                        generation, PlaybackStatus.Buffering)
-
-                Player.STATE_READY -> {
-                    c.playWhenReady = false
-                    c.pause()
-                    publishProgress(c)
-                    listener?.onPlaybackStatus(
-                        generation, PlaybackStatus.Paused)
-                    requestState.ready(
-                        token,
-                        c.duration.takeIf { it > 0L }
-                            ?: loadedTrackDurationMillis)
-                }
-
-                Player.STATE_ENDED ->
-                    activePlaybackRunId?.let {
-                        listener?.onPlaybackCompleted(generation, it)
-                    }
-
-                Player.STATE_IDLE -> Unit
-            }
-        }
-
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
-            val c = controller ?: return
-            val observed = currentRequestToken(c)
-            if (eventRouter.isPlayingChanged(listener, observed, isPlaying)) {
-                publishProgress(c)
-            }
-        }
-
-        override fun onPlayerError(error: PlaybackException) {
-            val c = controller ?: return
-            val observed = currentRequestToken(c)
-            val failure =
-                androidPlaybackError(
-                    error,
-                    sourceFile = requestState.localFileFor(observed),
-                )
-            eventRouter.playerError(listener, observed, failure)
         }
     }
 }
@@ -550,256 +831,6 @@ internal data class Media3RequestToken(val generation: Long, val nonce: Long) {
     }
 }
 
-internal class Media3RequestTokenTracker {
-    private var nonce: Long = 0L
-    private var active: Media3RequestToken? = null
-
-    fun begin(generation: Long): Media3RequestToken =
-        Media3RequestToken(generation, ++nonce).also { active = it }
-
-    fun accepts(
-        requestToken: Media3RequestToken,
-        observedCurrentToken: Media3RequestToken?
-    ): Boolean = active == requestToken && observedCurrentToken == requestToken
-}
-
-internal data class AndroidPlaybackRequest(
-    val token: Media3RequestToken,
-    val result: CompletableDeferred<LoadedPlayback>,
-)
-
-internal data class AndroidObservablePlayback(
-    val token: Media3RequestToken,
-    val generation: Long,
-    /**
-     * Concrete local source file evidence for the observable request. Retained
-     * past [AndroidPlaybackRequestState.ready] so a later player error over the
-     * same media can still classify a vanished local file.
-     */
-    val localFile: java.io.File? = null,
-)
-
-internal class AndroidPlaybackRequestState {
-    private var nonce: Long = 0L
-    private var pending: AndroidPlaybackRequest? = null
-    private var observable: AndroidObservablePlayback? = null
-    /**
-     * Token of the observable request that reported a terminal player error, or
-     * null while that request may still publish ordinary status. Set atomically
-     * by [markTerminal] before the error is published and cleared whenever a
-     * replacement or cleared request replaces the failed one, so status
-     * callbacks trailing a Media3 error (for example
-     * `onIsPlayingChanged(false)` after `onPlayerError`) stay suppressed until
-     * a new observable request begins.
-     */
-    private var terminalErrorToken: Media3RequestToken? = null
-
-    @Synchronized
-    fun begin(
-        generation: Long,
-        localFile: java.io.File? = null,
-    ): AndroidPlaybackRequest {
-        pending
-            ?.result
-            ?.cancel(CancellationException("Superseded Android playback load"))
-        return AndroidPlaybackRequest(
-                token = Media3RequestToken(generation, ++nonce),
-                result = CompletableDeferred(),
-            )
-            .also {
-                pending = it
-                observable =
-                    AndroidObservablePlayback(it.token, generation, localFile)
-                terminalErrorToken = null
-            }
-    }
-
-    @Synchronized
-    fun accepts(observedCurrentToken: Media3RequestToken?): Boolean =
-        observable?.token == observedCurrentToken
-
-    @Synchronized
-    fun ready(token: Media3RequestToken, durationMillis: Long?): Boolean {
-        val request =
-            pending?.takeIf { it.token == token && observable?.token == token }
-                ?: return false
-        pending = null
-        return request.result.complete(
-            LoadedPlayback(token.generation, durationMillis))
-    }
-
-    @Synchronized
-    fun fail(
-        token: Media3RequestToken,
-        observedCurrentToken: Media3RequestToken?,
-        error: Throwable
-    ): Boolean {
-        val request =
-            pending?.takeIf {
-                it.token == token && it.token == observedCurrentToken
-            } ?: return false
-        pending = null
-        observable = null
-        return request.result.completeExceptionally(error)
-    }
-
-    @Synchronized
-    fun failPending(
-        observedCurrentToken: Media3RequestToken?,
-        error: Throwable
-    ): Boolean {
-        val request =
-            pending?.takeIf { it.token == observedCurrentToken } ?: return false
-        pending = null
-        return request.result.completeExceptionally(error)
-    }
-
-    @Synchronized
-    fun localFileFor(observedCurrentToken: Media3RequestToken?): java.io.File? =
-        observable?.takeIf { it.token == observedCurrentToken }?.localFile
-
-    /**
-     * Atomically marks the current observable request terminal when
-     * [observedCurrentToken] is exactly that request and it is not already
-     * terminal. Returns true only for the first error of the current request,
-     * so duplicate and obsolete player errors never republish.
-     */
-    @Synchronized
-    fun markTerminal(observedCurrentToken: Media3RequestToken?): Boolean {
-        if (terminalErrorToken != null) return false
-        val current = observable ?: return false
-        if (current.token != observedCurrentToken) return false
-        terminalErrorToken = observedCurrentToken
-        return true
-    }
-
-    /**
-     * True when [observedCurrentToken] is the observable request that already
-     * reported a terminal player error; status publications for that request
-     * stay suppressed until a replacement request begins.
-     */
-    @Synchronized
-    fun isTerminal(observedCurrentToken: Media3RequestToken?): Boolean =
-        terminalErrorToken == observedCurrentToken
-
-    @Synchronized
-    fun failActive(error: Throwable): Boolean {
-        val request = pending ?: return false
-        pending = null
-        observable = null
-        terminalErrorToken = null
-        return request.result.completeExceptionally(error)
-    }
-
-    @Synchronized
-    fun cancelIfOwner(
-        token: Media3RequestToken,
-        cause: CancellationException
-    ): Boolean {
-        val request = pending?.takeIf { it.token == token } ?: return false
-        pending = null
-        if (observable?.token == token) {
-            observable = null
-            terminalErrorToken = null
-        }
-        request.result.cancel(cause)
-        return true
-    }
-
-    @Synchronized
-    fun clear(cause: CancellationException) {
-        val request = pending
-        pending = null
-        observable = null
-        terminalErrorToken = null
-        request?.result?.cancel(cause)
-    }
-
-    fun release() =
-        clear(CancellationException("Android playback engine released"))
-
-    @Synchronized fun activeTokenForTest(): Media3RequestToken? = pending?.token
-
-    @Synchronized
-    fun observableGeneration(observedCurrentToken: Media3RequestToken?): Long? =
-        observable?.takeIf { it.token == observedCurrentToken }?.generation
-
-    @Synchronized
-    fun captureObservable(
-        observedCurrentToken: Media3RequestToken?
-    ): AndroidObservablePlayback? = observable?.takeIf {
-        it.token == observedCurrentToken
-    }
-
-    @Synchronized
-    fun revalidate(
-        captured: AndroidObservablePlayback,
-        observedCurrentToken: Media3RequestToken?
-    ): Boolean =
-        observable == captured && captured.token == observedCurrentToken
-}
-
-/**
- * Narrow request/listener boundary that translates the Media3 player callbacks
- * carrying terminal-error ordering constraints into [PlaybackEngineListener]
- * publications. [AndroidPlayerListener] supplies the observed request token and
- * the classified failure; this router decides whether a callback may publish
- * and drives the outstanding load settlement, keeping Media3 types out of the
- * observable-request state machine and making the ordering contract directly
- * testable at the listener boundary.
- */
-internal class AndroidPlaybackEventRouter(
-    private val requestState: AndroidPlaybackRequestState,
-) {
-    /**
-     * Publishes a terminal player [failure] for the observable request denoted
-     * by [observedCurrentToken]. The request is marked terminal before the
-     * error is published and its outstanding paused load is settled, so
-     * duplicate or obsolete errors never republish and any status callback
-     * trailing the error for the same request is suppressed.
-     */
-    fun playerError(
-        listener: PlaybackEngineListener?,
-        observedCurrentToken: Media3RequestToken?,
-        failure: PlaybackError,
-    ) {
-        val generation =
-            requestState.observableGeneration(observedCurrentToken) ?: return
-        if (!requestState.markTerminal(observedCurrentToken)) return
-        requestState.failPending(
-            observedCurrentToken,
-            PlaybackFailureException(failure),
-        )
-        listener?.onPlaybackError(generation, failure)
-    }
-
-    /**
-     * Publishes the ordinary playing/paused [status] for the observable request
-     * denoted by [observedCurrentToken] unless that request already reported a
-     * terminal player error. Returns true when the status was published.
-     */
-    fun isPlayingChanged(
-        listener: PlaybackEngineListener?,
-        observedCurrentToken: Media3RequestToken?,
-        isPlaying: Boolean,
-    ): Boolean {
-        val generation =
-            requestState.observableGeneration(observedCurrentToken)
-                ?: return false
-        if (requestState.isTerminal(observedCurrentToken)) return false
-        listener?.onPlaybackStatus(
-            generation,
-            if (isPlaying) PlaybackStatus.Playing else PlaybackStatus.Paused,
-        )
-        return true
-    }
-}
-
-private fun currentRequestToken(
-    controller: MediaController
-): Media3RequestToken? =
-    Media3RequestToken.decode(controller.currentMediaItem?.mediaId.orEmpty())
-
 internal fun buildAndroidPlaybackMediaItem(
     track: PlayableTrack,
     requestToken: Media3RequestToken
@@ -834,20 +865,4 @@ private fun AudioSource.androidUri(): Uri =
         is AudioSource.FileDescriptor ->
             error(
                 "File descriptor audio sources are metadata-only and cannot be played")
-    }
-
-/**
- * Returns the concrete local file backing this source, or null when the source
- * is not an ordinary local file (content URIs, descriptors, remote locations).
- */
-private fun AudioSource.androidLocalFile(): java.io.File? =
-    when (this) {
-        is AudioSource.FilePath -> java.io.File(path)
-        is AudioSource.Uri ->
-            if (value.startsWith("file:")) {
-                runCatching { java.io.File(java.net.URI(value)) }.getOrNull()
-            } else {
-                null
-            }
-        is AudioSource.FileDescriptor -> null
     }

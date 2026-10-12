@@ -6,10 +6,50 @@
 
 #include <jni.h>
 #include <atomic>
+#include <cstdio>
+#include <cstdlib>
 #include <dispatch/dispatch.h>
 #include <vector>
 
 @class RhythHausAudioPlayer;
+@class RhythHausVoiceCallbackContext;
+
+static std::atomic_long liveAudioVoiceCount(0);
+
+// Opt-in probes distinguish decoding/preparation, the device clock and the
+// synchronous audio-hardware start. They never alter the selected output or retry.
+static bool audioStartDiagnosticsEnabled() {
+    static const bool enabled = [] {
+        const char *value = std::getenv("RHYTHHAUS_MAC_AUDIO_DIAGNOSTICS");
+        return value != nullptr && value[0] == '1' && value[1] == '\0';
+    }();
+    return enabled;
+}
+
+@interface RhythHausAudioVoice : NSObject
+@property(nonatomic, strong) AVAudioPlayer *audioPlayer;
+@property(nonatomic, strong) RhythHausVoiceCallbackContext *callback;
+@property(nonatomic, assign) jlong generation;
+@property(nonatomic, assign) jlong playbackRunId;
+@property(nonatomic, assign) BOOL hasPlaybackRun;
+@property(nonatomic, assign) BOOL expectedPlaying;
+@property(nonatomic, assign) NSTimeInterval expectedEndDeviceTime;
+@property(nonatomic, assign) BOOL finished;
+@property(nonatomic, assign) BOOL failed;
+@property(nonatomic, assign) BOOL terminalPending;
+@property(nonatomic, assign) jlong terminalGeneration;
+@property(nonatomic, assign) jlong terminalRunId;
+@property(nonatomic, assign) float gain;
+@end
+
+// A playback delegate is a run-owned immutable callback context. Neither an outgoing
+// callback nor work queued before replacement reads the handle's mutable current token.
+@interface RhythHausVoiceCallbackContext : NSObject <AVAudioPlayerDelegate>
+@property(nonatomic, weak) RhythHausAudioPlayer *owner;
+@property(nonatomic, weak) AVAudioPlayer *audioPlayer;
+@property(nonatomic, assign) jlong generation;
+@property(nonatomic, assign) jlong playbackRunId;
+@end
 
 @interface RhythHausRouteCallbackContext : NSObject
 {
@@ -39,7 +79,11 @@
     JavaVM *_callbackVM;
     jweak _remoteBridge;
 }
-@property(nonatomic, strong) AVAudioPlayer *player;
+@property(nonatomic, readonly) AVAudioPlayer *player;
+@property(nonatomic, strong) RhythHausAudioVoice *currentVoice;
+@property(nonatomic, strong) RhythHausAudioVoice *outgoingVoice;
+@property(nonatomic, strong) RhythHausAudioVoice *preparedVoice;
+@property(nonatomic, copy) NSString *lastStartFailure;
 @property(nonatomic, assign) BOOL remoteCommandsRegistered;
 @property(nonatomic, strong) MPMediaItemArtwork *artwork;
 @property(nonatomic, assign) BOOL transportEnabled;
@@ -51,7 +95,17 @@
 - (void)invokeRouteDisconnect;
 - (void)setRouteExpectedActiveForTest:(BOOL)active;
 - (BOOL)releaseOnRouteQueueForTest;
-- (BOOL)play;
+- (BOOL)loadPath:(NSString *)path generation:(jlong)generation;
+- (BOOL)prepareIncomingPath:(NSString *)path generation:(jlong)generation;
+- (BOOL)startIncomingWithRunId:(jlong)playbackRunId;
+- (jlong)incomingDurationMillis;
+- (void)setCrossfadeOutgoingGain:(jfloat)outgoingGain incomingGain:(jfloat)incomingGain;
+- (void)finishCrossfade;
+- (void)cancelPreparedIncoming;
+- (BOOL)outgoingHasCompleted;
+- (BOOL)consumePlaybackEvent:(jlong *)event;
+- (void)recordTerminalForPlayer:(AVAudioPlayer *)player context:(RhythHausVoiceCallbackContext *)context failed:(BOOL)failed;
+- (BOOL)playWithRunId:(jlong)playbackRunId;
 - (void)pause;
 - (void)stop;
 - (void)seekToMillis:(jlong)positionMillis;
@@ -64,6 +118,66 @@
 @end
 
 static void releaseNativePlayer(RhythHausAudioPlayer *player);
+
+static void refreshVoiceCompletion(RhythHausAudioVoice *voice) {
+    // JNI callers do not necessarily have a Cocoa run loop for AVAudioPlayer's
+    // delegate. Polling still records the original run-owned callback token.
+    if (voice != nil && voice.expectedPlaying && !voice.audioPlayer.isPlaying && !voice.finished &&
+        voice.audioPlayer.deviceCurrentTime >= voice.expectedEndDeviceTime) {
+        voice.finished = YES;
+        voice.expectedPlaying = NO;
+        voice.terminalPending = YES;
+        voice.terminalGeneration = voice.callback.generation;
+        voice.terminalRunId = voice.callback.playbackRunId;
+    }
+}
+
+static jlong voicePositionMillis(RhythHausAudioVoice *voice) {
+    if (voice == nil) return 0;
+    refreshVoiceCompletion(voice);
+    return (jlong)((voice.finished && !voice.failed ? voice.audioPlayer.duration : voice.audioPlayer.currentTime) * 1000.0);
+}
+
+static void disposeVoice(RhythHausAudioVoice *voice) {
+    if (voice == nil) return;
+    voice.callback.owner = nil;
+    voice.audioPlayer.delegate = nil;
+    [voice.audioPlayer stop];
+    voice.callback = nil;
+    voice.audioPlayer = nil;
+}
+
+@implementation RhythHausAudioVoice
+- (instancetype)init {
+    self = [super init];
+    if (self != nil) liveAudioVoiceCount.fetch_add(1);
+    return self;
+}
+
+- (void)dealloc {
+    _callback.owner = nil;
+    _audioPlayer.delegate = nil;
+    [_audioPlayer stop];
+    liveAudioVoiceCount.fetch_sub(1);
+}
+@end
+
+@implementation RhythHausVoiceCallbackContext
+- (void)audioPlayerDidFinishPlaying:(AVAudioPlayer *)player successfully:(BOOL)flag {
+    RhythHausAudioPlayer *owner = self.owner;
+    [owner recordTerminalForPlayer:player context:self failed:!flag];
+}
+
+- (void)audioPlayerDecodeErrorDidOccur:(AVAudioPlayer *)player error:(NSError *)error {
+    if (audioStartDiagnosticsEnabled()) {
+        std::fprintf(stderr, "[rhythhaus-mac-start] decode-error player=%p generation=%lld run=%lld domain=%s code=%ld\n",
+                     (__bridge void *)player, (long long)self.generation, (long long)self.playbackRunId,
+                     error == nil ? "(none)" : error.domain.UTF8String, (long)error.code);
+    }
+    RhythHausAudioPlayer *owner = self.owner;
+    [owner recordTerminalForPlayer:player context:self failed:YES];
+}
+@end
 
 static MPRemoteCommandHandlerStatus performRemotePlay(RhythHausAudioPlayer *player) {
     if (player == nil || player.player == nil) return MPRemoteCommandHandlerStatusNoSuchContent;
@@ -119,6 +233,27 @@ static bool readRouteSnapshot(std::vector<AudioDeviceID> &available, AudioDevice
     available = std::move(nextAvailable);
     defaultDevice = nextDefaultDevice;
     return true;
+}
+
+static void logAudioOutputAfterStartFailure() {
+    std::vector<AudioDeviceID> available;
+    AudioDeviceID defaultDevice = kAudioObjectUnknown;
+    bool snapshotRead = readRouteSnapshot(available, defaultDevice);
+    UInt32 alive = 0;
+    UInt32 aliveSize = sizeof(alive);
+    AudioObjectPropertyAddress aliveAddress = {
+        kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+    OSStatus aliveStatus = defaultDevice == kAudioObjectUnknown ? kAudioHardwareBadDeviceError :
+        AudioObjectGetPropertyData(defaultDevice, &aliveAddress, 0, nullptr, &aliveSize, &alive);
+    Float64 sampleRate = 0.0;
+    UInt32 rateSize = sizeof(sampleRate);
+    AudioObjectPropertyAddress rateAddress = {
+        kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+    OSStatus rateStatus = defaultDevice == kAudioObjectUnknown ? kAudioHardwareBadDeviceError :
+        AudioObjectGetPropertyData(defaultDevice, &rateAddress, 0, nullptr, &rateSize, &sampleRate);
+    std::fprintf(stderr, "[rhythhaus-mac-start] output-after-rejection snapshotRead=%d defaultDevice=%u deviceCount=%zu defaultPresent=%d aliveStatus=%d alive=%u rateStatus=%d sampleRate=%.0f\n",
+                 snapshotRead, defaultDevice, available.size(), containsDevice(available, defaultDevice),
+                 (int)aliveStatus, alive, (int)rateStatus, sampleRate);
 }
 
 // Keep registration bookkeeping separate from CoreAudio so native lifecycle tests can model
@@ -201,6 +336,115 @@ static void removeRouteListener(const AudioObjectPropertyAddress *address,
 @end
 
 @implementation RhythHausAudioPlayer
+
+- (AVAudioPlayer *)player {
+    @synchronized (self) {
+        return self.currentVoice.audioPlayer;
+    }
+}
+
+- (RhythHausAudioVoice *)createVoiceForPath:(NSString *)path generation:(jlong)generation gain:(float)gain {
+    const bool diagnostics = audioStartDiagnosticsEnabled();
+    const CFAbsoluteTime loadStarted = diagnostics ? CFAbsoluteTimeGetCurrent() : 0.0;
+    if (diagnostics)
+        std::fprintf(stderr, "[rhythhaus-mac-start] load-begin owner=%p generation=%lld mainThread=%d\n",
+                     (__bridge void *)self, (long long)generation, [NSThread isMainThread]);
+    NSError *error = nil;
+    AVAudioPlayer *audioPlayer = [[AVAudioPlayer alloc] initWithContentsOfURL:[NSURL fileURLWithPath:path] error:&error];
+    if (diagnostics)
+        std::fprintf(stderr, "[rhythhaus-mac-start] load-end owner=%p player=%p elapsedMs=%.1f domain=%s code=%ld\n",
+                     (__bridge void *)self, (__bridge void *)audioPlayer,
+                     (CFAbsoluteTimeGetCurrent() - loadStarted) * 1000.0,
+                     error == nil ? "(none)" : error.domain.UTF8String, (long)error.code);
+    if (audioPlayer == nil || error != nil) return nil;
+    audioPlayer.volume = gain;
+    const CFAbsoluteTime prepareStarted = diagnostics ? CFAbsoluteTimeGetCurrent() : 0.0;
+    if (diagnostics)
+        std::fprintf(stderr, "[rhythhaus-mac-start] prepare-begin player=%p\n", (__bridge void *)audioPlayer);
+    BOOL prepared = [audioPlayer prepareToPlay];
+    if (diagnostics)
+        std::fprintf(stderr, "[rhythhaus-mac-start] prepare-end player=%p accepted=%d elapsedMs=%.1f channels=%lu sampleRate=%.0f duration=%.3f\n",
+                     (__bridge void *)audioPlayer, prepared, (CFAbsoluteTimeGetCurrent() - prepareStarted) * 1000.0,
+                     (unsigned long)audioPlayer.numberOfChannels, audioPlayer.format.sampleRate, audioPlayer.duration);
+    if (!prepared) return nil;
+    RhythHausAudioVoice *voice = [[RhythHausAudioVoice alloc] init];
+    voice.audioPlayer = audioPlayer;
+    voice.generation = generation;
+    voice.gain = gain;
+    return voice;
+}
+
+- (void)installCallbackForVoice:(RhythHausAudioVoice *)voice runId:(jlong)runId {
+    voice.callback.owner = nil;
+    RhythHausVoiceCallbackContext *context = [[RhythHausVoiceCallbackContext alloc] init];
+    context.owner = self;
+    context.audioPlayer = voice.audioPlayer;
+    context.generation = voice.generation;
+    context.playbackRunId = runId;
+    voice.callback = context;
+    voice.audioPlayer.delegate = context;
+    voice.playbackRunId = runId;
+    voice.hasPlaybackRun = YES;
+    voice.terminalPending = NO;
+}
+
+- (BOOL)startVoice:(RhythHausAudioVoice *)voice runId:(jlong)runId {
+    self.lastStartFailure = nil;
+    if (voice == nil || voice.audioPlayer == nil) {
+        self.lastStartFailure = voice == nil ? @"No native macOS audio voice is loaded." :
+            @"The loaded native macOS audio voice has no player.";
+        return NO;
+    }
+    const bool diagnostics = audioStartDiagnosticsEnabled();
+    if (diagnostics)
+        std::fprintf(stderr, "[rhythhaus-mac-start] start-begin owner=%p voice=%p player=%p generation=%lld run=%lld gain=%.3f trackedDefault=%u deviceCount=%zu mainThread=%d\n",
+                     (__bridge void *)self, (__bridge void *)voice, (__bridge void *)voice.audioPlayer,
+                     (long long)voice.generation, (long long)runId, voice.gain,
+                     _trackedDefaultDevice, _availableDevices.size(), [NSThread isMainThread]);
+    [self installCallbackForVoice:voice runId:runId];
+    const CFAbsoluteTime clockStarted = diagnostics ? CFAbsoluteTimeGetCurrent() : 0.0;
+    if (diagnostics)
+        std::fprintf(stderr, "[rhythhaus-mac-start] device-clock-begin player=%p\n", (__bridge void *)voice.audioPlayer);
+    NSTimeInterval deviceTime = voice.audioPlayer.deviceCurrentTime;
+    voice.expectedEndDeviceTime = deviceTime + MAX(0.0, voice.audioPlayer.duration - voice.audioPlayer.currentTime);
+    if (diagnostics)
+        std::fprintf(stderr, "[rhythhaus-mac-start] device-clock-end player=%p elapsedMs=%.1f deviceTime=%.3f expectedEnd=%.3f\n",
+                     (__bridge void *)voice.audioPlayer, (CFAbsoluteTimeGetCurrent() - clockStarted) * 1000.0,
+                     deviceTime, voice.expectedEndDeviceTime);
+    const CFAbsoluteTime playStarted = diagnostics ? CFAbsoluteTimeGetCurrent() : 0.0;
+    if (diagnostics)
+        std::fprintf(stderr, "[rhythhaus-mac-start] play-begin player=%p\n", (__bridge void *)voice.audioPlayer);
+    BOOL played = [voice.audioPlayer play];
+    if (diagnostics)
+        std::fprintf(stderr, "[rhythhaus-mac-start] play-end owner=%p voice=%p player=%p accepted=%d playing=%d elapsedMs=%.1f\n",
+                     (__bridge void *)self, (__bridge void *)voice, (__bridge void *)voice.audioPlayer,
+                     played, voice.audioPlayer.isPlaying, (CFAbsoluteTimeGetCurrent() - playStarted) * 1000.0);
+    if (!played) {
+        self.lastStartFailure = @"AVAudioPlayer.play returned false for a prepared native macOS audio voice.";
+        if (diagnostics) logAudioOutputAfterStartFailure();
+        return NO;
+    }
+    voice.finished = NO;
+    voice.failed = NO;
+    voice.expectedPlaying = YES;
+    return YES;
+}
+
+- (void)recordTerminalForPlayer:(AVAudioPlayer *)player context:(RhythHausVoiceCallbackContext *)context failed:(BOOL)failed {
+    @synchronized (self) {
+        if (player == nil) return;
+        RhythHausAudioVoice *voice = nil;
+        if (self.currentVoice.audioPlayer == player) voice = self.currentVoice;
+        else if (self.outgoingVoice.audioPlayer == player) voice = self.outgoingVoice;
+        if (voice == nil || voice.callback != context || voice.finished) return;
+        voice.finished = YES;
+        voice.failed = failed;
+        voice.expectedPlaying = NO;
+        voice.terminalPending = YES;
+        voice.terminalGeneration = context.generation;
+        voice.terminalRunId = context.playbackRunId;
+    }
+}
 
 - (void)installRemoteBridge:(JNIEnv *)env bridge:(jobject)bridge {
     @synchronized (self) {
@@ -286,37 +530,136 @@ static void removeRouteListener(const AudioObjectPropertyAddress *address,
     return self;
 }
 
-- (BOOL)loadPath:(NSString *)path {
-    NSURL *url = [NSURL fileURLWithPath:path];
-    NSError *error = nil;
-    AVAudioPlayer *nextPlayer = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&error];
-    if (nextPlayer == nil || error != nil) {
-        return NO;
-    }
+- (BOOL)loadPath:(NSString *)path generation:(jlong)generation {
     @synchronized (self) {
-        self.player = nextPlayer;
-        self.player.volume = _playbackGain;
-        return [self.player prepareToPlay];
+        RhythHausAudioVoice *nextVoice = [self createVoiceForPath:path generation:generation gain:_playbackGain];
+        if (nextVoice == nil) return NO;
+        disposeVoice(self.currentVoice);
+        disposeVoice(self.outgoingVoice);
+        disposeVoice(self.preparedVoice);
+        self.currentVoice = nextVoice;
+        self.outgoingVoice = nil;
+        self.preparedVoice = nil;
+        _expectedActive.store(false);
+        _routeDisconnectPending.store(false);
+        return YES;
     }
 }
 
-- (BOOL)play {
-    if (self.player == nil) {
-        return NO;
-    }
+- (BOOL)prepareIncomingPath:(NSString *)path generation:(jlong)generation {
     @synchronized (self) {
-        [self.player play];
-        _expectedActive.store(self.player.isPlaying);
-        _routeDisconnectPending.store(false);
+        if (self.currentVoice == nil || self.outgoingVoice != nil) return NO;
+        [self cancelPreparedIncoming];
+        self.preparedVoice = [self createVoiceForPath:path generation:generation gain:0.0f];
+        return self.preparedVoice != nil;
     }
-    return YES;
+}
+
+- (jlong)incomingDurationMillis {
+    @synchronized (self) {
+        return (jlong)(self.preparedVoice.audioPlayer.duration * 1000.0);
+    }
+}
+
+- (BOOL)startIncomingWithRunId:(jlong)playbackRunId {
+    @synchronized (self) {
+        if (self.currentVoice == nil || self.outgoingVoice != nil || self.preparedVoice == nil) {
+            self.lastStartFailure = @"Crossfade requires a current voice and a prepared incoming voice without a retiring voice.";
+            return NO;
+        }
+        if (![self startVoice:self.preparedVoice runId:playbackRunId]) {
+            [self cancelPreparedIncoming];
+            return NO;
+        }
+        self.outgoingVoice = self.currentVoice;
+        self.currentVoice = self.preparedVoice;
+        self.preparedVoice = nil;
+        _playbackGain = self.currentVoice.gain;
+        _expectedActive.store(true);
+        return YES;
+    }
+}
+
+- (void)setCrossfadeOutgoingGain:(jfloat)outgoingGain incomingGain:(jfloat)incomingGain {
+    @synchronized (self) {
+        RhythHausAudioVoice *outgoing = self.outgoingVoice ?: self.currentVoice;
+        RhythHausAudioVoice *incoming = self.outgoingVoice == nil ? self.preparedVoice : self.currentVoice;
+        outgoing.gain = outgoingGain;
+        outgoing.audioPlayer.volume = outgoingGain;
+        incoming.gain = incomingGain;
+        incoming.audioPlayer.volume = incomingGain;
+        _playbackGain = self.currentVoice == nil ? _playbackGain : self.currentVoice.gain;
+    }
+}
+
+- (void)finishCrossfade {
+    @synchronized (self) {
+        disposeVoice(self.outgoingVoice);
+        self.outgoingVoice = nil;
+    }
+}
+
+- (void)cancelPreparedIncoming {
+    @synchronized (self) {
+        disposeVoice(self.preparedVoice);
+        self.preparedVoice = nil;
+        if (self.outgoingVoice != nil) {
+            disposeVoice(self.currentVoice);
+            self.currentVoice = self.outgoingVoice;
+            self.outgoingVoice = nil;
+            _playbackGain = self.currentVoice.gain;
+            _expectedActive.store(self.currentVoice.audioPlayer.isPlaying);
+        }
+    }
+}
+
+- (BOOL)outgoingHasCompleted {
+    @synchronized (self) {
+        refreshVoiceCompletion(self.outgoingVoice);
+        return self.outgoingVoice != nil && self.outgoingVoice.finished && !self.outgoingVoice.failed;
+    }
+}
+
+- (BOOL)consumePlaybackEvent:(jlong *)event {
+    @synchronized (self) {
+        refreshVoiceCompletion(self.currentVoice);
+        refreshVoiceCompletion(self.outgoingVoice);
+        RhythHausAudioVoice *voice = self.currentVoice.terminalPending ? self.currentVoice : self.outgoingVoice;
+        if (voice == nil || !voice.terminalPending) return NO;
+        event[0] = voice.terminalGeneration;
+        event[1] = voice.terminalRunId;
+        event[2] = voice.failed ? 2 : 1;
+        voice.terminalPending = NO;
+        return YES;
+    }
+}
+
+- (BOOL)playWithRunId:(jlong)playbackRunId {
+    @synchronized (self) {
+        if (![self startVoice:self.currentVoice runId:playbackRunId]) return NO;
+        refreshVoiceCompletion(self.outgoingVoice);
+        if (self.outgoingVoice != nil && !self.outgoingVoice.finished) {
+            // Resuming overlap does not rebind the retiring voice to the new
+            // logical current generation or playback run.
+            self.outgoingVoice.expectedEndDeviceTime = self.outgoingVoice.audioPlayer.deviceCurrentTime + MAX(0.0, self.outgoingVoice.audioPlayer.duration - self.outgoingVoice.audioPlayer.currentTime);
+            self.outgoingVoice.expectedPlaying = [self.outgoingVoice.audioPlayer play];
+        }
+        _expectedActive.store(self.player.isPlaying || self.outgoingVoice.audioPlayer.isPlaying);
+        _routeDisconnectPending.store(false);
+        return YES;
+    }
 }
 
 - (void)pause {
     @synchronized (self) {
         _expectedActive.store(false);
         _routeDisconnectPending.store(false);
-        [self.player pause];
+        refreshVoiceCompletion(self.currentVoice);
+        refreshVoiceCompletion(self.outgoingVoice);
+        self.currentVoice.expectedPlaying = NO;
+        self.outgoingVoice.expectedPlaying = NO;
+        [self.currentVoice.audioPlayer pause];
+        [self.outgoingVoice.audioPlayer pause];
     }
 }
 
@@ -324,16 +667,20 @@ static void removeRouteListener(const AudioObjectPropertyAddress *address,
     @synchronized (self) {
         _expectedActive.store(false);
         _routeDisconnectPending.store(false);
-        [self.player stop];
-        self.player.currentTime = 0.0;
+        disposeVoice(self.currentVoice);
+        disposeVoice(self.outgoingVoice);
+        disposeVoice(self.preparedVoice);
+        self.currentVoice = nil;
+        self.outgoingVoice = nil;
+        self.preparedVoice = nil;
         _playbackGain = 1.0f;
-        self.player.volume = _playbackGain;
     }
 }
 
 - (void)setPlaybackGain:(jfloat)gain {
     @synchronized (self) {
         _playbackGain = gain;
+        self.currentVoice.gain = gain;
         self.player.volume = gain;
     }
 }
@@ -351,24 +698,31 @@ static void removeRouteListener(const AudioObjectPropertyAddress *address,
 }
 
 - (void)seekToMillis:(jlong)positionMillis {
-    if (self.player == nil) {
-        return;
+    @synchronized (self) {
+        [self finishCrossfade];
+        [self cancelPreparedIncoming];
+        RhythHausAudioVoice *voice = self.currentVoice;
+        if (voice == nil) return;
+        if (voice.hasPlaybackRun)
+            [self installCallbackForVoice:voice runId:voice.playbackRunId];
+        voice.finished = NO;
+        voice.failed = NO;
+        self.player.currentTime = MAX(0.0, ((double)positionMillis) / 1000.0);
+        voice.expectedEndDeviceTime = self.player.deviceCurrentTime + MAX(0.0, self.player.duration - self.player.currentTime);
     }
-    self.player.currentTime = MAX(0.0, ((double)positionMillis) / 1000.0);
 }
 
 - (jlong)currentPositionMillis {
-    if (self.player == nil) {
-        return 0;
+    @synchronized (self) {
+        return voicePositionMillis(self.currentVoice);
     }
-    return (jlong)(self.player.currentTime * 1000.0);
 }
 
 - (jlong)durationMillis {
-    if (self.player == nil || self.player.duration <= 0.0) {
-        return 0;
+    @synchronized (self) {
+        if (self.player == nil || self.player.duration <= 0.0) return 0;
+        return (jlong)(self.player.duration * 1000.0);
     }
-    return (jlong)(self.player.duration * 1000.0);
 }
 
 - (void)updateNowPlayingTitle:(NSString *)title artist:(NSString *)artist album:(NSString *)album durationMillis:(jlong)durationMillis positionMillis:(jlong)positionMillis {
@@ -618,23 +972,79 @@ extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBr
     return (jlong)(__bridge_retained void *)player;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeLoad(JNIEnv *env, jobject, jlong handle, jstring path) {
-    RhythHausAudioPlayer *player = playerFromHandle(handle);
-    if (player == nil || path == NULL) {
-        return JNI_FALSE;
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeLoad(JNIEnv *env, jobject, jlong handle, jstring path, jlong generation) {
+    @autoreleasepool {
+        RhythHausAudioPlayer *player = playerFromHandle(handle);
+        if (player == nil || path == NULL) {
+            return JNI_FALSE;
+        }
+        const char *utfPath = env->GetStringUTFChars(path, NULL);
+        if (utfPath == NULL) {
+            return JNI_FALSE;
+        }
+        NSString *nsPath = [NSString stringWithUTF8String:utfPath];
+        env->ReleaseStringUTFChars(path, utfPath);
+        return [player loadPath:nsPath generation:generation] ? JNI_TRUE : JNI_FALSE;
     }
-    const char *utfPath = env->GetStringUTFChars(path, NULL);
-    if (utfPath == NULL) {
-        return JNI_FALSE;
-    }
-    NSString *nsPath = [NSString stringWithUTF8String:utfPath];
-    env->ReleaseStringUTFChars(path, utfPath);
-    return [player loadPath:nsPath] ? JNI_TRUE : JNI_FALSE;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativePlay(JNIEnv *, jobject, jlong handle) {
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativePlay(JNIEnv *, jobject, jlong handle, jlong playbackRunId) {
     RhythHausAudioPlayer *player = playerFromHandle(handle);
-    return player != nil && [player play] ? JNI_TRUE : JNI_FALSE;
+    return player != nil && [player playWithRunId:playbackRunId] ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeLastStartFailure(JNIEnv *env, jobject, jlong handle) {
+    @autoreleasepool {
+        RhythHausAudioPlayer *player = playerFromHandle(handle);
+        @synchronized (player) {
+            NSString *failure = player.lastStartFailure;
+            return failure == nil ? nullptr : env->NewStringUTF(failure.UTF8String);
+        }
+    }
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativePrepareIncoming(JNIEnv *env, jobject, jlong handle, jstring path, jlong generation) {
+    @autoreleasepool {
+        RhythHausAudioPlayer *player = playerFromHandle(handle);
+        if (player == nil || path == NULL) return JNI_FALSE;
+        const char *utfPath = env->GetStringUTFChars(path, NULL);
+        if (utfPath == NULL) return JNI_FALSE;
+        NSString *nsPath = [NSString stringWithUTF8String:utfPath];
+        env->ReleaseStringUTFChars(path, utfPath);
+        return [player prepareIncomingPath:nsPath generation:generation] ? JNI_TRUE : JNI_FALSE;
+    }
+}
+
+extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeIncomingDurationMillis(JNIEnv *, jobject, jlong handle) {
+    return [playerFromHandle(handle) incomingDurationMillis];
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeStartIncoming(JNIEnv *, jobject, jlong handle, jlong playbackRunId) {
+    return [playerFromHandle(handle) startIncomingWithRunId:playbackRunId] ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeSetCrossfadeGains(JNIEnv *, jobject, jlong handle, jfloat outgoingGain, jfloat incomingGain) {
+    [playerFromHandle(handle) setCrossfadeOutgoingGain:outgoingGain incomingGain:incomingGain];
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeFinishCrossfade(JNIEnv *, jobject, jlong handle) {
+    [playerFromHandle(handle) finishCrossfade];
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeCancelPreparedIncoming(JNIEnv *, jobject, jlong handle) {
+    [playerFromHandle(handle) cancelPreparedIncoming];
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeOutgoingHasCompleted(JNIEnv *, jobject, jlong handle) {
+    return [playerFromHandle(handle) outgoingHasCompleted] ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeConsumePlaybackEvent(JNIEnv *env, jobject, jlong handle, jlongArray result) {
+    if (result == NULL || env->GetArrayLength(result) < 3) return JNI_FALSE;
+    jlong event[3];
+    if (![playerFromHandle(handle) consumePlaybackEvent:event]) return JNI_FALSE;
+    env->SetLongArrayRegion(result, 0, 3, event);
+    return JNI_TRUE;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativePause(JNIEnv *, jobject, jlong handle) {
@@ -781,6 +1191,75 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlaye
 extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_JvmPlaybackEngineTest_nativeReleaseOnRouteQueueForTest(JNIEnv *, jclass, jlong handle) {
     RhythHausAudioPlayer *player = playerFromHandle(handle);
     return player != nil && [player releaseOnRouteQueueForTest] ? JNI_TRUE : JNI_FALSE;
+}
+
+// Test-owned JNI fixtures inspect the real voices without adding transport or
+// lifecycle methods to the production engine solely for tests.
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_JvmPlaybackEngineTest_nativeInvalidateCurrentPlayerForTest(JNIEnv *, jclass, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    @synchronized (player) {
+        [player.currentVoice.audioPlayer stop];
+        player.currentVoice.audioPlayer = nil;
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_JvmPlaybackEngineTest_nativeInvalidatePreparedPlayerForTest(JNIEnv *, jclass, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    @synchronized (player) {
+        [player.preparedVoice.audioPlayer stop];
+        player.preparedVoice.audioPlayer = nil;
+    }
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL Java_com_eterocell_rhythhaus_JvmPlaybackEngineTest_nativeCrossfadeSnapshotForTest(JNIEnv *env, jclass, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    jlong snapshot[6];
+    @synchronized (player) {
+        snapshot[0] = voicePositionMillis(player.currentVoice);
+        snapshot[1] = player.outgoingVoice == nil ? -1 : voicePositionMillis(player.outgoingVoice);
+        snapshot[2] = player.preparedVoice == nil ? -1 : voicePositionMillis(player.preparedVoice);
+        snapshot[3] = player.currentVoice.audioPlayer.isPlaying ? 1 : 0;
+        snapshot[4] = player.outgoingVoice.audioPlayer.isPlaying ? 1 : 0;
+        snapshot[5] = (player.currentVoice != nil) + (player.outgoingVoice != nil) + (player.preparedVoice != nil);
+    }
+    jlongArray result = env->NewLongArray(6);
+    if (result != NULL) env->SetLongArrayRegion(result, 0, 6, snapshot);
+    return result;
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL Java_com_eterocell_rhythhaus_JvmPlaybackEngineTest_nativeCrossfadeVolumesForTest(JNIEnv *env, jclass, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    jfloat gains[2];
+    @synchronized (player) {
+        gains[0] = [player playerVolumeForTest];
+        RhythHausAudioVoice *secondary = player.outgoingVoice ?: player.preparedVoice;
+        gains[1] = secondary.audioPlayer.volume;
+    }
+    jfloatArray result = env->NewFloatArray(2);
+    if (result != NULL) env->SetFloatArrayRegion(result, 0, 2, gains);
+    return result;
+}
+
+extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_JvmPlaybackEngineTest_nativeLiveAudioVoiceCountForTest(JNIEnv *, jclass) {
+    return (jlong)liveAudioVoiceCount.load();
+}
+
+extern "C" JNIEXPORT jlong JNICALL Java_com_eterocell_rhythhaus_JvmPlaybackEngineTest_nativeCaptureTerminalCallbackForTest(JNIEnv *, jclass, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    @synchronized (player) {
+        RhythHausVoiceCallbackContext *context = player.currentVoice.callback;
+        return context == nil ? 0 : (jlong)(__bridge_retained void *)context;
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_JvmPlaybackEngineTest_nativeDeliverCapturedTerminalCallbackForTest(JNIEnv *, jclass, jlong callback, jboolean completed) {
+    if (callback == 0) return;
+    RhythHausVoiceCallbackContext *context = (__bridge RhythHausVoiceCallbackContext *)(void *)callback;
+    if (completed == JNI_TRUE)
+        [context audioPlayerDidFinishPlaying:context.audioPlayer successfully:YES];
+    else
+        [context audioPlayerDecodeErrorDidOccur:context.audioPlayer error:nil];
+    CFRelease((__bridge CFTypeRef)context);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeConsumeRouteDisconnected(JNIEnv *, jobject, jlong handle) {

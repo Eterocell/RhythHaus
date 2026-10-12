@@ -42,34 +42,6 @@ internal object RhythHausTransportBridge {
         if (!transportEnabled) return
         onSkipToPrevious?.invoke()
     }
-
-    internal fun forHostTest(): RhythHausServiceTransportTestBridge =
-        RhythHausServiceTransportTestBridge()
-}
-
-internal class RhythHausServiceTransportTestBridge {
-    private val actions = mutableListOf<String>()
-
-    fun setTransportEnabled(enabled: Boolean) =
-        RhythHausTransportBridge.setTransportEnabled(enabled)
-
-    fun handleServicePlayForTest(): Boolean = routeTransport {
-        actions += "play"
-    }
-
-    fun handleServiceSeekForTest(positionMillis: Long): Boolean =
-        routeTransport {
-            actions += "seek:$positionMillis"
-        }
-
-    fun handleServiceNextForTest(): Boolean = routeTransport {
-        actions += "next"
-    }
-
-    fun isCommandAvailableForTest(command: Int): Boolean =
-        transportCommandAllowed(command)
-
-    fun forwardedActionsForTest(): List<String> = actions.toList()
 }
 
 internal inline fun routeTransport(action: () -> Unit): Boolean {
@@ -79,33 +51,19 @@ internal inline fun routeTransport(action: () -> Unit): Boolean {
 }
 
 internal class ServiceTransportRouter {
-    fun setTransportEnabled(enabled: Boolean) =
-        RhythHausTransportBridge.setTransportEnabled(enabled)
-
-    fun play(action: () -> Unit): Boolean = routeTransport(action)
-
     fun play(internalController: Boolean, action: () -> Unit): Boolean =
         routeSessionTransport(internalController, action) {
             RhythHausTransportBridge.onPlay?.invoke()
         }
-
-    fun pause(action: () -> Unit): Boolean = routeTransport(action)
 
     fun pause(internalController: Boolean, action: () -> Unit): Boolean =
         routeSessionTransport(internalController, action) {
             RhythHausTransportBridge.onPause?.invoke()
         }
 
-    fun stop(action: () -> Unit): Boolean = routeTransport(action)
-
     fun stop(internalController: Boolean, action: () -> Unit): Boolean =
         routeSessionTransport(internalController, action) {
             RhythHausTransportBridge.onStop?.invoke()
-        }
-
-    fun seekTo(positionMillis: Long, action: (Long) -> Unit): Boolean =
-        routeTransport {
-            action(positionMillis)
         }
 
     fun seekTo(
@@ -116,12 +74,6 @@ internal class ServiceTransportRouter {
         routeSessionTransport(internalController, { action(positionMillis) }) {
             RhythHausTransportBridge.onSeek?.invoke(positionMillis)
         }
-
-    fun seekTo(
-        mediaItemIndex: Int,
-        positionMillis: Long,
-        action: (Int, Long) -> Unit
-    ): Boolean = routeTransport { action(mediaItemIndex, positionMillis) }
 
     fun seekTo(
         mediaItemIndex: Int,
@@ -163,7 +115,19 @@ internal fun transportCommandAllowed(command: Int): Boolean =
 internal fun sessionPlayerCommandAllowed(
     internalController: Boolean,
     command: Int,
-): Boolean = internalController || transportCommandAllowed(command)
+): Boolean =
+    command !in engineProtocolPlayerCommands &&
+        (internalController || transportCommandAllowed(command))
+
+private val engineProtocolPlayerCommands =
+    setOf(
+        androidx.media3.common.Player.COMMAND_SET_MEDIA_ITEM,
+        androidx.media3.common.Player.COMMAND_CHANGE_MEDIA_ITEMS,
+        androidx.media3.common.Player.COMMAND_PREPARE,
+        androidx.media3.common.Player.COMMAND_SET_VOLUME,
+        androidx.media3.common.Player.COMMAND_SET_REPEAT_MODE,
+        androidx.media3.common.Player.COMMAND_SET_SHUFFLE_MODE,
+    )
 
 private val skipTransportCommands =
     setOf(

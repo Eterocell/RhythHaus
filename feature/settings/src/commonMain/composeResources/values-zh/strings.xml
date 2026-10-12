@@ -14,4 +14,12 @@
 <string name="replaygain_explanation">仅根据已有 ReplayGain 标签降低音量。没有标签的曲目保持原音量，正增益不会被放大。</string>
 <string name="replaygain_saving">正在保存音量均衡设置…</string>
 <string name="replaygain_error">无法保存音量均衡设置。仍使用上次选择的模式，请重新选择模式以重试。</string>
+<string name="crossfade_title">交叉淡入淡出</string>
+<string name="crossfade_off">关闭</string>
+<string name="crossfade_3_seconds">3 秒</string>
+<string name="crossfade_5_seconds">5 秒</string>
+<string name="crossfade_8_seconds">8 秒</string>
+<string name="crossfade_explanation">符合条件的队列曲目按所选时长上限重叠播放。短曲目会缩短淡入淡出时长。启用睡眠定时器、单曲循环、播放当前曲目后停止或时长未知时不生效。</string>
+<string name="crossfade_saving">正在恢复或保存交叉淡入淡出设置…</string>
+<string name="crossfade_error">无法保存交叉淡入淡出设置。仍使用上次选择的时长，请重新选择时长以重试。</string>
 </resources>
