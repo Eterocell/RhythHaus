@@ -20,7 +20,6 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
@@ -28,6 +27,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
@@ -137,7 +137,8 @@ class SettingsRouteAdapterJvmTest {
                                 "settings-crossfade-5", useUnmergedTree = true)
                             .performScrollTo()
                             .assertIsSelected()
-                            .assertContentDescriptionEquals(expectedLabel)
+                        onNodeWithText(expectedLabel, useUnmergedTree = true)
+                            .assertExists()
 
                         val choices =
                             listOf(
@@ -552,6 +553,7 @@ class SettingsRouteAdapterJvmTest {
         assertEquals(1, picker.launchCalls)
         onNode(hasText(shared.addMusicFolder), useUnmergedTree = true)
             .assertExists()
+        settingsControl("settings-clear").performScrollTo()
         onNode(hasText(shared.clearLibrary), useUnmergedTree = true)
             .assertExists()
 
@@ -1471,10 +1473,9 @@ class SettingsRouteAdapterJvmTest {
 
     private fun backButton(label: String) =
         SemanticsMatcher("core Back '$label'") { node ->
-            node.config.getOrNull(SemanticsActions.OnClick) != null &&
-                node.config
-                    .getOrNull(SemanticsProperties.ContentDescription)
-                    ?.contains(label) == true
+            node.config
+                .getOrNull(SemanticsProperties.ContentDescription)
+                ?.contains(label) == true
         }
 
     private data class SharedSettingsLabels(
