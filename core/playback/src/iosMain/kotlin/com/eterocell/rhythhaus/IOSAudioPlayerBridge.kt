@@ -105,6 +105,9 @@ public interface IOSAudioPlayerProvider {
      */
     public fun finishCrossfade()
 
+    /** Commits a gapless promotion and releases the outgoing native voice. */
+    public fun finishGapless()
+
     /**
      * Cancels staging or rolls back a started incoming voice while outgoing is
      * retained. Native Playing does not commit controller admission. Restore

@@ -29,7 +29,8 @@ internal sealed interface AndroidServiceEngineCommand {
 
     data class StartIncoming(
         val playbackRunId: Long,
-        val token: Media3RequestToken? = null
+        val token: Media3RequestToken? = null,
+        val gapless: Boolean = false,
     ) : AndroidServiceEngineCommand
 
     data class Gain(val gain: Float, val token: Media3RequestToken? = null) :
@@ -192,7 +193,7 @@ internal class AndroidServicePlayback(
                 play(command.playbackRunId)
             }
             is AndroidServiceEngineCommand.StartIncoming ->
-                startIncoming(command.playbackRunId, command.token)
+                startIncoming(command.playbackRunId, command.token, command.gapless)
             is AndroidServiceEngineCommand.Gain -> {
                 checkCurrentToken(command.token)
                 setPlaybackGain(command.gain)
@@ -296,7 +297,11 @@ internal class AndroidServicePlayback(
         return result
     }
 
-    private fun startIncoming(playbackRunId: Long, token: Media3RequestToken?) {
+    private fun startIncoming(
+        playbackRunId: Long,
+        token: Media3RequestToken?,
+        gapless: Boolean = false,
+    ) {
         val incoming =
             requireNotNull(preparedIncoming) {
                 "No Android incoming voice is prepared"
@@ -320,6 +325,7 @@ internal class AndroidServicePlayback(
         incoming.player.volume = incoming.gain
         try {
             incoming.player.play()
+            if (gapless) finishCrossfade(retiring?.token)
         } catch (failure: Exception) {
             incoming.terminal = true
             incoming.player.pause()

@@ -343,6 +343,13 @@ final class RhythHausAudioPlayerProvider: NSObject, IOSAudioPlayerProvider {
         retiringOriginalGain = nil
     }
 
+    func finishGapless() {
+        Self.assertMainThread()
+        dispose(retiring)
+        retiring = nil
+        retiringOriginalGain = nil
+    }
+
     func cancelPreparedIncoming() {
         Self.assertMainThread()
         incomingRequestToken += 1

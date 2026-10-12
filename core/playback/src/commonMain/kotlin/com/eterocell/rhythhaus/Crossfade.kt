@@ -12,6 +12,16 @@ public enum class CrossfadeDuration(
 }
 
 /**
+ * Whether ordinary queue advancement prepares the next item before completion.
+ */
+public enum class GaplessPlaybackMode {
+    /** Use the ordinary completion-then-load path. */
+    Off,
+    /** Prepare and promote an eligible successor without an idle handoff. */
+    On,
+}
+
+/**
  * A single system playback session with a silent staged and a retiring voice.
  */
 public interface CrossfadePlaybackEngine : PlatformPlaybackEngine {
@@ -30,6 +40,9 @@ public interface CrossfadePlaybackEngine : PlatformPlaybackEngine {
      */
     public fun startIncoming(playbackRunId: Long)
 
+    /** Promotes a staged voice without retaining an overlapping outgoing voice. */
+    public fun startIncomingGapless(playbackRunId: Long)
+
     /**
      * Sets finite, unit-range [outgoingGain] and [incomingGain] independently.
      */
@@ -39,6 +52,9 @@ public interface CrossfadePlaybackEngine : PlatformPlaybackEngine {
      * Releases the retiring voice without affecting logical current playback.
      */
     public fun finishCrossfade()
+
+    /** Releases any outgoing voice after a gapless promotion. */
+    public fun finishGapless()
 
     /**
      * Releases a staged voice or rolls back a started incoming voice while

@@ -98,6 +98,7 @@ static bool audioStartDiagnosticsEnabled() {
 - (BOOL)loadPath:(NSString *)path generation:(jlong)generation;
 - (BOOL)prepareIncomingPath:(NSString *)path generation:(jlong)generation;
 - (BOOL)startIncomingWithRunId:(jlong)playbackRunId;
+- (BOOL)startIncomingGaplessWithRunId:(jlong)playbackRunId;
 - (jlong)incomingDurationMillis;
 - (void)setCrossfadeOutgoingGain:(jfloat)outgoingGain incomingGain:(jfloat)incomingGain;
 - (void)finishCrossfade;
@@ -580,6 +581,14 @@ static void removeRouteListener(const AudioObjectPropertyAddress *address,
     }
 }
 
+- (BOOL)startIncomingGaplessWithRunId:(jlong)playbackRunId {
+    @synchronized (self) {
+        if (![self startIncomingWithRunId:playbackRunId]) return NO;
+        [self finishCrossfade];
+        return YES;
+    }
+}
+
 - (void)setCrossfadeOutgoingGain:(jfloat)outgoingGain incomingGain:(jfloat)incomingGain {
     @synchronized (self) {
         RhythHausAudioVoice *outgoing = self.outgoingVoice ?: self.currentVoice;
@@ -1023,11 +1032,19 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlaye
     return [playerFromHandle(handle) startIncomingWithRunId:playbackRunId] ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeStartIncomingGapless(JNIEnv *, jobject, jlong handle, jlong playbackRunId) {
+    return [playerFromHandle(handle) startIncomingGaplessWithRunId:playbackRunId] ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeSetCrossfadeGains(JNIEnv *, jobject, jlong handle, jfloat outgoingGain, jfloat incomingGain) {
     [playerFromHandle(handle) setCrossfadeOutgoingGain:outgoingGain incomingGain:incomingGain];
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeFinishCrossfade(JNIEnv *, jobject, jlong handle) {
+    [playerFromHandle(handle) finishCrossfade];
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeFinishGapless(JNIEnv *, jobject, jlong handle) {
     [playerFromHandle(handle) finishCrossfade];
 }
 

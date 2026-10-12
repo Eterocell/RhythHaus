@@ -148,13 +148,22 @@ internal class MacOSNativePlaybackEngine(
         }
 
     override fun startIncoming(playbackRunId: Long) {
+        startIncomingInternal(playbackRunId, gapless = false)
+    }
+
+    override fun startIncomingGapless(playbackRunId: Long) {
+        startIncomingInternal(playbackRunId, gapless = true)
+    }
+
+    private fun startIncomingInternal(playbackRunId: Long, gapless: Boolean) {
         val transition =
             synchronized(playbackStateLock) {
                 val incoming =
                     requireNotNull(preparedIncoming) {
                         "No incoming macOS player has been prepared"
                     }
-                if (!bridge.startIncoming(playbackRunId)) {
+                if (!(if (gapless) bridge.startIncomingGapless(playbackRunId)
+                    else bridge.startIncoming(playbackRunId))) {
                     preparedIncoming = null
                     throw PlaybackFailureException(
                         PlaybackError(
@@ -162,19 +171,16 @@ internal class MacOSNativePlaybackEngine(
                             bridge.lastStartFailure(),
                         ))
                 }
-                outgoingVoice =
-                    RetiringMacVoice(
-                        activeGeneration,
-                        activePlaybackRunId,
-                        completionReported,
-                    )
-                pendingPromotion =
-                    PendingMacPromotion(
-                        requireNotNull(currentTrack),
-                        durationMillis,
-                        requireNotNull(outgoingVoice),
-                        progressTask != null,
-                    )
+                if (!gapless) {
+                    outgoingVoice = RetiringMacVoice(
+                        activeGeneration, activePlaybackRunId, completionReported)
+                    pendingPromotion = PendingMacPromotion(
+                        requireNotNull(currentTrack), durationMillis,
+                        requireNotNull(outgoingVoice), progressTask != null)
+                } else {
+                    outgoingVoice = null
+                    pendingPromotion = null
+                }
                 preparedIncoming = null
                 currentTrack = incoming.track
                 activeGeneration = incoming.generation
@@ -210,6 +216,14 @@ internal class MacOSNativePlaybackEngine(
     override fun finishCrossfade() {
         synchronized(playbackStateLock) {
             bridge.finishCrossfade()
+            outgoingVoice = null
+            pendingPromotion = null
+        }
+    }
+
+    override fun finishGapless() {
+        synchronized(playbackStateLock) {
+            bridge.finishGapless()
             outgoingVoice = null
             pendingPromotion = null
         }
@@ -691,6 +705,12 @@ internal class MacAudioPlayerBridge {
         }
     }
 
+    fun startIncomingGapless(playbackRunId: Long): Boolean = withHandle {
+        nativeStartIncomingGapless(it, playbackRunId).also { started ->
+            if (started) playbackGain = nativePlaybackGain(it)
+        }
+    }
+
     fun setCrossfadeGains(outgoingGain: Float, incomingGain: Float) {
         requireUnitGain(outgoingGain)
         requireUnitGain(incomingGain)
@@ -701,6 +721,8 @@ internal class MacAudioPlayerBridge {
     }
 
     fun finishCrossfade() = withHandle(::nativeFinishCrossfade)
+
+    fun finishGapless() = withHandle(::nativeFinishGapless)
 
     fun cancelPreparedIncoming() = withHandle {
         nativeCancelPreparedIncoming(it)
@@ -967,6 +989,11 @@ internal class MacAudioPlayerBridge {
         playbackRunId: Long
     ): Boolean
 
+    private external fun nativeStartIncomingGapless(
+        handle: Long,
+        playbackRunId: Long
+    ): Boolean
+
     private external fun nativeSetCrossfadeGains(
         handle: Long,
         outgoingGain: Float,
@@ -974,6 +1001,8 @@ internal class MacAudioPlayerBridge {
     )
 
     private external fun nativeFinishCrossfade(handle: Long)
+
+    private external fun nativeFinishGapless(handle: Long)
 
     private external fun nativeCancelPreparedIncoming(handle: Long)
 

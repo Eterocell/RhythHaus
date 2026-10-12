@@ -71,6 +71,7 @@ private class IOSPlaybackEngine(
     private var sourceSequence: Long = 0L
     private var playRequestSequence: Long = 0L
     private var pendingPlayRequest: Long? = null
+    private var pendingGaplessPlayRequest: Long? = null
     private val remoteTransportGate = IOSRemoteTransportGate()
 
     private class VoiceRun(
@@ -174,6 +175,7 @@ private class IOSPlaybackEngine(
                         progressJob?.cancel()
                         if (outgoingSnapshot == null) {
                             cancelPreparedIncomingSerialized()
+                            pendingGaplessPlayRequest = null
                         }
                     }
                     listener?.onPlaybackError(
@@ -408,6 +410,14 @@ private class IOSPlaybackEngine(
     }
 
     override fun startIncoming(playbackRunId: Long) {
+        startIncomingInternal(playbackRunId, gapless = false)
+    }
+
+    override fun startIncomingGapless(playbackRunId: Long) {
+        startIncomingInternal(playbackRunId, gapless = true)
+    }
+
+    private fun startIncomingInternal(playbackRunId: Long, gapless: Boolean) {
         withIOSPlaybackMainThread {
             val incoming =
                 requireNotNull(preparedIncoming) {
@@ -422,6 +432,7 @@ private class IOSPlaybackEngine(
             val request = ++playRequestSequence
             incoming.startingRequest = request
             pendingPlayRequest = request
+            pendingGaplessPlayRequest = request.takeIf { gapless }
             outgoingSnapshot =
                 OutgoingSnapshot(
                     loadedTrack,
@@ -459,6 +470,10 @@ private class IOSPlaybackEngine(
                                 activeGeneration,
                                 sourceVersion,
                                 incoming.provider)
+                            if (pendingGaplessPlayRequest == request) {
+                                pendingGaplessPlayRequest = null
+                                finishGaplessSerialized()
+                            }
                         }
                     }
 
@@ -506,6 +521,16 @@ private class IOSPlaybackEngine(
         withIOSPlaybackMainThread { finishCrossfadeSerialized() }
     }
 
+    override fun finishGapless() {
+        withIOSPlaybackMainThread { finishGaplessSerialized() }
+    }
+
+    private fun finishGaplessSerialized() {
+        outgoingSnapshot = null
+        retiringRun = null
+        audioProvider?.finishGapless()
+    }
+
     private fun finishCrossfadeSerialized() {
         outgoingSnapshot = null
         retiringRun = null
@@ -531,6 +556,7 @@ private class IOSPlaybackEngine(
         if (incoming == null && outgoing == null) return
         preparedIncoming = null
         pendingPlayRequest = null
+        pendingGaplessPlayRequest = null
         (incoming?.provider ?: audioProvider)?.cancelPreparedIncoming()
         outgoingSnapshot = null
         if (outgoing != null) {

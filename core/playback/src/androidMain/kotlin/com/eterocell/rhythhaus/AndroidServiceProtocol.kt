@@ -49,6 +49,7 @@ internal fun AndroidServiceEngineCommand.toAndroidBundle(): Bundle =
                 putString("operation", "startIncoming")
                 putLong("run", command.playbackRunId)
                 putString("token", command.token?.encode())
+                putBoolean("gapless", command.gapless)
             }
             is AndroidServiceEngineCommand.Gain -> {
                 putString("operation", "gain")
@@ -107,7 +108,7 @@ internal fun androidServiceEngineCommand(
         "play" -> AndroidServiceEngineCommand.Play(args.getLong("run"), token)
         "startIncoming" ->
             AndroidServiceEngineCommand.StartIncoming(
-                args.getLong("run"), token)
+                args.getLong("run"), token, args.getBoolean("gapless"))
         "gain" -> AndroidServiceEngineCommand.Gain(args.getFloat("gain"), token)
         "crossfadeGains" ->
             AndroidServiceEngineCommand.CrossfadeGains(

@@ -548,6 +548,14 @@ internal class AndroidPlaybackEngine(
         }
 
     override fun startIncoming(playbackRunId: Long) {
+        startIncomingInternal(playbackRunId, gapless = false)
+    }
+
+    override fun startIncomingGapless(playbackRunId: Long) {
+        startIncomingInternal(playbackRunId, gapless = true)
+    }
+
+    private fun startIncomingInternal(playbackRunId: Long, gapless: Boolean) {
         controllerLifecycle.dispatchControllerWork {
             val incoming =
                 requireNotNull(preparedIncoming) {
@@ -564,7 +572,7 @@ internal class AndroidPlaybackEngine(
             playbackGain.set(incoming.gain)
             command(
                 AndroidServiceEngineCommand.StartIncoming(
-                    playbackRunId, incoming.token)) { response ->
+                    playbackRunId, incoming.token, gapless)) { response ->
                     if (incoming.playbackRunId == playbackRunId)
                         response.failure?.let { failVoice(incoming, it) }
                 }
@@ -599,6 +607,10 @@ internal class AndroidPlaybackEngine(
             outgoingGainBeforeIncoming = null
             command(AndroidServiceEngineCommand.RetireOutgoing(outgoing.token))
         }
+    }
+
+    override fun finishGapless() {
+        finishCrossfade()
     }
 
     override fun cancelPreparedIncoming() {

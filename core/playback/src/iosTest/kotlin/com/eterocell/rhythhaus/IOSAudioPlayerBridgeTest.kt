@@ -596,6 +596,28 @@ class IOSAudioPlayerBridgeTest {
         }
 
     @Test
+    fun gaplessPromotionRetiresOutgoingAndIgnoresItsLateDelegate() = runBlocking {
+        val provider = FakeIOSAudioPlayerProvider()
+        val session = loadAndPlay(provider, generation = 74L)
+        val engine = assertIs<CrossfadePlaybackEngine>(session.engine)
+        try {
+            engine.prepareIncoming(testTrack("gapless"), generation = 75L)
+            val outgoingCompletion = provider.completionHandler
+            engine.startIncomingGapless(playbackRunId = 3L)
+
+            assertFalse(provider.retiringPlaying)
+            assertTrue(provider.isPlaying())
+            assertEquals(75L, session.recording.statusGenerations.last())
+            outgoingCompletion?.onPlaybackCompleted()
+            assertEquals(emptyList(), session.recording.completions)
+            engine.finishGapless()
+        } finally {
+            engine.release()
+            IOSAudioPlayerBridge.provider = null
+        }
+    }
+
+    @Test
     fun retiringCompletionKeepsItsGenerationAndRunWithoutStoppingIncoming() =
         runBlocking {
             val provider = FakeIOSAudioPlayerProvider()
@@ -1710,6 +1732,8 @@ private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
         retiringPlaying = false
         retiringCompletion = null
     }
+
+    override fun finishGapless() = finishCrossfade()
 
     override fun cancelPreparedIncoming() {
         incomingRequest++
