@@ -91,7 +91,7 @@ RhythHaus already provides:
 
 | Area | First useful version |
 | --- | --- |
-| Equalizer and effects | Replace visual-only `EqualizerStrip` with a real basic EQ; defer larger DSP scope until platform seams are designed. |
+| Equalizer and effects | Blocked on a cross-platform DSP seam. Android's Media3 service can host optional session-bound platform effects; iOS and macOS currently use AVAudioPlayer, which has no attachable multiband EQ graph. Do not ship a shared EQ setting that silently no-ops or behaves differently by platform. A cross-platform implementation needs a supported PCM/DSP graph or a separately approved platform-capability contract; replacing both Apple audio backends would also have to preserve native session/remote controls, route and interruption handling, file-format support, ReplayGain/sleep gain composition, and dual-voice crossfade. |
 | Normalization and transitions | ReplayGain is integrated; crossfade is implemented with persisted Off/3/5/8-second choices and genuine dual-player transitions on Android, iOS and macOS. User-owned device/listening/system-control acceptance remains pending. Gapless playback remains planned. |
 | Lyrics | Local `.lrc` and embedded lyrics only; remote lyrics requires a separate privacy/network decision. |
 | Output and session settings | Output/session status, automatic-resume policy, cache clearing, and interruption preferences. |
