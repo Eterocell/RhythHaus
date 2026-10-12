@@ -13,10 +13,14 @@ import okio.Path.Companion.toOkioPath
 private const val GaplessPreferenceFileName = "gapless.preferences_pb"
 
 private val gaplessPreferenceStore by lazy {
-    val file = File(LibraryDatabaseContext.applicationContext.filesDir, GaplessPreferenceFileName)
+    val file =
+        File(
+            LibraryDatabaseContext.applicationContext.filesDir,
+            GaplessPreferenceFileName)
     DataStoreGaplessPreferenceStore(
         PreferenceDataStoreFactory.createWithPath(
-            corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+            corruptionHandler =
+                ReplaceFileCorruptionHandler { emptyPreferences() },
             migrations = emptyList(),
             scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
             produceFile = { file.toOkioPath() },
@@ -24,4 +28,5 @@ private val gaplessPreferenceStore by lazy {
     )
 }
 
-public actual fun createGaplessPreferenceStore(): GaplessPreferenceStore = gaplessPreferenceStore
+public actual fun createGaplessPreferenceStore(): GaplessPreferenceStore =
+    gaplessPreferenceStore

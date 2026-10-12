@@ -377,6 +377,9 @@ class CrossfadeProcessLifecycleJvmTest {
             incomingStarted.complete(Unit)
         }
 
+        override fun startIncomingGapless(playbackRunId: Long) =
+            startIncoming(playbackRunId)
+
         override fun play(playbackRunId: Long) {
             outgoingPlaying = true
             listener?.onPlaybackStatus(generation, PlaybackStatus.Playing)
@@ -409,6 +412,8 @@ class CrossfadeProcessLifecycleJvmTest {
         override fun finishCrossfade() {
             outgoingPlaying = false
         }
+
+        override fun finishGapless() = finishCrossfade()
 
         override fun cancelPreparedIncoming() {
             preparedGeneration = 0

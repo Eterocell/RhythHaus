@@ -75,3 +75,10 @@ Stale callbacks, preparation jobs and gain updates SHALL NOT mutate a newer sele
 #### Scenario: Preparation failure
 - **WHEN** successor preparation fails
 - **THEN** outgoing playback continues and the same failed candidate is not retried until current run or candidate changes
+
+### Requirement: Gapless and crossfade share successor preparation ownership
+When gapless playback is enabled, its bounded preload SHALL be used only while crossfade is Off. An eligible crossfade transition SHALL remain the sole owner of successor preparation and promotion; selecting gapless Off SHALL NOT alter an active crossfade transition.
+
+#### Scenario: Both transition policies are enabled
+- **WHEN** both gapless and crossfade are enabled and the successor enters its transition window
+- **THEN** crossfade performs the preparation and handoff without a duplicate load or independent gapless promotion

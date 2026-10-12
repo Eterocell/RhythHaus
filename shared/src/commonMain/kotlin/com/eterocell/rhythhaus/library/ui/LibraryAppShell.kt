@@ -274,8 +274,11 @@ fun LibraryHomeScreen(
     crossfadeState: com.eterocell.rhythhaus.playback.CrossfadePreferenceState,
     onCrossfadeDurationSelected:
         (com.eterocell.rhythhaus.CrossfadeDuration) -> Unit,
-    gaplessState: com.eterocell.rhythhaus.playback.GaplessPreferenceState = com.eterocell.rhythhaus.playback.GaplessPreferenceState(isBusy = false),
-    onGaplessModeSelected: (com.eterocell.rhythhaus.playback.GaplessPlaybackMode) -> Unit = {},
+    gaplessState: com.eterocell.rhythhaus.playback.GaplessPreferenceState =
+        com.eterocell.rhythhaus.playback.GaplessPreferenceState(isBusy = false),
+    onGaplessModeSelected:
+        (com.eterocell.rhythhaus.playback.GaplessPlaybackMode) -> Unit =
+        {},
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveSource: (LibrarySource) -> Unit,

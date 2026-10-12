@@ -466,15 +466,20 @@ class JvmPlaybackEngineTest {
             try {
                 engine.loadPaused(macWavTrack("outgoing", outgoingFile), 401L)
                 engine.play(4011L)
-                engine.prepareIncoming(macWavTrack("incoming", incomingFile), 402L)
+                engine.prepareIncoming(
+                    macWavTrack("incoming", incomingFile), 402L)
                 engine.startIncomingGapless(4021L)
                 val snapshot = crossfadeSnapshot(bridge)
                 assertEquals(1L, snapshot[5])
                 assertEquals(-1L, snapshot[1])
-                assertTrue(listener.statuses.contains(402L to PlaybackStatus.Playing))
-                assertFalse(listener.statuses.any { it.second == PlaybackStatus.Stopped })
-                assertEquals(outgoingHash, wavSha256(outgoingFile))
-                assertEquals(incomingHash, wavSha256(incomingFile))
+                assertTrue(
+                    listener.statuses.contains(402L to PlaybackStatus.Playing))
+                assertFalse(
+                    listener.statuses.any {
+                        it.second == PlaybackStatus.Stopped
+                    })
+                assertTrue(outgoingHash.contentEquals(wavSha256(outgoingFile)))
+                assertTrue(incomingHash.contentEquals(wavSha256(incomingFile)))
                 engine.finishGapless()
                 assertEquals(1L, crossfadeSnapshot(bridge)[5])
                 assertTrue(listener.errors.isEmpty())

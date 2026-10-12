@@ -9,9 +9,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -21,6 +23,265 @@ import kotlinx.coroutines.yield
 
 /** Exercises controller authority at the real two-voice engine boundary. */
 class CrossfadeControllerTest {
+    @Test
+    fun gaplessPreparesEarlyAndPromotesOnPlayingWithoutStoppedGap() =
+        runBlocking {
+            val engine = TwoVoiceEngine(confirmIncoming = false)
+            val controller = controller(engine)
+            val statuses = Channel<PlaybackStatus>(Channel.UNLIMITED)
+            val observer =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    controller.state.collect { statuses.send(it.status) }
+                }
+            controller.setGaplessEnabled(true)
+            controller.setOccurrenceQueue(queue(), autoPlay = true)
+            engine.awaitEvent("play")
+            assertEquals(0, engine.prepareCount)
+            engine.progress(18_000L)
+            engine.awaitEvent("prepare:b")
+            engine.awaitEvent("prepared")
+            assertEquals(1, engine.prepareCount)
+            val outgoing = engine.current()
+            engine.complete(outgoing)
+            engine.awaitEvent("incoming-play")
+            assertEquals("a", controller.state.value.currentOccurrenceId)
+            assertFalse(controller.state.value.status == PlaybackStatus.Stopped)
+            engine.confirmIncoming()
+            awaitState { controller.state.value.currentOccurrenceId == "b" }
+            assertEquals(PlaybackStatus.Playing, controller.state.value.status)
+            val observedStatuses = mutableListOf<PlaybackStatus>()
+            while (true) {
+                val status = statuses.tryReceive().getOrNull() ?: break
+                observedStatuses.add(status)
+            }
+            assertFalse(observedStatuses.contains(PlaybackStatus.Stopped))
+            controller.release()
+            observer.cancelAndJoin()
+        }
+
+    @Test
+    fun trackCountSleepTimerStopsAtFirstGaplessBoundaryWithoutPromotion() =
+        runBlocking {
+            val engine = TwoVoiceEngine()
+            val controller = controller(engine)
+            controller.setGaplessEnabled(true)
+            controller.setOccurrenceQueue(queue(), autoPlay = true)
+            engine.awaitEvent("play")
+            engine.progress(18_000L)
+            engine.awaitEvent("prepared")
+            controller.armSleepTimerAfterCompletions(1, fadeEnabled = false)
+            engine.complete(engine.current())
+            engine.awaitEvent("stop")
+            assertEquals("a", controller.state.value.currentOccurrenceId)
+            assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
+            assertEquals(0, engine.incomingPlayCount)
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            controller.release()
+        }
+
+    @Test
+    fun trackCountSleepTimerCountsGaplessOutgoingCompletionOnce() =
+        runBlocking {
+            val engine = TwoVoiceEngine()
+            val controller = controller(engine)
+            controller.setGaplessEnabled(true)
+            controller.setOccurrenceQueue(queue(), autoPlay = true)
+            engine.awaitEvent("play")
+            engine.progress(18_000L)
+            engine.awaitEvent("prepared")
+            controller.armSleepTimerAfterCompletions(2, fadeEnabled = true)
+            val outgoing = engine.current()
+            engine.complete(outgoing)
+            engine.awaitEvent("incoming-play")
+            assertEquals("b", controller.state.value.currentOccurrenceId)
+            assertEquals(1, controller.sleepTimerState.value.remainingTracks)
+            engine.complete(outgoing)
+            assertEquals(1, controller.sleepTimerState.value.remainingTracks)
+            engine.confirmIncoming()
+            awaitState { controller.state.value.currentOccurrenceId == "b" }
+            engine.progress(11_000L)
+            withTimeout(5_000) {
+                while (engine.current().gain != 0.9f) yield()
+            }
+            assertEquals(0.9f, engine.current().gain)
+            engine.complete(engine.current())
+            engine.awaitEvent("stop")
+            assertEquals("b", controller.state.value.currentOccurrenceId)
+            assertEquals(PlaybackStatus.Stopped, controller.state.value.status)
+            assertEquals(SleepTimerState(), controller.sleepTimerState.value)
+            controller.release()
+        }
+
+    @Test
+    fun pausingCancelsPreparedGaplessSuccessor() = runBlocking {
+        val engine = TwoVoiceEngine()
+        val controller = controller(engine)
+        controller.setGaplessEnabled(true)
+        controller.setOccurrenceQueue(queue(), autoPlay = true)
+        engine.awaitEvent("play")
+        engine.progress(18_000L)
+        engine.awaitEvent("prepared")
+        controller.pause()
+        engine.awaitEvent("cancel-prepared")
+        engine.awaitEvent("pause")
+        assertEquals(PlaybackStatus.Paused, controller.state.value.status)
+        assertEquals("a", controller.state.value.currentOccurrenceId)
+        assertTrue(engine.pendingIncomingOrNull() == null)
+        controller.release()
+    }
+
+    @Test
+    fun gaplessDuplicateSuccessorUsesOccurrenceIdentity() = runBlocking {
+        val engine = TwoVoiceEngine()
+        val controller = controller(engine)
+        val repeatedTrack = track("same")
+        controller.setGaplessEnabled(true)
+        controller.setOccurrenceQueue(
+            listOf(
+                QueueOccurrence("first", repeatedTrack),
+                QueueOccurrence("second", repeatedTrack),
+                QueueOccurrence("third", track("third")),
+            ),
+            autoPlay = true,
+        )
+        engine.awaitEvent("play")
+        engine.progress(18_000L)
+        engine.awaitEvent("prepared")
+        engine.complete(engine.current())
+        engine.awaitEvent("incoming-play")
+        engine.confirmIncoming()
+        awaitState { controller.state.value.currentOccurrenceId == "second" }
+        engine.progress(18_000L)
+        engine.awaitEvent("prepare:third")
+        engine.awaitEvent("prepared")
+        assertEquals(2, engine.prepareCount)
+        assertEquals("same", controller.state.value.currentTrack?.id)
+        controller.release()
+    }
+
+    @Test
+    fun gaplessUsesOrdinaryCompletionWhenEitherDurationIsUnknown() =
+        runBlocking {
+            for (unknownCurrent in listOf(true, false)) {
+                val engine = TwoVoiceEngine()
+                val controller = controller(engine)
+                controller.setGaplessEnabled(true)
+                val queue =
+                    listOf(
+                        QueueOccurrence(
+                            "a",
+                            track(
+                                "a",
+                                duration =
+                                    if (unknownCurrent) null else 20_000L)),
+                        QueueOccurrence(
+                            "b",
+                            track(
+                                "b",
+                                duration =
+                                    if (unknownCurrent) 20_000L else null)),
+                    )
+                controller.setOccurrenceQueue(queue, autoPlay = true)
+                engine.awaitEvent("play")
+                if (unknownCurrent) {
+                    assertEquals(0, engine.prepareCount)
+                } else {
+                    engine.progress(18_000L)
+                    engine.awaitEvent("prepare:b")
+                    engine.awaitEvent("prepared")
+                    engine.awaitEvent("cancel-prepared")
+                }
+                engine.complete(engine.current())
+                engine.awaitEvent("load:b")
+                awaitState { controller.state.value.currentOccurrenceId == "b" }
+                assertEquals(0, engine.incomingPlayCount)
+                controller.release()
+            }
+        }
+
+    @Test
+    fun gaplessPromotionFailurePublishesErrorForSuccessor() = runBlocking {
+        val engine = TwoVoiceEngine(failGaplessStart = true)
+        val controller = controller(engine)
+        controller.setGaplessEnabled(true)
+        controller.setOccurrenceQueue(queue(), autoPlay = true)
+        engine.awaitEvent("play")
+        engine.progress(18_000L)
+        engine.awaitEvent("prepared")
+        val outgoingGeneration = controller.state.value.engineGeneration
+        engine.complete(engine.current())
+        awaitState { controller.state.value.status == PlaybackStatus.Error }
+        assertEquals("b", controller.state.value.currentOccurrenceId)
+        assertTrue(
+            outgoingGeneration != controller.state.value.engineGeneration)
+        assertEquals(
+            "Incoming start failed", controller.state.value.error?.message)
+        assertEquals(0, engine.incomingPlayCount)
+        controller.release()
+    }
+
+    @Test
+    fun gaplessPreparationFailurePublishesSuccessorErrorAtCompletion() =
+        runBlocking {
+            val engine = TwoVoiceEngine(prepareFailure = true)
+            val controller = controller(engine)
+            controller.setGaplessEnabled(true)
+            controller.setOccurrenceQueue(queue(), autoPlay = true)
+            controller.armSleepTimerAfterCompletions(2, fadeEnabled = false)
+            engine.awaitEvent("play")
+            engine.progress(18_000L)
+            engine.awaitEvent("prepare:b")
+            engine.awaitEvent("prepare-failed")
+            engine.awaitPreparationSettled()
+            engine.complete(engine.current())
+            awaitState {
+                controller.state.value.status == PlaybackStatus.Error &&
+                    controller.state.value.currentOccurrenceId == "b"
+            }
+            assertEquals("b", controller.state.value.currentOccurrenceId)
+            assertEquals(
+                "Incoming preparation failed",
+                controller.state.value.error?.message)
+            assertEquals(1, controller.sleepTimerState.value.remainingTracks)
+            controller.release()
+        }
+
+    @Test
+    fun crossfadeTakesPrecedenceOverGaplessPreparation() = runBlocking {
+        val engine = TwoVoiceEngine()
+        val controller = controller(engine)
+        controller.setGaplessEnabled(true)
+        controller.setCrossfadeDuration(CrossfadeDuration.Seconds3)
+        controller.setOccurrenceQueue(queue(), autoPlay = true)
+        engine.awaitEvent("play")
+        assertEquals(0, engine.prepareCount)
+        engine.progress(17_000L)
+        engine.awaitEvent("incoming-play")
+        assertEquals(1, engine.prepareCount)
+        assertEquals("b", controller.state.value.currentOccurrenceId)
+        controller.release()
+    }
+
+    @Test
+    fun disablingGaplessCancelsPreparationAndFencesLateIncomingStatus() =
+        runBlocking {
+            val engine = TwoVoiceEngine()
+            val controller = controller(engine)
+            controller.setGaplessEnabled(true)
+            controller.setOccurrenceQueue(queue(), autoPlay = true)
+            engine.awaitEvent("play")
+            engine.progress(18_000L)
+            engine.awaitEvent("prepared")
+            val staleIncoming = engine.pendingIncoming()
+            controller.setGaplessEnabled(false)
+            engine.awaitEvent("cancel-prepared")
+            engine.listener?.onPlaybackStatus(
+                staleIncoming.generation, PlaybackStatus.Playing)
+            assertEquals("a", controller.state.value.currentOccurrenceId)
+            assertEquals("a", controller.state.value.currentTrack?.id)
+            controller.release()
+        }
+
     @Test
     fun incomingActuallyPlaysAlongsideOutgoingAndPromotesOnlyOnPlaying() =
         runBlocking {
@@ -1052,6 +1313,7 @@ class CrossfadeControllerTest {
         private val confirmIncoming: Boolean = true,
         private val incomingStartPosition: Long = 0L,
         private val deferIncomingStart: Boolean = false,
+        private val failGaplessStart: Boolean = false,
     ) : CrossfadePlaybackEngine {
         private val gate = OwnershipLock()
         private var currentVoice: VoiceSnapshot? = null
@@ -1059,6 +1321,8 @@ class CrossfadeControllerTest {
         private var prepared: VoiceSnapshot? = null
         private var released = false
         private val events = Channel<String>(Channel.UNLIMITED)
+        private val pendingEvents = mutableListOf<String>()
+        private var preparationJob: Job? = null
         private val gainEvents = Channel<Pair<Float, Float>>(Channel.UNLIMITED)
         private var starts = 0
         private var prepares = 0
@@ -1093,6 +1357,7 @@ class CrossfadeControllerTest {
             track: PlayableTrack,
             generation: Long
         ): LoadedPlayback {
+            preparationJob = currentCoroutineContext()[Job]
             gate.withLock { prepares++ }
             emit("prepare:${track.id}")
             prepareGate?.let { withContext(NonCancellable) { it.await() } }
@@ -1100,9 +1365,11 @@ class CrossfadeControllerTest {
                 emit("released-prepare")
                 return LoadedPlayback(generation, track.durationMillis)
             }
-            if (prepareFailure)
+            if (prepareFailure) {
+                emit("prepare-failed")
                 throw PlaybackFailureException(
                     PlaybackError("Incoming preparation failed"))
+            }
             gate.withLock {
                 prepared =
                     VoiceSnapshot(
@@ -1137,6 +1404,13 @@ class CrossfadeControllerTest {
             emit("incoming-play")
         }
 
+        override fun startIncomingGapless(playbackRunId: Long) {
+            if (failGaplessStart)
+                throw PlaybackFailureException(
+                    PlaybackError("Incoming start failed"))
+            startIncoming(playbackRunId)
+        }
+
         override fun setCrossfadeGains(
             outgoingGain: Float,
             incomingGain: Float
@@ -1159,6 +1433,8 @@ class CrossfadeControllerTest {
             gate.withLock { retiring = null }
             emit("retire")
         }
+
+        override fun finishGapless() = finishCrossfade()
 
         override fun cancelPreparedIncoming() {
             gate.withLock {
@@ -1262,6 +1538,8 @@ class CrossfadeControllerTest {
             checkNotNull(prepared)
         }
 
+        fun pendingIncomingOrNull(): VoiceSnapshot? = gate.withLock { prepared }
+
         fun progress(
             position: Long,
             duration: Long? = current().track.durationMillis
@@ -1313,14 +1591,30 @@ class CrossfadeControllerTest {
         }
 
         suspend fun awaitEvent(expected: String) {
-            withTimeout(5_000) { while (events.receive() != expected) Unit }
+            withTimeout(5_000) {
+                val buffered = pendingEvents.indexOf(expected)
+                if (buffered >= 0) {
+                    pendingEvents.removeAt(buffered)
+                    return@withTimeout
+                }
+                while (true) {
+                    val event = events.receive()
+                    if (event == expected) return@withTimeout
+                    pendingEvents.add(event)
+                }
+            }
         }
 
         suspend fun awaitEvents(vararg expected: String) {
             withTimeout(5_000) {
                 val remaining = expected.toMutableSet()
-                while (remaining.isNotEmpty()) remaining.remove(
-                    events.receive())
+                val buffered = pendingEvents.toList()
+                pendingEvents.clear()
+                buffered.forEach(remaining::remove)
+                while (remaining.isNotEmpty()) {
+                    val event = events.receive()
+                    if (!remaining.remove(event)) pendingEvents.add(event)
+                }
             }
         }
 
@@ -1328,6 +1622,11 @@ class CrossfadeControllerTest {
             withTimeout(5_000) {
                 while (gainEvents.receive() != (outgoing to incoming)) Unit
             }
+        }
+
+        suspend fun awaitPreparationSettled() {
+            val job = gate.withLock { preparationJob }
+            job?.join()
         }
 
         private fun emit(event: String) {

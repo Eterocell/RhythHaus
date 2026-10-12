@@ -163,7 +163,7 @@ internal class MacOSNativePlaybackEngine(
                         "No incoming macOS player has been prepared"
                     }
                 if (!(if (gapless) bridge.startIncomingGapless(playbackRunId)
-                    else bridge.startIncoming(playbackRunId))) {
+                else bridge.startIncoming(playbackRunId))) {
                     preparedIncoming = null
                     throw PlaybackFailureException(
                         PlaybackError(
@@ -172,11 +172,17 @@ internal class MacOSNativePlaybackEngine(
                         ))
                 }
                 if (!gapless) {
-                    outgoingVoice = RetiringMacVoice(
-                        activeGeneration, activePlaybackRunId, completionReported)
-                    pendingPromotion = PendingMacPromotion(
-                        requireNotNull(currentTrack), durationMillis,
-                        requireNotNull(outgoingVoice), progressTask != null)
+                    outgoingVoice =
+                        RetiringMacVoice(
+                            activeGeneration,
+                            activePlaybackRunId,
+                            completionReported)
+                    pendingPromotion =
+                        PendingMacPromotion(
+                            requireNotNull(currentTrack),
+                            durationMillis,
+                            requireNotNull(outgoingVoice),
+                            progressTask != null)
                 } else {
                     outgoingVoice = null
                     pendingPromotion = null

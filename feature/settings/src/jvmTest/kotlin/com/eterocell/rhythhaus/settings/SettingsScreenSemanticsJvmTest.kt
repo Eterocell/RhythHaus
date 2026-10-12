@@ -77,6 +77,38 @@ import rhythhaus.feature.settings.generated.resources.unnamed_folder
 public class SettingsScreenSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
+    public fun gaplessChoicesExposeAcceptedStateAndAreInertDuringConfirmation():
+        Unit = runComposeUiTest {
+        val selected = mutableListOf<SettingsGaplessMode>()
+        var clearVisible by mutableStateOf(false)
+        setContent {
+            Box(Modifier.size(600.dp, 1_200.dp)) {
+                content(
+                    gaplessMode = SettingsGaplessMode.Off,
+                    clearSlot =
+                        if (clearVisible) ({ slot("confirmation") }) else null,
+                    onGapless = { selected += it })
+            }
+        }
+        onNodeWithTag(SettingsListTestTag)
+            .performScrollToNode(hasTestTag(SettingsGaplessPrefix + "on"))
+        onNodeWithTag(SettingsGaplessPrefix + "off").assertIsSelected()
+        onNodeWithTag(SettingsGaplessPrefix + "on").assertIsNotSelected()
+        runOnIdle { clearVisible = true }
+        onNodeWithTag(SettingsListTestTag)
+            .performScrollToNode(hasTestTag(SettingsGaplessPrefix + "on"))
+        onNodeWithTag(SettingsGaplessPrefix + "on")
+            .assertIsNotEnabled()
+            .assertNoClickOrFocusSemantics()
+        runOnIdle { clearVisible = false }
+        onNodeWithTag(SettingsListTestTag)
+            .performScrollToNode(hasTestTag(SettingsGaplessPrefix + "on"))
+        onNodeWithTag(SettingsGaplessPrefix + "on").performClick()
+        assertEquals(listOf(SettingsGaplessMode.On), selected)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     public fun crossfadeChoicesAreInertDuringEitherConfirmation(): Unit =
         runComposeUiTest {
             var clearVisible by mutableStateOf(false)
@@ -826,6 +858,8 @@ public class SettingsScreenSemanticsJvmTest {
                         clearSlot = { slot("clear") })
                 }
             }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasText("playlist"))
             val renderedSlots =
                 onNodeWithTag(SettingsRootTestTag, useUnmergedTree = true)
                     .fetchSemanticsNode()
@@ -1062,6 +1096,9 @@ private fun content(
         SettingsCrossfadeDuration.Off,
     crossfadeBusy: Boolean = false,
     crossfadeError: Boolean = false,
+    gaplessMode: SettingsGaplessMode = SettingsGaplessMode.Off,
+    gaplessBusy: Boolean = false,
+    gaplessError: Boolean = false,
     mutations: Boolean = true,
     hasTracks: Boolean = true,
     sources: List<SettingsSourceItem> = emptyList(),
@@ -1077,6 +1114,7 @@ private fun content(
     onTheme: (RhythHausThemeMode) -> Unit = {},
     onReplayGain: (SettingsReplayGainMode) -> Unit = {},
     onCrossfade: (SettingsCrossfadeDuration) -> Unit = {},
+    onGapless: (SettingsGaplessMode) -> Unit = {},
     onAdd: () -> Unit = {},
     onClear: () -> Unit = {},
     onRescan: (String) -> Unit = {},
@@ -1097,6 +1135,9 @@ private fun content(
         crossfadeDuration = crossfadeDuration,
         crossfadeBusy = crossfadeBusy,
         crossfadeError = crossfadeError,
+        gaplessMode = gaplessMode,
+        gaplessBusy = gaplessBusy,
+        gaplessError = gaplessError,
         sources = sources,
         sourcePickerActionVisible = sourcePickerActionVisible,
         sourcePickerAvailable = sourcePickerAvailable,
@@ -1115,6 +1156,7 @@ private fun content(
         onThemeModeSelected = onTheme,
         onReplayGainModeSelected = onReplayGain,
         onCrossfadeDurationSelected = onCrossfade,
+        onGaplessModeSelected = onGapless,
         onAddMusicFolder = onAdd,
         onRescanSource = onRescan,
         onRecoverSource = onRecover,

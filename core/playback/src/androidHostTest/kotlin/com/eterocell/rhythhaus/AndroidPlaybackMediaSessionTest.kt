@@ -102,23 +102,41 @@ class AndroidPlaybackMediaSessionTest {
         val fixture = ServicePlaybackFixture()
         val outgoing = fixture.load(12L, "Outgoing")
         fixture.command(AndroidServiceEngineCommand.Play(121L))
-        fixture.command(AndroidServiceEngineCommand.PrepareIncoming(fixture.item(13L, "Incoming")))
+        fixture.command(
+            AndroidServiceEngineCommand.PrepareIncoming(
+                fixture.item(13L, "Incoming")))
         val incoming = fixture.players.last()
         val incomingToken = Media3RequestToken.decode(incoming.item!!.mediaId)!!
         incoming.ready(8_000L)
-        assertFailsWith<IllegalStateException> {
-            fixture.command(AndroidServiceEngineCommand.StartIncoming(130L, Media3RequestToken(999L, incomingToken.nonce), gapless = true))
-        }
+        val rejected =
+            fixture
+                .command(
+                    AndroidServiceEngineCommand.StartIncoming(
+                        130L,
+                        Media3RequestToken(999L, incomingToken.nonce),
+                        gapless = true))
+                .get()
+        assertEquals(
+            "Android incoming voice was replaced", rejected.failure?.cause)
         assertFalse(incoming.released)
         assertTrue(outgoing.playWhenReady)
-        fixture.command(AndroidServiceEngineCommand.StartIncoming(131L, incomingToken, gapless = true))
+        fixture.command(
+            AndroidServiceEngineCommand.StartIncoming(
+                131L, incomingToken, gapless = true))
 
-        assertEquals("Incoming", fixture.facade!!.currentMediaItem!!.mediaMetadata.title)
+        assertEquals(
+            "Incoming", fixture.facade!!.currentMediaItem!!.mediaMetadata.title)
         assertTrue(outgoing.released)
         assertTrue(incoming.playWhenReady)
         assertFalse(incoming.released)
         assertTrue(fixture.players.any { it === incoming })
-        assertEquals(13L, fixture.events.filter { it.status == PlaybackStatus.Playing }.last().token.generation)
+        assertEquals(
+            13L,
+            fixture.events
+                .filter { it.status == PlaybackStatus.Playing }
+                .last()
+                .token
+                .generation)
         fixture.playback.release()
     }
 

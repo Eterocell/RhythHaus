@@ -275,6 +275,25 @@ private class CrossfadeTransition(
     var tickJob: Job? = null
 }
 
+private class GaplessTransition(
+    val outgoing: QueueOccurrence,
+    val outgoingGeneration: Long,
+    val outgoingRunId: Long,
+    val incoming: QueueOccurrence,
+    val incomingGeneration: Long,
+) {
+    var incomingDurationMillis: Long? = null
+    var preparationError: PlaybackError? = null
+    var prepared: Boolean = false
+    var preparationJob: Job? = null
+    var started: Boolean = false
+    var promoted: Boolean = false
+    var incomingRunId: Long = 0L
+    var outgoingCompleted: Boolean = false
+}
+
+private const val gaplessLeadWindowMillis: Long = 2_000L
+
 private data class TimerStopRequest(
     val token: Long,
     val generation: Long,
@@ -479,6 +498,9 @@ internal constructor(
     private val crossfadeEngine = engine as? CrossfadePlaybackEngine
     private val crossfadeRuntime = CrossfadeRuntime(sleepTimerRuntime)
     private var crossfadeDuration: CrossfadeDuration = CrossfadeDuration.Off
+    private var gaplessEnabled: Boolean = false
+    private var gaplessTransition: GaplessTransition? = null
+    private var nativeGaplessTransition: GaplessTransition? = null
     // Transaction fields are gate-owned; the native slot is engine-mutex-owned.
     private var crossfadeTransition: CrossfadeTransition? = null
     private var nativeCrossfadeTransition: CrossfadeTransition? = null
@@ -631,8 +653,143 @@ internal constructor(
         selectionGate.withLock {
             if (released || crossfadeDuration == duration) return@withLock
             crossfadeDuration = duration
+            if (duration != CrossfadeDuration.Off) cancelGaplessLocked()
             revalidateCrossfadeLocked()
             considerCrossfadeLocked()
+        }
+    }
+
+    /**
+     * Selects process-local gapless queue policy without changing selection.
+     */
+    public fun setGaplessEnabled(enabled: Boolean) {
+        selectionGate.withLock {
+            if (released || gaplessEnabled == enabled) return@withLock
+            gaplessEnabled = enabled
+            if (!enabled) cancelGaplessLocked()
+            revalidateCrossfadeLocked()
+            considerCrossfadeLocked()
+        }
+    }
+
+    private fun gaplessPolicyEligibleLocked(state: PlaybackState): Boolean =
+        !released &&
+            gaplessEnabled &&
+            crossfadeEngine != null &&
+            crossfadeDuration == CrossfadeDuration.Off &&
+            activeSleepTimer?.mode != SleepTimerMode.Timed &&
+            timerStopClaim == null &&
+            state.status == PlaybackStatus.Playing &&
+            state.repeatMode != RepeatMode.RepeatOne &&
+            state.repeatMode != RepeatMode.StopAfterCurrent
+
+    private fun ownsGaplessLocked(transition: GaplessTransition): Boolean {
+        if (gaplessTransition !== transition) return false
+        val state = _state.value
+        if (!gaplessPolicyEligibleLocked(state) ||
+            state.engineGeneration != transition.outgoingGeneration ||
+            state.currentOccurrenceId != transition.outgoing.id)
+            return false
+        return nextTrackFrom(
+                state,
+                wrap = state.repeatMode == RepeatMode.RepeatPlaylist,
+                currentId = transition.outgoing.id,
+            )
+            ?.id == transition.incoming.id
+    }
+
+    private fun cancelGaplessLocked() {
+        val transition = gaplessTransition ?: return
+        gaplessTransition = null
+        transition.preparationJob?.cancel()
+        launchNonFatalEngineAction {
+            val native = nativeGaplessTransition
+            if (native === transition) {
+                nativeGaplessTransition = null
+                if (!transition.promoted)
+                    crossfadeEngine?.cancelPreparedIncoming()
+            }
+        }
+    }
+
+    private fun considerGaplessLocked() {
+        val state = _state.value
+        if (state.status != PlaybackStatus.Playing) return
+        if (state.durationMillis == null) return
+        val remaining = state.durationMillis - state.positionMillis
+        if (remaining > gaplessLeadWindowMillis || remaining <= 0L) return
+        if (crossfadeDuration != CrossfadeDuration.Off) return
+        val active = gaplessTransition
+        if (active != null) {
+            if (!ownsGaplessLocked(active)) cancelGaplessLocked()
+            return
+        }
+        if (!gaplessPolicyEligibleLocked(state)) return
+        val current = state.currentOccurrence ?: return
+        val successor =
+            nextTrackFrom(
+                state,
+                wrap = state.repeatMode == RepeatMode.RepeatPlaylist,
+            ) ?: return
+        if (successor.id == current.id) return
+        val run =
+            activePlaybackRunId?.takeIf {
+                activePlaybackRunGeneration == state.engineGeneration
+            } ?: return
+        val transition =
+            GaplessTransition(
+                current,
+                state.engineGeneration,
+                run,
+                successor,
+                nextGeneration())
+        gaplessTransition = transition
+        transition.preparationJob =
+            scope
+                .launch(start = CoroutineStart.LAZY) {
+                    prepareGapless(transition)
+                }
+                .also { it.start() }
+    }
+
+    private suspend fun prepareGapless(transition: GaplessTransition) {
+        val capable = crossfadeEngine ?: return
+        try {
+            engineMutex.withLock {
+                if (!selectionGate.withLock { ownsGaplessLocked(transition) })
+                    return@withLock
+                nativeGaplessTransition = transition
+                val loaded =
+                    capable.prepareIncoming(
+                        transition.incoming.track.withLazyArtwork(),
+                        transition.incomingGeneration,
+                    )
+                check(loaded.generation == transition.incomingGeneration)
+                selectionGate.withLock {
+                    if (ownsGaplessLocked(transition)) {
+                        val duration =
+                            loaded.durationMillis
+                                ?: transition.incoming.track.durationMillis
+                        if (duration == null) cancelGaplessLocked()
+                        else {
+                            transition.incomingDurationMillis = duration
+                            transition.prepared = true
+                        }
+                    }
+                }
+            }
+        } catch (failure: Throwable) {
+            if (failure is CancellationException) throw failure
+            selectionGate.withLock {
+                if (ownsGaplessLocked(transition)) {
+                    transition.preparationError =
+                        (failure as? PlaybackFailureException)?.error
+                            ?: PlaybackError(
+                                "Playback failed",
+                                failure.message ?: failure::class.simpleName)
+                    transition.prepared = false
+                }
+            }
         }
     }
 
@@ -1625,8 +1782,10 @@ internal constructor(
         val published = selectionGate.withLock {
             publishState { it.copy(repeatMode = mode) }
                 .also {
+                    cancelGaplessLocked()
                     revalidateCrossfadeLocked()
                     considerCrossfadeLocked()
+                    if (crossfadeTransition == null) considerGaplessLocked()
                 }
         }
         emitImmediateCheckpoint(
@@ -1657,9 +1816,11 @@ internal constructor(
         val published = selectionGate.withLock {
             publishState { it.copy(shuffleMode = mode) }
                 .also {
+                    cancelGaplessLocked()
                     publishRuntimeShuffleOrder(it)
                     revalidateCrossfadeLocked()
                     considerCrossfadeLocked()
+                    if (crossfadeTransition == null) considerGaplessLocked()
                 }
         }
         playbackLog.d { "ShuffleMode changed: $previous -> $mode" }
@@ -1700,7 +1861,10 @@ internal constructor(
         launchEngineAction(generation) {
             finishClaimedTimerStopWhileEngineLocked(generation)
             applyCurrentPlaybackGainBeforePlay(generation)
-            beginPlaybackRun(generation)?.let(engine::play)
+            beginPlaybackRun(generation)?.let { runId ->
+                engine.play(runId)
+                selectionGate.withLock { considerGaplessLocked() }
+            }
         }
     }
 
@@ -1715,6 +1879,7 @@ internal constructor(
                 transportOwnerLocked(externalGeneration) ?: return@withLock
             if (crossfadeTransition?.let { it.started && !it.promoted } == true)
                 cancelCrossfadeLocked(settleDeferredCompletion = false)
+            cancelGaplessLocked()
             setPendingAutoplayLocked(false, owner.engineGeneration)
             launchEngineAction(owner.engineGeneration) { engine.pause() }
             emitImmediateCheckpoint(
@@ -2121,6 +2286,7 @@ internal constructor(
     public fun release() {
         selectionGate.withLock {
             released = true
+            cancelGaplessLocked()
             cancelCrossfadeLocked()
             activeSleepTimer = null
             sleepTimerJob?.cancel()
@@ -2573,6 +2739,7 @@ internal constructor(
             return@withLock false
         }
         cancelCrossfadeLocked()
+        cancelGaplessLocked()
         resetProgressCheckpointKey()
         publishRuntimeShuffleOrder(claimed, occurrence.id)
         timerStopClaim = null
@@ -2708,7 +2875,10 @@ internal constructor(
                 }
                 if (stillPlayable) {
                     applyCurrentPlaybackGainBeforePlay(generation)
-                    beginPlaybackRun(generation)?.let(engine::play)
+                    beginPlaybackRun(generation)?.let { runId ->
+                        engine.play(runId)
+                        selectionGate.withLock { considerGaplessLocked() }
+                    }
                 }
             } else applyCurrentPlaybackGainBeforePlay(generation)
         }
@@ -3198,6 +3368,44 @@ internal constructor(
         var metadataRefresh: PlayableTrack? = null
         selectionGate.withLock {
             if (released) return@withLock
+            val gapless = gaplessTransition
+            if (gapless != null &&
+                gapless.started &&
+                generation == gapless.incomingGeneration) {
+                if (!ownsGaplessLocked(gapless)) {
+                    cancelGaplessLocked()
+                    return@withLock
+                }
+                if (status != PlaybackStatus.Playing) return@withLock
+                val state = _state.value
+                val promoted =
+                    state.copy(
+                        currentOccurrenceId = gapless.incoming.id,
+                        engineGeneration = gapless.incomingGeneration,
+                        status = PlaybackStatus.Playing,
+                        positionMillis = 0L,
+                        durationMillis = gapless.incomingDurationMillis,
+                        error = null,
+                        errorGeneration = null,
+                        checkpointRevision = reserveCheckpointRevision(),
+                    )
+                if (!_state.compareAndSet(state, promoted)) return@withLock
+                gapless.promoted = true
+                gaplessTransition = null
+                nativeGaplessTransition = null
+                activePlaybackRunGeneration = gapless.incomingGeneration
+                activePlaybackRunId = gapless.incomingRunId
+                lastProgressCheckpointKey.value = null
+                emitPlaybackStartedIfNew(promoted)
+                emitImmediateCheckpoint(
+                    promoted.toSessionSnapshot(), promoted.checkpointRevision)
+                gainRequest =
+                    recomputeDesiredPlaybackGainLocked(
+                        gapless.incomingGeneration, force = true)
+                metadataRefresh = promoted.currentTrack
+                launchNonFatalEngineAction { crossfadeEngine?.finishGapless() }
+                return@withLock
+            }
             var transition = crossfadeTransition
             if (transition != null &&
                 transition.started &&
@@ -3315,7 +3523,19 @@ internal constructor(
             if (status == PlaybackStatus.Stopped ||
                 status == PlaybackStatus.Error) {
                 cancelCrossfadeLocked()
-            } else considerCrossfadeLocked()
+            } else {
+                considerCrossfadeLocked()
+                if (crossfadeTransition == null) considerGaplessLocked()
+            }
+            if (statusGeneration == _state.value.engineGeneration &&
+                status == PlaybackStatus.Paused) {
+                val gapless = gaplessTransition
+                if (gapless != null &&
+                    generation == gapless.outgoingGeneration &&
+                    _state.value.currentOccurrenceId == gapless.outgoing.id) {
+                    cancelGaplessLocked()
+                }
+            }
             if (status == PlaybackStatus.Paused ||
                 status == PlaybackStatus.Playing) {
                 metadataRefresh = published.currentTrack
@@ -3408,7 +3628,10 @@ internal constructor(
             if (transition?.promoted == true &&
                 transition.incomingPositionMillis >= transition.windowMillis) {
                 cancelCrossfadeLocked()
-            } else considerCrossfadeLocked()
+            } else {
+                considerCrossfadeLocked()
+                if (crossfadeTransition == null) considerGaplessLocked()
+            }
             val currentId = settled.currentOccurrenceId ?: return@withLock
             if (settled.status != PlaybackStatus.Playing) return@withLock
             val key =
@@ -3444,6 +3667,7 @@ internal constructor(
         playbackRunId: Long
     ) {
         var completionTimerToken: Long? = null
+        var gaplessTimerStop: TimerStopRequest? = null
         val consumedByCrossfade = selectionGate.withLock {
             if (released) return@withLock true
             // Cancellation removes the transition before native rollback can
@@ -3452,6 +3676,162 @@ internal constructor(
             if (lastDeferredCompletionGeneration == generation &&
                 lastDeferredCompletionRunId == playbackRunId)
                 return@withLock true
+            val gapless = gaplessTransition
+            if (gapless != null &&
+                generation == gapless.outgoingGeneration &&
+                playbackRunId == gapless.outgoingRunId) {
+                if (gapless.outgoingCompleted) return@withLock true
+                if (!ownsGaplessLocked(gapless) || !gapless.prepared) {
+                    val preparationError = gapless.preparationError
+                    if (preparationError == null) cancelGaplessLocked()
+                    else {
+                        val current = _state.value
+                        val timer = activeSleepTimer
+                        var timerStop: TimerStopRequest? = null
+                        if (timer?.mode == SleepTimerMode.TrackCount &&
+                            current.status == PlaybackStatus.Playing &&
+                            current.currentOccurrenceId ==
+                                gapless.outgoing.id) {
+                            val key =
+                                SleepTimerCompletionKey(
+                                    timer.token,
+                                    generation,
+                                    gapless.outgoing.id,
+                                    playbackRunId,
+                                )
+                            if (timer.consumedCompletionKey != key) {
+                                timer.consumedCompletionKey = key
+                                val remaining =
+                                    checkNotNull(timer.remainingTracks) - 1
+                                timer.remainingTracks = remaining
+                                if (remaining == 0) {
+                                    timerStop =
+                                        claimTimerStopLocked(
+                                            timer, current, atTrackEnd = true)
+                                } else {
+                                    _sleepTimerState.value = timer.toState()
+                                    setSleepAttenuationLocked(
+                                        1f, generation, force = true)
+                                }
+                            }
+                        }
+                        if (timerStop != null) {
+                            gaplessTransition = null
+                            gapless.preparationJob?.cancel()
+                            gaplessTimerStop = timerStop
+                            return@withLock true
+                        }
+                        gaplessTransition = null
+                        nativeGaplessTransition = null
+                        gapless.preparationJob?.cancel()
+                        activePlaybackRunGeneration = null
+                        activePlaybackRunId = null
+                        val failed =
+                            _state.value.copy(
+                                currentOccurrenceId = gapless.incoming.id,
+                                engineGeneration = gapless.incomingGeneration,
+                                status = PlaybackStatus.Error,
+                                positionMillis = 0L,
+                                durationMillis =
+                                    gapless.incoming.track.durationMillis,
+                                error = preparationError,
+                                errorGeneration = gapless.incomingGeneration,
+                                checkpointRevision =
+                                    reserveCheckpointRevision(),
+                            )
+                        _state.value = failed
+                        emitImmediateCheckpoint(
+                            failed.toSessionSnapshot(),
+                            failed.checkpointRevision)
+                        return@withLock true
+                    }
+                } else if (!gapless.started) {
+                    val current = _state.value
+                    val timer = activeSleepTimer
+                    if (timer?.mode == SleepTimerMode.TrackCount &&
+                        current.status == PlaybackStatus.Playing &&
+                        current.currentOccurrenceId == gapless.outgoing.id) {
+                        val key =
+                            SleepTimerCompletionKey(
+                                timer.token,
+                                generation,
+                                gapless.outgoing.id,
+                                playbackRunId,
+                            )
+                        if (timer.consumedCompletionKey != key) {
+                            timer.consumedCompletionKey = key
+                            val remaining =
+                                checkNotNull(timer.remainingTracks) - 1
+                            timer.remainingTracks = remaining
+                            if (remaining == 0) {
+                                gaplessTimerStop =
+                                    claimTimerStopLocked(
+                                        timer, current, atTrackEnd = true)
+                                cancelGaplessLocked()
+                            } else {
+                                _sleepTimerState.value = timer.toState()
+                                setSleepAttenuationLocked(
+                                    1f, generation, force = true)
+                            }
+                        }
+                    }
+                    if (gaplessTimerStop != null) return@withLock true
+                    gapless.started = true
+                    gapless.outgoingCompleted = true
+                    gapless.incomingRunId = ++nextPlaybackRunId
+                    launchNonFatalEngineAction {
+                        val admitted = selectionGate.withLock {
+                            nativeGaplessTransition = gapless
+                            gaplessTransition === gapless && gapless.prepared
+                        }
+                        if (admitted) {
+                            val gains =
+                                selectionGate.withLock {
+                                    _state.value
+                                        .takeIf {
+                                            gaplessTransition === gapless &&
+                                                it.engineGeneration ==
+                                                    gapless
+                                                        .outgoingGeneration &&
+                                                it.currentOccurrenceId ==
+                                                    gapless.outgoing.id
+                                        }
+                                        ?.let {
+                                            val attenuation = sleepAttenuation
+                                            replayGainFactor(
+                                                gapless.outgoing.track,
+                                                replayGainMode) * attenuation to
+                                                replayGainFactor(
+                                                    gapless.incoming.track,
+                                                    replayGainMode) *
+                                                    attenuation
+                                        }
+                                } ?: return@launchNonFatalEngineAction
+                            try {
+                                crossfadeEngine?.setCrossfadeGains(
+                                    gains.first.coerceIn(0f, 1f),
+                                    gains.second.coerceIn(0f, 1f))
+                                crossfadeEngine?.startIncomingGapless(
+                                    gapless.incomingRunId)
+                            } catch (failure: Throwable) {
+                                if (failure is CancellationException)
+                                    throw failure
+                                selectionGate.withLock {
+                                    failGaplessPromotionLocked(
+                                        gapless,
+                                        (failure as? PlaybackFailureException)
+                                            ?.error
+                                            ?: PlaybackError(
+                                                "Playback failed",
+                                                failure.message),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    return@withLock true
+                }
+            }
             completionTimerToken = activeSleepTimer?.token
             val transition = crossfadeTransition ?: return@withLock false
             if (generation == transition.outgoingGeneration &&
@@ -3477,6 +3857,10 @@ internal constructor(
                     cancelCrossfadeLocked()
             }
             false
+        }
+        if (gaplessTimerStop != null) {
+            runTimerStop(checkNotNull(gaplessTimerStop))
+            return
         }
         if (consumedByCrossfade) return
         settlePlaybackCompletion(
@@ -3615,6 +3999,14 @@ internal constructor(
     ) {
         selectionGate.withLock {
             if (released) return@withLock
+            val gapless = gaplessTransition
+            if (gapless != null &&
+                generation == gapless.incomingGeneration &&
+                gapless.started &&
+                !gapless.promoted) {
+                failGaplessPromotionLocked(gapless, error)
+                return@withLock
+            }
             val transition = crossfadeTransition
             if (transition != null &&
                 generation == transition.incomingGeneration &&
@@ -3644,6 +4036,36 @@ internal constructor(
                 }
             }
         }
+    }
+
+    private fun failGaplessPromotionLocked(
+        transition: GaplessTransition,
+        error: PlaybackError,
+    ) {
+        if (gaplessTransition !== transition ||
+            !_state.value.let {
+                it.engineGeneration == transition.outgoingGeneration &&
+                    it.currentOccurrenceId == transition.outgoing.id
+            })
+            return
+        gaplessTransition = null
+        nativeGaplessTransition = null
+        transition.promoted = true
+        activePlaybackRunGeneration = null
+        activePlaybackRunId = null
+        val previous = _state.value
+        _state.value =
+            previous.copy(
+                currentOccurrenceId = transition.incoming.id,
+                engineGeneration = transition.incomingGeneration,
+                status = PlaybackStatus.Error,
+                positionMillis = 0L,
+                durationMillis = transition.incomingDurationMillis,
+                error = error,
+                errorGeneration = transition.incomingGeneration,
+                checkpointRevision = reserveCheckpointRevision(),
+            )
+        launchNonFatalEngineAction { crossfadeEngine?.cancelPreparedIncoming() }
     }
 
     /**

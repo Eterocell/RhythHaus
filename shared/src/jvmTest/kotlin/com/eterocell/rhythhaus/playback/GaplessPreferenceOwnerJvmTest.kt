@@ -20,33 +20,48 @@ class GaplessPreferenceOwnerJvmTest {
         val root = Files.createTempDirectory("gapless-preferences").toFile()
         val firstJob = SupervisorJob()
         try {
-            val first = DataStoreGaplessPreferenceStore(
-                PreferenceDataStoreFactory.createWithPath(
-                    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
-                    migrations = emptyList(),
-                    scope = CoroutineScope(firstJob + Dispatchers.IO),
-                    produceFile = { root.resolve("gapless.preferences_pb").toOkioPath() },
-                ),
-            )
+            val first =
+                DataStoreGaplessPreferenceStore(
+                    PreferenceDataStoreFactory.createWithPath(
+                        corruptionHandler =
+                            ReplaceFileCorruptionHandler { emptyPreferences() },
+                        migrations = emptyList(),
+                        scope = CoroutineScope(firstJob + Dispatchers.IO),
+                        produceFile = {
+                            root.resolve("gapless.preferences_pb").toOkioPath()
+                        },
+                    ),
+                )
             assertEquals(GaplessPlaybackMode.Off, first.readMode())
             first.setMode(GaplessPlaybackMode.On)
             firstJob.cancelAndJoin()
 
             val reopenedJob = SupervisorJob()
             try {
-                val reopened = DataStoreGaplessPreferenceStore(
-                    PreferenceDataStoreFactory.createWithPath(
-                        corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
-                        migrations = emptyList(),
-                        scope = CoroutineScope(reopenedJob + Dispatchers.IO),
-                        produceFile = { root.resolve("gapless.preferences_pb").toOkioPath() },
-                    ),
-                )
+                val reopened =
+                    DataStoreGaplessPreferenceStore(
+                        PreferenceDataStoreFactory.createWithPath(
+                            corruptionHandler =
+                                ReplaceFileCorruptionHandler {
+                                    emptyPreferences()
+                                },
+                            migrations = emptyList(),
+                            scope =
+                                CoroutineScope(reopenedJob + Dispatchers.IO),
+                            produceFile = {
+                                root
+                                    .resolve("gapless.preferences_pb")
+                                    .toOkioPath()
+                            },
+                        ),
+                    )
                 val applied = mutableListOf<GaplessPlaybackMode>()
                 val owner = GaplessPreferenceOwner(reopened, applied::add)
-                assertEquals(GaplessPlaybackMode.Off, owner.state.value.selectedMode)
+                assertEquals(
+                    GaplessPlaybackMode.Off, owner.state.value.selectedMode)
                 owner.restore()
-                assertEquals(GaplessPlaybackMode.On, owner.state.value.selectedMode)
+                assertEquals(
+                    GaplessPlaybackMode.On, owner.state.value.selectedMode)
                 assertEquals(listOf(GaplessPlaybackMode.On), applied)
                 assertFalse(owner.state.value.isBusy)
             } finally {

@@ -96,8 +96,11 @@ fun rhythHausModule(): Module = module {
         com.eterocell.rhythhaus.playback.GaplessPreferenceOwner(
             store = get(),
             applyMode = { mode ->
-                get<PlaybackController>().setGaplessEnabled(
-                    mode == com.eterocell.rhythhaus.playback.GaplessPlaybackMode.On)
+                get<PlaybackController>()
+                    .setGaplessEnabled(
+                        mode ==
+                            com.eterocell.rhythhaus.playback.GaplessPlaybackMode
+                                .On)
             },
         )
     }

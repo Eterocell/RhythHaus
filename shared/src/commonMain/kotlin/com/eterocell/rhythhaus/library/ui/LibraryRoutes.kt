@@ -178,8 +178,11 @@ internal fun LibraryRouteOverlays(
     onReplayGainModeSelected: (com.eterocell.rhythhaus.ReplayGainMode) -> Unit,
     crossfadeState: com.eterocell.rhythhaus.playback.CrossfadePreferenceState,
     onCrossfadeDurationSelected: (CrossfadeDuration) -> Unit,
-    gaplessState: com.eterocell.rhythhaus.playback.GaplessPreferenceState = com.eterocell.rhythhaus.playback.GaplessPreferenceState(isBusy = false),
-    onGaplessModeSelected: (com.eterocell.rhythhaus.playback.GaplessPlaybackMode) -> Unit = {},
+    gaplessState: com.eterocell.rhythhaus.playback.GaplessPreferenceState =
+        com.eterocell.rhythhaus.playback.GaplessPreferenceState(isBusy = false),
+    onGaplessModeSelected:
+        (com.eterocell.rhythhaus.playback.GaplessPlaybackMode) -> Unit =
+        {},
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit = { _, _ -> },
@@ -306,11 +309,21 @@ internal fun LibraryRouteOverlays(
                     },
                 crossfadeBusy = crossfadeState.isBusy,
                 crossfadeError = crossfadeState.saveFailed,
-                gaplessMode = if (gaplessState.selectedMode == com.eterocell.rhythhaus.playback.GaplessPlaybackMode.On) SettingsGaplessMode.On else SettingsGaplessMode.Off,
+                gaplessMode =
+                    if (gaplessState.selectedMode ==
+                        com.eterocell.rhythhaus.playback.GaplessPlaybackMode.On)
+                        SettingsGaplessMode.On
+                    else SettingsGaplessMode.Off,
                 gaplessBusy = gaplessState.isBusy,
                 gaplessError = gaplessState.saveFailed,
                 onGaplessModeSelected = { mode ->
-                    onGaplessModeSelected(if (mode == SettingsGaplessMode.On) com.eterocell.rhythhaus.playback.GaplessPlaybackMode.On else com.eterocell.rhythhaus.playback.GaplessPlaybackMode.Off)
+                    onGaplessModeSelected(
+                        if (mode == SettingsGaplessMode.On)
+                            com.eterocell.rhythhaus.playback.GaplessPlaybackMode
+                                .On
+                        else
+                            com.eterocell.rhythhaus.playback.GaplessPlaybackMode
+                                .Off)
                 },
                 onCrossfadeDurationSelected = { duration ->
                     onCrossfadeDurationSelected(

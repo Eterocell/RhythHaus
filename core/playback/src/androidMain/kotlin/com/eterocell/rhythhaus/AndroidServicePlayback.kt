@@ -193,7 +193,8 @@ internal class AndroidServicePlayback(
                 play(command.playbackRunId)
             }
             is AndroidServiceEngineCommand.StartIncoming ->
-                startIncoming(command.playbackRunId, command.token, command.gapless)
+                startIncoming(
+                    command.playbackRunId, command.token, command.gapless)
             is AndroidServiceEngineCommand.Gain -> {
                 checkCurrentToken(command.token)
                 setPlaybackGain(command.gain)

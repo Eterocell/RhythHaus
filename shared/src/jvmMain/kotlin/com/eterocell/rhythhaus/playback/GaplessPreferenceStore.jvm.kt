@@ -14,7 +14,8 @@ private const val GaplessPreferenceFileName = "gapless.preferences_pb"
 private val gaplessPreferenceStore by lazy {
     DataStoreGaplessPreferenceStore(
         PreferenceDataStoreFactory.createWithPath(
-            corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+            corruptionHandler =
+                ReplaceFileCorruptionHandler { emptyPreferences() },
             migrations = emptyList(),
             scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
             produceFile = { defaultGaplessPreferenceFile().toOkioPath() },
@@ -22,8 +23,11 @@ private val gaplessPreferenceStore by lazy {
     )
 }
 
-public actual fun createGaplessPreferenceStore(): GaplessPreferenceStore = gaplessPreferenceStore
+public actual fun createGaplessPreferenceStore(): GaplessPreferenceStore =
+    gaplessPreferenceStore
 
 private fun defaultGaplessPreferenceFile(): File =
-    File(System.getProperty("user.home"), "Library/Application Support/RhythHaus/$GaplessPreferenceFileName")
+    File(
+            System.getProperty("user.home"),
+            "Library/Application Support/RhythHaus/$GaplessPreferenceFileName")
         .also { it.parentFile?.mkdirs() }

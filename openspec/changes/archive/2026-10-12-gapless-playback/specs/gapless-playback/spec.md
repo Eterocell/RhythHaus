@@ -48,10 +48,14 @@ When both gapless and crossfade are enabled, the controller SHALL use the existi
 A failed prepared successor SHALL leave the outgoing occurrence authoritative until ordinary completion or an explicit recovery command settles it. Gapless cleanup SHALL not delete files, source records, favorites, history, metadata overrides, or unrelated queue occurrences.
 
 #### Scenario: Prepared successor fails
-- **WHEN** the gapless successor fails during preparation or promotion
+- **WHEN** the gapless successor fails during preparation
+- **THEN** outgoing playback remains authoritative and ordinary completion is retained until the outgoing occurrence ends
+- **WHEN** the outgoing occurrence naturally completes with a recorded successor preparation failure
 - **THEN** the failure is attributed to that successor generation
 - **AND** stale callbacks cannot replace or stop a newer selection
-- **AND** Retry, Skip, and Remove operate on the failed queue occurrence under the existing playback-failure contract.
+- **AND** Retry, Skip, and Remove operate on the failed queue occurrence under the existing playback-failure contract
+- **WHEN** the gapless successor fails during promotion
+- **THEN** the failure is attributed to that successor generation without restoring or replaying the outgoing occurrence.
 
 #### Scenario: Explicit transport supersedes preparation
 - **WHEN** the listener selects, seeks, pauses, stops, or skips before gapless promotion

@@ -24,12 +24,15 @@ public class GaplessPreferenceOwner(
     private val gate = Mutex()
     private val mutableState = MutableStateFlow(GaplessPreferenceState())
     private var restored = false
-    public val state: StateFlow<GaplessPreferenceState> = mutableState.asStateFlow()
+    public val state: StateFlow<GaplessPreferenceState> =
+        mutableState.asStateFlow()
 
     public suspend fun restore() {
         gate.withLock {
             withContext(NonCancellable) {
-                try { restoreLocked() } finally {
+                try {
+                    restoreLocked()
+                } finally {
                     mutableState.value = mutableState.value.copy(isBusy = false)
                 }
             }
@@ -42,11 +45,16 @@ public class GaplessPreferenceOwner(
             withContext(NonCancellable) {
                 try {
                     restoreLocked()
-                    mutableState.value = mutableState.value.copy(isBusy = true, saveFailed = false)
-                    try { store.setMode(mode) } catch (failure: CancellationException) {
+                    mutableState.value =
+                        mutableState.value.copy(
+                            isBusy = true, saveFailed = false)
+                    try {
+                        store.setMode(mode)
+                    } catch (failure: CancellationException) {
                         throw failure
                     } catch (_: Exception) {
-                        mutableState.value = mutableState.value.copy(saveFailed = true)
+                        mutableState.value =
+                            mutableState.value.copy(saveFailed = true)
                         return@withContext
                     }
                     publish(mode)
@@ -60,15 +68,21 @@ public class GaplessPreferenceOwner(
 
     private suspend fun restoreLocked() {
         if (restored) return
-        val mode = try { store.readMode() } catch (failure: CancellationException) {
-            throw failure
-        } catch (_: Exception) { GaplessPlaybackMode.Off }
+        val mode =
+            try {
+                store.readMode()
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (_: Exception) {
+                GaplessPlaybackMode.Off
+            }
         publish(mode)
         restored = true
     }
 
     private fun publish(mode: GaplessPlaybackMode) {
         applyMode(mode)
-        mutableState.value = mutableState.value.copy(selectedMode = mode, saveFailed = false)
+        mutableState.value =
+            mutableState.value.copy(selectedMode = mode, saveFailed = false)
     }
 }

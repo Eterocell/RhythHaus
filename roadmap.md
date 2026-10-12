@@ -34,7 +34,7 @@
 | --- | --- | --- |
 | Phase 2 — daily use | Make the existing library and player efficient to use every day. | ~~Favorites; play history/recently played/recently added; sorting and filtering; sleep timer; save Queue as playlist; smart playlists~~. All implementations complete; pending manual acceptance remains release evidence. |
 | Phase 3 — library management | Give users safe control over imported metadata and sources. | ~~App-local metadata overrides; M3U/PLS import/export; Android MediaStore source; explicit-scan change summaries; desktop drag-and-drop~~. Current platform import policy is preserved: desktop references, iOS sandbox copies, Android SAF/MediaStore access. Manual acceptance remains pending. |
-| Phase 4 — advanced playback | Improve listening quality without adding network dependence. | ~~ReplayGain/normalization; crossfade; local and embedded lyrics~~ (implemented; user-owned device/listening acceptance remains pending); basic EQ; gapless playback. |
+| Phase 4 — advanced playback | Improve listening quality without adding network dependence. | ~~ReplayGain/normalization; crossfade; local and embedded lyrics~~ (implemented; user-owned device/listening acceptance remains pending); gapless playback. |
 
 Sorting and filtering is integrated into `main`: Shared owns an ephemeral query, flat Library modes use deterministic sort/filter projections, artwork presence is read without loading image blobs, and accessible EN/ZH controls preserve visible selection and playback order. Android packaging is still blocked by the TagLib native toolchain, and the known full Shared JVM playback-selection timeout prevents claiming a green full-suite gate. Physical-platform acceptance remains a release check; no metadata writes or saved sort presets were added.
 
@@ -92,11 +92,13 @@ RhythHaus already provides:
 | Area | First useful version |
 | --- | --- |
 | Equalizer and effects | Blocked on a cross-platform DSP seam. Android's Media3 service can host optional session-bound platform effects; iOS and macOS currently use AVAudioPlayer, which has no attachable multiband EQ graph. Do not ship a shared EQ setting that silently no-ops or behaves differently by platform. A cross-platform implementation needs a supported PCM/DSP graph or a separately approved platform-capability contract; replacing both Apple audio backends would also have to preserve native session/remote controls, route and interruption handling, file-format support, ReplayGain/sleep gain composition, and dual-voice crossfade. |
-| Normalization and transitions | ReplayGain is integrated; crossfade is implemented with persisted Off/3/5/8-second choices and genuine dual-player transitions on Android, iOS and macOS. User-owned device/listening/system-control acceptance remains pending. Gapless playback remains planned. |
+| Normalization and transitions | ReplayGain is integrated; crossfade is implemented with persisted Off/3/5/8-second choices and genuine dual-player transitions on Android, iOS and macOS. Gapless implementation is complete in its feature branch; physical audible/device acceptance remains user-owned and pending. |
 | Lyrics | Local `.lrc` and embedded lyrics only; remote lyrics requires a separate privacy/network decision. |
 | Output and session settings | Output/session status, automatic-resume policy, cache clearing, and interruption preferences. |
 
 Local and embedded lyrics are implemented on the isolated `feature/local-lyrics` branch: bounded same-stem `.lrc` sidecars take precedence over bounded TagLib `LYRICS` metadata, schema v10 persists the selected text, and Now Playing provides localized timed/plain presentation. User-owned visual/accessibility acceptance remains pending; this work is not merged yet.
+
+Gapless playback is implemented on `feature/gapless-playback`: persisted Off/On policy; two-second bounded successor-preload window; generation/run/occurrence-fenced promotion at the outgoing completion boundary; failure recovery; and composition with crossfade precedence, ReplayGain and track-count sleep timers. Android, iOS and macOS use the existing two-voice native seam. Focused controller/platform, preference/Settings, formatting, Detekt, architecture and strict OpenSpec checks passed. User-owned audible gaplessness, interruptions, background, route, system-control and device acceptance remains pending; no full repository suite or Android APK is claimed.
 
 ### P2 — intentionally later
 

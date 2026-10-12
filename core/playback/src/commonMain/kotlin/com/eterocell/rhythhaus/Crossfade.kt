@@ -40,7 +40,9 @@ public interface CrossfadePlaybackEngine : PlatformPlaybackEngine {
      */
     public fun startIncoming(playbackRunId: Long)
 
-    /** Promotes a staged voice without retaining an overlapping outgoing voice. */
+    /**
+     * Promotes a staged voice without retaining an overlapping outgoing voice.
+     */
     public fun startIncomingGapless(playbackRunId: Long)
 
     /**
