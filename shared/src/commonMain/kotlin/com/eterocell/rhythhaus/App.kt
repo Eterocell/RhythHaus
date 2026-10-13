@@ -173,6 +173,13 @@ fun App(
 ) {
     var desktopModalFree by remember { mutableStateOf(false) }
     val controller = koinInject<PlaybackController>()
+    val outputStatusProvider =
+        koinInject<PlatformPlaybackEngine>() as? PlaybackOutputStatusProvider
+    val outputStatus by
+        outputStatusProvider
+            ?.outputStatus
+            ?.collectAsState(PlaybackOutputStatus.Unavailable)
+            ?: remember { mutableStateOf(PlaybackOutputStatus.Unavailable) }
     val tagLibReader = koinInject<TagLibReader>()
     val repository = koinInject<LibraryRepository>()
     val playlistRepository = koinInject<PlaylistRepository>()
@@ -188,6 +195,11 @@ fun App(
     val gaplessPreferenceOwner =
         koinInject<com.eterocell.rhythhaus.playback.GaplessPreferenceOwner>()
     val gaplessState by gaplessPreferenceOwner.state.collectAsState()
+    val automaticResumePreferenceOwner =
+        koinInject<
+            com.eterocell.rhythhaus.playback.AutomaticResumePreferenceOwner>()
+    val automaticResumeState by
+        automaticResumePreferenceOwner.state.collectAsState()
     val onboardingPreferenceStore = koinInject<OnboardingPreferenceStore>()
     val playbackLifecycle = koinInject<PlaybackProcessLifecycle>()
     val playbackReconciler = koinInject<PlaybackSessionReconciler>()
@@ -314,6 +326,7 @@ fun App(
     }
 
     LaunchedEffect(controller) {
+        outputStatusProvider?.refreshOutputStatus()
         collectPlaybackHistoryAndPublish(
             playbackStarted = controller.playbackStarted,
             publicationOwner = libraryPublicationOwner,
@@ -1034,8 +1047,15 @@ fun App(
                     },
                     crossfadeState = crossfadeState,
                     gaplessState = gaplessState,
+                    automaticResumeState = automaticResumeState,
+                    outputStatus = outputStatus,
                     onGaplessModeSelected = { mode ->
                         scope.launch { gaplessPreferenceOwner.select(mode) }
+                    },
+                    onAutomaticResumePolicySelected = { policy ->
+                        scope.launch {
+                            automaticResumePreferenceOwner.select(policy)
+                        }
                     },
                     onCrossfadeDurationSelected = { duration ->
                         scope.launch {

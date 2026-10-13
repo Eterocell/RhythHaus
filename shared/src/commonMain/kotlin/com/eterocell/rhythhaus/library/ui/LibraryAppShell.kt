@@ -279,6 +279,15 @@ fun LibraryHomeScreen(
     onGaplessModeSelected:
         (com.eterocell.rhythhaus.playback.GaplessPlaybackMode) -> Unit =
         {},
+    automaticResumeState:
+        com.eterocell.rhythhaus.playback.AutomaticResumePreferenceState =
+        com.eterocell.rhythhaus.playback.AutomaticResumePreferenceState(
+            isBusy = false),
+    onAutomaticResumePolicySelected:
+        (com.eterocell.rhythhaus.playback.AutomaticResumePolicy) -> Unit =
+        {},
+    outputStatus: com.eterocell.rhythhaus.PlaybackOutputStatus =
+        com.eterocell.rhythhaus.PlaybackOutputStatus.Unavailable,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveSource: (LibrarySource) -> Unit,
@@ -682,6 +691,9 @@ fun LibraryHomeScreen(
             onCrossfadeDurationSelected = onCrossfadeDurationSelected,
             gaplessState = gaplessState,
             onGaplessModeSelected = onGaplessModeSelected,
+            automaticResumeState = automaticResumeState,
+            onAutomaticResumePolicySelected = onAutomaticResumePolicySelected,
+            outputStatus = outputStatus,
             onClearLibrary = onClearLibrary,
             onRescanSource = onRescanSource,
             onRemoveMissingTracks = onRemoveMissingTracks,

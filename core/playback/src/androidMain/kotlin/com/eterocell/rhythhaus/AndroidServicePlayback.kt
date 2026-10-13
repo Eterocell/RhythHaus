@@ -370,6 +370,12 @@ internal class AndroidServicePlayback(
 
     fun pauseForSystem() = pause()
 
+    fun isPlaying(): Boolean =
+        current?.player?.isPlaying == true && current?.terminal == false
+
+    fun currentItemIdentity(): String? =
+        current?.item?.localConfiguration?.uri?.toString()
+
     /**
      * Only the native logical current source/run may change its progress
      * schedule.

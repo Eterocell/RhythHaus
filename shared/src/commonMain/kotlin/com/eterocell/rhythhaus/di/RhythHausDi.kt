@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus.di
 
+import com.eterocell.rhythhaus.AutomaticResumePolicyTarget
 import com.eterocell.rhythhaus.PlatformPlaybackEngine
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackProcessLifecycle
@@ -60,11 +61,15 @@ fun rhythHausModule(): Module = module {
             get<com.eterocell.rhythhaus.playback.CrossfadePreferenceOwner>()
         val gapless =
             get<com.eterocell.rhythhaus.playback.GaplessPreferenceOwner>()
+        val automaticResume =
+            get<
+                com.eterocell.rhythhaus.playback.AutomaticResumePreferenceOwner>()
         PlaybackProcessLifecycle(
             restoreAction = { tracks ->
                 normalization.restore()
                 crossfade.restore()
                 gapless.restore()
+                automaticResume.restore()
                 coordinator.restoreOnce(tracks)
             },
             processScope = get(),
@@ -101,6 +106,22 @@ fun rhythHausModule(): Module = module {
                         mode ==
                             com.eterocell.rhythhaus.playback.GaplessPlaybackMode
                                 .On)
+            },
+        )
+    }
+    single<com.eterocell.rhythhaus.playback.AutomaticResumePreferenceStore> {
+        com.eterocell.rhythhaus.playback.createAutomaticResumePreferenceStore()
+    }
+    single {
+        com.eterocell.rhythhaus.playback.AutomaticResumePreferenceOwner(
+            store = get(),
+            applyPolicy = { policy ->
+                (get<PlatformPlaybackEngine>() as? AutomaticResumePolicyTarget)
+                    ?.setAutomaticResumeAllowed(
+                        policy ==
+                            com.eterocell.rhythhaus.playback
+                                .AutomaticResumePolicy
+                                .FollowSystemRecommendation)
             },
         )
     }

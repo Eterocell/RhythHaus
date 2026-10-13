@@ -7,6 +7,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /** Creates the JVM platform playback engine. */
 public fun createJvmPlaybackEngine(): PlatformPlaybackEngine =
@@ -18,7 +20,18 @@ internal fun createJvmPlaybackEngine(
 
 internal class MacOSNativePlaybackEngine(
     private val bridge: MacAudioPlayerBridge = MacAudioPlayerBridge(),
-) : CrossfadePlaybackEngine {
+) : CrossfadePlaybackEngine, PlaybackOutputStatusProvider {
+    private val outputState =
+        MutableStateFlow<PlaybackOutputStatus>(PlaybackOutputStatus.Unavailable)
+    override val outputStatus: StateFlow<PlaybackOutputStatus> = outputState
+
+    override fun refreshOutputStatus() {
+        val name = bridge.currentOutputName()?.trim().orEmpty()
+        outputState.value =
+            if (name.isEmpty()) PlaybackOutputStatus.Unavailable
+            else PlaybackOutputStatus.Available(listOf(name))
+    }
+
     @Volatile override var listener: PlaybackEngineListener? = null
     private val progressExecutor: ScheduledExecutorService =
         Executors.newSingleThreadScheduledExecutor { runnable ->
@@ -68,6 +81,7 @@ internal class MacOSNativePlaybackEngine(
         track: PlayableTrack,
         generation: Long
     ): LoadedPlayback {
+        refreshOutputStatus()
         val sourceFile = track.source.jvmFile()
         val managedLocalFile = track.source.isManagedLocalFile
         val loadedState =
@@ -464,6 +478,7 @@ internal class MacOSNativePlaybackEngine(
             synchronized(playbackStateLock) {
                 if (!isCurrentLocked(generation, version)) return
                 if (bridge.consumeRouteDisconnected()) {
+                    refreshOutputStatus()
                     stopProgressUpdatesLocked()
                     pendingPromotion?.resumeProgress = false
                     val progress = bridge.readAndUpdateProgress(durationMillis)
@@ -802,6 +817,8 @@ internal class MacAudioPlayerBridge {
 
     fun clearNowPlayingInfo() = withHandle(::nativeClearNowPlayingInfo)
 
+    fun currentOutputName(): String? = withHandle(::nativeCurrentOutputName)
+
     fun setArtwork(artworkBytes: ByteArray?) = withHandle {
         nativeSetArtwork(it, artworkBytes)
     }
@@ -1056,6 +1073,8 @@ internal class MacAudioPlayerBridge {
     private external fun nativeRegisterNowPlayingRemoteCommands(handle: Long)
 
     private external fun nativeClearNowPlayingInfo(handle: Long)
+
+    private external fun nativeCurrentOutputName(handle: Long): String?
 
     private external fun nativeSetArtwork(
         handle: Long,

@@ -4690,3 +4690,15 @@ Output: fast-forwarded gapless into `main`; confirmed local lyrics was already i
 Verification: combined lyrics/gapless JVM matrix, Android host promotion regression, iOS bridge tests, preference/Settings suites, Android/iOS/desktop compilation, formatting, Detekt and architecture checks passed. Global OpenSpec validation reports the unrelated active `playlist-interoperability` empty-delta failure. No push.
 Next owner: implementation — explore current output/session controls and scope the next Phase 4 change.
 Blockers: user-owned playback/UI/device acceptance remains pending.
+
+## Output and session settings — 2026-10-13
+
+Route: openspec+superpowers
+Owner: implementation
+Input: next Phase 4 roadmap item; user owns physical UI, interruption, route, background and system-control acceptance.
+Output: added platform-neutral active-output projection and Settings display; Android reports unavailable rather than guessing a route, iOS exposes current-route updates, and macOS queries the active Core Audio default only when it is present in the device list. Added persisted Follow system recommendation/Never policy with startup restoration and explicit-user-intent fencing. Android transient focus recovery, iOS `shouldResume` veto, and macOS route-loss pause behavior remain inside existing controller/native boundaries. Added isolated Coil artwork memory/disk cache clearing with localized success/failure feedback and no library/playback mutation.
+Verification: policy persistence/corrupt-value fallback, Shared/Settings/resource tests, Android host transport and resume-fence tests, JVM native playback tests, iOS bridge tests, Android main/iOS Simulator/desktop compilation, `spotlessCheck`, `detekt`, `architectureCheck`, strict OpenSpec validation and `git diff --check` passed. Existing Settings route failures on `main` remain unrelated baseline failures; no full `./init.sh`, APK, or physical-device acceptance is claimed.
+Review: independent review found one Android explicit-pause resume race; internal controller-owned commands now invalidate pending automatic resume and the regression passes. No remaining Critical or Important findings.
+Lifecycle: OpenSpec change is ready to synchronize/archive and commit on the feature branch; no push.
+Next owner: user — perform EN/ZH Settings, restart persistence, cache-clear, interruption/resume, output-route, background and system-control acceptance on Android, iOS and macOS. Implementation — merge after archival.
+Blockers: no implementation blocker; physical acceptance and existing Android/toolchain/full-suite limitations remain release evidence gaps.

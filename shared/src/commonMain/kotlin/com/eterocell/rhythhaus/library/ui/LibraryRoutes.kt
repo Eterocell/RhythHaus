@@ -78,6 +78,8 @@ import rhythhaus.shared.generated.resources.clear_library
 import rhythhaus.shared.generated.resources.close
 import rhythhaus.shared.generated.resources.folder_picker_unavailable
 import rhythhaus.shared.generated.resources.now_playing_badge
+import rhythhaus.shared.generated.resources.output_status_title
+import rhythhaus.shared.generated.resources.output_status_unavailable
 import rhythhaus.shared.generated.resources.playlist_changed
 import rhythhaus.shared.generated.resources.playlist_load_failed
 import rhythhaus.shared.generated.resources.playlist_loading
@@ -88,6 +90,7 @@ import rhythhaus.shared.generated.resources.remove
 import rhythhaus.shared.generated.resources.search
 import rhythhaus.shared.generated.resources.select_track_format
 import rhythhaus.shared.generated.resources.settings
+import rhythhaus.shared.generated.resources.settings_output_session
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -183,6 +186,15 @@ internal fun LibraryRouteOverlays(
     onGaplessModeSelected:
         (com.eterocell.rhythhaus.playback.GaplessPlaybackMode) -> Unit =
         {},
+    automaticResumeState:
+        com.eterocell.rhythhaus.playback.AutomaticResumePreferenceState =
+        com.eterocell.rhythhaus.playback.AutomaticResumePreferenceState(
+            isBusy = false),
+    onAutomaticResumePolicySelected:
+        (com.eterocell.rhythhaus.playback.AutomaticResumePolicy) -> Unit =
+        {},
+    outputStatus: com.eterocell.rhythhaus.PlaybackOutputStatus =
+        com.eterocell.rhythhaus.PlaybackOutputStatus.Unavailable,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit = { _, _ -> },
@@ -285,6 +297,13 @@ internal fun LibraryRouteOverlays(
                         clearLibrary = stringResource(Res.string.clear_library),
                         cancel = stringResource(Res.string.cancel),
                         remove = stringResource(Res.string.remove),
+                        outputSettings =
+                            stringResource(Res.string.settings_output_session),
+                        outputStatusTitle =
+                            stringResource(Res.string.output_status_title),
+                        outputStatusUnavailable =
+                            stringResource(
+                                Res.string.output_status_unavailable),
                     ),
                 currentThemeMode = currentThemeMode,
                 replayGainMode =
@@ -324,6 +343,23 @@ internal fun LibraryRouteOverlays(
                         else
                             com.eterocell.rhythhaus.playback.GaplessPlaybackMode
                                 .Off)
+                },
+                automaticResumePolicy =
+                    com.eterocell.rhythhaus.settings
+                        .SettingsAutomaticResumePolicy
+                        .valueOf(automaticResumeState.selectedPolicy.name),
+                automaticResumeBusy = automaticResumeState.isBusy,
+                automaticResumeError = automaticResumeState.saveFailed,
+                outputStatus =
+                    (outputStatus
+                            as?
+                            com.eterocell.rhythhaus.PlaybackOutputStatus.Available)
+                        ?.names
+                        ?.joinToString(),
+                onAutomaticResumePolicySelected = { policy ->
+                    onAutomaticResumePolicySelected(
+                        com.eterocell.rhythhaus.playback.AutomaticResumePolicy
+                            .valueOf(policy.name))
                 },
                 onCrossfadeDurationSelected = { duration ->
                     onCrossfadeDurationSelected(

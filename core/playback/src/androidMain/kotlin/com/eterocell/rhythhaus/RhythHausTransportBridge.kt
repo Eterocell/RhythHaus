@@ -25,6 +25,8 @@ internal object RhythHausTransportBridge {
 
     @Volatile var onStop: (() -> Unit)? = null
 
+    @Volatile var onExplicitTransport: (() -> Unit)? = null
+
     @Volatile var onSeek: ((Long) -> Unit)? = null
 
     fun setTransportEnabled(enabled: Boolean) {
@@ -52,17 +54,20 @@ internal inline fun routeTransport(action: () -> Unit): Boolean {
 
 internal class ServiceTransportRouter {
     fun play(internalController: Boolean, action: () -> Unit): Boolean =
-        routeSessionTransport(internalController, action) {
+        routeSessionTransport(internalController, action, explicit = true) {
+            RhythHausTransportBridge.onExplicitTransport?.invoke()
             RhythHausTransportBridge.onPlay?.invoke()
         }
 
     fun pause(internalController: Boolean, action: () -> Unit): Boolean =
-        routeSessionTransport(internalController, action) {
+        routeSessionTransport(internalController, action, explicit = true) {
+            RhythHausTransportBridge.onExplicitTransport?.invoke()
             RhythHausTransportBridge.onPause?.invoke()
         }
 
     fun stop(internalController: Boolean, action: () -> Unit): Boolean =
-        routeSessionTransport(internalController, action) {
+        routeSessionTransport(internalController, action, explicit = true) {
+            RhythHausTransportBridge.onExplicitTransport?.invoke()
             RhythHausTransportBridge.onStop?.invoke()
         }
 
@@ -71,7 +76,11 @@ internal class ServiceTransportRouter {
         internalController: Boolean,
         action: (Long) -> Unit
     ): Boolean =
-        routeSessionTransport(internalController, { action(positionMillis) }) {
+        routeSessionTransport(
+            internalController,
+            { action(positionMillis) },
+            explicit = true,
+        ) {
             RhythHausTransportBridge.onSeek?.invoke(positionMillis)
         }
 
@@ -91,9 +100,11 @@ internal class ServiceTransportRouter {
     private inline fun routeSessionTransport(
         internalController: Boolean,
         internalAction: () -> Unit,
+        explicit: Boolean = false,
         externalAction: () -> Unit,
     ): Boolean {
         if (internalController) {
+            if (explicit) RhythHausTransportBridge.onExplicitTransport?.invoke()
             internalAction()
             return true
         }

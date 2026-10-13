@@ -1135,6 +1135,25 @@ extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBri
     [playerFromHandle(handle) clearNowPlayingInfo];
 }
 
+extern "C" JNIEXPORT jstring JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeCurrentOutputName(JNIEnv *env, jobject, jlong handle) {
+    RhythHausAudioPlayer *player = playerFromHandle(handle);
+    if (player == nil) return nullptr;
+    std::vector<AudioDeviceID> available;
+    AudioDeviceID defaultDevice = kAudioObjectUnknown;
+    if (!readRouteSnapshot(available, defaultDevice) ||
+        defaultDevice == kAudioObjectUnknown ||
+        !containsDevice(available, defaultDevice)) return nullptr;
+    CFStringRef name = nullptr;
+    AudioObjectPropertyAddress nameAddress = {
+        kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+    UInt32 size = sizeof(name);
+    if (AudioObjectGetPropertyData(defaultDevice, &nameAddress, 0, nullptr, &size, &name) != noErr || name == nullptr)
+        return nullptr;
+    char buffer[512];
+    if (!CFStringGetCString(name, buffer, sizeof(buffer), kCFStringEncodingUTF8)) return nullptr;
+    return env->NewStringUTF(buffer);
+}
+
 extern "C" JNIEXPORT void JNICALL Java_com_eterocell_rhythhaus_MacAudioPlayerBridge_nativeSetArtwork(JNIEnv *env, jobject, jlong handle, jbyteArray artworkBytes) {
     RhythHausAudioPlayer *player = playerFromHandle(handle);
     if (player == nil) {

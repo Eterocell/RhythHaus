@@ -46,4 +46,7 @@
     <string name="desktop_drop_rejected">No readable folders or supported audio files were dropped.</string>
     <string name="desktop_drop_summary_format">Added %1$d sources, reused %2$d, rejected %3$d items</string>
     <string name="desktop_drop_failed_format">%1$d sources failed to scan: %2$s</string>
+    <string name="settings_output_session">Output and session</string>
+    <string name="output_status_title">Current audio output</string>
+    <string name="output_status_unavailable">Active output unavailable</string>
 </resources>

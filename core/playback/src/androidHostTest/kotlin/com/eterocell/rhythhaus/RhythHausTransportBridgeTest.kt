@@ -207,6 +207,31 @@ class RhythHausTransportBridgeTest {
     }
 
     @Test
+    fun internalExplicitTransportInvalidatesPendingSystemResume() {
+        val actions = mutableListOf<String>()
+        val router = ServiceTransportRouter()
+        RhythHausTransportBridge.onExplicitTransport = { actions += "explicit" }
+
+        router.pause(internalController = true) { actions += "pause" }
+        router.play(internalController = true) { actions += "play" }
+        router.stop(internalController = true) { actions += "stop" }
+        router.seekTo(250L, internalController = true) { actions += "seek:$it" }
+
+        assertEquals(
+            listOf(
+                "explicit",
+                "pause",
+                "explicit",
+                "play",
+                "explicit",
+                "stop",
+                "explicit",
+                "seek:250"),
+            actions,
+        )
+    }
+
+    @Test
     fun disabledUserTransportDoesNotBlockControllerOwnedTimerStop() {
         val bridge = ServiceTransportRouter()
         val nativeActions = mutableListOf<String>()

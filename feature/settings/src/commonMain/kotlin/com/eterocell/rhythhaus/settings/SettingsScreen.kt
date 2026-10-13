@@ -40,6 +40,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,13 +68,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.ui.ArtworkCacheClearResult
 import com.eterocell.rhythhaus.ui.HausDialog
 import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
+import com.eterocell.rhythhaus.ui.rememberArtworkCacheClearAction
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.settings.generated.resources.Res
 import rhythhaus.feature.settings.generated.resources.about
 import rhythhaus.feature.settings.generated.resources.add_device_audio
 import rhythhaus.feature.settings.generated.resources.appearance
+import rhythhaus.feature.settings.generated.resources.automatic_resume_error
+import rhythhaus.feature.settings.generated.resources.automatic_resume_explanation
+import rhythhaus.feature.settings.generated.resources.automatic_resume_follow
+import rhythhaus.feature.settings.generated.resources.automatic_resume_never
+import rhythhaus.feature.settings.generated.resources.automatic_resume_saving
+import rhythhaus.feature.settings.generated.resources.automatic_resume_title
+import rhythhaus.feature.settings.generated.resources.clear_artwork_cache
+import rhythhaus.feature.settings.generated.resources.clear_artwork_cache_explanation
+import rhythhaus.feature.settings.generated.resources.clear_artwork_cache_failure
+import rhythhaus.feature.settings.generated.resources.clear_artwork_cache_success
 import rhythhaus.feature.settings.generated.resources.configured_folders
 import rhythhaus.feature.settings.generated.resources.crossfade_3_seconds
 import rhythhaus.feature.settings.generated.resources.crossfade_5_seconds
@@ -146,6 +160,12 @@ public data class SettingsSharedLabels(
     public val cancel: String,
     /** Shared-owned generic removal wording. */
     public val remove: String,
+    /** Shared-owned output section wording. */
+    public val outputSettings: String = "Output and session",
+    /** Current output heading. */
+    public val outputStatusTitle: String = "Current audio output",
+    /** Output state shown when the host cannot identify a route. */
+    public val outputStatusUnavailable: String = "Active output unavailable",
 )
 
 /** Host-neutral recovery state for the optional device-audio source. */
@@ -219,6 +239,12 @@ public enum class SettingsGaplessMode {
     Off,
     /** Prepare an eligible successor before the current track ends. */
     On,
+}
+
+/** User policy for following OS interruption resume recommendations. */
+public enum class SettingsAutomaticResumePolicy {
+    FollowSystemRecommendation,
+    Never,
 }
 
 internal enum class SettingsSourceAccess {
@@ -354,6 +380,11 @@ public fun SettingsScreen(
     gaplessMode: SettingsGaplessMode = SettingsGaplessMode.Off,
     gaplessBusy: Boolean = false,
     gaplessError: Boolean = false,
+    automaticResumePolicy: SettingsAutomaticResumePolicy =
+        SettingsAutomaticResumePolicy.FollowSystemRecommendation,
+    automaticResumeBusy: Boolean = false,
+    automaticResumeError: Boolean = false,
+    outputStatus: String? = null,
     sources: List<SettingsSourceItem>,
     sourcePickerActionVisible: Boolean,
     sourcePickerAvailable: Boolean,
@@ -370,6 +401,8 @@ public fun SettingsScreen(
     onReplayGainModeSelected: (SettingsReplayGainMode) -> Unit,
     onCrossfadeDurationSelected: (SettingsCrossfadeDuration) -> Unit,
     onGaplessModeSelected: (SettingsGaplessMode) -> Unit = {},
+    onAutomaticResumePolicySelected: (SettingsAutomaticResumePolicy) -> Unit =
+        {},
     onAddMusicFolder: () -> Unit,
     onRescanSource: (String) -> Unit,
     onRecoverSource: (String) -> Unit,
@@ -400,6 +433,15 @@ public fun SettingsScreen(
     }
     val policy = CompactSettingsLayoutPolicy
     val effectiveListState = listState ?: rememberLazyListState()
+    val clearArtworkCache = rememberArtworkCacheClearAction()
+    val cacheScope = rememberCoroutineScope()
+    var cacheMessage by remember { mutableStateOf<String?>(null) }
+    var cacheBusy by remember { mutableStateOf(false) }
+    val cacheSuccessMessage =
+        stringResource(Res.string.clear_artwork_cache_success)
+    val cacheFailureMessage =
+        stringResource(Res.string.clear_artwork_cache_failure)
+    val cacheBusyLabel = stringResource(Res.string.automatic_resume_saving)
     Box(
         modifier
             .fillMaxSize()
@@ -662,6 +704,20 @@ public fun SettingsScreen(
                                                 alpha = 0.6f))
                                 }
                                 item { playlistBackupContent() }
+                                item {
+                                    AutomaticResumePreference(
+                                        sectionTitle = labels.outputSettings,
+                                        current = automaticResumePolicy,
+                                        busy = automaticResumeBusy,
+                                        modalVisible =
+                                            clearLibraryDialog != null ||
+                                                sourcePendingRemoval != null,
+                                        saveFailed = automaticResumeError,
+                                        onSelected =
+                                            onAutomaticResumePolicySelected,
+                                    )
+                                }
+
                                 if (hasImportedTracks)
                                     item {
                                         val clearModifier =
@@ -736,6 +792,111 @@ public fun SettingsScreen(
                                     }
                                 item { ReviewOnboardingRow(onReviewOnboarding) }
                                 item { AboutRow(onAboutClick) }
+                                item {
+                                    Column(
+                                        Modifier.fillMaxWidth()
+                                            .padding(horizontal = 2.dp),
+                                        verticalArrangement =
+                                            Arrangement.spacedBy(4.dp)) {
+                                            Text(
+                                                labels.outputStatusTitle,
+                                                color = HausColors.current.ink,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold)
+                                            Text(
+                                                outputStatus
+                                                    ?: labels
+                                                        .outputStatusUnavailable,
+                                                modifier =
+                                                    Modifier.testTag(
+                                                        "settings-output-status"),
+                                                color =
+                                                    HausColors.current.muted,
+                                                fontSize = 13.sp)
+                                        }
+                                }
+                                item {
+                                    Column(
+                                        Modifier.fillMaxWidth()
+                                            .background(
+                                                HausColors.current.panel.copy(
+                                                    alpha = .54f),
+                                                RoundedCornerShape(16.dp))
+                                            .border(
+                                                1.dp,
+                                                HausColors.current.line,
+                                                RoundedCornerShape(16.dp))
+                                            .padding(14.dp),
+                                        verticalArrangement =
+                                            Arrangement.spacedBy(8.dp)) {
+                                            Text(
+                                                stringResource(
+                                                    Res.string
+                                                        .clear_artwork_cache),
+                                                color = HausColors.current.ink,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold)
+                                            Text(
+                                                stringResource(
+                                                    Res.string
+                                                        .clear_artwork_cache_explanation),
+                                                color =
+                                                    HausColors.current.muted,
+                                                fontSize = 12.sp)
+                                            Button(
+                                                onClick = {
+                                                    if (!cacheBusy) {
+                                                        cacheBusy = true
+                                                        cacheMessage = null
+                                                        cacheScope.launch {
+                                                            cacheMessage =
+                                                                when (clearArtworkCache()) {
+                                                                    ArtworkCacheClearResult
+                                                                        .Success ->
+                                                                        cacheSuccessMessage
+                                                                    ArtworkCacheClearResult
+                                                                        .Failure ->
+                                                                        cacheFailureMessage
+                                                                }
+                                                            cacheBusy = false
+                                                        }
+                                                    }
+                                                },
+                                                enabled =
+                                                    !cacheBusy &&
+                                                        clearLibraryDialog ==
+                                                            null &&
+                                                        sourcePendingRemoval ==
+                                                            null,
+                                                modifier =
+                                                    Modifier.fillMaxWidth()
+                                                        .height(48.dp)) {
+                                                    Text(
+                                                        if (cacheBusy)
+                                                            cacheBusyLabel
+                                                        else
+                                                            stringResource(
+                                                                Res.string
+                                                                    .clear_artwork_cache),
+                                                        fontWeight =
+                                                            FontWeight.Bold)
+                                                }
+                                            cacheMessage?.let { message ->
+                                                Text(
+                                                    message,
+                                                    modifier =
+                                                        Modifier.semantics {
+                                                            liveRegion =
+                                                                LiveRegionMode
+                                                                    .Polite
+                                                        },
+                                                    color =
+                                                        HausColors.current
+                                                            .muted,
+                                                    fontSize = 12.sp)
+                                            }
+                                        }
+                                }
                             }
                         }
                 }
@@ -1487,6 +1648,123 @@ private fun GaplessPreference(
                     },
                     color = HausColors.current.muted,
                     fontSize = 12.sp)
+            }
+        }
+}
+
+@Composable
+private fun AutomaticResumePreference(
+    sectionTitle: String,
+    current: SettingsAutomaticResumePolicy,
+    busy: Boolean,
+    modalVisible: Boolean,
+    saveFailed: Boolean,
+    onSelected: (SettingsAutomaticResumePolicy) -> Unit,
+) {
+    val enabled = !busy && !modalVisible
+    Column(
+        Modifier.fillMaxWidth()
+            .background(
+                HausColors.current.panel.copy(alpha = .54f),
+                RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                sectionTitle,
+                modifier = Modifier.semantics { heading() },
+                color = HausColors.current.ink,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Black)
+            Text(
+                stringResource(Res.string.automatic_resume_title),
+                color = HausColors.current.ink,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold)
+            Row(
+                Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsAutomaticResumePolicy.entries.forEach { policy ->
+                        val selected = policy == current
+                        val label =
+                            stringResource(
+                                if (policy ==
+                                    SettingsAutomaticResumePolicy.Never)
+                                    Res.string.automatic_resume_never
+                                else Res.string.automatic_resume_follow)
+                        Row(
+                            Modifier.weight(1f)
+                                .heightIn(min = 48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (selected) HausColors.current.ink
+                                    else HausColors.current.paper)
+                                .testTag("settings-auto-resume-${policy.name}")
+                                .then(
+                                    if (enabled)
+                                        Modifier.selectable(
+                                            selected = selected,
+                                            role = Role.RadioButton,
+                                        ) {
+                                            onSelected(policy)
+                                        }
+                                    else
+                                        Modifier.clearAndSetSemantics {
+                                            contentDescription = label
+                                            this.selected = selected
+                                            role = Role.RadioButton
+                                            disabled()
+                                        })
+                                .padding(horizontal = 8.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement =
+                                Arrangement.spacedBy(6.dp)) {
+                                val tint =
+                                    (if (selected) HausColors.current.paper
+                                        else HausColors.current.ink)
+                                        .copy(alpha = if (enabled) 1f else .5f)
+                                Icon(
+                                    if (selected)
+                                        Icons.Default.RadioButtonChecked
+                                    else Icons.Default.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = tint)
+                                Text(
+                                    label,
+                                    color = tint,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold)
+                            }
+                    }
+                }
+            Text(
+                stringResource(Res.string.automatic_resume_explanation),
+                color = HausColors.current.muted,
+                fontSize = 12.sp,
+                lineHeight = 17.sp)
+            if (busy) {
+                Text(
+                    stringResource(Res.string.automatic_resume_saving),
+                    modifier =
+                        Modifier.semantics {
+                            liveRegion = LiveRegionMode.Polite
+                        },
+                    color = HausColors.current.muted,
+                    fontSize = 12.sp)
+            }
+            if (saveFailed) {
+                val message = stringResource(Res.string.automatic_resume_error)
+                Text(
+                    message,
+                    modifier =
+                        Modifier.semantics {
+                            liveRegion = LiveRegionMode.Polite
+                            error(message)
+                        },
+                    color = HausColors.current.pulse,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp)
             }
         }
 }

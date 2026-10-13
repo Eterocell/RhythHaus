@@ -28,9 +28,17 @@ public interface IOSAudioInterruptionHandler {
      */
     public fun onInterruptionEnded(shouldResume: Boolean)
 
+    /** Any audio-route change occurred; refresh the output projection. */
+    public fun onRouteChanged()
+
     /** The active output route disconnected. */
     public fun onRouteDisconnected()
 }
+
+/** Read-only snapshot of the platform's active output route. */
+public data class IOSAudioOutputSnapshot(
+    public val names: List<String>,
+)
 
 /**
  * Receives the result of asynchronous audio-session activation and playback
@@ -62,6 +70,9 @@ public interface IOSAudioPlayerProvider {
 
     /** Receives system interruption and route notifications. */
     public var interruptionHandler: IOSAudioInterruptionHandler?
+
+    /** Returns active route output names, or an empty list when unavailable. */
+    public fun currentOutputNames(): IOSAudioOutputSnapshot
 
     /**
      * Loads and prepares the audio file without blocking the calling thread.

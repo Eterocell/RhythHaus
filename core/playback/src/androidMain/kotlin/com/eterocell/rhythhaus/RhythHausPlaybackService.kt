@@ -71,6 +71,25 @@ internal class AndroidServiceProgressPublisher(
  * one place.
  */
 public class RhythHausPlaybackService : MediaSessionService() {
+    /**
+     * Process-wide settings bridge for service-owned playback session policy.
+     */
+    public companion object {
+        @Volatile private var automaticResumePolicyEnabled: Boolean = true
+        @Volatile private var activeService: RhythHausPlaybackService? = null
+
+        /** Updates the service policy before or after service creation. */
+        public fun setAutomaticResumePolicyEnabled(enabled: Boolean) {
+            automaticResumePolicyEnabled = enabled
+            activeService?.serviceHandler?.post {
+                activeService?.automaticResumeAllowed = enabled
+                if (!enabled) {
+                    activeService?.wasPlayingBeforeTransientFocusLoss = false
+                    activeService?.focusLossItemId = null
+                }
+            }
+        }
+    }
 
     private var mediaSession: MediaSession? = null
     private lateinit var playback: AndroidServicePlayback
@@ -78,6 +97,12 @@ public class RhythHausPlaybackService : MediaSessionService() {
     private lateinit var audioManager: AudioManager
     private lateinit var audioFocusRequest: AudioFocusRequest
     private var hasAudioFocus = false
+    private var automaticResumeAllowed = true
+    private var wasPlayingBeforeTransientFocusLoss = false
+    private var explicitTransportVersion = 0L
+    private var focusLossVersion = 0L
+    private var activePlaybackItemId: String? = null
+    private var focusLossItemId: String? = null
     private var noisyReceiverRegistered = false
     private val serviceHandler = Handler(Looper.getMainLooper())
     private lateinit var progressPublisher: AndroidServiceProgressPublisher
@@ -89,10 +114,18 @@ public class RhythHausPlaybackService : MediaSessionService() {
             }
         }
 
+    private fun invalidateAutomaticResume() {
+        explicitTransportVersion++
+        wasPlayingBeforeTransientFocusLoss = false
+        focusLossItemId = null
+    }
+
     /** Creates the process-owned Media3 session and player. */
     public override fun onCreate(): Unit {
         super.onCreate()
+        activeService = this
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        automaticResumeAllowed = automaticResumePolicyEnabled
         audioFocusRequest =
             AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(
@@ -105,11 +138,31 @@ public class RhythHausPlaybackService : MediaSessionService() {
                 .setOnAudioFocusChangeListener(
                     { change ->
                         when (change) {
-                            AudioManager.AUDIOFOCUS_GAIN -> hasAudioFocus = true
-                            AudioManager.AUDIOFOCUS_LOSS,
+                            AudioManager.AUDIOFOCUS_GAIN -> {
+                                hasAudioFocus = true
+                                val resume =
+                                    automaticResumeAllowed &&
+                                        wasPlayingBeforeTransientFocusLoss &&
+                                        focusLossVersion ==
+                                            explicitTransportVersion &&
+                                        focusLossItemId == activePlaybackItemId
+                                wasPlayingBeforeTransientFocusLoss = false
+                                focusLossItemId = null
+                                if (resume) playback.play()
+                            }
                             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
                             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                                 hasAudioFocus = false
+                                wasPlayingBeforeTransientFocusLoss =
+                                    playback.isPlaying()
+                                focusLossVersion = explicitTransportVersion
+                                focusLossItemId = playback.currentItemIdentity()
+                                playback.pauseForSystem()
+                            }
+                            AudioManager.AUDIOFOCUS_LOSS -> {
+                                hasAudioFocus = false
+                                wasPlayingBeforeTransientFocusLoss = false
+                                focusLossItemId = null
                                 playback.pauseForSystem()
                             }
                         }
@@ -134,7 +187,16 @@ public class RhythHausPlaybackService : MediaSessionService() {
                     mediaSession?.setPlayer(sessionPlayer(player))
                     progressPublisher.restart()
                 },
-                onEvent = ::publishEngineEvent,
+                onEvent = { event ->
+                    if (event.status == PlaybackStatus.Loading ||
+                        event.status == PlaybackStatus.Stopped ||
+                        event.completed ||
+                        event.failure != null) {
+                        activePlaybackItemId = playback.currentItemIdentity()
+                        invalidateAutomaticResume()
+                    }
+                    publishEngineEvent(event)
+                },
                 requestFocus = {
                     if (!hasAudioFocus) {
                         hasAudioFocus =
@@ -153,6 +215,9 @@ public class RhythHausPlaybackService : MediaSessionService() {
             )
         commandRouter =
             AndroidServiceCommandRouter(playback, applicationInfo.uid)
+        RhythHausTransportBridge.onExplicitTransport = {
+            serviceHandler.post(::invalidateAutomaticResume)
+        }
         val noisyFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         if (Build.VERSION.SDK_INT >= 33)
             registerReceiver(
@@ -337,6 +402,8 @@ public class RhythHausPlaybackService : MediaSessionService() {
 
     /** Releases the Media3 session and player during service teardown. */
     public override fun onDestroy(): Unit {
+        if (activeService === this) activeService = null
+        RhythHausTransportBridge.onExplicitTransport = null
         if (::progressPublisher.isInitialized) progressPublisher.cancel()
         mediaSession?.release()
         mediaSession = null

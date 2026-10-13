@@ -43,9 +43,15 @@ internal const val IOS_TRACK_SWITCH_FADE_SECONDS: Double = 0.05
 internal const val IOS_TRACK_SWITCH_SILENT_VOLUME: Float = 0.0f
 
 @OptIn(ExperimentalForeignApi::class)
-private class IOSPlaybackEngine(
+public class IOSPlaybackEngine(
     private val relativeFilePathResolver: IOSRelativeFilePathResolver,
-) : CrossfadePlaybackEngine {
+) : CrossfadePlaybackEngine, PlaybackOutputStatusProvider {
+    private val outputState =
+        kotlinx.coroutines.flow.MutableStateFlow<PlaybackOutputStatus>(
+            PlaybackOutputStatus.Unavailable)
+    override val outputStatus:
+        kotlinx.coroutines.flow.StateFlow<PlaybackOutputStatus> =
+        outputState
     private var confinedListener: PlaybackEngineListener? = null
     override var listener: PlaybackEngineListener?
         get() = withIOSPlaybackMainThread { confinedListener }
@@ -63,10 +69,24 @@ private class IOSPlaybackEngine(
     private var playbackActive: Boolean = false
     private var playbackGain: Float = 1.0f
     private var wasPlayingBeforeInterruption: Boolean = false
+    private var automaticResumeAllowed: Boolean = true
     private var remoteCommandsRegistered: Boolean = false
     private val remoteCommandHandlerTokens = mutableListOf<Any?>()
     private var artworkTrackId: String? = null
     private var activeGeneration: Long = 0L
+
+    override fun refreshOutputStatus() {
+        withIOSPlaybackMainThread {
+            val names =
+                audioProvider?.currentOutputNames()?.names.orEmpty().filter {
+                    it.isNotBlank()
+                }
+            outputState.value =
+                if (names.isEmpty()) PlaybackOutputStatus.Unavailable
+                else PlaybackOutputStatus.Available(names)
+        }
+    }
+
     private var sourceVersion: Long = 0L
     private var sourceSequence: Long = 0L
     private var playRequestSequence: Long = 0L
@@ -214,7 +234,10 @@ private class IOSPlaybackEngine(
             override fun onInterruptionEnded(shouldResume: Boolean) {
                 withIOSPlaybackMainThread ended@{
                     if (!isCurrentSource(generation, version)) return@ended
-                    val resume = shouldResume && wasPlayingBeforeInterruption
+                    val resume =
+                        automaticResumeAllowed &&
+                            shouldResume &&
+                            wasPlayingBeforeInterruption
                     wasPlayingBeforeInterruption = false
                     if (!resume) return@ended
                     if (audioProvider != null)
@@ -222,9 +245,18 @@ private class IOSPlaybackEngine(
                 }
             }
 
+            override fun onRouteChanged() {
+                withIOSPlaybackMainThread {
+                    if (isCurrentSource(generation, version)) {
+                        refreshOutputStatus()
+                    }
+                }
+            }
+
             override fun onRouteDisconnected() {
                 withIOSPlaybackMainThread route@{
                     if (!isCurrentSource(generation, version)) return@route
+                    refreshOutputStatus()
                     wasPlayingBeforeInterruption = false
                     if (preparedIncoming?.startingRequest == null)
                         pendingPlayRequest = null
@@ -638,6 +670,7 @@ private class IOSPlaybackEngine(
     private fun finishTrackLoad(load: PendingTrackLoad): LoadedPlayback {
         val provider = load.provider
         audioProvider = provider
+        refreshOutputStatus()
         loadedTrack = load.track
         durationMillis =
             load.track.durationMillis ?: provider.currentDurationMillis()
@@ -662,6 +695,7 @@ private class IOSPlaybackEngine(
         retiringRun = null
         progressJob?.cancel()
         audioProvider = null
+        outputState.value = PlaybackOutputStatus.Unavailable
         loadedTrack = null
         durationMillis = null
         playbackActive = false
@@ -818,7 +852,18 @@ private class IOSPlaybackEngine(
     }
 
     override fun pause() {
-        withIOSPlaybackMainThread { pauseSerialized() }
+        withIOSPlaybackMainThread {
+            wasPlayingBeforeInterruption = false
+            pauseSerialized()
+        }
+    }
+
+    /** Applies the user's persisted interruption-resume policy. */
+    public fun setAutomaticResumeAllowed(allowed: Boolean) {
+        withIOSPlaybackMainThread {
+            automaticResumeAllowed = allowed
+            if (!allowed) wasPlayingBeforeInterruption = false
+        }
     }
 
     private fun pauseSerialized() {
@@ -889,6 +934,7 @@ private class IOSPlaybackEngine(
         provider?.completionHandler = null
         provider?.interruptionHandler = null
         audioProvider = null
+        outputState.value = PlaybackOutputStatus.Unavailable
         loadedTrack = null
         durationMillis = null
         artworkTrackId = null

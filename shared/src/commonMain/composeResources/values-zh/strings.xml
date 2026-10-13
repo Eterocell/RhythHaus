@@ -42,4 +42,7 @@
     <string name="desktop_drop_rejected">拖放内容中没有可读文件夹或支持的音频文件。</string>
     <string name="desktop_drop_summary_format">新增 %1$d 个来源，复用 %2$d 个，拒绝 %3$d 项</string>
     <string name="desktop_drop_failed_format">%1$d 个来源扫描失败：%2$s</string>
+    <string name="settings_output_session">输出与会话</string>
+    <string name="output_status_title">当前音频输出</string>
+    <string name="output_status_unavailable">无法获取当前输出</string>
 </resources>

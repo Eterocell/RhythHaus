@@ -56,6 +56,10 @@ class IOSAudioPlayerBridgeTest {
                     events += "ended:$shouldResume"
                 }
 
+                override fun onRouteChanged() {
+                    events += "changed"
+                }
+
                 override fun onRouteDisconnected() {
                     events += "route"
                 }
@@ -1502,6 +1506,10 @@ class IOSAudioPlayerBridgeTest {
 private class FakeIOSAudioPlayerProvider : IOSAudioPlayerProvider {
     override var completionHandler: IOSAudioPlayerCompletionHandler? = null
     override var interruptionHandler: IOSAudioInterruptionHandler? = null
+
+    override fun currentOutputNames(): IOSAudioOutputSnapshot =
+        IOSAudioOutputSnapshot(emptyList())
+
     var playSucceeds = true
     var loadSucceeds = true
     var incomingLoadSucceeds = true

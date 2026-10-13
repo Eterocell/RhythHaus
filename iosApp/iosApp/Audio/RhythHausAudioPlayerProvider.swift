@@ -13,6 +13,14 @@ final class RhythHausAudioPlayerProvider: NSObject, IOSAudioPlayerProvider {
         willSet { Self.assertMainThread() }
     }
 
+
+    func currentOutputNames() -> IOSAudioOutputSnapshot {
+        Self.assertMainThread()
+        return IOSAudioOutputSnapshot(
+            names: audioSession.currentRoute.outputs.map(\.portName)
+        )
+    }
+
     private final class Voice {
         let player: AVAudioPlayer
         let filePath: String
@@ -529,6 +537,7 @@ final class RhythHausAudioPlayerProvider: NSObject, IOSAudioPlayerProvider {
 
     private func handleRouteChange(_ notification: Notification) {
         Self.assertMainThread()
+        interruptionHandler?.onRouteChanged()
         guard let value = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
               let reason = AVAudioSession.RouteChangeReason(rawValue: value), reason == .oldDeviceUnavailable
         else { return }
