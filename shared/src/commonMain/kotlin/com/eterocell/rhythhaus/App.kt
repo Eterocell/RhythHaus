@@ -30,6 +30,7 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.SourceRebindResult
 import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.library.defaultPlatformLibrarySource
 import com.eterocell.rhythhaus.library.iosImportSummaryMessage
@@ -760,27 +761,80 @@ fun App(
         }
     }
 
-    val folderPickerLauncher = rememberPlatformFolderPickerLauncher { result ->
-        val action =
-            resolveLibraryPickerTerminal(
-                result = result,
-                existingSources = libraryContent.sources,
-                importSummaryFormat = iosImportSummaryFormat,
-            )
-        action.message?.let { importMessage = it }
-        action.scanSource?.let { source ->
-            if (action.holdsFollowUpScanGate) {
-                // The iOS import terminal already cleared the platform
-                // import-active flag; hold the source-mutation exclusion until
-                // exactly this follow-up scan is admitted or rejected by the
-                // operation coordinator.
-                followUpScanPending = true
-                launchFollowUpSourceScan(source)
-            } else {
-                launchSourceScan(source)
-            }
-        }
-    }
+    val folderPickerLauncher =
+        rememberPlatformFolderPickerLauncher(
+            onResult = { result ->
+                val action =
+                    resolveLibraryPickerTerminal(
+                        result = result,
+                        existingSources = libraryContent.sources,
+                        importSummaryFormat = iosImportSummaryFormat,
+                    )
+                action.message?.let { importMessage = it }
+                action.scanSource?.let { source ->
+                    if (action.holdsFollowUpScanGate) {
+                        followUpScanPending = true
+                        launchFollowUpSourceScan(source)
+                    } else {
+                        launchSourceScan(source)
+                    }
+                }
+            },
+            onRecoveryResult = { sourceId, replacement ->
+                scope.launch {
+                    libraryOrchestrator.launch(
+                        LibraryOperationKind.RebindSource) { token ->
+                            val replacementAlreadyOwned =
+                                libraryContent.sources.any { source ->
+                                    source.id != sourceId &&
+                                        source.platformKind ==
+                                            replacement.platformKind &&
+                                        source.handle == replacement.handle
+                                }
+                            val releaseRejectedReplacement = {
+                                if (!replacementAlreadyOwned) {
+                                    platformAccess.releaseAccess(replacement)
+                                }
+                            }
+                            val result =
+                                try {
+                                    withContext(Dispatchers.Default) {
+                                        repository.rebindSource(
+                                            sourceId, replacement)
+                                    }
+                                } catch (failure: Throwable) {
+                                    releaseRejectedReplacement()
+                                    throw failure
+                                }
+                            if (result !is SourceRebindResult.Rebound) {
+                                releaseRejectedReplacement()
+                            }
+                            libraryOrchestrator.publishIfCurrent(token) {
+                                withContext(Dispatchers.Main) {
+                                    when (result) {
+                                        is SourceRebindResult.Rebound -> {
+                                            updateLibraryContent(
+                                                loadLibraryContent(
+                                                    repository, platformAccess))
+                                            importMessage =
+                                                "Folder access restored. Scan when ready."
+                                        }
+                                        SourceRebindResult.HandleConflict ->
+                                            importMessage =
+                                                "That folder is already configured."
+                                        SourceRebindResult.PlatformMismatch ->
+                                            importMessage =
+                                                "That folder cannot replace this source."
+                                        SourceRebindResult.UnknownSource ->
+                                            importMessage =
+                                                "The source is no longer configured."
+                                    }
+                                }
+                            }
+                        }
+                }
+            },
+        )
     // The coordinator state and mutation gate are collected after the picker
     // launcher so the iOS import-active window can fold into the same gate
     // that source mutations already use: while the picker is shown or files
@@ -1125,6 +1179,9 @@ fun App(
                         publishedLibraryContent.sources
                             .firstOrNull { it.id == displayedSource.id }
                             ?.let(::launchSourceScan)
+                    },
+                    onRecoverSource = { source ->
+                        folderPickerLauncher.launchForRecovery(source.id)
                     },
                     onRemoveSource = { source ->
                         if (mutationsEnabled) {

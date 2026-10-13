@@ -290,6 +290,9 @@ fun LibraryHomeScreen(
         com.eterocell.rhythhaus.PlaybackOutputStatus.Unavailable,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
+    onRecoverSource: (LibrarySource) -> Unit = {
+        folderPickerLauncher.launchForRecovery(it.id)
+    },
     onRemoveSource: (LibrarySource) -> Unit,
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit,
     onCancelScan: () -> Unit,
@@ -696,6 +699,7 @@ fun LibraryHomeScreen(
             outputStatus = outputStatus,
             onClearLibrary = onClearLibrary,
             onRescanSource = onRescanSource,
+            onRecoverSource = onRecoverSource,
             onRemoveMissingTracks = onRemoveMissingTracks,
             onRemoveSource = onRemoveSource,
             onCancelScan = onCancelScan,

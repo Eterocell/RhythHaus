@@ -142,6 +142,7 @@ internal class OrderedScanProgressCallbacks(
 internal enum class LibraryOperationKind {
     Scan,
     AddSource,
+    RebindSource,
     SetTrackFavorite,
     RemoveMissingTracks,
     RemoveSource,

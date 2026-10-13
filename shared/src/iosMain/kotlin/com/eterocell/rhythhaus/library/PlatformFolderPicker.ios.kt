@@ -14,11 +14,17 @@ import rhythhaus.shared.generated.resources.folder_picker_error_prepare
 @Composable
 actual fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
+    onRecoveryResult: (String, LibrarySource) -> Unit,
 ): PlatformFolderPickerLauncher {
     val currentOnResult = rememberUpdatedState(onResult)
+    val currentOnRecoveryResult = rememberUpdatedState(onRecoveryResult)
     val message = stringResource(Res.string.folder_picker_error_prepare)
     return remember {
-        IosLibraryImportLauncher(message) { currentOnResult.value(it) }
+        IosLibraryImportLauncher(
+            message,
+            { currentOnResult.value(it) },
+            { id, source -> currentOnRecoveryResult.value(id, source) },
+        )
     }
 }
 
@@ -28,6 +34,7 @@ actual fun rememberPlatformFolderPickerLauncher(
 internal class IosLibraryImportLauncher(
     private val couldNotPrepareMessage: String,
     private val onResult: (PlatformFolderPickResult) -> Unit,
+    private val onRecoveryResult: (String, LibrarySource) -> Unit = { _, _ -> },
 ) : PlatformFolderPickerLauncher {
     private val importActive = mutableStateOf(false)
 
@@ -88,6 +95,29 @@ internal class IosLibraryImportLauncher(
                 onResult(
                     PlatformFolderPickResult.Failure(couldNotPrepareMessage))
             }
+    }
+
+    override fun launchForRecovery(sourceId: String) {
+        if (!iosImportLaunchAllowed(importActive.value)) return
+        importActive.value = true
+        val source = runCatching {
+            val path = ensureAppLocalMusicFolder()
+            LibrarySource(
+                id = "ios-app-local",
+                platformKind = LibraryPlatformKind.IosAppLocal,
+                displayName = "RhythHaus",
+                handle = path,
+                createdAtEpochMillis = 0L,
+            )
+        }
+            .getOrElse {
+                importActive.value = false
+                onResult(
+                    PlatformFolderPickResult.Failure(couldNotPrepareMessage))
+                return
+            }
+        importActive.value = false
+        onRecoveryResult(sourceId, source)
     }
 }
 

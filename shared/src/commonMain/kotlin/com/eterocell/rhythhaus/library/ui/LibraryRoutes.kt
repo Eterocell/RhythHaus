@@ -197,6 +197,9 @@ internal fun LibraryRouteOverlays(
         com.eterocell.rhythhaus.PlaybackOutputStatus.Unavailable,
     onClearLibrary: () -> Unit,
     onRescanSource: (LibrarySource) -> Unit,
+    onRecoverSource: (LibrarySource) -> Unit = {
+        folderPickerLauncher.launchForRecovery(it.id)
+    },
     onRemoveMissingTracks: (LibrarySource, ScanSession) -> Unit = { _, _ -> },
     onRemoveSource: (LibrarySource) -> Unit,
     onCancelScan: () -> Unit,
@@ -505,7 +508,7 @@ internal fun LibraryRouteOverlays(
                             onRequestMediaStoreAudio()
                         }
                     } else {
-                        folderPickerLauncher.launch()
+                        source?.let(onRecoverSource)
                     }
                 },
                 onRemoveSource = { id ->

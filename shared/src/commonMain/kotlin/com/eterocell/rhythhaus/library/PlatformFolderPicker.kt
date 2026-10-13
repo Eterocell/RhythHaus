@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 @Composable
 expect fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
+    onRecoveryResult: (String, LibrarySource) -> Unit = { _, _ -> },
 ): PlatformFolderPickerLauncher
 
 /** Whether an iOS launcher may admit a new operation. */

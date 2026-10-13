@@ -30,6 +30,23 @@ import kotlinx.coroutines.runBlocking
  */
 class AppLibraryImportTest {
     @Test
+    fun recoveryTargetIsNotConvertedIntoAnAutomaticScan() {
+        val action =
+            resolveLibraryPickerTerminal(
+                result =
+                    PlatformFolderPickResult.Success(
+                        pickedIosSource,
+                        recoverySourceId = "ios-app-local",
+                    ),
+                existingSources = listOf(pickedIosSource),
+            )
+
+        assertEquals(null, action.message)
+        assertEquals(pickedIosSource, action.scanSource)
+        assertFalse(action.holdsFollowUpScanGate)
+    }
+
+    @Test
     fun laterSuccessfulScanRetainsEarlierFailedSibling() = runBlocking {
         val repository = InMemoryLibraryRepository()
         val sources =

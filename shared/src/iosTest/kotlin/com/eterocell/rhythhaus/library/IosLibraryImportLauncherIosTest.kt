@@ -20,7 +20,10 @@ class IosLibraryImportLauncherIosTest {
         val provider = RecordingProvider()
         IOSLibraryImportBridge.provider = provider
         val launcher =
-            IosLibraryImportLauncher("prepare failed") { results += it }
+            IosLibraryImportLauncher(
+                "prepare failed",
+                { results += it },
+            )
 
         launcher.launch()
         launcher.launch()

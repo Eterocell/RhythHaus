@@ -10,5 +10,14 @@ import androidx.compose.runtime.Composable
 @Composable
 actual fun rememberPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
+    onRecoveryResult: (String, LibrarySource) -> Unit,
 ): PlatformFolderPickerLauncher =
-    rememberAndroidPlatformFolderPickerLauncher(onResult)
+    rememberAndroidPlatformFolderPickerLauncher { result ->
+        val success = result as? PlatformFolderPickResult.Success
+        val recoverySourceId = success?.recoverySourceId
+        if (success != null && recoverySourceId != null) {
+            onRecoveryResult(recoverySourceId, success.source)
+        } else {
+            onResult(result)
+        }
+    }
