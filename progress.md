@@ -4702,3 +4702,15 @@ Review: independent review found one Android explicit-pause resume race; interna
 Lifecycle: OpenSpec change is ready to synchronize/archive and commit on the feature branch; no push.
 Next owner: user — perform EN/ZH Settings, restart persistence, cache-clear, interruption/resume, output-route, background and system-control acceptance on Android, iOS and macOS. Implementation — merge after archival.
 Blockers: no implementation blocker; physical acceptance and existing Android/toolchain/full-suite limitations remain release evidence gaps.
+
+## Source lifecycle recovery — 2026-10-14
+
+Route: openspec+superpowers
+Owner: implementation
+Input: Phase 3 roadmap continuation; approved `source-lifecycle-recovery` specification and plan.
+Output: Added non-destructive lost-source recovery across Android SAF, desktop folders, and iOS managed source handling; source rebind preserves source ID, creation time, tracks and user state; recovery is coordinated without automatic scanning; inaccessible scans cannot authorize remove-missing; Settings exposes neutral localized recovery actions.
+Repair: Independent review found Android SAF cleanup could revoke a conflicting source's existing grant or leak a newly acquired grant after persistence failure. Cleanup now skips handles already owned by another source and runs for repository exceptions and explicit rejected outcomes.
+Verification: Focused repository/scanner/Shared JVM tests passed. `spotlessApply`, `spotlessCheck`, `detekt`, `architectureCheck`, strict OpenSpec validation, `openspec validate --specs`, and `git diff --check` passed. No SQLDelight schema changed; source ID/handle fields were sufficient, so no migration was required. Full Settings route baseline failures and physical device/provider acceptance remain user-owned or pre-existing evidence gaps.
+Lifecycle: Canonical `local-library-scanning` was synchronized with source recovery requirements. The change is ready to archive and commit on `feature/source-lifecycle-recovery`; no merge or push.
+Next owner: implementation — archive and commit; user — perform Android SAF grant revocation/rebind/conflict, desktop unavailable-folder, iOS managed-folder, restart, scan, and remove-missing manual acceptance.
+Blockers: no implementation blocker; manual platform acceptance, Android native packaging limits, and known full-suite baseline failures remain separate release evidence gaps.

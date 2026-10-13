@@ -43,6 +43,24 @@ public data class LibrarySource(
         LibrarySourceAccessStatus.Available,
 )
 
+/** Result of attempting to rebind a configured source to a new handle. */
+public sealed interface SourceRebindResult {
+    /** The source was updated without changing its stable identity. */
+    public data class Rebound(
+        /** The updated source row. */
+        public val source: LibrarySource,
+    ) : SourceRebindResult
+
+    /** The requested source is not persisted. */
+    public data object UnknownSource : SourceRebindResult
+
+    /** The replacement belongs to a different platform family. */
+    public data object PlatformMismatch : SourceRebindResult
+
+    /** Another configured source already owns the replacement handle. */
+    public data object HandleConflict : SourceRebindResult
+}
+
 /** The stable read-only Android MediaStore audio source. */
 public fun androidMediaStoreAudioSource(
     createdAtEpochMillis: Long,

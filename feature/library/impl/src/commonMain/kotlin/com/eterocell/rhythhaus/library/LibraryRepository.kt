@@ -29,6 +29,29 @@ class InMemoryLibraryRepository : LibraryRepository {
     /** Returns all stored sources. */
     override fun sources(): List<LibrarySource> = sources.values.toList()
 
+    override fun rebindSource(
+        sourceId: String,
+        replacement: LibrarySource,
+    ): SourceRebindResult {
+        val current =
+            sources[sourceId] ?: return SourceRebindResult.UnknownSource
+        if (current.platformKind != replacement.platformKind)
+            return SourceRebindResult.PlatformMismatch
+        if (sources.values.any {
+            it.id != sourceId && it.handle == replacement.handle
+        })
+            return SourceRebindResult.HandleConflict
+        val rebound =
+            current.copy(
+                displayName = replacement.displayName,
+                handle = replacement.handle,
+                lastScanAtEpochMillis = null,
+                accessStatus = LibrarySourceAccessStatus.Available,
+            )
+        sources[sourceId] = rebound
+        return SourceRebindResult.Rebound(rebound)
+    }
+
     /**
      * Stores or updates the given track.
      *

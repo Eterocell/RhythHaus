@@ -31,7 +31,11 @@ public fun rememberJvmPlatformFolderPickerLauncher(
             override val isAvailable: Boolean = true
             override val supportsAdditionalSources: Boolean = true
 
-            override fun launch() {
+            override fun launch() = launch(null)
+
+            override fun launchForRecovery(sourceId: String) = launch(sourceId)
+
+            private fun launch(recoverySourceId: String?) {
                 val result = runCatching {
                     openNativeFolderDialog()
                 }
@@ -42,7 +46,9 @@ public fun rememberJvmPlatformFolderPickerLauncher(
                                     noFolderSelectedMessage)
                             } else {
                                 PlatformFolderPickResult.Success(
-                                    folder.toJvmFolderSource())
+                                    folder.toJvmFolderSource(),
+                                    recoverySourceId = recoverySourceId,
+                                )
                             }
                         },
                         onFailure = {

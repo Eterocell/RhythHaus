@@ -26,6 +26,7 @@ sealed interface PlatformFolderPickResult {
     data class Success(
         val source: LibrarySource,
         val importSummary: LibraryImportSummary? = null,
+        val recoverySourceId: String? = null,
     ) : PlatformFolderPickResult
 
     /** The user cancelled the picker; no source and no error occurred. */
@@ -60,6 +61,9 @@ interface PlatformFolderPickerLauncher {
 
     /** Launches the folder picker. */
     fun launch()
+
+    /** Launches folder selection to replace the handle for [sourceId]. */
+    fun launchForRecovery(sourceId: String) = launch()
 }
 
 /**

@@ -19,11 +19,60 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SqlDelightLibraryRepositoryJvmTest {
+    @Test
+    fun sourceRebindPersistsHandleAndPreservesStableIdentity() {
+        val databaseFile =
+            Files.createTempFile("rhythhaus-source-rebind", ".db").toFile()
+        val original =
+            testSource().copy(handle = "/old", lastScanAtEpochMillis = 42L)
+        try {
+            openRepository(databaseFile).use { opened ->
+                opened.repository.upsertSource(original)
+                opened.repository.upsertTrack(
+                    LibraryTrack(
+                        id = "track-1",
+                        sourceId = original.id,
+                        sourceLocalKey = "track.mp3",
+                        audioSource = AudioSource.FilePath("/old/track.mp3"),
+                        displayName = "track.mp3",
+                        title = "Track",
+                        artist = "Artist",
+                        album = "Album",
+                        durationMillis = null,
+                        sizeBytes = null,
+                        modifiedAtEpochMillis = null,
+                        lastSeenScanId = null,
+                        createdAtEpochMillis = 1L,
+                        updatedAtEpochMillis = 1L,
+                    ),
+                )
+                assertIs<SourceRebindResult.Rebound>(
+                    opened.repository.rebindSource(
+                        original.id,
+                        original.copy(handle = "/new"),
+                    ),
+                )
+            }
+            openRepository(databaseFile).use { reopened ->
+                val rebound = reopened.repository.sources().single()
+                assertEquals(original.id, rebound.id)
+                assertEquals(
+                    original.createdAtEpochMillis, rebound.createdAtEpochMillis)
+                assertEquals("/new", rebound.handle)
+                assertEquals(
+                    "track-1", reopened.repository.tracks().single().id)
+            }
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
     @Test
     fun realWavSidecarLyricsScanPersistAndReopenWithoutChangingMedia() {
         val directory =

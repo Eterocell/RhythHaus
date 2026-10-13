@@ -4,9 +4,69 @@ import com.eterocell.rhythhaus.AudioSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class LibraryRepositoryContractTest {
+    @Test
+    fun rebindPreservesIdentityAndUserState() {
+        val repository = InMemoryLibraryRepository()
+        val original =
+            testSource().copy(handle = "/old", lastScanAtEpochMillis = 42L)
+        repository.upsertSource(original)
+        repository.upsertTrack(testTrack())
+        repository.setTrackFavorite("track-1", favorite = true)
+        repository.recordTrackPlayed("track-1", playedAtEpochMillis = 99L)
+        repository.setTrackMetadataOverride(
+            "track-1", TrackMetadataOverride(title = "Edited"))
+
+        val result =
+            repository.rebindSource(
+                sourceId = original.id,
+                replacement =
+                    original.copy(
+                        displayName = "New music",
+                        handle = "/new",
+                        accessStatus = LibrarySourceAccessStatus.LostAccess),
+            )
+
+        val rebound = assertIs<SourceRebindResult.Rebound>(result).source
+        assertEquals(original.id, rebound.id)
+        assertEquals(
+            original.createdAtEpochMillis, rebound.createdAtEpochMillis)
+        assertEquals("/new", rebound.handle)
+        assertEquals(null, rebound.lastScanAtEpochMillis)
+        assertEquals(setOf("track-1"), repository.favoriteTrackIds())
+        assertEquals(
+            99L, repository.playHistory()["track-1"]?.lastPlayedAtEpochMillis)
+        assertEquals("Edited", repository.tracks().single().title)
+    }
+
+    @Test
+    fun rebindRejectsConflictingOrMismatchedHandlesWithoutMutation() {
+        val repository = InMemoryLibraryRepository()
+        val first = testSource(id = "source-1").copy(handle = "/first")
+        val second = testSource(id = "source-2").copy(handle = "/second")
+        repository.upsertSource(first)
+        repository.upsertSource(second)
+
+        assertEquals(
+            SourceRebindResult.HandleConflict,
+            repository.rebindSource("source-1", second),
+        )
+        assertEquals(first, repository.sources().first { it.id == first.id })
+        assertEquals(second, repository.sources().first { it.id == second.id })
+        assertEquals(
+            SourceRebindResult.PlatformMismatch,
+            repository.rebindSource(
+                "source-1",
+                second.copy(
+                    handle = "/other",
+                    platformKind = LibraryPlatformKind.AndroidSafTree),
+            ),
+        )
+    }
+
     @Test
     fun overridesKeepRawTagsAcrossRescanAndRestoreEachField() {
         val repository = InMemoryLibraryRepository()

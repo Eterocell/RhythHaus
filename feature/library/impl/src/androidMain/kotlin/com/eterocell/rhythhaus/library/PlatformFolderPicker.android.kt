@@ -26,6 +26,9 @@ public fun rememberAndroidPlatformFolderPickerLauncher(
     onResult: (PlatformFolderPickResult) -> Unit,
 ): PlatformFolderPickerLauncher {
     val context = LocalContext.current
+    val targetSourceIdState = remember {
+        androidx.compose.runtime.mutableStateOf<String?>(null)
+    }
     val couldNotAccessMessage =
         stringResource(Res.string.folder_picker_error_access)
     val launcher =
@@ -35,7 +38,9 @@ public fun rememberAndroidPlatformFolderPickerLauncher(
                 val result = runCatching {
                     persistTreePermission(context, uri)
                     PlatformFolderPickResult.Success(
-                        uri.toAndroidSafSource(context))
+                        uri.toAndroidSafSource(context),
+                        recoverySourceId = targetSourceIdState.value,
+                    )
                 }
                     .getOrElse { throwable ->
                         PlatformFolderPickResult.Failure(
@@ -50,6 +55,12 @@ public fun rememberAndroidPlatformFolderPickerLauncher(
             override val supportsAdditionalSources: Boolean = true
 
             override fun launch() {
+                targetSourceIdState.value = null
+                launcher.launch(null)
+            }
+
+            override fun launchForRecovery(sourceId: String) {
+                targetSourceIdState.value = sourceId
                 launcher.launch(null)
             }
         }

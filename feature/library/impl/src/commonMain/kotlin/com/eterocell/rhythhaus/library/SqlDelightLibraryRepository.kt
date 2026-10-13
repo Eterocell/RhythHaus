@@ -161,6 +161,53 @@ internal class SqlDelightLibraryRepository(
             }
             .executeAsList()
 
+    override fun rebindSource(
+        sourceId: String,
+        replacement: LibrarySource,
+    ): SourceRebindResult {
+        var result: SourceRebindResult = SourceRebindResult.UnknownSource
+        database.transaction {
+            val current =
+                database.librarySourceQueries
+                    .selectAllSources()
+                    .executeAsList()
+                    .firstOrNull { it.id == sourceId }
+            if (current == null) return@transaction
+            if (current.platformKind != replacement.platformKind.name) {
+                result = SourceRebindResult.PlatformMismatch
+                return@transaction
+            }
+            if (database.librarySourceQueries
+                .selectAllSources()
+                .executeAsList()
+                .any { it.id != sourceId && it.handle == replacement.handle }) {
+                result = SourceRebindResult.HandleConflict
+                return@transaction
+            }
+            val rebound =
+                LibrarySource(
+                    id = sourceId,
+                    platformKind = replacement.platformKind,
+                    displayName = replacement.displayName,
+                    handle = replacement.handle,
+                    createdAtEpochMillis = current.createdAtEpochMillis,
+                    lastScanAtEpochMillis = null,
+                    accessStatus = LibrarySourceAccessStatus.Available,
+                )
+            database.librarySourceQueries.upsertSource(
+                id = rebound.id,
+                platformKind = rebound.platformKind.name,
+                displayName = rebound.displayName,
+                handle = rebound.handle,
+                createdAtEpochMillis = rebound.createdAtEpochMillis,
+                lastScanAtEpochMillis = rebound.lastScanAtEpochMillis,
+                accessStatus = rebound.accessStatus.name,
+            )
+            result = SourceRebindResult.Rebound(rebound)
+        }
+        return result
+    }
+
     /**
      * Stores or updates the given track.
      *

@@ -20,6 +20,15 @@ public interface LibraryRepository {
     /** Returns all sources. */
     public fun sources(): List<LibrarySource>
 
+    /**
+     * Atomically changes a configured source handle while preserving its ID and
+     * all source-owned track state.
+     */
+    public fun rebindSource(
+        sourceId: String,
+        replacement: LibrarySource,
+    ): SourceRebindResult = SourceRebindResult.UnknownSource
+
     /** Stores or updates a track. */
     public fun upsertTrack(track: LibraryTrack): TrackUpsertResult
 

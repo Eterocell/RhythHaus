@@ -228,6 +228,28 @@ The system SHALL expose permission state and a neutral recovery action in Settin
 - **THEN** Settings offers application-settings recovery instead of an ineffective repeated prompt
 - **AND** returning from system settings refreshes availability without automatically adding or scanning the source
 
+### Requirement: Source recovery preserves identity and scan authority
+
+The system SHALL retain inaccessible sources and their library state while allowing only platform-appropriate recovery. Rebinding a folder source SHALL preserve its stable source identity and user-owned track state, reject conflicting handles atomically, and require an explicit later scan. Failed, cancelled, or inaccessible-root scans SHALL NOT become authoritative evidence for missing-media removal.
+
+#### Scenario: Folder source is rebound without replacing identity
+- **WHEN** the user selects a readable replacement folder for an inaccessible source
+- **THEN** the existing source ID and creation time remain unchanged while its handle and display name are updated
+- **AND** existing tracks, favorites, play history, metadata corrections, and playlist references remain unchanged
+- **AND** no scan starts until the user explicitly requests one
+
+#### Scenario: Recovery selection is cancelled, invalid, or conflicting
+- **WHEN** recovery selection is cancelled, cannot be accessed, uses a different platform kind, or belongs to another configured source
+- **THEN** the prior source record and all library state remain unchanged
+- **AND** any newly acquired unowned platform grant is released
+- **AND** no scan or missing-track removal occurs
+
+#### Scenario: Inaccessible scan cannot authorize removal
+- **WHEN** a configured source root cannot be enumerated or its access is revoked during scanning
+- **THEN** the scan terminates as failed or cancelled rather than completed
+- **AND** the previous valid completed scan summary remains authoritative
+- **AND** existing tracks and associated user state remain until explicit removal from a valid completed scan
+
 ### Requirement: Persisted scan change summary
 A completed explicit scan MUST persist counts for added, modified, unchanged, and missing tracks and MUST retain at most 100 affected-row details per category. A cancelled or failed scan MUST NOT replace the latest authoritative summary.
 
