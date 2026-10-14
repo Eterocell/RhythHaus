@@ -1,6 +1,9 @@
 <resources>
     <string name="library">Library</string>
     <string name="library_queue">Library queue</string>
+    <string name="carplay_songs">Songs</string>
+    <string name="carplay_albums">Albums</string>
+    <string name="carplay_artists">Artists</string>
 
     <string name="search">Search</string>
     <string name="settings">Settings</string>

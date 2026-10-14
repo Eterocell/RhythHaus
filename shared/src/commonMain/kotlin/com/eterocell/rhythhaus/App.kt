@@ -15,6 +15,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import com.eterocell.rhythhaus.carplay.CarPlayCategoryLabels
+import com.eterocell.rhythhaus.carplay.CarPlayFacade
 import com.eterocell.rhythhaus.library.DesktopDropResult
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryRepository
@@ -98,9 +100,13 @@ import rhythhaus.shared.generated.resources.desktop_drop_duplicate
 import rhythhaus.shared.generated.resources.desktop_drop_failed_format
 import rhythhaus.shared.generated.resources.desktop_drop_rejected
 import rhythhaus.shared.generated.resources.desktop_drop_summary_format
+import rhythhaus.shared.generated.resources.carplay_albums
+import rhythhaus.shared.generated.resources.carplay_artists
+import rhythhaus.shared.generated.resources.carplay_songs
 import rhythhaus.shared.generated.resources.ios_import_summary_format
 import rhythhaus.shared.generated.resources.playlist_backup_imported_suffix
 import rhythhaus.shared.generated.resources.playlist_loading
+import rhythhaus.shared.generated.resources.playlists
 import rhythhaus.shared.generated.resources.scan_complete_format
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -183,6 +189,7 @@ fun App(
             ?: remember { mutableStateOf(PlaybackOutputStatus.Unavailable) }
     val tagLibReader = koinInject<TagLibReader>()
     val repository = koinInject<LibraryRepository>()
+    val carPlayFacade = koinInject<CarPlayFacade>()
     val playlistRepository = koinInject<PlaylistRepository>()
     val platformAccess = koinInject<PlatformSourceAccess>()
     val scanner = koinInject<LibraryScanner>()
@@ -280,6 +287,13 @@ fun App(
         stringResource(Res.string.ios_import_summary_format)
     val importedSuffix =
         stringResource(Res.string.playlist_backup_imported_suffix)
+    val carPlayCategoryLabels =
+        CarPlayCategoryLabels(
+            songs = stringResource(Res.string.carplay_songs),
+            albums = stringResource(Res.string.carplay_albums),
+            artists = stringResource(Res.string.carplay_artists),
+            playlists = stringResource(Res.string.playlists),
+        )
     val selectedThemeMode by
         themePreferenceStore.selectedThemeMode.collectAsState(
             RhythHausThemeMode.System)
@@ -324,6 +338,25 @@ fun App(
                 publication.content.tracks.map { it.toPlayableTrack() },
             )
         }
+    }
+
+    LaunchedEffect(
+        carPlayFacade,
+        libraryRevision,
+        initialPublication.isReady,
+        libraryContent,
+        playlistState.confirmedSnapshot,
+        carPlayCategoryLabels,
+    ) {
+        carPlayFacade.publishCatalog(
+            libraryRevision = libraryRevision,
+            isReady = initialPublication.isReady,
+            tracks = libraryContent.tracks,
+            favoriteTrackIds = libraryContent.favoriteTrackIds,
+            playHistory = libraryContent.playHistory,
+            playlists = playlistState.confirmedSnapshot,
+            labels = carPlayCategoryLabels,
+        )
     }
 
     LaunchedEffect(controller) {

@@ -4,6 +4,7 @@ import com.eterocell.rhythhaus.AutomaticResumePolicyTarget
 import com.eterocell.rhythhaus.PlatformPlaybackEngine
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackProcessLifecycle
+import com.eterocell.rhythhaus.carplay.CarPlayFacade
 import com.eterocell.rhythhaus.createPlatformPlaybackEngine
 import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.libraryImplementationModule
@@ -12,6 +13,7 @@ import com.eterocell.rhythhaus.onboarding.OnboardingPreferenceStore
 import com.eterocell.rhythhaus.onboarding.createOnboardingPreferenceStore
 import com.eterocell.rhythhaus.session.PlaybackSessionController
 import com.eterocell.rhythhaus.session.PlaybackSessionCoordinator
+import com.eterocell.rhythhaus.session.PlaybackSessionPhase
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import com.eterocell.rhythhaus.session.PlaybackSessionStore
 import com.eterocell.rhythhaus.session.createPlaybackSessionStore
@@ -42,6 +44,22 @@ fun rhythHausModule(): Module = module {
                 },
             )
             .also { it.setCommandsEnabled(false) }
+    }
+    single {
+        val playbackSession = get<PlaybackSessionCoordinator>()
+        CarPlayFacade(
+            libraryRepository = get(),
+            playbackController = get(),
+            processScope = get(),
+            canDispatchPlaybackCommands = {
+                when (playbackSession.phase.value) {
+                    PlaybackSessionPhase.Ready,
+                    PlaybackSessionPhase.FailedSafe -> true
+                    PlaybackSessionPhase.NotRestored,
+                    PlaybackSessionPhase.Restoring -> false
+                }
+            },
+        )
     }
     single<PlaybackSessionController> { get<PlaybackController>() }
     single<PlaybackSessionStore> { createPlaybackSessionStore() }
@@ -133,4 +151,10 @@ fun startRhythHausKoin() {
     startKoin {
         modules(rhythHausModule())
     }
+}
+
+/** Returns the process-owned CarPlay facade for native platform clients. */
+public fun sharedCarPlayFacade(): CarPlayFacade {
+    startRhythHausKoin()
+    return KoinPlatform.getKoin().get()
 }
