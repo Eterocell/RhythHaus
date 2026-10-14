@@ -4,10 +4,12 @@ import SwiftUI
 @main
 @MainActor
 struct iOSApp: App {
+    static let carPlayFacade = RhythHausDiKt.sharedCarPlayFacade()
+
     private let audioPlayerProvider = RhythHausAudioPlayerProvider()
     private let artworkProvider = RhythHausArtworkProvider()
     private let systemMediaPublisher = RhythHausSystemMediaPublisher(
-        facade: RhythHausDiKt.sharedCarPlayFacade())
+        facade: iOSApp.carPlayFacade)
     private let playlistBackupDocumentProvider = RhythHausPlaylistBackupDocumentProvider()
     private let libraryImportProvider = RhythHausLibraryImportProvider()
 

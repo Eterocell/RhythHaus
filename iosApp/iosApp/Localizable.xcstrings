@@ -1,0 +1,104 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "carplay.category.albums" : {
+      "comment" : "CarPlay library category label.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Albums" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "专辑" } }
+      }
+    },
+    "carplay.category.artists" : {
+      "comment" : "CarPlay library category label.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Artists" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "艺人" } }
+      }
+    },
+    "carplay.category.playlists" : {
+      "comment" : "CarPlay library category label.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Playlists" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "播放列表" } }
+      }
+    },
+    "carplay.category.songs" : {
+      "comment" : "CarPlay library category label.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Songs" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "歌曲" } }
+      }
+    },
+    "carplay.empty.albums" : {
+      "comment" : "Empty Albums category state.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No albums yet" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无专辑" } }
+      }
+    },
+    "carplay.empty.artists" : {
+      "comment" : "Empty Artists category state.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No artists yet" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无艺人" } }
+      }
+    },
+    "carplay.empty.playlists" : {
+      "comment" : "Empty Playlists category state.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No playlists yet" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无播放列表" } }
+      }
+    },
+    "carplay.empty.songs" : {
+      "comment" : "Empty Songs category state.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No songs yet" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无歌曲" } }
+      }
+    },
+    "carplay.empty.tracks" : {
+      "comment" : "Empty detail-list state.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No tracks available" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有可用曲目" } }
+      }
+    },
+    "carplay.loading" : {
+      "comment" : "Loading library state.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading library" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载音乐库" } }
+      }
+    },
+    "carplay.nowPlaying" : {
+      "comment" : "CarPlay Now Playing destination label.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Now Playing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在播放" } }
+      }
+    },
+    "carplay.root.title" : {
+      "comment" : "CarPlay root list title.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "RhythHaus" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "RhythHaus" } }
+      }
+    },
+    "carplay.selectionUnavailable" : {
+      "comment" : "Recoverable message shown when a selected CarPlay item is stale or unavailable.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This track is no longer available." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此曲目已不可用。" } }
+      }
+    },
+    "carplay.action.ok" : {
+      "comment" : "Dismiss action for a CarPlay alert.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

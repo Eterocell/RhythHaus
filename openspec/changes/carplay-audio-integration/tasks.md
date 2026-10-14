@@ -14,10 +14,10 @@
 
 ## 3. CarPlay scene and approved templates
 
-- [ ] 3.1 Add Swift policy tests for catalog hierarchy, stale list item rejection, empty/loading states, and disconnect/reconnect lifecycle.
-- [ ] 3.2 Register the CarPlay template application scene and implement localized Songs, Albums, Artists, and Playlists list/detail templates plus Now Playing.
-- [ ] 3.3 Connect selection and playback changes to the Shared facade; refresh changed lists, preserve playback on disconnect, and complete each CarPlay action exactly once.
-- [ ] 3.4 Run iOS Simulator XCTest and app build, including scene registration checks.
+- [x] 3.1 Add Swift policy tests for catalog hierarchy, stale list item rejection, empty/loading states, and disconnect/reconnect lifecycle.
+- [x] 3.2 Register the CarPlay template application scene and implement localized Songs, Albums, Artists, and Playlists list/detail templates plus Now Playing.
+- [x] 3.3 Connect selection and playback changes to the Shared facade; refresh changed lists, preserve playback on disconnect, and complete each CarPlay action exactly once.
+- [x] 3.4 Run iOS Simulator XCTest and app build, including scene registration checks.
 
 ## 4. Entitlement, acceptance, and closeout
 
