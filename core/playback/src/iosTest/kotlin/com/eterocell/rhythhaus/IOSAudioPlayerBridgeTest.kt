@@ -14,8 +14,6 @@ import kotlinx.coroutines.runBlocking
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
-import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
-import platform.MediaPlayer.MPMediaItemPropertyTitle
 import platform.MediaPlayer.MPNowPlayingInfoCenter
 
 class IOSAudioPlayerBridgeTest {
@@ -385,47 +383,51 @@ class IOSAudioPlayerBridgeTest {
 
     @Test
     fun failedPostInstallSetupClearsBothHandlers() {
+        val center = MPNowPlayingInfoCenter.defaultCenter()
+        val previousInfo = center.nowPlayingInfo
+        val publisherInfo = mapOf<Any?, Any?>("owner" to "swift-publisher")
+        center.nowPlayingInfo = publisherInfo
         val provider = FakeIOSAudioPlayerProvider()
         IOSAudioPlayerBridge.provider = provider
         val recording = RecordingListener()
         val engine = createIOSPlaybackEngine(testResolver())
         engine.listener = recording
 
-        runBlocking {
-            engine.loadPaused(testTrack("setup-previous"), generation = 47L)
-        }
-        provider.durationThrows = true
-
-        assertFailsWith<IllegalStateException> {
+        try {
             runBlocking {
-                engine.loadPaused(
-                    testTrack("setup-failure").copy(durationMillis = null),
-                    generation = 48L,
-                )
+                engine.loadPaused(testTrack("setup-previous"), generation = 47L)
             }
+            provider.durationThrows = true
+
+            assertFailsWith<IllegalStateException> {
+                runBlocking {
+                    engine.loadPaused(
+                        testTrack("setup-failure").copy(durationMillis = null),
+                        generation = 48L,
+                    )
+                }
+            }
+            assertEquals(null, provider.completionHandler)
+            assertEquals(null, provider.interruptionHandler)
+            assertEquals("swift-publisher", center.nowPlayingInfo?.get("owner"))
+            assertFailsWith<IllegalArgumentException> { engine.play(1L) }
+            assertEquals(0, provider.playCallCount)
+        } finally {
+            engine.release()
+            IOSAudioPlayerBridge.provider = null
+            center.nowPlayingInfo = previousInfo
         }
-        assertEquals(null, provider.completionHandler)
-        assertEquals(null, provider.interruptionHandler)
-        assertEquals(
-            null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
-        assertFailsWith<IllegalArgumentException> { engine.play(1L) }
-        assertEquals(0, provider.playCallCount)
-        engine.release()
-        IOSAudioPlayerBridge.provider = null
     }
 
     @Test
-    fun failedPathResolutionClearsPreviousNowPlayingInfo() {
+    fun failedPathResolutionLeavesNowPlayingInfoToSwiftPublisher() {
+        val center = MPNowPlayingInfoCenter.defaultCenter()
+        val previousInfo = center.nowPlayingInfo
+        val publisherInfo = mapOf<Any?, Any?>("owner" to "swift-publisher")
+        center.nowPlayingInfo = publisherInfo
         val provider = FakeIOSAudioPlayerProvider()
         IOSAudioPlayerBridge.provider = provider
         val engine = createIOSPlaybackEngine(testResolver())
-
-        runBlocking {
-            engine.loadPaused(testTrack("path-previous"), generation = 51L)
-        }
-        assertTrue(
-            MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo != null)
-
         val failingEngine =
             createIOSPlaybackEngine(
                 object : IOSRelativeFilePathResolver {
@@ -433,24 +435,31 @@ class IOSAudioPlayerBridgeTest {
                         error("path resolution failed")
                 },
             )
-        val failure =
-            assertFailsWith<PlaybackFailureException> {
-                runBlocking {
-                    failingEngine.loadPaused(
-                        testTrack("path-failure"), generation = 52L)
-                }
+        try {
+            runBlocking {
+                engine.loadPaused(testTrack("path-previous"), generation = 51L)
             }
-        assertEquals(PlaybackFailureKind.Unknown, failure.error.kind)
-        assertTrue(
-            failure.error.message
-                .orEmpty()
-                .startsWith("Could not resolve player path:"))
+            assertEquals("swift-publisher", center.nowPlayingInfo?.get("owner"))
 
-        assertEquals(
-            null, MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo)
-        engine.release()
-        failingEngine.release()
-        IOSAudioPlayerBridge.provider = null
+            val failure =
+                assertFailsWith<PlaybackFailureException> {
+                    runBlocking {
+                        failingEngine.loadPaused(
+                            testTrack("path-failure"), generation = 52L)
+                    }
+                }
+            assertEquals(PlaybackFailureKind.Unknown, failure.error.kind)
+            assertTrue(
+                failure.error.message
+                    .orEmpty()
+                    .startsWith("Could not resolve player path:"))
+            assertEquals("swift-publisher", center.nowPlayingInfo?.get("owner"))
+        } finally {
+            engine.release()
+            failingEngine.release()
+            IOSAudioPlayerBridge.provider = null
+            center.nowPlayingInfo = previousInfo
+        }
     }
 
     @Test
@@ -490,6 +499,35 @@ class IOSAudioPlayerBridgeTest {
     fun iosPlaybackEngineUsesSwiftNativeAudioProvider() {
         assertEquals(
             IOSAudioBackend.SwiftAVAudioPlayerDelegate, iosAudioBackend)
+    }
+
+    @Test
+    fun playbackEngineLeavesSystemNowPlayingInfoToSwiftPublisher() = runBlocking {
+        val center = MPNowPlayingInfoCenter.defaultCenter()
+        val previousInfo = center.nowPlayingInfo
+        val publisherInfo = mapOf<Any?, Any?>("owner" to "swift-publisher")
+        val provider = FakeIOSAudioPlayerProvider()
+        IOSAudioPlayerBridge.provider = provider
+        val engine = createIOSPlaybackEngine(testResolver())
+        var released = false
+        try {
+            center.nowPlayingInfo = publisherInfo
+            engine.loadPaused(testTrack("swift-owned"), generation = 1L)
+            engine.play(1L)
+            engine.seekTo(500L)
+            engine.pause()
+            engine.stop()
+            engine.clear(generation = 1L)
+            engine.release()
+            released = true
+
+            assertEquals("swift-publisher", center.nowPlayingInfo?.get("owner"))
+            assertEquals(1, center.nowPlayingInfo?.size)
+        } finally {
+            if (!released) engine.release()
+            IOSAudioPlayerBridge.provider = null
+            center.nowPlayingInfo = previousInfo
+        }
     }
 
     @Test
@@ -1025,6 +1063,10 @@ class IOSAudioPlayerBridgeTest {
     @Test
     fun rejectedFirstPlayingRestoresOutgoingSourceRunGainAndPositionWithoutRestart() =
         runBlocking {
+            val center = MPNowPlayingInfoCenter.defaultCenter()
+            val previousInfo = center.nowPlayingInfo
+            val publisherInfo = mapOf<Any?, Any?>("owner" to "swift-publisher")
+            center.nowPlayingInfo = publisherInfo
             val provider = FakeIOSAudioPlayerProvider()
             val session = loadAndPlay(provider, generation = 94L)
             val engine = assertIs<CrossfadePlaybackEngine>(session.engine)
@@ -1058,15 +1100,7 @@ class IOSAudioPlayerBridgeTest {
                 assertEquals(350L, provider.currentPositionMillis())
                 assertEquals(0.45f, provider.currentPlaybackGain)
                 assertEquals(
-                    "track-94",
-                    MPNowPlayingInfoCenter.defaultCenter()
-                        .nowPlayingInfo
-                        ?.get(MPMediaItemPropertyTitle))
-                assertEquals(
-                    1.0,
-                    MPNowPlayingInfoCenter.defaultCenter()
-                        .nowPlayingInfo
-                        ?.get(MPMediaItemPropertyPlaybackDuration))
+                    "swift-publisher", center.nowPlayingInfo?.get("owner"))
                 assertTrue(
                     session.recording.progressEvents
                         .drop(progressBeforeStart)
@@ -1088,6 +1122,7 @@ class IOSAudioPlayerBridgeTest {
             } finally {
                 engine.release()
                 IOSAudioPlayerBridge.provider = null
+                center.nowPlayingInfo = previousInfo
             }
         }
 
@@ -1172,6 +1207,10 @@ class IOSAudioPlayerBridgeTest {
     @Test
     fun seekInsideFirstPlayingRetiresOutgoingWithoutChangingIncomingIdentity() =
         runBlocking {
+            val center = MPNowPlayingInfoCenter.defaultCenter()
+            val previousInfo = center.nowPlayingInfo
+            val publisherInfo = mapOf<Any?, Any?>("owner" to "swift-publisher")
+            center.nowPlayingInfo = publisherInfo
             val provider = FakeIOSAudioPlayerProvider()
             val session = loadAndPlay(provider, generation = 112L)
             val engine = assertIs<CrossfadePlaybackEngine>(session.engine)
@@ -1201,10 +1240,7 @@ class IOSAudioPlayerBridgeTest {
                     engine.refreshLoadedMetadata(
                         incomingTrack, generation = 113L))
                 assertEquals(
-                    "sought-incoming",
-                    MPNowPlayingInfoCenter.defaultCenter()
-                        .nowPlayingInfo
-                        ?.get(MPMediaItemPropertyTitle))
+                    "swift-publisher", center.nowPlayingInfo?.get("owner"))
                 outgoingCompletion.onPlaybackCompleted()
                 assertTrue(session.recording.completions.isEmpty())
                 provider.simulateNativeCompletion()
@@ -1212,12 +1248,17 @@ class IOSAudioPlayerBridgeTest {
             } finally {
                 engine.release()
                 IOSAudioPlayerBridge.provider = null
+                center.nowPlayingInfo = previousInfo
             }
         }
 
     @Test
     fun replacementAfterFirstPlayingRetiresBothOldVoicesWithoutOverwritingReplacementIdentity() =
         runBlocking {
+            val center = MPNowPlayingInfoCenter.defaultCenter()
+            val previousInfo = center.nowPlayingInfo
+            val publisherInfo = mapOf<Any?, Any?>("owner" to "swift-publisher")
+            center.nowPlayingInfo = publisherInfo
             val provider = FakeIOSAudioPlayerProvider()
             val session = loadAndPlay(provider, generation = 114L)
             val engine = assertIs<CrossfadePlaybackEngine>(session.engine)
@@ -1244,15 +1285,7 @@ class IOSAudioPlayerBridgeTest {
                 assertEquals(
                     PlaybackStatus.Playing, session.recording.statuses.last())
                 assertEquals(
-                    "replacement-winner",
-                    MPNowPlayingInfoCenter.defaultCenter()
-                        .nowPlayingInfo
-                        ?.get(MPMediaItemPropertyTitle))
-                assertEquals(
-                    2.0,
-                    MPNowPlayingInfoCenter.defaultCenter()
-                        .nowPlayingInfo
-                        ?.get(MPMediaItemPropertyPlaybackDuration))
+                    "swift-publisher", center.nowPlayingInfo?.get("owner"))
                 assertTrue(
                     engine.refreshLoadedMetadata(
                         replacement, generation = 116L))
@@ -1263,6 +1296,7 @@ class IOSAudioPlayerBridgeTest {
             } finally {
                 engine.release()
                 IOSAudioPlayerBridge.provider = null
+                center.nowPlayingInfo = previousInfo
             }
         }
 

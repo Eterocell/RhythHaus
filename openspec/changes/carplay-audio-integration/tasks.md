@@ -7,10 +7,10 @@
 
 ## 2. Native iOS system media publisher
 
-- [ ] 2.1 Add Swift policy tests for authoritative Now Playing dictionary construction, stale metadata removal, artwork merge, and supported remote commands.
-- [ ] 2.2 Implement one main-thread serialized iOS publisher for complete Now Playing metadata and remote commands, routing commands through the Shared facade.
-- [ ] 2.3 Adapt artwork updates to the single publisher without clobbering playback metadata; test command handler/observer idempotency and cleanup.
-- [ ] 2.4 Run iOS host XCTest and compile Shared iOS framework.
+- [x] 2.1 Add Swift policy tests for authoritative Now Playing dictionary construction, stale metadata removal, artwork merge, and supported remote commands.
+- [x] 2.2 Implement one main-thread serialized iOS publisher for complete Now Playing metadata and remote commands, routing commands through the Shared facade.
+- [x] 2.3 Adapt artwork updates to the single publisher without clobbering playback metadata; test command handler/observer idempotency and cleanup.
+- [x] 2.4 Run iOS host XCTest and compile Shared iOS framework.
 
 ## 3. CarPlay scene and approved templates
 

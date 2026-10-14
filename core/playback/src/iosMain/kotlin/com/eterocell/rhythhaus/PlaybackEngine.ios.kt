@@ -14,13 +14,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
-import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
 import platform.MediaPlayer.MPMediaItemPropertyAlbumTitle
 import platform.MediaPlayer.MPMediaItemPropertyArtist
 import platform.MediaPlayer.MPMediaItemPropertyArtwork
 import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
 import platform.MediaPlayer.MPMediaItemPropertyTitle
-import platform.MediaPlayer.MPNowPlayingInfoCenter
 import platform.MediaPlayer.MPNowPlayingInfoPropertyElapsedPlaybackTime
 import platform.MediaPlayer.MPNowPlayingInfoPropertyIsLiveStream
 import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
@@ -70,8 +68,6 @@ public class IOSPlaybackEngine(
     private var playbackGain: Float = 1.0f
     private var wasPlayingBeforeInterruption: Boolean = false
     private var automaticResumeAllowed: Boolean = true
-    private var remoteCommandsRegistered: Boolean = false
-    private val remoteCommandHandlerTokens = mutableListOf<Any?>()
     private var artworkTrackId: String? = null
     private var activeGeneration: Long = 0L
 
@@ -92,7 +88,6 @@ public class IOSPlaybackEngine(
     private var playRequestSequence: Long = 0L
     private var pendingPlayRequest: Long? = null
     private var pendingGaplessPlayRequest: Long? = null
-    private val remoteTransportGate = IOSRemoteTransportGate()
 
     private class VoiceRun(
         val generation: Long,
@@ -139,14 +134,6 @@ public class IOSPlaybackEngine(
          */
         val isManagedLocalFile: Boolean,
     )
-
-    init {
-        // MPRemoteCommandCenter must be configured on the main thread so the
-        // Lock Screen UI layer picks up the enabled command state. Registration
-        // from Dispatchers.Default routes events (AirPods work) but the UI
-        // does not reflect it (prev/next + slider remain greyed).
-        registerRemoteCommands()
-    }
 
     private fun completionHandler(run: VoiceRun) =
         object : IOSAudioPlayerCompletionHandler {
@@ -222,8 +209,6 @@ public class IOSPlaybackEngine(
                     val provider = audioProvider ?: return@began
                     provider.pause()
                     val pos = provider.currentPositionMillis()
-                    updateNowPlayingInfo(
-                        positionMillis = pos, playbackRate = 0.0)
                     listener?.onPlaybackProgress(
                         generation, pos, durationMillis)
                     listener?.onPlaybackStatus(
@@ -268,8 +253,6 @@ public class IOSPlaybackEngine(
                     val provider = audioProvider ?: return@route
                     provider.pause()
                     val pos = provider.currentPositionMillis()
-                    updateNowPlayingInfo(
-                        positionMillis = pos, playbackRate = 0.0)
                     listener?.onPlaybackProgress(
                         generation, pos, durationMillis)
                     listener?.onPlaybackStatus(
@@ -604,8 +587,6 @@ public class IOSPlaybackEngine(
                 provider.interruptionHandler =
                     interruptionHandler(activeGeneration, sourceVersion)
                 playbackActive = provider.isPlaying()
-                updateNowPlayingInfo(
-                    positionMillis = provider.currentPositionMillis())
                 startProgressLoop(activeGeneration, sourceVersion)
             }
         }
@@ -675,7 +656,7 @@ public class IOSPlaybackEngine(
         durationMillis =
             load.track.durationMillis ?: provider.currentDurationMillis()
         activeRun = null
-        updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
+        publishArtworkForCurrentTrack()
         provider.setPlaybackGain(playbackGain)
         provider.pause()
         listener?.onPlaybackProgress(load.generation, 0L, durationMillis)
@@ -701,7 +682,6 @@ public class IOSPlaybackEngine(
         playbackActive = false
         wasPlayingBeforeInterruption = false
         artworkTrackId = null
-        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
     }
 
     override fun clear(generation: Long) {
@@ -710,13 +690,11 @@ public class IOSPlaybackEngine(
             sourceVersion = ++sourceSequence
             releaseForTrackSwitch()
             restorePlaybackGain()
-            MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
         }
     }
 
-    override fun setUserTransportEnabled(enabled: Boolean) {
-        withIOSPlaybackMainThread { remoteTransportGate.setEnabled(enabled) }
-    }
+    /** Transport availability is projected to the app-owned system-media publisher. */
+    override fun setUserTransportEnabled(enabled: Boolean): Unit = Unit
 
     override fun setPlaybackGain(gain: Float) {
         require(gain.isFinite() && gain >= 0f && gain <= 1f) {
@@ -732,10 +710,6 @@ public class IOSPlaybackEngine(
         if (generation != activeGeneration || loadedTrack?.id != track.id)
             return@withIOSPlaybackMainThread false
         loadedTrack = track
-        updateNowPlayingInfo(
-            positionMillis = audioProvider?.currentPositionMillis() ?: 0L,
-            playbackRate = if (playbackActive) 1.0 else 0.0,
-        )
         true
     }
 
@@ -803,7 +777,6 @@ public class IOSPlaybackEngine(
                 }
             }
         }
-        updateNowPlayingInfo(positionMillis = provider.currentPositionMillis())
         listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Playing)
         if (!isCurrentSource(generation, version)) return
         listener?.onPlaybackProgress(
@@ -880,7 +853,6 @@ public class IOSPlaybackEngine(
         val provider = audioProvider
         provider?.pause()
         val pos = provider?.currentPositionMillis() ?: 0L
-        updateNowPlayingInfo(positionMillis = pos, playbackRate = 0.0)
         listener?.onPlaybackProgress(activeGeneration, pos, durationMillis)
         listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Paused)
     }
@@ -900,7 +872,6 @@ public class IOSPlaybackEngine(
         wasPlayingBeforeInterruption = false
         (audioProvider ?: IOSAudioPlayerBridge.provider)?.stop()
         restorePlaybackGain()
-        updateNowPlayingInfo(positionMillis = 0L, playbackRate = 0.0)
         listener?.onPlaybackProgress(activeGeneration, 0L, durationMillis)
         listener?.onPlaybackStatus(activeGeneration, PlaybackStatus.Stopped)
     }
@@ -909,7 +880,6 @@ public class IOSPlaybackEngine(
         withIOSPlaybackMainThread {
             retireCrossfadeForTransportSerialized()
             audioProvider?.seekTo(positionMillis)
-            updateNowPlayingInfo(positionMillis = positionMillis)
             listener?.onPlaybackProgress(
                 activeGeneration, positionMillis, durationMillis)
         }
@@ -938,7 +908,6 @@ public class IOSPlaybackEngine(
         loadedTrack = null
         durationMillis = null
         artworkTrackId = null
-        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
     }
 
     private fun releaseForTrackSwitch() {
@@ -965,127 +934,21 @@ public class IOSPlaybackEngine(
         loadedTrack = null
         durationMillis = null
         artworkTrackId = null
-        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = null
-    }
-
-    private fun registerRemoteCommands() {
-        if (remoteCommandsRegistered) return
-        remoteCommandsRegistered = true
-        val commandCenter = MPRemoteCommandCenter.sharedCommandCenter()
-        configureIOSRemoteCommandAvailability(commandCenter)
-
-        remoteCommandHandlerTokens +=
-            commandCenter.playCommand.addTargetWithHandler { _ ->
-                withIOSPlaybackMainThread {
-                    remoteTransportGate.play {
-                        if (audioProvider != null) {
-                            listener?.onPlayRequested(activeGeneration)
-                        }
-                    }
-                }
-            }
-        remoteCommandHandlerTokens +=
-            commandCenter.pauseCommand.addTargetWithHandler { _ ->
-                withIOSPlaybackMainThread {
-                    remoteTransportGate.perform {
-                        listener?.onPauseRequested(activeGeneration)
-                    }
-                }
-            }
-        remoteCommandHandlerTokens +=
-            commandCenter.togglePlayPauseCommand.addTargetWithHandler { _ ->
-                withIOSPlaybackMainThread {
-                    remoteTransportGate.perform {
-                        val provider = audioProvider
-                        if (provider != null) {
-                            if (provider.isPlaying())
-                                listener?.onPauseRequested(activeGeneration)
-                            else listener?.onPlayRequested(activeGeneration)
-                        }
-                    }
-                }
-            }
-        remoteCommandHandlerTokens +=
-            commandCenter.stopCommand.addTargetWithHandler { _ ->
-                withIOSPlaybackMainThread {
-                    remoteTransportGate.perform {
-                        listener?.onStopRequested(activeGeneration)
-                    }
-                }
-            }
-        remoteCommandHandlerTokens +=
-            commandCenter.changePlaybackPositionCommand.addTargetWithHandler {
-                event ->
-                if (event is MPChangePlaybackPositionCommandEvent) {
-                    val seekSeconds = event.positionTime
-                    val pos = (seekSeconds * 1_000.0).toLong()
-                    withIOSPlaybackMainThread {
-                        remoteTransportGate.seek(pos) {
-                            listener?.onSeekRequested(activeGeneration, it)
-                        }
-                    }
-                } else {
-                    MPRemoteCommandHandlerStatusCommandFailed
-                }
-            }
-        remoteCommandHandlerTokens +=
-            commandCenter.previousTrackCommand.addTargetWithHandler { _ ->
-                withIOSPlaybackMainThread {
-                    remoteTransportGate.perform {
-                        listener?.onSkipToPrevious(activeGeneration)
-                    }
-                }
-            }
-        remoteCommandHandlerTokens +=
-            commandCenter.nextTrackCommand.addTargetWithHandler { _ ->
-                withIOSPlaybackMainThread {
-                    remoteTransportGate.perform {
-                        listener?.onSkipToNext(activeGeneration)
-                    }
-                }
-            }
     }
 
     private fun isCurrentSource(generation: Long, version: Long): Boolean =
         generation == activeGeneration && version == sourceVersion
 
-    private fun updateNowPlayingInfo(
-        positionMillis: Long,
-        playbackRate: Double = 1.0
-    ) {
+    private fun publishArtworkForCurrentTrack() {
         val track = loadedTrack ?: return
-        val existingArtwork =
-            MPNowPlayingInfoCenter.defaultCenter()
-                .nowPlayingInfo
-                ?.get(MPMediaItemPropertyArtwork)
-        val dict =
-            buildIOSNowPlayingDictionary(
-                track = track,
-                positionMillis = positionMillis,
-                durationMillis = durationMillis,
-                playbackRate = playbackRate,
-                existingArtwork = existingArtwork,
-            )
-        MPNowPlayingInfoCenter.defaultCenter().nowPlayingInfo = dict
-        // Artwork is set via the Swift-native bridge — cinterop doesn't expose
-        // NSData(bytes:length:) so the ByteArray→UIImage→MPMediaItemArtwork
-        // chain runs in Swift where KotlinByteArray.toData() is available.
-        // Only re-decode/re-assign artwork when the track actually changes —
-        // this
-        // function runs on every progress tick, play/pause, and lockscreen
-        // slider
-        // drag (changePlaybackPositionCommand), and re-setting the artwork on
-        // every
-        // call causes the lockscreen art to visibly reload while scrubbing.
-        if (artworkTrackId != track.id) {
-            artworkTrackId = track.id
-            NowPlayingArtworkBridge.provider?.setArtwork(
-                trackTitle = track.title,
-                artist = track.artist,
-                album = track.album,
-                artworkBytes = track.artworkBytes,
-            )
-        }
+        if (artworkTrackId == track.id) return
+        artworkTrackId = track.id
+        NowPlayingArtworkBridge.provider?.setArtwork(
+            trackTitle = track.title,
+            artist = track.artist,
+            album = track.album,
+            artworkBytes = track.artworkBytes,
+        )
     }
 }
 

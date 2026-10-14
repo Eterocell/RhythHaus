@@ -3,10 +3,12 @@ import Shared
 import UIKit
 
 /// One-time native iOS setup that must happen before the Compose/KMP UI starts.
+@MainActor
 enum RhythHausAppBootstrapper {
     static func configure(
         audioPlayerProvider: IOSAudioPlayerProvider,
-        artworkProvider: NowPlayingArtworkProvider,
+        artworkProvider: RhythHausArtworkProvider,
+        systemMediaPublisher: RhythHausSystemMediaPublisher,
         playlistBackupDocumentProvider: IOSPlaylistBackupDocumentProvider,
         libraryImportProvider: IOSLibraryImportProvider
     ) {
@@ -15,6 +17,7 @@ enum RhythHausAppBootstrapper {
         registerKotlinBridges(
             audioPlayerProvider: audioPlayerProvider,
             artworkProvider: artworkProvider,
+            systemMediaPublisher: systemMediaPublisher,
             playlistBackupDocumentProvider: playlistBackupDocumentProvider,
             libraryImportProvider: libraryImportProvider
         )
@@ -46,14 +49,17 @@ enum RhythHausAppBootstrapper {
 
     private static func registerKotlinBridges(
         audioPlayerProvider: IOSAudioPlayerProvider,
-        artworkProvider: NowPlayingArtworkProvider,
+        artworkProvider: RhythHausArtworkProvider,
+        systemMediaPublisher: RhythHausSystemMediaPublisher,
         playlistBackupDocumentProvider: IOSPlaylistBackupDocumentProvider,
         libraryImportProvider: IOSLibraryImportProvider
     ) {
         // Register Swift-native bridges so the KMP playback engine can use native-only APIs.
         IOSAudioPlayerBridge.shared.provider = audioPlayerProvider
+        artworkProvider.systemMediaPublisher = systemMediaPublisher
         NowPlayingArtworkBridge.shared.provider = artworkProvider
         IOSPlaylistBackupDocumentBridge.shared.provider = playlistBackupDocumentProvider
         IOSLibraryImportBridge.shared.provider = libraryImportProvider
+        systemMediaPublisher.start()
     }
 }
