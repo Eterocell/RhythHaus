@@ -151,6 +151,7 @@ class CrossfadeControllerTest {
         engine.awaitEvent("play")
         engine.progress(18_000L)
         engine.awaitEvent("prepared")
+        engine.awaitPreparationSettled()
         engine.complete(engine.current())
         engine.awaitEvent("incoming-play")
         engine.confirmIncoming()

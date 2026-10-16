@@ -34,3 +34,8 @@
 - **4.2 remains open:** the final app was installed/launched on the iPhone 17 simulator and the settled Chinese empty-library phone surface was captured. This is not CarPlay-display proof. CarPlay-display screenshot attempts timed out; `open -a Simulator` reported no application, and no interactive CarPlay window was available. No connect/browse/select/Now Playing/external-control/disconnect flow is claimed as exercised on the actual CarPlay display.
 - **Distribution prerequisite:** obtain Apple's managed CarPlay Audio capability for the App ID, regenerate an authorized provisioning profile, and sign the target with that profile. The checked-in `com.apple.developer.carplay-audio` declaration and Debug/Release `CODE_SIGN_ENTITLEMENTS` settings do not grant capability. Unsigned simulator success does not prove signed device/distribution authorization.
 - Physical CarPlay, accessory/system controls, listening, interruptions/routes/background behavior, and visual/accessibility acceptance remain user-owned and pending. Keep this change active and unarchived until 4.2 has real acceptance evidence; no final Task 4 commit, merge, or push is claimed.
+
+### Integration decision — 2026-10-16
+
+- At the user's explicit request, the reviewed implementation was committed as `47f81234` and fast-forward merged into local `main` before interactive acceptance. No push performed.
+- This integration does not close 4.2 or change the capability/provisioning prerequisites. The change remains active and unarchived; physical and interactive CarPlay acceptance remains pending.
