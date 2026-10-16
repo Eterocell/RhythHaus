@@ -6,11 +6,6 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXFileReference section */
-		7FA8EC1E268FFA35119B77B6 /* RhythHaus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RhythHaus.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A10000000000000000000001 /* iosAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-/* End PBXFileReference section */
-
 /* Begin PBXContainerItemProxy section */
 		A10000000000000000000002 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,8 +16,13 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXFileReference section */
+		7FA8EC1E268FFA35119B77B6 /* RhythHaus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RhythHaus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000001 /* iosAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iosAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		27886A960C589F27FDEBB89D /* Exceptions for "iosApp" folder in "iosApp" target */ = {
+		27886A960C589F27FDEBB89D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -35,18 +35,30 @@
 		1706B27030EEF7A5CBA57890 /* iosApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				27886A960C589F27FDEBB89D /* Exceptions for "iosApp" folder in "iosApp" target */,
+				27886A960C589F27FDEBB89D /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
 			);
 			path = iosApp;
 			sourceTree = "<group>";
 		};
 		7B781C9E79736585D7EE6FFD /* Configuration */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
 			path = Configuration;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000003 /* iosAppTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
 			path = iosAppTests;
 			sourceTree = "<group>";
 		};
@@ -92,29 +104,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		FB502E72F919581544E04AAD /* iosApp */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E8753CED2B5259EE5A3ECD8E /* Build configuration list for PBXNativeTarget "iosApp" */;
-			buildPhases = (
-				F5062FC6DEBA90420704F0AF /* Compile Kotlin Framework */,
-				A6B6C971C28F3046C654F469 /* Sources */,
-				215C34893C6891F37A733F46 /* Frameworks */,
-				2FFAE746966112D2F1E0E9FC /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				1706B27030EEF7A5CBA57890 /* iosApp */,
-			);
-			name = iosApp;
-			packageProductDependencies = (
-			);
-			productName = iosApp;
-			productReference = 7FA8EC1E268FFA35119B77B6 /* RhythHaus.app */;
-			productType = "com.apple.product-type.application";
-		};
 		A10000000000000000000005 /* iosAppTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A10000000000000000000006 /* Build configuration list for PBXNativeTarget "iosAppTests" */;
@@ -137,6 +126,29 @@
 			productName = iosAppTests;
 			productReference = A10000000000000000000001 /* iosAppTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		FB502E72F919581544E04AAD /* iosApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E8753CED2B5259EE5A3ECD8E /* Build configuration list for PBXNativeTarget "iosApp" */;
+			buildPhases = (
+				F5062FC6DEBA90420704F0AF /* Compile Kotlin Framework */,
+				A6B6C971C28F3046C654F469 /* Sources */,
+				215C34893C6891F37A733F46 /* Frameworks */,
+				2FFAE746966112D2F1E0E9FC /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				1706B27030EEF7A5CBA57890 /* iosApp */,
+			);
+			name = iosApp;
+			packageProductDependencies = (
+			);
+			productName = iosApp;
+			productReference = 7FA8EC1E268FFA35119B77B6 /* RhythHaus.app */;
+			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
@@ -218,14 +230,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A6B6C971C28F3046C654F469 /* Sources */ = {
+		A10000000000000000000007 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A10000000000000000000007 /* Sources */ = {
+		A6B6C971C28F3046C654F469 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -243,36 +255,6 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		A1000000000000000000000A /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGNING_ALLOWED = NO;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.eterocell.RhythHausTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RhythHaus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RhythHaus";
-			};
-			name = Debug;
-		};
-		A1000000000000000000000B /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGNING_ALLOWED = NO;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.eterocell.RhythHausTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RhythHaus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RhythHaus";
-			};
-			name = Release;
-		};
 		452D68F36BE00BE516AD33C9 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = 7B781C9E79736585D7EE6FFD /* Configuration */;
@@ -402,12 +384,12 @@
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = iosApp/RhythHaus.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(RHYTHHAUS_VERSION_CODE)";
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 88R232SMFN;
-				CODE_SIGN_ENTITLEMENTS = iosApp/RhythHaus.entitlements;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iosApp/Info.plist;
@@ -436,12 +418,12 @@
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = iosApp/RhythHaus.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(RHYTHHAUS_VERSION_CODE)";
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 88R232SMFN;
-				CODE_SIGN_ENTITLEMENTS = iosApp/RhythHaus.entitlements;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iosApp/Info.plist;
@@ -464,23 +446,53 @@
 			};
 			name = Debug;
 		};
+		A1000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.eterocell.RhythHausTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RhythHaus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RhythHaus";
+			};
+			name = Debug;
+		};
+		A1000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.eterocell.RhythHausTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RhythHaus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RhythHaus";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A10000000000000000000006 /* Build configuration list for PBXNativeTarget "iosAppTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1000000000000000000000A /* Debug */,
-				A1000000000000000000000B /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		74871C93AD41A42204E74A16 /* Build configuration list for PBXProject "iosApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				452D68F36BE00BE516AD33C9 /* Debug */,
 				63098D7F7B647A945E3981B1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000006 /* Build configuration list for PBXNativeTarget "iosAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000000000000000000000A /* Debug */,
+				A1000000000000000000000B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
