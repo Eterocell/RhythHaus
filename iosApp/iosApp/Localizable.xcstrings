@@ -71,6 +71,27 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载音乐库" } }
       }
     },
+    "carplay.page.next" : {
+      "comment" : "CarPlay next-page navigation item.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一页" } }
+      }
+    },
+    "carplay.playlists.unavailable" : {
+      "comment" : "Playlist read failure; other CarPlay categories remain available.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Playlists unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "播放列表暂不可用" } }
+      }
+    },
+    "carplay.page.previous" : {
+      "comment" : "CarPlay previous-page navigation item.",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上一页" } }
+      }
+    },
     "carplay.nowPlaying" : {
       "comment" : "CarPlay Now Playing destination label.",
       "localizations" : {

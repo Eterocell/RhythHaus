@@ -6,6 +6,22 @@ import UIKit
 
 @MainActor
 final class RhythHausSystemMediaPublisherTests: XCTestCase {
+    func testNativeApplicationCatalogLeavesLoading() async {
+        let facade = iOSApp.carPlayFacade
+        let ready = expectation(description: "Native catalog initialization completes")
+        let token = facade.observeSnapshots { snapshot in
+            if snapshot.libraryStatus != .loading {
+                ready.fulfill()
+            }
+        }
+        defer { facade.removeSnapshotObserver(observerId: token) }
+
+        await fulfillment(of: [ready], timeout: 5)
+        facade.readSnapshot { snapshot in
+            XCTAssertNotEqual(snapshot.libraryStatus, .loading)
+        }
+    }
+
     func testPublishesCompleteCurrentTrackMetadataAndTimeline() throws {
         let fixture = Fixture()
         let publisher = fixture.makePublisher()
@@ -109,58 +125,27 @@ final class RhythHausSystemMediaPublisherTests: XCTestCase {
         XCTAssertEqual(info[MPNowPlayingInfoPropertyIsLiveStream] as? Bool, true)
     }
 
-    func testArtworkMergeChangesOnlyTheArtworkField() {
-        let artwork = NSObject()
-        let info: [String: Any] = [
-            MPMediaItemPropertyTitle: "Current",
-            MPMediaItemPropertyArtist: "Artist",
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: 19.25,
-            MPNowPlayingInfoPropertyPlaybackRate: 1.0,
-        ]
-
-        let merged = RhythHausSystemMediaPublisher.mergingArtwork(artwork, into: info)
-        XCTAssertTrue(merged[MPMediaItemPropertyArtwork] as AnyObject === artwork)
-        XCTAssertEqual(merged[MPMediaItemPropertyTitle] as? String, "Current")
-        XCTAssertEqual(merged[MPMediaItemPropertyArtist] as? String, "Artist")
-        XCTAssertEqual(merged[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double, 19.25)
-        XCTAssertEqual(merged[MPNowPlayingInfoPropertyPlaybackRate] as? Double, 1.0)
-
-        let withoutArtwork = RhythHausSystemMediaPublisher.mergingArtwork(nil, into: merged)
-        XCTAssertNil(withoutArtwork[MPMediaItemPropertyArtwork])
-        XCTAssertEqual(withoutArtwork[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double, 19.25)
-    }
-
-    func testArtworkCallbackPreservesThePublishedMetadataAndTimeline() throws {
+    func testArtworkFollowsTrackIdentityEvenWithIdenticalMetadata() throws {
         let fixture = Fixture()
         let publisher = fixture.makePublisher()
         publisher.start()
-        fixture.source.send(
-            snapshot(
-                revision: 10,
-                track: track(
-                    id: "artwork-track",
-                    title: "Artwork Track",
-                    artist: "Rhyth Haus",
-                    album: "Now Playing",
-                    durationMillis: 120_000),
-                positionMillis: 19_250,
-                isPlaying: true,
-                canPlay: false,
-                canPause: true,
-                canSkipNext: false,
-                canSkipPrevious: false,
-                canSeek: true))
-
         let image =
             UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1)).image { context in
                 context.cgContext.setFillColor(UIColor.red.cgColor)
                 context.cgContext.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
             }
-        publisher.updateArtwork(
-            kotlinByteArray(try XCTUnwrap(image.pngData())),
-            trackTitle: "Artwork Track",
-            artist: "Rhyth Haus",
-            album: "Now Playing")
+        let artwork = try XCTUnwrap(image.pngData())
+        func send(_ id: String, artwork: Data?) {
+            fixture.source.send(snapshot(
+                revision: 10,
+                track: RhythHausSystemMediaTrack(
+                    id: id, title: "Artwork Track", artist: "Rhyth Haus",
+                    album: "Now Playing", durationMillis: 120_000, artworkData: artwork),
+                positionMillis: 19_250, isPlaying: true,
+                canPlay: false, canPause: true, canSkipNext: true,
+                canSkipPrevious: true, canSeek: true))
+        }
+        send("with-art", artwork: artwork)
 
         let info = try XCTUnwrap(fixture.infoCenter.nowPlayingInfo)
         XCTAssertEqual(info[MPMediaItemPropertyTitle] as? String, "Artwork Track")
@@ -171,11 +156,7 @@ final class RhythHausSystemMediaPublisherTests: XCTestCase {
         XCTAssertEqual(info[MPNowPlayingInfoPropertyPlaybackRate] as? Double, 1.0)
         XCTAssertNotNil(info[MPMediaItemPropertyArtwork] as? MPMediaItemArtwork)
 
-        publisher.updateArtwork(
-            nil,
-            trackTitle: "Artwork Track",
-            artist: "Rhyth Haus",
-            album: "Now Playing")
+        send("without-art", artwork: nil)
         let infoWithoutArtwork = try XCTUnwrap(fixture.infoCenter.nowPlayingInfo)
         XCTAssertNil(infoWithoutArtwork[MPMediaItemPropertyArtwork])
         XCTAssertEqual(
@@ -219,6 +200,33 @@ final class RhythHausSystemMediaPublisherTests: XCTestCase {
         XCTAssertEqual(fixture.source.commands.map(\.command), [.play])
         XCTAssertEqual(fixture.source.commands.first?.revision, 4)
         XCTAssertEqual(fixture.source.commands.first?.trackID, "track-one")
+    }
+
+    func testFacadeRejectionReportsRemoteCommandFailure() {
+        let fixture = Fixture()
+        let publisher = fixture.makePublisher()
+        publisher.start()
+        fixture.source.send(
+            snapshot(
+                revision: 16,
+                track: track(
+                    id: "track-rejected",
+                    title: "Rejected",
+                    artist: "Artist",
+                    album: nil,
+                    durationMillis: 60_000),
+                positionMillis: 0,
+                isPlaying: false,
+                canPlay: true,
+                canPause: false,
+                canSkipNext: false,
+                canSkipPrevious: false,
+                canSeek: false))
+
+        fixture.source.dispatchAccepted = false
+
+        XCTAssertFalse(fixture.remoteCommands.invoke(.play))
+        XCTAssertEqual(fixture.source.commands.map(\.command), [.play])
     }
 
     func testSupportedCommandsDispatchAgainstTheCurrentFacadeSnapshot() {
@@ -310,6 +318,7 @@ final class RhythHausSystemMediaPublisherTests: XCTestCase {
     ) -> RhythHausSystemMediaSnapshot {
         RhythHausSystemMediaSnapshot(
             revision: revision,
+            selectionGeneration: 0,
             currentTrack: track,
             positionMillis: positionMillis,
             durationMillis: durationMillis ?? track?.durationMillis,
@@ -338,14 +347,6 @@ final class RhythHausSystemMediaPublisherTests: XCTestCase {
     }
 }
 
-private func kotlinByteArray(_ data: Data) -> KotlinByteArray {
-    let bytes = KotlinByteArray(size: Int32(data.count))
-    for index in 0 ..< data.count {
-        bytes.set(index: Int32(index), value: Int8(bitPattern: data[index]))
-    }
-    return bytes
-}
-
 @MainActor
 private struct Fixture {
     let source = FakeSystemMediaSource()
@@ -364,6 +365,7 @@ private struct Fixture {
 private final class FakeSystemMediaSource: RhythHausSystemMediaSnapshotSource {
     private var observer: ((RhythHausSystemMediaSnapshot) -> Void)?
     private(set) var commands: [DispatchedCommand] = []
+    var dispatchAccepted = true
 
     var observerCount: Int { observer == nil ? 0 : 1 }
 
@@ -386,13 +388,14 @@ private final class FakeSystemMediaSource: RhythHausSystemMediaSnapshotSource {
         _ command: RhythHausSystemMediaCommand,
         positionMillis: Int64?,
         snapshot: RhythHausSystemMediaSnapshot
-    ) {
+    ) -> Bool {
         commands.append(
             DispatchedCommand(
                 command: command,
                 revision: snapshot.revision,
                 trackID: snapshot.currentTrack?.id,
                 positionMillis: positionMillis))
+        return dispatchAccepted
     }
 
     struct DispatchedCommand {

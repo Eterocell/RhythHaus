@@ -25,6 +25,23 @@ The iOS app MUST present CarPlay-approved browsing templates for available local
 - **THEN** it presents a bounded loading or empty state without blocking the iOS app
 - **AND** it refreshes when authoritative library state becomes available
 
+#### Scenario: CarPlay launches without the phone interface
+- **WHEN** CarPlay starts the application before the phone interface is composed
+- **THEN** library initialization and playback restoration proceed once for the application process
+- **AND** actual playback records history without requiring the phone interface
+- **AND** opening the phone interface later does not repeat restoration or history collection
+
+#### Scenario: The initial playlist read fails
+- **WHEN** library initialization succeeds but the initial playlist read fails
+- **THEN** Songs, Albums, and Artists remain available for browsing and playback
+- **AND** Playlists reports unavailable content rather than leaving the entire library loading
+- **AND** a later successful playlist read restores the playlist destination
+
+#### Scenario: A browsing list exceeds the platform item limit
+- **WHEN** a category or detail contains more entries than one CarPlay list can display
+- **THEN** every entry remains reachable through bounded page navigation
+- **AND** selecting an entry on a later page retains its complete ordered browsing context
+
 ### Requirement: CarPlay track selection uses the shared playback session
 
 CarPlay selection MUST use the application's existing playback queue and controller. It MUST NOT create a second audio engine or an independently persisted queue.
@@ -39,6 +56,11 @@ CarPlay selection MUST use the application's existing playback queue and control
 - **THEN** the action is rejected without changing the queue or current playback
 - **AND** CarPlay reports a recoverable failure rather than silently selecting a different track
 
+#### Scenario: A selected occurrence is reselected after queue editing
+- **WHEN** the user reselects the current browsing occurrence after the active queue was edited
+- **THEN** the queue is replaced with the current browsing context's exact ordered occurrences
+- **AND** duplicate tracks remain distinct occurrences
+
 ### Requirement: CarPlay transport reflects authoritative playback state
 
 CarPlay MUST expose the supported system Now Playing and transport actions for the current shared playback state, with metadata and artwork derived from the authoritative current track.
@@ -52,10 +74,24 @@ CarPlay MUST expose the supported system Now Playing and transport actions for t
 - **WHEN** playback state or the current track changes in the iOS app or through a system control
 - **THEN** CarPlay Now Playing metadata, artwork, elapsed time, and supported actions update to match the authoritative state
 
+#### Scenario: A transport request targets an obsolete playback occurrence
+- **WHEN** a request carries playback identity from before an occurrence change or a later playback run
+- **THEN** the request is rejected without changing playback even if the current track ID is the same
+
+#### Scenario: Playback advances automatically
+- **WHEN** gapless playback or crossfade promotes the next track
+- **THEN** system metadata and artwork identify the promoted track
+- **AND** previous and next actions reflect actual traversal boundaries and the active repeat policy
+
 #### Scenario: CarPlay scene disconnects
 - **WHEN** the CarPlay scene disconnects
 - **THEN** CarPlay presentation resources and scene-specific observers are released
 - **AND** ongoing playback and the iPhone app's playback state remain unchanged
+
+#### Scenario: A previous connection completes an action after reconnecting
+- **WHEN** an asynchronous presentation or selection from a disconnected scene completes after a new connection
+- **THEN** its original action is completed exactly once
+- **AND** it cannot present a failure or change the replacement connection's interface
 
 ### Requirement: CarPlay entitlement and scene configuration are explicit
 

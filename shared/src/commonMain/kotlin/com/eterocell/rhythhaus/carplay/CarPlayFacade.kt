@@ -9,11 +9,10 @@ import com.eterocell.rhythhaus.library.LibraryRepository
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.TrackPlayHistory
+import com.eterocell.rhythhaus.library.selectDynamicOccurrenceForPlayback
+import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import com.eterocell.rhythhaus.library.ui.projectSmartPlaylist
-import com.eterocell.rhythhaus.library.selectDynamicOccurrenceForPlayback
-import com.eterocell.rhythhaus.library.selectOccurrenceForPlayback
-import com.eterocell.rhythhaus.library.toPlayableTrack
 import com.eterocell.rhythhaus.library.uuid4
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -65,7 +64,9 @@ public data class CarPlayLibraryCategory(
 
 /** Immutable list or detail entry in the Shared CarPlay catalog. */
 public data class CarPlayLibraryEntry(
-    /** Opaque stable entry identifier to return to [CarPlayFacade.selectEntry]. */
+    /**
+     * Opaque stable entry identifier to return to [CarPlayFacade.selectEntry].
+     */
     public val id: String,
     /** User-visible entry title. */
     public val title: String,
@@ -77,7 +78,10 @@ public data class CarPlayLibraryEntry(
     public val isPlayable: Boolean = false,
 )
 
-/** Current track metadata projected without exposing playback implementation types. */
+/**
+ * Current track metadata projected without exposing playback implementation
+ * types.
+ */
 public class CarPlayTrack
 internal constructor(
     /** Stable opaque track identity used to bind transport commands. */
@@ -152,6 +156,8 @@ public enum class CarPlayPlaybackStatus {
 
 /** Immutable projection of the authoritative Shared playback state. */
 public data class CarPlayPlaybackProjection(
+    /** Engine selection identity, stable across progress and status updates. */
+    public val selectionGeneration: Long,
     /** Current track metadata, or null when no track is selected. */
     public val currentTrack: CarPlayTrack?,
     /** Current playback lifecycle state. */
@@ -182,6 +188,8 @@ public data class CarPlaySnapshot(
     public val categories: List<CarPlayLibraryCategory>,
     /** Current projection of the existing Shared playback session. */
     public val playback: CarPlayPlaybackProjection,
+    /** Playlist reads failed; other library destinations remain available. */
+    public val playlistsUnavailable: Boolean = false,
 )
 
 /** Result reported for a CarPlay selection or transport action. */
@@ -192,7 +200,9 @@ public enum class CarPlayCommandResult {
     /** The command referred to a catalog revision that is no longer current. */
     StaleSnapshot,
 
-    /** The selected entry or one of its visible queue tracks no longer exists. */
+    /**
+     * The selected entry or one of its visible queue tracks no longer exists.
+     */
     StaleEntry,
 
     /** The expected current playback track is no longer current. */
@@ -246,8 +256,8 @@ internal constructor(
 
     init {
         processScope.launch {
-            playbackController.state.collect { playback ->
-                publishPlayback(playback)
+            playbackController.state.collect {
+                publishPlayback()
             }
         }
     }
@@ -298,71 +308,101 @@ internal constructor(
         }
     }
 
-    /** Routes play through the existing Shared playback controller. */
+    /**
+     * Routes play through the existing Shared playback controller.
+     *
+     * [onResult] is completed before this method returns. The controller still
+     * owns the asynchronous engine work; this boundary only performs serialized
+     * admission and stale-state validation.
+     */
     public fun play(
         expectedRevision: Long,
         expectedTrackId: String,
+        expectedSelectionGeneration: Long,
         onResult: (CarPlayCommandResult) -> Unit,
-    ) = dispatchTransport(expectedRevision, expectedTrackId, onResult) {
-        if (!it.canPlay) return@dispatchTransport CarPlayCommandResult.Unavailable
-        playbackController.play()
-        CarPlayCommandResult.Applied
-    }
+    ) =
+        dispatchTransport(
+            expectedRevision,
+            expectedTrackId,
+            expectedSelectionGeneration,
+            onResult) {
+                if (!it.canPlay) return@dispatchTransport false
+                playbackController.play(expectedSelectionGeneration)
+            }
 
     /** Routes pause through the existing Shared playback controller. */
     public fun pause(
         expectedRevision: Long,
         expectedTrackId: String,
+        expectedSelectionGeneration: Long,
         onResult: (CarPlayCommandResult) -> Unit,
-    ) = dispatchTransport(expectedRevision, expectedTrackId, onResult) {
-        if (it.status != PlaybackStatus.Playing)
-            return@dispatchTransport CarPlayCommandResult.Unavailable
-        playbackController.pause()
-        CarPlayCommandResult.Applied
-    }
+    ) =
+        dispatchTransport(
+            expectedRevision,
+            expectedTrackId,
+            expectedSelectionGeneration,
+            onResult) {
+                if (it.status != PlaybackStatus.Playing)
+                    return@dispatchTransport false
+                playbackController.pause(expectedSelectionGeneration)
+            }
 
     /** Routes next-track navigation through the existing Shared queue. */
     public fun skipToNext(
         expectedRevision: Long,
         expectedTrackId: String,
+        expectedSelectionGeneration: Long,
         onResult: (CarPlayCommandResult) -> Unit,
-    ) = dispatchTransport(expectedRevision, expectedTrackId, onResult) { state ->
-        if (state.queue.size < 2) return@dispatchTransport CarPlayCommandResult.Unavailable
-        playbackController.skipToNext()
-        if (playbackController.state.value == state)
-            CarPlayCommandResult.Unavailable
-        else CarPlayCommandResult.Applied
-    }
+    ) =
+        dispatchTransport(
+            expectedRevision,
+            expectedTrackId,
+            expectedSelectionGeneration,
+            onResult) { state ->
+                if (!playbackController.canSkipToNext(state))
+                    return@dispatchTransport false
+                playbackController.skipToNext(expectedSelectionGeneration)
+            }
 
     /** Routes previous-track navigation through the existing Shared queue. */
     public fun skipToPrevious(
         expectedRevision: Long,
         expectedTrackId: String,
+        expectedSelectionGeneration: Long,
         onResult: (CarPlayCommandResult) -> Unit,
-    ) = dispatchTransport(expectedRevision, expectedTrackId, onResult) { state ->
-        if (state.queue.size < 2) return@dispatchTransport CarPlayCommandResult.Unavailable
-        playbackController.skipToPrevious()
-        if (playbackController.state.value == state)
-            CarPlayCommandResult.Unavailable
-        else CarPlayCommandResult.Applied
-    }
+    ) =
+        dispatchTransport(
+            expectedRevision,
+            expectedTrackId,
+            expectedSelectionGeneration,
+            onResult) { state ->
+                if (!playbackController.canSkipToPrevious(state))
+                    return@dispatchTransport false
+                playbackController.skipToPrevious(expectedSelectionGeneration)
+            }
 
     /** Routes seeking through the existing Shared playback controller. */
     public fun seekTo(
         positionMillis: Long,
         expectedRevision: Long,
         expectedTrackId: String,
+        expectedSelectionGeneration: Long,
         onResult: (CarPlayCommandResult) -> Unit,
-    ) = dispatchTransport(expectedRevision, expectedTrackId, onResult) { state ->
-        if (state.durationMillis == null ||
-            (state.status != PlaybackStatus.Playing &&
-                state.status != PlaybackStatus.Paused &&
-                state.status != PlaybackStatus.Buffering)) {
-            return@dispatchTransport CarPlayCommandResult.Unavailable
-        }
-        playbackController.seekTo(positionMillis)
-        CarPlayCommandResult.Applied
-    }
+    ) =
+        dispatchTransport(
+            expectedRevision,
+            expectedTrackId,
+            expectedSelectionGeneration,
+            onResult) { state ->
+                if (state.durationMillis == null ||
+                    (state.status != PlaybackStatus.Playing &&
+                        state.status != PlaybackStatus.Paused &&
+                        state.status != PlaybackStatus.Buffering)) {
+                    return@dispatchTransport false
+                }
+                playbackController.seekTo(
+                    positionMillis, expectedSelectionGeneration)
+            }
 
     /** Publishes one authoritative Shared catalog into the process owner. */
     internal suspend fun publishCatalog(
@@ -373,6 +413,7 @@ internal constructor(
         playHistory: Map<String, TrackPlayHistory>,
         playlists: PlaylistSnapshot,
         labels: CarPlayCategoryLabels,
+        playlistsUnavailable: Boolean = false,
     ) {
         val projection =
             projectCatalog(
@@ -382,11 +423,13 @@ internal constructor(
                 playHistory = playHistory,
                 playlists = playlists,
                 labels = labels,
+                playlistsUnavailable = playlistsUnavailable,
             )
         stateMutex.withLock {
             val appliedRevision = currentLibraryRevision
             if (appliedRevision != null && libraryRevision < appliedRevision)
                 return@withLock
+            val playback = playbackController.state.value
             if (libraryRevision != currentLibraryRevision ||
                 projection != currentCatalog) {
                 revision += 1L
@@ -398,13 +441,15 @@ internal constructor(
                     revision = revision,
                     libraryStatus = projection.status,
                     categories = projection.categories,
-                    playback = projectPlayback(playbackController.state.value),
+                    playback = projectPlayback(playback),
+                    playlistsUnavailable = projection.playlistsUnavailable,
                 )
         }
     }
 
-    private suspend fun publishPlayback(playback: PlaybackState) {
+    private suspend fun publishPlayback() {
         stateMutex.withLock {
+            val playback = playbackController.state.value
             val previous = snapshotState.value
             val projected = projectPlayback(playback)
             if (previous.playback != projected) {
@@ -426,20 +471,25 @@ internal constructor(
                 .flatMap { sequenceOf(it) + it.children.asSequence() }
                 .firstOrNull { it.id == entryId }
                 ?: return CarPlayCommandResult.StaleEntry
-        val selection = currentCatalog.selectionContexts[entryId]
-            ?: return CarPlayCommandResult.Unavailable
+        val selection =
+            currentCatalog.selectionContexts[entryId]
+                ?: return CarPlayCommandResult.Unavailable
         if (!currentEntry.isPlayable) return CarPlayCommandResult.Unavailable
 
-        val tracksById = libraryRepository.tracks().associateBy(LibraryTrack::id)
+        val tracksById =
+            libraryRepository.tracks().associateBy(LibraryTrack::id)
         val availableSourceIds =
             libraryRepository
                 .sources()
-                .filter { it.accessStatus == LibrarySourceAccessStatus.Available }
+                .filter {
+                    it.accessStatus == LibrarySourceAccessStatus.Available
+                }
                 .mapTo(HashSet()) { it.id }
         val occurrences =
             selection.queue.map { item ->
-                val track = tracksById[item.trackId]
-                    ?: return CarPlayCommandResult.StaleEntry
+                val track =
+                    tracksById[item.trackId]
+                        ?: return CarPlayCommandResult.StaleEntry
                 if (track.sourceId !in availableSourceIds)
                     return CarPlayCommandResult.Unavailable
                 QueueOccurrence(item.occurrenceId, track.toPlayableTrack())
@@ -448,19 +498,11 @@ internal constructor(
             return CarPlayCommandResult.StaleEntry
 
         val before = playbackController.state.value
-        if (selection.dynamic) {
-            selectDynamicOccurrenceForPlayback(
-                playbackController,
-                occurrences,
-                selection.selectedOccurrenceId,
-            )
-        } else {
-            selectOccurrenceForPlayback(
-                playbackController,
-                occurrences,
-                selection.selectedOccurrenceId,
-            )
-        }
+        selectDynamicOccurrenceForPlayback(
+            playbackController,
+            occurrences,
+            selection.selectedOccurrenceId,
+        )
         return if (playbackController.state.value == before)
             CarPlayCommandResult.Unavailable
         else CarPlayCommandResult.Applied
@@ -469,24 +511,45 @@ internal constructor(
     private fun dispatchTransport(
         expectedRevision: Long,
         expectedTrackId: String,
+        expectedSelectionGeneration: Long,
         onResult: (CarPlayCommandResult) -> Unit,
-        dispatch: (PlaybackState) -> CarPlayCommandResult,
+        dispatch: (PlaybackState) -> Boolean,
     ) {
-        processScope.launch {
-            val result = stateMutex.withLock {
-                if (expectedRevision != snapshotState.value.revision)
-                    return@withLock CarPlayCommandResult.StaleSnapshot
-                val state = playbackController.state.value
-                if (state.currentTrack?.id != expectedTrackId)
-                    return@withLock CarPlayCommandResult.StalePlayback
-                if (libraryRepository.tracks().none { it.id == expectedTrackId })
-                    return@withLock CarPlayCommandResult.StalePlayback
-                if (!canDispatchPlaybackCommands())
-                    return@withLock CarPlayCommandResult.Unavailable
-                dispatch(state)
-            }
-            onResult(result)
+        if (!stateMutex.tryLock()) {
+            onResult(CarPlayCommandResult.Unavailable)
+            return
         }
+        val result =
+            try {
+                if (expectedRevision != snapshotState.value.revision)
+                    CarPlayCommandResult.StaleSnapshot
+                else {
+                    val state = playbackController.state.value
+                    when {
+                        state.selectionGeneration !=
+                            expectedSelectionGeneration ->
+                            CarPlayCommandResult.StalePlayback
+                        state.currentTrack?.id != expectedTrackId ->
+                            CarPlayCommandResult.StalePlayback
+                        libraryRepository.metadataForTrack(expectedTrackId) ==
+                            null -> CarPlayCommandResult.StalePlayback
+                        !canDispatchPlaybackCommands() ->
+                            CarPlayCommandResult.Unavailable
+                        else ->
+                            when {
+                                dispatch(state) -> CarPlayCommandResult.Applied
+                                playbackController.state.value
+                                    .selectionGeneration !=
+                                    expectedSelectionGeneration ->
+                                    CarPlayCommandResult.StalePlayback
+                                else -> CarPlayCommandResult.Unavailable
+                            }
+                    }
+                }
+            } finally {
+                stateMutex.unlock()
+            }
+        onResult(result)
     }
 
     private fun projectCatalog(
@@ -496,6 +559,7 @@ internal constructor(
         playHistory: Map<String, TrackPlayHistory>,
         playlists: PlaylistSnapshot,
         labels: CarPlayCategoryLabels,
+        playlistsUnavailable: Boolean,
     ): CarPlayCatalogProjection {
         val libraryStatus =
             when {
@@ -504,9 +568,7 @@ internal constructor(
                 else -> CarPlayLibraryStatus.Ready
             }
         val sourceAvailability =
-            libraryRepository
-                .sources()
-                .associate { it.id to it.accessStatus }
+            libraryRepository.sources().associate { it.id to it.accessStatus }
         val tracksById = tracks.associateBy(LibraryTrack::id)
         val selectionContexts = linkedMapOf<String, CarPlaySelectionContext>()
 
@@ -519,12 +581,11 @@ internal constructor(
             track: LibraryTrack,
             queue: List<CarPlayQueueItem>,
             selectedOccurrenceId: String,
-            dynamic: Boolean = false,
         ): CarPlayLibraryEntry {
             val available = isAvailable(track)
             if (available) {
                 selectionContexts[entryId] =
-                    CarPlaySelectionContext(queue, selectedOccurrenceId, dynamic)
+                    CarPlaySelectionContext(queue, selectedOccurrenceId)
             }
             return CarPlayLibraryEntry(
                 id = entryId,
@@ -537,63 +598,65 @@ internal constructor(
         fun groupedEntries(
             category: CarPlayCategoryId,
             groups: List<Pair<String, List<LibraryTrack>>>,
-        ): List<CarPlayLibraryEntry> =
-            groups.map { (groupId, groupTracks) ->
-                val queue =
-                    groupTracks.filter(::isAvailable).map { track ->
-                        CarPlayQueueItem(
-                            occurrenceId = trackEntryId(category, groupId, track.id),
-                            trackId = track.id,
-                        )
-                    }
-                val children =
-                    groupTracks.map { track ->
-                        val occurrenceId =
-                            trackEntryId(category, groupId, track.id)
-                        makeTrackEntry(
-                            occurrenceId,
-                            track,
-                            queue,
-                            occurrenceId,
-                        )
-                    }
-                CarPlayLibraryEntry(
-                    id = groupId,
-                    title =
-                        when (category) {
-                            CarPlayCategoryId.Albums -> groupTracks.first().album
-                            CarPlayCategoryId.Artists -> groupTracks.first().artist
-                            else -> error("Unexpected grouped CarPlay category: $category")
-                        },
-                    subtitle =
-                        if (category == CarPlayCategoryId.Albums)
-                            groupTracks.first().artist.ifBlank { null }
-                        else null,
-                    children = children,
-                )
-            }
-
-        val songQueue = tracks.filter(::isAvailable).map { track ->
-            CarPlayQueueItem(songEntryId(track.id), track.id)
-        }
-        val songs =
-            tracks.map { track ->
-                val occurrenceId = songEntryId(track.id)
+        ): List<CarPlayLibraryEntry> = groups.map { (groupId, groupTracks) ->
+            val queue =
+                groupTracks.filter(::isAvailable).map { track ->
+                    CarPlayQueueItem(
+                        occurrenceId =
+                            trackEntryId(category, groupId, track.id),
+                        trackId = track.id,
+                    )
+                }
+            val children = groupTracks.map { track ->
+                val occurrenceId = trackEntryId(category, groupId, track.id)
                 makeTrackEntry(
                     occurrenceId,
                     track,
-                    songQueue,
+                    queue,
                     occurrenceId,
                 )
             }
+            CarPlayLibraryEntry(
+                id = groupId,
+                title =
+                    when (category) {
+                        CarPlayCategoryId.Albums -> groupTracks.first().album
+                        CarPlayCategoryId.Artists -> groupTracks.first().artist
+                        else ->
+                            error(
+                                "Unexpected grouped CarPlay category: $category")
+                    },
+                subtitle =
+                    if (category == CarPlayCategoryId.Albums)
+                        groupTracks.first().artist.ifBlank { null }
+                    else null,
+                children = children,
+            )
+        }
+
+        val songQueue =
+            tracks.filter(::isAvailable).map { track ->
+                CarPlayQueueItem(songEntryId(track.id), track.id)
+            }
+        val songs = tracks.map { track ->
+            val occurrenceId = songEntryId(track.id)
+            makeTrackEntry(
+                occurrenceId,
+                track,
+                songQueue,
+                occurrenceId,
+            )
+        }
         val albums =
             tracks
                 .groupBy { it.artist to it.album }
                 .entries
                 .sortedWith(
-                    compareBy<Map.Entry<Pair<String, String>, List<LibraryTrack>>> {
-                        it.key.first.lowercase()
-                    }
+                    compareBy<
+                            Map.Entry<
+                                Pair<String, String>, List<LibraryTrack>>> {
+                            it.key.first.lowercase()
+                        }
                         .thenBy { it.key.first }
                         .thenBy { it.key.second.lowercase() }
                         .thenBy { it.key.second },
@@ -609,8 +672,9 @@ internal constructor(
                 .entries
                 .sortedWith(
                     compareBy<Map.Entry<String, List<LibraryTrack>>> {
-                        it.key.lowercase()
-                    }.thenBy { it.key },
+                            it.key.lowercase()
+                        }
+                        .thenBy { it.key },
                 )
                 .map { (artist, groupedTracks) ->
                     "artist:${artist.length}:$artist" to groupedTracks
@@ -633,16 +697,15 @@ internal constructor(
                                 trackId = track.id,
                             )
                         }
-                val children =
-                    visibleEntries.map { (entry, track) ->
-                        val occurrenceId = playlistEntryId(playlist.id, entry.id)
-                        makeTrackEntry(
-                            occurrenceId,
-                            track,
-                            queue,
-                            occurrenceId,
-                        )
-                    }
+                val children = visibleEntries.map { (entry, track) ->
+                    val occurrenceId = playlistEntryId(playlist.id, entry.id)
+                    makeTrackEntry(
+                        occurrenceId,
+                        track,
+                        queue,
+                        occurrenceId,
+                    )
+                }
                 CarPlayLibraryEntry(
                     id = "playlist:${playlist.id.length}:${playlist.id}",
                     title = playlist.name,
@@ -659,9 +722,10 @@ internal constructor(
                         playHistory,
                         playlists,
                     )
-                val visibleRows = projected.rows.mapNotNull { row ->
-                    tracksById[row.trackId]?.let { row to it }
-                }
+                val visibleRows =
+                    projected.rows.mapNotNull { row ->
+                        tracksById[row.trackId]?.let { row to it }
+                    }
                 val queue =
                     visibleRows
                         .filter { (_, track) -> isAvailable(track) }
@@ -675,20 +739,19 @@ internal constructor(
                                 trackId = track.id,
                             )
                         }
-                val children =
-                    visibleRows.map { (row, track) ->
-                        val occurrenceId =
-                            smartPlaylistEntryId(smartPlaylist.id, row.occurrenceId)
-                        makeTrackEntry(
-                            occurrenceId,
-                            track,
-                            queue,
-                            occurrenceId,
-                            dynamic = true,
-                        )
-                    }
+                val children = visibleRows.map { (row, track) ->
+                    val occurrenceId =
+                        smartPlaylistEntryId(smartPlaylist.id, row.occurrenceId)
+                    makeTrackEntry(
+                        occurrenceId,
+                        track,
+                        queue,
+                        occurrenceId,
+                    )
+                }
                 CarPlayLibraryEntry(
-                    id = "smart-playlist:${smartPlaylist.id.length}:${smartPlaylist.id}",
+                    id =
+                        "smart-playlist:${smartPlaylist.id.length}:${smartPlaylist.id}",
                     title = smartPlaylist.name,
                     children = children,
                 )
@@ -711,10 +774,13 @@ internal constructor(
                     ),
                 ),
             selectionContexts = selectionContexts,
+            playlistsUnavailable = playlistsUnavailable,
         )
     }
 
-    private fun projectPlayback(state: PlaybackState): CarPlayPlaybackProjection {
+    private fun projectPlayback(
+        state: PlaybackState
+    ): CarPlayPlaybackProjection {
         val sourceTrack = state.currentTrack
         val projectedTrack =
             if (sourceTrack === lastProjectedSourceTrack) {
@@ -727,7 +793,11 @@ internal constructor(
                         artist = it.artist,
                         album = it.album,
                         durationMillis = it.durationMillis,
-                        artworkBytes = it.artworkBytes,
+                        artworkBytes =
+                            it.artworkBytes
+                                ?: libraryRepository
+                                    .artworkForTrack(it.id)
+                                    ?.bytes,
                     )
                 }
             }
@@ -745,16 +815,19 @@ internal constructor(
             }
         val duration = state.durationMillis ?: projectedTrack?.durationMillis
         return CarPlayPlaybackProjection(
+            selectionGeneration = state.selectionGeneration,
             currentTrack = projectedTrack,
             status = status,
             positionMillis = state.positionMillis,
             durationMillis = duration,
             canPlay = state.canPlay,
             canPause = state.status == PlaybackStatus.Playing,
-            canSkipNext = state.currentOccurrence != null && state.queue.size > 1,
-            canSkipPrevious = state.currentOccurrence != null && state.queue.size > 1,
+            canSkipNext = playbackController.canSkipToNext(state),
+            canSkipPrevious = playbackController.canSkipToPrevious(state),
             canSeek =
-                projectedTrack != null && duration != null && duration > 0L &&
+                projectedTrack != null &&
+                    duration != null &&
+                    duration > 0L &&
                     (state.status == PlaybackStatus.Playing ||
                         state.status == PlaybackStatus.Paused ||
                         state.status == PlaybackStatus.Buffering),
@@ -780,19 +853,22 @@ internal constructor(
     private fun playlistEntryId(playlistId: String, entryId: String): String =
         "playlist-entry:${playlistId.length}:$playlistId:${entryId.length}:$entryId"
 
-    private fun smartPlaylistEntryId(playlistId: String, occurrenceId: String): String =
+    private fun smartPlaylistEntryId(
+        playlistId: String,
+        occurrenceId: String
+    ): String =
         "smart-entry:${playlistId.length}:$playlistId:${occurrenceId.length}:$occurrenceId"
 
     private data class CarPlayCatalogProjection(
         val status: CarPlayLibraryStatus,
         val categories: List<CarPlayLibraryCategory>,
         val selectionContexts: Map<String, CarPlaySelectionContext>,
+        val playlistsUnavailable: Boolean = false,
     )
 
     private data class CarPlaySelectionContext(
         val queue: List<CarPlayQueueItem>,
         val selectedOccurrenceId: String,
-        val dynamic: Boolean,
     )
 
     private data class CarPlayQueueItem(

@@ -158,6 +158,12 @@ public data class PlaybackState(
     /** Generation token owned by the current engine selection. */
     internal val engineGeneration: Long = 0L,
 ) {
+    /**
+     * Identity of the current engine selection; stable across progress updates.
+     */
+    public val selectionGeneration: Long
+        get() = engineGeneration
+
     /** Selected queue occurrence, when its identifier resolves in [queue]. */
     public val currentOccurrence: QueueOccurrence?
         get() = queue.firstOrNull { it.id == currentOccurrenceId }
@@ -1846,26 +1852,43 @@ internal constructor(
 
     /** Starts selected media, or requests playback after an active load. */
     public fun play() {
-        if (!commandsEnabled.value) return
-        val current = _state.value.currentOccurrence ?: return
-        if (_state.value.status == PlaybackStatus.Loading) {
-            setPendingAutoplay(true)
-            return
-        }
-        if (_state.value.status == PlaybackStatus.Idle ||
-            _state.value.status == PlaybackStatus.Error) {
-            loadSelected(current, autoPlay = true)
-            return
-        }
-        val generation = _state.value.engineGeneration
-        launchEngineAction(generation) {
-            finishClaimedTimerStopWhileEngineLocked(generation)
-            applyCurrentPlaybackGainBeforePlay(generation)
-            beginPlaybackRun(generation)?.let { runId ->
-                engine.play(runId)
-                selectionGate.withLock { considerGaplessLocked() }
+        playOwner()
+    }
+
+    /** Admits play only while [expectedSelectionGeneration] owns playback. */
+    public fun play(expectedSelectionGeneration: Long): Boolean =
+        playOwner(expectedSelectionGeneration)
+
+    private fun playOwner(externalGeneration: Long? = null): Boolean {
+        var loadFrom: PlaybackState? = null
+        val admitted = selectionGate.withLock {
+            val owner =
+                transportOwnerLocked(externalGeneration)
+                    ?: return@withLock false
+            if (owner.currentOccurrence == null) return@withLock false
+            val generation = owner.engineGeneration
+            when (owner.status) {
+                PlaybackStatus.Loading ->
+                    setPendingAutoplayLocked(true, generation)
+                PlaybackStatus.Idle,
+                PlaybackStatus.Error -> loadFrom = owner
+                else ->
+                    launchEngineAction(generation) {
+                        finishClaimedTimerStopWhileEngineLocked(generation)
+                        applyCurrentPlaybackGainBeforePlay(generation)
+                        beginPlaybackRun(generation)?.let { runId ->
+                            engine.play(runId)
+                            selectionGate.withLock { considerGaplessLocked() }
+                        }
+                    }
             }
+            true
         }
+        val captured = loadFrom ?: return admitted
+        return loadSelectedFrom(
+            captured,
+            requireNotNull(captured.currentOccurrence),
+            autoPlay = true)
     }
 
     /** Pauses media and emits a persistence checkpoint. */
@@ -1873,10 +1896,15 @@ internal constructor(
         pauseOwner()
     }
 
-    private fun pauseOwner(externalGeneration: Long? = null) {
+    /** Admits pause only while [expectedSelectionGeneration] owns playback. */
+    public fun pause(expectedSelectionGeneration: Long): Boolean =
+        pauseOwner(expectedSelectionGeneration)
+
+    private fun pauseOwner(externalGeneration: Long? = null): Boolean =
         selectionGate.withLock {
             val owner =
-                transportOwnerLocked(externalGeneration) ?: return@withLock
+                transportOwnerLocked(externalGeneration)
+                    ?: return@withLock false
             if (crossfadeTransition?.let { it.started && !it.promoted } == true)
                 cancelCrossfadeLocked(settleDeferredCompletion = false)
             cancelGaplessLocked()
@@ -1884,8 +1912,8 @@ internal constructor(
             launchEngineAction(owner.engineGeneration) { engine.pause() }
             emitImmediateCheckpoint(
                 owner.toSessionSnapshot(), owner.checkpointRevision)
+            true
         }
-    }
 
     /** Stops media and emits a persistence checkpoint. */
     public fun stop() {
@@ -1917,10 +1945,16 @@ internal constructor(
         seekOwner(positionMillis)
     }
 
+    /** Admits seek only while [expectedSelectionGeneration] owns playback. */
+    public fun seekTo(
+        positionMillis: Long,
+        expectedSelectionGeneration: Long
+    ): Boolean = seekOwner(positionMillis, expectedSelectionGeneration)
+
     private fun seekOwner(
         positionMillis: Long,
         externalGeneration: Long? = null
-    ) {
+    ): Boolean {
         var published: PlaybackState? = null
         selectionGate.withLock {
             val owner =
@@ -1943,6 +1977,7 @@ internal constructor(
         published?.let {
             refreshCompletionFadeForProgress(it.engineGeneration)
         }
+        return published != null
     }
 
     /** Pauses active playback or starts the selected occurrence. */
@@ -2039,29 +2074,37 @@ internal constructor(
         }
     }
 
+    /** Whether the current effective traversal has a next occurrence. */
+    public fun canSkipToNext(state: PlaybackState = this.state.value): Boolean =
+        nextTrackFrom(state, state.repeatMode == RepeatMode.RepeatPlaylist) !=
+            null
+
+    /** Whether the current effective traversal has a previous occurrence. */
+    public fun canSkipToPrevious(
+        state: PlaybackState = this.state.value
+    ): Boolean =
+        previousTrackFrom(
+            state, state.repeatMode == RepeatMode.RepeatPlaylist) != null
+
     /** Loads the next occurrence, wrapping only for playlist repeat. */
     public fun skipToNext() {
-        if (!commandsEnabled.value) return
-        cancelCrossfade()
-        val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
-        nextTrack(wrap)?.let {
-            if (loadSelected(it, autoPlay = true)) {
-                emitImmediateCheckpoint()
-            }
-        }
+        skipOwner(_state.value.engineGeneration, previous = false)
     }
+
+    /** Admits next only while [expectedSelectionGeneration] owns playback. */
+    public fun skipToNext(expectedSelectionGeneration: Long): Boolean =
+        skipOwner(expectedSelectionGeneration, previous = false)
 
     /** Loads the previous occurrence, wrapping only for playlist repeat. */
     public fun skipToPrevious() {
-        if (!commandsEnabled.value) return
-        cancelCrossfade()
-        val wrap = _state.value.repeatMode == RepeatMode.RepeatPlaylist
-        previousTrack(wrap)?.let {
-            if (loadSelected(it, autoPlay = true)) {
-                emitImmediateCheckpoint()
-            }
-        }
+        skipOwner(_state.value.engineGeneration, previous = true)
     }
+
+    /**
+     * Admits previous only while [expectedSelectionGeneration] owns playback.
+     */
+    public fun skipToPrevious(expectedSelectionGeneration: Long): Boolean =
+        skipOwner(expectedSelectionGeneration, previous = true)
 
     /**
      * Reloads the failed current occurrence with autoplay, clearing the
@@ -3261,17 +3304,6 @@ internal constructor(
         return occurrenceById(nextId)
     }
 
-    private fun previousTrack(wrap: Boolean): QueueOccurrence? {
-        val order = effectiveOrder()
-        if (order.isEmpty()) return null
-        val currentIndex = currentEffectiveIndex(order)
-        if (currentIndex < 0) return null
-        val previousId =
-            order.getOrNull(currentIndex - 1)
-                ?: if (wrap) order.lastOrNull() else null
-        return occurrenceById(previousId)
-    }
-
     /** Successor of the current occurrence within [state]'s effective order. */
     private fun nextTrackFrom(
         state: PlaybackState,
@@ -4085,9 +4117,7 @@ internal constructor(
 
     /** Routes external Play through controller-owned playback-run admission. */
     public override fun onPlayRequested(generation: Long) {
-        if (commandsEnabled.value &&
-            _state.value.engineGeneration == generation)
-            play()
+        playOwner(generation)
     }
 
     /** Routes external Pause through the canonical transport command. */
@@ -4124,18 +4154,18 @@ internal constructor(
         return null
     }
 
-    private fun skipOwner(generation: Long, previous: Boolean) {
+    private fun skipOwner(generation: Long, previous: Boolean): Boolean {
         val ownedGeneration =
             selectionGate.withLock {
                 val owner =
                     transportOwnerLocked(generation) ?: return@withLock null
                 cancelCrossfadeLocked(settleDeferredCompletion = false)
                 owner.engineGeneration
-            } ?: return
+            } ?: return false
         while (true) {
-            if (!commandsEnabled.value) return
+            if (!commandsEnabled.value) return false
             val state = _state.value
-            if (state.engineGeneration != ownedGeneration) return
+            if (state.engineGeneration != ownedGeneration) return false
             val wrap = state.repeatMode == RepeatMode.RepeatPlaylist
             val target =
                 if (previous) {
@@ -4143,7 +4173,7 @@ internal constructor(
                 } else {
                     nextTrackFrom(state, wrap)
                 }
-            if (target == null) return
+            if (target == null) return false
             if (loadSelected(
                 target,
                 autoPlay = true,
@@ -4151,7 +4181,7 @@ internal constructor(
                 requireCommandsEnabled = true,
             )) {
                 emitImmediateCheckpoint()
-                return
+                return true
             }
             // The claim lost to a benign writer; re-derive from the latest
             // state. A superseding claim exits at the top of the loop.

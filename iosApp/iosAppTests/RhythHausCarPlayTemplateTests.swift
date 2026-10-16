@@ -256,16 +256,59 @@ final class RhythHausCarPlayTemplateTests: XCTestCase {
         XCTAssertEqual(source.playbackMutationCount, 0)
     }
 
+    func testLargeListsReachTailAndRefreshClampsPage() throws {
+        let factory = RhythHausCarPlayTemplateFactory()
+        let entries = (0 ..< Int(CPListTemplate.maximumItemCount) + 3).map { index in
+            CarPlayLibraryEntry(id: "song-\(index)", title: "Song \(index)",
+                                subtitle: nil, children: [], isPlayable: true)
+        }
+        var selected: String?
+        var selectedRevision: Int64?
+        func make(_ entries: [CarPlayLibraryEntry]) -> CPListTemplate {
+            factory.makeCategoryTemplate(
+                categoryID: .songs,
+                snapshot: snapshot(status: .ready, categories: [
+                    CarPlayLibraryCategory(id: .songs, title: "Songs", entries: entries),
+                ]),
+                onOpenDetail: { _, _, completion in completion() },
+                onSelectEntry: { id, revision, completion in
+                    selected = id
+                    selectedRevision = revision
+                    completion(true)
+                })
+        }
+        let template = make(entries)
+        var completions = 0
+        while let next = items(in: template).first(where: {
+            $0.userInfo as? String == "carplay-page-next"
+        }) {
+            XCTAssertLessThanOrEqual(template.itemCount, CPListTemplate.maximumItemCount)
+            next.handler?(next, { completions += 1 })
+        }
+        let tail = try XCTUnwrap(items(in: template).first {
+            $0.userInfo as? String == entries.last?.id
+        })
+        tail.handler?(tail, {})
+        XCTAssertEqual(selected, entries.last?.id)
+        XCTAssertEqual(selectedRevision, 42)
+        XCTAssertGreaterThan(completions, 0)
+
+        factory.refresh(template, with: make([entries[0]]))
+        XCTAssertEqual(items(in: template).map { $0.userInfo as? String }, [entries[0].id])
+    }
+
     private func snapshot(
         status: CarPlayLibraryStatus,
         revision: Int64 = 42,
-        categories: [CarPlayLibraryCategory]
+        categories: [CarPlayLibraryCategory],
+        playlistsUnavailable: Bool = false
     ) -> CarPlaySnapshot {
         CarPlaySnapshot(
             revision: revision,
             libraryStatus: status,
             categories: categories,
             playback: CarPlayPlaybackProjection(
+                selectionGeneration: 0,
                 currentTrack: nil,
                 status: .idle,
                 positionMillis: 0,
@@ -274,7 +317,8 @@ final class RhythHausCarPlayTemplateTests: XCTestCase {
                 canPause: false,
                 canSkipNext: false,
                 canSkipPrevious: false,
-                canSeek: false))
+                canSeek: false),
+            playlistsUnavailable: playlistsUnavailable)
     }
 
     private func emptyCategories() -> [CarPlayLibraryCategory] {

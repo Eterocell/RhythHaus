@@ -44,11 +44,102 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 
 class AppScanCancellationTest {
+    @Test
+    fun nativeProcessInitializesCatalogAndRecordsPlaybackWithoutComposition() =
+        assertNativeProcessInitializes(EmptyPlaylistRepository)
+
+    @Test
+    fun nativeProcessPublishesLibraryAfterPlaylistReadFailure() =
+        assertNativeProcessInitializes(
+            object : PlaylistRepository by EmptyPlaylistRepository {
+                override fun playlists(): List<PlaylistSummary> =
+                    error("playlist read unavailable")
+            },
+        )
+
+    private fun assertNativeProcessInitializes(
+        playlistRepository: PlaylistRepository
+    ) = runBlocking {
+        val repository =
+            InMemoryLibraryRepository().apply {
+                upsertSource(testSource())
+                upsertTrack(testTrack("carplay"))
+            }
+        val scope =
+            kotlinx.coroutines.CoroutineScope(
+                kotlinx.coroutines.SupervisorJob() + Dispatchers.Default)
+        val controller = PlaybackController(FakePlaybackEngine())
+        var restoreCount = 0
+        val lifecycle = PlaybackProcessLifecycle({ restoreCount++ }, scope)
+        val facade =
+            com.eterocell.rhythhaus.carplay.CarPlayFacade(
+                repository, controller, scope) {
+                    true
+                }
+        val publications = AuthoritativeLibraryPublicationOwner()
+        try {
+            val process =
+                AppProcessState(
+                    repository,
+                    EmptyPlatformSourceAccess,
+                    controller,
+                    lifecycle,
+                    PlaybackSessionReconciler {
+                        PlaybackSessionReconcileResult.Applied
+                    },
+                    publications,
+                    PlaylistStateOwner(playlistRepository, Dispatchers.Default),
+                    facade,
+                    scope,
+                    loadCategoryLabels = {
+                        com.eterocell.rhythhaus.carplay.CarPlayCategoryLabels(
+                            "Songs", "Albums", "Artists", "Playlists")
+                    },
+                )
+            val ready =
+                CompletableDeferred<
+                    com.eterocell.rhythhaus.carplay.CarPlaySnapshot>()
+            val token = facade.observeSnapshots {
+                if (it.libraryStatus ==
+                    com.eterocell.rhythhaus.carplay.CarPlayLibraryStatus.Ready)
+                    ready.complete(it)
+            }
+            val snapshot =
+                kotlinx.coroutines.withTimeout(5_000) { ready.await() }
+            assertEquals(
+                playlistRepository !== EmptyPlaylistRepository,
+                snapshot.playlistsUnavailable)
+            facade.removeSnapshotObserver(token)
+            val entry = snapshot.categories.first().entries.single()
+            val result =
+                CompletableDeferred<
+                    com.eterocell.rhythhaus.carplay.CarPlayCommandResult>()
+            facade.selectEntry(entry.id, snapshot.revision, result::complete)
+            assertEquals(
+                com.eterocell.rhythhaus.carplay.CarPlayCommandResult.Applied,
+                kotlinx.coroutines.withTimeout(5_000) { result.await() })
+            kotlinx.coroutines.withTimeout(5_000) {
+                publications.publications.first {
+                    it?.content?.playHistory?.get("carplay")?.playCount == 1L
+                }
+            }
+            lifecycle.restoreOnce(
+                process.initial.value.content!!.tracks.map {
+                    it.toPlayableTrack()
+                })
+            assertEquals(1, restoreCount)
+            assertEquals(1L, repository.playHistory()["carplay"]?.playCount)
+        } finally {
+            scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+        }
+    }
+
     @Test
     fun admittedMutationRunsAndReturnsCoordinatorToIdleAfterSuccess() =
         runBlocking {

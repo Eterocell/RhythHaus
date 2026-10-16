@@ -143,7 +143,9 @@ final class RhythHausCarPlayTemplateFactory {
             title: title,
             entries: entries,
             status: status,
-            emptyTitle: categoryEmptyTitle(categoryID),
+            emptyTitle: categoryID == .playlists && snapshot?.playlistsUnavailable == true
+                ? localized("carplay.playlists.unavailable", fallback: "Playlists unavailable")
+                : categoryEmptyTitle(categoryID),
             categoryID: categoryID,
             revision: revision,
             allowsDetailNavigation: categoryID != .songs,
@@ -174,7 +176,12 @@ final class RhythHausCarPlayTemplateFactory {
     }
 
     func refresh(_ template: CPListTemplate, with replacement: CPListTemplate) {
-        template.updateSections(replacement.sections)
+        if let pager = replacement.userInfo as? RhythHausCarPlayListPager {
+            let page = (template.userInfo as? RhythHausCarPlayListPager)?.page ?? 0
+            pager.attach(to: template, page: page)
+        } else {
+            template.updateSections(replacement.sections)
+        }
         template.emptyViewTitleVariants = replacement.emptyViewTitleVariants
         template.emptyViewSubtitleVariants = replacement.emptyViewSubtitleVariants
         template.showsSpinnerWhileEmpty = replacement.showsSpinnerWhileEmpty
@@ -191,7 +198,7 @@ final class RhythHausCarPlayTemplateFactory {
         onOpenDetail: @escaping (CarPlayCategoryId, String, @escaping () -> Void) -> Void,
         onSelectEntry: @escaping (String, Int64, @escaping (Bool) -> Void) -> Void
     ) -> CPListTemplate {
-        let items = entries.map { entry in
+        let makeItem: (CarPlayLibraryEntry) -> CPListItem = { entry in
             let item = CPListItem(text: entry.title, detailText: entry.subtitle)
             item.userInfo = entry.id
             if entry.isPlayable {
@@ -217,7 +224,13 @@ final class RhythHausCarPlayTemplateFactory {
         }
         let template = CPListTemplate(
             title: title,
-            sections: items.isEmpty ? [] : [CPListSection(items: items)])
+            sections: [])
+        RhythHausCarPlayListPager(
+            entries: entries,
+            makeItem: makeItem,
+            previousTitle: localized("carplay.page.previous", fallback: "Previous page"),
+            nextTitle: localized("carplay.page.next", fallback: "Next page"))
+            .attach(to: template, page: 0)
         template.emptyViewTitleVariants = [
             status == .loading
                 ? localized("carplay.loading", fallback: "Loading library")
@@ -271,6 +284,62 @@ final class RhythHausCarPlayTemplateFactory {
             bundle: .main,
             value: fallback,
             comment: "CarPlay interface label")
+    }
+}
+
+/// Updates one template in place, so paging never consumes navigation stack depth.
+@MainActor
+private final class RhythHausCarPlayListPager {
+    private let entries: [CarPlayLibraryEntry]
+    private let makeItem: (CarPlayLibraryEntry) -> CPListItem
+    private let previousTitle: String
+    private let nextTitle: String
+    private weak var template: CPListTemplate?
+    private(set) var page = 0
+
+    init(
+        entries: [CarPlayLibraryEntry],
+        makeItem: @escaping (CarPlayLibraryEntry) -> CPListItem,
+        previousTitle: String,
+        nextTitle: String
+    ) {
+        self.entries = entries
+        self.makeItem = makeItem
+        self.previousTitle = previousTitle
+        self.nextTitle = nextTitle
+    }
+
+    func attach(to template: CPListTemplate, page: Int) {
+        self.template = template
+        template.userInfo = self
+        show(page)
+    }
+
+    private func show(_ requestedPage: Int) {
+        let limit = Int(CPListTemplate.maximumItemCount)
+        let pageSize = entries.count > limit ? max(1, limit - 2) : max(1, limit)
+        let lastPage = max(0, (entries.count - 1) / pageSize)
+        page = min(max(0, requestedPage), lastPage)
+        let start = page * pageSize
+        let end = min(entries.count, start + pageSize)
+        var items = entries[start ..< end].map(makeItem)
+        if page > 0 {
+            items.insert(navigationItem(previousTitle, delta: -1), at: 0)
+        }
+        if page < lastPage {
+            items.append(navigationItem(nextTitle, delta: 1))
+        }
+        template?.updateSections(items.isEmpty ? [] : [CPListSection(items: items)])
+    }
+
+    private func navigationItem(_ title: String, delta: Int) -> CPListItem {
+        let item = CPListItem(text: title, detailText: nil)
+        item.userInfo = delta > 0 ? "carplay-page-next" : "carplay-page-previous"
+        item.handler = { [self] _, completion in
+            show(page + delta)
+            completion()
+        }
+        return item
     }
 }
 

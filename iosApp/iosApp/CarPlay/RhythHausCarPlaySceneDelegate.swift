@@ -49,8 +49,11 @@ final class RhythHausCarPlaySceneDelegate: UIResponder, CPTemplateApplicationSce
         }
         session.connect { [weak self] snapshot in
             guard let self, self.connectionGeneration == generation else { return }
+            let previousRevision = self.currentSnapshot?.revision
             self.currentSnapshot = snapshot
-            self.refreshVisibleTemplates(from: snapshot)
+            if previousRevision != snapshot.revision {
+                self.refreshVisibleTemplates(from: snapshot)
+            }
         }
     }
 
@@ -80,10 +83,16 @@ final class RhythHausCarPlaySceneDelegate: UIResponder, CPTemplateApplicationSce
             completionGate.finish(())
             return
         }
+        let generation = connectionGeneration
         let template = makeCategoryTemplate(categoryID)
         templatesByRoute[.category(categoryKey(categoryID))] = template
         push(template, on: interfaceController) { [weak self] success in
             guard let self else {
+                completionGate.finish(())
+                return
+            }
+            guard self.connectionGeneration == generation,
+                  self.interfaceController === interfaceController else {
                 completionGate.finish(())
                 return
             }
@@ -107,6 +116,7 @@ final class RhythHausCarPlaySceneDelegate: UIResponder, CPTemplateApplicationSce
             completionGate.finish(())
             return
         }
+        let generation = connectionGeneration
         let template = templateFactory.makeDetailTemplate(
             categoryID: categoryID,
             entryID: entryID,
@@ -121,6 +131,11 @@ final class RhythHausCarPlaySceneDelegate: UIResponder, CPTemplateApplicationSce
         templatesByRoute[.detail(category: categoryKey(categoryID), entry: entryID)] = template
         push(template, on: interfaceController) { [weak self] success in
             guard let self else {
+                completionGate.finish(())
+                return
+            }
+            guard self.connectionGeneration == generation,
+                  self.interfaceController === interfaceController else {
                 completionGate.finish(())
                 return
             }
@@ -160,9 +175,15 @@ final class RhythHausCarPlaySceneDelegate: UIResponder, CPTemplateApplicationSce
             completionGate.finish(())
             return
         }
+        let generation = connectionGeneration
         // The app-lifetime system-media publisher feeds CarPlay's shared Now Playing template.
         push(CPNowPlayingTemplate.shared, on: interfaceController) { [weak self] success in
             guard let self else {
+                completionGate.finish(())
+                return
+            }
+            guard self.connectionGeneration == generation,
+                  self.interfaceController === interfaceController else {
                 completionGate.finish(())
                 return
             }
@@ -207,6 +228,11 @@ final class RhythHausCarPlaySceneDelegate: UIResponder, CPTemplateApplicationSce
                 return
             }
             self.push(CPNowPlayingTemplate.shared, on: interfaceController) { success in
+                guard self.connectionGeneration == generation,
+                      self.interfaceController === interfaceController else {
+                    resultGate.finish(true)
+                    return
+                }
                 if success {
                     resultGate.finish(true)
                 } else {
@@ -281,10 +307,12 @@ final class RhythHausCarPlaySceneDelegate: UIResponder, CPTemplateApplicationSce
             completionGate.finish(())
             return
         }
+        let generation = connectionGeneration
         let dismissAction = CPAlertAction(
             title: carPlayLocalizedString("carplay.action.ok", fallback: "OK"),
             style: .default) { [weak self] _ in
-                guard let interfaceController = self?.interfaceController else { return }
+                guard let self, self.connectionGeneration == generation,
+                      self.interfaceController === interfaceController else { return }
                 interfaceController.dismissTemplate(animated: true, completion: { _, _ in })
             }
         let alert = CPAlertTemplate(

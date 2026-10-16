@@ -502,33 +502,35 @@ class IOSAudioPlayerBridgeTest {
     }
 
     @Test
-    fun playbackEngineLeavesSystemNowPlayingInfoToSwiftPublisher() = runBlocking {
-        val center = MPNowPlayingInfoCenter.defaultCenter()
-        val previousInfo = center.nowPlayingInfo
-        val publisherInfo = mapOf<Any?, Any?>("owner" to "swift-publisher")
-        val provider = FakeIOSAudioPlayerProvider()
-        IOSAudioPlayerBridge.provider = provider
-        val engine = createIOSPlaybackEngine(testResolver())
-        var released = false
-        try {
-            center.nowPlayingInfo = publisherInfo
-            engine.loadPaused(testTrack("swift-owned"), generation = 1L)
-            engine.play(1L)
-            engine.seekTo(500L)
-            engine.pause()
-            engine.stop()
-            engine.clear(generation = 1L)
-            engine.release()
-            released = true
+    fun playbackEngineLeavesSystemNowPlayingInfoToSwiftPublisher() =
+        runBlocking {
+            val center = MPNowPlayingInfoCenter.defaultCenter()
+            val previousInfo = center.nowPlayingInfo
+            val publisherInfo = mapOf<Any?, Any?>("owner" to "swift-publisher")
+            val provider = FakeIOSAudioPlayerProvider()
+            IOSAudioPlayerBridge.provider = provider
+            val engine = createIOSPlaybackEngine(testResolver())
+            var released = false
+            try {
+                center.nowPlayingInfo = publisherInfo
+                engine.loadPaused(testTrack("swift-owned"), generation = 1L)
+                engine.play(1L)
+                engine.seekTo(500L)
+                engine.pause()
+                engine.stop()
+                engine.clear(generation = 1L)
+                engine.release()
+                released = true
 
-            assertEquals("swift-publisher", center.nowPlayingInfo?.get("owner"))
-            assertEquals(1, center.nowPlayingInfo?.size)
-        } finally {
-            if (!released) engine.release()
-            IOSAudioPlayerBridge.provider = null
-            center.nowPlayingInfo = previousInfo
+                assertEquals(
+                    "swift-publisher", center.nowPlayingInfo?.get("owner"))
+                assertEquals(1, center.nowPlayingInfo?.size)
+            } finally {
+                if (!released) engine.release()
+                IOSAudioPlayerBridge.provider = null
+                center.nowPlayingInfo = previousInfo
+            }
         }
-    }
 
     @Test
     fun playbackGainHeldDuringPendingLoadReachesProviderBeforePlayback() =

@@ -15,8 +15,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
-import com.eterocell.rhythhaus.carplay.CarPlayCategoryLabels
-import com.eterocell.rhythhaus.carplay.CarPlayFacade
 import com.eterocell.rhythhaus.library.DesktopDropResult
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibraryRepository
@@ -100,9 +98,6 @@ import rhythhaus.shared.generated.resources.desktop_drop_duplicate
 import rhythhaus.shared.generated.resources.desktop_drop_failed_format
 import rhythhaus.shared.generated.resources.desktop_drop_rejected
 import rhythhaus.shared.generated.resources.desktop_drop_summary_format
-import rhythhaus.shared.generated.resources.carplay_albums
-import rhythhaus.shared.generated.resources.carplay_artists
-import rhythhaus.shared.generated.resources.carplay_songs
 import rhythhaus.shared.generated.resources.ios_import_summary_format
 import rhythhaus.shared.generated.resources.playlist_backup_imported_suffix
 import rhythhaus.shared.generated.resources.playlist_loading
@@ -189,7 +184,7 @@ fun App(
             ?: remember { mutableStateOf(PlaybackOutputStatus.Unavailable) }
     val tagLibReader = koinInject<TagLibReader>()
     val repository = koinInject<LibraryRepository>()
-    val carPlayFacade = koinInject<CarPlayFacade>()
+    val processState = koinInject<AppProcessState>()
     val playlistRepository = koinInject<PlaylistRepository>()
     val platformAccess = koinInject<PlatformSourceAccess>()
     val scanner = koinInject<LibraryScanner>()
@@ -209,18 +204,10 @@ fun App(
     val automaticResumeState by
         automaticResumePreferenceOwner.state.collectAsState()
     val onboardingPreferenceStore = koinInject<OnboardingPreferenceStore>()
-    val playbackLifecycle = koinInject<PlaybackProcessLifecycle>()
     val playbackReconciler = koinInject<PlaybackSessionReconciler>()
-    val initialLibraryContent = remember {
-        loadLibraryContent(repository, platformAccess)
-    }
     val playlistStateOwner = koinInject<PlaylistStateOwner>()
-    val libraryPublicationOwner = remember {
-        AuthoritativeLibraryPublicationOwner()
-    }
-    var initialPublication by remember {
-        mutableStateOf(InitialLibraryPublicationState())
-    }
+    val libraryPublicationOwner = processState.publications
+    val initialPublication by processState.initial.collectAsState()
     val appLibraryContentState = remember { AppLibraryContentState() }
     val deviceAudioLabel = deviceAudioSourceDisplayName()
     val publishedLibraryContent = appLibraryContentState.content
@@ -287,13 +274,6 @@ fun App(
         stringResource(Res.string.ios_import_summary_format)
     val importedSuffix =
         stringResource(Res.string.playlist_backup_imported_suffix)
-    val carPlayCategoryLabels =
-        CarPlayCategoryLabels(
-            songs = stringResource(Res.string.carplay_songs),
-            albums = stringResource(Res.string.carplay_albums),
-            artists = stringResource(Res.string.carplay_artists),
-            playlists = stringResource(Res.string.playlists),
-        )
     val selectedThemeMode by
         themePreferenceStore.selectedThemeMode.collectAsState(
             RhythHausThemeMode.System)
@@ -330,51 +310,20 @@ fun App(
                     },
                 )
             }
-        if (applyLibraryPublication(publication)) {
-            controller.refreshTrackMetadata(
-                publication.content.tracks.map { it.toPlayableTrack() },
-            )
-            controller.refreshCurrentTrackMetadata(
-                publication.content.tracks.map { it.toPlayableTrack() },
-            )
-        }
+        applyLibraryPublication(publication)
     }
 
-    LaunchedEffect(
-        carPlayFacade,
-        libraryRevision,
-        initialPublication.isReady,
-        libraryContent,
-        playlistState.confirmedSnapshot,
-        carPlayCategoryLabels,
-    ) {
-        carPlayFacade.publishCatalog(
-            libraryRevision = libraryRevision,
-            isReady = initialPublication.isReady,
-            tracks = libraryContent.tracks,
-            favoriteTrackIds = libraryContent.favoriteTrackIds,
-            playHistory = libraryContent.playHistory,
-            playlists = playlistState.confirmedSnapshot,
-            labels = carPlayCategoryLabels,
-        )
+    LaunchedEffect(processState) {
+        libraryPublicationOwner.publications.collect { publication ->
+            publication?.let { applyLibraryPublication(it) }
+        }
     }
 
     LaunchedEffect(controller) {
         outputStatusProvider?.refreshOutputStatus()
-        collectPlaybackHistoryAndPublish(
-            playbackStarted = controller.playbackStarted,
-            publicationOwner = libraryPublicationOwner,
-            repository = repository,
-            platformAccess = platformAccess,
-            playedAtEpochMillis = {
-                com.eterocell.rhythhaus.library.currentTimeMillis()
-            },
-            ioDispatcher = Dispatchers.Default,
-            reportFailure = { message -> importMessage = message },
-            publish = { publication ->
-                applyLibraryPublication(publication)
-            },
-        )
+        processState.historyFailure.collect { message ->
+            message?.let { importMessage = it }
+        }
     }
 
     fun refreshPlaylists() {
@@ -549,17 +498,11 @@ fun App(
         }
     }
 
-    LaunchedEffect(initialLibraryContent) {
-        publishInitialLibraryContent(
-            lifecycle = playbackLifecycle,
-            reconciler = playbackReconciler,
-            content = initialLibraryContent,
-            updateState = { state ->
-                initialPublication = state
-                state.content?.let { updateLibraryContent(it) }
-                state.errorMessage?.let { importMessage = it }
-            },
-        )
+    LaunchedEffect(initialPublication.isReady) {
+        if (!initialPublication.isReady) return@LaunchedEffect
+        val initialLibraryContent =
+            initialPublication.content ?: return@LaunchedEffect
+        initialPublication.errorMessage?.let { importMessage = it }
         val restoredSession = repository.latestTerminalScanSession()
         val restoredCompletedSession = repository.latestCompletedScanSession()
         val restoredState =
@@ -1083,18 +1026,7 @@ fun App(
                             override = override,
                             ioDispatcher = Dispatchers.Default,
                             publish = { publication ->
-                                if (applyLibraryPublication(publication)) {
-                                    controller.refreshTrackMetadata(
-                                        publication.content.tracks.map {
-                                            it.toPlayableTrack()
-                                        },
-                                    )
-                                    controller.refreshCurrentTrackMetadata(
-                                        publication.content.tracks.map {
-                                            it.toPlayableTrack()
-                                        },
-                                    )
-                                }
+                                applyLibraryPublication(publication)
                             },
                         )
                     },
@@ -1420,6 +1352,10 @@ internal data class AuthoritativeLibraryPublication(
 
 internal class AuthoritativeLibraryPublicationOwner {
     private val mutex = Mutex()
+    val publications =
+        kotlinx.coroutines.flow.MutableStateFlow<
+            AuthoritativeLibraryPublication?>(
+            null)
 
     var revision: Long = 0L
         private set
@@ -1503,7 +1439,9 @@ internal class AuthoritativeLibraryPublicationOwner {
     private fun nextPublication(
         content: LibraryContentState
     ): AuthoritativeLibraryPublication =
-        AuthoritativeLibraryPublication(content, ++revision)
+        AuthoritativeLibraryPublication(content, ++revision).also {
+            publications.value = it
+        }
 
     suspend fun <T> withCurrentRevision(
         expectedRevision: Long,

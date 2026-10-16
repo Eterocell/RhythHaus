@@ -4,6 +4,7 @@ import com.eterocell.rhythhaus.PlatformPlaybackEngine
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackProcessLifecycle
+import com.eterocell.rhythhaus.carplay.CarPlayFacade
 import com.eterocell.rhythhaus.library.InMemoryLibraryRepository
 import com.eterocell.rhythhaus.library.LibraryDatabase
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
@@ -17,8 +18,6 @@ import com.eterocell.rhythhaus.library.impl.AudioMetadataReader
 import com.eterocell.rhythhaus.library.impl.PlatformScanEvent
 import com.eterocell.rhythhaus.library.libraryImplementationModule
 import com.eterocell.rhythhaus.library.ui.PlaylistStateOwner
-import com.eterocell.rhythhaus.carplay.CarPlayFacade
-import com.eterocell.rhythhaus.di.sharedCarPlayFacade
 import com.eterocell.rhythhaus.onboarding.OnboardingPreferenceStore
 import com.eterocell.rhythhaus.session.PlaybackCheckpoint
 import com.eterocell.rhythhaus.session.PlaybackSessionController

@@ -68,7 +68,6 @@ public class IOSPlaybackEngine(
     private var playbackGain: Float = 1.0f
     private var wasPlayingBeforeInterruption: Boolean = false
     private var automaticResumeAllowed: Boolean = true
-    private var artworkTrackId: String? = null
     private var activeGeneration: Long = 0L
 
     override fun refreshOutputStatus() {
@@ -656,7 +655,6 @@ public class IOSPlaybackEngine(
         durationMillis =
             load.track.durationMillis ?: provider.currentDurationMillis()
         activeRun = null
-        publishArtworkForCurrentTrack()
         provider.setPlaybackGain(playbackGain)
         provider.pause()
         listener?.onPlaybackProgress(load.generation, 0L, durationMillis)
@@ -681,7 +679,6 @@ public class IOSPlaybackEngine(
         durationMillis = null
         playbackActive = false
         wasPlayingBeforeInterruption = false
-        artworkTrackId = null
     }
 
     override fun clear(generation: Long) {
@@ -693,7 +690,10 @@ public class IOSPlaybackEngine(
         }
     }
 
-    /** Transport availability is projected to the app-owned system-media publisher. */
+    /**
+     * Transport availability is projected to the app-owned system-media
+     * publisher.
+     */
     override fun setUserTransportEnabled(enabled: Boolean): Unit = Unit
 
     override fun setPlaybackGain(gain: Float) {
@@ -907,7 +907,6 @@ public class IOSPlaybackEngine(
         outputState.value = PlaybackOutputStatus.Unavailable
         loadedTrack = null
         durationMillis = null
-        artworkTrackId = null
     }
 
     private fun releaseForTrackSwitch() {
@@ -933,23 +932,10 @@ public class IOSPlaybackEngine(
         audioProvider = null
         loadedTrack = null
         durationMillis = null
-        artworkTrackId = null
     }
 
     private fun isCurrentSource(generation: Long, version: Long): Boolean =
         generation == activeGeneration && version == sourceVersion
-
-    private fun publishArtworkForCurrentTrack() {
-        val track = loadedTrack ?: return
-        if (artworkTrackId == track.id) return
-        artworkTrackId = track.id
-        NowPlayingArtworkBridge.provider?.setArtwork(
-            trackTitle = track.title,
-            artist = track.artist,
-            album = track.album,
-            artworkBytes = track.artworkBytes,
-        )
-    }
 }
 
 internal class IOSRemoteTransportGate {

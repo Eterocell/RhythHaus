@@ -264,6 +264,13 @@ public class PlaylistStateOwner(
 ) {
     private val mutex = Mutex()
     private var publicationRevision = 0L
+    /** Latest successful process-owned playlist projection. */
+    private val snapshotState:
+        kotlinx.coroutines.flow.MutableStateFlow<PlaylistSnapshot?> =
+        kotlinx.coroutines.flow.MutableStateFlow(null)
+    /** Observes the last successfully loaded or mutated playlist snapshot. */
+    public val snapshots: kotlinx.coroutines.flow.StateFlow<PlaylistSnapshot?>
+        get() = snapshotState
 
     /** Reads a snapshot and returns its revisioned public action. */
     public suspend fun refresh(
@@ -273,6 +280,7 @@ public class PlaylistStateOwner(
         try {
             val snapshot =
                 withContext(dispatcher) { loadPlaylistSnapshot(repository) }
+            snapshotState.value = snapshot
             PlaylistStateAction.SnapshotConfirmed(snapshot, revision)
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
@@ -295,6 +303,7 @@ public class PlaylistStateOwner(
                 withContext(dispatcher) {
                     mutatePlaylistAndRefresh(repository, mutation)
                 }
+            snapshotState.value = snapshot
             PlaylistStateAction.SnapshotConfirmed(snapshot, revision)
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
@@ -316,7 +325,9 @@ public class PlaylistStateOwner(
                         // authoritative through the import publication.
                         val smartPlaylists = repository.smartPlaylists()
                         repository.importPlaylists(playlists)
-                        loadPlaylistSnapshot(repository, smartPlaylists)
+                        loadPlaylistSnapshot(repository, smartPlaylists).also {
+                            snapshotState.value = it
+                        }
                     },
                 revision = revision,
             )

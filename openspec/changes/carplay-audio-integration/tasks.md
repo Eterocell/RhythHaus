@@ -21,6 +21,16 @@
 
 ## 4. Entitlement, acceptance, and closeout
 
-- [ ] 4.1 Add CarPlay audio entitlement declaration and target signing configuration without fabricating Apple's managed capability; document approval/profile prerequisites.
+- [x] 4.1 Add CarPlay audio entitlement declaration and target signing configuration without fabricating Apple's managed capability; document approval/profile prerequisites.
 - [ ] 4.2 Run CarPlay Simulator smoke for connect, browse, select, Now Playing, external controls, disconnect/reconnect, and loading/empty states; record simulator limitations.
-- [ ] 4.3 Run required focused quality/architecture/OpenSpec checks, independent review, synchronize specs, and update roadmap/progress with external entitlement and physical-device acceptance status.
+- [x] 4.3 Run required focused quality/architecture/OpenSpec checks, independent review, synchronize specs, and update roadmap/progress with external entitlement and physical-device acceptance status.
+
+### Acceptance evidence — 2026-10-15
+
+- Shared CarPlay facade: 20 JVM and 20 iOS Simulator cases passed. Headless process initialization/history and initial playlist-read failure: two cases passed on each platform. Core crossfade/gapless controller suite: 34 cases passed, together with focused external transport, manual skip, and shuffle cases.
+- Native system-media/template XCTest: 18 cases, zero failures. Includes real application catalog initialization, complete metadata/artwork, command ownership, pagination, and scene callback lifetime policies. Shared iOS Simulator framework linked; unsigned Xcode app/test build passed. Android Kotlin and desktop Kotlin compilation and the full playlist-implementation JVM suite passed.
+- Separate `spotlessApply`, `spotlessCheck`, `detekt`, and `architectureCheck` passed. Canonical specs synchronized; strict change and all-spec validation recorded in `progress.md`.
+- Final independent native, transport-atomicity, and process/readiness reviews passed without remaining Important/Critical findings. Earlier findings were reproduced and repaired before acceptance.
+- **4.2 remains open:** the final app was installed/launched on the iPhone 17 simulator and the settled Chinese empty-library phone surface was captured. This is not CarPlay-display proof. CarPlay-display screenshot attempts timed out; `open -a Simulator` reported no application, and no interactive CarPlay window was available. No connect/browse/select/Now Playing/external-control/disconnect flow is claimed as exercised on the actual CarPlay display.
+- **Distribution prerequisite:** obtain Apple's managed CarPlay Audio capability for the App ID, regenerate an authorized provisioning profile, and sign the target with that profile. The checked-in `com.apple.developer.carplay-audio` declaration and Debug/Release `CODE_SIGN_ENTITLEMENTS` settings do not grant capability. Unsigned simulator success does not prove signed device/distribution authorization.
+- Physical CarPlay, accessory/system controls, listening, interruptions/routes/background behavior, and visual/accessibility acceptance remain user-owned and pending. Keep this change active and unarchived until 4.2 has real acceptance evidence; no final Task 4 commit, merge, or push is claimed.

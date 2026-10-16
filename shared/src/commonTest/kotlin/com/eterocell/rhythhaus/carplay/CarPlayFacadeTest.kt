@@ -4,6 +4,8 @@ import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.FakePlaybackEngine
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackStatus
+import com.eterocell.rhythhaus.QueueOccurrence
+import com.eterocell.rhythhaus.RepeatMode
 import com.eterocell.rhythhaus.library.InMemoryLibraryRepository
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
@@ -11,6 +13,7 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -18,8 +21,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
@@ -62,57 +67,65 @@ class CarPlayFacadeTest {
         val fixture = Fixture()
 
         fixture.publish(isReady = false)
-        assertEquals(CarPlayLibraryStatus.Loading, fixture.snapshot().libraryStatus)
+        assertEquals(
+            CarPlayLibraryStatus.Loading, fixture.snapshot().libraryStatus)
 
         fixture.publish(isReady = true)
-        assertEquals(CarPlayLibraryStatus.Empty, fixture.snapshot().libraryStatus)
+        assertEquals(
+            CarPlayLibraryStatus.Empty, fixture.snapshot().libraryStatus)
 
         fixture.addTracks(track("one"))
         fixture.publish(isReady = true, libraryRevision = 1L)
         val populated = fixture.snapshot()
         assertEquals(CarPlayLibraryStatus.Ready, populated.libraryStatus)
-        assertEquals(listOf("Track one"), populated.categories
-            .single { it.id == CarPlayCategoryId.Songs }
-            .entries.map { it.title })
+        assertEquals(
+            listOf("Track one"),
+            populated.categories
+                .single { it.id == CarPlayCategoryId.Songs }
+                .entries
+                .map { it.title })
 
         fixture.close()
     }
 
     @Test
-    fun albumAndArtistCategoriesGroupVisibleTracksInStableOrder() = runBlocking {
-        val fixture = Fixture()
-        fixture.addTracks(
-            track("one").copy(artist = "Band B", album = "Alpha"),
-            track("two").copy(artist = "Band A", album = "Beta"),
-            track("three").copy(artist = "Band B", album = "Alpha"),
-        )
-        fixture.publish(libraryRevision = 1L)
-        val snapshot = fixture.snapshot()
-        val albums = snapshot.categories
-            .single { it.id == CarPlayCategoryId.Albums }
-            .entries
-        val artists = snapshot.categories
-            .single { it.id == CarPlayCategoryId.Artists }
-            .entries
+    fun albumAndArtistCategoriesGroupVisibleTracksInStableOrder() =
+        runBlocking {
+            val fixture = Fixture()
+            fixture.addTracks(
+                track("one").copy(artist = "Band B", album = "Alpha"),
+                track("two").copy(artist = "Band A", album = "Beta"),
+                track("three").copy(artist = "Band B", album = "Alpha"),
+            )
+            fixture.publish(libraryRevision = 1L)
+            val snapshot = fixture.snapshot()
+            val albums =
+                snapshot.categories
+                    .single { it.id == CarPlayCategoryId.Albums }
+                    .entries
+            val artists =
+                snapshot.categories
+                    .single { it.id == CarPlayCategoryId.Artists }
+                    .entries
 
-        assertEquals(listOf("Beta", "Alpha"), albums.map { it.title })
-        assertEquals(listOf("Band A", "Band B"), artists.map { it.title })
-        val alphaTracks = albums.single { it.title == "Alpha" }.children
-        assertEquals(
-            listOf("Track one", "Track three"),
-            alphaTracks.map { it.title },
-        )
-        assertEquals(
-            CarPlayCommandResult.Applied,
-            fixture.select(alphaTracks.last().id, snapshot.revision),
-        )
-        assertEquals(
-            listOf("one", "three"),
-            fixture.controller.state.value.queue.map { it.track.id },
-        )
+            assertEquals(listOf("Beta", "Alpha"), albums.map { it.title })
+            assertEquals(listOf("Band A", "Band B"), artists.map { it.title })
+            val alphaTracks = albums.single { it.title == "Alpha" }.children
+            assertEquals(
+                listOf("Track one", "Track three"),
+                alphaTracks.map { it.title },
+            )
+            assertEquals(
+                CarPlayCommandResult.Applied,
+                fixture.select(alphaTracks.last().id, snapshot.revision),
+            )
+            assertEquals(
+                listOf("one", "three"),
+                fixture.controller.state.value.queue.map { it.track.id },
+            )
 
-        fixture.close()
-    }
+            fixture.close()
+        }
 
     @Test
     fun playlistSelectionPreservesVisibleOrderAndDuplicateOccurrences() =
@@ -127,9 +140,24 @@ class CarPlayFacadeTest {
                         mapOf(
                             playlist.id to
                                 listOf(
-                                    PlaylistEntry("occurrence-1", "saved", "second", 0, 1L),
-                                    PlaylistEntry("occurrence-2", "saved", "first", 1, 1L),
-                                    PlaylistEntry("occurrence-3", "saved", "first", 2, 1L),
+                                    PlaylistEntry(
+                                        "occurrence-1",
+                                        "saved",
+                                        "second",
+                                        0,
+                                        1L),
+                                    PlaylistEntry(
+                                        "occurrence-2",
+                                        "saved",
+                                        "first",
+                                        1,
+                                        1L),
+                                    PlaylistEntry(
+                                        "occurrence-3",
+                                        "saved",
+                                        "first",
+                                        2,
+                                        1L),
                                 ),
                         ),
                 )
@@ -138,9 +166,11 @@ class CarPlayFacadeTest {
                 playlistSnapshot = playlistSnapshot,
             )
             val snapshot = fixture.snapshot()
-            val playlistEntry = snapshot.categories
-                .single { it.id == CarPlayCategoryId.Playlists }
-                .entries.single()
+            val playlistEntry =
+                snapshot.categories
+                    .single { it.id == CarPlayCategoryId.Playlists }
+                    .entries
+                    .single()
             val visibleEntries = playlistEntry.children
 
             assertEquals(
@@ -181,9 +211,11 @@ class CarPlayFacadeTest {
         fixture.awaitTrack("current", PlaybackStatus.Paused)
         fixture.publish(libraryRevision = 1L)
         val snapshot = fixture.snapshot()
-        val staleEntry = snapshot.categories
-            .single { it.id == CarPlayCategoryId.Songs }
-            .entries.single { it.title == "Track removed" }
+        val staleEntry =
+            snapshot.categories
+                .single { it.id == CarPlayCategoryId.Songs }
+                .entries
+                .single { it.title == "Track removed" }
         fixture.repository.removeSource("removed-source")
         val playbackBefore = fixture.controller.state.value
 
@@ -212,16 +244,21 @@ class CarPlayFacadeTest {
                     handle = "/unavailable-source",
                     createdAtEpochMillis = 1L,
                     accessStatus =
-                        com.eterocell.rhythhaus.library.LibrarySourceAccessStatus.LostAccess,
+                        com.eterocell.rhythhaus.library
+                            .LibrarySourceAccessStatus
+                            .LostAccess,
                 ),
             )
             fixture.publish(libraryRevision = 1L)
             val snapshot = fixture.snapshot()
-            val songs = snapshot.categories
-                .single { it.id == CarPlayCategoryId.Songs }
-                .entries
+            val songs =
+                snapshot.categories
+                    .single { it.id == CarPlayCategoryId.Songs }
+                    .entries
             val availableEntry = songs.single { it.title == "Track available" }
-            val unavailableEntry = songs.single { it.title == "Track unavailable" }
+            val unavailableEntry = songs.single {
+                it.title == "Track unavailable"
+            }
 
             assertTrue(availableEntry.isPlayable)
             assertFalse(unavailableEntry.isPlayable)
@@ -233,7 +270,8 @@ class CarPlayFacadeTest {
                 listOf("available"),
                 fixture.controller.state.value.queue.map { it.track.id },
             )
-            val playbackBeforeUnavailableSelection = fixture.controller.state.value
+            val playbackBeforeUnavailableSelection =
+                fixture.controller.state.value
             assertEquals(
                 CarPlayCommandResult.Unavailable,
                 fixture.select(unavailableEntry.id, snapshot.revision),
@@ -285,7 +323,7 @@ class CarPlayFacadeTest {
         fixture.awaitTrack("one", PlaybackStatus.Paused)
         val snapshot = fixture.awaitSnapshot {
             it.playback.currentTrack?.id == "one" &&
-                it.playback.currentTrack?.artworkBytes != null
+                it.playback.currentTrack.artworkBytes != null
         }
 
         val exposedArtwork =
@@ -294,7 +332,7 @@ class CarPlayFacadeTest {
 
         assertContentEquals(
             expectedArtwork,
-            snapshot.playback.currentTrack?.artworkBytes,
+            snapshot.playback.currentTrack.artworkBytes,
         )
 
         fixture.close()
@@ -306,9 +344,12 @@ class CarPlayFacadeTest {
         fixture.addTracks(track("one"))
         fixture.publish(libraryRevision = 1L)
         val oldSnapshot = fixture.snapshot()
-        val oldEntryId = oldSnapshot.categories
-            .single { it.id == CarPlayCategoryId.Songs }
-            .entries.single().id
+        val oldEntryId =
+            oldSnapshot.categories
+                .single { it.id == CarPlayCategoryId.Songs }
+                .entries
+                .single()
+                .id
 
         fixture.publish(libraryRevision = 2L)
         val playbackBefore = fixture.controller.state.value
@@ -322,63 +363,140 @@ class CarPlayFacadeTest {
     }
 
     @Test
-    fun transportCommandsRouteThroughTheSharedPlaybackController() = runBlocking {
-        val fixture = Fixture()
-        val tracks = listOf(track("first"), track("second"))
-        fixture.addTracks(*tracks.toTypedArray())
-        fixture.publish(libraryRevision = 1L)
-        fixture.controller.setQueue(tracks.map { it.toPlayable() }, "first")
-        fixture.awaitTrack("first", PlaybackStatus.Paused)
+    fun artworkFollowsAuthoritativeTrackWhenQueueOmitsEmbeddedBytes() =
+        runBlocking {
+            val fixture = Fixture()
+            try {
+                val first =
+                    track("first").copy(artworkBytes = byteArrayOf(1, 2))
+                val second =
+                    track("second").copy(artworkBytes = byteArrayOf(3, 4))
+                fixture.addTracks(first, second)
+                fixture.publish(libraryRevision = 1L)
+                fixture.controller.setQueue(
+                    listOf(first.toPlayable(), second.toPlayable()), "first")
+                val initial = fixture.awaitSnapshot {
+                    it.playback.currentTrack?.id == "first"
+                }
+                assertContentEquals(
+                    first.artworkBytes,
+                    initial.playback.currentTrack?.artworkBytes)
 
-        var snapshot = fixture.snapshot()
-        assertEquals(
-            CarPlayCommandResult.Applied,
-            fixture.transport(snapshot, "first") { facade, revision, current, reply ->
-                facade.play(revision, current, reply)
-            },
-        )
-        fixture.awaitTrack("first", PlaybackStatus.Playing)
-
-        snapshot = fixture.snapshot()
-        assertEquals(
-            CarPlayCommandResult.Applied,
-            fixture.transport(snapshot, "first") { facade, revision, current, reply ->
-                facade.pause(revision, current, reply)
-            },
-        )
-        fixture.awaitTrack("first", PlaybackStatus.Paused)
-
-        snapshot = fixture.snapshot()
-        assertEquals(
-            CarPlayCommandResult.Applied,
-            fixture.transport(snapshot, "first") { facade, revision, current, reply ->
-                facade.skipToNext(revision, current, reply)
-            },
-        )
-        fixture.awaitTrack("second", PlaybackStatus.Playing)
-
-        snapshot = fixture.snapshot()
-        assertEquals(
-            CarPlayCommandResult.Applied,
-            fixture.transport(snapshot, "second") { facade, revision, current, reply ->
-                facade.seekTo(1_250L, revision, current, reply)
-            },
-        )
-        withTimeout(5_000) {
-            fixture.controller.state.first { it.positionMillis == 1_250L }
+                fixture.controller.selectTrack("second")
+                val incoming = fixture.awaitSnapshot {
+                    it.playback.currentTrack?.id == "second"
+                }
+                assertContentEquals(
+                    second.artworkBytes,
+                    incoming.playback.currentTrack?.artworkBytes)
+                assertContentEquals(
+                    first.artworkBytes,
+                    initial.playback.currentTrack?.artworkBytes)
+            } finally {
+                fixture.close()
+            }
         }
 
-        snapshot = fixture.snapshot()
-        assertEquals(
-            CarPlayCommandResult.Applied,
-            fixture.transport(snapshot, "second") { facade, revision, current, reply ->
-                facade.skipToPrevious(revision, current, reply)
-            },
-        )
-        fixture.awaitTrack("first", PlaybackStatus.Playing)
+    @Test
+    fun transportCommandsRouteThroughTheSharedPlaybackController() =
+        runBlocking {
+            val fixture = Fixture()
+            val tracks = listOf(track("first"), track("second"))
+            fixture.addTracks(*tracks.toTypedArray())
+            fixture.publish(libraryRevision = 1L)
+            fixture.controller.setQueue(tracks.map { it.toPlayable() }, "first")
+            fixture.awaitTrack("first", PlaybackStatus.Paused)
 
-        fixture.close()
-    }
+            var snapshot = fixture.snapshot()
+            assertEquals(
+                CarPlayCommandResult.Applied,
+                fixture.transport(snapshot, "first") {
+                    facade,
+                    revision,
+                    current,
+                    reply ->
+                    facade.play(
+                        revision,
+                        current,
+                        snapshot.playback.selectionGeneration,
+                        reply)
+                },
+            )
+            fixture.awaitTrack("first", PlaybackStatus.Playing)
+
+            snapshot = fixture.snapshot()
+            assertEquals(
+                CarPlayCommandResult.Applied,
+                fixture.transport(snapshot, "first") {
+                    facade,
+                    revision,
+                    current,
+                    reply ->
+                    facade.pause(
+                        revision,
+                        current,
+                        snapshot.playback.selectionGeneration,
+                        reply)
+                },
+            )
+            fixture.awaitTrack("first", PlaybackStatus.Paused)
+
+            snapshot = fixture.snapshot()
+            assertEquals(
+                CarPlayCommandResult.Applied,
+                fixture.transport(snapshot, "first") {
+                    facade,
+                    revision,
+                    current,
+                    reply ->
+                    facade.skipToNext(
+                        revision,
+                        current,
+                        snapshot.playback.selectionGeneration,
+                        reply)
+                },
+            )
+            fixture.awaitTrack("second", PlaybackStatus.Playing)
+
+            snapshot = fixture.snapshot()
+            assertEquals(
+                CarPlayCommandResult.Applied,
+                fixture.transport(snapshot, "second") {
+                    facade,
+                    revision,
+                    current,
+                    reply ->
+                    facade.seekTo(
+                        1_250L,
+                        revision,
+                        current,
+                        snapshot.playback.selectionGeneration,
+                        reply)
+                },
+            )
+            withTimeout(5_000) {
+                fixture.controller.state.first { it.positionMillis == 1_250L }
+            }
+
+            snapshot = fixture.snapshot()
+            assertEquals(
+                CarPlayCommandResult.Applied,
+                fixture.transport(snapshot, "second") {
+                    facade,
+                    revision,
+                    current,
+                    reply ->
+                    facade.skipToPrevious(
+                        revision,
+                        current,
+                        snapshot.playback.selectionGeneration,
+                        reply)
+                },
+            )
+            fixture.awaitTrack("first", PlaybackStatus.Playing)
+
+            fixture.close()
+        }
 
     @Test
     fun pauseIsRejectedWhileThePlaybackSessionBlocksCommands() = runBlocking {
@@ -397,99 +515,324 @@ class CarPlayFacadeTest {
 
         assertEquals(
             CarPlayCommandResult.Unavailable,
-            fixture.transport(snapshot, "one") { facade, revision, current, reply ->
-                facade.pause(revision, current, reply)
+            fixture.transport(snapshot, "one") {
+                facade,
+                revision,
+                current,
+                reply ->
+                facade.pause(
+                    revision,
+                    current,
+                    snapshot.playback.selectionGeneration,
+                    reply)
             },
         )
         val playbackAfter = fixture.controller.state.value
         assertEquals(playbackBefore.queue, playbackAfter.queue)
-        assertEquals(playbackBefore.currentOccurrenceId, playbackAfter.currentOccurrenceId)
+        assertEquals(
+            playbackBefore.currentOccurrenceId,
+            playbackAfter.currentOccurrenceId)
         assertEquals(PlaybackStatus.Playing, playbackAfter.status)
 
         fixture.close()
     }
 
     @Test
-    fun nextIsUnavailableWhenTheSharedQueueHasNoOtherOccurrence() = runBlocking {
-        val fixture = Fixture()
-        val track = track("one")
-        fixture.addTracks(track)
-        fixture.publish(libraryRevision = 1L)
-        fixture.controller.setQueue(listOf(track.toPlayable()), "one")
-        fixture.awaitTrack("one", PlaybackStatus.Paused)
-        val snapshot = fixture.awaitSnapshot {
-            it.playback.currentTrack?.id == "one" &&
-                it.playback.status == CarPlayPlaybackStatus.Paused
+    fun nextIsUnavailableWhenTheSharedQueueHasNoOtherOccurrence() =
+        runBlocking {
+            val fixture = Fixture()
+            val track = track("one")
+            fixture.addTracks(track)
+            fixture.publish(libraryRevision = 1L)
+            fixture.controller.setQueue(listOf(track.toPlayable()), "one")
+            fixture.awaitTrack("one", PlaybackStatus.Paused)
+            val snapshot = fixture.awaitSnapshot {
+                it.playback.currentTrack?.id == "one" &&
+                    it.playback.status == CarPlayPlaybackStatus.Paused
+            }
+            assertFalse(snapshot.playback.canSkipNext)
+            val playbackBefore = fixture.controller.state.value
+
+            assertEquals(
+                CarPlayCommandResult.Unavailable,
+                fixture.transport(snapshot, "one") {
+                    facade,
+                    revision,
+                    current,
+                    reply ->
+                    facade.skipToNext(
+                        revision,
+                        current,
+                        snapshot.playback.selectionGeneration,
+                        reply)
+                },
+            )
+            assertEquals(
+                playbackBefore.queue, fixture.controller.state.value.queue)
+            assertEquals(
+                playbackBefore.currentOccurrenceId,
+                fixture.controller.state.value.currentOccurrenceId,
+            )
+
+            fixture.close()
         }
-        assertFalse(snapshot.playback.canSkipNext)
-        val playbackBefore = fixture.controller.state.value
 
-        assertEquals(
-            CarPlayCommandResult.Unavailable,
-            fixture.transport(snapshot, "one") { facade, revision, current, reply ->
-                facade.skipToNext(revision, current, reply)
-            },
-        )
-        assertEquals(playbackBefore.queue, fixture.controller.state.value.queue)
-        assertEquals(
-            playbackBefore.currentOccurrenceId,
-            fixture.controller.state.value.currentOccurrenceId,
-        )
+    @Test
+    fun staleTransportIdentityIsRejectedWithoutChangingPlayback() =
+        runBlocking {
+            val fixture = Fixture()
+            val tracks = listOf(track("first"), track("second"))
+            fixture.addTracks(*tracks.toTypedArray())
+            fixture.publish(libraryRevision = 1L)
+            fixture.controller.setQueue(tracks.map { it.toPlayable() }, "first")
+            fixture.awaitTrack("first", PlaybackStatus.Paused)
+            val snapshot = fixture.snapshot()
+            fixture.controller.selectTrack("second")
+            fixture.awaitTrack("second", PlaybackStatus.Paused)
+            val playbackBefore = fixture.controller.state.value
 
-        fixture.close()
+            assertEquals(
+                CarPlayCommandResult.StalePlayback,
+                fixture.transport(snapshot, "first") {
+                    facade,
+                    revision,
+                    current,
+                    reply ->
+                    facade.play(
+                        revision,
+                        current,
+                        snapshot.playback.selectionGeneration,
+                        reply)
+                },
+            )
+            assertEquals(playbackBefore, fixture.controller.state.value)
+
+            fixture.close()
+        }
+
+    @Test
+    fun transportReportsAdmissionBeforeReturnWithoutSchedulingProcessWork() =
+        runBlocking {
+            val dispatcher =
+                object : CoroutineDispatcher() {
+                    override fun dispatch(
+                        context: CoroutineContext,
+                        block: Runnable
+                    ) = Unit
+                }
+            val fixture = Fixture(dispatcher)
+            try {
+                val track = track("one")
+                fixture.addTracks(track)
+                fixture.publish(libraryRevision = 1L)
+                fixture.controller.setQueue(listOf(track.toPlayable()), "one")
+                fixture.awaitTrack("one", PlaybackStatus.Paused)
+                var result: CarPlayCommandResult? = null
+
+                fixture.facade.play(
+                    fixture.snapshot().revision,
+                    "one",
+                    fixture.controller.state.value.selectionGeneration) {
+                        result = it
+                    }
+
+                assertEquals(CarPlayCommandResult.Applied, result)
+                fixture.awaitTrack("one", PlaybackStatus.Playing)
+            } finally {
+                fixture.close()
+            }
+        }
+
+    @Test
+    fun staleTransportCannotSeekAnotherOccurrenceOfTheSameTrack() =
+        runBlocking {
+            val fixture = Fixture()
+            try {
+                val track = track("same")
+                fixture.addTracks(track)
+                fixture.publish(libraryRevision = 1L)
+                fixture.controller.setOccurrenceQueue(
+                    listOf(
+                        QueueOccurrence("a", track.toPlayable()),
+                        QueueOccurrence("b", track.toPlayable())),
+                    "a",
+                )
+                fixture.awaitTrack("same", PlaybackStatus.Paused)
+                val old = fixture.awaitSnapshot {
+                    it.playback.selectionGeneration ==
+                        fixture.controller.state.value.selectionGeneration
+                }
+                fixture.controller.skipToNext()
+                withTimeout(5_000) {
+                    fixture.controller.state.first {
+                        it.currentOccurrenceId == "b" &&
+                            it.status == PlaybackStatus.Playing
+                    }
+                }
+                fixture.awaitSnapshot {
+                    it.playback.selectionGeneration !=
+                        old.playback.selectionGeneration
+                }
+                val before = fixture.controller.state.value
+                var result: CarPlayCommandResult? = null
+                fixture.facade.seekTo(
+                    2_000,
+                    old.revision,
+                    "same",
+                    old.playback.selectionGeneration) {
+                        result = it
+                    }
+                assertEquals(CarPlayCommandResult.StalePlayback, result)
+                assertEquals(before, fixture.controller.state.value)
+            } finally {
+                fixture.close()
+            }
+        }
+
+    @Test
+    fun replacementDuringTransportValidationCannotReceiveOldSeek() =
+        runBlocking {
+            val fixture = Fixture()
+            try {
+                val track = track("same")
+                fixture.addTracks(track)
+                fixture.publish(libraryRevision = 1L)
+                fixture.controller.setQueue(listOf(track.toPlayable()), "same")
+                fixture.awaitTrack("same", PlaybackStatus.Paused)
+                val snapshot = fixture.awaitSnapshot {
+                    it.playback.currentTrack?.id == "same"
+                }
+                fixture.beforeTransportMetadataRead = {
+                    fixture.controller.setQueue(
+                        listOf(track.toPlayable()), "same")
+                }
+                var result: CarPlayCommandResult? = null
+                fixture.facade.seekTo(
+                    2_000,
+                    snapshot.revision,
+                    "same",
+                    snapshot.playback.selectionGeneration) {
+                        result = it
+                    }
+                assertEquals(CarPlayCommandResult.StalePlayback, result)
+                assertEquals(0L, fixture.controller.state.value.positionMillis)
+            } finally {
+                fixture.close()
+            }
+        }
+
+    @Test
+    fun singleOccurrencePlaylistRepeatAcceptsAdvertisedSkip() = runBlocking {
+        val fixture = Fixture()
+        try {
+            val track = track("only")
+            fixture.addTracks(track)
+            fixture.publish(libraryRevision = 1L)
+            fixture.controller.setQueue(listOf(track.toPlayable()), "only")
+            fixture.awaitTrack("only", PlaybackStatus.Paused)
+            fixture.controller.setRepeatMode(RepeatMode.RepeatPlaylist)
+            for (previous in listOf(false, true)) {
+                val snapshot = fixture.awaitSnapshot {
+                    it.playback.selectionGeneration ==
+                        fixture.controller.state.value.selectionGeneration &&
+                        it.playback.canSkipNext &&
+                        it.playback.canSkipPrevious
+                }
+                val before = fixture.controller.state.value.selectionGeneration
+                var result: CarPlayCommandResult? = null
+                if (previous)
+                    fixture.facade.skipToPrevious(
+                        snapshot.revision, "only", before) {
+                            result = it
+                        }
+                else
+                    fixture.facade.skipToNext(
+                        snapshot.revision, "only", before) {
+                            result = it
+                        }
+                assertEquals(CarPlayCommandResult.Applied, result)
+                assertTrue(
+                    fixture.controller.state.value.selectionGeneration > before)
+                fixture.awaitTrack("only", PlaybackStatus.Playing)
+            }
+        } finally {
+            fixture.close()
+        }
     }
 
     @Test
-    fun staleTransportIdentityIsRejectedWithoutChangingPlayback() = runBlocking {
-        val fixture = Fixture()
-        val tracks = listOf(track("first"), track("second"))
-        fixture.addTracks(*tracks.toTypedArray())
-        fixture.publish(libraryRevision = 1L)
-        fixture.controller.setQueue(tracks.map { it.toPlayable() }, "first")
-        fixture.awaitTrack("first", PlaybackStatus.Paused)
-        val snapshot = fixture.snapshot()
-        fixture.controller.selectTrack("second")
-        fixture.awaitTrack("second", PlaybackStatus.Paused)
-        val playbackBefore = fixture.controller.state.value
+    fun skipCapabilitiesRespectQueueBoundariesAndPlaylistRepeat() =
+        runBlocking {
+            val fixture = Fixture()
+            try {
+                val tracks = listOf(track("first"), track("last"))
+                fixture.addTracks(*tracks.toTypedArray())
+                fixture.publish(libraryRevision = 1L)
+                fixture.controller.setQueue(
+                    tracks.map { it.toPlayable() }, "first")
+                val first = fixture.awaitSnapshot {
+                    it.playback.currentTrack?.id == "first"
+                }
+                assertFalse(first.playback.canSkipPrevious)
+                assertTrue(first.playback.canSkipNext)
+                fixture.controller.selectTrack("last")
+                val last = fixture.awaitSnapshot {
+                    it.playback.currentTrack?.id == "last"
+                }
+                assertTrue(last.playback.canSkipPrevious)
+                assertFalse(last.playback.canSkipNext)
+                fixture.controller.setRepeatMode(RepeatMode.RepeatPlaylist)
+                val repeating = fixture.awaitSnapshot {
+                    it.playback.canSkipNext
+                }
+                assertTrue(repeating.playback.canSkipPrevious)
+            } finally {
+                fixture.close()
+            }
+        }
 
-        assertEquals(
-            CarPlayCommandResult.StalePlayback,
-            fixture.transport(snapshot, "first") { facade, revision, current, reply ->
-                facade.play(revision, current, reply)
-            },
-        )
-        assertEquals(playbackBefore, fixture.controller.state.value)
-
-        fixture.close()
-    }
-
-    private class Fixture {
+    private class Fixture(
+        dispatcher: CoroutineDispatcher = Dispatchers.Default
+    ) {
         val repository = InMemoryLibraryRepository()
         val controller = PlaybackController(FakePlaybackEngine())
-        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        private val scope = CoroutineScope(SupervisorJob() + dispatcher)
         var playbackCommandsAllowed = true
+        var beforeTransportMetadataRead: () -> Unit = {}
         val facade =
             CarPlayFacade(
-                libraryRepository = repository,
+                libraryRepository =
+                    object :
+                        com.eterocell.rhythhaus.library.LibraryRepository by repository {
+                        override fun metadataForTrack(
+                            trackId: String
+                        ): com.eterocell.rhythhaus.library.TrackMetadataEditorData? {
+                            beforeTransportMetadataRead()
+                            return repository.metadataForTrack(trackId)
+                        }
+                    },
                 playbackController = controller,
                 processScope = scope,
                 canDispatchPlaybackCommands = { playbackCommandsAllowed },
             )
 
         suspend fun addTracks(vararg tracks: LibraryTrack) {
-            tracks.map { it.sourceId }.distinct().forEach { sourceId ->
-                if (repository.sources().none { it.id == sourceId }) {
-                    repository.upsertSource(
-                        LibrarySource(
-                            sourceId,
-                            LibraryPlatformKind.JvmFolder,
-                            sourceId,
-                            "/$sourceId",
-                            1L,
-                        ),
-                    )
+            tracks
+                .map { it.sourceId }
+                .distinct()
+                .forEach { sourceId ->
+                    if (repository.sources().none { it.id == sourceId }) {
+                        repository.upsertSource(
+                            LibrarySource(
+                                sourceId,
+                                LibraryPlatformKind.JvmFolder,
+                                sourceId,
+                                "/$sourceId",
+                                1L,
+                            ),
+                        )
+                    }
                 }
-            }
             tracks.forEach(repository::upsertTrack)
         }
 
@@ -530,7 +873,10 @@ class CarPlayFacadeTest {
             }
         }
 
-        suspend fun select(entryId: String, revision: Long): CarPlayCommandResult {
+        suspend fun select(
+            entryId: String,
+            revision: Long
+        ): CarPlayCommandResult {
             val result = CompletableDeferred<CarPlayCommandResult>()
             facade.selectEntry(entryId, revision, result::complete)
             return withTimeout(5_000) { result.await() }
@@ -539,12 +885,13 @@ class CarPlayFacadeTest {
         suspend fun transport(
             snapshot: CarPlaySnapshot,
             expectedTrackId: String,
-            issue: (
-                CarPlayFacade,
-                Long,
-                String,
-                (CarPlayCommandResult) -> Unit,
-            ) -> Unit,
+            issue:
+                (
+                    CarPlayFacade,
+                    Long,
+                    String,
+                    (CarPlayCommandResult) -> Unit,
+                ) -> Unit,
         ): CarPlayCommandResult {
             val result = CompletableDeferred<CarPlayCommandResult>()
             issue(facade, snapshot.revision, expectedTrackId, result::complete)
@@ -598,7 +945,6 @@ class CarPlayFacadeTest {
     private companion object {
         val englishLabels =
             CarPlayCategoryLabels("Songs", "Albums", "Artists", "Playlists")
-        val localizedLabels =
-            CarPlayCategoryLabels("歌曲", "专辑", "艺术家", "播放列表")
+        val localizedLabels = CarPlayCategoryLabels("歌曲", "专辑", "艺术家", "播放列表")
     }
 }

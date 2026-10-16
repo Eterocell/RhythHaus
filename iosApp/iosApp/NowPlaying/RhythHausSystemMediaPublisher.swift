@@ -41,6 +41,7 @@ struct RhythHausSystemMediaTrack {
 
 struct RhythHausSystemMediaSnapshot {
     let revision: Int64
+    let selectionGeneration: Int64
     let currentTrack: RhythHausSystemMediaTrack?
     let positionMillis: Int64
     let durationMillis: Int64?
@@ -62,7 +63,7 @@ protocol RhythHausSystemMediaSnapshotSource: AnyObject {
         _ command: RhythHausSystemMediaCommand,
         positionMillis: Int64?,
         snapshot: RhythHausSystemMediaSnapshot
-    )
+    ) -> Bool
 }
 
 @MainActor
@@ -139,46 +140,6 @@ final class RhythHausSystemMediaPublisher {
         infoCenter.nowPlayingInfo = nil
     }
 
-    /// Adapts the Kotlin artwork callback into the current complete metadata dictionary.
-    nonisolated func updateArtwork(
-        _ artworkBytes: KotlinByteArray?,
-        trackTitle: String,
-        artist: String,
-        album: String?
-    ) {
-        let artworkData = Self.data(from: artworkBytes)
-        if Thread.isMainThread {
-            MainActor.assumeIsolated {
-                applyArtwork(
-                    artworkData,
-                    trackTitle: trackTitle,
-                    artist: artist,
-                    album: album)
-            }
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                self?.applyArtwork(
-                    artworkData,
-                    trackTitle: trackTitle,
-                    artist: artist,
-                    album: album)
-            }
-        }
-    }
-
-    static func mergingArtwork(
-        _ artwork: Any?,
-        into currentInfo: [String: Any]
-    ) -> [String: Any] {
-        var merged = currentInfo
-        if let artwork {
-            merged[MPMediaItemPropertyArtwork] = artwork
-        } else {
-            merged.removeValue(forKey: MPMediaItemPropertyArtwork)
-        }
-        return merged
-    }
-
     private func registerRemoteCommands() {
         guard targetIDs.isEmpty else { return }
         for command in Self.commands {
@@ -208,24 +169,6 @@ final class RhythHausSystemMediaPublisher {
         setCommandEnabled(snapshot.canSeek, for: .seek)
     }
 
-    private func applyArtwork(
-        _ artworkData: Data?,
-        trackTitle: String,
-        artist: String,
-        album: String?
-    ) {
-        guard let snapshot = currentSnapshot,
-              let track = snapshot.currentTrack,
-              track.title == trackTitle,
-              track.artist == artist,
-              track.album == album else { return }
-
-        artworkForCurrentTrack = Self.makeArtwork(from: artworkData)
-        let completeInfo = currentInfo ?? Self.completeInfo(for: snapshot, artwork: nil) ?? [:]
-        currentInfo = Self.mergingArtwork(artworkForCurrentTrack, into: completeInfo)
-        infoCenter.nowPlayingInfo = currentInfo
-    }
-
     private func dispatch(
         _ command: RhythHausSystemMediaCommand,
         positionMillis: Int64?
@@ -234,8 +177,10 @@ final class RhythHausSystemMediaPublisher {
               snapshot.currentTrack != nil,
               isAvailable(command, in: snapshot) else { return false }
         if command == .seek, positionMillis == nil { return false }
-        source.dispatch(command, positionMillis: positionMillis, snapshot: snapshot)
-        return true
+        return source.dispatch(
+            command,
+            positionMillis: positionMillis,
+            snapshot: snapshot)
     }
 
     private func isAvailable(
@@ -292,15 +237,6 @@ final class RhythHausSystemMediaPublisher {
         return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
     }
 
-    nonisolated private static func data(from bytes: KotlinByteArray?) -> Data? {
-        guard let bytes, bytes.size > 0 else { return nil }
-        var data = Data()
-        data.reserveCapacity(Int(bytes.size))
-        for index in 0 ..< bytes.size {
-            data.append(UInt8(bitPattern: bytes.get(index: index)))
-        }
-        return data
-    }
 }
 
 @MainActor
@@ -345,38 +281,44 @@ private final class SharedCarPlaySystemMediaSource: RhythHausSystemMediaSnapshot
         _ command: RhythHausSystemMediaCommand,
         positionMillis: Int64?,
         snapshot: RhythHausSystemMediaSnapshot
-    ) {
-        guard let track = snapshot.currentTrack else { return }
-        let completed: (CarPlayCommandResult) -> Void = { _ in }
+    ) -> Bool {
+        guard let track = snapshot.currentTrack else { return false }
+        var result: CarPlayCommandResult = .unavailable
         switch command {
         case .play:
             facade.play(
                 expectedRevision: snapshot.revision,
                 expectedTrackId: track.id,
-                onResult: completed)
+                expectedSelectionGeneration: snapshot.selectionGeneration,
+                onResult: { result = $0 })
         case .pause:
             facade.pause(
                 expectedRevision: snapshot.revision,
                 expectedTrackId: track.id,
-                onResult: completed)
+                expectedSelectionGeneration: snapshot.selectionGeneration,
+                onResult: { result = $0 })
         case .next:
             facade.skipToNext(
                 expectedRevision: snapshot.revision,
                 expectedTrackId: track.id,
-                onResult: completed)
+                expectedSelectionGeneration: snapshot.selectionGeneration,
+                onResult: { result = $0 })
         case .previous:
             facade.skipToPrevious(
                 expectedRevision: snapshot.revision,
                 expectedTrackId: track.id,
-                onResult: completed)
+                expectedSelectionGeneration: snapshot.selectionGeneration,
+                onResult: { result = $0 })
         case .seek:
-            guard let positionMillis else { return }
+            guard let positionMillis else { return false }
             facade.seekTo(
                 positionMillis: positionMillis,
                 expectedRevision: snapshot.revision,
                 expectedTrackId: track.id,
-                onResult: completed)
+                expectedSelectionGeneration: snapshot.selectionGeneration,
+                onResult: { result = $0 })
         }
+        return result == .applied
     }
 
     private func project(_ snapshot: CarPlaySnapshot) -> RhythHausSystemMediaSnapshot {
@@ -407,6 +349,7 @@ private final class SharedCarPlaySystemMediaSource: RhythHausSystemMediaSnapshot
         }
         return RhythHausSystemMediaSnapshot(
             revision: snapshot.revision,
+            selectionGeneration: playback.selectionGeneration,
             currentTrack: track,
             positionMillis: playback.positionMillis,
             durationMillis: playback.durationMillis?.int64Value,
@@ -476,7 +419,15 @@ private final class MediaPlayerRemoteCommandCenter: RhythHausSystemMediaRemoteCo
             } else {
                 positionMillis = nil
             }
-            return handler(positionMillis) ? .success : .commandFailed
+            let accepted: Bool
+            if Thread.isMainThread {
+                accepted = handler(positionMillis)
+            } else {
+                accepted = DispatchQueue.main.sync {
+                    handler(positionMillis)
+                }
+            }
+            return accepted ? .success : .commandFailed
         }
         let token = UUID()
         targets[token] = (remoteCommand, target)

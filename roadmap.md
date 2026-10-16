@@ -91,6 +91,7 @@ RhythHaus already provides:
 
 | Area | First useful version |
 | --- | --- |
+| CarPlay | Implemented on `feature/carplay`: localized native browsing with pagination, exact-context selection, shared Now Playing/remote commands, and headless process initialization. Automated acceptance passed; OpenSpec 4.2 remains open for interactive CarPlay-display smoke. Apple capability/profile approval and physical vehicle/system-control acceptance remain user-owned and pending. Not merged or archived. |
 | Equalizer and effects | Blocked on a cross-platform DSP seam. Android's Media3 service can host optional session-bound platform effects; iOS and macOS currently use AVAudioPlayer, which has no attachable multiband EQ graph. Do not ship a shared EQ setting that silently no-ops or behaves differently by platform. A cross-platform implementation needs a supported PCM/DSP graph or a separately approved platform-capability contract; replacing both Apple audio backends would also have to preserve native session/remote controls, route and interruption handling, file-format support, ReplayGain/sleep gain composition, and dual-voice crossfade. |
 | Normalization and transitions | ReplayGain is integrated; crossfade is implemented with persisted Off/3/5/8-second choices and genuine dual-player transitions on Android, iOS and macOS. Gapless implementation is complete in its feature branch; physical audible/device acceptance remains user-owned and pending. |
 | Lyrics | Local `.lrc` and embedded lyrics only; remote lyrics requires a separate privacy/network decision. |

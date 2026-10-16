@@ -28,6 +28,20 @@ import org.koin.dsl.module
 import org.koin.mp.KoinPlatform
 
 fun rhythHausModule(): Module = module {
+    single { com.eterocell.rhythhaus.AuthoritativeLibraryPublicationOwner() }
+    single {
+        com.eterocell.rhythhaus.AppProcessState(
+            repository = get(),
+            platformAccess = get(),
+            controller = get(),
+            lifecycle = get(),
+            reconciler = get(),
+            publications = get(),
+            playlistOwner = get(),
+            facade = get(),
+            scope = get(),
+        )
+    }
     single<CoroutineScope> {
         CoroutineScope(SupervisorJob() + Dispatchers.Default)
     }
@@ -157,4 +171,13 @@ fun startRhythHausKoin() {
 public fun sharedCarPlayFacade(): CarPlayFacade {
     startRhythHausKoin()
     return KoinPlatform.getKoin().get()
+}
+
+/**
+ * Starts process-owned library/session initialization after native bridges are
+ * registered.
+ */
+public fun startSharedAppProcess() {
+    startRhythHausKoin()
+    KoinPlatform.getKoin().get<com.eterocell.rhythhaus.AppProcessState>()
 }

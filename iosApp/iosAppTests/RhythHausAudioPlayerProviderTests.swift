@@ -828,6 +828,7 @@ private final class AudioInterruptionRecorder: NSObject, IOSAudioInterruptionHan
 
     func onInterruptionBegan() { events.append("began") }
     func onInterruptionEnded(shouldResume: Bool) { events.append("ended:\(shouldResume)") }
+    func onRouteChanged() { events.append("changed") }
     func onRouteDisconnected() { events.append("route") }
 }
 

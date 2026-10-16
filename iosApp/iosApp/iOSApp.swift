@@ -7,7 +7,6 @@ struct iOSApp: App {
     static let carPlayFacade = RhythHausDiKt.sharedCarPlayFacade()
 
     private let audioPlayerProvider = RhythHausAudioPlayerProvider()
-    private let artworkProvider = RhythHausArtworkProvider()
     private let systemMediaPublisher = RhythHausSystemMediaPublisher(
         facade: iOSApp.carPlayFacade)
     private let playlistBackupDocumentProvider = RhythHausPlaylistBackupDocumentProvider()
@@ -16,7 +15,6 @@ struct iOSApp: App {
     init() {
         RhythHausAppBootstrapper.configure(
             audioPlayerProvider: audioPlayerProvider,
-            artworkProvider: artworkProvider,
             systemMediaPublisher: systemMediaPublisher,
             playlistBackupDocumentProvider: playlistBackupDocumentProvider,
             libraryImportProvider: libraryImportProvider

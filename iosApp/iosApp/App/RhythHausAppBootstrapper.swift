@@ -7,7 +7,6 @@ import UIKit
 enum RhythHausAppBootstrapper {
     static func configure(
         audioPlayerProvider: IOSAudioPlayerProvider,
-        artworkProvider: RhythHausArtworkProvider,
         systemMediaPublisher: RhythHausSystemMediaPublisher,
         playlistBackupDocumentProvider: IOSPlaylistBackupDocumentProvider,
         libraryImportProvider: IOSLibraryImportProvider
@@ -16,7 +15,6 @@ enum RhythHausAppBootstrapper {
         configureRemoteControlEvents()
         registerKotlinBridges(
             audioPlayerProvider: audioPlayerProvider,
-            artworkProvider: artworkProvider,
             systemMediaPublisher: systemMediaPublisher,
             playlistBackupDocumentProvider: playlistBackupDocumentProvider,
             libraryImportProvider: libraryImportProvider
@@ -49,17 +47,15 @@ enum RhythHausAppBootstrapper {
 
     private static func registerKotlinBridges(
         audioPlayerProvider: IOSAudioPlayerProvider,
-        artworkProvider: RhythHausArtworkProvider,
         systemMediaPublisher: RhythHausSystemMediaPublisher,
         playlistBackupDocumentProvider: IOSPlaylistBackupDocumentProvider,
         libraryImportProvider: IOSLibraryImportProvider
     ) {
         // Register Swift-native bridges so the KMP playback engine can use native-only APIs.
         IOSAudioPlayerBridge.shared.provider = audioPlayerProvider
-        artworkProvider.systemMediaPublisher = systemMediaPublisher
-        NowPlayingArtworkBridge.shared.provider = artworkProvider
         IOSPlaylistBackupDocumentBridge.shared.provider = playlistBackupDocumentProvider
         IOSLibraryImportBridge.shared.provider = libraryImportProvider
+        RhythHausDiKt.startSharedAppProcess()
         systemMediaPublisher.start()
     }
 }
