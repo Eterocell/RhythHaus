@@ -1,123 +1,310 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "carplay.action.ok" : {
+      "comment" : "Dismiss action for a CarPlay alert.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
+          }
+        }
+      }
+    },
     "carplay.category.albums" : {
       "comment" : "CarPlay library category label.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Albums" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "专辑" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albums"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "专辑"
+          }
+        }
       }
     },
     "carplay.category.artists" : {
       "comment" : "CarPlay library category label.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Artists" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "艺人" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artists"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "艺人"
+          }
+        }
       }
     },
     "carplay.category.playlists" : {
       "comment" : "CarPlay library category label.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Playlists" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "播放列表" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放列表"
+          }
+        }
       }
     },
     "carplay.category.songs" : {
       "comment" : "CarPlay library category label.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Songs" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "歌曲" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Songs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歌曲"
+          }
+        }
       }
     },
     "carplay.empty.albums" : {
       "comment" : "Empty Albums category state.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No albums yet" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无专辑" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No albums yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无专辑"
+          }
+        }
       }
     },
     "carplay.empty.artists" : {
       "comment" : "Empty Artists category state.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No artists yet" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无艺人" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No artists yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无艺人"
+          }
+        }
       }
     },
     "carplay.empty.playlists" : {
       "comment" : "Empty Playlists category state.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No playlists yet" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无播放列表" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No playlists yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无播放列表"
+          }
+        }
       }
     },
     "carplay.empty.songs" : {
       "comment" : "Empty Songs category state.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No songs yet" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无歌曲" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No songs yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无歌曲"
+          }
+        }
       }
     },
     "carplay.empty.tracks" : {
       "comment" : "Empty detail-list state.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No tracks available" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有可用曲目" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tracks available"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可用曲目"
+          }
+        }
       }
     },
     "carplay.loading" : {
       "comment" : "Loading library state.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading library" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载音乐库" } }
-      }
-    },
-    "carplay.page.next" : {
-      "comment" : "CarPlay next-page navigation item.",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next page" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一页" } }
-      }
-    },
-    "carplay.playlists.unavailable" : {
-      "comment" : "Playlist read failure; other CarPlay categories remain available.",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Playlists unavailable" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "播放列表暂不可用" } }
-      }
-    },
-    "carplay.page.previous" : {
-      "comment" : "CarPlay previous-page navigation item.",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous page" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上一页" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading library"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加载音乐库"
+          }
+        }
       }
     },
     "carplay.nowPlaying" : {
       "comment" : "CarPlay Now Playing destination label.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Now Playing" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在播放" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now Playing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在播放"
+          }
+        }
+      }
+    },
+    "carplay.page.next" : {
+      "comment" : "CarPlay next-page navigation item.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一页"
+          }
+        }
+      }
+    },
+    "carplay.page.previous" : {
+      "comment" : "CarPlay previous-page navigation item.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一页"
+          }
+        }
+      }
+    },
+    "carplay.playlists.unavailable" : {
+      "comment" : "Playlist read failure; other CarPlay categories remain available.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlists unavailable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放列表暂不可用"
+          }
+        }
       }
     },
     "carplay.root.title" : {
       "comment" : "CarPlay root list title.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "RhythHaus" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "RhythHaus" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RhythHaus"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RhythHaus"
+          }
+        }
       }
     },
     "carplay.selectionUnavailable" : {
       "comment" : "Recoverable message shown when a selected CarPlay item is stale or unavailable.",
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "This track is no longer available." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此曲目已不可用。" } }
-      }
-    },
-    "carplay.action.ok" : {
-      "comment" : "Dismiss action for a CarPlay alert.",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This track is no longer available."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此曲目已不可用。"
+          }
+        }
       }
     }
   },
