@@ -54,6 +54,7 @@ import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.theme.HausColorPalette
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
 import com.eterocell.rhythhaus.ui.hausClickable
@@ -153,6 +154,12 @@ public fun trackRowActivation(
         else -> TrackRowActivation.Play
     }
 
+internal fun trackRowMetadataColor(
+    palette: HausColorPalette,
+    isNowPlaying: Boolean,
+    isSelected: Boolean,
+): Color = if (isNowPlaying || isSelected) palette.ink else palette.muted
+
 @Composable
 internal fun HeaderSection(title: String, subtitle: String) {
     Column(
@@ -245,9 +252,8 @@ internal fun ImportAudioCard(
                         PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                     colors =
                         ButtonDefaults.buttonColors(
-                            color =
-                                HausColors.current.pulse.copy(alpha = 0.15f),
-                            contentColor = HausColors.current.pulse,
+                            color = HausColors.current.dangerPanel,
+                            contentColor = HausColors.current.danger,
                         ),
                 ) {
                     Text(
@@ -412,7 +418,12 @@ public fun TrackRow(
                 )
                 Text(
                     text = labels.trackArtistAlbum(track.artist, track.album),
-                    color = HausColors.current.muted,
+                    color =
+                        trackRowMetadataColor(
+                            palette = HausColors.current,
+                            isNowPlaying = isNowPlaying,
+                            isSelected = isSelected,
+                        ),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -1153,7 +1164,16 @@ public fun ScanOutcomePanel(
             }
         }
         session.terminalMessage?.takeIf(String::isNotBlank)?.let {
-            Text(it, color = HausColors.current.pulse, fontSize = 12.sp)
+            Text(
+                it,
+                color =
+                    if (session.status == ScanStatus.Failed) {
+                        HausColors.current.danger
+                    } else {
+                        HausColors.current.muted
+                    },
+                fontSize = 12.sp,
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             source?.let {
@@ -1222,12 +1242,12 @@ private fun ScanActionButton(
             ButtonDefaults.buttonColors(
                 color =
                     if (destructive) {
-                        HausColors.current.pulse.copy(alpha = 0.15f)
+                        HausColors.current.dangerPanel
                     } else {
                         HausColors.current.ink
                     },
                 contentColor =
-                    if (destructive) HausColors.current.pulse
+                    if (destructive) HausColors.current.danger
                     else HausColors.current.paper,
                 disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
                 disabledContentColor = HausColors.current.muted),

@@ -8,7 +8,7 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import com.eterocell.rhythhaus.theme.HausInk
+import com.eterocell.rhythhaus.theme.HausPulse
 
 /** Applies the standard bounded RhythHaus click indication. */
 @Composable
@@ -16,7 +16,7 @@ public fun Modifier.hausClickable(onClick: () -> Unit): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
     return clickable(
         interactionSource = interactionSource,
-        indication = ripple(bounded = true, color = HausInk),
+        indication = ripple(bounded = true, color = HausPulse),
         onClick = onClick)
 }
 
@@ -31,7 +31,7 @@ public fun Modifier.hausCombinedClickable(
     val interactionSource = remember { MutableInteractionSource() }
     return combinedClickable(
         interactionSource = interactionSource,
-        indication = ripple(bounded = true, color = HausInk),
+        indication = ripple(bounded = true, color = HausPulse),
         onClick = onClick,
         onLongClick = onLongClick,
         onLongClickLabel = onLongClickLabel)

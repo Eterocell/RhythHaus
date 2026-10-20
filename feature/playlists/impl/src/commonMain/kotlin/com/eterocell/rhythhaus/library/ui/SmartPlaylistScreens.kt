@@ -237,7 +237,7 @@ internal fun SmartRuleDialog(
                         Text(
                             stringResource(
                                 Res.string.playlist_modal_mutation_failed),
-                            color = HausColors.current.pulse)
+                            color = HausColors.current.danger)
                 }
         },
         actions = {

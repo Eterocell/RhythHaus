@@ -2140,10 +2140,10 @@ private fun RhythHausTheme(
     val colorScheme =
         if (colors == DarkHausPalette) {
             darkColorScheme(
-                primary = colors.ink,
-                onPrimary = colors.paper,
+                primary = colors.pulse,
+                onPrimary = colors.onPulse,
                 secondary = colors.pulse,
-                onSecondary = colors.paper,
+                onSecondary = colors.onPulse,
                 background = colors.paper,
                 onBackground = colors.ink,
                 surface = colors.panel,
@@ -2151,16 +2151,16 @@ private fun RhythHausTheme(
                 surfaceContainer = colors.panel,
                 onSurfaceContainer = colors.ink,
                 secondaryVariant = colors.pulse,
-                onSecondaryVariant = colors.paper,
+                onSecondaryVariant = colors.onPulse,
                 disabledSecondaryVariant = colors.pulse.copy(alpha = 0.28f),
-                disabledOnSecondaryVariant = colors.paper.copy(alpha = 0.28f),
+                disabledOnSecondaryVariant = colors.onPulse.copy(alpha = 0.28f),
             )
         } else {
             lightColorScheme(
-                primary = colors.ink,
-                onPrimary = colors.paper,
+                primary = colors.pulse,
+                onPrimary = colors.onPulse,
                 secondary = colors.pulse,
-                onSecondary = colors.paper,
+                onSecondary = colors.onPulse,
                 background = colors.paper,
                 onBackground = colors.ink,
                 surface = colors.panel,
@@ -2168,9 +2168,9 @@ private fun RhythHausTheme(
                 surfaceContainer = colors.panel,
                 onSurfaceContainer = colors.ink,
                 secondaryVariant = colors.pulse,
-                onSecondaryVariant = colors.paper,
+                onSecondaryVariant = colors.onPulse,
                 disabledSecondaryVariant = colors.pulse.copy(alpha = 0.28f),
-                disabledOnSecondaryVariant = colors.paper.copy(alpha = 0.28f),
+                disabledOnSecondaryVariant = colors.onPulse.copy(alpha = 0.28f),
             )
         }
 

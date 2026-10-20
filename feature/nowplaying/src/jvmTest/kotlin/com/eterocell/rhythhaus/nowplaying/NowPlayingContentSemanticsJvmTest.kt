@@ -2,16 +2,20 @@ package com.eterocell.rhythhaus.nowplaying
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -40,12 +44,57 @@ import com.eterocell.rhythhaus.ShuffleMode
 import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.theme.DarkHausPalette
+import com.eterocell.rhythhaus.theme.LocalHausColors
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 public class NowPlayingContentSemanticsJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun pulseBackedControlsUseDarkPaletteOnPulseForeground(): Unit =
+        runComposeUiTest {
+            val palette = DarkHausPalette
+            setContent {
+                CompositionLocalProvider(LocalHausColors provides palette) {
+                    mountedRecoveryNowPlaying(
+                        displayTrack(),
+                        PlaybackState(
+                            status = PlaybackStatus.Playing,
+                            repeatMode = RepeatMode.RepeatPlaylist,
+                            shuffleMode = ShuffleMode.On,
+                        ),
+                        PlaybackController(ImmediatePlaybackEngine()),
+                    )
+                }
+            }
+
+            for (testTag in
+                listOf(
+                    NowPlayingPlayPauseTestTag,
+                    NowPlayingShuffleTestTag,
+                    NowPlayingRepeatTestTag,
+                )) {
+                val pixels =
+                    onNodeWithTag(testTag).captureToImage().toPixelMap()
+                var onPulsePixels = 0
+                for (y in 0 until pixels.height) {
+                    for (x in 0 until pixels.width) {
+                        if (pixels[x, y].toArgb() == palette.onPulse.toArgb()) {
+                            onPulsePixels += 1
+                        }
+                    }
+                }
+                assertTrue(
+                    onPulsePixels > 0,
+                    "$testTag should render its icon with the dark on-pulse color",
+                )
+            }
+        }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun lyricsActionIsAbsentWhenCurrentTrackHasNoLyrics(): Unit =

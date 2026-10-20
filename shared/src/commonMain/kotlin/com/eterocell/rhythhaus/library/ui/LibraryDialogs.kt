@@ -73,8 +73,8 @@ internal fun AnimatedClearLibraryDialogRoute(
                     PaddingValues(horizontal = 16.dp, vertical = 9.dp),
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.pulse,
-                        contentColor = HausColors.current.paper,
+                        color = HausColors.current.danger,
+                        contentColor = HausColors.current.onDanger,
                     ),
             ) {
                 Text(

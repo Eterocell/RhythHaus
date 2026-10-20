@@ -424,7 +424,7 @@ private fun NowPlayingControlsPane(
             Spacer(Modifier.height(10.dp))
             Text(
                 recoveryFailureSummary(failureError.kind),
-                color = HausColors.current.pulse,
+                color = HausColors.current.danger,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
@@ -481,7 +481,8 @@ private fun NowPlayingControlsPane(
                             Icons.Filled.Shuffle,
                             null,
                             tint =
-                                if (uiState.shuffleEnabled) Color.White
+                                if (uiState.shuffleEnabled)
+                                    HausColors.current.onPulse
                                 else HausColors.current.ink,
                             modifier = Modifier.size(22.dp))
                     }
@@ -505,7 +506,7 @@ private fun NowPlayingControlsPane(
                             icon,
                             null,
                             tint =
-                                if (repeatSelected) Color.White
+                                if (repeatSelected) HausColors.current.onPulse
                                 else HausColors.current.ink,
                             modifier = Modifier.size(22.dp))
                     }
@@ -531,7 +532,7 @@ private fun NowPlayingControlsPane(
                     else Icons.Filled.PlayArrow,
                     if (uiState.isPlaying) labels.pause else labels.play,
                     playbackController::togglePlayPause,
-                    Color.White,
+                    HausColors.current.onPulse,
                     34.dp,
                     testTag = NowPlayingPlayPauseTestTag)
                 TransportButton(
@@ -583,7 +584,7 @@ private fun TransportButton(
 /**
  * Recovery action in the error-only failure section: 44dp tall, 14dp corner
  * radius, 14sp bold label. Primary uses ink/paper, destructive uses the shared
- * pulse tint, and neutral uses the shared panel surface.
+ * danger tint, and neutral uses the shared panel surface.
  */
 @Composable
 private fun RecoveryActionButton(
@@ -595,13 +596,13 @@ private fun RecoveryActionButton(
 ) {
     val background =
         when {
-            destructive -> HausColors.current.pulse.copy(alpha = 0.15f)
+            destructive -> HausColors.current.dangerPanel
             primary -> HausColors.current.ink
             else -> HausColors.current.panel
         }
     val contentColor =
         when {
-            destructive -> HausColors.current.pulse
+            destructive -> HausColors.current.danger
             primary -> HausColors.current.paper
             else -> HausColors.current.ink
         }

@@ -8,12 +8,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
@@ -36,6 +40,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
@@ -53,10 +58,14 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import com.eterocell.rhythhaus.theme.DarkHausPalette
+import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.LocalHausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.core.ui.generated.resources.Res as CoreUiRes
 import rhythhaus.core.ui.generated.resources.back
@@ -652,6 +661,58 @@ public class SettingsScreenSemanticsJvmTest {
             onNodeWithTag(SettingsClearTestTag).performClick()
             onNodeWithText("clear-slot").assertExists()
             assertEquals(1, requests)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun clearLibraryActionUsesDangerPanelInBothPalettes(): Unit =
+        runComposeUiTest {
+            for (palette in listOf(LightHausPalette, DarkHausPalette)) {
+                for (mutations in listOf(true, false)) {
+                    setContent {
+                        CompositionLocalProvider(
+                            LocalHausColors provides palette) {
+                                Box(Modifier.size(600.dp, 1_200.dp)) {
+                                    content(mutations = mutations)
+                                }
+                            }
+                    }
+                    onNodeWithTag(SettingsListTestTag)
+                        .performScrollToNode(hasTestTag(SettingsClearTestTag))
+                    val actionNode =
+                        if (mutations) onNodeWithText("Clear")
+                        else onNodeWithTag(SettingsClearTestTag)
+                    val pixels = actionNode.captureToImage().toPixelMap()
+                    val colorCounts = mutableMapOf<Int, Int>()
+                    for (y in 0 until pixels.height) {
+                        for (x in 0 until pixels.width) {
+                            val color = pixels[x, y].toArgb()
+                            colorCounts[color] = (colorCounts[color] ?: 0) + 1
+                        }
+                    }
+                    val dominantColor = colorCounts.maxBy { it.value }.key
+
+                    if (mutations) {
+                        assertEquals(
+                            palette.dangerPanel.toArgb(),
+                            dominantColor,
+                            "Clear-library action should use the danger panel",
+                        )
+                        assertTrue(
+                            palette.danger.toArgb() in colorCounts,
+                            "Clear-library label should use the danger foreground",
+                        )
+                    } else {
+                        actionNode.assertIsNotEnabled()
+                        assertEquals(
+                            Color(0xFFF2F2F2).toArgb(),
+                            dominantColor,
+                            "Disabled clear-library action should use the neutral " +
+                                "disabled surface",
+                        )
+                    }
+                }
+            }
         }
 
     @OptIn(ExperimentalTestApi::class)

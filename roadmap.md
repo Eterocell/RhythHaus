@@ -17,6 +17,10 @@
 | P1 | First-run onboarding | Completed: durable one-time Skip/Finish flow, platform-accurate EN/ZH guidance, canonical Back/navigation, compact scrolling, and Settings re-entry. | Archived as [`2026-09-12-first-run-onboarding`](openspec/changes/archive/2026-09-12-first-run-onboarding/); Android/iOS device presentation remains release evidence rather than an implementation blocker. |
 | P1 | Favorites | Completed: durable track favorites, authoritative cross-surface state, Favorites browsing, accessible Library/Now Playing actions, and EN/ZH localization. | Archived as [`2026-09-23-favorites`](openspec/changes/archive/2026-09-23-favorites/); physical Android/iOS and system-media acceptance remains general release evidence, not a Favorites implementation blocker. |
 
+### Studio UI redesign — implementation in progress
+
+The user approved the complete Studio design and eight-task plan on 2026-10-19; implementation continues in dependency order in `.worktrees/studio-ui-redesign`. Task 1 is complete and committed as `feat(ui): establish Studio design tokens`. Both review findings are repaired, and the independent post-fix review returned no findings. Fresh Core/feature JVM suites, desktop compile, and the focused Shared danger-dialog regression pass. The broad affected run timed out after 900s; three Settings/report assertions remain failing in the broader Shared shell suite, so no full Shared-suite success is claimed. Real desktop smoke covered light/dark Settings and source-removal confirmation plus the playlist empty state. The same single `JMetal` source is visible before/after the picker interaction; scan-report counts changed but do not prove a new source. The full-player route was not opened live; changed controls pass the rendered-pixel regression. Task 2.1 is next. This checkpoint does not claim every screen's density or user-owned physical/listening/system-media acceptance.
+
 ### iOS import decision and constraints
 
 - Files.app permits multi-file and folder selection; RhythHaus copies supported audio into its managed sandbox and scans the existing `ios-app-local` source.

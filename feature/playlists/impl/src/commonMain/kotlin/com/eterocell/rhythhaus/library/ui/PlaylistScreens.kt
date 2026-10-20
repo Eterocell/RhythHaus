@@ -1527,7 +1527,7 @@ private fun QueueMutationActions(
         backgroundColor = Color.Transparent,
         modifier =
             Modifier.semantics { contentDescription = removeDescription }) {
-            Text("×", color = HausColors.current.pulse)
+            Text("×", color = HausColors.current.danger)
         }
 }
 
@@ -2496,7 +2496,7 @@ private fun PlaylistEntryMutationActions(
         minHeight = 44.dp,
         backgroundColor = Color.Transparent,
         modifier = Modifier.semantics { contentDescription = remove }) {
-            Text("×", color = HausColors.current.pulse)
+            Text("×", color = HausColors.current.danger)
         }
 }
 
@@ -2551,7 +2551,7 @@ internal fun PlaylistNotice(state: PlaylistState, mutationFailedLabel: String) {
     if (state.mutationErrorMessage != null)
         Text(
             mutationFailedLabel,
-            color = HausColors.current.pulse,
+            color = HausColors.current.danger,
             fontSize = 13.sp)
 }
 
@@ -2582,7 +2582,7 @@ private fun PlaylistNameDialog(
                 if (draft.showFailure)
                     Text(
                         stringResource(Res.string.playlist_create_name),
-                        color = HausColors.current.pulse,
+                        color = HausColors.current.danger,
                         fontSize = 12.sp)
                 ModalFailureNotice(notice)
             }
@@ -2607,7 +2607,7 @@ private fun ModalFailureNotice(notice: PlaylistModalNotice?) {
     if (notice == PlaylistModalNotice.MutationFailed) {
         Text(
             stringResource(Res.string.playlist_modal_mutation_failed),
-            color = HausColors.current.pulse,
+            color = HausColors.current.danger,
             fontSize = 13.sp)
     }
 }

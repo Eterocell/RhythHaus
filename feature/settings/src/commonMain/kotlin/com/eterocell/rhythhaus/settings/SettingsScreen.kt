@@ -746,14 +746,11 @@ public fun SettingsScreen(
                                                                     color =
                                                                         HausColors
                                                                             .current
-                                                                            .pulse
-                                                                            .copy(
-                                                                                alpha =
-                                                                                    .15f),
+                                                                            .dangerPanel,
                                                                     contentColor =
                                                                         HausColors
                                                                             .current
-                                                                            .pulse)) {
+                                                                            .danger)) {
                                                             Text(
                                                                 labels
                                                                     .clearLibrary,
@@ -776,13 +773,10 @@ public fun SettingsScreen(
                                                     ButtonDefaults.buttonColors(
                                                         color =
                                                             HausColors.current
-                                                                .pulse
-                                                                .copy(
-                                                                    alpha =
-                                                                        .15f),
+                                                                .dangerPanel,
                                                         contentColor =
                                                             HausColors.current
-                                                                .pulse)) {
+                                                                .danger)) {
                                                     Text(
                                                         labels.clearLibrary,
                                                         fontSize = 14.sp,
@@ -1072,7 +1066,7 @@ private fun ConfiguredSourceRow(
                         Icons.Default.DeleteOutline,
                         stringResource(
                             Res.string.remove_source_format, displayName),
-                        tint = HausColors.current.pulse.copy(alpha = alpha),
+                        tint = HausColors.current.danger.copy(alpha = alpha),
                         modifier = Modifier.size(20.dp))
                 }
         }
@@ -1272,8 +1266,8 @@ private fun RemoveSourceDialog(
                     PaddingValues(horizontal = 16.dp, vertical = 9.dp),
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.pulse,
-                        contentColor = HausColors.current.paper,
+                        color = HausColors.current.danger,
+                        contentColor = HausColors.current.onDanger,
                         disabledColor =
                             HausColors.current.muted.copy(alpha = .28f),
                         disabledContentColor = HausColors.current.muted)) {
@@ -1389,7 +1383,7 @@ private fun ReplayGainPreference(
                                 liveRegion = LiveRegionMode.Polite
                                 error(message)
                             },
-                    color = HausColors.current.pulse,
+                    color = HausColors.current.danger,
                     fontSize = 12.sp,
                     lineHeight = 17.sp)
             }
@@ -1538,7 +1532,7 @@ private fun CrossfadePreference(
                                 liveRegion = LiveRegionMode.Polite
                                 error(message)
                             },
-                    color = HausColors.current.pulse,
+                    color = HausColors.current.danger,
                     fontSize = 12.sp,
                     lineHeight = 17.sp)
             }
@@ -1762,7 +1756,7 @@ private fun AutomaticResumePreference(
                             liveRegion = LiveRegionMode.Polite
                             error(message)
                         },
-                    color = HausColors.current.pulse,
+                    color = HausColors.current.danger,
                     fontSize = 12.sp,
                     lineHeight = 17.sp)
             }

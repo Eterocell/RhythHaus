@@ -69,29 +69,59 @@ public data class HausColorPalette(
     public val panelStrong: Color,
     /** Accent color for active state. */
     public val pulse: Color,
+    /** Foreground color for controls displayed on the pulse color. */
+    public val onPulse: Color,
+    /** Surface color for secondary navigation and chrome. */
+    public val navigation: Color,
+    /** Color for essential interaction and focus boundaries. */
+    public val outline: Color,
+    /** Foreground color for destructive actions. */
+    public val danger: Color,
+    /** Surface color for destructive-action containers. */
+    public val dangerPanel: Color,
+    /** Foreground color for controls displayed on the danger color. */
+    public val onDanger: Color,
+    /** Foreground color for warning states. */
+    public val warning: Color,
 )
 
 /** Palette for light appearance. */
 public val LightHausPalette: HausColorPalette =
     HausColorPalette(
-        Color(0xFF111018),
-        Color(0xFFFFFAF1),
-        Color(0xFF776F66),
-        Color(0x1A111018),
-        Color(0xFFF5EBDD),
-        Color(0xFFE9D8C2),
-        Color(0xFFFF5E3A))
+        ink = Color(0xFF253129),
+        paper = Color(0xFFF9FAF7),
+        muted = Color(0xFF65715F),
+        line = Color(0xFFDEE3D8),
+        panel = Color(0xFFFFFFFF),
+        panelStrong = Color(0xFFEAF0E5),
+        pulse = Color(0xFF3C6148),
+        onPulse = Color(0xFFFFFFFF),
+        navigation = Color(0xFFF2F4EE),
+        outline = Color(0xFF84917D),
+        danger = Color(0xFFB13B32),
+        dangerPanel = Color(0xFFFBEAE7),
+        onDanger = Color(0xFFFFFFFF),
+        warning = Color(0xFF805D13),
+    )
 
 /** Palette for dark appearance. */
 public val DarkHausPalette: HausColorPalette =
     HausColorPalette(
-        Color(0xFFF7EFE4),
-        Color(0xFF0F1117),
-        Color(0xFFB7AFA6),
-        Color(0x33F7EFE4),
-        Color(0xFF1A1D26),
-        Color(0xFF252A36),
-        Color(0xFFFF7A52))
+        ink = Color(0xFFE5EADD),
+        paper = Color(0xFF171E1A),
+        muted = Color(0xFFA5B09F),
+        line = Color(0xFF394434),
+        panel = Color(0xFF202923),
+        panelStrong = Color(0xFF303E2F),
+        pulse = Color(0xFFBFD0AA),
+        onPulse = Color(0xFF182217),
+        navigation = Color(0xFF1C251E),
+        outline = Color(0xFF7E8E74),
+        danger = Color(0xFFFFABA2),
+        dangerPanel = Color(0xFF462824),
+        onDanger = Color(0xFF321A18),
+        warning = Color(0xFFE7C976),
+    )
 
 /** Resolves the active palette from the selected mode and system appearance. */
 public fun resolveHausPalette(

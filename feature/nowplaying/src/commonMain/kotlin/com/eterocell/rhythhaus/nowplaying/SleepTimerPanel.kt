@@ -297,7 +297,7 @@ private fun SleepTimerActionButton(
             .height(44.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(
-                if (destructive) HausColors.current.pulse.copy(alpha = 0.15f)
+                if (destructive) HausColors.current.dangerPanel
                 else HausColors.current.paper,
             )
             .semantics { contentDescription = label }
@@ -308,7 +308,7 @@ private fun SleepTimerActionButton(
         Text(
             label,
             color =
-                if (destructive) HausColors.current.pulse
+                if (destructive) HausColors.current.danger
                 else HausColors.current.ink,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,

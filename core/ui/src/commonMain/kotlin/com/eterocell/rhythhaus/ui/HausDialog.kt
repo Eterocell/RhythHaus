@@ -29,14 +29,16 @@ import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.HausColorPalette
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausShapes
+import com.eterocell.rhythhaus.theme.HausSpacing
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 
 internal data class HausDialogPresentation(
     val panelColor: Color,
     val scrimColor: Color,
-    val outerPadding: Dp = 24.dp,
-    val cornerRadius: Dp = 24.dp,
+    val outerPadding: Dp = HausSpacing.xl,
+    val cornerRadius: Dp = HausShapes.overlay,
     val maxPanelHeight: Dp = 480.dp
 )
 
@@ -90,18 +92,21 @@ public fun HausLazyDialog(
                 colors =
                     CardDefaults.defaultColors(
                         color = presentation.panelColor)) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-                        LazyColumn(
-                            modifier =
-                                bodyModifier
-                                    .fillMaxWidth()
-                                    .weight(1f, fill = false),
-                            content = body)
-                        Row(
-                            modifier =
-                                Modifier.fillMaxWidth().padding(top = 20.dp),
-                            content = actions)
-                    }
+                    Column(
+                        modifier =
+                            Modifier.fillMaxWidth().padding(HausSpacing.xl)) {
+                            LazyColumn(
+                                modifier =
+                                    bodyModifier
+                                        .fillMaxWidth()
+                                        .weight(1f, fill = false),
+                                content = body)
+                            Row(
+                                modifier =
+                                    Modifier.fillMaxWidth()
+                                        .padding(top = HausSpacing.lg),
+                                content = actions)
+                        }
                 }
         }
 }
@@ -127,18 +132,21 @@ private fun HausDialogContent(
                 colors =
                     CardDefaults.defaultColors(
                         color = presentation.panelColor)) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-                        Column(
-                            modifier =
-                                Modifier.fillMaxWidth()
-                                    .weight(1f, fill = false)
-                                    .verticalScroll(rememberScrollState()),
-                            content = body)
-                        Row(
-                            modifier =
-                                Modifier.fillMaxWidth().padding(top = 20.dp),
-                            content = actions)
-                    }
+                    Column(
+                        modifier =
+                            Modifier.fillMaxWidth().padding(HausSpacing.xl)) {
+                            Column(
+                                modifier =
+                                    Modifier.fillMaxWidth()
+                                        .weight(1f, fill = false)
+                                        .verticalScroll(rememberScrollState()),
+                                content = body)
+                            Row(
+                                modifier =
+                                    Modifier.fillMaxWidth()
+                                        .padding(top = HausSpacing.lg),
+                                content = actions)
+                        }
                 }
         }
 }
