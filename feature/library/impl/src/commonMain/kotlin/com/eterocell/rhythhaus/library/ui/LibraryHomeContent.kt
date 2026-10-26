@@ -18,9 +18,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,8 +34,7 @@ import rhythhaus.feature.library.generated.resources.favorites_empty
 import rhythhaus.feature.library.generated.resources.filtered_empty
 import rhythhaus.feature.library.generated.resources.recently_added_empty
 import rhythhaus.feature.library.generated.resources.recently_played_empty
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import rhythhaus.feature.library.generated.resources.track_count_format
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -56,8 +52,6 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  * backdrop; Shared owns browse state, selection, playback policy, navigation,
  * and scroll storage.
  *
- * @param title the library header title.
- * @param subtitle the library header subtitle.
  * @param tracks the authoritative display/playback track sequence.
  * @param browseMode the current library browse mode.
  * @param browseQuery the active ephemeral flat-Home sorting and filtering
@@ -79,7 +73,8 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  * @param currentTrackId the current playback track ID, or null.
  * @param selectionModeActive whether songs currently select rather than play.
  * @param selectedTrackIds immutable selected IDs effective for the home page.
- * @param labels Shared-owned localized wording.
+ * @param labels Shared-provided localized wording for route actions and
+ *   artwork.
  * @param homeBackdrop the recorded root backdrop for liquid-glass chrome.
  * @param artworkLoader lazily resolves artwork bytes for a track ID.
  * @param onBrowseModeChange requests a browse-mode change.
@@ -87,7 +82,6 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  * @param onCancelScan requests cancellation of the active scan.
  * @param onOpenAlbum requests navigation to an album detail.
  * @param onOpenArtist requests navigation to an artist detail.
- * @param onShowPlaylists requests navigation to the playlists hub.
  * @param onPlayTrack requests playback of the ordered tracks at the selected
  *   occurrence.
  * @param onToggleSelection requests one toggle of the given track ID.
@@ -110,8 +104,6 @@ public fun libraryHomeTopContentPadding(systemBarTopPadding: Dp): Dp =
  */
 @Composable
 public fun LibraryHomeContent(
-    title: String,
-    subtitle: String,
     tracks: List<Track>,
     browseMode: BrowseMode,
     playHistory: Map<String, TrackPlayHistory>,
@@ -132,7 +124,6 @@ public fun LibraryHomeContent(
     onCancelScan: () -> Unit,
     onOpenAlbum: (String) -> Unit,
     onOpenArtist: (String) -> Unit,
-    onShowPlaylists: () -> Unit,
     onPlayTrack: (orderedTracks: List<Track>, selectedTrack: Track) -> Unit,
     onToggleSelection: (trackId: String) -> Unit,
     onStartSelection: (trackId: String) -> Unit,
@@ -203,7 +194,8 @@ public fun LibraryHomeContent(
             null
         }
     val homeListState = rememberLazyListState()
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val compact = maxWidth.value < WIDE_LIBRARY_BREAKPOINT_DP
         val homeTopContentPadding =
             libraryHomeTopContentPadding(rememberSystemBarTopPadding())
         Box(
@@ -222,7 +214,14 @@ public fun LibraryHomeContent(
                         verticalArrangement = Arrangement.spacedBy(18.dp),
                     ) {
                         item {
-                            HeaderSection(title = title, subtitle = subtitle)
+                            HeaderSection(
+                                title = labels.libraryTitle,
+                                subtitle =
+                                    stringResource(
+                                        Res.string.track_count_format,
+                                        tracks.size,
+                                    ),
+                            )
                         }
                         if (tracks.isEmpty() &&
                             visibleTracks.isEmpty() &&
@@ -257,39 +256,9 @@ public fun LibraryHomeContent(
                             }
                         }
                         item {
-                            Button(
-                                onClick = onShowPlaylists,
-                                modifier =
-                                    Modifier.fillMaxWidth()
-                                        .height(48.dp)
-                                        .semantics {
-                                            contentDescription =
-                                                labels.playlistsAccessibility
-                                        },
-                                cornerRadius = 16.dp,
-                                colors =
-                                    ButtonDefaults.buttonColors(
-                                        color = HausColors.current.panel,
-                                        contentColor = HausColors.current.ink,
-                                    ),
-                            ) {
-                                top.yukonga.miuix.kmp.basic.Text(
-                                    text = labels.playlists,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Black,
-                                )
-                            }
-                        }
-                        item {
-                            SectionLabel(
-                                title = labels.libraryQueue,
-                                subtitle = null,
-                            )
-                        }
-                        item {
                             BrowseModePicker(
                                 browseMode = browseMode,
-                                labels = labels,
+                                compact = compact,
                                 onModeChange = onBrowseModeChange,
                             )
                         }
@@ -329,11 +298,13 @@ public fun LibraryHomeContent(
                                         modifier = Modifier.fillMaxWidth()) {
                                             val columns =
                                                 albumGridColumnsForWidth(
-                                                    maxWidth.value)
+                                                    maxWidth.value,
+                                                    compact,
+                                                )
+                                            val gap = albumGridGapDp(compact).dp
                                             Column(
                                                 verticalArrangement =
-                                                    Arrangement.spacedBy(
-                                                        10.dp)) {
+                                                    Arrangement.spacedBy(gap)) {
                                                     albums
                                                         .chunked(columns)
                                                         .forEach { row ->
@@ -344,8 +315,8 @@ public fun LibraryHomeContent(
                                                                 horizontalArrangement =
                                                                     Arrangement
                                                                         .spacedBy(
-                                                                            10
-                                                                                .dp),
+                                                                            gap,
+                                                                        ),
                                                             ) {
                                                                 row.forEach {
                                                                     albumGroup
@@ -432,6 +403,7 @@ public fun LibraryHomeContent(
                                             onEditTrackMetadata?.let { edit ->
                                                 { edit(track.id) }
                                             },
+                                        desktopDensity = !compact,
                                     )
                                 }
                             }

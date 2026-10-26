@@ -267,7 +267,7 @@ class SearchRouteAdapterJvmTest {
             listOf(track("selected"), track("duplicate"), track("duplicate")),
         playbackState: PlaybackState = PlaybackState(),
     ) {
-        LibraryRouteOverlays(
+        LibraryRouteScreen(
             route = LibraryRoute.Search,
             snapshot = LibrarySnapshot("Library", "", emptyList(), null),
             libraryTracks = tracks,

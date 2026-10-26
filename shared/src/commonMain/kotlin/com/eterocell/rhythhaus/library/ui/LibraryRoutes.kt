@@ -13,6 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,7 +27,6 @@ import com.eterocell.rhythhaus.LibrarySnapshot
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackState
-import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
@@ -51,6 +51,7 @@ import com.eterocell.rhythhaus.onboarding.currentOnboardingPlatform
 import com.eterocell.rhythhaus.onboarding.toGuidance
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsHost
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsLabels
+import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsSection
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.playlistbackup.PlaylistDocumentFormat
@@ -67,8 +68,8 @@ import com.eterocell.rhythhaus.settings.SettingsSharedLabels
 import com.eterocell.rhythhaus.settings.SettingsSourceItem
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.ui.HausButton as Button
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.StateFlow
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.add_music_folder
@@ -91,39 +92,13 @@ import rhythhaus.shared.generated.resources.search
 import rhythhaus.shared.generated.resources.select_track_format
 import rhythhaus.shared.generated.resources.settings
 import rhythhaus.shared.generated.resources.settings_output_session
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 
-internal class QueueMutationDispatcher(
-    private val state: StateFlow<PlaybackState>,
-    private val reorderCommand: suspend (String, Int) -> QueueMutationResult,
-    private val removeCommand: suspend (String) -> QueueMutationResult,
-    private val clearCommand: suspend () -> QueueMutationResult,
-) {
-    suspend fun reorder(
-        occurrenceId: String,
-        targetIndex: Int
-    ): QueueMutationFeedback = mutation {
-        reorderCommand(occurrenceId, targetIndex)
-    }
-
-    suspend fun remove(occurrenceId: String): QueueMutationFeedback = mutation {
-        removeCommand(occurrenceId)
-    }
-
-    suspend fun clear(): QueueMutationFeedback = mutation(clearCommand)
-
-    private suspend fun mutation(
-        command: suspend () -> QueueMutationResult
-    ): QueueMutationFeedback {
-        val result = command()
-        return QueueMutationFeedback(
-            refreshedState = state.value,
-            showQueueChanged = result is QueueMutationResult.Rejected,
-        )
-    }
-}
+private data class RemoveMissingTracksConfirmation(
+    val source: LibrarySource,
+    val session: ScanSession,
+)
 
 /**
  * Projects the shared media-notification permission state onto the Settings
@@ -143,7 +118,7 @@ internal fun MediaNotificationPermissionState.toSettingsNotificationRecovery():
     }
 
 @Composable
-internal fun LibraryRouteOverlays(
+internal fun LibraryRouteScreen(
     route: LibraryRoute,
     snapshot: LibrarySnapshot,
     libraryTracks: List<LibraryTrack>,
@@ -153,6 +128,8 @@ internal fun LibraryRouteOverlays(
     playlistState: PlaylistState,
     playlistBackupState: PlaylistBackupUiState,
     backupDocumentAvailable: Boolean,
+    backupHostActive: Boolean = true,
+    interactive: Boolean = true,
     destinationId: LibraryDestinationId,
     playlistAppearanceSource: PlaylistFeatureAppearanceSource,
     registerBackSurface: (LibraryBackSurfacePort) -> () -> Unit,
@@ -230,13 +207,54 @@ internal fun LibraryRouteOverlays(
     trackSelectionState: TrackSelectionState = TrackSelectionState(),
     onTrackSelectionAction: (TrackSelectionAction) -> Unit = {},
     bottomContentPadding: Dp = 0.dp,
+    searchFirstVisibleItemIndex: Int = 0,
+    searchFirstVisibleItemScrollOffset: Int = 0,
 ) {
     when (route) {
         LibraryRoute.Settings -> {
-            var showClearLibraryDialog by
+            var clearLibraryConfirmation by
+                remember(destinationId, playlistAppearanceSource) {
+                    mutableStateOf<Any?>(null)
+                }
+            var clearLibraryConfirmationInFlight by
                 remember(destinationId, playlistAppearanceSource) {
                     mutableStateOf(false)
                 }
+            var removeMissingConfirmation by
+                remember(destinationId, playlistAppearanceSource) {
+                    mutableStateOf<RemoveMissingTracksConfirmation?>(null)
+                }
+            var removeMissingConfirmationInFlight by
+                remember(destinationId, playlistAppearanceSource) {
+                    mutableStateOf(false)
+                }
+            val currentMutationsEnabled by
+                rememberUpdatedState(mutationsEnabled)
+            val currentTrackCount by rememberUpdatedState(snapshot.tracks.size)
+            val currentSourceCount by rememberUpdatedState(sources.size)
+            val currentClearLibrary by rememberUpdatedState(onClearLibrary)
+            val currentRemoveMissingTracks by
+                rememberUpdatedState(onRemoveMissingTracks)
+            val currentSources by rememberUpdatedState(sources)
+            val currentLatestCompletedScanSession by
+                rememberUpdatedState(latestCompletedScanSession)
+            fun eligibleRemoveMissingSource(
+                sourceId: String,
+                session: ScanSession,
+            ): LibrarySource? {
+                if (session.status != ScanStatus.Completed ||
+                    session.sourceId != sourceId ||
+                    currentLatestCompletedScanSession?.id != session.id) {
+                    return null
+                }
+                return currentSources.firstOrNull { it.id == sourceId }
+            }
+            val sourceTrackCounts =
+                remember(libraryTracks) {
+                    libraryTracks.groupingBy(LibraryTrack::sourceId).eachCount()
+                }
+            val clearConfirmation = clearLibraryConfirmation
+            val pendingRemoveMissingConfirmation = removeMissingConfirmation
             var localReportVisible by
                 remember(scanProgress?.session?.id) { mutableStateOf(false) }
             val reportVisible = settingsReportVisible ?: localReportVisible
@@ -282,7 +300,24 @@ internal fun LibraryRouteOverlays(
                                 }
                             },
                             onRescanSource = onRescanSource,
-                            onRemoveMissingTracks = onRemoveMissingTracks,
+                            onRemoveMissingTracks = { source, session ->
+                                val eligibleSource =
+                                    eligibleRemoveMissingSource(
+                                        source.id,
+                                        session,
+                                    )
+                                if (eligibleSource != null &&
+                                    currentMutationsEnabled &&
+                                    clearLibraryConfirmation == null &&
+                                    removeMissingConfirmation == null) {
+                                    removeMissingConfirmationInFlight = false
+                                    removeMissingConfirmation =
+                                        RemoveMissingTracksConfirmation(
+                                            source = eligibleSource,
+                                            session = session,
+                                        )
+                                }
+                            },
                         )
                     }
                 } else {
@@ -389,6 +424,7 @@ internal fun LibraryRouteOverlays(
                                         .LibrarySourceAccessStatus
                                         .Available,
                             hasBeenScanned = it.lastScanAtEpochMillis != null,
+                            trackCount = sourceTrackCounts[it.id] ?: 0,
                         )
                     },
                 sourcePickerActionVisible = sourcePickerActionVisible,
@@ -397,38 +433,25 @@ internal fun LibraryRouteOverlays(
                 mutationsEnabled = mutationsEnabled,
                 hasImportedTracks = snapshot.tracks.isNotEmpty(),
                 playlistBackupContent = {
-                    PlaylistBackupSettingsHost(
-                        state = playlistBackupState,
-                        launcherAvailable = backupDocumentAvailable,
-                        destination =
-                            PlaylistFeatureDestination(
-                                destinationId.instanceToken),
-                        appearanceSource = playlistAppearanceSource,
-                        dismissalPublisher =
-                            featureDismissalPublisher(
-                                destinationId, registerBackSurface),
-                        labels =
-                            PlaylistBackupSettingsLabels(
-                                cancel = stringResource(Res.string.cancel),
-                                close = stringResource(Res.string.close),
-                            ),
-                        onExport = onExportPlaylists,
-                        onOpen = onOpenPlaylistBackup,
-                        staticPlaylists =
-                            playlistState.confirmedSnapshot.playlists,
-                        onExportPlaylistFormat = onExportPlaylistFormat,
-                        onOpenPlaylistFormat = onOpenPlaylistFormat,
-                        onAction = onPlaylistBackupAction,
-                        onDismissPreview = {
-                            onPlaylistBackupAction(
-                                PlaylistBackupUiAction.DismissPreview)
-                        },
-                        onConfirmPreview = onConfirmPlaylistBackup,
-                        onDismissResult = {
-                            onPlaylistBackupAction(
-                                PlaylistBackupUiAction.DismissResult)
-                        },
-                    )
+                    if (playlistState.hasConfirmedSnapshot) {
+                        PlaylistBackupSettingsSection(
+                            state = playlistBackupState,
+                            launcherAvailable =
+                                backupDocumentAvailable && backupHostActive,
+                            labels =
+                                PlaylistBackupSettingsLabels(
+                                    cancel = stringResource(Res.string.cancel),
+                                    close = stringResource(Res.string.close),
+                                ),
+                            onExport = onExportPlaylists,
+                            onOpen = onOpenPlaylistBackup,
+                            staticPlaylists =
+                                playlistState.confirmedSnapshot.playlists,
+                            onExportPlaylistFormat = onExportPlaylistFormat,
+                            onOpenPlaylistFormat = onOpenPlaylistFormat,
+                            onAction = onPlaylistBackupAction,
+                        )
+                    }
                 },
                 activeScanContent =
                     if (scanProgress?.isActive == true) {
@@ -449,13 +472,117 @@ internal fun LibraryRouteOverlays(
                 scanOutcomeContent = scanOutcomeContent,
                 onExclusiveModalChanged = onSettingsExclusiveModalChanged,
                 clearLibraryDialog =
-                    if (showClearLibraryDialog) {
+                    if (clearConfirmation != null) {
                         {
                             AnimatedClearLibraryDialogRoute(
-                                onDismiss = { showClearLibraryDialog = false },
+                                sourceCount = currentSourceCount,
+                                trackCount = currentTrackCount,
+                                confirmEnabled =
+                                    clearLibraryConfirmation ===
+                                        clearConfirmation &&
+                                        !clearLibraryConfirmationInFlight &&
+                                        currentMutationsEnabled &&
+                                        (currentTrackCount > 0 ||
+                                            currentSourceCount > 0),
+                                onDismiss = {
+                                    if (clearLibraryConfirmation ===
+                                        clearConfirmation &&
+                                        !clearLibraryConfirmationInFlight) {
+                                        clearLibraryConfirmation = null
+                                    }
+                                },
                                 onClearLibrary = {
-                                    onClearLibrary()
-                                    showClearLibraryDialog = false
+                                    if (clearLibraryConfirmation ===
+                                        clearConfirmation &&
+                                        !clearLibraryConfirmationInFlight &&
+                                        currentMutationsEnabled &&
+                                        (currentTrackCount > 0 ||
+                                            currentSourceCount > 0)) {
+                                        clearLibraryConfirmationInFlight = true
+                                        try {
+                                            currentClearLibrary()
+                                        } catch (failure: Throwable) {
+                                            if (clearLibraryConfirmation ===
+                                                clearConfirmation) {
+                                                clearLibraryConfirmationInFlight =
+                                                    false
+                                            }
+                                            throw failure
+                                        }
+                                        if (clearLibraryConfirmation ===
+                                            clearConfirmation) {
+                                            clearLibraryConfirmation = null
+                                            clearLibraryConfirmationInFlight =
+                                                false
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    } else if (pendingRemoveMissingConfirmation != null) {
+                        val confirmation = pendingRemoveMissingConfirmation
+                        {
+                            AnimatedRemoveMissingTracksDialogRoute(
+                                sourceName =
+                                    (eligibleRemoveMissingSource(
+                                            confirmation.source.id,
+                                            confirmation.session,
+                                        ) ?: confirmation.source)
+                                        .displayName
+                                        .ifBlank {
+                                            confirmation.source.id
+                                        },
+                                trackCount =
+                                    confirmation.session.changeSummary
+                                        ?.missingCount ?: 0,
+                                confirmEnabled =
+                                    removeMissingConfirmation ===
+                                        confirmation &&
+                                        !removeMissingConfirmationInFlight &&
+                                        currentMutationsEnabled &&
+                                        eligibleRemoveMissingSource(
+                                            confirmation.source.id,
+                                            confirmation.session,
+                                        ) != null,
+                                onDismiss = {
+                                    if (removeMissingConfirmation ===
+                                        confirmation &&
+                                        !removeMissingConfirmationInFlight) {
+                                        removeMissingConfirmation = null
+                                    }
+                                },
+                                onRemoveMissingTracks = {
+                                    val currentSource =
+                                        eligibleRemoveMissingSource(
+                                            confirmation.source.id,
+                                            confirmation.session,
+                                        )
+                                    if (removeMissingConfirmation ===
+                                        confirmation &&
+                                        !removeMissingConfirmationInFlight &&
+                                        currentMutationsEnabled &&
+                                        currentSource != null) {
+                                        removeMissingConfirmationInFlight = true
+                                        try {
+                                            currentRemoveMissingTracks(
+                                                currentSource,
+                                                confirmation.session,
+                                            )
+                                        } catch (failure: Throwable) {
+                                            if (removeMissingConfirmation ===
+                                                confirmation) {
+                                                removeMissingConfirmationInFlight =
+                                                    false
+                                            }
+                                            throw failure
+                                        }
+                                        if (removeMissingConfirmation ===
+                                            confirmation) {
+                                            removeMissingConfirmation = null
+                                            removeMissingConfirmationInFlight =
+                                                false
+                                        }
+                                    }
                                 },
                             )
                         }
@@ -519,8 +646,12 @@ internal fun LibraryRouteOverlays(
                         }
                 },
                 onRequestClearLibrary = {
-                    if (mutationsEnabled && snapshot.tracks.isNotEmpty()) {
-                        showClearLibraryDialog = true
+                    if (currentMutationsEnabled &&
+                        (currentTrackCount > 0 || currentSourceCount > 0) &&
+                        clearLibraryConfirmation == null &&
+                        removeMissingConfirmation == null) {
+                        clearLibraryConfirmationInFlight = false
+                        clearLibraryConfirmation = Any()
                     }
                 },
                 onAboutClick = onShowSettingsAbout,
@@ -536,7 +667,10 @@ internal fun LibraryRouteOverlays(
                 onOpenNotificationSettings = onOpenNotificationSettings,
                 listState = settingsListState,
                 onDismiss = {
-                    showClearLibraryDialog = false
+                    clearLibraryConfirmation = null
+                    clearLibraryConfirmationInFlight = false
+                    removeMissingConfirmation = null
+                    removeMissingConfirmationInFlight = false
                     onDismiss()
                 },
             )
@@ -596,7 +730,11 @@ internal fun LibraryRouteOverlays(
                         EqualizerStrip(active = true)
                     }
                 },
+                interactive = interactive,
                 bottomContentPadding = bottomContentPadding,
+                initialFirstVisibleItemIndex = searchFirstVisibleItemIndex,
+                initialFirstVisibleItemScrollOffset =
+                    searchFirstVisibleItemScrollOffset,
             )
 
         LibraryRoute.SettingsAbout ->
@@ -656,6 +794,37 @@ internal fun LibraryRouteOverlays(
                 LaunchedEffect(route) { onRejectInvalidOnboarding() }
                 Box(modifier = Modifier.fillMaxSize())
             }
+    }
+    if (backupHostActive &&
+        (route == LibraryRoute.PlaylistHub || route == LibraryRoute.Settings)) {
+        PlaylistBackupSettingsHost(
+            state = playlistBackupState,
+            launcherAvailable = backupDocumentAvailable,
+            showEntryActions = false,
+            destination =
+                PlaylistFeatureDestination(destinationId.instanceToken),
+            appearanceSource = playlistAppearanceSource,
+            dismissalPublisher =
+                featureDismissalPublisher(destinationId, registerBackSurface),
+            labels =
+                PlaylistBackupSettingsLabels(
+                    cancel = stringResource(Res.string.cancel),
+                    close = stringResource(Res.string.close),
+                ),
+            onExport = onExportPlaylists,
+            onOpen = onOpenPlaylistBackup,
+            staticPlaylists = playlistState.confirmedSnapshot.playlists,
+            onExportPlaylistFormat = onExportPlaylistFormat,
+            onOpenPlaylistFormat = onOpenPlaylistFormat,
+            onAction = onPlaylistBackupAction,
+            onDismissPreview = {
+                onPlaylistBackupAction(PlaylistBackupUiAction.DismissPreview)
+            },
+            onConfirmPreview = onConfirmPlaylistBackup,
+            onDismissResult = {
+                onPlaylistBackupAction(PlaylistBackupUiAction.DismissResult)
+            },
+        )
     }
 }
 
@@ -726,8 +895,6 @@ internal fun LibraryRouteContent(
     onTrackSelected: (String) -> Unit,
     onTrackClickFromTracks: (List<Track>, Track) -> Unit,
     onExpandNowPlaying: (Track) -> Unit,
-    onShowSettings: () -> Unit,
-    onShowSearch: () -> Unit,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit,
     artworkLoader: suspend (String) -> ByteArray?,
     homeContent: @Composable ((LibraryRoute) -> Unit) -> Unit,
@@ -736,9 +903,11 @@ internal fun LibraryRouteContent(
     bottomContentPadding: Dp = 0.dp,
     favoriteTrackIds: Set<String>,
     onSetTrackFavorite: (String, Boolean) -> Unit,
+    documentActions: @Composable () -> Unit,
     playHistory: Map<String, TrackPlayHistory> = emptyMap(),
     onEditTrackMetadata: ((String) -> Unit)? = null,
     metadataEditorOpen: Boolean = false,
+    desktopDensity: Boolean = false,
 ) {
     val playlistDestinationId =
         destinationId ?: LibraryDestinationId(route, "unpresented")
@@ -892,16 +1061,8 @@ internal fun LibraryRouteContent(
         }
 
         LibraryRoute.PlaylistHub -> {
-            val queueMutations =
-                QueueMutationDispatcher(
-                    state = playbackController.state,
-                    reorderCommand = playbackController::reorderUpcoming,
-                    removeCommand = playbackController::removeUpcoming,
-                    clearCommand = playbackController::clearUpcoming,
-                )
             PlaylistHubScreen(
                 state = playlistState,
-                playbackState = playbackState,
                 libraryTracks = libraryTracks,
                 onOpenSmartPlaylist = {
                     onOpenDetailRoute(LibraryRoute.SmartPlaylistDetail(it))
@@ -925,21 +1086,12 @@ internal fun LibraryRouteContent(
                 onOpenPlaylist = {
                     onOpenDetailRoute(LibraryRoute.PlaylistDetail(it))
                 },
-                onSelectTab = {
-                    onPlaylistStateAction(PlaylistStateAction.SelectTab(it))
-                },
                 onCreate = { name, onSuccess ->
                     onPlaylistMutation({ create(name) }, onSuccess)
                 },
-                onSaveQueueAsPlaylist = { name, trackIds, onSuccess ->
-                    onPlaylistMutation(
-                        { createWithEntries(name, trackIds) }, onSuccess)
-                },
-                onReorderUpcoming = queueMutations::reorder,
-                onRemoveUpcoming = queueMutations::remove,
-                onClearUpcoming = queueMutations::clear,
-                artworkLoader = artworkLoader,
                 bottomContentPadding = bottomContentPadding,
+                desktopDensity = desktopDensity,
+                documentActions = documentActions,
             )
         }
 
@@ -1066,6 +1218,7 @@ internal fun LibraryRouteContent(
                         },
                         bottomContentPadding = bottomContentPadding,
                         onScrollPositionChanged = onScrollPositionChanged,
+                        desktopDensity = desktopDensity,
                     )
 
                 is SharedPlaylistDetailResolution.ReturnToHub ->
@@ -1078,21 +1231,19 @@ internal fun LibraryRouteContent(
             }
         }
 
-        LibraryRoute.Home,
+        LibraryRoute.Home -> homeContent(onOpenDetailRoute)
+
         LibraryRoute.Settings,
         LibraryRoute.SettingsAbout,
         LibraryRoute.OpenSourceLibraries,
         LibraryRoute.Search,
-        -> {
-            homeContent(onOpenDetailRoute)
-        }
+        is LibraryRoute.Onboarding,
+        -> error("$route must be rendered through LibraryRouteScreen")
 
         LibraryRoute.ClearLibraryDialog -> {
             LaunchedEffect(route) { onBack() }
             Box(modifier = Modifier.fillMaxSize())
         }
-
-        is LibraryRoute.Onboarding -> Unit
     }
 }
 
@@ -1138,6 +1289,7 @@ internal fun PlaylistDetailRouteContent(
     onReorder: (List<String>) -> Unit,
     bottomContentPadding: Dp = 0.dp,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
+    desktopDensity: Boolean = false,
 ) {
     PlaylistDetailScreen(
         playlist = playlist,
@@ -1159,6 +1311,7 @@ internal fun PlaylistDetailRouteContent(
         onRemoveEntry = onRemoveEntry,
         onReorder = onReorder,
         bottomContentPadding = bottomContentPadding,
+        desktopDensity = desktopDensity,
         onScrollPositionChanged = { index, offset ->
             onScrollPositionChanged(LibraryScrollPosition(index, offset))
         },

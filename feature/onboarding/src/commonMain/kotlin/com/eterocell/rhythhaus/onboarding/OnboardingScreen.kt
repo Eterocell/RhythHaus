@@ -1,13 +1,16 @@
 package com.eterocell.rhythhaus.onboarding
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -19,6 +22,10 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausShapes
+import com.eterocell.rhythhaus.theme.HausSpacing
+import com.eterocell.rhythhaus.theme.HausTypography
+import com.eterocell.rhythhaus.ui.HausButton as Button
 import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.onboarding.generated.resources.Res
@@ -42,7 +49,6 @@ import rhythhaus.feature.onboarding.generated.resources.heading_local_first
 import rhythhaus.feature.onboarding.generated.resources.heading_recovery
 import rhythhaus.feature.onboarding.generated.resources.onboarding_title
 import rhythhaus.feature.onboarding.generated.resources.page_progress
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
@@ -130,7 +136,7 @@ public fun OnboardingScreen(
         modifier = modifier.fillMaxSize().testTag(OnboardingRootTestTag)) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().safeContentPadding(),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(HausSpacing.lg),
             ) {
                 item {
                     RhythHausTopAppBar(
@@ -141,34 +147,50 @@ public fun OnboardingScreen(
                 item {
                     Column(
                         Modifier.fillMaxWidth()
-                            .padding(horizontal = 20.dp)
+                            .padding(horizontal = HausSpacing.xl)
                             .testTag(OnboardingPageTestTag)) {
                             Text(
                                 stringResource(
                                     Res.string.page_progress,
                                     page + 1,
                                     onboardingPages.size),
-                                Modifier.testTag(OnboardingProgressTestTag))
+                                Modifier.testTag(OnboardingProgressTestTag),
+                                color = HausColors.current.muted,
+                                style = HausTypography.label)
                             Text(
                                 pageHeading(page),
-                                Modifier.padding(top = 16.dp)
+                                Modifier.padding(top = HausSpacing.lg)
                                     .testTag(OnboardingHeadingTestTag)
                                     .semantics {
                                         heading()
                                         liveRegion = LiveRegionMode.Polite
-                                    })
+                                    },
+                                color = HausColors.current.ink,
+                                style = HausTypography.pageTitle)
                             Text(
                                 pageBody(page, platform),
-                                Modifier.padding(top = 10.dp))
+                                Modifier.padding(top = HausSpacing.sm),
+                                color = HausColors.current.ink,
+                                style = HausTypography.body)
                             if (onboardingPages[page] ==
                                 OnboardingPage.AddMusic) {
                                 val guidance = platformGuidance(platform)
                                 Text(
                                     guidance,
-                                    Modifier.testTag(OnboardingGuidanceTestTag)
+                                    Modifier.fillMaxWidth()
+                                        .padding(top = HausSpacing.md)
+                                        .background(
+                                            HausColors.current.panel,
+                                            RoundedCornerShape(
+                                                HausShapes.group),
+                                        )
+                                        .padding(HausSpacing.md)
+                                        .testTag(OnboardingGuidanceTestTag)
                                         .semantics {
                                             contentDescription = guidance
-                                        })
+                                        },
+                                    color = HausColors.current.muted,
+                                    style = HausTypography.secondary)
                             }
                         }
                 }
@@ -176,70 +198,87 @@ public fun OnboardingScreen(
                     item {
                         Column(
                             Modifier.fillMaxWidth()
-                                .padding(horizontal = 20.dp)
+                                .padding(horizontal = HausSpacing.xl)
+                                .background(
+                                    HausColors.current.dangerPanel,
+                                    RoundedCornerShape(HausShapes.group),
+                                )
+                                .padding(HausSpacing.md)
                                 .testTag(OnboardingErrorTestTag)) {
-                                Text(stringResource(Res.string.error_save))
-                                Text(completionError)
-                                Button(
-                                    onClick = onFinish,
-                                    enabled = !saving,
-                                    modifier =
-                                        Modifier.testTag(
-                                            OnboardingRetryTestTag)) {
-                                        Text(
-                                            stringResource(
-                                                Res.string.action_retry))
-                                    }
+                                Text(
+                                    stringResource(Res.string.error_save),
+                                    color = HausColors.current.danger,
+                                    style = HausTypography.title)
+                                Text(
+                                    completionError,
+                                    color = HausColors.current.danger,
+                                    style = HausTypography.secondary)
+                                action(
+                                    onFinish,
+                                    !saving,
+                                    OnboardingRetryTestTag,
+                                    stringResource(Res.string.action_retry),
+                                    primary = true,
+                                    modifier = Modifier.fillMaxWidth())
                             }
                     }
                 }
                 item {
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        Modifier.fillMaxWidth()
+                            .padding(horizontal = HausSpacing.xl),
+                        horizontalArrangement =
+                            Arrangement.spacedBy(HausSpacing.sm),
                     ) {
                         if (reviewMode) {
                             action(
                                 onClose,
                                 !saving,
                                 OnboardingCloseTestTag,
-                                stringResource(Res.string.action_close))
+                                stringResource(Res.string.action_close),
+                                primary = false)
                             if (page > 0)
                                 action(
                                     onBack,
                                     !saving,
                                     OnboardingBackTestTag,
-                                    stringResource(Res.string.action_back))
+                                    stringResource(Res.string.action_back),
+                                    primary = false)
                             if (page < onboardingPages.lastIndex)
                                 action(
                                     onNext,
                                     !saving,
                                     OnboardingNextTestTag,
-                                    stringResource(Res.string.action_next))
+                                    stringResource(Res.string.action_next),
+                                    primary = true)
                         } else {
                             if (page > 0)
                                 action(
                                     onBack,
                                     true,
                                     OnboardingBackTestTag,
-                                    stringResource(Res.string.action_back))
+                                    stringResource(Res.string.action_back),
+                                    primary = false)
                             if (page < onboardingPages.lastIndex)
                                 action(
                                     onNext,
                                     !saving,
                                     OnboardingNextTestTag,
-                                    stringResource(Res.string.action_next))
+                                    stringResource(Res.string.action_next),
+                                    primary = true)
                             if (page == onboardingPages.lastIndex)
                                 action(
                                     onFinish,
                                     !saving,
                                     OnboardingFinishTestTag,
-                                    stringResource(Res.string.action_finish))
+                                    stringResource(Res.string.action_finish),
+                                    primary = true)
                             action(
                                 onSkip,
                                 !saving,
                                 OnboardingSkipTestTag,
-                                stringResource(Res.string.action_skip))
+                                stringResource(Res.string.action_skip),
+                                primary = false)
                         }
                     }
                 }
@@ -252,23 +291,40 @@ private fun action(
     onClick: () -> Unit,
     enabled: Boolean,
     tag: String,
-    label: String
+    label: String,
+    primary: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier =
-            Modifier.testTag(tag)
+            modifier
+                .heightIn(min = 48.dp)
+                .testTag(tag)
                 .then(
                     if (!enabled) Modifier.semantics { disabled() }
                     else Modifier),
-        cornerRadius = 12.dp,
+        cornerRadius = HausShapes.control,
         colors =
             ButtonDefaults.buttonColors(
-                color = HausColors.current.ink,
-                contentColor = HausColors.current.paper),
+                color =
+                    if (primary) HausColors.current.ink
+                    else HausColors.current.panel,
+                contentColor =
+                    if (primary) HausColors.current.paper
+                    else HausColors.current.ink,
+                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
+                disabledContentColor = HausColors.current.muted),
     ) {
-        Text(label)
+        Text(
+            label,
+            color =
+                if (enabled) {
+                    if (primary) HausColors.current.paper
+                    else HausColors.current.ink
+                } else HausColors.current.muted,
+            style = HausTypography.secondary)
     }
 }
 

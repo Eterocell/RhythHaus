@@ -4,14 +4,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
@@ -22,50 +21,23 @@ import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistSummary
 import java.util.Base64
 import java.util.Locale
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class PlaylistArtworkJvmTest {
-    init {
+    private var originalLocale: Locale? = null
+
+    @BeforeTest
+    fun setEnglishLocale() {
+        originalLocale = Locale.getDefault()
         Locale.setDefault(Locale.ENGLISH)
     }
 
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun thumbnailModifierClipsArtworkToRoundedCorners() = runComposeUiTest {
-        var captured: Modifier? = null
-        setContent {
-            captured = playlistArtworkThumbnailModifier()
-        }
-        waitForIdle()
-        val elements =
-            captured!!.foldIn(emptyList<Modifier.Element>()) { acc, element ->
-                acc + element
-            }
-        val names = elements.map { it::class.simpleName }
-        // Modifier.clip(shape) is implemented as a graphicsLayer with
-        // clip=true.
-        val graphicsLayer = elements.firstOrNull {
-            it::class.simpleName == "GraphicsLayerElement"
-        }
-        assertTrue(
-            graphicsLayer != null,
-            "Expected playlist artwork thumbnail modifier to clip to rounded corners, got: $names")
-        val clipField = graphicsLayer.javaClass.getDeclaredField("clip")
-        clipField.isAccessible = true
-        assertTrue(
-            clipField.getBoolean(graphicsLayer),
-            "Expected playlist artwork thumbnail graphicsLayer to clip, got: $names")
-        val shapeField = graphicsLayer.javaClass.getDeclaredField("shape")
-        shapeField.isAccessible = true
-        assertEquals(
-            PlaylistArtworkThumbnailShape,
-            shapeField.get(graphicsLayer),
-            "Expected playlist artwork thumbnail clip to use the shared rounded shape")
-        assertTrue(
-            names.any { it?.contains("Background") == true },
-            "Expected playlist artwork thumbnail modifier to keep its placeholder background, got: $names")
+    @AfterTest
+    fun restoreLocale() {
+        originalLocale?.let(Locale::setDefault)
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -197,13 +169,6 @@ class PlaylistArtworkJvmTest {
     @Test
     fun queueRowResolvesLazyArtworkByTrackId() = runComposeUiTest {
         var loadCalls = 0
-        var state by
-            mutableStateOf(
-                PlaylistState(
-                    confirmedSnapshot = PlaylistSnapshot(),
-                    hasConfirmedSnapshot = true,
-                ),
-            )
         val queueTrack =
             PlayableTrack(
                 id = "queue-track",
@@ -218,33 +183,21 @@ class PlaylistArtworkJvmTest {
                 currentOccurrenceId = "current",
                 queue = listOf(QueueOccurrence("current", queueTrack)),
             )
+        val destination = PlaylistFeatureDestination("queue-artwork")
         setContent {
-            PlaylistHubScreen(
-                state = state,
+            PlaybackQueueContent(
                 playbackState = playbackState,
-                destination = PlaylistFeatureDestination("hub-artwork"),
-                appearanceSource = appearanceSource(),
+                destination = destination,
+                appearanceSource =
+                    rememberPlaylistFeatureAppearanceSource(destination),
                 dismissalPublisher = silentPublisher(),
-                playlistsLabel = "Playlists",
-                loadingLabel = "Loading",
-                loadFailedLabel = "Failed",
-                retryLabel = "Retry",
-                mutationFailedLabel = "Could not save playlist changes",
-                libraryTracks = emptyList(),
+                modifier = Modifier.testTag("queue-artwork-surface"),
+                onClose = {},
+                onSaveQueueAsPlaylist = { _, _, _ -> },
                 artworkLoader = { id ->
                     loadCalls++
                     if (id == "queue-track") artworkBytes() else null
                 },
-                onBack = {},
-                onOpenPlaylist = {},
-                onOpenSmartPlaylist = { error("Unexpected smart route") },
-                onCreateSmartPlaylist = { _, _, _ ->
-                    error("Unexpected smart creation")
-                },
-                onSelectTab = { state = state.copy(selectedTab = it) },
-                onCreate = { _, _ -> },
-                onSaveQueueAsPlaylist = { _, _, _ -> },
-                onRetry = {},
                 onReorderUpcoming = { _, _ ->
                     QueueMutationFeedback(playbackState, false)
                 },
@@ -257,9 +210,6 @@ class PlaylistArtworkJvmTest {
             )
         }
         waitForIdle()
-        onAllNodes(hasText("Queue"))[0].performClick()
-        waitForIdle()
-
         waitUntil(timeoutMillis = 5_000) {
             onAllNodes(hasContentDescription("Queue track"))
                 .fetchSemanticsNodes()

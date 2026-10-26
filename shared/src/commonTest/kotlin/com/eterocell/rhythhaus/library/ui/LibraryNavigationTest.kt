@@ -5,6 +5,7 @@ import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.nowplaying.NowPlayingPanel as NowPlayingPanelKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -63,14 +64,9 @@ class LibraryNavigationTest {
     }
 
     @Test
-    fun onboardingRendersAsActiveOverlayInCompactAndWideModes() {
+    fun onboardingDoesNotSelectAnAppNavigationDestination() {
         val route = LibraryRoute.Onboarding(OnboardingLaunchMode.Review, 0)
-        assertTrue(
-            libraryRouteRendersAsActiveOverlay(
-                route, LibraryAdaptiveLayoutMode.Compact))
-        assertTrue(
-            libraryRouteRendersAsActiveOverlay(
-                route, LibraryAdaptiveLayoutMode.ListDetail))
+        assertNull(primaryDestinationFor(route))
     }
 
     @Test
@@ -317,13 +313,14 @@ class LibraryNavigationTest {
     }
 
     @Test
-    fun nowPlayingThresholdSwipeUsesTheExactSharedBackCallback() {
-        var calls = 0
-        val back: () -> Unit = { calls += 1 }
+    fun nowPlayingThresholdSwipeClosesPanelAndExpandedPlayer() {
+        val state = LibraryAppState(initialSelectedTrackId = "track")
+        state.showNowPlaying(NowPlayingPanelKind.Queue, trackId = "track")
 
-        nowPlayingSwipeCollapseAction(back)()
+        nowPlayingSwipeCollapseAction(state)()
 
-        assertEquals(1, calls)
+        assertFalse(state.showNowPlaying)
+        assertEquals(NowPlayingPanelKind.Controls, state.nowPlayingPanel)
     }
 
     @Test
@@ -463,39 +460,42 @@ class LibraryNavigationTest {
     }
 
     @Test
-    fun playlistRoutesUseContentOwnershipInsteadOfSettingsOverlayOwnership() {
-        LibraryAdaptiveLayoutMode.entries.forEach { mode ->
-            assertFalse(
-                libraryRouteRendersAsActiveOverlay(
-                    LibraryRoute.PlaylistHub, mode))
-            assertFalse(
-                libraryRouteRendersAsActiveOverlay(
-                    LibraryRoute.PlaylistDetail("playlist-1"), mode))
-        }
+    fun primaryDestinationTracksTheVisibleRouteOwner() {
+        val stack =
+            LibraryNavigationStack()
+                .push(LibraryRoute.AlbumDetail("Blue Train"))
+                .push(LibraryRoute.Search)
+                .push(LibraryRoute.PlaylistHub)
+
+        assertEquals(
+            LibraryPrimaryDestination.Playlists,
+            primaryDestinationFor(stack.current),
+        )
+        assertEquals(
+            LibraryPrimaryDestination.Search,
+            primaryDestinationFor(stack.pop().current),
+        )
+        assertEquals(
+            LibraryPrimaryDestination.Library,
+            primaryDestinationFor(stack.pop().pop().current),
+        )
+        assertEquals(
+            LibraryPrimaryDestination.Playlists,
+            primaryDestinationFor(LibraryRoute.PlaylistDetail("playlist-1")),
+        )
+        assertNull(primaryDestinationFor(LibraryRoute.Settings))
+        assertNull(primaryDestinationFor(LibraryRoute.SettingsAbout))
+        assertNull(primaryDestinationFor(LibraryRoute.OpenSourceLibraries))
+        assertNull(primaryDestinationFor(LibraryRoute.NowPlaying))
     }
 
     @Test
-    fun settingsAboutRoutesUseActiveOverlayOwnershipInCompactAndWideLayouts() {
-        val routes =
-            listOf(
-                LibraryRoute.SettingsAbout,
-                LibraryRoute.OpenSourceLibraries,
-            )
-
-        LibraryAdaptiveLayoutMode.entries.forEach { mode ->
-            routes.forEach { route ->
-                assertTrue(
-                    libraryRouteRendersAsActiveOverlay(
-                        route = route, mode = mode))
-            }
-        }
-
-        assertFalse(
-            libraryRouteRendersAsActiveOverlay(
-                route = LibraryRoute.AlbumDetail("Blue Train"),
-                mode = LibraryAdaptiveLayoutMode.ListDetail,
-            ),
-        )
+    fun appNavigationUsesBottomRailAndSidebarAtSpecifiedBoundaries() {
+        assertEquals(AppNavigationLayout.Bottom, appNavigationLayoutFor(719f))
+        assertEquals(AppNavigationLayout.Rail, appNavigationLayoutFor(720f))
+        assertEquals(AppNavigationLayout.Rail, appNavigationLayoutFor(999f))
+        assertEquals(
+            AppNavigationLayout.Sidebar, appNavigationLayoutFor(1_000f))
     }
 
     @Test
@@ -519,7 +519,8 @@ class LibraryNavigationTest {
     fun adaptiveLayoutUsesCompactForPhonePortrait() {
         assertEquals(
             LibraryAdaptiveLayoutMode.Compact,
-            libraryAdaptiveLayoutModeFor(widthDp = 390f, heightDp = 844f),
+            libraryAdaptiveLayoutModeFor(
+                widthDp = 390f, heightDp = 844f, hasDetail = true),
         )
     }
 
@@ -527,23 +528,66 @@ class LibraryNavigationTest {
     fun adaptiveLayoutUsesCompactForNarrowPortraitTablet() {
         assertEquals(
             LibraryAdaptiveLayoutMode.Compact,
-            libraryAdaptiveLayoutModeFor(widthDp = 700f, heightDp = 1000f),
+            libraryAdaptiveLayoutModeFor(
+                widthDp = 700f, heightDp = 1000f, hasDetail = true),
         )
     }
 
     @Test
-    fun adaptiveLayoutUsesListDetailForWideTablet() {
+    fun adaptiveLayoutAvoidsSplitBelowTheMinimumDetailWidth() {
         assertEquals(
-            LibraryAdaptiveLayoutMode.ListDetail,
-            libraryAdaptiveLayoutModeFor(widthDp = 840f, heightDp = 1180f),
+            LibraryAdaptiveLayoutMode.Compact,
+            libraryAdaptiveLayoutModeFor(
+                widthDp = 840f, heightDp = 1180f, hasDetail = true),
         )
     }
 
     @Test
-    fun adaptiveLayoutUsesListDetailForLandscapeMediumWidth() {
+    fun adaptiveLayoutAvoidsSplitForLandscapeMediumWidth() {
+        assertEquals(
+            LibraryAdaptiveLayoutMode.Compact,
+            libraryAdaptiveLayoutModeFor(
+                widthDp = 700f, heightDp = 500f, hasDetail = true),
+        )
+    }
+
+    @Test
+    fun adaptiveLayoutDoesNotReserveDetailWithoutASelectedAlbumOrArtist() {
+        assertEquals(
+            LibraryAdaptiveLayoutMode.Compact,
+            libraryAdaptiveLayoutModeFor(
+                widthDp = 1200f, heightDp = 800f, hasDetail = false),
+        )
+    }
+
+    @Test
+    fun adaptiveLayoutWaitsForTheNetSpaceBoundary() {
+        assertEquals(
+            LibraryAdaptiveLayoutMode.Compact,
+            libraryAdaptiveLayoutModeFor(
+                widthDp = 1015f, heightDp = 800f, hasDetail = true),
+        )
         assertEquals(
             LibraryAdaptiveLayoutMode.ListDetail,
-            libraryAdaptiveLayoutModeFor(widthDp = 700f, heightDp = 500f),
+            libraryAdaptiveLayoutModeFor(
+                widthDp = 1016f, heightDp = 800f, hasDetail = true),
+        )
+    }
+
+    @Test
+    fun detailPaneWidthsRespectMinimumsAndShareAdditionalSpace() {
+        val minimum = libraryDetailPaneWidthsFor(contentWidthDp = 744f)
+
+        assertEquals(320f, minimum.browsingWidthDp)
+        assertEquals(24f, minimum.gapWidthDp)
+        assertEquals(400f, minimum.detailWidthDp)
+
+        val wider = libraryDetailPaneWidthsFor(contentWidthDp = 928f)
+        assertEquals(412f, wider.browsingWidthDp)
+        assertEquals(492f, wider.detailWidthDp)
+        assertEquals(
+            928f,
+            wider.browsingWidthDp + wider.gapWidthDp + wider.detailWidthDp,
         )
     }
 
@@ -551,7 +595,8 @@ class LibraryNavigationTest {
     fun adaptiveLayoutUsesListDetailForDesktopWidth() {
         assertEquals(
             LibraryAdaptiveLayoutMode.ListDetail,
-            libraryAdaptiveLayoutModeFor(widthDp = 1200f, heightDp = 800f),
+            libraryAdaptiveLayoutModeFor(
+                widthDp = 1200f, heightDp = 800f, hasDetail = true),
         )
     }
 
@@ -565,6 +610,32 @@ class LibraryNavigationTest {
 
         assertEquals(listOf(LibraryRoute.Home), stack.routes)
         assertEquals(LibraryRoute.Home, stack.current)
+    }
+
+    @Test
+    fun backUnwindsLibraryAlbumSearchAndPlaylistHubOnOneStack() {
+        var stack =
+            LibraryNavigationStack()
+                .push(LibraryRoute.AlbumDetail("A"))
+                .push(LibraryRoute.Search)
+                .push(LibraryRoute.PlaylistHub)
+
+        assertEquals(
+            listOf(
+                LibraryRoute.Home,
+                LibraryRoute.AlbumDetail("A"),
+                LibraryRoute.Search,
+                LibraryRoute.PlaylistHub,
+            ),
+            stack.routes,
+        )
+
+        stack = stack.pop()
+        assertEquals(LibraryRoute.Search, stack.current)
+        stack = stack.pop()
+        assertEquals(LibraryRoute.AlbumDetail("A"), stack.current)
+        stack = stack.pop()
+        assertEquals(listOf(LibraryRoute.Home), stack.routes)
     }
 
     @Test

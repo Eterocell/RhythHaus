@@ -1,5 +1,6 @@
 package com.eterocell.rhythhaus.library.ui
 
+import com.eterocell.rhythhaus.nowplaying.NowPlayingPanel as NowPlayingPanelKind
 import kotlin.math.roundToInt
 
 sealed interface LibraryRoute {
@@ -32,6 +33,37 @@ sealed interface LibraryRoute {
         val pageIndex: Int,
     ) : LibraryRoute
 }
+
+internal enum class LibraryPrimaryDestination {
+    Library,
+    Search,
+    Playlists,
+}
+
+internal fun primaryDestinationFor(
+    route: LibraryRoute,
+): LibraryPrimaryDestination? =
+    when (route) {
+        LibraryRoute.Home,
+        is LibraryRoute.AlbumDetail,
+        is LibraryRoute.ArtistDetail,
+        -> LibraryPrimaryDestination.Library
+
+        LibraryRoute.Search -> LibraryPrimaryDestination.Search
+
+        LibraryRoute.PlaylistHub,
+        is LibraryRoute.PlaylistDetail,
+        is LibraryRoute.SmartPlaylistDetail,
+        -> LibraryPrimaryDestination.Playlists
+
+        LibraryRoute.NowPlaying,
+        LibraryRoute.Settings,
+        LibraryRoute.SettingsAbout,
+        LibraryRoute.OpenSourceLibraries,
+        LibraryRoute.ClearLibraryDialog,
+        is LibraryRoute.Onboarding,
+        -> null
+    }
 
 enum class OnboardingLaunchMode {
     FirstRun,
@@ -123,6 +155,7 @@ fun libraryBottomBarContent(
     route: LibraryRoute,
     selectionState: TrackSelectionState,
     isNowPlayingVisible: Boolean,
+    hasSelectedTrack: Boolean,
 ): LibraryBottomBarContent {
     val selectionMatchesVisibleSurface =
         when (val pageKey = selectionState.pageKey) {
@@ -150,57 +183,88 @@ fun libraryBottomBarContent(
             LibraryBottomBarContent.Selection(
                 selectionState.selectedTrackIds.size)
 
-        shouldShowNowPlayingBar(route, isNowPlayingVisible) ->
+        hasSelectedTrack &&
+            shouldShowNowPlayingBar(route, isNowPlayingVisible) ->
             LibraryBottomBarContent.NowPlaying
 
         else -> LibraryBottomBarContent.Hidden
     }
 }
 
-data class LibraryBottomBarMeasurement(
+internal data class LibraryBottomBarMeasurement(
     val content: LibraryBottomBarContent,
     val heightPx: Int,
+    val layout: AppNavigationLayout,
+    val widthPx: Int,
 )
 
-fun activeBottomBarClearancePx(
+internal fun activeBottomBarClearancePx(
     content: LibraryBottomBarContent,
     measurement: LibraryBottomBarMeasurement?,
+    expectedLayout: AppNavigationLayout,
+    expectedWidthPx: Int,
 ): Int =
     if (content.kind == LibraryBottomBarKind.Hidden ||
-        measurement?.content?.kind != content.kind) {
+        measurement?.content?.kind != content.kind ||
+        measurement.layout != expectedLayout ||
+        measurement.widthPx != expectedWidthPx) {
         0
     } else {
         measurement.heightPx.coerceAtLeast(0)
     }
 
-fun activeBottomBarAlpha(
+internal fun activeBottomBarAlpha(
     content: LibraryBottomBarContent,
     measurement: LibraryBottomBarMeasurement?,
+    expectedLayout: AppNavigationLayout,
+    expectedWidthPx: Int,
     hiddenFraction: Float,
 ): Float =
-    if (activeBottomBarClearancePx(content, measurement) == 0) {
+    if (activeBottomBarClearancePx(
+        content,
+        measurement,
+        expectedLayout,
+        expectedWidthPx,
+    ) == 0) {
         0f
     } else {
         1f - hiddenFraction.coerceIn(0f, 1f)
     }
 
-data class LibraryBottomBarPresentation(
+internal data class LibraryBottomBarPresentation(
     val clearancePx: Int,
     val alpha: Float,
     val isInteractive: Boolean,
 )
 
-fun libraryBottomBarPresentation(
+internal fun libraryBottomBarPresentation(
     content: LibraryBottomBarContent,
     measurement: LibraryBottomBarMeasurement?,
+    expectedLayout: AppNavigationLayout,
+    expectedWidthPx: Int,
     hiddenFraction: Float,
+    allowInteraction: Boolean,
 ): LibraryBottomBarPresentation {
-    val clearancePx = activeBottomBarClearancePx(content, measurement)
-    val alpha = activeBottomBarAlpha(content, measurement, hiddenFraction)
+    val clearancePx =
+        activeBottomBarClearancePx(
+            content,
+            measurement,
+            expectedLayout,
+            expectedWidthPx,
+        )
+    val alpha =
+        activeBottomBarAlpha(
+            content,
+            measurement,
+            expectedLayout,
+            expectedWidthPx,
+            hiddenFraction,
+        )
     return LibraryBottomBarPresentation(
         clearancePx = clearancePx,
         alpha = alpha,
-        isInteractive = clearancePx > 0 && hiddenFraction < 1f,
+        isInteractive =
+            clearancePx > 0 && hiddenFraction < 1f && allowInteraction,
     )
 }
 
@@ -269,6 +333,12 @@ internal sealed interface LibraryBackTarget {
         override val id: LibraryBackTargetId,
     ) : LibraryBackTarget
 
+    data class NowPlayingPanel(
+        override val id: LibraryBackTargetId,
+        val panel: NowPlayingPanelKind,
+        val trackId: String,
+    ) : LibraryBackTarget
+
     data class Route(
         override val id: LibraryBackTargetId,
         val routePreview: LibraryRoutePreview,
@@ -276,8 +346,8 @@ internal sealed interface LibraryBackTarget {
 }
 
 /**
- * A feature publishes only its own already-chosen foremost action. The state
- * module does not inspect or order feature modal internals.
+ * A feature publishes only its own already-chosen foremost action. Shared
+ * orders those independent surfaces against its Now Playing panel.
  */
 internal data class LibraryBackSurfacePort(
     val destinationId: LibraryDestinationId,
@@ -375,14 +445,26 @@ internal fun resolveLibraryBack(
     if (input.isBackSessionPending) return LibraryBackResolution.Suppressed
 
     val activeDestination = input.activeDestinationId
-    val featureTarget =
-        input.backSurfacePorts
-            .singleOrNull { it.destinationId == activeDestination }
-            ?.foremostFeatureTarget
-            ?.takeIf { it.id.destinationId == activeDestination }
-    if (featureTarget is LibraryBackTarget.FeatureModal ||
-        featureTarget is LibraryBackTarget.FeatureEdit) {
-        return LibraryBackResolution.Started(featureTarget)
+    var featureTarget: LibraryBackTarget? = null
+    var playerPanelTarget: LibraryBackTarget.NowPlayingPanel? = null
+    for (port in input.backSurfacePorts) {
+        if (port.destinationId != activeDestination) continue
+        val target = port.foremostFeatureTarget ?: continue
+        if (target.id.destinationId != activeDestination) continue
+        when (target) {
+            is LibraryBackTarget.FeatureModal,
+            is LibraryBackTarget.FeatureEdit,
+            -> featureTarget = target
+
+            is LibraryBackTarget.NowPlayingPanel -> playerPanelTarget = target
+            else -> Unit
+        }
+    }
+    featureTarget?.let {
+        return LibraryBackResolution.Started(it)
+    }
+    playerPanelTarget?.let {
+        return LibraryBackResolution.Started(it)
     }
 
     val selectionTarget = input.selectionPort?.target
@@ -472,44 +554,56 @@ enum class LibraryAdaptiveLayoutMode {
     ListDetail,
 }
 
+internal data class LibraryDetailPaneWidths(
+    val browsingWidthDp: Float,
+    val gapWidthDp: Float,
+    val detailWidthDp: Float,
+)
+
+internal const val AppShellContentMaxWidthDp = 1_440f
+private const val LibraryDetailPaneMinBrowsingWidthDp = 320f
+private const val LibraryDetailPaneMinDetailWidthDp = 400f
+private const val LibraryDetailPaneGapWidthDp = 24f
+
+internal fun libraryMainContentWidthDp(windowWidthDp: Float): Float {
+    val layout = appNavigationLayoutFor(windowWidthDp)
+    return (windowWidthDp - layout.navigationWidthDp - layout.pageMarginDp * 2f)
+        .coerceAtLeast(0f)
+        .coerceAtMost(AppShellContentMaxWidthDp)
+}
+
+internal fun libraryDetailPaneWidthsFor(
+    contentWidthDp: Float,
+): LibraryDetailPaneWidths {
+    val panesWidthDp =
+        (contentWidthDp - LibraryDetailPaneGapWidthDp).coerceAtLeast(0f)
+    val extraWidthDp =
+        (panesWidthDp -
+                LibraryDetailPaneMinBrowsingWidthDp -
+                LibraryDetailPaneMinDetailWidthDp)
+            .coerceAtLeast(0f)
+    val browsingWidthDp =
+        LibraryDetailPaneMinBrowsingWidthDp + extraWidthDp / 2f
+    return LibraryDetailPaneWidths(
+        browsingWidthDp = browsingWidthDp,
+        gapWidthDp = LibraryDetailPaneGapWidthDp,
+        detailWidthDp = panesWidthDp - browsingWidthDp,
+    )
+}
+
 fun libraryAdaptiveLayoutModeFor(
     widthDp: Float,
     heightDp: Float,
+    hasDetail: Boolean,
 ): LibraryAdaptiveLayoutMode {
-    if (widthDp >= 840f) return LibraryAdaptiveLayoutMode.ListDetail
-    if (widthDp >= 600f && widthDp > 0f && heightDp / widthDp < 1.2f)
+    if (widthDp >= 1_000f &&
+        heightDp > 0f &&
+        hasDetail &&
+        libraryMainContentWidthDp(widthDp) >= 744f) {
         return LibraryAdaptiveLayoutMode.ListDetail
+    }
     return LibraryAdaptiveLayoutMode.Compact
 }
-
-internal fun libraryRouteRendersAsActiveOverlay(
-    route: LibraryRoute,
-    mode: LibraryAdaptiveLayoutMode,
-): Boolean =
-    when (mode) {
-        LibraryAdaptiveLayoutMode.Compact,
-        LibraryAdaptiveLayoutMode.ListDetail,
-        ->
-            when (route) {
-                LibraryRoute.Search,
-                LibraryRoute.Settings,
-                LibraryRoute.SettingsAbout,
-                LibraryRoute.OpenSourceLibraries,
-                -> true
-
-                LibraryRoute.Home,
-                is LibraryRoute.AlbumDetail,
-                is LibraryRoute.ArtistDetail,
-                LibraryRoute.PlaylistHub,
-                is LibraryRoute.PlaylistDetail,
-                is LibraryRoute.SmartPlaylistDetail,
-                LibraryRoute.NowPlaying,
-                LibraryRoute.ClearLibraryDialog,
-                -> false
-
-                is LibraryRoute.Onboarding -> true
-            }
-    }
 
 data class LibraryScrollPosition(
     val firstVisibleItemIndex: Int,

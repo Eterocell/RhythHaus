@@ -142,13 +142,12 @@ class PlaylistBackPolicyJvmTest {
                     onTrackSelected = {},
                     onTrackClickFromTracks = { _, _ -> },
                     onExpandNowPlaying = {},
-                    onShowSettings = {},
-                    onShowSearch = {},
                     onScrollPositionChanged = {},
                     artworkLoader = { null },
                     homeContent = { _ -> },
                     favoriteTrackIds = emptySet(),
                     onSetTrackFavorite = { _, _ -> },
+                    documentActions = {},
                 )
             }
             waitForIdle()

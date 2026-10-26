@@ -57,17 +57,18 @@ Koin, DataStore, or Library API is permitted.
 
 The Settings public boundary will be only KDoc-complete `SettingsSharedLabels(title, addMusicFolder,
 folderPickerUnavailable, clearLibrary, cancel, remove)`, `SettingsSourceItem(id, displayName,
-accessAvailable, hasBeenScanned)`, `SettingsScreen`, `SettingsAboutScreen`, and
+accessAvailable, hasBeenScanned, trackCount)`, `SettingsScreen`, `SettingsAboutScreen`, and
 `OpenSourceLibrariesScreen(readCatalogJson: suspend () -> String, ...)`; it exposes no Shared,
 Library, Playlist, generated foreign resource, route/Back, repository/scanner/launcher/controller/
-job/Koin/DataStore type. Shared will map authoritative sources and supply scalar state, callbacks,
-playlist-backup content, nullable scanning content, and nullable clear-library-dialog slots. Settings
+job/Koin/DataStore type. Shared will map authoritative sources and current per-source track counts
+and supply scalar state, callbacks, playlist-backup content, nullable scanning content, and a
+nullable library-maintenance-confirmation slot for clear or remove-missing. Settings
 will own only rendering, source-removal dialog visibility, and About retry generation, without a
 Presenter/ViewModel/Event/Effect rewrite. Shared retains source mutations/guards/errors,
-picker/scanning/clear-library orchestration, routes/Back/dismissal, playlist backup control, and
+picker/scanning/clear-library/remove-missing orchestration, routes/Back/dismissal, playlist backup control, and
 theme persistence/actuals/Koin/root theme application; `RhythHausThemeMode` and palettes remain
 core UI. The planned `SettingsScreen` will include picker visibility/availability, mutation and
-imported-track booleans, `onRequestClearLibrary`, and a nullable clear-dialog slot. Shared will
+imported-track booleans, `onRequestClearLibrary`, and a nullable library-maintenance-confirmation slot. Shared will
 resolve source IDs against current authority at invocation, no-op stale IDs, and recheck guards.
 
 Settings will own its appearance/theme, source-management-only, About/AboutLibraries, logo, and
@@ -262,9 +263,9 @@ not gain a core playback dependency. LibraryAppShell is a Shared coordinator, no
 existing reducers/remember state remain under the explicit Task 7.2 characterization exception.
 
 Move Library-only EN/ZH resources once using an exhaustive current-consumer ledger. Shared retains
-App/shell-rendered and cross-feature labels including `scan_complete_format`,
-`adaptive_detail_placeholder`, and keys used by Settings, Now Playing, Search, selection, and
-playback shell; uncertain Shared-rendered keys remain Shared or are injected as values. The
+App/shell-rendered and cross-feature labels, including `scan_complete_format` and keys used by
+Settings, Now Playing, Search, selection, and playback shell; uncertain Shared-rendered keys remain
+Shared or are injected as values. The
 current `readAudioMetadata`/`AudioMetadata` exports are intentionally retired under the documented
 f4ae104/30f89ff bridge-consumer history; move them into impl without an export or compatibility facade. Require
 source-consumer, generated-header, approved-ABI, platform-actual, resource parity/ownership,

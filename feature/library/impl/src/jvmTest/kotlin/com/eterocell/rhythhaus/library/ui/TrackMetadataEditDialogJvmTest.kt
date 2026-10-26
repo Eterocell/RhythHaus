@@ -62,6 +62,30 @@ class TrackMetadataEditDialogJvmTest {
             assertNull(saved)
         }
 
+    @Test
+    fun cancelDismissesEditedDraftWithoutSaving() = runComposeUiTest {
+        Locale.setDefault(Locale.ENGLISH)
+        var draft by mutableStateOf(TrackMetadataDraft(title = "Unsaved title"))
+        var saved: TrackMetadataOverride? = null
+        var dismissals = 0
+        setContent {
+            TrackMetadataEditDialog(
+                data(),
+                draft,
+                false,
+                false,
+                { draft = it },
+                { dismissals++ },
+                { saved = it })
+        }
+
+        onNodeWithText("Cancel").performClick()
+
+        assertEquals(1, dismissals)
+        assertNull(saved)
+        assertEquals("Unsaved title", draft.title)
+    }
+
     private fun data() =
         TrackMetadataEditorData(
             LibraryTrack(

@@ -120,6 +120,18 @@ class ThemeTest {
                     "$name warning/paper", palette.warning, palette.paper, 4.5)
                 assertContrastAtLeast(
                     "$name outline/panel", palette.outline, palette.panel, 3.0)
+                assertContrastAtLeast(
+                    "$name outline/paper", palette.outline, palette.paper, 3.0)
+                assertContrastAtLeast(
+                    "$name outline/panelStrong",
+                    palette.outline,
+                    palette.panelStrong,
+                    3.0)
+                assertContrastAtLeast(
+                    "$name outline/navigation",
+                    palette.outline,
+                    palette.navigation,
+                    3.0)
             }
     }
 }

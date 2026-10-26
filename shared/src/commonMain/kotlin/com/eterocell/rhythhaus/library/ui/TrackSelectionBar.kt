@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -15,11 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausShapes
+import com.eterocell.rhythhaus.theme.HausSpacing
+import com.eterocell.rhythhaus.theme.HausTypography
+import com.eterocell.rhythhaus.ui.HausButton as Button
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.shared.generated.resources.Res
 import rhythhaus.shared.generated.resources.selection_add_to_playlist
@@ -27,29 +28,8 @@ import rhythhaus.shared.generated.resources.selection_cancel
 import rhythhaus.shared.generated.resources.selection_count_many
 import rhythhaus.shared.generated.resources.selection_count_one
 import rhythhaus.shared.generated.resources.selection_select_all
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-
-data class TrackSelectionBarSemantics(
-    val selectedCountDescription: String,
-    val cancelDescription: String,
-    val selectAllDescription: String,
-    val addToPlaylistDescription: String,
-)
-
-fun trackSelectionBarSemantics(
-    selectedCountDescription: String,
-    cancelDescription: String,
-    selectAllDescription: String,
-    addToPlaylistDescription: String,
-): TrackSelectionBarSemantics =
-    TrackSelectionBarSemantics(
-        selectedCountDescription = selectedCountDescription,
-        cancelDescription = cancelDescription,
-        selectAllDescription = selectAllDescription,
-        addToPlaylistDescription = addToPlaylistDescription,
-    )
 
 @Composable
 fun TrackSelectionBar(
@@ -70,58 +50,58 @@ fun TrackSelectionBar(
     val cancelDescription = stringResource(Res.string.selection_cancel)
     val selectAllDescription = stringResource(Res.string.selection_select_all)
     val addDescription = stringResource(Res.string.selection_add_to_playlist)
-    val semantics =
-        trackSelectionBarSemantics(
-            countDescription,
-            cancelDescription,
-            selectAllDescription,
-            addDescription)
 
     Column(
         modifier =
             modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-                .background(HausColors.current.panel, RoundedCornerShape(20.dp))
-                .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(
+                    start = HausSpacing.lg,
+                    end = HausSpacing.lg,
+                    bottom = HausSpacing.md,
+                )
+                .background(
+                    HausColors.current.panel,
+                    RoundedCornerShape(HausShapes.overlay),
+                )
+                .padding(HausSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(HausSpacing.md),
     ) {
         Text(
             text = countDescription,
             modifier =
                 Modifier.semantics {
-                    contentDescription = semantics.selectedCountDescription
+                    contentDescription = countDescription
                 },
             color = HausColors.current.ink,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Black,
+            fontSize = HausTypography.title.fontSize,
+            fontWeight = HausTypography.title.fontWeight,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         if (interactive) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(HausSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SelectionBarButton(
                     text = cancelDescription,
-                    contentDescription = semantics.cancelDescription,
+                    contentDescription = cancelDescription,
                     onClick = onCancel,
                     modifier = Modifier.weight(1f),
                     emphasized = false,
                 )
                 SelectionBarButton(
                     text = selectAllDescription,
-                    contentDescription = semantics.selectAllDescription,
+                    contentDescription = selectAllDescription,
                     onClick = onSelectAll,
                     modifier = Modifier.weight(1f),
                     emphasized = false,
                 )
                 SelectionBarButton(
                     text = addDescription,
-                    contentDescription = semantics.addToPlaylistDescription,
+                    contentDescription = addDescription,
                     onClick = onAddToPlaylist,
                     modifier = Modifier.weight(1f),
                     emphasized = true,
@@ -142,25 +122,29 @@ private fun SelectionBarButton(
     Button(
         onClick = onClick,
         modifier =
-            modifier.heightIn(min = 44.dp).semantics {
+            modifier.heightIn(min = 48.dp).semantics {
                 this.contentDescription = contentDescription
             },
-        cornerRadius = 14.dp,
-        insideMargin = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+        cornerRadius = HausShapes.control,
+        insideMargin =
+            PaddingValues(
+                horizontal = HausSpacing.md,
+                vertical = HausSpacing.sm,
+            ),
         colors =
             ButtonDefaults.buttonColors(
                 color =
-                    if (emphasized) HausColors.current.ink
+                    if (emphasized) HausColors.current.pulse
                     else HausColors.current.panelStrong,
                 contentColor =
-                    if (emphasized) HausColors.current.paper
+                    if (emphasized) HausColors.current.onPulse
                     else HausColors.current.ink,
             ),
     ) {
         Text(
             text,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = HausTypography.label.fontSize,
+            fontWeight = HausTypography.label.fontWeight,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis)
     }

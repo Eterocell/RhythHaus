@@ -90,6 +90,7 @@ class PlaylistInteroperabilityControllerJvmTest {
                         })
                 for (format in
                     listOf(
+                        PlaylistDocumentFormat.RhythHausJson,
                         PlaylistDocumentFormat.M3u,
                         PlaylistDocumentFormat.M3u8,
                         PlaylistDocumentFormat.Pls)) {

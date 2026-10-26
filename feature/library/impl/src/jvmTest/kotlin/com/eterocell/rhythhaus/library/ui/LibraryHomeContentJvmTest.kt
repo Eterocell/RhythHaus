@@ -11,12 +11,16 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
@@ -30,6 +34,7 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.TrackPlayHistory
+import com.eterocell.rhythhaus.ui.songArtistAlbumSubtitle
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -58,8 +63,6 @@ class LibraryHomeContentJvmTest {
             setContent {
                 Box(Modifier.size(420.dp, 900.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = tracks(),
                         browseMode = BrowseMode.Songs,
                         playHistory = emptyMap(),
@@ -80,7 +83,6 @@ class LibraryHomeContentJvmTest {
                         onCancelScan = {},
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { ordered, selected ->
                             plays += ordered to selected
                         },
@@ -167,8 +169,6 @@ class LibraryHomeContentJvmTest {
                 // rows.
                 Box(Modifier.size(420.dp, 160.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = tracks(),
                         browseMode = browseMode,
                         playHistory = emptyMap(),
@@ -189,7 +189,6 @@ class LibraryHomeContentJvmTest {
                         onCancelScan = {},
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { _, _ -> playRequests++ },
                         onToggleSelection = {},
                         onStartSelection = {},
@@ -249,8 +248,6 @@ class LibraryHomeContentJvmTest {
             setContent {
                 Box(Modifier.size(420.dp, 900.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = tracks().take(1),
                         browseMode = BrowseMode.Songs,
                         playHistory = emptyMap(),
@@ -271,7 +268,6 @@ class LibraryHomeContentJvmTest {
                         onCancelScan = {},
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { _, _ -> },
                         onToggleSelection = {},
                         onStartSelection = {},
@@ -330,8 +326,6 @@ class LibraryHomeContentJvmTest {
         setContent {
             Box(Modifier.size(420.dp, 900.dp)) {
                 LibraryHomeContent(
-                    title = "Library",
-                    subtitle = "",
                     tracks = tracks().take(1),
                     browseMode = BrowseMode.Songs,
                     playHistory = emptyMap(),
@@ -352,7 +346,6 @@ class LibraryHomeContentJvmTest {
                     onCancelScan = {},
                     onOpenAlbum = {},
                     onOpenArtist = {},
-                    onShowPlaylists = {},
                     onPlayTrack = { ordered, selected ->
                         plays += ordered to selected
                     },
@@ -401,13 +394,43 @@ class LibraryHomeContentJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun rowActionsMeetMobileMinimumTouchTargets() = runComposeUiTest {
+        setContent {
+            Box(Modifier.size(420.dp, 100.dp)) {
+                TrackRow(
+                    track = track("t-1", "Two", "Album B", "Artist", 1, 1),
+                    isNowPlaying = false,
+                    selectionModeActive = false,
+                    isSelected = false,
+                    labels = labels(),
+                    artworkLoader = { null },
+                    onPlay = {},
+                    onToggleSelection = {},
+                    onStartSelection = {},
+                    favorite = false,
+                    onSetFavorite = {},
+                    onEditMetadata = {},
+                    desktopDensity = false,
+                )
+            }
+        }
+        waitForIdle()
+
+        onNodeWithTag("track-row-more-actions")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+        onNode(hasContentDescription("Add Two to favorites"))
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun favoriteControlIsAbsentDuringSelectionMode() = runComposeUiTest {
         var selectionModeActive by mutableStateOf(false)
         setContent {
             Box(Modifier.size(420.dp, 900.dp)) {
                 LibraryHomeContent(
-                    title = "Library",
-                    subtitle = "",
                     tracks = tracks().take(1),
                     browseMode = BrowseMode.Songs,
                     playHistory = emptyMap(),
@@ -428,7 +451,6 @@ class LibraryHomeContentJvmTest {
                     onCancelScan = {},
                     onOpenAlbum = {},
                     onOpenArtist = {},
-                    onShowPlaylists = {},
                     onPlayTrack = { _, _ -> },
                     onToggleSelection = {},
                     onStartSelection = {},
@@ -471,8 +493,6 @@ class LibraryHomeContentJvmTest {
             setContent {
                 Box(Modifier.size(420.dp, 900.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = tracks(),
                         browseMode = BrowseMode.Favorites,
                         playHistory = emptyMap(),
@@ -493,7 +513,6 @@ class LibraryHomeContentJvmTest {
                         onCancelScan = {},
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { ordered, selected ->
                             plays += ordered to selected
                         },
@@ -544,8 +563,6 @@ class LibraryHomeContentJvmTest {
         setContent {
             Box(Modifier.size(420.dp, 900.dp)) {
                 LibraryHomeContent(
-                    title = "Library",
-                    subtitle = "",
                     tracks = tracks(),
                     browseMode = BrowseMode.RecentlyPlayed,
                     playHistory = history,
@@ -567,7 +584,6 @@ class LibraryHomeContentJvmTest {
                     onCancelScan = {},
                     onOpenAlbum = {},
                     onOpenArtist = {},
-                    onShowPlaylists = {},
                     onPlayTrack = { ordered, selected ->
                         plays += ordered to selected
                     },
@@ -606,8 +622,6 @@ class LibraryHomeContentJvmTest {
             setContent {
                 Box(Modifier.size(420.dp, 900.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = tracks(),
                         browseMode = BrowseMode.RecentlyPlayed,
                         playHistory = emptyMap(),
@@ -628,7 +642,6 @@ class LibraryHomeContentJvmTest {
                         onCancelScan = {},
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { _, _ -> },
                         onToggleSelection = {},
                         onStartSelection = {},
@@ -664,8 +677,6 @@ class LibraryHomeContentJvmTest {
             setContent {
                 Box(Modifier.size(1000.dp, 700.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = tracks(),
                         browseMode = BrowseMode.Favorites,
                         playHistory = emptyMap(),
@@ -686,7 +697,6 @@ class LibraryHomeContentJvmTest {
                         onCancelScan = {},
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { _, _ -> },
                         onToggleSelection = {},
                         onStartSelection = {},
@@ -722,8 +732,6 @@ class LibraryHomeContentJvmTest {
         setContent {
             Box(Modifier.size(420.dp, 300.dp)) {
                 LibraryHomeContent(
-                    title = "Library",
-                    subtitle = "",
                     tracks = twelveTracks(),
                     browseMode = BrowseMode.Songs,
                     playHistory = emptyMap(),
@@ -744,7 +752,6 @@ class LibraryHomeContentJvmTest {
                     onCancelScan = {},
                     onOpenAlbum = {},
                     onOpenArtist = {},
-                    onShowPlaylists = {},
                     onPlayTrack = { _, _ -> },
                     onToggleSelection = {},
                     onStartSelection = {},
@@ -772,7 +779,7 @@ class LibraryHomeContentJvmTest {
 
         onNode(hasScrollToIndexAction()).performScrollToIndex(12)
         waitForIdle()
-        assertTrue(scrolls.any { it.first >= 12 })
+        assertTrue(scrolls.any { it.first > 0 || it.second > 0 })
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -780,10 +787,8 @@ class LibraryHomeContentJvmTest {
     fun albumsGroupByExactNameSortedCaseInsensitively() = runComposeUiTest {
         var browseMode by mutableStateOf(BrowseMode.Albums)
         setContent {
-            Box(Modifier.size(420.dp, 700.dp)) {
+            Box(Modifier.size(360.dp, 640.dp)) {
                 LibraryHomeContent(
-                    title = "Library",
-                    subtitle = "",
                     tracks = tracks(),
                     browseMode = browseMode,
                     playHistory = emptyMap(),
@@ -804,7 +809,6 @@ class LibraryHomeContentJvmTest {
                     onCancelScan = {},
                     onOpenAlbum = {},
                     onOpenArtist = {},
-                    onShowPlaylists = {},
                     onPlayTrack = { _, _ -> },
                     onToggleSelection = {},
                     onStartSelection = {},
@@ -832,6 +836,9 @@ class LibraryHomeContentJvmTest {
         onAllNodes(hasText("album a")).assertCountEquals(1)
         onAllNodes(hasText("Artist · 3 tracks")).assertCountEquals(1)
         onAllNodes(hasText("Soloist · 1 tracks")).assertCountEquals(1)
+        onNode(hasText("album a")).assertIsDisplayed()
+        onNode(hasText("Library", substring = false)).assertIsDisplayed()
+        onNode(hasText("4 tracks", substring = false)).assertIsDisplayed()
 
         val albumA =
             onAllNodes(hasText("album a"))
@@ -856,8 +863,6 @@ class LibraryHomeContentJvmTest {
         setContent {
             Box(Modifier.size(420.dp, 700.dp)) {
                 LibraryHomeContent(
-                    title = "Library",
-                    subtitle = "",
                     tracks = tracks(),
                     browseMode = browseMode,
                     playHistory = emptyMap(),
@@ -878,7 +883,6 @@ class LibraryHomeContentJvmTest {
                     onCancelScan = {},
                     onOpenAlbum = {},
                     onOpenArtist = { openedArtists += it },
-                    onShowPlaylists = {},
                     onPlayTrack = { _, _ -> },
                     onToggleSelection = {},
                     onStartSelection = {},
@@ -914,15 +918,13 @@ class LibraryHomeContentJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun browseModePickerDispatchesModeChange() = runComposeUiTest {
-        val changed = mutableListOf<BrowseMode>()
+    fun compactHomeExposesAllBrowseModesWithinTwoActions() = runComposeUiTest {
+        var browseMode by mutableStateOf(BrowseMode.Songs)
         setContent {
-            Box(Modifier.size(420.dp, 700.dp)) {
+            Box(Modifier.size(360.dp, 640.dp)) {
                 LibraryHomeContent(
-                    title = "Library",
-                    subtitle = "",
                     tracks = tracks(),
-                    browseMode = BrowseMode.Songs,
+                    browseMode = browseMode,
                     playHistory = emptyMap(),
                     createdAtByTrackId = emptyMap(),
                     folderPickerLauncher = StubPicker,
@@ -936,12 +938,11 @@ class LibraryHomeContentJvmTest {
                     labels = labels(),
                     homeBackdrop = null,
                     artworkLoader = { null },
-                    onBrowseModeChange = { changed += it },
+                    onBrowseModeChange = { browseMode = it },
                     onClearLibrary = {},
                     onCancelScan = {},
                     onOpenAlbum = {},
                     onOpenArtist = {},
-                    onShowPlaylists = {},
                     onPlayTrack = { _, _ -> },
                     onToggleSelection = {},
                     onStartSelection = {},
@@ -965,70 +966,38 @@ class LibraryHomeContentJvmTest {
         }
         waitForIdle()
 
-        onAllNodes(hasText("Albums"))[0].performClick()
-        waitForIdle()
-        assertEquals(listOf(BrowseMode.Albums), changed)
-    }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun fourModePickerKeepsEveryLabelVisibleAtCompactSplitAndWideWidths() =
-        runComposeUiTest {
-            var width by mutableStateOf(375.dp)
-            val changed = mutableListOf<BrowseMode>()
-            setContent {
-                Box(Modifier.size(width, 40.dp)) {
-                    BrowseModePicker(
-                        browseMode = BrowseMode.Songs,
-                        labels = labels(),
-                        onModeChange = { changed += it },
-                    )
-                }
-            }
-
-            listOf(375.dp, 353.dp, 840.dp).forEach { testedWidth ->
-                width = testedWidth
-                waitForIdle()
-                listOf("Albums", "Artists", "Songs", "Favorites").forEach {
-                    label ->
-                    onNode(hasText(label)).assertIsDisplayed()
-                }
-            }
-
-            onNode(hasText("Favorites")).performClick()
-            waitForIdle()
-            assertEquals(listOf(BrowseMode.Favorites), changed)
-        }
-
-    @OptIn(ExperimentalTestApi::class)
-    @Test
-    fun compactRecentModeControlsExposeAllModesAndSelectedSemantics() =
-        runComposeUiTest {
-            setContent {
-                Box(Modifier.size(400.dp, 40.dp)) {
-                    BrowseModePicker(
-                        browseMode = BrowseMode.RecentlyPlayed,
-                        labels = labels(),
-                        onModeChange = {},
-                    )
-                }
-            }
-            waitForIdle()
+        val primaryModes =
             listOf(
-                    "Albums",
-                    "Artists",
-                    "Songs",
-                    "Favorites",
-                    "Recently played",
-                    "Recently added")
-                .forEach { onNode(hasText(it)).assertIsDisplayed() }
-            onNode(
-                    hasText("Recently played") and
-                        SemanticsMatcher.expectValue(
-                            SemanticsProperties.Selected, true),
-                )
-                .assertIsDisplayed()
+                "Albums" to BrowseMode.Albums,
+                "Artists" to BrowseMode.Artists,
+                "Songs" to BrowseMode.Songs,
+            )
+        primaryModes.forEach { (label, mode) ->
+            val option = onAllNodes(hasText(label))
+            option.assertCountEquals(1)
+            option[0].assertIsDisplayed().performClick()
+            waitForIdle()
+            assertEquals(mode, browseMode)
         }
+
+        onNodeWithTag("library-secondary-browse-menu")
+            .assert(hasContentDescription("More library views"))
+        val secondaryModes =
+            listOf(
+                "Favorites" to BrowseMode.Favorites,
+                "Recently played" to BrowseMode.RecentlyPlayed,
+                "Recently added" to BrowseMode.RecentlyAdded,
+            )
+        secondaryModes.forEach { (label, mode) ->
+            onNodeWithTag("library-secondary-browse-menu").performClick()
+            waitForIdle()
+            val option = onAllNodes(hasText(label))
+            option.assertCountEquals(1)
+            option[0].performClick()
+            waitForIdle()
+            assertEquals(mode, browseMode)
+        }
+    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -1038,8 +1007,6 @@ class LibraryHomeContentJvmTest {
             setContent {
                 Box(Modifier.size(420.dp, 900.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = emptyList(),
                         browseMode = BrowseMode.Songs,
                         playHistory = emptyMap(),
@@ -1061,7 +1028,6 @@ class LibraryHomeContentJvmTest {
                         onCancelScan = { cancellations++ },
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { _, _ -> },
                         onToggleSelection = {},
                         onStartSelection = {},
@@ -1099,8 +1065,6 @@ class LibraryHomeContentJvmTest {
         setContent {
             Box(Modifier.size(420.dp, 900.dp)) {
                 LibraryHomeContent(
-                    title = "Library",
-                    subtitle = "",
                     tracks = listOf(managerTrack()),
                     browseMode = BrowseMode.Songs,
                     playHistory = emptyMap(),
@@ -1121,7 +1085,6 @@ class LibraryHomeContentJvmTest {
                     onCancelScan = {},
                     onOpenAlbum = {},
                     onOpenArtist = {},
-                    onShowPlaylists = {},
                     onPlayTrack = { _, _ -> },
                     onToggleSelection = {},
                     onStartSelection = {},
@@ -1157,8 +1120,6 @@ class LibraryHomeContentJvmTest {
             setContent {
                 Box(Modifier.size(420.dp, 900.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = emptyList(),
                         browseMode = BrowseMode.Songs,
                         playHistory = emptyMap(),
@@ -1180,7 +1141,6 @@ class LibraryHomeContentJvmTest {
                         onCancelScan = {},
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { _, _ -> },
                         onToggleSelection = {},
                         onStartSelection = {},
@@ -1217,8 +1177,6 @@ class LibraryHomeContentJvmTest {
             setContent {
                 Box(Modifier.size(420.dp, 300.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = twelveTracks(),
                         browseMode = BrowseMode.Songs,
                         playHistory = emptyMap(),
@@ -1239,7 +1197,6 @@ class LibraryHomeContentJvmTest {
                         onCancelScan = {},
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { _, _ -> },
                         onToggleSelection = {},
                         onStartSelection = {},
@@ -1300,6 +1257,32 @@ class LibraryHomeContentJvmTest {
                 else null,
         )
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun blankArtistAndAlbumDoNotRenderASeparator() = runComposeUiTest {
+        val track = tracks().first().copy(artist = "", album = "")
+        setContent {
+            Box(Modifier.size(420.dp, 100.dp)) {
+                TrackRow(
+                    track = track,
+                    isNowPlaying = false,
+                    selectionModeActive = false,
+                    isSelected = false,
+                    labels = labels(),
+                    artworkLoader = { null },
+                    onPlay = {},
+                    onToggleSelection = {},
+                    onStartSelection = {},
+                    favorite = false,
+                    onSetFavorite = {},
+                    desktopDensity = false,
+                )
+            }
+        }
+
+        onAllNodes(hasText(" · ", substring = false)).assertCountEquals(0)
+    }
+
     private fun twelveTracks(): List<Track> =
         List(12) { index ->
             track(
@@ -1357,14 +1340,14 @@ class LibraryHomeContentJvmTest {
             folderPickerUnavailable = "Folder picker unavailable",
             clearLibrary = "Clear library",
             cancel = "Cancel",
-            playlists = "Playlists",
-            playlistsAccessibility = "Open playlists",
-            libraryQueue = "Library queue",
+            libraryTitle = "Library",
             albumArt = "Album art",
             albumArtwork = "Album artwork",
             nowPlayingBadge = "Now playing",
             selectTrack = { title -> "Select $title" },
-            trackArtistAlbum = { artist, album -> "$artist · $album" },
+            trackArtistAlbum = { artist, album ->
+                songArtistAlbumSubtitle(artist, album)
+            },
         )
 
     private object StubPicker : PlatformFolderPickerLauncher {

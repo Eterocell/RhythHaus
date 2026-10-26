@@ -1,24 +1,31 @@
 package com.eterocell.rhythhaus.search
 
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
@@ -79,6 +86,49 @@ class SearchSelectionPoliciesJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun resultRowsShowArtistAlbumSubtitle() = runComposeUiTest {
+        setContent { content(tracks = listOf(track())) }
+        enterQuery("Song")
+
+        onAllNodes(hasText("Artist · Album")).assertCountEquals(1)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun resultRowsOmitBlankArtistOrAlbumWithoutDanglingSeparators() =
+        runComposeUiTest {
+            setContent {
+                content(
+                    tracks =
+                        listOf(
+                            track(
+                                id = "album-only",
+                                title = "Album only",
+                                artist = "",
+                                album = "Album",
+                            ),
+                            track(
+                                id = "artist-only",
+                                title = "Artist only",
+                                artist = "Artist",
+                                album = "",
+                            ),
+                        ),
+                )
+            }
+            enterQuery("only")
+
+            onAllNodes(hasText("Album", substring = false)).assertCountEquals(1)
+            onAllNodes(hasText("Artist", substring = false))
+                .assertCountEquals(1)
+            onAllNodes(hasText(" · Album", substring = false))
+                .assertCountEquals(0)
+            onAllNodes(hasText("Artist · ", substring = false))
+                .assertCountEquals(0)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun longClickStartsSelectionWithoutPlayback() = runComposeUiTest {
         var starts = 0
         var plays = 0
@@ -101,26 +151,35 @@ class SearchSelectionPoliciesJvmTest {
         runComposeUiTest {
             var toggles = 0
             var plays = 0
+            var starts = 0
             setContent {
                 content(
                     tracks = listOf(track()),
                     selection = true,
                     onPlay = { _, _ -> plays++ },
+                    onStart = { starts++ },
                     onToggle = { toggles++ })
             }
             enterQuery("Song")
             onNode(hasContentDescription("Select Song")).performClick()
             assertEquals(1, toggles)
             assertEquals(0, plays)
+            assertEquals(0, starts)
+            // The shared row also exposes checkbox semantics for selection, so
+            // use the unmerged tree to click the actual checkbox child rather
+            // than the row's own selection semantics.
             onNode(
                     SemanticsMatcher.expectValue(
                         SemanticsProperties.Role, Role.Checkbox) and
                         SemanticsMatcher.expectValue(
                             SemanticsProperties.ToggleableState,
-                            ToggleableState.Off))
+                            ToggleableState.Off) and
+                        hasAnyAncestor(hasContentDescription("Select Song")),
+                    useUnmergedTree = true)
                 .performClick()
             assertEquals(2, toggles)
             assertEquals(0, plays)
+            assertEquals(0, starts)
         }
 
     @OptIn(ExperimentalTestApi::class)
@@ -197,47 +256,88 @@ class SearchSelectionPoliciesJvmTest {
             .assert(
                 SemanticsMatcher.expectValue(
                     SearchRenderedText, "没有匹配“missing”的曲目"))
+        onAllNodes(hasText("Clear")).assertCountEquals(1)[0].performClick()
+        waitForIdle()
+        onNodeWithTag(
+                SearchBlankQueryGuidanceTestTag,
+                useUnmergedTree = true,
+            )
+            .assertIsDisplayed()
+        onNodeWithTag(SearchNoMatchTestTag).assertDoesNotExist()
+        onNodeWithTag(SearchResultCountTestTag).assertDoesNotExist()
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun requestsFocusOnce() = runComposeUiTest {
-        var unrelated by mutableStateOf(0)
-        lateinit var focusManager: FocusManager
-        setContent {
-            focusManager = LocalFocusManager.current
-            unrelated
-            content(tracks = listOf(track()))
+    fun requestsFocusWhenInteractiveAndDoesNotStealItOnReentry() =
+        runComposeUiTest {
+            var interactive by mutableStateOf(false)
+            var unrelated by mutableStateOf(0)
+            val invokerFocusRequester = FocusRequester()
+            setContent {
+                Box(Modifier.fillMaxSize()) {
+                    Box(
+                        Modifier.size(40.dp)
+                            .focusRequester(invokerFocusRequester)
+                            .focusable()
+                            .testTag("search-focus-invoker"),
+                    )
+                    Box(
+                        Modifier.fillMaxSize()
+                            .then(
+                                if (interactive) Modifier
+                                else
+                                    Modifier.focusProperties {
+                                            canFocus = false
+                                        }
+                                        .clearAndSetSemantics {},
+                            ),
+                    ) {
+                        unrelated
+                        content(
+                            tracks = listOf(track()),
+                            interactive = interactive,
+                        )
+                    }
+                }
+            }
+            val editableMatcher =
+                SemanticsMatcher.keyIsDefined(SemanticsActions.SetText)
+            onAllNodes(editableMatcher).assertCountEquals(0)
+
+            runOnIdle { interactive = true }
+            waitForIdle()
+            onNode(editableMatcher).assertIsFocused()
+
+            runOnIdle { invokerFocusRequester.requestFocus() }
+            onNodeWithTag("search-focus-invoker").assertIsFocused()
+            runOnIdle { interactive = false }
+            waitForIdle()
+            runOnIdle {
+                interactive = true
+                unrelated++
+            }
+            waitForIdle()
+            onNodeWithTag("search-focus-invoker").assertIsFocused()
         }
-        val editable =
-            onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.SetText))
-        assertTrue(
-            editable
-                .fetchSemanticsNode()
-                .config
-                .getOrNull(SemanticsProperties.Focused) == true)
-        runOnIdle { focusManager.clearFocus(force = true) }
-        waitForIdle()
-        assertTrue(
-            editable
-                .fetchSemanticsNode()
-                .config
-                .getOrNull(SemanticsProperties.Focused) != true)
-        unrelated++
-        waitForIdle()
-        assertTrue(
-            editable
-                .fetchSemanticsNode()
-                .config
-                .getOrNull(SemanticsProperties.Focused) != true)
-    }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun clearResetsQuery() = runComposeUiTest {
         setContent { content(tracks = listOf(track())) }
+        onNodeWithTag(
+                SearchBlankQueryGuidanceTestTag,
+                useUnmergedTree = true,
+            )
+            .assertIsDisplayed()
         enterQuery("Song")
         onAllNodes(hasText("Clear")).assertCountEquals(1)[0].performClick()
+        waitForIdle()
+        onNodeWithTag(
+                SearchBlankQueryGuidanceTestTag,
+                useUnmergedTree = true,
+            )
+            .assertIsDisplayed()
         onAllNodes(hasText("result", substring = true), useUnmergedTree = true)
             .assertCountEquals(0)
         onAllNodes(hasText("Song")).assertCountEquals(0)
@@ -340,6 +440,7 @@ class SearchSelectionPoliciesJvmTest {
         setContent { content(tracks = listOf(track("empty", "Empty", "", ""))) }
         enterQuery("Empty")
         onNode(hasContentDescription("Select Empty")).fetchSemanticsNode()
+        onAllNodes(hasText(" · ", substring = false)).assertCountEquals(0)
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -412,7 +513,8 @@ class SearchSelectionPoliciesJvmTest {
         onVisible: (List<String>) -> Unit = {},
         onScroll: (Int, Int) -> Unit = { _, _ -> },
         indicator: @Composable () -> Unit = {},
-    ) =
+        interactive: Boolean = true,
+    ) {
         SearchContent(
             libraryTracks = tracks,
             currentTrackId = currentId,
@@ -429,7 +531,9 @@ class SearchSelectionPoliciesJvmTest {
             onDismiss = {},
             playingIndicator = indicator,
             bottomContentPadding = bottomPadding.dp,
+            interactive = interactive,
         )
+    }
 
     private fun track(
         id: String = "track",

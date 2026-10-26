@@ -7,14 +7,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
@@ -35,11 +38,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausShapes
+import com.eterocell.rhythhaus.theme.HausSpacing
+import com.eterocell.rhythhaus.theme.HausTypography
+import com.eterocell.rhythhaus.ui.HausButton as Button
 import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.mikepenz.aboutlibraries.Libs
 import com.mikepenz.aboutlibraries.ui.compose.LibraryDefaults
@@ -62,7 +67,6 @@ import rhythhaus.feature.settings.generated.resources.open_source_libraries_erro
 import rhythhaus.feature.settings.generated.resources.open_source_libraries_loading
 import rhythhaus.feature.settings.generated.resources.open_source_libraries_retry
 import rhythhaus.feature.settings.generated.resources.rhythhaus_logo
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Surface
@@ -158,7 +162,7 @@ internal typealias AboutLibrariesLoadComparisonObserver =
 public fun SettingsAboutScreen(
     onOpenLibraries: () -> Unit,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val policy = CompactSettingsLayoutPolicy
     val uriHandler = LocalUriHandler.current
@@ -169,7 +173,10 @@ public fun SettingsAboutScreen(
             contentWindowInsets = WindowInsets(0.dp)) {
                 Box(
                     Modifier.fillMaxSize()
-                        .safeContentPadding()
+                        .windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(
+                                WindowInsetsSides.Horizontal +
+                                    WindowInsetsSides.Top))
                         .padding(
                             horizontal = policy.horizontalPagePadding,
                             vertical = policy.verticalPagePadding),
@@ -208,7 +215,7 @@ public fun SettingsAboutScreen(
                                                 .semantics {
                                                     role = Role.Button
                                                 },
-                                        cornerRadius = 16.dp,
+                                        cornerRadius = HausShapes.control,
                                         colors =
                                             ButtonDefaults.buttonColors(
                                                 color =
@@ -225,8 +232,9 @@ public fun SettingsAboutScreen(
                                                 stringResource(
                                                     Res.string
                                                         .about_view_source),
-                                                Modifier.padding(start = 10.dp),
-                                                fontWeight = FontWeight.Bold)
+                                                Modifier.padding(
+                                                    start = HausSpacing.md),
+                                                style = HausTypography.title)
                                         }
                                 }
                                 item {
@@ -239,7 +247,7 @@ public fun SettingsAboutScreen(
                                                 .semantics {
                                                     role = Role.Button
                                                 },
-                                        cornerRadius = 16.dp,
+                                        cornerRadius = HausShapes.control,
                                         colors =
                                             ButtonDefaults.buttonColors(
                                                 color = HausColors.current.ink,
@@ -255,8 +263,9 @@ public fun SettingsAboutScreen(
                                                 stringResource(
                                                     Res.string
                                                         .about_open_source_libraries),
-                                                Modifier.padding(start = 10.dp),
-                                                fontWeight = FontWeight.Bold)
+                                                Modifier.padding(
+                                                    start = HausSpacing.md),
+                                                style = HausTypography.title)
                                         }
                                 }
                             }
@@ -268,15 +277,15 @@ public fun SettingsAboutScreen(
 @Composable
 private fun AboutIdentityBlock() {
     Column(
-        Modifier.fillMaxWidth().padding(vertical = 24.dp),
+        Modifier.fillMaxWidth().padding(vertical = HausSpacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        verticalArrangement = Arrangement.spacedBy(HausSpacing.sm)) {
             Box(
                 Modifier.size(88.dp)
                     .background(
                         HausColors.current.panel,
                         androidx.compose.foundation.shape.RoundedCornerShape(
-                            20.dp)),
+                            HausShapes.overlay)),
                 contentAlignment = Alignment.Center) {
                     Image(
                         painterResource(Res.drawable.rhythhaus_logo),
@@ -287,15 +296,13 @@ private fun AboutIdentityBlock() {
             Text(
                 stringResource(Res.string.about_app_name),
                 color = HausColors.current.ink,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black)
+                style = HausTypography.section)
             Text(
                 stringResource(
                     Res.string.about_version_format,
                     RhythHausBuildInfo.versionName),
                 color = HausColors.current.muted,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium)
+                style = HausTypography.label)
         }
 }
 
@@ -310,9 +317,13 @@ private fun AboutIdentityBlock() {
 public fun OpenSourceLibrariesScreen(
     readCatalogJson: suspend () -> String,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    OpenSourceLibrariesContent(readCatalogJson, onDismiss, modifier)
+    OpenSourceLibrariesContent(
+        readCatalogJson = readCatalogJson,
+        onDismiss = onDismiss,
+        modifier = modifier,
+    )
 }
 
 /**
@@ -325,7 +336,7 @@ internal fun OpenSourceLibrariesContent(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     loadLibraries: AboutLibrariesLoader? = null,
-    onLoadCompared: AboutLibrariesLoadComparisonObserver = { _, _ -> }
+    onLoadCompared: AboutLibrariesLoadComparisonObserver = { _, _ -> },
 ) {
     val policy = CompactSettingsLayoutPolicy
     val currentLoader by rememberUpdatedState(readCatalogJson)
@@ -361,7 +372,10 @@ internal fun OpenSourceLibrariesContent(
             contentWindowInsets = WindowInsets(0.dp)) {
                 Box(
                     Modifier.fillMaxSize()
-                        .safeContentPadding()
+                        .windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(
+                                WindowInsetsSides.Horizontal +
+                                    WindowInsetsSides.Top))
                         .padding(
                             horizontal = policy.horizontalPagePadding,
                             vertical = policy.verticalPagePadding),
@@ -391,8 +405,8 @@ internal fun OpenSourceLibrariesContent(
                                                         AboutLoadingTestTag),
                                                 color =
                                                     HausColors.current.muted,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Medium)
+                                                style =
+                                                    HausTypography.secondary)
                                         is AboutLibrariesLoadState.Failed ->
                                             Column(
                                                 Modifier.align(Alignment.Center)
@@ -405,7 +419,7 @@ internal fun OpenSourceLibrariesContent(
                                                         .CenterHorizontally,
                                                 verticalArrangement =
                                                     Arrangement.spacedBy(
-                                                        16.dp)) {
+                                                        HausSpacing.lg)) {
                                                     Text(
                                                         stringResource(
                                                             Res.string
@@ -413,9 +427,9 @@ internal fun OpenSourceLibrariesContent(
                                                         color =
                                                             HausColors.current
                                                                 .muted,
-                                                        fontSize = 14.sp,
-                                                        fontWeight =
-                                                            FontWeight.Medium,
+                                                        style =
+                                                            HausTypography
+                                                                .secondary,
                                                         textAlign =
                                                             TextAlign.Center)
                                                     Button(
@@ -430,7 +444,8 @@ internal fun OpenSourceLibrariesContent(
                                                                     min = 48.dp)
                                                                 .testTag(
                                                                     AboutRetryTestTag),
-                                                        cornerRadius = 16.dp,
+                                                        cornerRadius =
+                                                            HausShapes.control,
                                                         colors =
                                                             ButtonDefaults
                                                                 .buttonColors(
@@ -446,9 +461,9 @@ internal fun OpenSourceLibrariesContent(
                                                                 stringResource(
                                                                     Res.string
                                                                         .open_source_libraries_retry),
-                                                                fontWeight =
-                                                                    FontWeight
-                                                                        .Bold)
+                                                                style =
+                                                                    HausTypography
+                                                                        .title)
                                                         }
                                                 }
                                         is AboutLibrariesLoadState.Loaded ->

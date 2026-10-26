@@ -12,12 +12,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/** Selects the saved-playlist or playback-queue surface. */
-public enum class PlaylistTab {
-    Saved,
-    Queue,
-}
-
 /**
  * Immutable confirmed playlist content; value equality covers playlists and
  * entries.
@@ -69,7 +63,6 @@ public data class PlaylistBrowserState(
  * outcomes.
  */
 public data class PlaylistState(
-    val selectedTab: PlaylistTab = PlaylistTab.Saved,
     val confirmedSnapshot: PlaylistSnapshot = PlaylistSnapshot(),
     val isLoading: Boolean = false,
     val readErrorMessage: String? = null,
@@ -108,8 +101,6 @@ public sealed interface PlaylistStateAction {
         val message: String,
         val revision: Long = 0L,
     ) : PlaylistStateAction
-
-    data class SelectTab(val tab: PlaylistTab) : PlaylistStateAction
 
     data class ShowRecoverableMessage(val message: String) : PlaylistStateAction
 
@@ -169,8 +160,6 @@ public fun reducePlaylistState(
                     publicationRevision = action.revision,
                 )
             }
-
-        is PlaylistStateAction.SelectTab -> state.copy(selectedTab = action.tab)
 
         is PlaylistStateAction.ShowRecoverableMessage ->
             state.copy(recoverableMessage = action.message)

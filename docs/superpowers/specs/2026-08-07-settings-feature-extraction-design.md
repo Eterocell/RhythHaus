@@ -71,6 +71,8 @@ public data class SettingsSourceItem(
     public val accessAvailable: Boolean,
     /** Whether the source has completed at least one scan. */
     public val hasBeenScanned: Boolean,
+    /** Number of currently indexed tracks attributed to this source. */
+    public val trackCount: Int,
 )
 
 /**
@@ -78,7 +80,8 @@ public data class SettingsSourceItem(
  * picker obeys [sourcePickerActionVisible], [sourcePickerAvailable], and [mutationsEnabled]; the
  * clear action is rendered only for [hasImportedTracks], requests Shared dialog state through
  * [onRequestClearLibrary] only when enabled, and renders [clearLibraryDialog] only when supplied.
- * Source callbacks emit IDs only; Shared resolves and guards them at invocation.
+ * Shared uses that slot for clear-library and remove-missing confirmations. Source callbacks emit
+ * IDs only; Shared resolves and guards them at invocation.
  */
 @Composable
 public fun SettingsScreen(
@@ -187,19 +190,24 @@ rejection/cancellation propagation/cause without publication, not arbitrary toke
 ## Resources
 
 The EN and ZH ledgers have identical ownership and parity. Shared retains `settings`,
-`add_music_folder`, `folder_picker_unavailable`, `clear_library`, `clear_library_message`, `clear`,
-`cancel`, `remove`, `close`, `scanning`, `scan_progress_format`, `scan_complete_format`,
+`add_music_folder`, `folder_picker_unavailable`, `clear_library`, `clear_library_message`,
+`clear_library_counts_format`, `remove_missing_confirmation_title`,
+`remove_missing_confirmation_count`, `remove_missing_confirmation_message`, `clear`, `cancel`,
+`remove`, `close`, `scanning`, `scan_progress_format`, `scan_complete_format`,
 `folder_picker_error_access`, `folder_picker_error_select`, `folder_picker_error_prepare`, and
 `folder_picker_no_folder_selected`. Shared owns these scanning/picker-error values because its
 scanning card, App, and platform picker consumers render them; they never cross into Settings.
 `SettingsSharedLabels` carries `settings`, `add_music_folder`, `folder_picker_unavailable`,
-`clear_library`, `cancel`, and `remove`; Shared resolves playlist `close` and clear-dialog strings
-internally. Settings owns exactly once per locale `appearance`,
+`clear_library`, `cancel`, and `remove`; Shared resolves playlist `close` and library-maintenance
+confirmation strings internally. Settings owns exactly once per locale `appearance`,
 `theme_system_label`, `theme_light_label`, `theme_dark_label`, `theme_system_description`,
-`theme_light_description`, `theme_dark_description`, `manage_music`, `configured_folders`,
+`theme_light_description`, `theme_dark_description`, `settings_section_appearance`,
+`settings_section_playback`, `settings_section_sources`, `settings_section_maintenance`,
+`settings_section_information`, `configured_folders`,
 `unnamed_folder`, `source_access_available`, `source_access_lost`, `source_never_scanned`,
 `source_last_scanned`, `source_status_format`, `rescan_source_format`, `remove_source_format`,
-`remove_folder`, `remove_folder_message`, `about`, `about_app_name`, `about_logo_description`,
+`remove_source`, `remove_source_message`, `source_scanned_track_count_format`, `about`,
+`about_app_name`, `about_logo_description`,
 `about_version_format`, `about_view_source`, `about_open_source_libraries`,
 `open_source_libraries_loading`, `open_source_libraries_error`, and `open_source_libraries_retry`,
 plus `rhythhaus_logo` exactly once. No generated resource handle crosses the boundary. Per-locale

@@ -1,10 +1,13 @@
 package com.eterocell.rhythhaus.library.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -16,8 +19,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.QueueOccurrence
@@ -25,9 +30,12 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.SmartPlaylistRule
 import com.eterocell.rhythhaus.library.SmartPlaylistSummary
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausTypography
+import com.eterocell.rhythhaus.ui.HausButton as Button
 import com.eterocell.rhythhaus.ui.HausDialog
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.playlists.generated.resources.*
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 
@@ -42,13 +50,27 @@ private fun SmartChoice(
         stringResource(
             if (selected) Res.string.smart_selected
             else Res.string.smart_not_selected)
-    CompactAction(
-        label,
-        modifier.fillMaxWidth().height(44.dp).semantics {
-            role = Role.RadioButton
-            stateDescription = selection
-        },
-        onClick)
+    Button(
+        onClick = onClick,
+        modifier =
+            modifier.fillMaxWidth().heightIn(min = 48.dp).semantics {
+                role = Role.RadioButton
+                this.selected = selected
+                contentDescription = label
+                stateDescription = selection
+            },
+        colors =
+            ButtonDefaults.buttonColors(
+                color =
+                    if (selected) HausColors.current.pulse
+                    else HausColors.current.panel,
+                contentColor =
+                    if (selected) HausColors.current.onPulse
+                    else HausColors.current.ink,
+            ),
+    ) {
+        Text(label, style = HausTypography.secondary)
+    }
 }
 
 internal data class SmartDraft(
@@ -208,52 +230,60 @@ internal fun SmartRuleDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    HausDialog(
-        title = title,
-        onDismiss = onDismiss,
-        body = {
-            Column(
-                Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(title)
-                    val nameLabel =
-                        stringResource(Res.string.playlist_create_name)
-                    TextField(
-                        value = draft.name,
-                        onValueChange = {
-                            onChange(draft.copy(name = it, failed = false))
-                        },
-                        modifier =
-                            Modifier.fillMaxWidth()
-                                .testTag("smart-playlist-name")
-                                .semantics { contentDescription = nameLabel },
-                        label = nameLabel,
-                        useLabelAsPlaceholder = true,
-                        singleLine = true)
-                    SmartRuleEditor(draft.rule, libraryTracks, snapshot) {
-                        onChange(draft.copy(rule = it, failed = false))
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        HausDialog(
+            title = title,
+            onDismiss = onDismiss,
+            maxPanelWidth = if (maxWidth < 720.dp) Dp.Infinity else 640.dp,
+            maxPanelHeight =
+                if (maxWidth < 720.dp) maxHeight else minOf(maxHeight, 640.dp),
+            body = {
+                Column(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(title)
+                        val nameLabel =
+                            stringResource(Res.string.playlist_create_name)
+                        TextField(
+                            value = draft.name,
+                            onValueChange = {
+                                onChange(draft.copy(name = it, failed = false))
+                            },
+                            modifier =
+                                Modifier.fillMaxWidth()
+                                    .testTag("smart-playlist-name")
+                                    .semantics {
+                                        contentDescription = nameLabel
+                                    },
+                            label = nameLabel,
+                            useLabelAsPlaceholder = true,
+                            singleLine = true)
+                        SmartRuleEditor(draft.rule, libraryTracks, snapshot) {
+                            onChange(draft.copy(rule = it, failed = false))
+                        }
+                        if (draft.failed)
+                            Text(
+                                stringResource(
+                                    Res.string.playlist_modal_mutation_failed),
+                                color = HausColors.current.danger)
                     }
-                    if (draft.failed)
-                        Text(
-                            stringResource(
-                                Res.string.playlist_modal_mutation_failed),
-                            color = HausColors.current.danger)
-                }
-        },
-        actions = {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CompactAction(
-                        stringResource(Res.string.playlist_cancel),
-                        Modifier.weight(1f),
-                        onDismiss)
-                    CompactAction(
-                        stringResource(Res.string.smart_save),
-                        Modifier.weight(1f),
-                        onConfirm)
-                }
-        })
+            },
+            actions = {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CompactAction(
+                            stringResource(Res.string.playlist_cancel),
+                            Modifier.weight(1f),
+                            onClick = onDismiss)
+                        CompactAction(
+                            stringResource(Res.string.smart_save),
+                            Modifier.weight(1f),
+                            enabled = !draft.pending,
+                            onClick = onConfirm)
+                    }
+            })
+    }
 }
 
 /**
@@ -409,11 +439,12 @@ public fun SmartPlaylistDetailScreen(
                     CompactAction(
                         stringResource(Res.string.playlist_cancel),
                         Modifier.weight(1f),
-                        { if (deleting == current) deleting = null })
+                        onClick = { if (deleting == current) deleting = null })
                     CompactAction(
                         stringResource(Res.string.smart_delete),
                         Modifier.weight(1f),
-                        {
+                        enabled = !deletePending,
+                        onClick = {
                             if (deleting == current && !deletePending) {
                                 deletePending = true
                                 onDelete { outcome ->

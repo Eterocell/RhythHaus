@@ -1,6 +1,7 @@
 package com.eterocell.rhythhaus.nowplaying
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -13,11 +14,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -39,15 +40,13 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -61,7 +60,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.eterocell.rhythhaus.LyricLine
 import com.eterocell.rhythhaus.PlaybackController
 import com.eterocell.rhythhaus.PlaybackFailureKind
@@ -76,6 +74,7 @@ import com.eterocell.rhythhaus.parseLyrics
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.BackChip
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.leftEdgeSwipeBack
 import kotlinx.coroutines.launch
@@ -89,6 +88,8 @@ import rhythhaus.feature.nowplaying.generated.resources.lyrics_close
 import rhythhaus.feature.nowplaying.generated.resources.lyrics_current_line
 import rhythhaus.feature.nowplaying.generated.resources.lyrics_title
 import rhythhaus.feature.nowplaying.generated.resources.next_track
+import rhythhaus.feature.nowplaying.generated.resources.panel_queue_action
+import rhythhaus.feature.nowplaying.generated.resources.panel_timer_action
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_access_lost
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_decoder_failure
 import rhythhaus.feature.nowplaying.generated.resources.playback_error_missing_file
@@ -111,6 +112,9 @@ import rhythhaus.feature.nowplaying.generated.resources.repeat_mode_stop_after_c
 import rhythhaus.feature.nowplaying.generated.resources.repeat_mode_stop_after_queue
 import rhythhaus.feature.nowplaying.generated.resources.shuffle_off
 import rhythhaus.feature.nowplaying.generated.resources.shuffle_on
+import rhythhaus.feature.nowplaying.generated.resources.sleep_timer_fade_off
+import rhythhaus.feature.nowplaying.generated.resources.sleep_timer_fade_on
+import rhythhaus.feature.nowplaying.generated.resources.sleep_timer_title
 import rhythhaus.feature.nowplaying.generated.resources.track_number_format
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -139,6 +143,11 @@ internal const val NowPlayingLyricsDialogTestTag = "NowPlayingLyricsDialog"
 internal const val NowPlayingLyricsCloseTestTag = "NowPlayingLyricsClose"
 internal const val NowPlayingLyricsListTestTag = "NowPlayingLyricsList"
 internal const val NowPlayingLyricLineTestTag = "NowPlayingLyricLine"
+internal const val NowPlayingTimerButtonTestTag = "NowPlayingTimerButton"
+internal const val NowPlayingQueueButtonTestTag = "NowPlayingQueueButton"
+internal const val NowPlayingPanelBackTestTag = "NowPlayingPanelBack"
+internal const val NowPlayingTimerPanelTestTag = "NowPlayingTimerPanel"
+internal const val NowPlayingQueuePanelTestTag = "NowPlayingQueuePanel"
 
 /** Immutable shared-resolved labels used by [NowPlayingContent]. */
 public data class NowPlayingScreenLabels(
@@ -189,6 +198,9 @@ public fun NowPlayingContent(
     onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
     onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
     onCancelSleepTimer: () -> Unit,
+    activePanel: NowPlayingPanel,
+    onPanelChange: (NowPlayingPanel) -> Unit,
+    queueContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     favoriteTrackIds: Set<String> = emptySet(),
     onSetTrackFavorite: (String, Boolean) -> Unit = { _, _ -> },
@@ -225,7 +237,19 @@ public fun NowPlayingContent(
             track.lyrics?.let(::parseLyrics).orEmpty()
         }
     val lyricsText = track.lyrics
-    var lyricsVisible by remember(track.id) { mutableStateOf(false) }
+    LaunchedEffect(track.id, activePanel, lyricsText) {
+        if (activePanel == NowPlayingPanel.Lyrics &&
+            lyricsText.isNullOrBlank()) {
+            onPanelChange(NowPlayingPanel.Controls)
+        }
+    }
+    val visiblePanel =
+        if (activePanel == NowPlayingPanel.Lyrics &&
+            lyricsText.isNullOrBlank()) {
+            NowPlayingPanel.Controls
+        } else {
+            activePanel
+        }
     Surface(
         modifier =
             modifier
@@ -233,53 +257,116 @@ public fun NowPlayingContent(
                 .testTag(NowPlayingContentRootTestTag)
                 .leftEdgeSwipeBack(onBack),
         color = HausColors.current.paper) {
-            BoxWithConstraints(Modifier.fillMaxSize()) {
-                when (nowPlayingAdaptiveLayoutModeFor(
-                    maxWidth.value, maxHeight.value)) {
-                    NowPlayingAdaptiveLayoutMode.Compact ->
-                        CompactNowPlayingLayout(
-                            track,
-                            playbackState,
-                            playbackController,
-                            labels,
-                            artworkLoader,
-                            uiState,
-                            brush,
-                            favoriteTrackIds,
-                            guardedOnSetTrackFavorite,
-                            isCurrentTrackAvailableInLibrary,
-                            sleepTimerState,
-                            onArmSleepTimer,
-                            onArmSleepTimerAfterCompletions,
-                            onCancelSleepTimer,
-                            onOpenLyrics = { lyricsVisible = true },
-                        )
-                    NowPlayingAdaptiveLayoutMode.Split ->
-                        WideNowPlayingLayout(
-                            track,
-                            playbackState,
-                            playbackController,
-                            labels,
-                            artworkLoader,
-                            uiState,
-                            brush,
-                            favoriteTrackIds,
-                            guardedOnSetTrackFavorite,
-                            isCurrentTrackAvailableInLibrary,
-                            sleepTimerState,
-                            onArmSleepTimer,
-                            onArmSleepTimerAfterCompletions,
-                            onCancelSleepTimer,
-                            onOpenLyrics = { lyricsVisible = true },
-                        )
-                }
-                if (lyricsVisible && !lyricsText.isNullOrBlank()) {
-                    LyricsDialog(
-                        lines = lyrics,
-                        rawLyrics = lyricsText,
-                        positionMillis = uiState.positionMillis,
-                        onDismiss = { lyricsVisible = false },
+            BoxWithConstraints(
+                Modifier.fillMaxSize()
+                    .focusRestorer()
+                    .focusGroup()
+                    .safeContentPadding(),
+            ) {
+                val layoutMode =
+                    nowPlayingAdaptiveLayoutModeFor(
+                        maxWidth.value, maxHeight.value)
+                val queueSidebarVisible =
+                    visiblePanel == NowPlayingPanel.Queue &&
+                        layoutMode == NowPlayingAdaptiveLayoutMode.Split &&
+                        nowPlayingQueueSidebarFor(maxWidth.value)
+                if ((visiblePanel == NowPlayingPanel.Controls &&
+                    layoutMode == NowPlayingAdaptiveLayoutMode.Split) ||
+                    queueSidebarVisible) {
+                    val queueSidebar: (@Composable () -> Unit)? =
+                        if (queueSidebarVisible) {
+                            {
+                                Box(Modifier.fillMaxSize()) {
+                                    queueContent()
+                                }
+                            }
+                        } else {
+                            null
+                        }
+                    WideNowPlayingLayout(
+                        track,
+                        playbackState,
+                        playbackController,
+                        labels,
+                        artworkLoader,
+                        uiState,
+                        brush,
+                        favoriteTrackIds,
+                        guardedOnSetTrackFavorite,
+                        isCurrentTrackAvailableInLibrary,
+                        sleepTimerState,
+                        onOpenLyrics = {
+                            onPanelChange(NowPlayingPanel.Lyrics)
+                        },
+                        onOpenTimer = {
+                            onPanelChange(NowPlayingPanel.Timer)
+                        },
+                        onOpenQueue = {
+                            onPanelChange(NowPlayingPanel.Queue)
+                        },
+                        queueContent = queueSidebar,
                     )
+                } else {
+                    when (visiblePanel) {
+                        NowPlayingPanel.Controls ->
+                            CompactNowPlayingLayout(
+                                track,
+                                playbackState,
+                                playbackController,
+                                labels,
+                                artworkLoader,
+                                uiState,
+                                brush,
+                                favoriteTrackIds,
+                                guardedOnSetTrackFavorite,
+                                isCurrentTrackAvailableInLibrary,
+                                sleepTimerState,
+                                onOpenLyrics = {
+                                    onPanelChange(NowPlayingPanel.Lyrics)
+                                },
+                                onOpenTimer = {
+                                    onPanelChange(NowPlayingPanel.Timer)
+                                },
+                                onOpenQueue = {
+                                    onPanelChange(NowPlayingPanel.Queue)
+                                },
+                            )
+                        NowPlayingPanel.Lyrics ->
+                            LyricsPanel(
+                                lines = lyrics,
+                                rawLyrics = checkNotNull(lyricsText),
+                                positionMillis = uiState.positionMillis,
+                                onDismiss = {
+                                    onPanelChange(NowPlayingPanel.Controls)
+                                },
+                            )
+                        NowPlayingPanel.Timer ->
+                            PlayerSubpanel(
+                                title =
+                                    stringResource(
+                                        Res.string.sleep_timer_title),
+                                onBack = {
+                                    onPanelChange(NowPlayingPanel.Controls)
+                                },
+                                modifier =
+                                    Modifier.testTag(
+                                        NowPlayingTimerPanelTestTag),
+                            ) {
+                                SleepTimerPanel(
+                                    sleepTimerState = sleepTimerState,
+                                    onArmSleepTimer = onArmSleepTimer,
+                                    onArmSleepTimerAfterCompletions =
+                                        onArmSleepTimerAfterCompletions,
+                                    onCancelSleepTimer = onCancelSleepTimer,
+                                )
+                            }
+                        NowPlayingPanel.Queue ->
+                            Box(
+                                Modifier.fillMaxSize()
+                                    .testTag(NowPlayingQueuePanelTestTag)) {
+                                    queueContent()
+                                }
+                    }
                 }
             }
         }
@@ -331,11 +418,16 @@ private fun NowPlayingControlsPane(
     onSetTrackFavorite: (String, Boolean) -> Unit,
     isCurrentTrackAvailableInLibrary: Boolean,
     sleepTimerState: SleepTimerState,
-    onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
-    onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
-    onCancelSleepTimer: () -> Unit,
     onOpenLyrics: () -> Unit,
+    onOpenTimer: () -> Unit,
+    onOpenQueue: () -> Unit,
 ) {
+    val timerSummary =
+        sleepTimerActiveSummary(
+            sleepTimerState,
+            stringResource(Res.string.sleep_timer_fade_on),
+            stringResource(Res.string.sleep_timer_fade_off),
+        )
     Column(modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -362,25 +454,41 @@ private fun NowPlayingControlsPane(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium)
             }
-            val lyricsActionLabel = stringResource(Res.string.lyrics_action)
-            if (!track.lyrics.isNullOrBlank()) {
-                Box(
-                    Modifier.height(44.dp)
-                        .testTag(NowPlayingLyricsButtonTestTag)
-                        .semantics {
-                            contentDescription = lyricsActionLabel
-                        }
-                        .hausClickable(onOpenLyrics)
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    Text(
-                        lyricsActionLabel,
-                        color = HausColors.current.pulse,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!track.lyrics.isNullOrBlank()) {
+                    PanelActionButton(
+                        label = stringResource(Res.string.lyrics_action),
+                        onClick = onOpenLyrics,
+                        modifier =
+                            Modifier.testTag(NowPlayingLyricsButtonTestTag),
                     )
                 }
+                PanelActionButton(
+                    label = stringResource(Res.string.panel_timer_action),
+                    onClick = onOpenTimer,
+                    modifier =
+                        Modifier.testTag(NowPlayingTimerButtonTestTag)
+                            .semantics {
+                                timerSummary?.let { stateDescription = it }
+                            },
+                )
+                PanelActionButton(
+                    label = stringResource(Res.string.panel_queue_action),
+                    onClick = onOpenQueue,
+                    modifier = Modifier.testTag(NowPlayingQueueButtonTestTag),
+                )
+            }
+            timerSummary?.let { summary ->
+                Text(
+                    summary,
+                    color = HausColors.current.muted,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
             }
             if (isCurrentTrackAvailableInLibrary) {
                 val checked = track.id in favoriteTrackIds
@@ -534,6 +642,8 @@ private fun NowPlayingControlsPane(
                     playbackController::togglePlayPause,
                     HausColors.current.onPulse,
                     34.dp,
+                    focusColor = HausColors.current.onPulse,
+                    outerColor = HausColors.current.outline,
                     testTag = NowPlayingPlayPauseTestTag)
                 TransportButton(
                     48.dp,
@@ -544,13 +654,6 @@ private fun NowPlayingControlsPane(
                     playbackController::skipToNext,
                     testTag = NowPlayingNextTestTag)
             }
-        Spacer(Modifier.height(16.dp))
-        SleepTimerPanel(
-            sleepTimerState = sleepTimerState,
-            onArmSleepTimer = onArmSleepTimer,
-            onArmSleepTimerAfterCompletions = onArmSleepTimerAfterCompletions,
-            onCancelSleepTimer = onCancelSleepTimer,
-        )
     }
 }
 
@@ -564,6 +667,8 @@ private fun TransportButton(
     onClick: () -> Unit,
     tint: Color = HausColors.current.ink,
     iconSize: androidx.compose.ui.unit.Dp = 26.dp,
+    focusColor: Color = HausColors.current.outline,
+    outerColor: Color? = null,
     testTag: String? = null,
 ) {
     Box(
@@ -571,7 +676,11 @@ private fun TransportButton(
             .clip(shape)
             .background(color)
             .then(testTag?.let(Modifier::testTag) ?: Modifier)
-            .hausClickable(onClick),
+            .hausClickable(
+                onClick = onClick,
+                focusColor = focusColor,
+                outerColor = outerColor,
+            ),
         contentAlignment = Alignment.Center) {
             Icon(
                 icon,
@@ -606,12 +715,24 @@ private fun RecoveryActionButton(
             primary -> HausColors.current.paper
             else -> HausColors.current.ink
         }
+    val focusColor =
+        when {
+            destructive -> HausColors.current.danger
+            primary -> HausColors.current.paper
+            else -> HausColors.current.outline
+        }
+    val outerColor =
+        if (destructive || primary) HausColors.current.outline else null
     Box(
         modifier
             .height(44.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(background)
-            .hausClickable(onClick)
+            .hausClickable(
+                onClick = onClick,
+                focusColor = focusColor,
+                outerColor = outerColor,
+            )
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center) {
             Text(
@@ -653,14 +774,12 @@ private fun CompactNowPlayingLayout(
     onSetTrackFavorite: (String, Boolean) -> Unit,
     isCurrentTrackAvailableInLibrary: Boolean,
     sleepTimerState: SleepTimerState,
-    onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
-    onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
-    onCancelSleepTimer: () -> Unit,
     onOpenLyrics: () -> Unit,
+    onOpenTimer: () -> Unit,
+    onOpenQueue: () -> Unit,
 ) {
     Column(
         Modifier.testTag(NowPlayingCompactLayoutTestTag)
-            .safeContentPadding()
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)) {
@@ -691,10 +810,9 @@ private fun CompactNowPlayingLayout(
                 onSetTrackFavorite,
                 isCurrentTrackAvailableInLibrary,
                 sleepTimerState,
-                onArmSleepTimer,
-                onArmSleepTimerAfterCompletions,
-                onCancelSleepTimer,
                 onOpenLyrics,
+                onOpenTimer,
+                onOpenQueue,
             )
         }
 }
@@ -712,20 +830,19 @@ private fun WideNowPlayingLayout(
     onSetTrackFavorite: (String, Boolean) -> Unit,
     isCurrentTrackAvailableInLibrary: Boolean,
     sleepTimerState: SleepTimerState,
-    onArmSleepTimer: (minutes: Int, fadeEnabled: Boolean) -> Unit,
-    onArmSleepTimerAfterCompletions: (count: Int, fadeEnabled: Boolean) -> Unit,
-    onCancelSleepTimer: () -> Unit,
     onOpenLyrics: () -> Unit,
+    onOpenTimer: () -> Unit,
+    onOpenQueue: () -> Unit,
+    queueContent: (@Composable () -> Unit)? = null,
 ) {
     Row(
         Modifier.testTag(NowPlayingSplitLayoutTestTag)
-            .safeContentPadding()
             .fillMaxSize()
-            .padding(horizontal = 32.dp, vertical = 28.dp),
-        horizontalArrangement = Arrangement.spacedBy(32.dp),
+            .padding(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.fillMaxHeight().weight(0.48f),
+                Modifier.fillMaxHeight().weight(1f).widthIn(min = 320.dp),
                 contentAlignment = Alignment.Center) {
                     NowPlayingArtworkPane(
                         track,
@@ -735,7 +852,7 @@ private fun WideNowPlayingLayout(
                         Modifier.fillMaxWidth().aspectRatio(1f))
                 }
             Box(
-                Modifier.fillMaxHeight().weight(0.52f),
+                Modifier.fillMaxHeight().weight(1f).widthIn(min = 320.dp),
                 contentAlignment = Alignment.Center) {
                     // The timer setup panel may exceed a 600×400 dp split
                     // viewport even without an error recovery section.
@@ -753,17 +870,24 @@ private fun WideNowPlayingLayout(
                         onSetTrackFavorite,
                         isCurrentTrackAvailableInLibrary,
                         sleepTimerState,
-                        onArmSleepTimer,
-                        onArmSleepTimerAfterCompletions,
-                        onCancelSleepTimer,
                         onOpenLyrics,
+                        onOpenTimer,
+                        onOpenQueue,
                     )
                 }
+            queueContent?.let { content ->
+                Box(
+                    Modifier.width(280.dp)
+                        .fillMaxHeight()
+                        .testTag(NowPlayingQueuePanelTestTag)) {
+                        content()
+                    }
+            }
         }
 }
 
 @Composable
-private fun LyricsDialog(
+private fun LyricsPanel(
     lines: List<LyricLine>,
     rawLyrics: String,
     positionMillis: Long,
@@ -778,85 +902,127 @@ private fun LyricsDialog(
     LaunchedEffect(activeIndex) {
         if (activeIndex >= 0) listState.animateScrollToItem(activeIndex)
     }
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier =
-                Modifier.fillMaxWidth()
-                    .heightIn(max = 600.dp)
-                    .testTag(NowPlayingLyricsDialogTestTag),
-            cornerRadius = 24.dp,
-            colors =
-                CardDefaults.defaultColors(color = HausColors.current.panel),
+    Card(
+        modifier =
+            Modifier.fillMaxSize()
+                .padding(20.dp)
+                .testTag(NowPlayingLyricsDialogTestTag),
+        cornerRadius = 24.dp,
+        colors = CardDefaults.defaultColors(color = HausColors.current.panel),
+    ) {
+        Column(
+            Modifier.fillMaxSize().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(
-                Modifier.fillMaxWidth().padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val closeLabel = stringResource(Res.string.lyrics_close)
-                    Text(
-                        stringResource(Res.string.lyrics_title),
-                        color = HausColors.current.ink,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black,
-                    )
-                    Box(
-                        Modifier.height(44.dp)
-                            .testTag(NowPlayingLyricsCloseTestTag)
+                val closeLabel = stringResource(Res.string.lyrics_close)
+                Text(
+                    stringResource(Res.string.lyrics_title),
+                    color = HausColors.current.ink,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                )
+                BackChip(
+                    onClick = onDismiss,
+                    modifier =
+                        Modifier.testTag(NowPlayingLyricsCloseTestTag)
                             .semantics {
                                 contentDescription = closeLabel
-                            }
-                            .hausClickable(onDismiss)
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            stringResource(Res.string.lyrics_close),
-                            color = HausColors.current.pulse,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
-                LazyColumn(
-                    modifier =
-                        Modifier.fillMaxWidth()
-                            .heightIn(max = 500.dp)
-                            .testTag(NowPlayingLyricsListTestTag),
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    itemsIndexed(visibleLines) { index, line ->
-                        val active = index == activeIndex
-                        val activeLineLabel =
-                            stringResource(Res.string.lyrics_current_line)
-                        Text(
-                            line.text,
-                            modifier =
-                                Modifier.fillMaxWidth()
-                                    .testTag(
-                                        "$NowPlayingLyricLineTestTag-$index")
-                                    .semantics {
-                                        if (active) {
-                                            stateDescription = activeLineLabel
-                                        }
-                                    },
-                            color =
-                                if (active) HausColors.current.pulse
-                                else HausColors.current.ink,
-                            fontSize = if (active) 18.sp else 16.sp,
-                            fontWeight =
-                                if (active) FontWeight.Bold
-                                else FontWeight.Medium,
-                        )
-                    }
+                            },
+                )
+            }
+            LazyColumn(
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .weight(1f)
+                        .testTag(NowPlayingLyricsListTestTag),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                itemsIndexed(visibleLines) { index, line ->
+                    val active = index == activeIndex
+                    val activeLineLabel =
+                        stringResource(Res.string.lyrics_current_line)
+                    Text(
+                        line.text,
+                        modifier =
+                            Modifier.fillMaxWidth()
+                                .testTag("$NowPlayingLyricLineTestTag-$index")
+                                .semantics {
+                                    if (active) {
+                                        stateDescription = activeLineLabel
+                                    }
+                                },
+                        color =
+                            if (active) HausColors.current.pulse
+                            else HausColors.current.ink,
+                        fontSize = if (active) 18.sp else 16.sp,
+                        fontWeight =
+                            if (active) FontWeight.Bold else FontWeight.Medium,
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PlayerSubpanel(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier.fillMaxSize().padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            BackChip(
+                onClick = onBack,
+                modifier = Modifier.testTag(NowPlayingPanelBackTestTag),
+            )
+            Text(
+                title,
+                color = HausColors.current.ink,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black,
+            )
+        }
+        Box(Modifier.fillMaxWidth().weight(1f)) { content() }
+    }
+}
+
+@Composable
+private fun PanelActionButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(HausColors.current.panel)
+            .hausClickable(onClick)
+            .semantics { contentDescription = label }
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = HausColors.current.pulse,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -882,7 +1048,13 @@ private fun PlaybackModeButton(
             .background(
                 if (selected) HausColors.current.pulse
                 else HausColors.current.panel)
-            .hausClickable(onClick)
+            .hausClickable(
+                onClick = onClick,
+                focusColor =
+                    if (selected) HausColors.current.onPulse
+                    else HausColors.current.outline,
+                outerColor = if (selected) HausColors.current.outline else null,
+            )
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
         content = content)

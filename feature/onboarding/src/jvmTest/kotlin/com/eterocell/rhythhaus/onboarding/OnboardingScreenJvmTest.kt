@@ -1,10 +1,12 @@
 package com.eterocell.rhythhaus.onboarding
 
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -20,11 +22,14 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class OnboardingScreenJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -369,4 +374,54 @@ class OnboardingScreenJvmTest {
         onNodeWithTag(OnboardingFinishTestTag).assertIsDisplayed()
         onNodeWithTag(OnboardingSkipTestTag).assertIsDisplayed()
     }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun completionActionsStayWithinCompactViewportAt200PercentText() =
+        runComposeUiTest {
+            var finishes = 0
+            var skips = 0
+            setContent {
+                CompositionLocalProvider(
+                    LocalDensity provides Density(1f, 2f),
+                ) {
+                    OnboardingScreen(
+                        3,
+                        OnboardingPlatformGuidance.Android,
+                        false,
+                        null,
+                        false,
+                        {},
+                        {},
+                        { skips++ },
+                        { finishes++ },
+                        {},
+                        Modifier.size(360.dp, 640.dp),
+                    )
+                }
+            }
+
+            val rootBounds =
+                onNodeWithTag(OnboardingRootTestTag)
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+            listOf(OnboardingFinishTestTag, OnboardingSkipTestTag).forEach { tag
+                ->
+                val action = onNodeWithTag(tag)
+                action.performScrollTo().assertIsDisplayed()
+                val actionBounds = action.fetchSemanticsNode().boundsInRoot
+                assertTrue(
+                    actionBounds.left >= rootBounds.left &&
+                        actionBounds.right <= rootBounds.right,
+                    "$tag must remain within the compact onboarding viewport",
+                )
+            }
+
+            onNodeWithTag(OnboardingFinishTestTag).performClick()
+            onNodeWithTag(OnboardingSkipTestTag)
+                .performScrollTo()
+                .performClick()
+            assertEquals(1, finishes)
+            assertEquals(1, skips)
+        }
 }

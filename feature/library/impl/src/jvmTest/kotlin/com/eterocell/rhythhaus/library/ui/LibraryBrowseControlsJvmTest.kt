@@ -11,10 +11,12 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -70,6 +72,8 @@ class LibraryBrowseControlsJvmTest {
             }
         }
         waitForIdle()
+        onNodeWithTag("browse-controls-sort").performClick()
+        waitForIdle()
 
         listOf(
                 "Title",
@@ -83,6 +87,10 @@ class LibraryBrowseControlsJvmTest {
             .forEach { label ->
                 onNode(hasText(label, substring = false)).assertIsDisplayed()
             }
+        onNode(hasText("Artist", substring = false)).performClick()
+        waitForIdle()
+        onNodeWithTag("browse-controls-direction").performClick()
+        waitForIdle()
         onNode(
                 hasText("Ascending", substring = false) and
                     SemanticsMatcher.expectValue(
@@ -99,8 +107,6 @@ class LibraryBrowseControlsJvmTest {
                     ),
             )
             .assertIsDisplayed()
-
-        onNode(hasText("Artist", substring = false)).performClick()
         onNode(hasText("Descending", substring = false)).performClick()
         waitForIdle()
         assertEquals(listOf(LibrarySort.Artist), sortChanges)
@@ -137,23 +143,39 @@ class LibraryBrowseControlsJvmTest {
             waitForIdle()
             val title = hasText("Title", substring = false)
             val ascending = hasText("Ascending", substring = false)
+            onNodeWithTag("browse-controls-sort").performClick()
+            waitForIdle()
             onNode(
                     title and
                         SemanticsMatcher.expectValue(
                             SemanticsProperties.Selected, false))
                 .assertIsDisplayed()
+            onNodeWithTag("browse-controls-sort").performClick()
+            waitForIdle()
+            onNodeWithTag("browse-controls-direction").performClick()
+            waitForIdle()
             onNode(
                     ascending and
                         SemanticsMatcher.expectValue(
                             SemanticsProperties.Selected, false))
                 .assertIsDisplayed()
+            onNodeWithTag("browse-controls-direction").performClick()
+            waitForIdle()
+            onNodeWithTag("browse-controls-sort").performClick()
+            waitForIdle()
             onNode(title).performClick()
+            waitForIdle()
+            onNodeWithTag("browse-controls-sort").performClick()
             waitForIdle()
             onNode(
                     title and
                         SemanticsMatcher.expectValue(
                             SemanticsProperties.Selected, true))
                 .assertIsDisplayed()
+            onNodeWithTag("browse-controls-sort").performClick()
+            waitForIdle()
+            onNodeWithTag("browse-controls-direction").performClick()
+            waitForIdle()
             onNode(
                     ascending and
                         SemanticsMatcher.expectValue(
@@ -193,6 +215,8 @@ class LibraryBrowseControlsJvmTest {
                 )
             }
         }
+        waitForIdle()
+        onNodeWithTag("browse-controls-filters").performClick()
         waitForIdle()
 
         val favoriteOff =
@@ -278,6 +302,8 @@ class LibraryBrowseControlsJvmTest {
                 }
             }
             waitForIdle()
+            onNodeWithTag("browse-controls-source").performClick()
+            waitForIdle()
 
             onNode(
                     hasText("Listening room", substring = false) and
@@ -290,6 +316,9 @@ class LibraryBrowseControlsJvmTest {
             onAllNodes(hasText("source-a", substring = false))
                 .assertCountEquals(0)
             onNode(hasText("Archive", substring = false)).performClick()
+            waitForIdle()
+            onNodeWithTag("browse-controls-source").performClick()
+            waitForIdle()
             onNode(hasText("All sources", substring = false)).performClick()
             waitForIdle()
             assertEquals(listOf("source-b", null), sourceChanges)
@@ -314,6 +343,23 @@ class LibraryBrowseControlsJvmTest {
                     )
                 }
             }
+            waitForIdle()
+            onNode(
+                    hasContentDescription(
+                        "Source: Unavailable source",
+                        substring = false,
+                    ),
+                )
+                .assertIsDisplayed()
+            onNode(hasText("Unavailable source", substring = true))
+                .assertIsDisplayed()
+            onAllNodes(
+                    hasContentDescription(
+                        "Source: All sources", substring = false))
+                .assertCountEquals(0)
+            onAllNodes(hasText("All sources", substring = false))
+                .assertCountEquals(0)
+            onNodeWithTag("browse-controls-source").performClick()
             waitForIdle()
             onNode(hasText("All sources", substring = false)).performClick()
             waitForIdle()
@@ -344,6 +390,23 @@ class LibraryBrowseControlsJvmTest {
             }
         }
         waitForIdle()
+        listOf(
+                "browse-controls-sort",
+                "browse-controls-direction",
+                "browse-controls-filters",
+                "browse-controls-source",
+            )
+            .forEach { tag ->
+                val control = onNodeWithTag(tag).fetchSemanticsNode()
+                val minimumHeight =
+                    48.dp.value * control.layoutInfo.density.density
+                assertTrue(
+                    control.boundsInRoot.height >= minimumHeight,
+                    "$tag target must be at least 48dp tall",
+                )
+            }
+        onNodeWithTag("browse-controls-filters").performClick()
+        waitForIdle()
 
         val favoriteControl =
             onNode(hasContentDescription("Favorites only")).fetchSemanticsNode()
@@ -353,8 +416,55 @@ class LibraryBrowseControlsJvmTest {
             favoriteControl.boundsInRoot.height >= minimumHeight,
             "favorites-only target must be at least 48dp tall",
         )
+        onNodeWithTag("browse-controls-filters").performClick()
+        waitForIdle()
+        onNodeWithTag("browse-controls-source").performClick()
+        waitForIdle()
         onNode(hasText("Long-form listening archive", substring = false))
             .assertIsDisplayed()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun compactSecondaryChooserAnnouncesItsActiveMode() = runComposeUiTest {
+        var browseMode by mutableStateOf(BrowseMode.Favorites)
+        setContent {
+            Box(Modifier.size(420.dp, 80.dp)) {
+                BrowseModePicker(
+                    browseMode = browseMode,
+                    compact = true,
+                    onModeChange = {},
+                )
+            }
+        }
+        listOf(
+                BrowseMode.Favorites to "Favorites",
+                BrowseMode.RecentlyPlayed to "Recently played",
+                BrowseMode.RecentlyAdded to "Recently added",
+            )
+            .forEach { (mode, activeModeLabel) ->
+                browseMode = mode
+                waitForIdle()
+                onNodeWithTag("library-secondary-browse-menu")
+                    .assert(
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.ContentDescription,
+                            listOf("More library views"),
+                        ),
+                    )
+                    .assert(
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.Selected,
+                            true,
+                        ),
+                    )
+                    .assert(
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.StateDescription,
+                            activeModeLabel,
+                        ),
+                    )
+            }
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -364,8 +474,6 @@ class LibraryBrowseControlsJvmTest {
             setContent {
                 Box(Modifier.size(420.dp, 900.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = listOf(testTrack()),
                         browseMode = browseMode,
                         playHistory = emptyMap(),
@@ -386,7 +494,6 @@ class LibraryBrowseControlsJvmTest {
                         onCancelScan = {},
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { _, _ -> },
                         onToggleSelection = {},
                         onStartSelection = {},
@@ -438,8 +545,6 @@ class LibraryBrowseControlsJvmTest {
             setContent {
                 Box(Modifier.size(420.dp, 900.dp)) {
                     LibraryHomeContent(
-                        title = "Library",
-                        subtitle = "",
                         tracks = listOf(testTrack()),
                         browseMode = BrowseMode.Songs,
                         playHistory = emptyMap(),
@@ -460,7 +565,6 @@ class LibraryBrowseControlsJvmTest {
                         onCancelScan = {},
                         onOpenAlbum = {},
                         onOpenArtist = {},
-                        onShowPlaylists = {},
                         onPlayTrack = { _, _ -> },
                         onToggleSelection = {},
                         onStartSelection = {},
@@ -495,10 +599,74 @@ class LibraryBrowseControlsJvmTest {
                         "No tracks match the current filters.",
                         substring = false))
                 .assertExists()
+            onNodeWithTag("browse-filter-clear-all").assertIsDisplayed()
             onAllNodes(hasText("Add music folder", substring = false))
                 .assertCountEquals(0)
             onAllNodes(hasText("Clear library", substring = false))
                 .assertCountEquals(0)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun activeFiltersCanBeRemovedIndividuallyOrClearedWithoutChangingSort() =
+        runComposeUiTest {
+            val original =
+                LibraryBrowseQuery(
+                    favoriteOnly = true,
+                    artworkOnly = true,
+                    sourceId = "source-a",
+                )
+            var query by mutableStateOf(original)
+            setContent {
+                Box(Modifier.size(600.dp, 900.dp)) {
+                    LibraryBrowseControls(
+                        query = query,
+                        browseMode = BrowseMode.Songs,
+                        sourceOptions =
+                            listOf(
+                                LibraryBrowseSourceOption(
+                                    "source-a", "Listening room")),
+                        onSortChange = { query = query.copy(sort = it) },
+                        onSortDirectionChange = {
+                            query = query.copy(direction = it)
+                        },
+                        onFavoriteOnlyChange = {
+                            query = query.copy(favoriteOnly = it)
+                        },
+                        onArtworkOnlyChange = {
+                            query = query.copy(artworkOnly = it)
+                        },
+                        onSourceIdChange = {
+                            query = query.copy(sourceId = it)
+                        },
+                    )
+                }
+            }
+            waitForIdle()
+
+            onNodeWithTag("browse-filter-remove-favorite").performClick()
+            waitForIdle()
+            assertEquals(false, query.favoriteOnly)
+            assertEquals(true, query.artworkOnly)
+            assertEquals("source-a", query.sourceId)
+
+            onNodeWithTag("browse-filter-remove-artwork").performClick()
+            waitForIdle()
+            assertEquals(false, query.artworkOnly)
+            assertEquals("source-a", query.sourceId)
+
+            onNodeWithTag("browse-filter-remove-source").performClick()
+            waitForIdle()
+            assertEquals(null, query.sourceId)
+
+            query = original
+            waitForIdle()
+            onNodeWithTag("browse-filter-clear-all").performClick()
+            waitForIdle()
+            assertEquals(
+                original.copy(
+                    favoriteOnly = false, artworkOnly = false, sourceId = null),
+                query)
         }
 
     @Test
@@ -582,9 +750,7 @@ class LibraryBrowseControlsJvmTest {
             folderPickerUnavailable = "Folder picker unavailable",
             clearLibrary = "Clear library",
             cancel = "Cancel",
-            playlists = "Playlists",
-            playlistsAccessibility = "Open playlists",
-            libraryQueue = "Library queue",
+            libraryTitle = "Library",
             albumArt = "Album art",
             albumArtwork = "Album artwork",
             nowPlayingBadge = "Now playing",

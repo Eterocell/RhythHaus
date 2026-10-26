@@ -28,11 +28,15 @@ Normal text SHALL meet 4.5:1 contrast and large text, essential icons, focus ind
 - **THEN** the impact and destructive action MUST be explicit, visually separate from a primary music action, and accessible without relying on red alone
 
 ### Requirement: Truthful states and local resources
-The application SHALL use feature-owned EN/ZH labels, existing real metadata and neutral artwork fallbacks. It MUST NOT show prototype illustrations, counts, lyrics, output devices or shortcut hints as working production capabilities. Busy, disabled and failed operations MUST expose their true current action availability.
+The application SHALL use feature-owned EN/ZH labels, existing real metadata and neutral artwork fallbacks. Song-row subtitles MUST omit blank artist/album values and their separators instead of rendering literal `null` or dangling punctuation. It MUST NOT show prototype illustrations, counts, lyrics, output devices or shortcut hints as working production capabilities. Busy, disabled and failed operations MUST expose their true current action availability.
 
 #### Scenario: Artwork or operation unavailable
 - **WHEN** artwork is absent or an operation is unavailable, saving or failed
 - **THEN** the surface MUST retain a readable identity and accurate state without fabricated content, fake progress or an active-looking unavailable action
+
+#### Scenario: Present partial track metadata
+- **WHEN** a track has only one nonblank artist/album field, or neither field
+- **THEN** its row subtitle MUST contain only the available metadata without a `null` placeholder or dangling separator
 
 ### Requirement: Accessible interaction layers
 Keyboard focus and reading order SHALL follow task order. Inactive, obscured and exiting layers MUST remove pointer, gesture, click and accessibility actions, not merely reduce alpha. Closing a temporary layer MUST restore focus to its surviving invoking control. Large motion MUST be suppressed when reduced motion is enabled, without altering Back settlement.

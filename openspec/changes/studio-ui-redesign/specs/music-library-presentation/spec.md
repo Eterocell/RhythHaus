@@ -27,6 +27,13 @@ Each view SHALL retain its existing applicable sort keys/directions and favorite
 - **WHEN** active criteria exclude every track while the library contains music
 - **THEN** the page MUST explain the active filters and offer clearing them, not recommend importing or claim files are missing
 
+### Requirement: Unavailable source filter state
+A selected source whose ID no longer resolves to an available source MUST remain visibly active as unavailable and individually clearable. It MUST NOT be labelled “All sources” while still filtering.
+
+#### Scenario: A selected source becomes unavailable
+- **WHEN** the selected source ID is no longer present in the available source options
+- **THEN** the active source filter MUST be identified as unavailable and remain clearable; it MUST NOT appear as “All sources” while still excluding tracks
+
 ### Requirement: Consistent rows and page-scoped actions
 Home, detail and Search SHALL share song-row visual hierarchy without sharing domain ownership. Primary activation MUST play the exact visible ordered sequence; selection activation MUST toggle once without playback. Existing eligible pages MUST retain non-gesture selection, favorites and now-playing indications. Metadata editing MUST remain reachable through a named secondary menu; editing MUST retain scan-original versus app-local override, draft restore, cancellation and validation semantics.
 

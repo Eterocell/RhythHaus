@@ -47,8 +47,6 @@ public fun Modifier.recordRhythHausBackdrop(
 /** Alpha applied to the public glass fallback surface. */
 public const val RhythHausGlassSurfaceAlpha: Float = 0.72f
 internal val RhythHausGlassBlurRadius = 10.dp
-internal val RhythHausGlassRefractionHeight = 16.dp
-internal val RhythHausGlassRefractionAmount = 24.dp
 
 /** Selects the blur treatment used by a RhythHaus glass surface. */
 public enum class RhythHausGlassBlurStyle {
@@ -96,8 +94,6 @@ public fun Modifier.rhythHausLiquidGlass(
     shape: Shape,
     fallbackColor: Color,
     blurRadius: Dp = RhythHausGlassBlurRadius,
-    refractionHeight: Dp = RhythHausGlassRefractionHeight,
-    refractionAmount: Dp = RhythHausGlassRefractionAmount,
     blurStyle: RhythHausGlassBlurStyle = RhythHausGlassBlurStyle.Uniform,
 ): Modifier =
     if (backdrop != null && isRuntimeShaderSupported()) {

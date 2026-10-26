@@ -1,14 +1,24 @@
 <resources>
     <string name="library">Library</string>
     <string name="library_queue">Library queue</string>
+    <string name="next_track">Next track</string>
+    <string name="queue">Queue</string>
+
     <string name="carplay_songs">Songs</string>
     <string name="carplay_albums">Albums</string>
     <string name="carplay_artists">Artists</string>
 
     <string name="search">Search</string>
     <string name="settings">Settings</string>
+    <string name="sidebar_favorites">Favorites</string>
+    <string name="sidebar_recently_played">Recently played</string>
+    <string name="sidebar_recently_added">Recently added</string>
     <string name="clear_library">Clear Library</string>
-    <string name="clear_library_message">This will remove all scanned tracks. Your music files are not deleted. Continue?</string>
+    <string name="clear_library_message">This removes all configured sources and scanned tracks. Your music files are not deleted. Add sources again to scan available files.</string>
+    <string name="clear_library_counts_format">Sources to remove: %1$d · Tracks to remove: %2$d</string>
+    <string name="remove_missing_confirmation_title">Remove missing tracks?</string>
+    <string name="remove_missing_confirmation_count">Missing tracks: %1$d</string>
+    <string name="remove_missing_confirmation_message">This removes only the missing track records from your library. It does not delete music files. Records can return only if the files become available in this source and are scanned again.</string>
     <string name="cancel">Cancel</string>
     <string name="clear">Clear</string>
     <string name="add_music_folder">Add music folder</string>
@@ -26,7 +36,7 @@
     <string name="selection_select_all">Select all</string>
     <string name="selection_add_to_playlist">Add selected tracks to playlist</string>
     <string name="track_artist_album_format">%1$s · %2$s</string>
-    <string name="adaptive_detail_placeholder">Select an album or artist to show details here.</string>
+
     <string name="scan_complete_format">Scan complete: %1$d new, %2$d updated</string>
     <string name="remove">Remove</string>
     <string name="playlists">Playlists</string>

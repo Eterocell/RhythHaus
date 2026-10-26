@@ -9,7 +9,6 @@ import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.PlaylistSummary
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -76,11 +75,4 @@ class PlaylistScreensTest {
             assertEquals(refreshed, feedback.refreshedState)
             assertTrue(feedback.showQueueChanged)
         }
-
-    @Test
-    fun clearUpcomingDispatchesOnlyAfterExplicitConfirmation() {
-        val pending = queueClearConfirmationPresentation()
-        assertFalse(pending.shouldDispatchClear)
-        assertTrue(pending.confirm().shouldDispatchClear)
-    }
 }

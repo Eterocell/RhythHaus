@@ -1,17 +1,15 @@
 package com.eterocell.rhythhaus.library.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,10 +22,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +39,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
@@ -43,7 +47,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,9 +59,13 @@ import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.theme.HausColorPalette
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausShapes
+import com.eterocell.rhythhaus.theme.HausSpacing
+import com.eterocell.rhythhaus.theme.HausTypography
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.HausButton as Button
+import com.eterocell.rhythhaus.ui.HausSongRow
 import com.eterocell.rhythhaus.ui.hausClickable
-import com.eterocell.rhythhaus.ui.hausCombinedClickable
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.library.generated.resources.Res
 import rhythhaus.feature.library.generated.resources.album_accessibility_format
@@ -66,14 +73,25 @@ import rhythhaus.feature.library.generated.resources.album_track_count_format
 import rhythhaus.feature.library.generated.resources.artist_accessibility_format
 import rhythhaus.feature.library.generated.resources.artist_album_tracks_format
 import rhythhaus.feature.library.generated.resources.artist_artwork
+import rhythhaus.feature.library.generated.resources.browse_controls_direction_value_format
+import rhythhaus.feature.library.generated.resources.browse_controls_filters
 import rhythhaus.feature.library.generated.resources.browse_controls_heading
+import rhythhaus.feature.library.generated.resources.browse_controls_order
+import rhythhaus.feature.library.generated.resources.browse_controls_sort
+import rhythhaus.feature.library.generated.resources.browse_controls_sort_value_format
+import rhythhaus.feature.library.generated.resources.browse_controls_source
+import rhythhaus.feature.library.generated.resources.browse_controls_source_value_format
 import rhythhaus.feature.library.generated.resources.browse_filter_all_sources
 import rhythhaus.feature.library.generated.resources.browse_filter_artwork
+import rhythhaus.feature.library.generated.resources.browse_filter_clear_all
 import rhythhaus.feature.library.generated.resources.browse_filter_favorite
-import rhythhaus.feature.library.generated.resources.browse_filter_source
+import rhythhaus.feature.library.generated.resources.browse_filter_remove_format
+import rhythhaus.feature.library.generated.resources.browse_filter_source_unavailable
 import rhythhaus.feature.library.generated.resources.browse_mode_albums
 import rhythhaus.feature.library.generated.resources.browse_mode_artists
 import rhythhaus.feature.library.generated.resources.browse_mode_favorites
+import rhythhaus.feature.library.generated.resources.browse_mode_more
+import rhythhaus.feature.library.generated.resources.browse_mode_more_views
 import rhythhaus.feature.library.generated.resources.browse_mode_recently_added
 import rhythhaus.feature.library.generated.resources.browse_mode_recently_played
 import rhythhaus.feature.library.generated.resources.browse_mode_songs
@@ -83,7 +101,6 @@ import rhythhaus.feature.library.generated.resources.browse_sort_album
 import rhythhaus.feature.library.generated.resources.browse_sort_artist
 import rhythhaus.feature.library.generated.resources.browse_sort_ascending
 import rhythhaus.feature.library.generated.resources.browse_sort_descending
-import rhythhaus.feature.library.generated.resources.browse_sort_direction
 import rhythhaus.feature.library.generated.resources.browse_sort_favorite
 import rhythhaus.feature.library.generated.resources.browse_sort_modified
 import rhythhaus.feature.library.generated.resources.browse_sort_play_count
@@ -110,12 +127,11 @@ import rhythhaus.feature.library.generated.resources.scan_report_error_format
 import rhythhaus.feature.library.generated.resources.scan_summary_format
 import rhythhaus.feature.library.generated.resources.scanning
 import rhythhaus.feature.library.generated.resources.track_count_format
+import rhythhaus.feature.library.generated.resources.track_more_actions_format
 import rhythhaus.feature.library.generated.resources.view_scan_report
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -126,6 +142,16 @@ public enum class TrackRowGesture {
     /** A long click. */
     LongClick
 }
+
+private val compactPrimaryBrowseModes =
+    listOf(BrowseMode.Songs, BrowseMode.Albums, BrowseMode.Artists)
+
+private val compactSecondaryBrowseModes =
+    listOf(
+        BrowseMode.Favorites,
+        BrowseMode.RecentlyPlayed,
+        BrowseMode.RecentlyAdded,
+    )
 
 /** The activation a [TrackRow] resolves for one gesture. */
 public enum class TrackRowActivation {
@@ -169,18 +195,12 @@ internal fun HeaderSection(title: String, subtitle: String) {
         Text(
             text = title,
             color = HausColors.current.ink,
-            fontSize = 44.sp,
-            lineHeight = 42.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = (-1.6).sp,
-            fontFamily = FontFamily.SansSerif,
+            style = HausTypography.pageTitle,
         )
         Text(
             text = subtitle,
             color = HausColors.current.muted,
-            fontSize = 16.sp,
-            lineHeight = 22.sp,
-            fontWeight = FontWeight.Medium,
+            style = HausTypography.body,
         )
     }
 }
@@ -196,7 +216,7 @@ internal fun ImportAudioCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 24.dp,
+        cornerRadius = HausShapes.group,
         colors = CardDefaults.defaultColors(color = HausColors.current.panel),
     ) {
         Column(
@@ -209,17 +229,14 @@ internal fun ImportAudioCard(
                         stringResource(Res.string.import_card_title_with_tracks)
                     else stringResource(Res.string.import_card_title),
                 color = HausColors.current.ink,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Black,
+                style = HausTypography.section,
             )
             Text(
                 text =
                     importMessage
                         ?: stringResource(Res.string.import_card_description),
                 color = HausColors.current.muted,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-                fontWeight = FontWeight.Medium,
+                style = HausTypography.secondary,
             )
             Button(
                 onClick = folderPickerLauncher::launch,
@@ -228,7 +245,7 @@ internal fun ImportAudioCard(
                     Modifier.fillMaxWidth().height(48.dp).semantics {
                         contentDescription = labels.addMusicFolder
                     },
-                cornerRadius = 16.dp,
+                cornerRadius = HausShapes.control,
                 colors =
                     ButtonDefaults.buttonColors(
                         color = HausColors.current.ink,
@@ -241,13 +258,15 @@ internal fun ImportAudioCard(
                 Text(
                     if (folderPickerLauncher.isAvailable) labels.addMusicFolder
                     else labels.folderPickerUnavailable,
-                    fontWeight = FontWeight.Black)
+                    style = HausTypography.secondary,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
             if (hasImportedTracks) {
                 Button(
                     onClick = onClearLibrary,
                     modifier = Modifier.fillMaxWidth().height(40.dp),
-                    cornerRadius = 12.dp,
+                    cornerRadius = HausShapes.control,
                     insideMargin =
                         PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                     colors =
@@ -258,8 +277,9 @@ internal fun ImportAudioCard(
                 ) {
                     Text(
                         labels.clearLibrary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Black)
+                        style = HausTypography.secondary,
+                        fontWeight = FontWeight.Medium,
+                    )
                 }
             }
         }
@@ -305,15 +325,14 @@ internal fun SectionLabel(title: String, subtitle: String?) {
         Text(
             text = title,
             color = HausColors.current.ink,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Black,
+            style = HausTypography.section,
         )
         if (subtitle != null) {
             Text(
                 text = subtitle,
                 color = HausColors.current.muted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
+                style = HausTypography.label,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
@@ -328,7 +347,7 @@ internal fun SectionLabel(title: String, subtitle: String?) {
  * @param selectionModeActive whether the row currently selects rather than
  *   plays.
  * @param isSelected whether this row is selected.
- * @param labels Shared-owned localized wording.
+ * @param labels Localized labels and semantic descriptions for the row.
  * @param artworkLoader lazily resolves artwork bytes for a track ID.
  * @param onPlay requests playback of this row's track.
  * @param onToggleSelection requests toggling this row's selection.
@@ -336,6 +355,7 @@ internal fun SectionLabel(title: String, subtitle: String?) {
  * @param favorite whether this track is currently favorited.
  * @param onSetFavorite requests the desired favorite state.
  * @param onEditMetadata requests editing app-local metadata for this track.
+ * @param desktopDensity whether to use the wider desktop row density.
  */
 @Composable
 public fun TrackRow(
@@ -351,9 +371,10 @@ public fun TrackRow(
     favorite: Boolean,
     onSetFavorite: (Boolean) -> Unit,
     onEditMetadata: (() -> Unit)? = null,
+    desktopDensity: Boolean,
 ) {
     val selectTrackContentDescription = labels.selectTrack(track.title)
-    val nowPlayingDescription = labels.nowPlayingBadge
+    var moreActionsExpanded by remember(track.id) { mutableStateOf(false) }
     fun activate(gesture: TrackRowGesture) {
         when (trackRowActivation(selectionModeActive, gesture)) {
             TrackRowActivation.Play -> onPlay()
@@ -361,94 +382,100 @@ public fun TrackRow(
             TrackRowActivation.StartSelection -> onStartSelection()
         }
     }
-    Row(
-        modifier =
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(
-                    if (isNowPlaying || isSelected)
-                        HausColors.current.panelStrong
-                    else HausColors.current.panel.copy(alpha = 0.54f))
-                .border(
-                    1.dp,
-                    if (isSelected) HausColors.current.ink
-                    else HausColors.current.line,
-                    RoundedCornerShape(24.dp))
-                .hausCombinedClickable(
-                    onClick = { activate(TrackRowGesture.Click) },
-                    onLongClick = { activate(TrackRowGesture.LongClick) },
-                    onLongClickLabel = selectTrackContentDescription,
-                )
-                .semantics {
-                    contentDescription = selectTrackContentDescription
-                    if (selectionModeActive)
-                        toggleableState =
-                            if (isSelected) ToggleableState.On
-                            else ToggleableState.Off
-                    if (isNowPlaying) stateDescription = nowPlayingDescription
-                }
-                .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        if (selectionModeActive) {
-            Checkbox(
-                state =
-                    if (isSelected) ToggleableState.On else ToggleableState.Off,
-                onClick = onToggleSelection,
-                modifier = Modifier.size(44.dp),
+    val favoriteDescription =
+        if (favorite) labels.removeFavorite(track.title)
+        else labels.addFavorite(track.title)
+    HausSongRow(
+        title = track.title,
+        subtitle = labels.trackArtistAlbum(track.artist, track.album),
+        selectionMode = selectionModeActive,
+        selected = isSelected,
+        playing = isNowPlaying,
+        interactive = true,
+        onActivate = { activate(TrackRowGesture.Click) },
+        onSelect = { activate(TrackRowGesture.LongClick) },
+        selectLabel = selectTrackContentDescription,
+        playingLabel = labels.nowPlayingBadge,
+        desktopDensity = desktopDensity,
+        artwork = {
+            AlbumMark(
+                track = track,
+                selected = isNowPlaying,
+                labels = labels,
+                artworkLoader = artworkLoader,
+                modifier = Modifier.fillMaxSize(),
             )
-        }
-        AlbumMark(
-            track = track,
-            selected = isNowPlaying,
-            labels = labels,
-            artworkLoader = artworkLoader,
-        )
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = track.title,
-                    color = HausColors.current.ink,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = labels.trackArtistAlbum(track.artist, track.album),
-                    color =
-                        trackRowMetadataColor(
-                            palette = HausColors.current,
-                            isNowPlaying = isNowPlaying,
-                            isSelected = isSelected,
-                        ),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                AnimatedVisibility(visible = isNowPlaying) {
-                    Text(
-                        text = labels.nowPlayingBadge,
-                        color = HausColors.current.pulse,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Black,
-                    )
+        },
+        indicator = {
+            Text(
+                text = labels.nowPlayingBadge,
+                color = HausColors.current.pulse,
+                style = HausTypography.label,
+            )
+        },
+        trailing = {
+            if (!selectionModeActive) {
+                if (onEditMetadata != null) {
+                    val moreLabel =
+                        stringResource(
+                            Res.string.track_more_actions_format,
+                            track.title,
+                        )
+                    Box {
+                        Button(
+                            onClick = { moreActionsExpanded = true },
+                            modifier =
+                                Modifier.size(48.dp)
+                                    .testTag("track-row-more-actions")
+                                    .semantics {
+                                        contentDescription = moreLabel
+                                    },
+                            cornerRadius = HausShapes.control,
+                            insideMargin = PaddingValues(0.dp),
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    color = HausColors.current.panel,
+                                    contentColor = HausColors.current.ink,
+                                ),
+                        ) {
+                            Icon(
+                                Icons.Outlined.MoreVert,
+                                contentDescription = null)
+                        }
+                        DropdownMenu(
+                            expanded = moreActionsExpanded,
+                            onDismissRequest = { moreActionsExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            Res.string.metadata_edit_action,
+                                            track.title,
+                                        ),
+                                        color = HausColors.current.ink,
+                                    )
+                                },
+                                onClick = {
+                                    moreActionsExpanded = false
+                                    onEditMetadata()
+                                },
+                                modifier =
+                                    Modifier.testTag("track-row-edit-metadata"),
+                            )
+                        }
+                    }
                 }
-            }
-        if (!selectionModeActive) {
-            if (onEditMetadata != null) {
-                val editLabel =
-                    stringResource(Res.string.metadata_edit_action, track.title)
                 Button(
-                    onClick = onEditMetadata,
+                    onClick = { onSetFavorite(!favorite) },
                     modifier =
-                        Modifier.size(44.dp).semantics {
-                            contentDescription = editLabel
+                        Modifier.size(48.dp).semantics {
+                            contentDescription = favoriteDescription
+                            toggleableState =
+                                if (favorite) ToggleableState.On
+                                else ToggleableState.Off
                         },
-                    cornerRadius = 22.dp,
+                    cornerRadius = HausShapes.control,
                     insideMargin = PaddingValues(0.dp),
                     colors =
                         ButtonDefaults.buttonColors(
@@ -456,41 +483,16 @@ public fun TrackRow(
                             contentColor = HausColors.current.ink,
                         ),
                 ) {
-                    Icon(Icons.Outlined.Edit, contentDescription = null)
+                    Text(if (favorite) "♥" else "♡", fontSize = 20.sp)
                 }
             }
-            val favoriteDescription =
-                if (favorite) labels.removeFavorite(track.title)
-                else labels.addFavorite(track.title)
-            Button(
-                onClick = { onSetFavorite(!favorite) },
-                modifier =
-                    Modifier.size(44.dp).semantics {
-                        contentDescription = favoriteDescription
-                        toggleableState =
-                            if (favorite) ToggleableState.On
-                            else ToggleableState.Off
-                    },
-                cornerRadius = 22.dp,
-                insideMargin = PaddingValues(0.dp),
-                colors =
-                    ButtonDefaults.buttonColors(
-                        color = HausColors.current.panel,
-                        contentColor = HausColors.current.ink,
-                    ),
-            ) {
-                Text(if (favorite) "♥" else "♡", fontSize = 20.sp)
-            }
-        }
-        Text(
-            text = formatDuration(track.durationSeconds),
-            color =
-                if (isNowPlaying || isSelected) HausColors.current.ink
-                else HausColors.current.muted,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Black,
-        )
-    }
+            Text(
+                text = formatDuration(track.durationSeconds),
+                color = HausColors.current.muted,
+                style = HausTypography.label,
+            )
+        },
+    )
 }
 
 @Composable
@@ -499,12 +501,14 @@ private fun AlbumMark(
     selected: Boolean,
     labels: LibrarySharedLabels,
     artworkLoader: suspend (String) -> ByteArray?,
+    modifier: Modifier = Modifier,
 ) {
     val albumArtContentDescription = labels.albumArt
     Box(
         modifier =
-            Modifier.size(54.dp)
-                .clip(RoundedCornerShape(18.dp))
+            modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(HausShapes.artwork))
                 .background(
                     Brush.linearGradient(
                         listOf(
@@ -543,20 +547,112 @@ private fun AlbumMark(
 @Composable
 internal fun BrowseModePicker(
     browseMode: BrowseMode,
-    labels: LibrarySharedLabels,
+    compact: Boolean,
     onModeChange: (BrowseMode) -> Unit,
 ) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val compact = maxWidth < 720.dp
+    if (compact) {
+        var moreExpanded by remember { mutableStateOf(false) }
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(HausSpacing.xs),
+        ) {
+            compactPrimaryBrowseModes.forEach { mode ->
+                BrowseModeButton(
+                    mode = mode,
+                    isSelected = browseMode == mode,
+                    compact = true,
+                    modifier = Modifier.weight(1f),
+                    onModeChange = onModeChange,
+                )
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                val selectedMode = browseMode in compactSecondaryBrowseModes
+                val moreLabel =
+                    if (selectedMode)
+                        stringResource(browseMode.displayLabelResource())
+                    else stringResource(Res.string.browse_mode_more)
+                val moreViewsDescription =
+                    stringResource(Res.string.browse_mode_more_views)
+                Button(
+                    onClick = { moreExpanded = true },
+                    modifier =
+                        Modifier.fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("library-secondary-browse-menu")
+                            .semantics {
+                                contentDescription = moreViewsDescription
+                                selected = selectedMode
+                                if (selectedMode) {
+                                    stateDescription = moreLabel
+                                }
+                            },
+                    cornerRadius = HausShapes.control,
+                    insideMargin =
+                        PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                    colors =
+                        if (selectedMode) {
+                            ButtonDefaults.buttonColors(
+                                color = HausColors.current.ink,
+                                contentColor = HausColors.current.paper,
+                            )
+                        } else {
+                            ButtonDefaults.buttonColors(
+                                color = HausColors.current.panel,
+                                contentColor = HausColors.current.ink,
+                            )
+                        },
+                ) {
+                    Text(
+                        text = moreLabel,
+                        style = HausTypography.label,
+                        fontWeight =
+                            if (selectedMode) FontWeight.SemiBold
+                            else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                DropdownMenu(
+                    expanded = moreExpanded,
+                    onDismissRequest = { moreExpanded = false },
+                ) {
+                    compactSecondaryBrowseModes.forEach { mode ->
+                        val label = stringResource(mode.displayLabelResource())
+                        val stateDescription =
+                            stringResource(
+                                if (browseMode == mode)
+                                    Res.string.browse_selected_state
+                                else Res.string.browse_unselected_state,
+                            )
+                        DropdownMenuItem(
+                            text = {
+                                Text(label, color = HausColors.current.ink)
+                            },
+                            onClick = {
+                                moreExpanded = false
+                                onModeChange(mode)
+                            },
+                            modifier =
+                                Modifier.heightIn(min = 48.dp).semantics {
+                                    contentDescription = label
+                                    selected = browseMode == mode
+                                    this.stateDescription = stateDescription
+                                },
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(HausSpacing.xs),
         ) {
             BrowseMode.entries.forEach { mode ->
                 BrowseModeButton(
                     mode = mode,
                     isSelected = browseMode == mode,
-                    compact = compact,
+                    compact = false,
                     modifier = Modifier.weight(1f),
                     onModeChange = onModeChange,
                 )
@@ -584,191 +680,349 @@ internal fun LibraryBrowseControls(
     onArtworkOnlyChange: (Boolean) -> Unit,
     onSourceIdChange: (String?) -> Unit,
 ) {
-    val selectedState = stringResource(Res.string.browse_selected_state)
-    val unselectedState = stringResource(Res.string.browse_unselected_state)
     val sortIsActive =
         query.sortExplicit ||
             browseMode != BrowseMode.RecentlyPlayed &&
                 browseMode != BrowseMode.RecentlyAdded
+    var sortExpanded by remember { mutableStateOf(false) }
+    var directionExpanded by remember { mutableStateOf(false) }
+    var filtersExpanded by remember { mutableStateOf(false) }
+    var sourceExpanded by remember { mutableStateOf(false) }
+    val sortLabel =
+        if (sortIsActive) stringResource(query.sort.labelResource())
+        else stringResource(Res.string.browse_controls_sort)
+    val directionLabel =
+        if (sortIsActive) stringResource(query.direction.labelResource())
+        else stringResource(Res.string.browse_controls_order)
+    val sourceLabel =
+        if (query.sourceId == null) {
+            stringResource(Res.string.browse_filter_all_sources)
+        } else {
+            sourceOptions.firstOrNull { it.id == query.sourceId }?.displayName
+                ?: stringResource(Res.string.browse_filter_source_unavailable)
+        }
+    val activeFilterCount =
+        (if (query.favoriteOnly) 1 else 0) +
+            (if (query.artworkOnly) 1 else 0) +
+            (if (query.sourceId != null) 1 else 0)
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(HausSpacing.xs),
     ) {
         Text(
             text = stringResource(Res.string.browse_controls_heading),
             color = HausColors.current.ink,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Black,
+            style = HausTypography.section,
         )
-        BrowseControlScrollRow {
-            LibrarySort.entries.forEach { sort ->
-                BrowseChoiceButton(
-                    label = stringResource(sort.labelResource()),
-                    selected = sortIsActive && query.sort == sort,
-                    stateDescription =
-                        if (sortIsActive && query.sort == sort) selectedState
-                        else unselectedState,
-                    onClick = { onSortChange(sort) },
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(HausSpacing.xs),
+        ) {
+            BrowseControlMenuButton(
+                label =
+                    if (sortIsActive)
+                        stringResource(
+                            Res.string.browse_controls_sort_value_format,
+                            sortLabel,
+                        )
+                    else sortLabel,
+                contentDescription =
+                    stringResource(
+                        Res.string.browse_controls_sort_value_format,
+                        sortLabel,
+                    ),
+                testTag = "browse-controls-sort",
+                expanded = sortExpanded,
+                onExpandedChange = { sortExpanded = it },
+                modifier = Modifier.weight(1f),
+            ) {
+                LibrarySort.entries.forEach { sort ->
+                    val itemLabel = stringResource(sort.labelResource())
+                    BrowseControlMenuItem(
+                        label = itemLabel,
+                        selected = sortIsActive && query.sort == sort,
+                        testTag = "browse-sort-${sort.name.lowercase()}",
+                        onClick = {
+                            sortExpanded = false
+                            onSortChange(sort)
+                        },
+                    )
+                }
+            }
+            BrowseControlMenuButton(
+                label = directionLabel,
+                contentDescription =
+                    stringResource(
+                        Res.string.browse_controls_direction_value_format,
+                        directionLabel,
+                    ),
+                testTag = "browse-controls-direction",
+                expanded = directionExpanded,
+                onExpandedChange = { directionExpanded = it },
+                modifier = Modifier.weight(1f),
+            ) {
+                LibrarySortDirection.entries.forEach { direction ->
+                    val itemLabel = stringResource(direction.labelResource())
+                    BrowseControlMenuItem(
+                        label = itemLabel,
+                        selected = sortIsActive && query.direction == direction,
+                        testTag =
+                            "browse-direction-${direction.name.lowercase()}",
+                        onClick = {
+                            directionExpanded = false
+                            onSortDirectionChange(direction)
+                        },
+                    )
+                }
+            }
+            BrowseControlMenuButton(
+                label = stringResource(Res.string.browse_controls_filters),
+                contentDescription =
+                    stringResource(Res.string.browse_controls_filters),
+                testTag = "browse-controls-filters",
+                expanded = filtersExpanded,
+                onExpandedChange = { filtersExpanded = it },
+                modifier = Modifier.weight(1f),
+            ) {
+                BrowseControlToggleItem(
+                    label = stringResource(Res.string.browse_filter_favorite),
+                    checked = query.favoriteOnly,
+                    testTag = "browse-filter-favorite",
+                    onClick = { onFavoriteOnlyChange(!query.favoriteOnly) },
+                )
+                BrowseControlToggleItem(
+                    label = stringResource(Res.string.browse_filter_artwork),
+                    checked = query.artworkOnly,
+                    testTag = "browse-filter-artwork",
+                    onClick = { onArtworkOnlyChange(!query.artworkOnly) },
                 )
             }
-        }
-        Text(
-            text = stringResource(Res.string.browse_sort_direction),
-            color = HausColors.current.muted,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        BrowseControlScrollRow {
-            LibrarySortDirection.entries.forEach { direction ->
-                BrowseChoiceButton(
-                    label = stringResource(direction.labelResource()),
-                    selected = sortIsActive && query.direction == direction,
-                    stateDescription =
-                        if (sortIsActive && query.direction == direction)
-                            selectedState
-                        else unselectedState,
-                    onClick = { onSortDirectionChange(direction) },
-                )
-            }
-        }
-        BrowseControlScrollRow {
-            BrowseToggleButton(
-                label = stringResource(Res.string.browse_filter_favorite),
-                checked = query.favoriteOnly,
-                stateDescription =
-                    if (query.favoriteOnly) selectedState else unselectedState,
-                onClick = { onFavoriteOnlyChange(!query.favoriteOnly) },
-            )
-            BrowseToggleButton(
-                label = stringResource(Res.string.browse_filter_artwork),
-                checked = query.artworkOnly,
-                stateDescription =
-                    if (query.artworkOnly) selectedState else unselectedState,
-                onClick = { onArtworkOnlyChange(!query.artworkOnly) },
-            )
-        }
-        if (sourceOptions.isNotEmpty() || query.sourceId != null) {
-            Text(
-                text = stringResource(Res.string.browse_filter_source),
-                color = HausColors.current.muted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            BrowseControlScrollRow {
-                BrowseChoiceButton(
-                    label =
-                        stringResource(Res.string.browse_filter_all_sources),
+            BrowseControlMenuButton(
+                label = stringResource(Res.string.browse_controls_source),
+                contentDescription =
+                    stringResource(
+                        Res.string.browse_controls_source_value_format,
+                        sourceLabel,
+                    ),
+                testTag = "browse-controls-source",
+                expanded = sourceExpanded,
+                onExpandedChange = { sourceExpanded = it },
+                modifier = Modifier.weight(1f),
+            ) {
+                val allSourcesLabel =
+                    stringResource(Res.string.browse_filter_all_sources)
+                BrowseControlMenuItem(
+                    label = allSourcesLabel,
                     selected = query.sourceId == null,
-                    stateDescription =
-                        if (query.sourceId == null) selectedState
-                        else unselectedState,
-                    onClick = { onSourceIdChange(null) },
+                    testTag = "browse-source-all",
+                    onClick = {
+                        sourceExpanded = false
+                        onSourceIdChange(null)
+                    },
                 )
                 sourceOptions.forEach { sourceOption ->
-                    BrowseChoiceButton(
+                    val sourceDescription =
+                        stringResource(
+                            Res.string.browse_source_format,
+                            sourceOption.displayName,
+                        )
+                    BrowseControlMenuItem(
                         label = sourceOption.displayName,
-                        contentDescription =
-                            stringResource(
-                                Res.string.browse_source_format,
-                                sourceOption.displayName,
-                            ),
+                        contentDescription = sourceDescription,
                         selected = query.sourceId == sourceOption.id,
-                        stateDescription =
-                            if (query.sourceId == sourceOption.id) selectedState
-                            else unselectedState,
-                        onClick = { onSourceIdChange(sourceOption.id) },
+                        testTag = "browse-source-${sourceOption.id}",
+                        onClick = {
+                            sourceExpanded = false
+                            onSourceIdChange(sourceOption.id)
+                        },
                     )
                 }
             }
         }
+        if (activeFilterCount > 0) {
+            Row(
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(HausSpacing.xs),
+            ) {
+                if (query.favoriteOnly) {
+                    ActiveBrowseFilter(
+                        label =
+                            stringResource(Res.string.browse_filter_favorite),
+                        testTag = "browse-filter-remove-favorite",
+                        onRemove = { onFavoriteOnlyChange(false) },
+                    )
+                }
+                if (query.artworkOnly) {
+                    ActiveBrowseFilter(
+                        label =
+                            stringResource(Res.string.browse_filter_artwork),
+                        testTag = "browse-filter-remove-artwork",
+                        onRemove = { onArtworkOnlyChange(false) },
+                    )
+                }
+                if (query.sourceId != null) {
+                    ActiveBrowseFilter(
+                        label = sourceLabel,
+                        testTag = "browse-filter-remove-source",
+                        onRemove = { onSourceIdChange(null) },
+                    )
+                }
+            }
+            Button(
+                onClick = {
+                    onFavoriteOnlyChange(false)
+                    onArtworkOnlyChange(false)
+                    onSourceIdChange(null)
+                },
+                modifier =
+                    Modifier.heightIn(min = 48.dp)
+                        .testTag("browse-filter-clear-all"),
+                cornerRadius = HausShapes.control,
+                insideMargin = PaddingValues(horizontal = HausSpacing.md),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color = HausColors.current.panel,
+                        contentColor = HausColors.current.ink,
+                    ),
+            ) {
+                Text(
+                    text = stringResource(Res.string.browse_filter_clear_all),
+                    style = HausTypography.label,
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun BrowseControlScrollRow(content: @Composable RowScope.() -> Unit) {
-    Row(
-        modifier =
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        content = content,
-    )
+private fun BrowseControlMenuButton(
+    label: String,
+    contentDescription: String = label,
+    testTag: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Box(modifier) {
+        Button(
+            onClick = { onExpandedChange(!expanded) },
+            modifier =
+                Modifier.fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .testTag(testTag)
+                    .semantics { this.contentDescription = contentDescription },
+            cornerRadius = HausShapes.control,
+            insideMargin = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
+            colors =
+                ButtonDefaults.buttonColors(
+                    color = HausColors.current.panel,
+                    contentColor = HausColors.current.ink,
+                ),
+        ) {
+            Text(
+                text = label,
+                style = HausTypography.label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+            content = content,
+        )
+    }
 }
 
 @Composable
-private fun BrowseChoiceButton(
+private fun BrowseControlMenuItem(
     label: String,
     selected: Boolean,
-    stateDescription: String,
-    onClick: () -> Unit,
+    testTag: String,
     contentDescription: String = label,
+    onClick: () -> Unit,
 ) {
-    Button(
+    val stateDescription =
+        stringResource(
+            if (selected) Res.string.browse_selected_state
+            else Res.string.browse_unselected_state,
+        )
+    DropdownMenuItem(
+        text = {
+            Text(
+                text = label,
+                color = HausColors.current.ink,
+                style = HausTypography.secondary,
+                maxLines = 2,
+            )
+        },
         onClick = onClick,
         modifier =
-            Modifier.heightIn(min = 48.dp).semantics {
+            Modifier.heightIn(min = 48.dp).testTag(testTag).semantics {
                 this.contentDescription = contentDescription
                 this.selected = selected
                 this.stateDescription = stateDescription
             },
-        cornerRadius = 20.dp,
-        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        colors =
-            if (selected) {
-                ButtonDefaults.buttonColors(
-                    color = HausColors.current.ink,
-                    contentColor = HausColors.current.paper,
-                )
-            } else {
-                ButtonDefaults.buttonColors(
-                    color = HausColors.current.panel,
-                    contentColor = HausColors.current.ink,
-                )
-            },
-    ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-        )
-    }
+    )
 }
 
 @Composable
-private fun BrowseToggleButton(
+private fun BrowseControlToggleItem(
     label: String,
     checked: Boolean,
-    stateDescription: String,
+    testTag: String,
     onClick: () -> Unit,
 ) {
-    Button(
+    val stateDescription =
+        stringResource(
+            if (checked) Res.string.browse_selected_state
+            else Res.string.browse_unselected_state,
+        )
+    DropdownMenuItem(
+        text = {
+            Text(
+                text = label,
+                color = HausColors.current.ink,
+                style = HausTypography.secondary,
+            )
+        },
         onClick = onClick,
         modifier =
-            Modifier.heightIn(min = 48.dp).semantics {
-                this.contentDescription = label
+            Modifier.heightIn(min = 48.dp).testTag(testTag).semantics {
+                contentDescription = label
                 toggleableState =
                     if (checked) ToggleableState.On else ToggleableState.Off
                 this.stateDescription = stateDescription
             },
-        cornerRadius = 20.dp,
-        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        colors =
-            if (checked) {
-                ButtonDefaults.buttonColors(
-                    color = HausColors.current.ink,
-                    contentColor = HausColors.current.paper,
-                )
-            } else {
-                ButtonDefaults.buttonColors(
-                    color = HausColors.current.panel,
-                    contentColor = HausColors.current.ink,
-                )
+    )
+}
+
+@Composable
+private fun ActiveBrowseFilter(
+    label: String,
+    testTag: String,
+    onRemove: () -> Unit,
+) {
+    val removeDescription =
+        stringResource(Res.string.browse_filter_remove_format, label)
+    Button(
+        onClick = onRemove,
+        modifier =
+            Modifier.heightIn(min = 48.dp).testTag(testTag).semantics {
+                contentDescription = removeDescription
             },
+        cornerRadius = HausShapes.control,
+        insideMargin = PaddingValues(horizontal = HausSpacing.md),
+        colors =
+            ButtonDefaults.buttonColors(
+                color = HausColors.current.panel,
+                contentColor = HausColors.current.ink,
+            ),
     ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            fontWeight = if (checked) FontWeight.Bold else FontWeight.Medium,
-        )
+        Text("$label ×", style = HausTypography.label, maxLines = 1)
     }
 }
 
@@ -797,10 +1051,15 @@ private fun BrowseModeButton(
     modifier: Modifier,
     onModeChange: (BrowseMode) -> Unit,
 ) {
+    val label = stringResource(mode.displayLabelResource())
     Button(
         onClick = { onModeChange(mode) },
-        modifier = modifier.height(40.dp).semantics { selected = isSelected },
-        cornerRadius = 20.dp,
+        modifier =
+            modifier.heightIn(min = 48.dp).semantics {
+                contentDescription = label
+                selected = isSelected
+            },
+        cornerRadius = HausShapes.control,
         insideMargin =
             PaddingValues(
                 horizontal = if (compact) 0.dp else 12.dp,
@@ -820,9 +1079,10 @@ private fun BrowseModeButton(
             },
     ) {
         Text(
-            stringResource(mode.displayLabelResource()),
-            fontSize = if (compact) 8.sp else 14.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            label,
+            style = HausTypography.label,
+            fontWeight =
+                if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
             maxLines = 1,
         )
     }
@@ -852,10 +1112,10 @@ internal fun AlbumCard(
     Card(
         modifier =
             modifier
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(HausShapes.group))
                 .hausClickable(onClick = onClick)
                 .semantics { contentDescription = albumContentDescription },
-        cornerRadius = 20.dp,
+        cornerRadius = HausShapes.group,
         colors = CardDefaults.defaultColors(color = HausColors.current.panel),
     ) {
         Column(
@@ -868,7 +1128,7 @@ internal fun AlbumCard(
                 modifier =
                     Modifier.fillMaxWidth()
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(HausShapes.artwork))
                         .background(
                             Brush.linearGradient(
                                 listOf(
@@ -898,8 +1158,7 @@ internal fun AlbumCard(
             Text(
                 text = album.album,
                 color = HausColors.current.ink,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Black,
+                style = HausTypography.title,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -914,8 +1173,7 @@ internal fun AlbumCard(
                         stringResource(
                             Res.string.track_count_format, album.tracks.size),
                 color = HausColors.current.muted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
+                style = HausTypography.label,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -935,10 +1193,13 @@ internal fun ArtistRow(
     Row(
         modifier =
             Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(HausShapes.group))
                 .background(HausColors.current.panel.copy(alpha = 0.54f))
                 .border(
-                    1.dp, HausColors.current.line, RoundedCornerShape(24.dp))
+                    1.dp,
+                    HausColors.current.line,
+                    RoundedCornerShape(HausShapes.group),
+                )
                 .hausClickable(onClick = onClick)
                 .semantics { contentDescription = artistContentDescription }
                 .padding(14.dp),
@@ -983,8 +1244,7 @@ internal fun ArtistRow(
                 Text(
                     text = artist.artist,
                     color = HausColors.current.ink,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black,
+                    style = HausTypography.title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -995,8 +1255,7 @@ internal fun ArtistRow(
                             artist.albumCount,
                             artist.tracks.size),
                     color = HausColors.current.muted,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = HausTypography.secondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1025,15 +1284,16 @@ public fun ScanningCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(12.dp),
-        cornerRadius = 12.dp,
+        cornerRadius = HausShapes.group,
         colors = CardDefaults.defaultColors(color = HausColors.current.panel),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 stringResource(Res.string.scanning),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = HausColors.current.ink)
+                style = HausTypography.secondary,
+                fontWeight = FontWeight.SemiBold,
+                color = HausColors.current.ink,
+            )
             Spacer(Modifier.height(6.dp))
             Text(
                 stringResource(
@@ -1041,13 +1301,13 @@ public fun ScanningCard(
                     foldersVisited,
                     filesVisited,
                     tracksAdded),
-                fontSize = 12.sp,
+                style = HausTypography.label,
                 color = HausColors.current.ink.copy(alpha = 0.7f))
             if (!latestItem.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     latestItem,
-                    fontSize = 11.sp,
+                    style = HausTypography.label,
                     color = HausColors.current.ink.copy(alpha = 0.56f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis)
@@ -1109,8 +1369,8 @@ public fun ScanOutcomePanel(
         Text(
             title,
             color = HausColors.current.ink,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Black)
+            style = HausTypography.title,
+        )
         Text(
             stringResource(
                 Res.string.scan_summary_format,
@@ -1118,9 +1378,11 @@ public fun ScanOutcomePanel(
                 session.filesVisited,
                 session.tracksAdded,
                 session.tracksUpdated,
-                session.filesSkipped),
+                session.filesSkipped,
+            ),
             color = HausColors.current.muted,
-            fontSize = 12.sp)
+            style = HausTypography.label,
+        )
         val summarySession =
             if (session.status == ScanStatus.Completed) session
             else completedSummarySession
@@ -1134,7 +1396,8 @@ public fun ScanOutcomePanel(
                         summarySession.id,
                     ),
                     color = HausColors.current.muted,
-                    fontSize = 12.sp)
+                    style = HausTypography.label,
+                )
             }
             Text(
                 stringResource(
@@ -1142,10 +1405,12 @@ public fun ScanOutcomePanel(
                     summary.addedCount,
                     summary.modifiedCount,
                     summary.unchangedCount,
-                    summary.missingCount),
+                    summary.missingCount,
+                ),
                 color = HausColors.current.muted,
-                fontSize = 12.sp,
-                modifier = Modifier.semantics { heading() })
+                style = HausTypography.label,
+                modifier = Modifier.semantics { heading() },
+            )
             val details =
                 summary.addedDetails +
                     summary.modifiedDetails +
@@ -1154,12 +1419,14 @@ public fun ScanOutcomePanel(
                 Text(
                     stringResource(Res.string.scan_changes_details),
                     color = HausColors.current.muted,
-                    fontSize = 12.sp)
+                    style = HausTypography.label,
+                )
                 details.take(100).forEach { detail ->
                     Text(
                         detail,
                         color = HausColors.current.muted,
-                        fontSize = 12.sp)
+                        style = HausTypography.label,
+                    )
                 }
             }
         }
@@ -1172,7 +1439,7 @@ public fun ScanOutcomePanel(
                     } else {
                         HausColors.current.muted
                     },
-                fontSize = 12.sp,
+                style = HausTypography.label,
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1181,17 +1448,21 @@ public fun ScanOutcomePanel(
                     stringResource(
                         if (session.status == ScanStatus.Completed)
                             Res.string.rescan
-                        else Res.string.retry_scan),
+                        else Res.string.retry_scan,
+                    ),
                     onClick = { onRescanSource(it) },
                     modifier = Modifier.weight(1f),
-                    enabled = mutationsEnabled)
+                    enabled = mutationsEnabled,
+                )
             }
             ScanActionButton(
                 stringResource(
                     if (reportVisible) Res.string.hide_scan_report
-                    else Res.string.view_scan_report),
+                    else Res.string.view_scan_report,
+                ),
                 onClick = onToggleReport,
-                modifier = Modifier.weight(1f))
+                modifier = Modifier.weight(1f),
+            )
         }
         if (session.status == ScanStatus.Completed && source != null) {
             ScanActionButton(
@@ -1199,31 +1470,36 @@ public fun ScanOutcomePanel(
                 onClick = { onRemoveMissingTracks(source, session) },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = mutationsEnabled,
-                destructive = true)
+                destructive = true,
+            )
         }
         if (reportVisible) {
-            if (errors.isEmpty())
+            if (errors.isEmpty()) {
                 Text(
                     stringResource(Res.string.scan_report_empty),
                     color = HausColors.current.muted,
-                    fontSize = 12.sp)
+                    style = HausTypography.label,
+                )
+            }
             errors.forEach { error ->
                 Text(
                     stringResource(
                         Res.string.scan_report_error_format,
                         error.displayPath,
-                        error.reason),
+                        error.reason,
+                    ),
                     color = HausColors.current.muted,
-                    fontSize = 12.sp)
+                    style = HausTypography.label,
+                )
             }
         }
     }
 }
 
 /**
- * Settings-page action button: 48dp tall, 16dp corner radius, 14sp bold label.
- * Primary uses ink/paper; destructive uses a pulse tint; disabled uses the
- * shared muted state.
+ * Settings-page action button: 48dp tall with the shared control shape. Primary
+ * uses ink/paper; destructive uses a pulse tint; disabled uses the shared muted
+ * state.
  */
 @Composable
 private fun ScanActionButton(
@@ -1237,7 +1513,7 @@ private fun ScanActionButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(48.dp),
-        cornerRadius = 16.dp,
+        cornerRadius = HausShapes.control,
         colors =
             ButtonDefaults.buttonColors(
                 color =
@@ -1252,6 +1528,10 @@ private fun ScanActionButton(
                 disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
                 disabledContentColor = HausColors.current.muted),
     ) {
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            style = HausTypography.secondary,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }

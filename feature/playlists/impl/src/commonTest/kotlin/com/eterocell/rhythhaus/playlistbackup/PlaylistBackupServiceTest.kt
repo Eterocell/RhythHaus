@@ -4,6 +4,8 @@ import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.library.SmartPlaylistRule
+import com.eterocell.rhythhaus.library.SmartPlaylistSummary
 import com.eterocell.rhythhaus.library.ui.PlaylistSnapshot
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -15,13 +17,22 @@ class PlaylistBackupServiceTest {
     fun exportUsesConfirmedPlaylistAndEntryOrderWithOnlyAuthoritativePortableMetadata() {
         val snapshot =
             snapshot(
-                playlist("second", "Second") to
-                    listOf(
-                        entry("second", "track-b", 0),
-                        entry("second", "track-a", 1)),
-                playlist("first", "First") to
-                    listOf(entry("first", "track-a", 0)),
-            )
+                    playlist("second", "Second") to
+                        listOf(
+                            entry("second", "track-b", 0),
+                            entry("second", "track-a", 1)),
+                    playlist("first", "First") to
+                        listOf(entry("first", "track-a", 0)),
+                )
+                .copy(
+                    smartPlaylists =
+                        listOf(
+                            SmartPlaylistSummary(
+                                "smart",
+                                "Dynamic favorites",
+                                SmartPlaylistRule.Favorites,
+                                1,
+                                1)))
         val tracks =
             listOf(
                 track("track-a", title = "A", durationMillis = 125_999),

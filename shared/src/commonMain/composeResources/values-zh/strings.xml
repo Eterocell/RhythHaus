@@ -1,14 +1,24 @@
 <resources><string name="playlist_load_failed">无法加载播放列表</string><string name="playlist_retry">重试</string><string name="playlist_changed">播放列表已更改，请重新选择。</string><string name="playlist_mutation_failed">无法保存播放列表更改</string>
     <string name="library">资料库</string>
     <string name="library_queue">资料库队列</string>
+    <string name="next_track">下一首</string>
+    <string name="queue">队列</string>
+
     <string name="carplay_songs">歌曲</string>
     <string name="carplay_albums">专辑</string>
     <string name="carplay_artists">艺术家</string>
 
     <string name="search">搜索</string>
     <string name="settings">设置</string>
+    <string name="sidebar_favorites">收藏</string>
+    <string name="sidebar_recently_played">最近播放</string>
+    <string name="sidebar_recently_added">最近添加</string>
     <string name="clear_library">清空资料库</string>
-    <string name="clear_library_message">这会移除所有已扫描的曲目。你的音乐文件不会被删除。要继续吗？</string>
+    <string name="clear_library_message">这会移除所有已配置的来源和已扫描曲目。你的音乐文件不会被删除。重新添加来源后即可扫描可用文件。</string>
+    <string name="clear_library_counts_format">将移除的来源数：%1$d · 将移除的曲目数：%2$d</string>
+    <string name="remove_missing_confirmation_title">移除缺失曲目？</string>
+    <string name="remove_missing_confirmation_count">缺失曲目：%1$d</string>
+    <string name="remove_missing_confirmation_message">此操作仅从资料库中移除这些缺失曲目的记录，不会删除音乐文件。只有相关文件重新出现在此来源中并再次扫描后，记录才会恢复。</string>
     <string name="cancel">取消</string>
     <string name="clear">清空</string>
     <string name="add_music_folder">添加音乐文件夹</string>
@@ -26,7 +36,7 @@
     <string name="selection_select_all">全选</string>
     <string name="selection_add_to_playlist">将所选曲目添加到播放列表</string>
     <string name="track_artist_album_format">%1$s · %2$s</string>
-    <string name="adaptive_detail_placeholder">选择一个专辑或艺术家以在此显示详情。</string>
+
     <string name="scan_complete_format">扫描完成：新增 %1$d 首，更新 %2$d 首</string>
     <string name="remove">移除</string>
     <string name="playlists">播放列表</string>

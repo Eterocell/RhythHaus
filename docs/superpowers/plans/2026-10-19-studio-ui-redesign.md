@@ -10,7 +10,9 @@
 
 **Spec:** [已批准系统设计](../specs/2026-10-19-studio-ui-redesign-design.md)；[OpenSpec技术设计](../../../openspec/changes/studio-ui-redesign/design.md)；[规格集合](../../../openspec/changes/studio-ui-redesign/specs/)。执行者必须同时阅读三者。
 
-**Approval:** 系统设计全文与本计划已于2026-10-19获用户批准。下面所有代码接口、测试名和命令仍是待执行要求，不是已实现/已通过证据。现按1→8顺序实施；不提前归档。
+**Approval:** 系统设计全文与本计划已于2026-10-19获用户批准。下面所有代码接口、测试名和命令仍是待执行要求，不是已实现/已通过证据。按1→8顺序实施；不提前归档。
+
+**Manual acceptance status (2026-10-26):** At the user's request, all manual verification and acceptance for this redesign is postponed, including acceptance inferred from earlier limited runtime smoke. Those historical observations remain factual and keep their narrow scope, but do not count as acceptance or a pass. The visual/interaction matrix, keyboard and screen-reader checks, reduced-motion and large-text checks, system-picker flows, audible playback, physical route-loss, and system-media checks remain unverified—not removed from scope. Manual criteria stay open in the OpenSpec task tracker; this postponement does not close mixed implementation/verification tasks or authorize archival.
 
 ## Global Constraints
 
