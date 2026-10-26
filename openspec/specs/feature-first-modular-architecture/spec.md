@@ -159,7 +159,7 @@ an iOS export; it SHALL NOT use Library API.
 
 Its exact KDoc-complete public declarations SHALL be `SettingsSharedLabels(title, addMusicFolder,
 folderPickerUnavailable, clearLibrary, cancel, remove)`, value-equal
-`SettingsSourceItem(id, displayName, accessAvailable, hasBeenScanned)`, `SettingsScreen`,
+`SettingsSourceItem(id, displayName, accessAvailable, hasBeenScanned, trackCount)`, `SettingsScreen`,
 `SettingsAboutScreen`, and `OpenSourceLibrariesScreen(readCatalogJson: suspend () -> String, ...)`.
 No other Settings production declaration SHALL be public. No public signature SHALL contain Shared,
 Library, Playlist, generated foreign `Res`, route/Back, repository, scanner, launcher, controller,
@@ -168,7 +168,8 @@ job, Koin, or DataStore types.
 The exact `SettingsScreen` boundary SHALL include `sourcePickerActionVisible: Boolean`,
 `sourcePickerAvailable: Boolean`, `mutationsEnabled: Boolean`, `hasImportedTracks: Boolean`,
 `onRequestClearLibrary: () -> Unit`, and nullable
-`clearLibraryDialog: (@Composable () -> Unit)?`, along with scalar theme/source inputs, source-ID
+`clearLibraryDialog: (@Composable () -> Unit)?` for Shared-owned library-maintenance confirmation,
+along with scalar theme/source inputs, source-ID
 callbacks, playlist-backup and nullable scan slots, About/dismiss callbacks, and `Modifier`.
 Function KDoc SHALL document parameter behavior in prose/contracts, while declaration-specific KDoc
 is required for every public declaration and every public data property. The picker SHALL hide when
@@ -178,13 +179,14 @@ render the nullable slot.
 
 #### Scenario: Settings composes presentation without receiving Library ownership
 - **WHEN** Shared composes Settings
-- **THEN** it maps authoritative current Library sources to `SettingsSourceItem`, supplies scalar
-  values, callbacks, `playlistBackupContent`, nullable `activeScanContent`, and a
-  `clearLibraryDialog` slot
+- **THEN** it maps authoritative current Library sources and their current per-source track counts
+  to `SettingsSourceItem`, supplies scalar values, callbacks, `playlistBackupContent`, nullable
+  `activeScanContent`, and a `clearLibraryDialog` library-maintenance confirmation slot
 - **AND** Settings owns only presentation-local source-removal dialog visibility and About retry
   generation, without Presenter/ViewModel/Event/Effect scaffolding
 - **AND** Shared retains authoritative source-ID adaptation, mutation guards/errors, scanner/picker/
-  clear-library orchestration, routes/Back/dismissal, playlist-backup controller/dialog behavior,
+  clear-library/remove-missing confirmation orchestration, routes/Back/dismissal,
+  playlist-backup controller/dialog behavior,
   theme persistence/actuals/Koin/root theme application, and `RhythHausThemeMode`/palettes in core UI.
 
 #### Scenario: Settings source callbacks resolve current authority

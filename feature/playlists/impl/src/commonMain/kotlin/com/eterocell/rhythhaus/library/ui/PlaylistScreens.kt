@@ -1,7 +1,5 @@
 package com.eterocell.rhythhaus.library.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +13,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -33,7 +32,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +44,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
@@ -59,8 +57,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.PlayableTrack
-import com.eterocell.rhythhaus.PlaybackState
-import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
@@ -68,18 +64,17 @@ import com.eterocell.rhythhaus.library.PlaylistSummary
 import com.eterocell.rhythhaus.library.SmartPlaylistRule
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.HausButton as Button
 import com.eterocell.rhythhaus.ui.HausDialog
+import com.eterocell.rhythhaus.ui.HausIconButton as IconButton
+import com.eterocell.rhythhaus.ui.HausSongRow
 import com.eterocell.rhythhaus.ui.hausClickable
-import com.eterocell.rhythhaus.ui.hausCombinedClickable
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import com.eterocell.rhythhaus.ui.songArtistAlbumSubtitle
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.playlists.generated.resources.*
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
@@ -228,13 +223,6 @@ internal data class PlaylistNameDraft(
 
     fun mutationFailed(): PlaylistNameDraft = copy(showFailure = true)
 }
-
-private data class QueueSaveDraft(
-    val name: PlaylistNameDraft,
-    val trackIds: List<String>,
-    val appearance: PlaylistDismissalAppearance,
-    val pending: Boolean = false,
-)
 
 internal enum class PlaylistModalNotice {
     MutationFailed
@@ -433,28 +421,6 @@ internal fun playlistDragTargetIndex(
             rowCount?.let { target.coerceIn(0, (it - 1).coerceAtLeast(0)) }
                 ?: target
         }
-
-internal fun queueDragTargetIndex(
-    pointerY: Float,
-    rowCentersByOccurrenceId: Map<String, Float>,
-    upcomingIds: List<String>,
-    fallbackOccurrenceId: String,
-): Int {
-    if (upcomingIds.isEmpty()) return 0
-    val fallbackIndex =
-        upcomingIds.indexOf(fallbackOccurrenceId).takeIf { it >= 0 } ?: 0
-    val targetOccurrenceId = upcomingIds.minByOrNull { occurrenceId ->
-        rowCentersByOccurrenceId[occurrenceId]?.let { centerY ->
-            kotlin.math.abs(centerY - pointerY)
-        } ?: Float.POSITIVE_INFINITY
-    }
-    val targetIndex =
-        targetOccurrenceId
-            ?.takeIf(rowCentersByOccurrenceId::containsKey)
-            ?.let(upcomingIds::indexOf)
-            ?.takeIf { it >= 0 } ?: fallbackIndex
-    return targetIndex.coerceIn(upcomingIds.indices)
-}
 
 internal data class PlaylistMoveAvailability(
     val canMoveUp: Boolean,
@@ -663,6 +629,7 @@ internal data class PlaylistDetailRowLayoutPolicy(
 internal fun playlistDetailRowLayoutPolicy(
     availableWidth: androidx.compose.ui.unit.Dp,
     isEditable: Boolean,
+    desktopDensity: Boolean,
 ): PlaylistDetailRowLayoutPolicy =
     PlaylistDetailRowLayoutPolicy(
         actionPlacement =
@@ -671,159 +638,13 @@ internal fun playlistDetailRowLayoutPolicy(
             } else {
                 PlaylistDetailActionPlacement.Inline
             },
+        minimumInteractiveTarget = if (desktopDensity) 44.dp else 48.dp,
     )
-
-internal enum class QueueRowRole {
-    Current,
-    Upcoming
-}
-
-internal enum class QueueRowState {
-    Current,
-    Upcoming
-}
-
-internal enum class QueueRowAction {
-    Drag,
-    MoveUp,
-    MoveDown,
-    Remove
-}
-
-internal enum class QueueActionPlacement {
-    None,
-    Inline,
-    SecondaryRow
-}
-
-internal data class QueueRowLayoutPolicy(
-    val actionPlacement: QueueActionPlacement,
-    val reservesMetadataWidth: Boolean = true,
-    val minimumInteractiveTarget: androidx.compose.ui.unit.Dp = 44.dp,
-)
-
-internal fun queueRowLayoutPolicy(
-    availableWidth: androidx.compose.ui.unit.Dp,
-    isEditable: Boolean,
-): QueueRowLayoutPolicy =
-    QueueRowLayoutPolicy(
-        actionPlacement =
-            when {
-                !isEditable -> QueueActionPlacement.None
-                availableWidth < 520.dp -> QueueActionPlacement.SecondaryRow
-                else -> QueueActionPlacement.Inline
-            },
-    )
-
-internal data class QueueRowPresentation(
-    val occurrence: QueueOccurrence,
-    val role: QueueRowRole,
-    val canDrag: Boolean,
-    val canMoveUp: Boolean,
-    val canMoveDown: Boolean,
-    val canRemove: Boolean,
-    val semanticRole: Role? = null,
-    val semanticState: QueueRowState =
-        if (role == QueueRowRole.Current) QueueRowState.Current
-        else QueueRowState.Upcoming,
-    val actionTrackTitle: String? =
-        occurrence.track.title.takeIf { role == QueueRowRole.Upcoming },
-) {
-    val availableActions: Set<QueueRowAction> = buildSet {
-        if (canDrag) add(QueueRowAction.Drag)
-        if (canMoveUp) add(QueueRowAction.MoveUp)
-        if (canMoveDown) add(QueueRowAction.MoveDown)
-        if (canRemove) add(QueueRowAction.Remove)
-    }
-}
-
-internal data class QueueTabPresentation(
-    val rows: List<QueueRowPresentation>,
-) {
-    val isEmpty: Boolean
-        get() = rows.isEmpty()
-
-    val upcomingOccurrenceIds: List<String>
-        get() =
-            rows
-                .filter { it.role == QueueRowRole.Upcoming }
-                .map { it.occurrence.id }
-
-    fun movedUpcomingIds(occurrenceId: String, offset: Int): List<String> =
-        movedPlaylistEntryIds(upcomingOccurrenceIds, occurrenceId, offset)
-}
-
-internal fun queueTabPresentation(state: PlaybackState): QueueTabPresentation {
-    val currentIndex =
-        state.queue.indexOfFirst { it.id == state.currentOccurrenceId }
-    if (currentIndex < 0) return QueueTabPresentation(emptyList())
-    val current = state.queue[currentIndex]
-    val upcoming = state.queue.drop(currentIndex + 1)
-    return QueueTabPresentation(
-        rows =
-            buildList {
-                add(
-                    QueueRowPresentation(
-                        occurrence = current,
-                        role = QueueRowRole.Current,
-                        canDrag = false,
-                        canMoveUp = false,
-                        canMoveDown = false,
-                        canRemove = false,
-                    ),
-                )
-                upcoming.forEachIndexed { index, occurrence ->
-                    add(
-                        QueueRowPresentation(
-                            occurrence = occurrence,
-                            role = QueueRowRole.Upcoming,
-                            canDrag = true,
-                            canMoveUp = index > 0,
-                            canMoveDown = index < upcoming.lastIndex,
-                            canRemove = true,
-                        ),
-                    )
-                }
-            },
-    )
-}
-
-/**
- * Immutable queue mutation outcome; value equality covers the refreshed
- * playback state and notice flag.
- */
-public data class QueueMutationFeedback(
-    val refreshedState: PlaybackState,
-    val showQueueChanged: Boolean,
-)
-
-internal suspend fun executeQueueMutation(
-    state: StateFlow<PlaybackState>,
-    command: suspend () -> QueueMutationResult,
-): QueueMutationFeedback {
-    val result = command()
-    return QueueMutationFeedback(
-        refreshedState = state.value,
-        showQueueChanged = result is QueueMutationResult.Rejected,
-    )
-}
-
-internal data class QueueClearConfirmationPresentation(
-    val shouldDispatchClear: Boolean = false
-) {
-    fun confirm() = copy(shouldDispatchClear = true)
-
-    fun dismiss() = copy(shouldDispatchClear = false)
-}
-
-internal fun queueClearConfirmationPresentation() =
-    QueueClearConfirmationPresentation()
 
 /** Renders the feature-owned playlist hub while Shared controls navigation. */
 @Composable
 public fun PlaylistHubScreen(
     state: PlaylistState,
-    playbackState: PlaybackState,
     destination: PlaylistFeatureDestination,
     appearanceSource: PlaylistFeatureAppearanceSource,
     dismissalPublisher: PlaylistFeatureDismissalPublisher,
@@ -834,34 +655,27 @@ public fun PlaylistHubScreen(
     mutationFailedLabel: String,
     onBack: () -> Unit,
     onOpenPlaylist: (String) -> Unit,
-    onSelectTab: (PlaylistTab) -> Unit,
     onCreate: (String, (PlaylistStateAction) -> Unit) -> Unit,
     libraryTracks: List<LibraryTrack>,
     onOpenSmartPlaylist: (String) -> Unit,
     onCreateSmartPlaylist:
         (String, SmartPlaylistRule, (PlaylistStateAction) -> Unit) -> Unit,
-    onSaveQueueAsPlaylist:
-        (String, List<String>, (PlaylistStateAction) -> Unit) -> Unit,
     onRetry: () -> Unit,
-    onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
-    onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
-    onClearUpcoming: suspend () -> QueueMutationFeedback,
-    artworkLoader: suspend (String) -> ByteArray? = { null },
+    documentActions: @Composable () -> Unit,
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    desktopDensity: Boolean = false,
 ) {
     var createDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
+    var createTypeAppearance by remember {
+        mutableStateOf<PlaylistDismissalAppearance?>(null)
+    }
     var smartDraft by remember { mutableStateOf<SmartDraft?>(null) }
     var createOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
-    var queueSaveDraft by remember { mutableStateOf<QueueSaveDraft?>(null) }
-    var queueSaveOutcome by remember {
-        mutableStateOf<PlaylistStateAction?>(null)
-    }
-    var queueClearConfirmation by remember {
-        mutableStateOf<QueueClearConfirmationPresentation?>(null)
+    var createPending by remember {
+        mutableStateOf<PlaylistDismissalAppearance?>(null)
     }
     val routePresentation = playlistRoutePresentation(state)
     PlaylistScreenFrame(title = playlistsLabel, onBack = onBack) {
-        item(key = "tabs") { PlaylistTabs(state.selectedTab, onSelectTab) }
         if (state.isLoading && !state.hasConfirmedSnapshot) {
             item(key = "loading") {
                 EmptyPlaylistMessage(loadingLabel)
@@ -871,21 +685,17 @@ public fun PlaylistHubScreen(
             item(key = "read-error") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     EmptyPlaylistMessage(loadFailedLabel)
-                    CompactAction(retryLabel, Modifier.fillMaxWidth(), onRetry)
+                    CompactAction(
+                        retryLabel, Modifier.fillMaxWidth(), onClick = onRetry)
                 }
             }
-        } else if (state.selectedTab == PlaylistTab.Saved) {
-            item(key = "smart-create") {
-                CompactAction(
-                    stringResource(Res.string.smart_create),
-                    Modifier.fillMaxWidth().height(48.dp)) {
-                        smartDraft =
-                            SmartDraft(appearanceSource.next("smart-create"))
-                    }
-            }
+        } else {
             item(key = "create") {
                 Button(
-                    onClick = { createDraft = PlaylistNameDraft() },
+                    onClick = {
+                        createTypeAppearance =
+                            appearanceSource.next("create-type")
+                    },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     cornerRadius = 16.dp,
                     colors =
@@ -897,9 +707,11 @@ public fun PlaylistHubScreen(
                         fontWeight = FontWeight.Black)
                 }
             }
-            if (state.confirmedSnapshot.playlists.isEmpty() &&
-                state.confirmedSnapshot.smartPlaylists.isEmpty()) {
-                item(key = "empty") {
+            item(key = "static-heading") {
+                Text(stringResource(Res.string.playlist_static_section))
+            }
+            if (state.confirmedSnapshot.playlists.isEmpty()) {
+                item(key = "static-empty") {
                     EmptyPlaylistMessage(
                         stringResource(Res.string.playlist_empty_saved))
                 }
@@ -917,10 +729,15 @@ public fun PlaylistHubScreen(
                         )
                     }
             }
-            if (state.confirmedSnapshot.smartPlaylists.isNotEmpty()) {
-                item(key = "smart-heading") {
-                    Text(stringResource(Res.string.smart_rules))
+            item(key = "smart-heading") {
+                Text(stringResource(Res.string.smart_rules))
+            }
+            if (state.confirmedSnapshot.smartPlaylists.isEmpty()) {
+                item(key = "smart-empty") {
+                    EmptyPlaylistMessage(
+                        stringResource(Res.string.smart_hub_empty))
                 }
+            } else {
                 items(
                     state.confirmedSnapshot.smartPlaylists,
                     key = { "smart-${it.id}" }) { smart ->
@@ -930,50 +747,9 @@ public fun PlaylistHubScreen(
                             }
                     }
             }
-            item(key = "smart-backup-note") {
-                Text(stringResource(Res.string.smart_backup_note))
-            }
-        } else {
-            val queueToSave = queueTabPresentation(playbackState)
-            if (!queueToSave.isEmpty) {
-                item(key = "save-queue") {
-                    Button(
-                        onClick = {
-                            val trackIds =
-                                queueTabPresentation(playbackState).rows.map {
-                                    it.occurrence.track.id
-                                }
-                            if (trackIds.isNotEmpty()) {
-                                queueSaveDraft =
-                                    QueueSaveDraft(
-                                        name = PlaylistNameDraft(),
-                                        trackIds = trackIds,
-                                        appearance =
-                                            appearanceSource.next("save-queue"),
-                                    )
-                                queueSaveOutcome = null
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        cornerRadius = 16.dp,
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                HausColors.current.ink,
-                                HausColors.current.paper),
-                    ) {
-                        Text(stringResource(Res.string.queue_save_as_playlist))
-                    }
-                }
-            }
-            queueTabItems(
-                playbackState = playbackState,
-                onReorderUpcoming = onReorderUpcoming,
-                onRemoveUpcoming = onRemoveUpcoming,
-                onClearUpcoming = onClearUpcoming,
-                artworkLoader = artworkLoader,
-                clearConfirmation = queueClearConfirmation,
-                onClearConfirmationChange = { queueClearConfirmation = it },
-            )
+        }
+        item(key = "document-actions") {
+            documentActions()
         }
         if (routePresentation.notice ==
             PlaylistRoutePresentationNotice.ReadFailed &&
@@ -990,11 +766,8 @@ public fun PlaylistHubScreen(
     val createAppearance = createDraft?.let {
         rememberFeatureAppearance("create", appearanceSource)
     }
+    val currentCreateTypeAppearance = createTypeAppearance
     val smartAppearance = smartDraft?.appearance
-    val queueSaveAppearance = queueSaveDraft?.appearance
-    val queueClearAppearance = queueClearConfirmation?.let {
-        rememberFeatureAppearance("queue", appearanceSource)
-    }
     PublishFeatureDismissal(
         destination = destination,
         publisher = dismissalPublisher,
@@ -1007,13 +780,8 @@ public fun PlaylistHubScreen(
                     PlaylistFeatureDismissal.Modal(
                         destination, checkNotNull(createAppearance))
                 }
-                ?: queueSaveDraft?.let {
-                    PlaylistFeatureDismissal.Modal(
-                        destination, checkNotNull(queueSaveAppearance))
-                }
-                ?: queueClearConfirmation?.let {
-                    PlaylistFeatureDismissal.Modal(
-                        destination, checkNotNull(queueClearAppearance))
+                ?: currentCreateTypeAppearance?.let {
+                    PlaylistFeatureDismissal.Modal(destination, it)
                 },
     ) { dismissal ->
         when (dismissal.appearance) {
@@ -1021,14 +789,33 @@ public fun PlaylistHubScreen(
             createAppearance -> {
                 createDraft = null
                 createOutcome = null
+                createPending = null
             }
-            queueSaveAppearance -> {
-                queueSaveDraft = null
-                queueSaveOutcome = null
-            }
-            queueClearAppearance -> queueClearConfirmation = null
+            currentCreateTypeAppearance -> createTypeAppearance = null
             else -> Unit
         }
+    }
+    currentCreateTypeAppearance?.let { appearance ->
+        PlaylistCreateTypeDialog(
+            onStatic = {
+                if (createTypeAppearance == appearance) {
+                    createTypeAppearance = null
+                    createDraft = PlaylistNameDraft()
+                    createPending = null
+                }
+            },
+            onSmart = {
+                if (createTypeAppearance == appearance) {
+                    createTypeAppearance = null
+                    smartDraft =
+                        SmartDraft(appearanceSource.next("smart-create"))
+                }
+            },
+            onDismiss = {
+                if (createTypeAppearance == appearance)
+                    createTypeAppearance = null
+            },
+        )
     }
     smartDraft?.let { current ->
         SmartRuleDialog(
@@ -1071,75 +858,43 @@ public fun PlaylistHubScreen(
     createDraft?.let { draft ->
         val modalPresentation =
             playlistNameModalPresentation(draft, createOutcome)
+        val isPending = createPending == createAppearance
         PlaylistNameDialog(
             title = stringResource(Res.string.playlist_create),
             draft = draft,
             notice = modalPresentation.notice,
+            isPending = isPending,
             onDraftChange = {
-                createDraft = PlaylistNameDraft(it)
-                createOutcome = null
+                if (!isPending) {
+                    createDraft = PlaylistNameDraft(it)
+                    createOutcome = null
+                }
             },
             onDismiss = {
                 createDraft = null
                 createOutcome = null
+                createPending = null
             },
             onConfirm = {
-                val name = draft.confirmedName()
-                if (name == null) {
-                    createDraft = draft.mutationFailed()
-                } else {
-                    onCreate(name) { outcome ->
-                        createOutcome = outcome
-                        if (playlistMutationDecision(
-                            PlaylistMutationWorkflow.Create, outcome) ==
-                            PlaylistMutationDecision.CloseModal) {
-                            createDraft = null
-                        }
-                    }
-                }
-            },
-        )
-    }
-    queueSaveDraft?.let { save ->
-        val title = stringResource(Res.string.queue_save_as_playlist)
-        PlaylistNameDialog(
-            title = title,
-            confirmLabel = stringResource(Res.string.playlist_create),
-            draft = save.name,
-            notice =
-                playlistNameModalPresentation(save.name, queueSaveOutcome)
-                    .notice,
-            onDraftChange = {
-                if (queueSaveDraft?.appearance == save.appearance &&
-                    queueSaveDraft?.pending == false) {
-                    queueSaveDraft = save.copy(name = PlaylistNameDraft(it))
-                    queueSaveOutcome = null
-                }
-            },
-            onDismiss = {
-                if (queueSaveDraft?.appearance == save.appearance) {
-                    queueSaveDraft = null
-                    queueSaveOutcome = null
-                }
-            },
-            onConfirm = {
-                if (queueSaveDraft?.appearance == save.appearance &&
-                    queueSaveDraft?.pending == false) {
-                    val name = save.name.confirmedName()
+                if (createPending == null) {
+                    val name = draft.confirmedName()
                     if (name == null) {
-                        queueSaveDraft =
-                            save.copy(name = save.name.mutationFailed())
+                        createDraft = draft.mutationFailed()
                     } else {
-                        queueSaveDraft = save.copy(pending = true)
-                        onSaveQueueAsPlaylist(name, save.trackIds) { outcome ->
-                            if (queueSaveDraft?.appearance == save.appearance) {
-                                queueSaveOutcome = outcome
-                                queueSaveDraft =
-                                    if (outcome
-                                        is
-                                        PlaylistStateAction.SnapshotConfirmed)
-                                        null
-                                    else save.copy(pending = false)
+                        val appearance = createAppearance
+                        if (appearance != null) {
+                            createPending = appearance
+                            onCreate(name) { outcome ->
+                                if (createPending == appearance) {
+                                    createPending = null
+                                    createOutcome = outcome
+                                    if (playlistMutationDecision(
+                                        PlaylistMutationWorkflow.Create,
+                                        outcome) ==
+                                        PlaylistMutationDecision.CloseModal) {
+                                        createDraft = null
+                                    }
+                                }
                             }
                         }
                     }
@@ -1149,389 +904,36 @@ public fun PlaylistHubScreen(
     }
 }
 
-private fun LazyListScope.queueTabItems(
-    playbackState: PlaybackState,
-    onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
-    onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
-    onClearUpcoming: suspend () -> QueueMutationFeedback,
-    artworkLoader: suspend (String) -> ByteArray?,
-    clearConfirmation: QueueClearConfirmationPresentation?,
-    onClearConfirmationChange: (QueueClearConfirmationPresentation?) -> Unit,
-) {
-    item(key = "queue-content") {
-        QueueTabScreen(
-            playbackState = playbackState,
-            onReorderUpcoming = onReorderUpcoming,
-            onRemoveUpcoming = onRemoveUpcoming,
-            onClearUpcoming = onClearUpcoming,
-            artworkLoader = artworkLoader,
-            clearConfirmation = clearConfirmation,
-            onClearConfirmationChange = onClearConfirmationChange,
-        )
-    }
-}
-
 @Composable
-internal fun QueueTabScreen(
-    playbackState: PlaybackState,
-    onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback,
-    onRemoveUpcoming: suspend (String) -> QueueMutationFeedback,
-    onClearUpcoming: suspend () -> QueueMutationFeedback,
-    artworkLoader: suspend (String) -> ByteArray?,
-    clearConfirmation: QueueClearConfirmationPresentation?,
-    onClearConfirmationChange: (QueueClearConfirmationPresentation?) -> Unit,
-) {
-    var confirmedState by remember { mutableStateOf(playbackState) }
-    var showQueueChanged by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val rowCenters = remember { mutableStateMapOf<String, Float>() }
-    LaunchedEffect(playbackState) { confirmedState = playbackState }
-    val presentation = queueTabPresentation(confirmedState)
-    LaunchedEffect(presentation.upcomingOccurrenceIds) {
-        rowCenters.clear()
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (presentation.isEmpty) {
-            EmptyPlaylistMessage(
-                stringResource(Res.string.playlist_empty_queue))
-        } else {
-            QueueSectionLabel(stringResource(Res.string.queue_current))
-            QueueOccurrenceRow(
-                row = presentation.rows.first(),
-                artworkLoader = artworkLoader,
-            )
-            val upcomingRows = presentation.rows.drop(1)
-            if (upcomingRows.isNotEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    QueueSectionLabel(
-                        stringResource(Res.string.queue_upcoming),
-                        Modifier.weight(1f))
-                    CompactAction(
-                        stringResource(Res.string.queue_clear_upcoming),
-                        Modifier) {
-                            onClearConfirmationChange(
-                                queueClearConfirmationPresentation())
-                        }
-                }
-                upcomingRows.forEachIndexed { index, row ->
-                    key(row.occurrence.id) {
-                        QueueOccurrenceRow(
-                            row = row,
-                            artworkLoader = artworkLoader,
-                            upcomingIndex = index,
-                            upcomingIds = presentation.upcomingOccurrenceIds,
-                            rowCenters = rowCenters,
-                            onMove = { offset ->
-                                scope.launch {
-                                    val feedback =
-                                        onReorderUpcoming(
-                                            row.occurrence.id, index + offset)
-                                    confirmedState = feedback.refreshedState
-                                    showQueueChanged = feedback.showQueueChanged
-                                }
-                            },
-                            onDragTarget = { targetIndex ->
-                                scope.launch {
-                                    val feedback =
-                                        onReorderUpcoming(
-                                            row.occurrence.id, targetIndex)
-                                    confirmedState = feedback.refreshedState
-                                    showQueueChanged = feedback.showQueueChanged
-                                }
-                            },
-                            onRemove = {
-                                scope.launch {
-                                    val feedback =
-                                        onRemoveUpcoming(row.occurrence.id)
-                                    confirmedState = feedback.refreshedState
-                                    showQueueChanged = feedback.showQueueChanged
-                                }
-                            },
-                        )
-                    }
-                }
-            }
-        }
-        if (showQueueChanged)
-            Text(
-                stringResource(Res.string.queue_changed),
-                color = HausColors.current.pulse,
-                fontSize = 13.sp)
-    }
-
-    clearConfirmation?.let { confirmation ->
-        ConfirmationDialog(
-            title = stringResource(Res.string.queue_clear_confirm),
-            message = stringResource(Res.string.queue_clear_confirmation),
-            onDismiss = {
-                onClearConfirmationChange(confirmation.dismiss())
-                onClearConfirmationChange(null)
-            },
-            onConfirm = {
-                onClearConfirmationChange(confirmation.confirm())
-                if (confirmation.confirm().shouldDispatchClear) {
-                    scope.launch {
-                        val feedback = onClearUpcoming()
-                        confirmedState = feedback.refreshedState
-                        showQueueChanged = feedback.showQueueChanged
-                    }
-                }
-                onClearConfirmationChange(null)
-            },
-        )
-    }
-}
-
-@Composable
-private fun QueueSectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        modifier = modifier.padding(vertical = 4.dp),
-        color = HausColors.current.ink,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Black,
-    )
-}
-
-@Composable
-private fun QueueOccurrenceRow(
-    row: QueueRowPresentation,
-    artworkLoader: suspend (String) -> ByteArray?,
-    upcomingIndex: Int = -1,
-    upcomingIds: List<String> = emptyList(),
-    rowCenters: MutableMap<String, Float> = mutableMapOf(),
-    onMove: (Int) -> Unit = {},
-    onDragTarget: (Int) -> Unit = {},
-    onRemove: () -> Unit = {},
-) {
-    val isCurrent = row.role == QueueRowRole.Current
-    val rowState =
-        stringResource(
-            when (row.semanticState) {
-                QueueRowState.Current -> Res.string.queue_current_state
-                QueueRowState.Upcoming -> Res.string.queue_upcoming_state
-            },
-        )
-    val actionTrackTitle = row.actionTrackTitle ?: row.occurrence.track.title
-    val moveUp =
-        stringResource(Res.string.queue_move_up_format, actionTrackTitle)
-    val moveDown =
-        stringResource(Res.string.queue_move_down_format, actionTrackTitle)
-    val drag = stringResource(Res.string.queue_drag_format, actionTrackTitle)
-    val remove =
-        stringResource(Res.string.queue_remove_format, actionTrackTitle)
-    val shape = RoundedCornerShape(20.dp)
-    BoxWithConstraints(
-        modifier =
-            Modifier.fillMaxWidth()
-                .then(
-                    if (upcomingIndex >= 0) {
-                        Modifier.onGloballyPositioned { coordinates ->
-                            rowCenters[row.occurrence.id] =
-                                coordinates.positionInRoot().y +
-                                    coordinates.size.height / 2f
-                        }
-                    } else {
-                        Modifier
-                    },
-                )
-                .border(
-                    1.dp,
-                    if (isCurrent) HausColors.current.pulse
-                    else HausColors.current.line,
-                    shape)
-                .background(
-                    if (isCurrent) HausColors.current.panelStrong
-                    else HausColors.current.panel.copy(alpha = .54f),
-                    shape)
-                .semantics {
-                    row.semanticRole?.let { role = it }
-                    contentDescription = row.occurrence.track.title
-                    stateDescription = rowState
-                }
-                .padding(12.dp),
-    ) {
-        val layoutPolicy =
-            queueRowLayoutPolicy(maxWidth, row.availableActions.isNotEmpty())
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (QueueRowAction.Drag in row.availableActions) {
-                    QueueDragHandle(
-                        row = row,
-                        upcomingIndex = upcomingIndex,
-                        upcomingIds = upcomingIds,
-                        rowCenters = rowCenters,
-                        targetSize = layoutPolicy.minimumInteractiveTarget,
-                        contentDescription = drag,
-                        onDragTarget = onDragTarget,
-                    )
-                }
-                QueueTrackMetadata(row.occurrence, artworkLoader)
-                if (layoutPolicy.actionPlacement ==
-                    QueueActionPlacement.Inline) {
-                    QueueMutationActions(
-                        row = row,
-                        targetSize = layoutPolicy.minimumInteractiveTarget,
-                        moveUpDescription = moveUp,
-                        moveDownDescription = moveDown,
-                        removeDescription = remove,
-                        onMove = onMove,
-                        onRemove = onRemove,
-                    )
-                }
-            }
-            if (layoutPolicy.actionPlacement ==
-                QueueActionPlacement.SecondaryRow) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    QueueMutationActions(
-                        row = row,
-                        targetSize = layoutPolicy.minimumInteractiveTarget,
-                        moveUpDescription = moveUp,
-                        moveDownDescription = moveDown,
-                        removeDescription = remove,
-                        onMove = onMove,
-                        onRemove = onRemove,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun QueueDragHandle(
-    row: QueueRowPresentation,
-    upcomingIndex: Int,
-    upcomingIds: List<String>,
-    rowCenters: MutableMap<String, Float>,
-    targetSize: androidx.compose.ui.unit.Dp,
-    contentDescription: String,
-    onDragTarget: (Int) -> Unit,
-) {
-    Text(
-        "≡",
-        modifier =
-            Modifier.size(targetSize)
-                .pointerInput(
-                    row.occurrence.id, upcomingIds, rowCenters.toMap()) {
-                        var pointerY = rowCenters[row.occurrence.id] ?: 0f
-                        var targetIndex = upcomingIndex
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                pointerY = rowCenters[row.occurrence.id] ?: 0f
-                                targetIndex = upcomingIndex
-                            },
-                            onDragEnd = {
-                                if (targetIndex != upcomingIndex)
-                                    onDragTarget(targetIndex)
-                            },
-                            onDrag = { change, amount ->
-                                change.consume()
-                                pointerY += amount.y
-                                targetIndex =
-                                    queueDragTargetIndex(
-                                        pointerY = pointerY,
-                                        rowCentersByOccurrenceId = rowCenters,
-                                        upcomingIds = upcomingIds,
-                                        fallbackOccurrenceId =
-                                            row.occurrence.id,
-                                    )
-                            },
-                        )
-                    }
-                .semantics { this.contentDescription = contentDescription },
-        color = HausColors.current.muted,
-        fontSize = 24.sp,
-    )
-}
-
-@Composable
-private fun androidx.compose.foundation.layout.RowScope.QueueTrackMetadata(
-    occurrence: QueueOccurrence,
+private fun PlaylistRowArtwork(
+    trackId: String,
+    title: String,
+    artworkBytes: ByteArray?,
     artworkLoader: suspend (String) -> ByteArray?,
 ) {
     PlaylistLazyArtworkImage(
-        trackId = occurrence.track.id,
-        eagerArtworkBytes = occurrence.track.artworkBytes,
-        contentDescription = occurrence.track.title,
+        trackId = trackId,
+        eagerArtworkBytes = artworkBytes,
+        contentDescription = title,
         role = ArtworkImageRole.Thumbnail,
-        modifier = playlistArtworkThumbnailModifier(),
+        modifier = Modifier.fillMaxSize(),
         contentScale = ContentScale.Crop,
         artworkLoader = artworkLoader,
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                occurrence.track.title.firstOrNull()?.uppercase() ?: "♪",
+                title.firstOrNull()?.uppercase() ?: "♪",
                 color = HausColors.current.ink,
                 fontWeight = FontWeight.Black)
         }
     }
-    Column(Modifier.weight(1f)) {
-        Text(
-            occurrence.track.title,
-            color = HausColors.current.ink,
-            fontWeight = FontWeight.Black,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis)
-        Text(
-            occurrence.track.artist,
-            color = HausColors.current.muted,
-            fontSize = 12.sp,
-            maxLines = 1)
-    }
 }
 
-@Composable
-private fun QueueMutationActions(
-    row: QueueRowPresentation,
-    targetSize: androidx.compose.ui.unit.Dp,
-    moveUpDescription: String,
-    moveDownDescription: String,
-    removeDescription: String,
-    onMove: (Int) -> Unit,
-    onRemove: () -> Unit,
-) {
-    if (QueueRowAction.Remove !in row.availableActions) return
-    IconButton(
-        onClick = { onMove(-1) },
-        enabled = QueueRowAction.MoveUp in row.availableActions,
-        minWidth = targetSize,
-        minHeight = targetSize,
-        backgroundColor = Color.Transparent,
-        modifier =
-            Modifier.semantics { contentDescription = moveUpDescription }) {
-            Text("↑", color = HausColors.current.ink)
-        }
-    IconButton(
-        onClick = { onMove(1) },
-        enabled = QueueRowAction.MoveDown in row.availableActions,
-        minWidth = targetSize,
-        minHeight = targetSize,
-        backgroundColor = Color.Transparent,
-        modifier =
-            Modifier.semantics { contentDescription = moveDownDescription }) {
-            Text("↓", color = HausColors.current.ink)
-        }
-    IconButton(
-        onClick = onRemove,
-        minWidth = targetSize,
-        minHeight = targetSize,
-        backgroundColor = Color.Transparent,
-        modifier =
-            Modifier.semantics { contentDescription = removeDescription }) {
-            Text("×", color = HausColors.current.danger)
-        }
-}
-
-/** Renders one playlist detail route while Shared controls navigation. */
+/**
+ * Renders one playlist detail route while Shared controls navigation.
+ *
+ * @param desktopDensity Whether saved-track rows use the wider desktop density.
+ */
 @Composable
 public fun PlaylistDetailScreen(
     playlist: PlaylistSummary,
@@ -1556,14 +958,21 @@ public fun PlaylistDetailScreen(
     listState: LazyListState = rememberLazyListState(),
     onScrollPositionChanged: (Int, Int) -> Unit = { _, _ -> },
     initialEditMode: Boolean = false,
+    desktopDensity: Boolean = false,
 ) {
     val tracksById = playableTracksById
     val model =
         playlistDetailModel(playlist.id, playlist.name, entries, tracksById)
     var renameDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
     var renameOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
+    var renamePending by remember {
+        mutableStateOf<PlaylistDismissalAppearance?>(null)
+    }
     var deleteConfirmation by remember { mutableStateOf(false) }
     var deleteOutcome by remember { mutableStateOf<PlaylistStateAction?>(null) }
+    var deletePending by remember {
+        mutableStateOf<PlaylistDismissalAppearance?>(null)
+    }
     var removeConfirmation by remember {
         mutableStateOf<PlaylistDetailRow?>(null)
     }
@@ -1581,11 +990,13 @@ public fun PlaylistDetailScreen(
             renameDraft != null -> ({
                     renameDraft = null
                     renameOutcome = null
+                    renamePending = null
                 })
 
             deleteConfirmation -> ({
                     deleteConfirmation = false
                     deleteOutcome = null
+                    deletePending = null
                 })
 
             removeConfirmation != null -> ({
@@ -1663,17 +1074,19 @@ public fun PlaylistDetailScreen(
                         CompactAction(
                             stringResource(Res.string.playlist_add_tracks),
                             Modifier.weight(1f),
-                            onOpenBrowser)
+                            onClick = onOpenBrowser)
                         CompactAction(
                             stringResource(Res.string.playlist_rename),
                             Modifier.weight(1f)) {
                                 renameDraft = PlaylistNameDraft(playlist.name)
+                                renamePending = null
                             }
                         CompactAction(
                             stringResource(Res.string.playlist_delete),
                             Modifier.weight(1f)) {
                                 deleteConfirmation = true
                                 deleteOutcome = null
+                                deletePending = null
                             }
                     }
             }
@@ -1689,6 +1102,7 @@ public fun PlaylistDetailScreen(
             PlaylistEntryRow(
                 row = row,
                 artworkLoader = artworkLoader,
+                desktopDensity = desktopDensity,
                 rowIndex = rowIndex,
                 entryIds = entries.map(PlaylistEntry::id),
                 rowCenters = rowCenters,
@@ -1734,29 +1148,44 @@ public fun PlaylistDetailScreen(
     renameDraft?.let { draft ->
         val modalPresentation =
             playlistNameModalPresentation(draft, renameOutcome)
+        val isPending = renamePending == renameAppearance
         PlaylistNameDialog(
             title = stringResource(Res.string.playlist_rename),
             draft = draft,
             notice = modalPresentation.notice,
+            isPending = isPending,
             onDraftChange = {
-                renameDraft = PlaylistNameDraft(it)
-                renameOutcome = null
+                if (!isPending) {
+                    renameDraft = PlaylistNameDraft(it)
+                    renameOutcome = null
+                }
             },
             onDismiss = {
                 renameDraft = null
                 renameOutcome = null
+                renamePending = null
             },
             onConfirm = {
-                val name = draft.confirmedName()
-                if (name == null) {
-                    renameDraft = draft.mutationFailed()
-                } else {
-                    onRename(name) { outcome ->
-                        renameOutcome = outcome
-                        if (playlistMutationDecision(
-                            PlaylistMutationWorkflow.Rename, outcome) ==
-                            PlaylistMutationDecision.CloseModal) {
-                            renameDraft = null
+                if (renamePending == null) {
+                    val name = draft.confirmedName()
+                    if (name == null) {
+                        renameDraft = draft.mutationFailed()
+                    } else {
+                        val appearance = renameAppearance
+                        if (appearance != null) {
+                            renamePending = appearance
+                            onRename(name) { outcome ->
+                                if (renamePending == appearance) {
+                                    renamePending = null
+                                    renameOutcome = outcome
+                                    if (playlistMutationDecision(
+                                        PlaylistMutationWorkflow.Rename,
+                                        outcome) ==
+                                        PlaylistMutationDecision.CloseModal) {
+                                        renameDraft = null
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1774,21 +1203,35 @@ public fun PlaylistDetailScreen(
                 if (deleteOutcome is PlaylistStateAction.MutationFailed)
                     PlaylistModalNotice.MutationFailed
                 else null,
+            isPending = deletePending == deleteAppearance,
             onDismiss = {
                 deleteConfirmation = false
                 deleteOutcome = null
+                deletePending = null
             },
             onConfirm = {
-                onDelete { outcome ->
-                    deleteOutcome = outcome
-                    if (playlistMutationDecision(
-                        PlaylistMutationWorkflow.Delete, outcome) ==
-                        PlaylistMutationDecision.CloseConfirmationAndRoute) {
-                        deleteConfirmation = false
-                        deleteOutcome = null
-                        onDeleteConfirmed(
-                            (outcome as PlaylistStateAction.SnapshotConfirmed)
-                                .snapshot)
+                if (deletePending == null) {
+                    val appearance = deleteAppearance
+                    if (appearance != null) {
+                        deletePending = appearance
+                        onDelete { outcome ->
+                            if (deletePending == appearance) {
+                                deletePending = null
+                                deleteOutcome = outcome
+                                if (playlistMutationDecision(
+                                    PlaylistMutationWorkflow.Delete, outcome) ==
+                                    PlaylistMutationDecision
+                                        .CloseConfirmationAndRoute) {
+                                    deleteConfirmation = false
+                                    deleteOutcome = null
+                                    onDeleteConfirmed(
+                                        (outcome
+                                                as
+                                                PlaylistStateAction.SnapshotConfirmed)
+                                            .snapshot)
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -1803,13 +1246,20 @@ public fun PlaylistDetailScreen(
                 stringResource(
                     Res.string.playlist_remove_track_format, row.track.title),
             onDismiss = {
-                destructivePresentation = destructivePresentation?.dismiss()
-                removeConfirmation = null
+                if (removeConfirmation == row) {
+                    destructivePresentation = destructivePresentation?.dismiss()
+                    removeConfirmation = null
+                }
             },
             onConfirm = {
-                destructivePresentation = destructivePresentation?.confirm()
-                destructivePresentation?.confirmedEntryId?.let(onRemoveEntry)
-                removeConfirmation = null
+                if (removeConfirmation == row &&
+                    destructivePresentation?.confirmedEntryId == null) {
+                    destructivePresentation = destructivePresentation?.confirm()
+                    removeConfirmation = null
+                    destructivePresentation
+                        ?.confirmedEntryId
+                        ?.let(onRemoveEntry)
+                }
             },
         )
     }
@@ -1824,11 +1274,20 @@ internal fun AddToPlaylistPicker(
     onAppend: (PlaylistAppendRequest) -> Unit,
     onInlineCreate: (PlaylistInlineCreateRequest) -> Unit,
     notice: PlaylistModalNotice? = null,
+    isPending: Boolean = false,
 ) {
+    val currentPlaylists = rememberUpdatedState(playlists)
+    val currentState = rememberUpdatedState(state)
+    val currentOnStateChange = rememberUpdatedState(onStateChange)
+    val currentOnDismiss = rememberUpdatedState(onDismiss)
+    val currentOnAppend = rememberUpdatedState(onAppend)
+    val currentOnInlineCreate = rememberUpdatedState(onInlineCreate)
+    val currentNotice = rememberUpdatedState(notice)
+    val currentIsPending = rememberUpdatedState(isPending)
     val title = stringResource(Res.string.playlist_add_to)
     HausDialog(
         title = title,
-        onDismiss = onDismiss,
+        onDismiss = { currentOnDismiss.value() },
         body = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -1839,30 +1298,36 @@ internal fun AddToPlaylistPicker(
                     color = HausColors.current.ink,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black)
-                ModalFailureNotice(notice)
+                ModalFailureNotice(currentNotice.value)
                 Text(
                     stringResource(Res.string.playlist_choose_existing),
                     color = HausColors.current.ink,
                     fontWeight = FontWeight.Bold)
-                playlists.forEach { playlist ->
+                currentPlaylists.value.forEach { playlist ->
                     CompactAction(
                         text = playlist.name,
                         modifier =
                             Modifier.fillMaxWidth().semantics {
                                 contentDescription = playlist.name
                             },
+                        enabled = !currentIsPending.value,
                     ) {
-                        onStateChange(
-                            state.copy(selectedPlaylistId = playlist.id))
+                        currentOnStateChange.value(
+                            currentState.value.copy(
+                                selectedPlaylistId = playlist.id))
                     }
                 }
                 Text(
                     stringResource(Res.string.playlist_create_inline),
                     color = HausColors.current.ink,
                     fontWeight = FontWeight.Bold)
-                PlaylistTextField(state.enteredName) {
-                    onStateChange(state.copy(enteredName = it))
-                }
+                PlaylistTextField(
+                    currentState.value.enteredName,
+                    modifier = Modifier.testTag("playlist-picker-name-field"),
+                    enabled = !currentIsPending.value) {
+                        currentOnStateChange.value(
+                            currentState.value.copy(enteredName = it))
+                    }
             }
         },
         actions = {
@@ -1870,15 +1335,24 @@ internal fun AddToPlaylistPicker(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (state.selectedPlaylistId != null) {
-                    CompactAction(title, Modifier.fillMaxWidth()) {
-                        state.confirmedAppend()?.let(onAppend)
-                    }
+                if (currentState.value.selectedPlaylistId != null) {
+                    CompactAction(
+                        title,
+                        Modifier.fillMaxWidth()
+                            .testTag("playlist-picker-append"),
+                        enabled = !currentIsPending.value) {
+                            currentState.value
+                                .confirmedAppend()
+                                ?.let(currentOnAppend.value)
+                        }
                 }
                 CompactAction(
                     stringResource(Res.string.playlist_create),
-                    Modifier.fillMaxWidth()) {
-                        state.confirmedInlineCreate()?.let(onInlineCreate)
+                    Modifier.fillMaxWidth().testTag("playlist-picker-create"),
+                    enabled = !currentIsPending.value) {
+                        currentState.value
+                            .confirmedInlineCreate()
+                            ?.let(currentOnInlineCreate.value)
                     }
             }
         },
@@ -1894,6 +1368,7 @@ internal fun PlaylistTrackBrowser(
     onDismiss: () -> Unit,
     onConfirm: (PlaylistAppendRequest) -> Unit,
     notice: PlaylistModalNotice? = null,
+    isPending: Boolean = false,
 ) {
     val visibleIds =
         remember(state.query, libraryTracks) {
@@ -1906,11 +1381,15 @@ internal fun PlaylistTrackBrowser(
         }
     val visibleState =
         state.copy(visibleTrackIds = visible.map(LibraryTrack::id))
-    val selectedStateDescription =
-        stringResource(Res.string.playlist_selected_state)
+    val currentVisibleState = rememberUpdatedState(visibleState)
+    val currentOnStateChange = rememberUpdatedState(onStateChange)
+    val currentOnDismiss = rememberUpdatedState(onDismiss)
+    val currentOnConfirm = rememberUpdatedState(onConfirm)
+    val currentNotice = rememberUpdatedState(notice)
+    val currentIsPending = rememberUpdatedState(isPending)
     HausDialog(
         title = playlistName,
-        onDismiss = onDismiss,
+        onDismiss = { currentOnDismiss.value() },
         body = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -1921,56 +1400,62 @@ internal fun PlaylistTrackBrowser(
                     color = HausColors.current.ink,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black)
-                ModalFailureNotice(notice)
+                ModalFailureNotice(currentNotice.value)
                 PlaylistTextField(
-                    state.query,
-                    stringResource(Res.string.playlist_track_browser_search)) {
-                        onStateChange(state.copy(query = it))
+                    currentVisibleState.value.query,
+                    stringResource(Res.string.playlist_track_browser_search),
+                    Modifier.testTag("playlist-browser-search"),
+                    enabled = !currentIsPending.value) {
+                        currentOnStateChange.value(
+                            currentVisibleState.value.copy(query = it))
                     }
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().height(320.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(visible, key = { it.id }) { track ->
-                            val selected = track.id in state.selectedTrackIds
-                            Row(
-                                modifier =
-                                    Modifier.fillMaxWidth()
-                                        .background(
-                                            if (selected)
-                                                HausColors.current.panelStrong
-                                            else HausColors.current.panel,
-                                            RoundedCornerShape(16.dp))
-                                        .hausClickable {
-                                            onStateChange(
-                                                visibleState.toggle(track.id))
-                                        }
-                                        .semantics {
-                                            contentDescription = track.title
-                                            if (selected)
-                                                stateDescription =
-                                                    selectedStateDescription
-                                        }
-                                        .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        track.title,
-                                        color = HausColors.current.ink,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis)
-                                    Text(
-                                        track.artist,
-                                        color = HausColors.current.muted,
-                                        fontSize = 12.sp,
-                                        maxLines = 1)
+                            val selected =
+                                track.id in
+                                    currentVisibleState.value.selectedTrackIds
+                            val artist = track.artist.takeIf { it.isNotBlank() }
+                            val album = track.album.takeIf { it.isNotBlank() }
+                            val description =
+                                when {
+                                    artist != null && album != null ->
+                                        "${track.title}, $artist, $album"
+                                    artist != null -> "${track.title}, $artist"
+                                    album != null -> "${track.title}, $album"
+                                    else -> track.title
                                 }
-                                Text(
-                                    if (selected) "✓" else "+",
-                                    color = HausColors.current.pulse,
-                                    fontSize = 18.sp)
+                            val toggle = {
+                                currentOnStateChange.value(
+                                    currentVisibleState.value.toggle(track.id))
                             }
+                            HausSongRow(
+                                title = track.title,
+                                subtitle =
+                                    songArtistAlbumSubtitle(artist, album),
+                                selectionMode = true,
+                                selected = selected,
+                                playing = false,
+                                interactive = !currentIsPending.value,
+                                onActivate = toggle,
+                                onSelect = toggle,
+                                selectLabel = description,
+                                playingLabel = null,
+                                desktopDensity =
+                                    com.eterocell.rhythhaus.ui
+                                        .LocalHausDesktopDensity
+                                        .current,
+                                artwork = {
+                                    PlaylistRowArtwork(
+                                        track.id,
+                                        track.title,
+                                        track.artworkBytes,
+                                        { null })
+                                },
+                                indicator = {},
+                                trailing = {},
+                            )
                         }
                     }
             }
@@ -1978,8 +1463,11 @@ internal fun PlaylistTrackBrowser(
         actions = {
             CompactAction(
                 stringResource(Res.string.playlist_confirm_add),
-                Modifier.fillMaxWidth()) {
-                    visibleState.confirmedAppend()?.let(onConfirm)
+                Modifier.fillMaxWidth().testTag("playlist-browser-confirm"),
+                enabled = !currentIsPending.value) {
+                    currentVisibleState.value
+                        .confirmedAppend()
+                        ?.let(currentOnConfirm.value)
                 }
         },
     )
@@ -1987,7 +1475,8 @@ internal fun PlaylistTrackBrowser(
 
 /**
  * Feature-owned playlist picker route; Shared supplies navigation and mutation
- * callbacks.
+ * callbacks. [onConfirmed] runs only when the current appearance's mutation is
+ * confirmed by a snapshot.
  */
 @Composable
 public fun AddToPlaylistPickerOverlay(
@@ -1998,18 +1487,27 @@ public fun AddToPlaylistPickerOverlay(
     dismissalPublisher: PlaylistFeatureDismissalPublisher,
     onStateChange: (PlaylistPickerState) -> Unit,
     onDismiss: () -> Unit,
+    onConfirmed: () -> Unit,
     onAppend: (String, List<String>, (PlaylistStateAction) -> Unit) -> Unit,
     onInlineCreate:
         (String, List<String>, (PlaylistStateAction) -> Unit) -> Unit,
 ) {
     val appearance = rememberFeatureAppearance("picker", appearanceSource)
     var failureNotice by remember { mutableStateOf<PlaylistModalNotice?>(null) }
+    var pendingAppearance by remember {
+        mutableStateOf<PlaylistDismissalAppearance?>(null)
+    }
+    val dismissAndReset = {
+        pendingAppearance = null
+        failureNotice = null
+        onDismiss()
+    }
     PublishFeatureDismissal(
         destination,
         dismissalPublisher,
         PlaylistFeatureDismissal.Modal(destination, appearance),
     ) {
-        onDismiss()
+        dismissAndReset()
         PlaylistFeatureDismissalDispatch.Started
     }
     AddToPlaylistPicker(
@@ -2018,30 +1516,52 @@ public fun AddToPlaylistPickerOverlay(
             AddToPlaylistPickerState(
                 state.trackIds, state.selectedPlaylistId, state.enteredName),
         onStateChange = { next ->
-            onStateChange(
-                PlaylistPickerState(
-                    next.trackIds, next.selectedPlaylistId, next.enteredName))
+            if (pendingAppearance == null) {
+                onStateChange(
+                    PlaylistPickerState(
+                        next.trackIds,
+                        next.selectedPlaylistId,
+                        next.enteredName))
+            }
         },
-        onDismiss = onDismiss,
+        onDismiss = dismissAndReset,
         onAppend = { request ->
-            onAppend(request.playlistId, request.trackIds) { outcome ->
-                if (outcome !is PlaylistStateAction.SnapshotConfirmed)
-                    failureNotice = PlaylistModalNotice.MutationFailed
+            if (pendingAppearance == null) {
+                failureNotice = null
+                pendingAppearance = appearance
+                onAppend(request.playlistId, request.trackIds) { outcome ->
+                    if (pendingAppearance == appearance) {
+                        pendingAppearance = null
+                        if (outcome is PlaylistStateAction.SnapshotConfirmed)
+                            onConfirmed()
+                        else failureNotice = PlaylistModalNotice.MutationFailed
+                    }
+                }
             }
         },
         onInlineCreate = { request ->
-            onInlineCreate(request.name, request.trackIds) { outcome ->
-                if (outcome !is PlaylistStateAction.SnapshotConfirmed)
-                    failureNotice = PlaylistModalNotice.MutationFailed
+            if (pendingAppearance == null) {
+                failureNotice = null
+                pendingAppearance = appearance
+                onInlineCreate(request.name, request.trackIds) { outcome ->
+                    if (pendingAppearance == appearance) {
+                        pendingAppearance = null
+                        if (outcome is PlaylistStateAction.SnapshotConfirmed)
+                            onConfirmed()
+                        else failureNotice = PlaylistModalNotice.MutationFailed
+                    }
+                }
             }
         },
         notice = failureNotice,
+        isPending = pendingAppearance != null,
     )
 }
 
 /**
  * Feature-owned track browser route; Shared supplies navigation and mutation
- * callbacks.
+ * callbacks. [onConfirmed] runs only when the current appearance's mutation is
+ * confirmed by a snapshot.
  */
 @Composable
 public fun PlaylistTrackBrowserOverlay(
@@ -2053,16 +1573,25 @@ public fun PlaylistTrackBrowserOverlay(
     dismissalPublisher: PlaylistFeatureDismissalPublisher,
     onStateChange: (PlaylistBrowserState) -> Unit,
     onDismiss: () -> Unit,
+    onConfirmed: () -> Unit,
     onConfirm: (String, List<String>, (PlaylistStateAction) -> Unit) -> Unit,
 ) {
     val appearance = rememberFeatureAppearance("browser", appearanceSource)
     var failureNotice by remember { mutableStateOf<PlaylistModalNotice?>(null) }
+    var pendingAppearance by remember {
+        mutableStateOf<PlaylistDismissalAppearance?>(null)
+    }
+    val dismissAndReset = {
+        pendingAppearance = null
+        failureNotice = null
+        onDismiss()
+    }
     PublishFeatureDismissal(
         destination,
         dismissalPublisher,
         PlaylistFeatureDismissal.Modal(destination, appearance),
     ) {
-        onDismiss()
+        dismissAndReset()
         PlaylistFeatureDismissalDispatch.Started
     }
     PlaylistTrackBrowser(
@@ -2075,21 +1604,32 @@ public fun PlaylistTrackBrowserOverlay(
                 state.visibleTrackIds,
                 state.selectedTrackIds),
         onStateChange = { next ->
-            onStateChange(
-                PlaylistBrowserState(
-                    next.playlistId,
-                    next.query,
-                    next.visibleTrackIds,
-                    next.selectedTrackIds))
+            if (pendingAppearance == null) {
+                onStateChange(
+                    PlaylistBrowserState(
+                        next.playlistId,
+                        next.query,
+                        next.visibleTrackIds,
+                        next.selectedTrackIds))
+            }
         },
-        onDismiss = onDismiss,
+        onDismiss = dismissAndReset,
         onConfirm = { request ->
-            onConfirm(request.playlistId, request.trackIds) { outcome ->
-                if (outcome !is PlaylistStateAction.SnapshotConfirmed)
-                    failureNotice = PlaylistModalNotice.MutationFailed
+            if (pendingAppearance == null) {
+                failureNotice = null
+                pendingAppearance = appearance
+                onConfirm(request.playlistId, request.trackIds) { outcome ->
+                    if (pendingAppearance == appearance) {
+                        pendingAppearance = null
+                        if (outcome is PlaylistStateAction.SnapshotConfirmed)
+                            onConfirmed()
+                        else failureNotice = PlaylistModalNotice.MutationFailed
+                    }
+                }
             }
         },
         notice = failureNotice,
+        isPending = pendingAppearance != null,
     )
 }
 
@@ -2179,54 +1719,6 @@ internal fun PlaylistScreenFrame(
 }
 
 @Composable
-private fun PlaylistTabs(
-    selected: PlaylistTab,
-    onSelect: (PlaylistTab) -> Unit
-) {
-    val palette = HausColors.current
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(
-                PlaylistTab.Saved to
-                    stringResource(Res.string.playlist_saved_tab),
-                PlaylistTab.Queue to
-                    stringResource(Res.string.playlist_queue_tab))
-            .forEach { (tab, label) ->
-                val presentation = playlistTabPresentation(tab, palette)
-                val isSelected = selected == tab
-                Button(
-                    onClick = { onSelect(tab) },
-                    modifier =
-                        Modifier.weight(1f)
-                            .height(presentation.compactControlHeight),
-                    cornerRadius = 20.dp,
-                    insideMargin =
-                        PaddingValues(
-                            horizontal = 10.dp,
-                            vertical = presentation.insideVerticalMargin),
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            color =
-                                if (isSelected)
-                                    presentation.selectedContainerColor
-                                else presentation.unselectedContainerColor,
-                            contentColor =
-                                if (isSelected)
-                                    presentation.selectedContentColor
-                                else presentation.unselectedContentColor,
-                        ),
-                ) {
-                    Text(
-                        label,
-                        fontWeight = FontWeight.Bold,
-                        lineHeight = presentation.lineHeight,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis)
-                }
-            }
-    }
-}
-
-@Composable
 private fun PlaylistHubRow(
     playlist: PlaylistSummary,
     entryCount: Int,
@@ -2268,6 +1760,7 @@ private fun PlaylistHubRow(
 private fun PlaylistEntryRow(
     row: PlaylistDetailRow,
     artworkLoader: suspend (String) -> ByteArray?,
+    desktopDensity: Boolean,
     rowIndex: Int,
     entryIds: List<String>,
     rowCenters: MutableMap<Int, Float>,
@@ -2290,97 +1783,88 @@ private fun PlaylistEntryRow(
     val duration =
         playlistFormatDuration(
             ((row.track.durationMillis ?: 0L) / 1_000L).toInt())
+    val displayArtist = row.track.artist.takeIf { it.isNotBlank() }
+    val displayAlbum = row.track.album?.takeIf { it.isNotBlank() }
+    val rowSubtitle = songArtistAlbumSubtitle(displayArtist, displayAlbum)
     val rowDescription =
-        "${row.track.title}, ${row.track.artist}, ${row.track.album}, $duration"
-    BoxWithConstraints(
-        Modifier.clip(RoundedCornerShape(20.dp))
-            .fillMaxWidth()
-            .onGloballyPositioned { coordinates ->
-                rowCenters[rowIndex] =
-                    coordinates.positionInRoot().y +
-                        coordinates.size.height / 2f
-            }
-            .border(1.dp, HausColors.current.line, RoundedCornerShape(20.dp))
-            .background(
-                HausColors.current.panel.copy(alpha = .54f),
-                RoundedCornerShape(20.dp))
-            .hausCombinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-                onLongClickLabel = rowDescription)
-            .semantics { contentDescription = rowDescription }
-            .padding(12.dp),
-    ) {
+        when {
+            displayArtist != null && displayAlbum != null ->
+                "${row.track.title}, $displayArtist, $displayAlbum, $duration"
+            displayArtist != null ->
+                "${row.track.title}, $displayArtist, $duration"
+            displayAlbum != null ->
+                "${row.track.title}, $displayAlbum, $duration"
+            else -> "${row.track.title}, $duration"
+        }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
         val layoutPolicy =
             playlistDetailRowLayoutPolicy(
-                maxWidth, mode == PlaylistDetailRowMode.Edit)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (mode == PlaylistDetailRowMode.Edit)
-                        PlaylistEntryDragHandle(
-                            row,
-                            rowIndex,
-                            entryIds,
-                            rowCenters,
-                            drag,
-                            onDragOrder)
-                    PlaylistLazyArtworkImage(
+                maxWidth,
+                mode == PlaylistDetailRowMode.Edit,
+                desktopDensity,
+            )
+        val editing = mode == PlaylistDetailRowMode.Edit
+        Column(
+            Modifier.fillMaxWidth()
+                .onGloballyPositioned { coordinates ->
+                    rowCenters[rowIndex] =
+                        coordinates.positionInRoot().y +
+                            coordinates.size.height / 2f
+                }
+                .testTag("playlist-entry-metadata-${row.entry.id}")
+                .semantics { stateDescription = entryState },
+        ) {
+            HausSongRow(
+                title = row.track.title,
+                subtitle = rowSubtitle,
+                selectionMode = false,
+                selected = false,
+                playing = false,
+                interactive = true,
+                onActivate = onClick,
+                onSelect = onLongClick,
+                selectLabel = rowDescription,
+                playingLabel = null,
+                desktopDensity = desktopDensity,
+                artwork = {
+                    PlaylistRowArtwork(
                         trackId = row.track.id,
-                        eagerArtworkBytes = row.track.artworkBytes,
-                        contentDescription = row.track.title,
-                        role = ArtworkImageRole.Thumbnail,
-                        modifier = playlistArtworkThumbnailModifier(),
-                        contentScale = ContentScale.Crop,
+                        title = row.track.title,
+                        artworkBytes = row.track.artworkBytes,
                         artworkLoader = artworkLoader,
-                    ) {
-                        Box(
-                            Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center) {
-                                Text(
-                                    row.track.title.firstOrNull()?.uppercase()
-                                        ?: "♪",
-                                    color = HausColors.current.ink,
-                                    fontWeight = FontWeight.Black)
-                            }
-                    }
-                    Column(
-                        Modifier.weight(1f)
-                            .testTag("playlist-entry-metadata-${row.entry.id}")
-                            .semantics { stateDescription = entryState }) {
-                            Text(
-                                row.track.title,
-                                color = HausColors.current.ink,
-                                fontWeight = FontWeight.Black,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis)
-                            Text(
-                                "${row.track.artist} · ${row.track.album}",
-                                color = HausColors.current.muted,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis)
-                        }
+                    )
+                },
+                indicator = {},
+                trailing = {
                     Text(
                         duration,
                         color = HausColors.current.muted,
                         fontSize = 12.sp)
-                    if (layoutPolicy.actionPlacement ==
-                        PlaylistDetailActionPlacement.Inline &&
-                        mode == PlaylistDetailRowMode.Edit)
+                    if (editing &&
+                        layoutPolicy.actionPlacement ==
+                            PlaylistDetailActionPlacement.Inline)
                         PlaylistEntryMutationActions(
                             availability,
                             moveUp,
                             moveDown,
                             remove,
                             onMove,
-                            onRemove)
-                }
-            if (layoutPolicy.actionPlacement ==
-                PlaylistDetailActionPlacement.SecondaryRow &&
-                mode == PlaylistDetailRowMode.Edit) {
+                            onRemove,
+                            targetSize = layoutPolicy.minimumInteractiveTarget)
+                    if (editing)
+                        PlaylistEntryDragHandle(
+                            row,
+                            rowIndex,
+                            entryIds,
+                            rowCenters,
+                            drag,
+                            onDragOrder,
+                            targetSize = layoutPolicy.minimumInteractiveTarget)
+                },
+            )
+            if (editing &&
+                layoutPolicy.actionPlacement ==
+                    PlaylistDetailActionPlacement.SecondaryRow) {
                 Row(
                     Modifier.fillMaxWidth()
                         .testTag("playlist-entry-action-rail-${row.entry.id}"),
@@ -2391,7 +1875,8 @@ private fun PlaylistEntryRow(
                             moveDown,
                             remove,
                             onMove,
-                            onRemove)
+                            onRemove,
+                            targetSize = layoutPolicy.minimumInteractiveTarget)
                     }
             }
         }
@@ -2417,12 +1902,13 @@ private fun PlaylistEntryDragHandle(
     entryIds: List<String>,
     rowCenters: MutableMap<Int, Float>,
     drag: String,
-    onDragOrder: (List<String>) -> Unit
+    onDragOrder: (List<String>) -> Unit,
+    targetSize: androidx.compose.ui.unit.Dp,
 ) {
     Text(
         "≡",
         modifier =
-            Modifier.size(44.dp)
+            Modifier.size(targetSize)
                 .pointerInput(row.entry.id, entryIds, rowCenters.toMap()) {
                     var pointerY = rowCenters[rowIndex] ?: 0f
                     var dragPresentation =
@@ -2460,13 +1946,14 @@ private fun PlaylistEntryMutationActions(
     moveDown: String,
     remove: String,
     onMove: (Int) -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    targetSize: androidx.compose.ui.unit.Dp,
 ) {
     IconButton(
         onClick = { onMove(-1) },
         enabled = availability.canMoveUp,
-        minWidth = 44.dp,
-        minHeight = 44.dp,
+        minWidth = targetSize,
+        minHeight = targetSize,
         backgroundColor = Color.Transparent,
         modifier =
             Modifier.semantics {
@@ -2479,8 +1966,8 @@ private fun PlaylistEntryMutationActions(
     IconButton(
         onClick = { onMove(1) },
         enabled = availability.canMoveDown,
-        minWidth = 44.dp,
-        minHeight = 44.dp,
+        minWidth = targetSize,
+        minHeight = targetSize,
         backgroundColor = Color.Transparent,
         modifier =
             Modifier.semantics {
@@ -2492,8 +1979,8 @@ private fun PlaylistEntryMutationActions(
     }
     IconButton(
         onClick = onRemove,
-        minWidth = 44.dp,
-        minHeight = 44.dp,
+        minWidth = targetSize,
+        minHeight = targetSize,
         backgroundColor = Color.Transparent,
         modifier = Modifier.semantics { contentDescription = remove }) {
             Text("×", color = HausColors.current.danger)
@@ -2504,25 +1991,22 @@ private fun PlaylistEntryMutationActions(
 internal fun CompactAction(
     text: String,
     modifier: Modifier,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
-    val presentation =
-        playlistTabPresentation(PlaylistTab.Saved, HausColors.current)
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier =
-            modifier.height(presentation.compactControlHeight).semantics {
+            modifier.heightIn(min = 44.dp).semantics {
                 contentDescription = text
             },
         cornerRadius = 14.dp,
-        insideMargin =
-            PaddingValues(
-                horizontal = 10.dp,
-                vertical = presentation.insideVerticalMargin),
+        insideMargin = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
         colors =
             ButtonDefaults.buttonColors(
-                color = presentation.unselectedContainerColor,
-                contentColor = presentation.unselectedContentColor,
+                color = HausColors.current.panel,
+                contentColor = HausColors.current.ink,
             ),
     ) {
         Text(
@@ -2530,7 +2014,7 @@ internal fun CompactAction(
             modifier = Modifier.semantics { contentDescription = text },
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            lineHeight = presentation.lineHeight,
+            lineHeight = 20.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -2556,7 +2040,7 @@ internal fun PlaylistNotice(state: PlaylistState, mutationFailedLabel: String) {
 }
 
 @Composable
-private fun PlaylistNameDialog(
+internal fun PlaylistNameDialog(
     title: String,
     draft: PlaylistNameDraft,
     notice: PlaylistModalNotice?,
@@ -2564,6 +2048,7 @@ private fun PlaylistNameDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
     confirmLabel: String = title,
+    isPending: Boolean = false,
 ) {
     HausDialog(
         title = title,
@@ -2578,7 +2063,12 @@ private fun PlaylistNameDialog(
                     color = HausColors.current.ink,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black)
-                PlaylistTextField(draft.enteredText) { onDraftChange(it) }
+                PlaylistTextField(
+                    draft.enteredText,
+                    modifier = Modifier.testTag("playlist-name-field"),
+                    enabled = !isPending) {
+                        onDraftChange(it)
+                    }
                 if (draft.showFailure)
                     Text(
                         stringResource(Res.string.playlist_create_name),
@@ -2595,9 +2085,53 @@ private fun PlaylistNameDialog(
                 CompactAction(
                     stringResource(Res.string.playlist_cancel),
                     Modifier.weight(1f),
-                    onDismiss)
-                CompactAction(confirmLabel, Modifier.weight(1f), onConfirm)
+                    onClick = onDismiss)
+                CompactAction(
+                    confirmLabel,
+                    Modifier.weight(1f).testTag("playlist-name-confirm"),
+                    enabled = !isPending,
+                    onClick = onConfirm)
             }
+        },
+    )
+}
+
+@Composable
+private fun PlaylistCreateTypeDialog(
+    onStatic: () -> Unit,
+    onSmart: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val title = stringResource(Res.string.playlist_create)
+    val cancel = stringResource(Res.string.playlist_cancel)
+    HausDialog(
+        title = title,
+        onDismiss = onDismiss,
+        dismissLabel = cancel,
+        body = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    stringResource(Res.string.playlist_create_type_prompt),
+                    color = HausColors.current.muted,
+                    fontSize = 14.sp,
+                )
+                CompactAction(
+                    stringResource(Res.string.playlist_type_static),
+                    Modifier.fillMaxWidth(),
+                    onClick = onStatic,
+                )
+                CompactAction(
+                    stringResource(Res.string.playlist_type_smart),
+                    Modifier.fillMaxWidth(),
+                    onClick = onSmart,
+                )
+            }
+        },
+        actions = {
+            CompactAction(cancel, Modifier.fillMaxWidth(), onClick = onDismiss)
         },
     )
 }
@@ -2622,15 +2156,16 @@ internal fun ReadFailureNotice(onRetry: () -> Unit) {
         CompactAction(
             stringResource(Res.string.playlist_retained_retry),
             Modifier.fillMaxWidth(),
-            onRetry)
+            onClick = onRetry)
     }
 }
 
 @Composable
-private fun ConfirmationDialog(
+internal fun ConfirmationDialog(
     title: String,
     message: String,
     notice: PlaylistModalNotice? = null,
+    isPending: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -2660,8 +2195,12 @@ private fun ConfirmationDialog(
                 CompactAction(
                     stringResource(Res.string.playlist_cancel),
                     Modifier.weight(1f),
-                    onDismiss)
-                CompactAction(title, Modifier.weight(1f), onConfirm)
+                    onClick = onDismiss)
+                CompactAction(
+                    title,
+                    Modifier.weight(1f).testTag("playlist-confirm"),
+                    enabled = !isPending,
+                    onClick = onConfirm)
             }
         },
     )
@@ -2671,14 +2210,17 @@ private fun ConfirmationDialog(
 private fun PlaylistTextField(
     value: String,
     label: String = stringResource(Res.string.playlist_create_name),
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     onValueChange: (String) -> Unit
 ) {
     TextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         label = label,
         useLabelAsPlaceholder = true,
+        enabled = enabled,
         singleLine = true,
         insideMargin = DpSize(14.dp, 12.dp),
         cornerRadius = 12.dp,

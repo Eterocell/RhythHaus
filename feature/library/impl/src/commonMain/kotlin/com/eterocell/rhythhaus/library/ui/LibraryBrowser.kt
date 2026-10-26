@@ -73,11 +73,23 @@ internal fun visibleTracksForBrowseMode(
  * @param widthDp the available width in density-independent pixels.
  */
 public fun albumGridColumnsForWidth(widthDp: Float): Int =
-    when {
-        widthDp >= 900f -> 4
-        widthDp >= 560f -> 3
-        else -> 2
-    }
+    albumGridColumnsForWidth(
+        widthDp = widthDp,
+        compact = widthDp < WIDE_LIBRARY_BREAKPOINT_DP,
+    )
+
+internal const val WIDE_LIBRARY_BREAKPOINT_DP = 720f
+
+internal fun albumGridColumnsForWidth(
+    widthDp: Float,
+    compact: Boolean,
+): Int {
+    val minimumCardWidthDp = if (compact) 128f else 160f
+    val gapDp = albumGridGapDp(compact)
+    return maxOf(1, ((widthDp + gapDp) / (minimumCardWidthDp + gapDp)).toInt())
+}
+
+internal fun albumGridGapDp(compact: Boolean): Float = if (compact) 16f else 20f
 
 internal data class AlbumGroup(
     val album: String,
@@ -230,16 +242,13 @@ public sealed interface LibraryDetailSummary {
  *   unavailable.
  * @property clearLibrary Label for clearing the library.
  * @property cancel Label for cancelling an active scan.
- * @property playlists Label for the playlists entry point.
- * @property playlistsAccessibility Accessibility description for the playlists
- *   button.
- * @property libraryQueue Heading label for the queue/playlists section.
+ * @property libraryTitle Shared-owned title for the library route.
  * @property albumArt Accessibility label for track-row album thumbnails.
  * @property albumArtwork Accessibility label for album/detail artwork.
  * @property nowPlayingBadge Badge label for the now-playing track.
  * @property selectTrack Composably resolves the localized long-press/content
  *   description for a track title.
- * @property trackArtistAlbum Composably resolves the localized artist-album
+ * @property trackArtistAlbum Composably resolves the nonblank artist-album
  *   subtitle for a track.
  */
 public data class LibrarySharedLabels(
@@ -251,12 +260,8 @@ public data class LibrarySharedLabels(
     public val clearLibrary: String,
     /** Label for cancelling an active scan. */
     public val cancel: String,
-    /** Label for the playlists entry point. */
-    public val playlists: String,
-    /** Accessibility description for the playlists button. */
-    public val playlistsAccessibility: String,
-    /** Heading label for the queue/playlists section. */
-    public val libraryQueue: String,
+    /** Shared-owned library page title. */
+    public val libraryTitle: String,
     /** Accessibility label for track-row album thumbnails. */
     public val albumArt: String,
     /** Accessibility label for album/detail artwork. */

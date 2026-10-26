@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.library.TrackMetadataEditorData
 import com.eterocell.rhythhaus.library.TrackMetadataOverride
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.HausButton as Button
 import com.eterocell.rhythhaus.ui.HausDialog
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.library.generated.resources.Res
@@ -31,7 +32,6 @@ import rhythhaus.feature.library.generated.resources.metadata_save
 import rhythhaus.feature.library.generated.resources.metadata_scanned_value
 import rhythhaus.feature.library.generated.resources.metadata_title
 import rhythhaus.feature.library.generated.resources.metadata_track_number
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 

@@ -3,8 +3,6 @@
     <string name="playlist_modal_mutation_failed">无法保存播放列表更改</string>
     <string name="playlist_retained_load_failed">无法加载播放列表</string>
     <string name="playlist_retained_retry">重试</string>
-    <string name="playlist_saved_tab">已保存</string>
-    <string name="playlist_queue_tab">队列</string>
     <string name="playlist_create">创建播放列表</string>
     <string name="playlist_create_inline">创建新播放列表</string>
     <string name="playlist_create_name">播放列表名称</string>
@@ -26,8 +24,11 @@
     <string name="playlist_remove_track_format">从播放列表移除 %1$s</string>
     <string name="playlist_row_accessibility_format">播放列表 %1$s，共 %2$d 首曲目</string>
     <string name="playlist_entry_state">已保存的播放列表曲目</string>
-    <string name="playlist_selected_state">已选中用于播放列表</string>
     <string name="queue_save_as_playlist">将队列保存为播放列表</string>
+    <string name="queue_title">队列</string>
+    <string name="queue_back_to_player">返回播放器</string>
+    <string name="queue_played">已播放</string>
+    <string name="queue_played_state">已播放队列曲目</string>
     <string name="queue_current">当前</string>
     <string name="queue_upcoming">即将播放</string>
     <string name="queue_current_state">当前队列曲目</string>
@@ -104,4 +105,9 @@
     <string name="smart_choose_option">选择可用的规则值</string>
     <string name="smart_selected">已选择</string>
     <string name="smart_not_selected">未选择</string>
+    <string name="playlist_static_section">静态播放列表</string>
+    <string name="playlist_type_static">静态播放列表</string>
+    <string name="playlist_type_smart">智能播放列表</string>
+    <string name="playlist_create_type_prompt">选择播放列表类型</string>
+    <string name="smart_hub_empty">暂无智能播放列表</string>
 </resources>

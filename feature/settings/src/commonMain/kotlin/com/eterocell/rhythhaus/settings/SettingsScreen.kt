@@ -10,14 +10,17 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -67,10 +70,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausSpacing
+import com.eterocell.rhythhaus.theme.HausTypography
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.ui.ArtworkCacheClearResult
+import com.eterocell.rhythhaus.ui.HausButton as Button
 import com.eterocell.rhythhaus.ui.HausDialog
+import com.eterocell.rhythhaus.ui.HausIconButton as IconButton
 import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
+import com.eterocell.rhythhaus.ui.hausFocusIndicator
 import com.eterocell.rhythhaus.ui.rememberArtworkCacheClearAction
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -107,15 +115,14 @@ import rhythhaus.feature.settings.generated.resources.gapless_off
 import rhythhaus.feature.settings.generated.resources.gapless_on
 import rhythhaus.feature.settings.generated.resources.gapless_saving
 import rhythhaus.feature.settings.generated.resources.gapless_title
-import rhythhaus.feature.settings.generated.resources.manage_music
 import rhythhaus.feature.settings.generated.resources.notification_permission_body
 import rhythhaus.feature.settings.generated.resources.notification_permission_request
 import rhythhaus.feature.settings.generated.resources.notification_permission_settings
 import rhythhaus.feature.settings.generated.resources.notification_permission_title
 import rhythhaus.feature.settings.generated.resources.recover_source_format
-import rhythhaus.feature.settings.generated.resources.remove_folder
-import rhythhaus.feature.settings.generated.resources.remove_folder_message
+import rhythhaus.feature.settings.generated.resources.remove_source
 import rhythhaus.feature.settings.generated.resources.remove_source_format
+import rhythhaus.feature.settings.generated.resources.remove_source_message
 import rhythhaus.feature.settings.generated.resources.replaygain_album
 import rhythhaus.feature.settings.generated.resources.replaygain_error
 import rhythhaus.feature.settings.generated.resources.replaygain_explanation
@@ -125,10 +132,16 @@ import rhythhaus.feature.settings.generated.resources.replaygain_title
 import rhythhaus.feature.settings.generated.resources.replaygain_track
 import rhythhaus.feature.settings.generated.resources.rescan_source_format
 import rhythhaus.feature.settings.generated.resources.review_onboarding
+import rhythhaus.feature.settings.generated.resources.settings_section_appearance
+import rhythhaus.feature.settings.generated.resources.settings_section_information
+import rhythhaus.feature.settings.generated.resources.settings_section_maintenance
+import rhythhaus.feature.settings.generated.resources.settings_section_playback
+import rhythhaus.feature.settings.generated.resources.settings_section_sources
 import rhythhaus.feature.settings.generated.resources.source_access_available
 import rhythhaus.feature.settings.generated.resources.source_access_lost
 import rhythhaus.feature.settings.generated.resources.source_last_scanned
 import rhythhaus.feature.settings.generated.resources.source_never_scanned
+import rhythhaus.feature.settings.generated.resources.source_scanned_track_count_format
 import rhythhaus.feature.settings.generated.resources.source_status_format
 import rhythhaus.feature.settings.generated.resources.theme_dark_description
 import rhythhaus.feature.settings.generated.resources.theme_dark_label
@@ -137,10 +150,7 @@ import rhythhaus.feature.settings.generated.resources.theme_light_label
 import rhythhaus.feature.settings.generated.resources.theme_system_description
 import rhythhaus.feature.settings.generated.resources.theme_system_label
 import rhythhaus.feature.settings.generated.resources.unnamed_folder
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.HorizontalDivider
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
@@ -191,6 +201,8 @@ public data class SettingsSourceItem(
     public val accessAvailable: Boolean,
     /** Whether the source has completed at least one scan. */
     public val hasBeenScanned: Boolean,
+    /** Number of currently indexed tracks attributed to this source. */
+    public val trackCount: Int,
 )
 
 /**
@@ -314,6 +326,13 @@ internal const val SettingsCrossfadeExplanationTestTag =
 internal const val SettingsCrossfadeSavingTestTag = "settings-crossfade-saving"
 internal const val SettingsCrossfadeErrorTestTag = "settings-crossfade-error"
 internal const val SettingsGaplessPrefix = "settings-gapless-"
+internal const val SettingsSectionAppearanceTag = "settings-section-appearance"
+internal const val SettingsSectionPlaybackTag = "settings-section-playback"
+internal const val SettingsSectionSourcesTag = "settings-section-sources"
+internal const val SettingsSectionMaintenanceTag =
+    "settings-section-maintenance"
+internal const val SettingsSectionInformationTag =
+    "settings-section-information"
 
 /**
  * Renders Settings from scalar state, source projections, callbacks, and
@@ -336,13 +355,14 @@ internal const val SettingsGaplessPrefix = "settings-gapless-"
  * @param importMessage transient import feedback, or null when absent.
  * @param mutationsEnabled gates every mutation: disabled controls neither
  *   dispatch nor accept input.
- * @param hasImportedTracks whether the clear action is rendered.
+ * @param hasImportedTracks whether imported tracks are present; configured
+ *   sources also keep the clear action available.
  * @param playlistBackupContent the playlist-backup settings slot.
  * @param activeScanContent the live scan surface slot, or null while idle.
  * @param scanOutcomeContent the terminal scan-outcome panel slot rendered
  *   directly after [activeScanContent], or null while absent.
- * @param clearLibraryDialog the Shared-owned clear confirmation dialog slot,
- *   rendered only when supplied.
+ * @param clearLibraryDialog the Shared-owned library-maintenance confirmation
+ *   slot for clear or remove-missing actions, rendered only when supplied.
  * @param notificationRecovery the actionable denied host media-notification
  *   permission to recover, or null when no card, action, or accessibility node
  *   may be rendered.
@@ -423,6 +443,12 @@ public fun SettingsScreen(
     var sourcePendingRemoval by remember {
         mutableStateOf<SettingsSourceItem?>(null)
     }
+    var sourceRemovalConfirmationToken by remember {
+        mutableStateOf<Any?>(null)
+    }
+    var sourceRemovalInFlight by remember { mutableStateOf(false) }
+    val currentMutationsEnabled by rememberUpdatedState(mutationsEnabled)
+    val currentRemoveSource by rememberUpdatedState(onRemoveSource)
     val currentModalCallback by rememberUpdatedState(onExclusiveModalChanged)
     SideEffect {
         currentModalCallback(
@@ -473,7 +499,10 @@ public fun SettingsScreen(
                                 modifier =
                                     Modifier.fillMaxSize()
                                         .testTag(SettingsListTestTag)
-                                        .safeContentPadding()
+                                        .windowInsetsPadding(
+                                            WindowInsets.safeDrawing.only(
+                                                WindowInsetsSides.Horizontal +
+                                                    WindowInsetsSides.Top))
                                         .padding(
                                             horizontal =
                                                 policy.horizontalPagePadding,
@@ -494,26 +523,12 @@ public fun SettingsScreen(
                                         navigationIconPadding =
                                             policy.topBarNavigationIconPadding)
                                 }
-                                notificationRecovery?.let { variant ->
-                                    item {
-                                        MediaNotificationRecoveryCard(
-                                            variant,
-                                            onRequestNotificationPermission,
-                                            onOpenNotificationSettings)
-                                    }
-                                }
-                                mediaStoreAudioRecovery?.let { variant ->
-                                    item {
-                                        MediaStoreAudioRecoveryCard(
-                                            variant = variant,
-                                            enabled = mutationsEnabled,
-                                            onRequest =
-                                                onRequestMediaStoreAudio,
-                                            onOpenSettings =
-                                                onOpenMediaStoreSettings,
-                                            onAdd = onAddMediaStoreAudio,
-                                        )
-                                    }
+                                item(key = SettingsSectionAppearanceTag) {
+                                    SettingsSectionHeading(
+                                        stringResource(
+                                            Res.string
+                                                .settings_section_appearance),
+                                        SettingsSectionAppearanceTag)
                                 }
                                 item {
                                     AppearanceDropdown(
@@ -522,6 +537,21 @@ public fun SettingsScreen(
                                         policy
                                             .appearanceHorizontalInsidePadding,
                                         policy.appearanceVerticalInsidePadding)
+                                }
+                                item(key = SettingsSectionPlaybackTag) {
+                                    SettingsSectionHeading(
+                                        stringResource(
+                                            Res.string
+                                                .settings_section_playback),
+                                        SettingsSectionPlaybackTag)
+                                }
+                                notificationRecovery?.let { variant ->
+                                    item {
+                                        MediaNotificationRecoveryCard(
+                                            variant,
+                                            onRequestNotificationPermission,
+                                            onOpenNotificationSettings)
+                                    }
                                 }
                                 item {
                                     ReplayGainPreference(
@@ -555,11 +585,60 @@ public fun SettingsScreen(
                                         onSelected = onGaplessModeSelected)
                                 }
                                 item {
-                                    Text(
-                                        stringResource(Res.string.manage_music),
-                                        color = HausColors.current.ink,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Black)
+                                    AutomaticResumePreference(
+                                        sectionTitle = labels.outputSettings,
+                                        current = automaticResumePolicy,
+                                        busy = automaticResumeBusy,
+                                        modalVisible =
+                                            clearLibraryDialog != null ||
+                                                sourcePendingRemoval != null,
+                                        saveFailed = automaticResumeError,
+                                        onSelected =
+                                            onAutomaticResumePolicySelected,
+                                    )
+                                }
+                                item {
+                                    Column(
+                                        Modifier.fillMaxWidth()
+                                            .padding(horizontal = 2.dp),
+                                        verticalArrangement =
+                                            Arrangement.spacedBy(4.dp)) {
+                                            Text(
+                                                labels.outputStatusTitle,
+                                                color = HausColors.current.ink,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold)
+                                            Text(
+                                                outputStatus
+                                                    ?: labels
+                                                        .outputStatusUnavailable,
+                                                modifier =
+                                                    Modifier.testTag(
+                                                        "settings-output-status"),
+                                                color =
+                                                    HausColors.current.muted,
+                                                fontSize = 13.sp)
+                                        }
+                                }
+                                item(key = SettingsSectionSourcesTag) {
+                                    SettingsSectionHeading(
+                                        stringResource(
+                                            Res.string
+                                                .settings_section_sources),
+                                        SettingsSectionSourcesTag)
+                                }
+                                mediaStoreAudioRecovery?.let { variant ->
+                                    item {
+                                        MediaStoreAudioRecoveryCard(
+                                            variant = variant,
+                                            enabled = mutationsEnabled,
+                                            onRequest =
+                                                onRequestMediaStoreAudio,
+                                            onOpenSettings =
+                                                onOpenMediaStoreSettings,
+                                            onAdd = onAddMediaStoreAudio,
+                                        )
+                                    }
                                 }
                                 activeScanContent?.let { content ->
                                     item { content() }
@@ -585,8 +664,14 @@ public fun SettingsScreen(
                                                 onRecover = {
                                                     onRecoverSource(source.id)
                                                 }) {
-                                                    sourcePendingRemoval =
-                                                        source
+                                                    if (currentMutationsEnabled) {
+                                                        sourceRemovalInFlight =
+                                                            false
+                                                        sourceRemovalConfirmationToken =
+                                                            Any()
+                                                        sourcePendingRemoval =
+                                                            source
+                                                    }
                                                 }
                                         }
                                 }
@@ -694,31 +779,16 @@ public fun SettingsScreen(
                                             fontWeight = FontWeight.Medium)
                                     }
                                 }
-                                item {
-                                    HorizontalDivider(
-                                        modifier =
-                                            Modifier.padding(vertical = 4.dp),
-                                        thickness = 1.dp,
-                                        color =
-                                            HausColors.current.line.copy(
-                                                alpha = 0.6f))
+                                item(key = SettingsSectionMaintenanceTag) {
+                                    SettingsSectionHeading(
+                                        stringResource(
+                                            Res.string
+                                                .settings_section_maintenance),
+                                        SettingsSectionMaintenanceTag)
                                 }
                                 item { playlistBackupContent() }
-                                item {
-                                    AutomaticResumePreference(
-                                        sectionTitle = labels.outputSettings,
-                                        current = automaticResumePolicy,
-                                        busy = automaticResumeBusy,
-                                        modalVisible =
-                                            clearLibraryDialog != null ||
-                                                sourcePendingRemoval != null,
-                                        saveFailed = automaticResumeError,
-                                        onSelected =
-                                            onAutomaticResumePolicySelected,
-                                    )
-                                }
 
-                                if (hasImportedTracks)
+                                if (hasImportedTracks || sources.isNotEmpty())
                                     item {
                                         val clearModifier =
                                             Modifier.fillMaxWidth()
@@ -748,6 +818,14 @@ public fun SettingsScreen(
                                                                             .current
                                                                             .dangerPanel,
                                                                     contentColor =
+                                                                        HausColors
+                                                                            .current
+                                                                            .danger,
+                                                                    disabledColor =
+                                                                        HausColors
+                                                                            .current
+                                                                            .dangerPanel,
+                                                                    disabledContentColor =
                                                                         HausColors
                                                                             .current
                                                                             .danger)) {
@@ -784,31 +862,6 @@ public fun SettingsScreen(
                                                             FontWeight.Bold)
                                                 }
                                     }
-                                item { ReviewOnboardingRow(onReviewOnboarding) }
-                                item { AboutRow(onAboutClick) }
-                                item {
-                                    Column(
-                                        Modifier.fillMaxWidth()
-                                            .padding(horizontal = 2.dp),
-                                        verticalArrangement =
-                                            Arrangement.spacedBy(4.dp)) {
-                                            Text(
-                                                labels.outputStatusTitle,
-                                                color = HausColors.current.ink,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold)
-                                            Text(
-                                                outputStatus
-                                                    ?: labels
-                                                        .outputStatusUnavailable,
-                                                modifier =
-                                                    Modifier.testTag(
-                                                        "settings-output-status"),
-                                                color =
-                                                    HausColors.current.muted,
-                                                fontSize = 13.sp)
-                                        }
-                                }
                                 item {
                                     Column(
                                         Modifier.fillMaxWidth()
@@ -891,21 +944,74 @@ public fun SettingsScreen(
                                             }
                                         }
                                 }
+                                item(key = SettingsSectionInformationTag) {
+                                    SettingsSectionHeading(
+                                        stringResource(
+                                            Res.string
+                                                .settings_section_information),
+                                        SettingsSectionInformationTag)
+                                }
+                                item { ReviewOnboardingRow(onReviewOnboarding) }
+                                item { AboutRow(onAboutClick) }
                             }
                         }
                 }
             clearLibraryDialog?.invoke()
             sourcePendingRemoval?.let { source ->
-                RemoveSourceDialog(
-                    source,
-                    labels,
-                    mutationsEnabled,
-                    { sourcePendingRemoval = null }) {
-                        onRemoveSource(source.id)
-                        sourcePendingRemoval = null
-                    }
+                val confirmation = sourceRemovalConfirmationToken
+                if (confirmation != null) {
+                    RemoveSourceDialog(
+                        source = source,
+                        labels = labels,
+                        mutationsEnabled =
+                            mutationsEnabled && !sourceRemovalInFlight,
+                        onDismiss = {
+                            if (sourceRemovalConfirmationToken ===
+                                confirmation && !sourceRemovalInFlight) {
+                                sourcePendingRemoval = null
+                                sourceRemovalConfirmationToken = null
+                            }
+                        },
+                        onConfirm = {
+                            if (sourceRemovalConfirmationToken ===
+                                confirmation &&
+                                !sourceRemovalInFlight &&
+                                currentMutationsEnabled) {
+                                sourceRemovalInFlight = true
+                                try {
+                                    currentRemoveSource(source.id)
+                                } catch (failure: Throwable) {
+                                    if (sourceRemovalConfirmationToken ===
+                                        confirmation) {
+                                        sourceRemovalInFlight = false
+                                    }
+                                    throw failure
+                                }
+                                if (sourceRemovalConfirmationToken ===
+                                    confirmation) {
+                                    sourcePendingRemoval = null
+                                    sourceRemovalConfirmationToken = null
+                                    sourceRemovalInFlight = false
+                                }
+                            }
+                        },
+                    )
+                }
             }
         }
+}
+
+@Composable
+private fun SettingsSectionHeading(label: String, tag: String) {
+    Text(
+        label,
+        modifier =
+            Modifier.fillMaxWidth()
+                .padding(top = HausSpacing.lg)
+                .testTag(tag)
+                .semantics { heading() },
+        color = HausColors.current.ink,
+        style = HausTypography.section)
 }
 
 @Composable
@@ -914,6 +1020,7 @@ private fun ReviewOnboardingRow(onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth()
             .heightIn(min = 48.dp)
+            .hausFocusIndicator(shape = RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
             .testTag(SettingsReviewOnboardingTestTag)
             .semantics(mergeDescendants = true) {
@@ -948,6 +1055,7 @@ private fun AboutRow(onClick: () -> Unit) =
     Row(
         Modifier.fillMaxWidth()
             .heightIn(min = 48.dp)
+            .hausFocusIndicator(shape = RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
             .testTag(SettingsAboutTestTag)
             .semantics(mergeDescendants = true) { role = Role.Button }
@@ -1209,19 +1317,20 @@ private fun RemoveSourceDialog(
     val visibleName =
         if (fullName.length <= 64) fullName else fullName.take(63) + "…"
     HausDialog(
-        title = stringResource(Res.string.remove_folder),
+        title = stringResource(Res.string.remove_source),
         onDismiss = onDismiss,
         dismissLabel = labels.cancel,
         body = {
             Text(
-                stringResource(Res.string.remove_folder),
+                stringResource(Res.string.remove_source),
                 color = HausColors.current.ink,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Black)
             Spacer(Modifier.height(12.dp))
             Text(
                 visibleName,
-                Modifier.clearAndSetSemantics { contentDescription = fullName },
+                Modifier.semantics { contentDescription = fullName }
+                    .testTag("settings-source-removal-name"),
                 color = HausColors.current.ink,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -1230,7 +1339,16 @@ private fun RemoveSourceDialog(
                 overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(8.dp))
             Text(
-                stringResource(Res.string.remove_folder_message),
+                stringResource(
+                    Res.string.source_scanned_track_count_format,
+                    source.trackCount),
+                Modifier.testTag("settings-source-removal-count"),
+                color = HausColors.current.danger,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                stringResource(Res.string.remove_source_message),
                 color = HausColors.current.muted,
                 fontSize = 14.sp,
                 lineHeight = 20.sp)
@@ -1328,6 +1446,16 @@ private fun ReplayGainPreference(
                                 .background(
                                     if (isSelected) HausColors.current.ink
                                     else HausColors.current.paper)
+                                .hausFocusIndicator(
+                                    color =
+                                        if (isSelected) HausColors.current.paper
+                                        else HausColors.current.outline,
+                                    shape = RoundedCornerShape(12.dp),
+                                    outerColor =
+                                        if (isSelected)
+                                            HausColors.current.outline
+                                        else null,
+                                )
                                 .testTag(mode.testTag())
                                 .then(interaction)
                                 .padding(horizontal = 8.dp, vertical = 10.dp),
@@ -1467,6 +1595,21 @@ private fun CrossfadePreference(
                                                 if (isSelected)
                                                     HausColors.current.ink
                                                 else HausColors.current.paper)
+                                            .hausFocusIndicator(
+                                                color =
+                                                    if (isSelected)
+                                                        HausColors.current.paper
+                                                    else
+                                                        HausColors.current
+                                                            .outline,
+                                                shape =
+                                                    RoundedCornerShape(12.dp),
+                                                outerColor =
+                                                    if (isSelected)
+                                                        HausColors.current
+                                                            .outline
+                                                    else null,
+                                            )
                                             .testTag(duration.testTag())
                                             .then(interaction)
                                             .padding(
@@ -1583,6 +1726,15 @@ private fun GaplessPreference(
                                 .background(
                                     if (selected) HausColors.current.ink
                                     else HausColors.current.paper)
+                                .hausFocusIndicator(
+                                    color =
+                                        if (selected) HausColors.current.paper
+                                        else HausColors.current.outline,
+                                    shape = RoundedCornerShape(12.dp),
+                                    outerColor =
+                                        if (selected) HausColors.current.outline
+                                        else null,
+                                )
                                 .testTag(
                                     SettingsGaplessPrefix +
                                         mode.name.lowercase())
@@ -1693,6 +1845,15 @@ private fun AutomaticResumePreference(
                                 .background(
                                     if (selected) HausColors.current.ink
                                     else HausColors.current.paper)
+                                .hausFocusIndicator(
+                                    color =
+                                        if (selected) HausColors.current.paper
+                                        else HausColors.current.outline,
+                                    shape = RoundedCornerShape(12.dp),
+                                    outerColor =
+                                        if (selected) HausColors.current.outline
+                                        else null,
+                                )
                                 .testTag("settings-auto-resume-${policy.name}")
                                 .then(
                                     if (enabled)

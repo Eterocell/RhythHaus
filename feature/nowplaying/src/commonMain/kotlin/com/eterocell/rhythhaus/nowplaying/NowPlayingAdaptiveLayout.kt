@@ -1,22 +1,29 @@
 package com.eterocell.rhythhaus.nowplaying
 
-/** Selects the preserved compact or split Now Playing layout. */
+/** Selects a layout whose panes fit the measured safe content bounds. */
 public enum class NowPlayingAdaptiveLayoutMode {
     Compact,
     Split
 }
 
 /**
- * Returns the preserved Now Playing layout selection for the supplied bounds in
- * dp.
+ * Returns a split only when the two 320dp panes, 24dp gap, and 48dp of
+ * horizontal padding fit the available safe width. The artwork also needs 320dp
+ * of vertical space after 48dp of padding.
  */
 public fun nowPlayingAdaptiveLayoutModeFor(
     widthDp: Float,
     heightDp: Float,
 ): NowPlayingAdaptiveLayoutMode =
-    if (widthDp >= 840f ||
-        (widthDp >= 600f && widthDp > 0f && heightDp / widthDp < 1.2f)) {
+    if (widthDp >= 712f && heightDp >= 368f) {
         NowPlayingAdaptiveLayoutMode.Split
     } else {
         NowPlayingAdaptiveLayoutMode.Compact
     }
+
+/**
+ * Whether a queue sidebar can sit beside the artwork and controls without
+ * shrinking either pane below 320dp.
+ */
+internal fun nowPlayingQueueSidebarFor(widthDp: Float): Boolean =
+    widthDp >= 1_016f

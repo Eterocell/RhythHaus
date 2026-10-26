@@ -27,6 +27,7 @@ class LibraryResourceOwnershipJvmTest {
             "artist_accessibility_format",
             "album_track_count_format",
             "track_count_format",
+            "track_more_actions_format",
             "album_detail_subtitle_format",
             "artist_detail_subtitle_format",
             "artist_album_tracks_format",
@@ -36,6 +37,8 @@ class LibraryResourceOwnershipJvmTest {
             "browse_mode_favorites",
             "browse_mode_recently_played",
             "browse_mode_recently_added",
+            "browse_mode_more",
+            "browse_mode_more_views",
             "favorites_empty",
             "recently_played_empty",
             "recently_added_empty",
@@ -56,6 +59,13 @@ class LibraryResourceOwnershipJvmTest {
             "metadata_cancel",
             "metadata_failure",
             "browse_controls_heading",
+            "browse_controls_sort",
+            "browse_controls_order",
+            "browse_controls_filters",
+            "browse_controls_source",
+            "browse_controls_sort_value_format",
+            "browse_controls_direction_value_format",
+            "browse_controls_source_value_format",
             "browse_sort_title",
             "browse_sort_artist",
             "browse_sort_album",
@@ -70,6 +80,9 @@ class LibraryResourceOwnershipJvmTest {
             "browse_filter_artwork",
             "browse_filter_source",
             "browse_filter_all_sources",
+            "browse_filter_source_unavailable",
+            "browse_filter_clear_all",
+            "browse_filter_remove_format",
             "browse_selected_state",
             "browse_unselected_state",
             "browse_source_format",
@@ -140,6 +153,23 @@ class LibraryResourceOwnershipJvmTest {
     @Test
     fun sharedCatalogsHaveFullEnZhParity() {
         assertEquals(featureKeys(sharedValues), featureKeys(sharedValuesZh))
+    }
+
+    @Test
+    fun libraryRowLabelsAreOwnedByTheFeatureCatalogs() {
+        val libraryValues = featureKeys(featureValues)
+        val libraryValuesZh = featureKeys(featureValuesZh)
+        val sharedValues = featureKeys(this.sharedValues)
+        val sharedValuesZh = featureKeys(this.sharedValuesZh)
+
+        assertTrue("track_count_format" in libraryValues)
+        assertTrue("track_count_format" in libraryValuesZh)
+        assertTrue("track_more_actions_format" in libraryValues)
+        assertTrue("track_more_actions_format" in libraryValuesZh)
+        assertFalse("library_track_count_format" in sharedValues)
+        assertFalse("library_track_count_format" in sharedValuesZh)
+        assertFalse("track_more_actions_format" in sharedValues)
+        assertFalse("track_more_actions_format" in sharedValuesZh)
     }
 
     @Test

@@ -491,8 +491,8 @@ namespace is `rhythhaus.feature.settings.generated.resources`. Its only project 
 `api(:core:ui)`; Compose/runtime/UI public dependencies follow public signatures, while
 Foundation/resources/icons/Miuix/AboutLibraries/coroutines are implementation-only. Shared uses
 only `commonMainImplementation`. Settings has no Library API dependency: Shared maps current
-authoritative Library sources to public `SettingsSourceItem(id, displayName, accessAvailable,
-hasBeenScanned)`.
+authoritative Library sources and current per-source track counts to public
+`SettingsSourceItem(id, displayName, accessAvailable, hasBeenScanned, trackCount)`.
 
 The complete explicit-public, declaration-specific-KDoc surface is `SettingsSharedLabels(title,
 addMusicFolder, folderPickerUnavailable, clearLibrary, cancel, remove)`, `SettingsSourceItem`,
@@ -502,9 +502,10 @@ declaration is internal/private. No Shared/Library/Playlist/generated foreign `R
 repository/scanner/launcher/controller/job/Koin/DataStore type is public. Settings owns leaf
 presentation, source-removal dialog visibility, and About retry generation only; this approved
 Task-6.4 local-state ruling adds no Presenter/ViewModel/Event/Effect scaffold. Shared retains
-authoritative source-ID adaptation/mutation guards/errors, picker/scanning/clear-library route and
-dialog policy, routes/Back/dismissal, theme preference actuals/Koin/root application, and embeds
-playlist backup, active scan, and clear-library dialog through slots. AboutLibraries catalog
+authoritative source-ID adaptation/mutation guards/errors, picker/scanning/clear-library and
+remove-missing route/dialog policy, routes/Back/dismissal, theme preference actuals/Koin/root
+application, and embeds playlist backup, active scan, and library-maintenance confirmation through
+slots. AboutLibraries catalog
 generation/config/manual TagLib attribution and checked-in Shared JSON remain Shared; Settings
 parses/renders caller-supplied JSON and makes read/parse failures retryable. Injected read and parse callback cancellation preserve exact object identity (parse is carried as data out of dispatcher work); dispatcher rejection, prompt cancellation, and Job cancellation propagate without `Loaded`/`Failed` publication or identity promise.
 Resources and tests split exactly as the dedicated approved design specifies. See
@@ -513,7 +514,8 @@ executable plan owns exact paths and commands.
 
 The Settings signature includes `sourcePickerActionVisible`, `sourcePickerAvailable`,
 `mutationsEnabled`, `hasImportedTracks`, `onRequestClearLibrary`, and nullable
-`clearLibraryDialog`; Shared owns clear-dialog visibility/execution. It resolves source IDs against
+`clearLibraryDialog`; Shared owns library-maintenance confirmation visibility/execution. It resolves
+source IDs against
 latest authority at invocation, then reevaluates guards; stale IDs are no-op. The dedicated design
 also owns the exhaustive per-locale ledger and amended About contract: the internal loader defaults
 to `Dispatchers.Default`; injected read cancellation rethrows the same object; injected parse
@@ -525,7 +527,7 @@ replacement result. Characterization controls cover picker/clear state, current/
 sources, guard changes, valid nonempty AboutLibraries fixtures, pointer interception, stable
 unmerged Miuix tags, and real LazyColumn scrolling. Shared retains `scanning`, `scan_progress_format`, `scan_complete_format`, and the
 four `folder_picker_error_*` keys for its scanning-card/App/platform-picker consumers; Settings owns
-`manage_music` and feature-only resources, with per-locale parity and missing/wrong-owner/duplicate/
+Settings section/source-management and feature-only resources, with per-locale parity and missing/wrong-owner/duplicate/
 logo controls.
 
 Acceptance requires actual dependency-graph and TestKit illegal-fixture coverage; a thin shared inventory; explicit public APIs; Back regressions; SQLDelight migration/integration verification; Android, desktop, and iOS startup/resource/DI coverage plus key playback and scanning paths; `qualityCheck`; `./init.sh`; strict OpenSpec validation; and `git diff --check`. Documentation and trackers must match the evidence.

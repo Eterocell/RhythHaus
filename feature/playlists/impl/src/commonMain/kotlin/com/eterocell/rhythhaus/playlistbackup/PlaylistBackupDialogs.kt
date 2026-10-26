@@ -34,11 +34,11 @@ import com.eterocell.rhythhaus.library.ui.PlaylistFeatureDismissal
 import com.eterocell.rhythhaus.library.ui.PlaylistFeatureDismissalPublisher
 import com.eterocell.rhythhaus.library.ui.PublishFeatureDismissal
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.ui.HausButton as Button
 import com.eterocell.rhythhaus.ui.HausDialog
 import com.eterocell.rhythhaus.ui.HausLazyDialog
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.playlists.generated.resources.*
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -216,6 +216,7 @@ public fun PlaylistBackupSettingsSection(
                 SettingsSectionButton(
                     labels.close,
                     { onAction(PlaylistBackupUiAction.ClearError) },
+                    enabled = actionsEnabled,
                     primary = false)
             }
         }
@@ -365,6 +366,7 @@ private fun SettingsSectionButton(
 public fun PlaylistBackupSettingsHost(
     state: PlaylistBackupUiState,
     launcherAvailable: Boolean,
+    showEntryActions: Boolean,
     destination: PlaylistFeatureDestination,
     appearanceSource: PlaylistFeatureAppearanceSource,
     dismissalPublisher: PlaylistFeatureDismissalPublisher,
@@ -394,22 +396,25 @@ public fun PlaylistBackupSettingsHost(
         resultAppearance = appearanceSource.next("settings-result")
     }
     if (state.result == null) resultAppearance = null
-    PlaylistBackupSettingsSection(
-        state = state,
-        launcherAvailable = launcherAvailable,
-        labels = labels,
-        onExport = onExport,
-        onOpen = onOpen,
-        onAction = onAction,
-        modifier = modifier,
-        staticPlaylists = staticPlaylists,
-        onExportPlaylistFormat = onExportPlaylistFormat,
-        onOpenPlaylistFormat = onOpenPlaylistFormat,
-    )
+    if (showEntryActions) {
+        PlaylistBackupSettingsSection(
+            state = state,
+            launcherAvailable = launcherAvailable,
+            labels = labels,
+            onExport = onExport,
+            onOpen = onOpen,
+            onAction = onAction,
+            modifier = modifier,
+            staticPlaylists = staticPlaylists,
+            onExportPlaylistFormat = onExportPlaylistFormat,
+            onOpenPlaylistFormat = onOpenPlaylistFormat,
+        )
+    }
     state.preview?.let { preview ->
         PlaylistBackupPreviewDialog(
             preview,
             state.isBusy,
+            state.error,
             destination,
             requireNotNull(previewAppearance),
             dismissalPublisher,
@@ -430,12 +435,14 @@ public fun PlaylistBackupSettingsHost(
 
 /**
  * Renders the import preview and publishes its stable settings-preview
- * dismissal identity.
+ * dismissal identity. [error] remains visible above its actions; a stale
+ * preview requires reopening instead of resubmitting the invalid plan.
  */
 @Composable
 public fun PlaylistBackupPreviewDialog(
     preview: PlaylistBackupPreview,
     isBusy: Boolean,
+    error: PlaylistBackupUiError?,
     destination: PlaylistFeatureDestination,
     appearance: PlaylistDismissalAppearance,
     dismissalPublisher: PlaylistFeatureDismissalPublisher,
@@ -544,12 +551,24 @@ public fun PlaylistBackupPreviewDialog(
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    error?.let {
+                        Text(
+                            stringResource(it.resource),
+                            modifier =
+                                Modifier.testTag(
+                                    "playlist-backup-preview-error"),
+                            color = HausColors.current.danger,
+                        )
+                    }
                     DialogButton(
                         label =
                             stringResource(
                                 Res.string.playlist_backup_confirm_import),
                         onClick = onConfirm,
-                        enabled = preview.canConfirm && !isBusy,
+                        enabled =
+                            preview.canConfirm &&
+                                !isBusy &&
+                                error != PlaylistBackupUiError.StalePreview,
                         primary = true,
                         testTag = "playlist-backup-preview-confirm",
                     )

@@ -50,6 +50,7 @@ import androidx.compose.ui.zIndex
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImage
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
+import com.eterocell.rhythhaus.ui.HausIconButton as IconButton
 import com.eterocell.rhythhaus.ui.RhythHausBackdrop
 import com.eterocell.rhythhaus.ui.RhythHausGlassBlurStyle
 import com.eterocell.rhythhaus.ui.RhythHausGlassSurfaceAlpha
@@ -59,7 +60,6 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.core.ui.generated.resources.Res as CoreUiRes
 import rhythhaus.core.ui.generated.resources.back
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text

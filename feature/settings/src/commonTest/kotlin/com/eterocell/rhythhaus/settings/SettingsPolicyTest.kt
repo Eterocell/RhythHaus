@@ -23,19 +23,22 @@ public class SettingsPolicyTest {
                 displayNameFallbackRequired = false,
                 access = SettingsSourceAccess.Available,
                 scan = SettingsSourceScan.NeverScanned),
-            SettingsSourceItem("opaque-one", "One", true, false).presentation())
+            SettingsSourceItem("opaque-one", "One", true, false, 0)
+                .presentation())
         assertEquals(
             SettingsSourcePresentation(
                 displayNameFallbackRequired = false,
                 access = SettingsSourceAccess.Lost,
                 scan = SettingsSourceScan.HasBeenScanned),
-            SettingsSourceItem("opaque-two", "Two", false, true).presentation())
+            SettingsSourceItem("opaque-two", "Two", false, true, 0)
+                .presentation())
         assertEquals(
             SettingsSourcePresentation(
                 displayNameFallbackRequired = true,
                 access = SettingsSourceAccess.Available,
                 scan = SettingsSourceScan.HasBeenScanned),
-            SettingsSourceItem("opaque-three", "", true, true).presentation())
+            SettingsSourceItem("opaque-three", "", true, true, 0)
+                .presentation())
     }
 
     @Test

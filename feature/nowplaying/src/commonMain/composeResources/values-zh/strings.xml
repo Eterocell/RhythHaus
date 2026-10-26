@@ -8,6 +8,8 @@
     <string name="lyrics_title">歌词</string>
     <string name="lyrics_close">关闭歌词</string>
     <string name="lyrics_current_line">当前歌词</string>
+    <string name="panel_queue_action">播放队列</string>
+    <string name="panel_timer_action">定时器</string>
     <string name="playback_error_access_lost">无法再访问此媒体文件</string>
     <string name="playback_error_decoder_failure">解码器无法播放此文件</string>
     <string name="playback_error_missing_file">此媒体文件缺失</string>

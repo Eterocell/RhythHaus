@@ -8,6 +8,8 @@
     <string name="lyrics_title">Lyrics</string>
     <string name="lyrics_close">Close lyrics</string>
     <string name="lyrics_current_line">Current line</string>
+    <string name="panel_queue_action">Queue</string>
+    <string name="panel_timer_action">Timer</string>
     <string name="playback_error_access_lost">Access to this media file was lost</string>
     <string name="playback_error_decoder_failure">The decoder could not play this file</string>
     <string name="playback_error_missing_file">This media file is missing</string>

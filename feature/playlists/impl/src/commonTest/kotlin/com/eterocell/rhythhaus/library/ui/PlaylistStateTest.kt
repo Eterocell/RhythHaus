@@ -192,7 +192,7 @@ class PlaylistStateTest {
     }
 
     @Test
-    fun tabAndBrowserSelectionArePureStateTransitions() {
+    fun browserStateRetainsItsOrderedSelection() {
         val browser =
             PlaylistBrowserState(
                 playlistId = "playlist-1",
@@ -200,15 +200,10 @@ class PlaylistStateTest {
                 visibleTrackIds = listOf("track-b", "track-a"),
                 selectedTrackIds = setOf("track-a"),
             )
-        val queueSelected =
-            reducePlaylistState(
-                PlaylistState(),
-                PlaylistStateAction.SelectTab(PlaylistTab.Queue))
         val browserOpened =
             reducePlaylistState(
-                queueSelected, PlaylistStateAction.OpenBrowser(browser))
+                PlaylistState(), PlaylistStateAction.OpenBrowser(browser))
 
-        assertEquals(PlaylistTab.Queue, browserOpened.selectedTab)
         assertEquals(browser, browserOpened.browser)
         assertTrue(
             browserOpened.browser?.selectedTrackIds?.contains("track-a") ==

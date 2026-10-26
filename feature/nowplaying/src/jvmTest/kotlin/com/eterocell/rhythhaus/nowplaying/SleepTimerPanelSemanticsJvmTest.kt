@@ -4,17 +4,26 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -27,6 +36,7 @@ import com.eterocell.rhythhaus.SleepTimerMode
 import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.theme.LightHausPalette
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,9 +44,106 @@ import kotlin.test.assertEquals
 public class SleepTimerPanelSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
+    public fun activeTimerStatusSurvivesLeavingSetupAndClearsAfterCancellation():
+        Unit =
+        withLocale(Locale.ENGLISH) {
+            listOf(390.dp to 844.dp, 1280.dp to 800.dp).forEach {
+                (width, height) ->
+                runComposeUiTest {
+                    val controller = sleepTimerController()
+                    try {
+                        mountSleepTimer(controller, width, height)
+                        onNodeWithTag(NowPlayingTimerButtonTestTag)
+                            .performScrollTo()
+                            .performClick()
+                        onNodeWithTag(NowPlayingSleepTimer15MinutesTestTag)
+                            .performScrollTo()
+                            .performClick()
+                        waitUntil(timeoutMillis = 5_000) {
+                            controller.sleepTimerState.value.mode ==
+                                SleepTimerMode.Timed
+                        }
+                        onNodeWithTag(NowPlayingPanelBackTestTag).performClick()
+                        val timedSummary =
+                            "Stops in 15 minutes; 10-second fade off"
+                        onNode(hasText(timedSummary))
+                            .performScrollTo()
+                            .assertIsDisplayed()
+                        onNodeWithTag(NowPlayingTimerButtonTestTag)
+                            .assert(
+                                SemanticsMatcher.expectValue(
+                                    SemanticsProperties.StateDescription,
+                                    timedSummary))
+
+                        controller.armSleepTimerAfterCompletions(
+                            3, fadeEnabled = true)
+                        waitUntil(timeoutMillis = 5_000) {
+                            controller.sleepTimerState.value.remainingTracks ==
+                                3
+                        }
+                        val trackSummary =
+                            "Stops after 3 remaining tracks; 10-second fade on"
+                        onNode(hasText(trackSummary))
+                            .performScrollTo()
+                            .assertIsDisplayed()
+                        onNode(hasText(timedSummary)).assertDoesNotExist()
+
+                        controller.cancelSleepTimer()
+                        waitUntil(timeoutMillis = 5_000) {
+                            controller.sleepTimerState.value.mode == null
+                        }
+                        onNode(hasText(trackSummary)).assertDoesNotExist()
+                        onNodeWithTag(NowPlayingTimerButtonTestTag)
+                            .assert(
+                                SemanticsMatcher.keyNotDefined(
+                                    SemanticsProperties.StateDescription))
+                    } finally {
+                        controller.release()
+                    }
+                }
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun focusedFadeToggleUsesTwoToneContrastOnItsPulseFill(): Unit =
+        withLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val controller = sleepTimerController()
+                mountSleepTimer(controller)
+                onNodeWithTag(NowPlayingTimerButtonTestTag)
+                    .performScrollTo()
+                    .performClick()
+                waitForIdle()
+                onNodeWithTag(NowPlayingSleepTimerFadeTestTag).performClick()
+                waitForIdle()
+
+                val fadeToggle = onNodeWithTag(NowPlayingSleepTimerFadeTestTag)
+                fadeToggle.performSemanticsAction(
+                    SemanticsActions.RequestFocus,
+                )
+                fadeToggle.assertIsFocused()
+                val pixels = fadeToggle.captureToImage().toPixelMap()
+                val centerY = pixels.height / 2
+                assertEquals(
+                    LightHausPalette.outline.toArgb(),
+                    pixels[1, centerY].toArgb(),
+                    "Fade toggle should draw an outer boundary against its parent",
+                )
+                assertEquals(
+                    LightHausPalette.paper.toArgb(),
+                    pixels[3, centerY].toArgb(),
+                    "Fade toggle should draw an inner boundary against its pulse fill",
+                )
+                controller.release()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     public fun timerSetupDoesNotDisplacePrimaryTransport(): Unit =
         withLocale(Locale.ENGLISH) {
-            listOf(390.dp to 844.dp, 600.dp to 400.dp).forEach { (width, height)
+            listOf(390.dp to 844.dp, 800.dp to 600.dp).forEach { (width, height)
                 ->
                 runComposeUiTest {
                     val controller = sleepTimerController()
@@ -59,6 +166,10 @@ public class SleepTimerPanelSemanticsJvmTest {
             runComposeUiTest {
                 val controller = sleepTimerController()
                 mountSleepTimer(controller)
+                onNodeWithTag(NowPlayingTimerButtonTestTag)
+                    .performScrollTo()
+                    .performClick()
+                waitForIdle()
 
                 onNodeWithTag(NowPlayingSleepTimerActiveSummaryTestTag)
                     .assertDoesNotExist()
@@ -155,12 +266,12 @@ public class SleepTimerPanelSemanticsJvmTest {
                     TimerViewport(
                         width = 390.dp,
                         height = 400.dp,
-                        layoutTag = NowPlayingCompactLayoutTestTag,
+                        panelTag = NowPlayingTimerPanelTestTag,
                     ),
                     TimerViewport(
-                        width = 600.dp,
-                        height = 400.dp,
-                        layoutTag = NowPlayingSplitLayoutTestTag,
+                        width = 800.dp,
+                        height = 600.dp,
+                        panelTag = NowPlayingTimerPanelTestTag,
                     ),
                 )
                 .forEach { viewport ->
@@ -171,7 +282,11 @@ public class SleepTimerPanelSemanticsJvmTest {
                             width = viewport.width,
                             height = viewport.height,
                         )
-                        onNodeWithTag(viewport.layoutTag).assertIsDisplayed()
+                        onNodeWithTag(NowPlayingTimerButtonTestTag)
+                            .performScrollTo()
+                            .performClick()
+                        waitForIdle()
+                        onNodeWithTag(viewport.panelTag).assertIsDisplayed()
 
                         listOf(
                                 NowPlayingSleepTimer15MinutesTestTag to
@@ -272,6 +387,10 @@ public class SleepTimerPanelSemanticsJvmTest {
                             fadeEnabled = true,
                         ),
                 )
+                onNodeWithTag(NowPlayingTimerButtonTestTag)
+                    .performScrollTo()
+                    .performClick()
+                waitForIdle()
 
                 onNode(
                         hasContentDescription(
@@ -294,6 +413,10 @@ public class SleepTimerPanelSemanticsJvmTest {
                             fadeEnabled = false,
                         ),
                 )
+                onNodeWithTag(NowPlayingTimerButtonTestTag)
+                    .performScrollTo()
+                    .performClick()
+                waitForIdle()
 
                 onNode(hasContentDescription("将在剩余 3 首歌曲后停止；10 秒淡出：关闭"))
                     .assertIsDisplayed()
@@ -325,6 +448,7 @@ private fun androidx.compose.ui.test.ComposeUiTest.mountSleepTimer(
     height: Dp = 844.dp,
     timerState: SleepTimerState? = null,
 ): Unit {
+    val panel = mutableStateOf(NowPlayingPanel.Controls)
     setContent {
         val playbackState by controller.state.collectAsState()
         val controllerTimerState by controller.sleepTimerState.collectAsState()
@@ -341,6 +465,9 @@ private fun androidx.compose.ui.test.ComposeUiTest.mountSleepTimer(
                 onArmSleepTimerAfterCompletions =
                     controller::armSleepTimerAfterCompletions,
                 onCancelSleepTimer = controller::cancelSleepTimer,
+                activePanel = panel.value,
+                onPanelChange = { panel.value = it },
+                queueContent = { TestQueueContent {} },
             )
         }
     }
@@ -372,7 +499,7 @@ private fun sleepTimerController(): PlaybackController =
 private data class TimerViewport(
     val width: Dp,
     val height: Dp,
-    val layoutTag: String,
+    val panelTag: String,
 )
 
 private fun sleepTimerTrack(): Track =

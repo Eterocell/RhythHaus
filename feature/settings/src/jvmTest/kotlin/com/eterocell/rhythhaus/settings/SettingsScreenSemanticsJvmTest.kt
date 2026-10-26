@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -15,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -37,6 +37,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -54,6 +55,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -65,6 +67,8 @@ import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.core.ui.generated.resources.Res as CoreUiRes
@@ -84,6 +88,103 @@ import rhythhaus.feature.settings.generated.resources.theme_dark_label
 import rhythhaus.feature.settings.generated.resources.unnamed_folder
 
 public class SettingsScreenSemanticsJvmTest {
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun settingsExposesFiveOrderedGroupsAndDistinctPlaybackPreferences():
+        Unit = runComposeUiTest {
+        val listState = LazyListState()
+        val sectionTags =
+            listOf(
+                "settings-section-appearance",
+                "settings-section-playback",
+                "settings-section-sources",
+                "settings-section-maintenance",
+                "settings-section-information",
+            )
+        val sectionIndexes = mutableListOf<Int>()
+        val replayGainRequests = mutableListOf<SettingsReplayGainMode>()
+        val crossfadeRequests = mutableListOf<SettingsCrossfadeDuration>()
+        val gaplessRequests = mutableListOf<SettingsGaplessMode>()
+        val resumeRequests = mutableListOf<SettingsAutomaticResumePolicy>()
+        setContent {
+            Box(Modifier.size(600.dp, 1_200.dp)) {
+                content(
+                    listState = listState,
+                    outputStatus = null,
+                    onReplayGain = { replayGainRequests += it },
+                    onCrossfade = { crossfadeRequests += it },
+                    onGapless = { gaplessRequests += it },
+                    onAutomaticResume = { resumeRequests += it },
+                )
+            }
+        }
+
+        sectionTags.forEach { tag ->
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag(tag))
+            onNodeWithTag(tag)
+                .assertExists()
+                .assert(
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.Heading,
+                        Unit,
+                    ),
+                )
+            runOnIdle {
+                sectionIndexes +=
+                    listState.layoutInfo.visibleItemsInfo
+                        .single { it.key == tag }
+                        .index
+            }
+        }
+        assertEquals(sectionIndexes.sorted(), sectionIndexes)
+
+        onNodeWithTag(SettingsListTestTag)
+            .performScrollToNode(hasTestTag("settings-output-status"))
+        onNodeWithTag("settings-output-status")
+            .assert(hasText("Active output unavailable"))
+            .assertHasNoClickAction()
+        onAllNodesWithText("Repeat").assertCountEquals(0)
+        onAllNodesWithText("Shuffle").assertCountEquals(0)
+
+        listOf(
+                SettingsReplayGainPrefix + "track",
+                SettingsCrossfadePrefix + "5",
+                SettingsGaplessPrefix + "on",
+                "settings-auto-resume-Never",
+            )
+            .forEach { tag ->
+                onNodeWithTag(SettingsListTestTag)
+                    .performScrollToNode(hasTestTag(tag))
+                onNodeWithTag(tag).performClick()
+            }
+        assertEquals(listOf(SettingsReplayGainMode.Track), replayGainRequests)
+        assertEquals(
+            listOf(SettingsCrossfadeDuration.Seconds5), crossfadeRequests)
+        assertEquals(listOf(SettingsGaplessMode.On), gaplessRequests)
+        assertEquals(
+            listOf(SettingsAutomaticResumePolicy.Never), resumeRequests)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun settingsGroupHeadingsUseEnglishAndChineseLabels(): Unit {
+        verifySettingsGroupLabels(
+            Locale.ENGLISH,
+            listOf(
+                "Appearance",
+                "Playback",
+                "Music sources",
+                "Backup and maintenance",
+                "Application information",
+            ),
+        )
+        verifySettingsGroupLabels(
+            Locale.SIMPLIFIED_CHINESE,
+            listOf("外观", "播放", "音乐来源", "备份与维护", "应用信息"),
+        )
+    }
+
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun gaplessChoicesExposeAcceptedStateAndAreInertDuringConfirmation():
@@ -494,6 +595,8 @@ public class SettingsScreenSemanticsJvmTest {
                     )
                 }
             }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasTestTag("settings-device-audio-action"))
             onNodeWithTag("settings-device-audio-action")
                 .assertIsEnabled()
                 .performClick()
@@ -705,10 +808,15 @@ public class SettingsScreenSemanticsJvmTest {
                     } else {
                         actionNode.assertIsNotEnabled()
                         assertEquals(
-                            Color(0xFFF2F2F2).toArgb(),
+                            palette.dangerPanel.toArgb(),
                             dominantColor,
-                            "Disabled clear-library action should use the neutral " +
-                                "disabled surface",
+                            "Disabled clear-library action should retain the " +
+                                "danger-panel tint",
+                        )
+                        assertTrue(
+                            palette.danger.toArgb() in colorCounts,
+                            "Disabled clear-library label should retain the " +
+                                "danger foreground",
                         )
                     }
                 }
@@ -789,7 +897,12 @@ public class SettingsScreenSemanticsJvmTest {
                     sources =
                         listOf(
                             SettingsSourceItem(
-                                "one", "One", accessAvailable = false, false)),
+                                "one",
+                                "One",
+                                accessAvailable = false,
+                                hasBeenScanned = false,
+                                trackCount = 0,
+                            )),
                     onRecover = { recovered = it },
                     onRemove = { removed = it })
             }
@@ -844,10 +957,13 @@ public class SettingsScreenSemanticsJvmTest {
                                 "opaque-available",
                                 "Available folder",
                                 true,
-                                false),
+                                false,
+                                0,
+                            ),
                             SettingsSourceItem(
-                                "opaque-lost", "Lost folder", false, true),
-                            SettingsSourceItem("opaque-blank", "", true, true)))
+                                "opaque-lost", "Lost folder", false, true, 0),
+                            SettingsSourceItem(
+                                "opaque-blank", "", true, true, 0)))
             }
             onNodeWithTag(SettingsListTestTag)
                 .performScrollToNode(hasText("Available folder"))
@@ -883,10 +999,17 @@ public class SettingsScreenSemanticsJvmTest {
         runComposeUiTest {
             val name = "folder-" + "x".repeat(80)
             val removed = mutableListOf<String>()
+            var failRemoval = false
+            val removalFailure = IllegalStateException("removal sentinel")
+            var mutationsEnabled by mutableStateOf(true)
             setContent {
                 content(
                     sources = listOf(item(name = name)),
-                    onRemove = { removed += it })
+                    mutations = mutationsEnabled,
+                    onRemove = {
+                        if (failRemoval) throw removalFailure
+                        removed += it
+                    })
             }
             onNodeWithTag(SettingsListTestTag)
                 .performScrollToNode(hasTestTag(SettingsRemovePrefix + "one"))
@@ -901,8 +1024,35 @@ public class SettingsScreenSemanticsJvmTest {
             assertEquals(emptyList(), removed)
             onNodeWithTag(SettingsRemovePrefix + "one", useUnmergedTree = true)
                 .performClick()
+            mutationsEnabled = false
+            waitForIdle()
             onNodeWithTag(SettingsRemoveConfirmTestTag, useUnmergedTree = true)
-                .performClick()
+                .assertIsNotEnabled()
+            assertEquals(emptyList(), removed)
+            mutationsEnabled = true
+            waitForIdle()
+            failRemoval = true
+            val failure =
+                assertFailsWith<IllegalStateException> {
+                    onNodeWithTag(
+                            SettingsRemoveConfirmTestTag,
+                            useUnmergedTree = true)
+                        .performSemanticsAction(SemanticsActions.OnClick)
+                }
+            assertSame(removalFailure, failure)
+            onNodeWithTag(SettingsRemoveConfirmTestTag, useUnmergedTree = true)
+                .assertExists()
+                .assertIsEnabled()
+            failRemoval = false
+            waitForIdle()
+            val confirmClick =
+                onNodeWithTag(
+                        SettingsRemoveConfirmTestTag, useUnmergedTree = true)
+                    .fetchSemanticsNode()
+                    .config[SemanticsActions.OnClick]
+                    .action ?: error("Remove confirmation has no click action")
+            confirmClick()
+            confirmClick()
             assertEquals(listOf("one"), removed)
         }
 
@@ -956,6 +1106,36 @@ public class SettingsScreenSemanticsJvmTest {
         onNodeWithText(darkLabel, useUnmergedTree = true).performClick()
         assertEquals(listOf(RhythHausThemeMode.Dark), selections)
     }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun focusedPlaybackPreferenceShowsThemeOutline(): Unit =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(
+                    LocalHausColors provides LightHausPalette) {
+                        Box(Modifier.size(600.dp, 1_200.dp)) { content() }
+                    }
+            }
+
+            val option =
+                onNodeWithTag(
+                    SettingsReplayGainPrefix + "off",
+                    useUnmergedTree = true,
+                )
+            option.performSemanticsAction(SemanticsActions.RequestFocus)
+            option.assertIsFocused()
+            val pixels = option.captureToImage().toPixelMap()
+            val outline = LightHausPalette.outline.toArgb()
+            assertTrue(
+                (0 until pixels.height).any { y ->
+                    (0 until pixels.width).any { x ->
+                        pixels[x, y].toArgb() == outline
+                    }
+                },
+                "Focused Settings option should show the theme outline",
+            )
+        }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -1136,8 +1316,11 @@ public class SettingsScreenSemanticsJvmTest {
             setContent {
                 content(
                     sources =
-                        listOf(SettingsSourceItem("one", "One", true, false)))
+                        listOf(
+                            SettingsSourceItem("one", "One", true, false, 0)))
             }
+            onNodeWithTag(SettingsListTestTag)
+                .performScrollToNode(hasText("One"))
             onNodeWithText("One", useUnmergedTree = true).assertExists()
         }
 }
@@ -1160,9 +1343,13 @@ private fun content(
     gaplessMode: SettingsGaplessMode = SettingsGaplessMode.Off,
     gaplessBusy: Boolean = false,
     gaplessError: Boolean = false,
+    automaticResumePolicy: SettingsAutomaticResumePolicy =
+        SettingsAutomaticResumePolicy.FollowSystemRecommendation,
+    outputStatus: String? = null,
     mutations: Boolean = true,
     hasTracks: Boolean = true,
     sources: List<SettingsSourceItem> = emptyList(),
+    listState: LazyListState? = null,
     playlistSlot: @Composable () -> Unit = {},
     scanSlot: (@Composable () -> Unit)? = null,
     scanOutcomeSlot: (@Composable () -> Unit)? = null,
@@ -1176,6 +1363,7 @@ private fun content(
     onReplayGain: (SettingsReplayGainMode) -> Unit = {},
     onCrossfade: (SettingsCrossfadeDuration) -> Unit = {},
     onGapless: (SettingsGaplessMode) -> Unit = {},
+    onAutomaticResume: (SettingsAutomaticResumePolicy) -> Unit = {},
     onAdd: () -> Unit = {},
     onClear: () -> Unit = {},
     onRescan: (String) -> Unit = {},
@@ -1199,6 +1387,8 @@ private fun content(
         gaplessMode = gaplessMode,
         gaplessBusy = gaplessBusy,
         gaplessError = gaplessError,
+        automaticResumePolicy = automaticResumePolicy,
+        outputStatus = outputStatus,
         sources = sources,
         sourcePickerActionVisible = sourcePickerActionVisible,
         sourcePickerAvailable = sourcePickerAvailable,
@@ -1218,6 +1408,7 @@ private fun content(
         onReplayGainModeSelected = onReplayGain,
         onCrossfadeDurationSelected = onCrossfade,
         onGaplessModeSelected = onGapless,
+        onAutomaticResumePolicySelected = onAutomaticResume,
         onAddMusicFolder = onAdd,
         onRescanSource = onRescan,
         onRecoverSource = onRecover,
@@ -1227,14 +1418,46 @@ private fun content(
         onReviewOnboarding = onReviewOnboarding,
         onRequestNotificationPermission = onRequestNotificationPermission,
         onOpenNotificationSettings = onOpenNotificationSettings,
-        onDismiss = onDismiss)
+        onDismiss = onDismiss,
+        listState = listState)
+
+@OptIn(ExperimentalTestApi::class)
+private fun verifySettingsGroupLabels(
+    locale: Locale,
+    labels: List<String>,
+) {
+    val previousLocale = Locale.getDefault()
+    try {
+        Locale.setDefault(locale)
+        runComposeUiTest {
+            val sectionTags =
+                listOf(
+                    "settings-section-appearance",
+                    "settings-section-playback",
+                    "settings-section-sources",
+                    "settings-section-maintenance",
+                    "settings-section-information",
+                )
+            setContent {
+                Box(Modifier.size(600.dp, 1_200.dp)) { content() }
+            }
+            sectionTags.zip(labels).forEach { (tag, label) ->
+                onNodeWithTag(SettingsListTestTag)
+                    .performScrollToNode(hasTestTag(tag))
+                onNodeWithTag(tag).assert(hasText(label))
+            }
+        }
+    } finally {
+        Locale.setDefault(previousLocale)
+    }
+}
 
 private fun labels(): SettingsSharedLabels =
     SettingsSharedLabels(
         "Settings", "Add", "Unavailable", "Clear", "Cancel", "Remove")
 
 private fun item(name: String = "One"): SettingsSourceItem =
-    SettingsSourceItem("one", name, true, false)
+    SettingsSourceItem("one", name, true, false, 0)
 
 private fun SemanticsNodeInteraction.assertNoClickOrFocusSemantics(): Unit {
     assertHasNoClickAction()

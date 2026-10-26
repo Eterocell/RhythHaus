@@ -34,6 +34,13 @@ Source removal, library clearing and remove-missing confirmations SHALL name the
 - **WHEN** the listener cancels a destructive confirmation or its operation fails
 - **THEN** cancellation MUST cause no mutation and failure MUST retain truthful feedback and the existing retry/admission rules rather than dismissing as success
 
+#### Scenario: Clear a configured source with no indexed tracks
+- **GIVEN** at least one configured source and no indexed tracks
+- **WHEN** the listener opens Settings while mutations are enabled
+- **THEN** the clear-library action remains available and opens its explicit confirmation
+- **AND** the confirmation reports the current source count and zero tracks
+- **AND** the existing mutation gate still disables the action while mutations are unavailable
+
 ### Requirement: Complete information and first-run surfaces
 About, open-source licenses and onboarding re-entry SHALL use the same design system while retaining existing loading/retry, page bounds, platform wording, skip/finish persistence and review behavior. Onboarding MUST remain independent of permission requests and MUST NOT block local playback. Back and reduced-motion behavior MUST use the shared authority.
 

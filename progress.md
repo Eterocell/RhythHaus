@@ -1,4 +1,46 @@
-## Handoff - 2026-10-26 Studio UI Task 1 integrated into main
+## Handoff - 2026-10-26 Studio UI integration; manual acceptance postponed
+
+Route: openspec+superpowers / user-directed integration with outstanding manual acceptance deferred
+Owner: implementation / local integration
+Input: user request to postpone all remaining manual verification, commit all redesign work, merge to `main`, and remove this worktree
+Output:
+- All manual verification and acceptance is postponed, not passed or removed from scope: full visual/interaction matrix, keyboard and screen-reader behavior, reduced-motion and large-text presentation, system pickers, audible playback, physical route loss, and system-media behavior.
+- Limited runtime observations recorded in earlier handoffs remain factual evidence with their exact scope, but do not count as acceptance or a pass. Manual/mixed OpenSpec items remain unchecked and the change remains unarchived.
+- User explicitly authorized committing and integrating the implemented work without claiming the postponed acceptance. All 115 changed/new/deleted feature files are committed at `c03e7508` (`feat(ui): integrate Studio redesign surfaces and interactions`); main's pre-existing redesign records are preserved in `99171d26` (`docs: postpone Studio UI manual acceptance`).
+- The local merge retains both main's integration records and the worktree's later implementation evidence. The ignored Studio SDD ledger/briefs have been copied to main's `.superpowers/sdd/2026-10-19-studio-ui-redesign/` before worktree removal. Unrelated `WATCHDOG.yml` is untouched and uncommitted.
+Next owner: user-performed manual acceptance remains postponed until rescheduled; engineering acceptance remains open for the review findings and automated verification gaps below. The retiring worktree is not the next implementation location.
+Verification update (2026-10-26, integration run):
+- `./gradlew spotlessApply --configuration-cache --console=plain`, separate `spotlessCheck`, separate `detekt`, and separate `architectureCheck` passed.
+- The affected Core UI/feature JVM suites plus desktop compile passed (`BUILD SUCCESSFUL`; 184 tasks, 30 executed). Nine Shared presentation integration classes passed (`BUILD SUCCESSFUL`; 146 tasks, 26 executed).
+- `openspec validate studio-ui-redesign --strict` passed; `git diff --check 0114d908` reported no whitespace errors.
+- The current `./init.sh` attempt reported missing configured NDK toolchain errors for TagLib helper targets (`30.0.15729638/build/cmake/android.toolchain.cmake`) and `PlaybackSessionCoordinatorTest.terminalCompletionFlushPersistsExactNonWholeSecondDurationWithoutProgress` failed at line 363 in `:shared:jvmTest`. The command was cancelled while still running after these failures; it returned no successful summary and did not reach its iOS stage. No full verification pass is claimed. These already-recorded environment/playback verification gaps are outside this presentation-only integration request; no toolchain or playback behavior was changed.
+- Both fresh 2026-10-26 independent reviews are complete. Standards and Spec report P2 issues in `LibraryAppState.syncSelectedTrackWithPlayback` (track replacement resets the player to Controls, potentially destroying an open queue-save naming/clear session) and `LibraryDialogs` (fixed 36dp remove-missing confirmation actions below the approved minimum). Spec additionally reports no explicit desktop selection alternative in the Library row more-menu, with Search rows lacking that menu. No P0/P1 was reported; Spec considers the user-requested integration mergeable with these three findings recorded. Code inspection confirms the reset and fixed heights; draft loss and the desktop selection finding have not been runtime-reproduced in this integration session. These are unresolved engineering findings, not manual-acceptance postponements. This commit/merge preserves the implementation as requested; it does not claim review acceptance or complete OpenSpec 8.3.
+- Merged-tree verification: affected Core UI/feature JVM suites and desktop compilation passed in 9s (184 tasks); nine Shared presentation integration classes passed in 13s (155 tasks); strict OpenSpec validation passed. The staged merge has no whitespace errors.
+- Merged-tree runtime smoke: launched `:desktopApp:run --offline --configuration-cache --console=plain` with an isolated temporary `user.home` and the existing Gradle cache. Orca observed the real 800×600 Chinese/dark onboarding, then the empty Library after Skip and the settled Search route without a playing track; screenshots and accessibility snapshots agree. This is narrow automated integration smoke, not manual acceptance or any completed matrix cell. The smoke process was stopped; no existing library data was touched. The initial attempt omitted the explicit Gradle cache and began a wrapper download; it was stopped before retrying offline with the existing cache.
+
+Acceptance gaps: three unresolved P2 review findings; no full `./init.sh` pass; Android TagLib helper build is blocked by the configured NDK path, one Shared playback-duration regression failed, the broad Shared/iOS results remain as recorded below, and all remaining manual acceptance is postponed and unverified. These do not turn the requested commit/merge into an accepted or archived product change.
+
+## Handoff - 2026-10-23 Studio UI redesign Task 7 automated review checkpoint
+
+Route: openspec+superpowers / approved inline `executing-plans` in `.worktrees/studio-ui-redesign`
+Owner: implementation for the remaining approved plan; user owns Task 7.2 GUI acceptance
+Input: Task 7 brief, approved Studio redesign plan/spec, and the independent Task 7 standards/spec review
+Output:
+- OpenSpec 7.1 is checked for the automated input/focus/motion contract. Task 7.2 remains unchecked for real keyboard, screen-reader, reduced-motion, large-text, and light/dark surface acceptance; the plan's Task 7 is not complete.
+- The review's token-consumer finding is fixed: LibraryRows uses `HausShapes.control`/`artwork`; LibraryDialogs uses `HausTypography.section`/`secondary`.
+- The alleged Tab/Shift-Tab path into a covered player was not reproduced: the overlay focus group cancels any focus exit, background semantics are cleared, and the existing regression checks eight forward Tabs plus Shift-Tab with no focused player descendant. The residual-risk ruling is recorded in the SDD ledger.
+- Standards review found no documented-standard breach. Two non-blocking smells remain deferred: duplicated inactive-input gate and repeated selected-surface focus-band mapping.
+Verification:
+- `./gradlew spotlessApply --configuration-cache`: `BUILD SUCCESSFUL` (285 tasks up-to-date); separate `spotlessCheck`: `BUILD SUCCESSFUL`; separate `detekt`: `BUILD SUCCESSFUL`; separate `architectureCheck`: `BUILD SUCCESSFUL`.
+- Focused pointer regression `./gradlew :shared:jvmTest --tests 'com.eterocell.rhythhaus.library.ui.LibraryAppShellJvmTest.desktopQueueMutationActionsFollowShellDensity' --rerun-tasks --configuration-cache`: `BUILD SUCCESSFUL` (155 tasks executed).
+- `./gradlew :core:ui:jvmTest :feature:library:impl:jvmTest :desktopApp:compileKotlin :androidApp:compileDebugKotlin :shared:compileKotlinIosSimulatorArm64 --rerun-tasks --configuration-cache`: `BUILD SUCCESSFUL` (347 tasks executed).
+- The four Shared interaction suites (`LibraryAppShellJvmTest`, `TrackSelectionSemanticsJvmTest`, `PlaylistBackPolicyJvmTest`, `AppNavigationChromeJvmTest`) passed with `--rerun-tasks` (146 tasks executed). No full Shared-suite pass is claimed.
+- `openspec validate studio-ui-redesign --strict` reported the change valid.
+Limits: user-performed GUI/keyboard/screen-reader/reduced-motion/large-text/light-dark acceptance remains open; no Android package assembly or iOS simulator test is claimed in this checkpoint. No commit.
+Next owner: user for the Task 7.2 manual matrix; implementation continues only within the approved dependency-ordered plan.
+Blockers: Orca exposes no accessibility window for the required real GUI checks.
+
+## Handoff - 2026-10-26 Studio UI Task 1 integrated into main (earlier integration)
 
 Route: openspec+superpowers / integration of the committed Task 1 checkpoint
 Owner: implementation / existing Studio redesign worktree
@@ -4796,11 +4838,189 @@ Next owner: user — interactive CarPlay-display acceptance and Apple capability
 ## Studio UI redesign planning handoff — 2026-10-19
 
 Route: openspec+superpowers
-Owner: user plan approval → OpenSpec apply
-Input: user-approved A / Studio system design at `docs/superpowers/specs/2026-10-19-studio-ui-redesign-design.md`.
-Output: OpenSpec change `openspec/changes/studio-ui-redesign/` contains the proposal, technical design, task checklist, six new capability deltas (`ui-design-system`, `adaptive-app-shell`, `music-library-presentation`, `player-presentation`, `playlist-presentation`, `settings-presentation`) and two modifications (`saved-playlists`, `playlist-scroll-chrome`). Executable eight-task plan: `docs/superpowers/plans/2026-10-19-studio-ui-redesign.md`. Planning self-review tightened exact size-token values, mini-player minimum heights, desktop row secondary-action coverage, and non-drag queue reordering alternatives.
-Review: inspected the plan against current Shared navigation/shell, Now Playing, Playlist hub/queue and backup-host contracts and the approved design/spec scenarios. Independent reviewer jobs could not return findings: both gateways rejected the requested run with HTTP 403 `insufficient_user_quota`; no reviewer result is claimed. This is planning evidence, not product code review or acceptance.
-Verification: after the final plan/checklist edits, `openspec validate studio-ui-redesign --strict` returned `Change 'studio-ui-redesign' is valid`; `openspec status --change studio-ui-redesign` reported 4/4 artifacts complete (`proposal`, `specs`, `design`, `tasks`). No Gradle build, test, formatter, product-code edit, commit, or archive was performed. Working-tree edits include earlier user/context changes; they were preserved.
-Approval boundary: complete design approved; executable implementation plan awaits user approval. Do not begin product implementation, `openspec apply`, or commit until the user approves the plan. Preserve existing manual device/listening/system-media acceptance and Phase 2–4 capabilities.
-Next owner: user — review `docs/superpowers/plans/2026-10-19-studio-ui-redesign.md`; after approval, explicitly initiate implementation.
-Blockers: plan approval pending. No Compose/native implementation or platform validation is claimed; independent plan-review agents were unavailable due quota.
+Owner: implementation
+Input: user-approved A / Studio system design and eight-task plan at `docs/superpowers/plans/2026-10-19-studio-ui-redesign.md`.
+Output: OpenSpec change `openspec/changes/studio-ui-redesign/` and all 13 plan/spec artifacts were transferred byte-for-byte to `.worktrees/studio-ui-redesign` on branch `feat/studio-ui-redesign`; the original `main` checkout remains untouched. User explicitly approved the implementation plan. OpenSpec reports 0/17 product tasks complete; implementation begins with Task 1 and remains dependency ordered.
+Planning verification: the prior planning session recorded `openspec validate studio-ui-redesign --strict` as valid and all four planning artifacts complete. Independent reviewer jobs returned HTTP 403 `insufficient_user_quota`; no independent plan-review result is claimed.
+Review: Task 2 must preserve scroll when adaptive layout moves a destination. Existing `LibraryHomeContent` owns a local `rememberLazyListState`, while compact and wide shell branches mount it separately. Task 2 implementation must retain state by destination (or hoist the list state) and include a production-shell resize regression for the visible item and offset.
+LSP: `xd://lsp` reports no language servers configured. Before the public `HausColorPalette` change, targeted repository search found its only constructors in `Theme.kt` (`LightHausPalette` and `DarkHausPalette`); all references are being migrated in the same Task 1.
+Verification: no product code, builds, tests, formatter, commit, or archive have been performed in this worktree yet.
+Approval boundary: plan approved; implementation authorized. Preserve existing manual device, listening, and system-media acceptance as separate release evidence; do not archive until all implementation task gates pass.
+Next owner: implementation — execute Task 1, complete its regression, smoke, review, documentation, and commit gate, then continue through Task 8.
+Blockers: none identified for implementation; platform manual acceptance remains independent and is not claimed passed.
+
+## Studio UI redesign Task 2 checkpoint — 2026-10-21
+
+Route: openspec+superpowers
+Owner: implementation / automated verification
+Input: approved Task 2 in `openspec/changes/studio-ui-redesign/tasks.md` and the user request to continue.
+Output: confirmed and fixed Search state loss during adaptive reflow. `AppShellMainRegion` now has one stable callsite inside the persistent shell row, preserving the live route composition without moving Search ownership out of the feature. The production-shell regression covers query, scroll anchor, and selection across reflow and verifies that real navigation clears selection.
+
+Verification:
+- `./gradlew :shared:jvmTest --tests '*LibraryNavigationTest*' --tests '*LibraryAppShellJvmTest*' --tests '*TrackSelectionSemanticsJvmTest*' :feature:nowplaying:jvmTest --configuration-cache --console=plain`: `BUILD SUCCESSFUL in 9s`; 152 actionable tasks, 27 executed and 125 up-to-date. The latest generated XML reports 79/79 `LibraryNavigationTest`, 18/18 `LibraryAppShellJvmTest`, and 5/5 `TrackSelectionSemanticsJvmTest` with zero failures. `:feature:nowplaying:jvmTest` also completed in the successful command.
+- `./gradlew :desktopApp:compileKotlin --configuration-cache --console=plain`: `BUILD SUCCESSFUL in 320ms`; 142 actionable tasks, 23 executed and 119 up-to-date.
+- The broad Shared/NowPlaying/desktop run timed out after 900s and reported `PlaybackSessionCoordinatorTest.terminalCompletionFlushPersistsExactNonWholeSecondDurationWithoutProgress` failing at line 363. Existing worktree history records the identical expected-1234/actual-0 failure on untouched `main`; the playback coordinator and test are unchanged in this diff. Do not count this as a Task 2 regression or claim the full suite passed.
+- `:desktopApp:run` launched the app; the supplied 800×600 and 1728×1084 captures were reviewed and show no empty detail column. The focused automated suite covers route availability without playback. Orca's permission query reports accessibility and screenshot permissions granted, but a fresh `MainKt` window has no accessibility window and GUI actions fail with `permission_denied`.
+
+Review: `StudioUITask2specreview` reported no code findings but did not accept Task 2 because the manual Task 2.2 matrix is absent; `StudioUITask2standardsreview` reported no standards or architecture finding. The full-run baseline failure is reconciled above. No implementation finding remains open.
+
+Lifecycle: OpenSpec 2.1 is complete; 2.2 remains unchecked. User-performed acceptance is still required for 800×600 with no track, 360–390 interaction, Search query/scroll/selection during resize both ways, last-row clearance, and inactive chrome having no actions. Do not mark the change accepted, archive it, or commit this checkpoint before that evidence exists.
+
+Orca recovery attempt (2026-10-21): relaunched the desktop app under an isolated `user.home` so no existing library database was touched. `list-windows` confirmed a visible 800×600 RhythHaus window, but `get-app-state` returned `permission_denied` because it exposed no accessibility window. The targeted permission command reported Accessibility and Screenshot as granted, opened System Settings, and launched Orca’s helper; System Settings itself also returned `permission_denied` for both state-read and a safe title-bar click. The window size is observed; its rendered state and the required interaction matrix are not.
+
+Ruling: continue the approved redesign implementation under the user's explicit instruction to continue until the full redesign is done, while leaving Task 2.2 unchecked and uncommitted until user-owned GUI acceptance exists. Re-run the Task 2 visual matrix before final closeout because later presentation work could stale earlier captures. Cost if wrong: the Task 2 checkpoint commit remains deferred and later changes may require repeating its visual acceptance.
+
+Next owner: implementation — audit and execute the next approved content-first Library/Search task without marking Task 2.2 complete; user — restore Orca Computer Use Accessibility by toggling it off/on in System Settings or perform and report the manual matrix.
+Blockers: the remaining Task 2.2 GUI interactions are inaccessible to this process despite both permissions reporting granted; the precise missing scenarios remain listed above. The known playback test baseline failure is separate and remains outside this change.
+
+## Studio UI redesign Task 4 checkpoint — 2026-10-21
+
+Route: openspec+superpowers
+Owner: implementation / automated verification
+Input: approved Task 4 in `openspec/changes/studio-ui-redesign/tasks.md` and the Task 4 implementation brief.
+Output: OpenSpec 4.1 is complete. The player and dedicated queue cutover is in place; the approved `queueContent: @Composable () -> Unit` slot leaves panel and Back settlement with Shared. The desktop queue row inherits shell density, with a production-shell regression for the 44dp desktop target. An artwork replacement test now waits for the rendered fallback rather than treating `waitForIdle()` as an image-decoding barrier. Added production-boundary regressions for downward drag closing/resetting the expanded player and wide queue dialogs rendering above the 280dp rail; the dialog test now measures the visible `HausDialogPanel` separately from the full-window PaneTitle scrim. OpenSpec 4.2 remains unchecked; no commit was made.
+
+Verification:
+- `./gradlew :feature:nowplaying:jvmTest :feature:playlists:impl:jvmTest --rerun-tasks --configuration-cache --console=plain`: `BUILD SUCCESSFUL` after final formatting and artwork-test synchronization.
+- Focused `:shared:jvmTest` for desktop queue density, downward player collapse, wide queue dialog card bounds/Back layering, timer callback routing, mini-player queue Back layers, lyrics replacement, mini-player next, and `PlaylistBackPolicyJvmTest`: `BUILD SUCCESSFUL` after the final production/test edits.
+- `./gradlew :core:ui:jvmTest --configuration-cache --console=plain`: `BUILD SUCCESSFUL` after adding the HausDialog panel tag for the visible-card bounds assertion.
+- `./gradlew :desktopApp:compileKotlin --configuration-cache --console=plain`: `BUILD SUCCESSFUL`.
+- `spotlessApply`, separate `spotlessCheck`, separate `detekt`, and separate `architectureCheck`: all `BUILD SUCCESSFUL` after the final source/test edits.
+- The complete Task 4 matrix did not pass. Full `:shared:jvmTest` reported `PlaybackSessionCoordinatorTest.terminalCompletionFlushPersistsExactNonWholeSecondDurationWithoutProgress`, the same expected-1234/actual-0 failure recorded on untouched `main`; a separate `:core:playback:jvmTest` run completed 221 tests with 14 `PlaybackControllerTest` failures. `git status --short -- core/playback` was empty. Do not claim either complete suite green or classify all 14 Core Playback failures as proven pre-existing.
+- An isolated `:desktopApp:run` used `user.home=/tmp/rhythhaus-task4-smoke-20261021`. The 800×600 desktop smoke displayed three controlled WAV tracks and exercised playback, seek, queue contents, and Queue → Player → Library Back. This is implementation smoke, not user-performed acceptance. Later `orca computer get-app-state --app pid:18179 --json` returned `permission_denied` although `list-windows` still observed the 800×600 RhythHaus window.
+
+Review and remaining acceptance:
+- Fresh read-only review confirmed that downward collapse clears expanded state and that save/clear dialogs publish through the full-window Shared overlay host; the reviewer verified the regression measures the visible HausDialog panel separately from the PaneTitle scrim and asserts it exceeds the 280dp rail. The panel-tag assertion had a red run before the production tag and a green focused rerun after. Final independent review found no actionable code findings.
+- Task 4.2's remaining real-media/GUI evidence is user-owned: text/time lyrics and track replacement, timer, repeated queue save/cancel and clear confirmation, Back through confirmation/queue/player, 1280×800, and 200% text scale. The 800×600 playback/queue/Back smoke does not substitute for these cases.
+- `Task 2.2` and `Task 3.2` manual acceptance also remain open. Do not archive or commit the redesign while its OpenSpec acceptance remains incomplete.
+
+Next owner: implementation — continue approved Task 5.1 while leaving Task 4.2 unchecked; user — restore Orca accessibility or perform and report the remaining Task 4.2 UI matrix.
+Blockers: full Shared/Core Playback suites are not green as recorded above; remaining GUI acceptance cannot be inspected because Orca reports no accessibility window for the visible app.
+
+## Studio UI redesign Task 5.1 implementation checkpoint — 2026-10-22
+
+Route: openspec+superpowers
+Owner: implementation
+Input: approved Task 5.1 in `openspec/changes/studio-ui-redesign/tasks.md` and the Task 5 brief.
+Output: OpenSpec 5.1 is checked. Saved static/smart workflows, progressive rule editing, distinct document operations, and Shared's single document owner remain in place. `onConfirmed` is documented as current-appearance/snapshot-confirmed only. Task 5.2 remains unchecked.
+
+Verification:
+- Focused `:feature:playlists:impl:jvmTest` for `PlaylistFeatureDismissalTest`, smart screens, document interoperability semantics, and interoperability controller passed (`BUILD SUCCESSFUL` in 44s).
+- Focused `:shared:jvmTest` for `SettingsPlaylistBackupEmbeddingTest` and `LibraryRouteAdapterJvmTest` passed (`BUILD SUCCESSFUL` in 42s).
+- Standalone `:desktopApp:compileKotlin` passed (`BUILD SUCCESSFUL` in 38s). The earlier parallel invocation logged a Kotlin incremental-cache `NoSuchFileException`, then completed successfully using Gradle's fallback compiler strategy.
+- `spotlessApply`, separate `spotlessCheck`, `detekt`, and `architectureCheck` passed.
+- The full `:feature:playlists:impl:jvmTest :shared:jvmTest :desktopApp:compileKotlin` command timed out after 1500s after reporting `PlaybackSessionCoordinatorTest.terminalCompletionFlushPersistsExactNonWholeSecondDurationWithoutProgress` at line 363. No full Shared-suite success is claimed; the same failure is recorded in the existing Task 2/4 baseline notes.
+- `DocumentWorkflowReview` found no merge-blocking issue in the current-appearance/snapshot callback guard or remove admission. The redundant appearance self-comparison was removed; `detailRemoveConfirmationAdmitsOnlyOneOccurrenceRemoval` asserts one exact entry removal after rapid repeated confirmation.
+- Orca reports accessibility and screenshot permissions granted, but the isolated `:desktopApp:run` attempt did not expose a RhythHaus process in `orca computer list-apps`; no visual or system-picker interaction was observed. The initial regression attempt failed on an incorrect test expectation that the Edit dismissal surface should be absent; the assertion was corrected to expect the still-active Edit surface, and the focused regression passed.
+
+Next owner: implementation — continue with approved Task 6.1 while keeping Task 5.2 and earlier user-owned visual acceptance open; user — perform/report the Task 5.2 document and long-rule acceptance when the app is accessible.
+Blockers: full Shared JVM remains non-green as recorded; Task 5.2 visual/system-picker scenarios are unverified.
+
+## Studio UI redesign Task 6.1 checkpoint — 2026-10-22
+
+Route: openspec+superpowers
+Owner: implementation / automated verification
+Input: approved Task 6 in `openspec/changes/studio-ui-redesign/tasks.md` and the Task 6 brief.
+Output: OpenSpec 6.1 is checked; 6.2 remains open. Added a source-only clear scenario to the Settings presentation delta. The production route now keeps Clear available when there are configured sources even with zero indexed tracks; request and confirmation both revalidate current source-or-track counts and the existing mutation gate. The Settings public API is unchanged. Added the end-to-end route regression `configuredEmptySourceRemainsClearable`.
+
+Verification:
+- RED: `./gradlew :shared:jvmTest --tests '*SettingsRouteAdapterJvmTest.configuredEmptySourceRemainsClearable' --configuration-cache --console=plain` failed because the production route exposed no `settings-clear` node for one configured source and zero tracks.
+- GREEN: the same focused command passed after the Settings projection and Shared route gates were aligned.
+- Plan-selected Settings/About/Onboarding/Shared regressions passed with `--rerun-tasks` (`BUILD SUCCESSFUL` in 18s; 158 tasks executed), including the full `SettingsRouteAdapterJvmTest`, onboarding lifecycle, and scan-report semantics classes. Full `:feature:settings:jvmTest :feature:onboarding:jvmTest --rerun-tasks` also passed (`BUILD SUCCESSFUL` in 7s; 56 tasks executed).
+- `spotlessApply`, separate `spotlessCheck`, separate `detekt`, separate `architectureCheck`, and `:desktopApp:compileKotlin` each passed after the final source/test edits.
+- About/onboarding tests have no pixel-capture or color assertions. The Settings disabled-danger boundary is scoped to its button palette and disabled semantics.
+- A full Shared-suite attempt timed out after 1200s and reported the existing playback-duration baseline failure plus an in-scope disabled-danger assertion that was corrected and then passed in the focused Task 6 suite. No full Shared-suite success is claimed.
+- Isolated `:desktopApp:run` with `JAVA_TOOL_OPTIONS=-Duser.home=/tmp/rhythhaus-task6-smoke-20261022` exposed a visible 800×600 RhythHaus Settings window and Chinese Settings labels in the accessibility tree. Synthetic scrolling returned unverified and did not advance the tree. I terminated the app after the smoke; Gradle reported exit 143 from that SIGTERM. No five-group, About/OSL, onboarding, source mutation, or visual matrix acceptance is claimed.
+
+Review and remaining acceptance:
+- Reviewed the Settings/Shared clear boundary and regression: source-only state renders the action, both callbacks use the same current eligibility, and confirmation displays source count plus zero tracks. The test is at the production route boundary.
+- OpenSpec 6.2 remains unchecked for the full Shared suite, user-performed 360×640/800×600 EN/ZH and 200%-text acceptance, real source/report/destructive interaction, fresh independent review, and the checkpoint commit.
+
+Next owner: implementation — continue with Task 7.1 under the approved plan while preserving Task 6.2 as an explicit acceptance gap; user — perform/report the Task 6.2 visual and interaction matrix when the app is accessible.
+Blockers: full Shared-suite success and user-owned visual interaction evidence remain outstanding; the isolated smoke only exposed the initial Settings state.
+
+## Studio UI redesign Task 7 automated checkpoint — 2026-10-23
+
+Route: openspec+superpowers
+Owner: implementation / automated verification
+Input: approved Task 7 in `openspec/changes/studio-ui-redesign/tasks.md` and its execution plan.
+Output: Task 7 focus, inactive-input, and reduced-motion code is implemented; automated acceptance passed. Independent review is pending. Task 7.1 remains unchecked until review; Task 7.2 remains open for user-owned GUI acceptance. No commit was made.
+
+Verification:
+- After final formatting, all affected Core UI and feature JVM suites passed with `--rerun-tasks`: `:core:ui:jvmTest`, `:feature:library:impl:jvmTest`, `:feature:search:jvmTest`, `:feature:nowplaying:jvmTest`, `:feature:playlists:impl:jvmTest`, `:feature:settings:jvmTest`, and `:feature:onboarding:jvmTest` (`BUILD SUCCESSFUL`, 179 tasks executed).
+- The complete Shared interaction classes `LibraryAppShellJvmTest`, `TrackSelectionSemanticsJvmTest`, and `PlaylistBackPolicyJvmTest` passed with `--rerun-tasks` (`BUILD SUCCESSFUL`, 146 tasks executed). A second focused Shared run for exit/covered actions, Search focus, zero-motion Back/player transitions, bottom-bar entrance, player-dialog invoker restoration, and wide queue dialog layering passed (`BUILD SUCCESSFUL`, 155 tasks executed).
+- `spotlessApply`, separate `spotlessCheck`, separate `detekt`, separate `architectureCheck`, and `:desktopApp:compileKotlin` passed after the final source edits.
+- An isolated `:desktopApp:run` displayed a visible 800×600 RhythHaus window. `orca computer get-app-state --app pid:28528 --window-id 4604 --json` returned `permission_denied` because no accessibility window was available after retries. The smoke process was stopped; no live keyboard, screen-reader, theme, large-text, or visual-matrix acceptance is claimed.
+- The full Shared JVM suite remains non-green under the previously recorded playback-duration failure/timeout; no full Shared-suite pass is claimed.
+
+Review and next action:
+- Independent Task 7 code review is in progress; apply any evidence-supported findings before checking 7.1.
+- Task 7.2 is blocked on the user-owned desktop keyboard/reader and light/dark/large-text matrix. User: restore Orca Computer Use Accessibility or perform/report the matrix. Implementation: complete Task 7.2 and then proceed to Task 8; do not commit or bypass the sequential gate while the GUI acceptance remains open.
+
+### Task 7 focus-contrast follow-up — 2026-10-23
+
+- Focused action boundaries now draw separate outer-surface and inner-fill bands when one color cannot contrast with both adjacent surfaces. Selected Settings choices use the matching paper/ink pair; Miuix Button/IconButton call sites use the shared focus-aware wrappers, and the nested song-row checkbox observes focus from its active child.
+- RED: `./gradlew :shared:jvmTest --tests '*TrackSelectionSemanticsJvmTest.focusingSelectionActionShowsContrastingOutline' --configuration-cache --console=plain` failed on the one-color boundary: the focused outer-edge pixel was white instead of `LightHausPalette.outline`. GREEN: the same command passed with the two-band boundary.
+- Fresh Core UI and all affected feature JVM suites passed with `--rerun-tasks` (`BUILD SUCCESSFUL in 13s`; 170 tasks executed). The four Shared interaction classes (`LibraryAppShellJvmTest`, `TrackSelectionSemanticsJvmTest`, `PlaylistBackPolicyJvmTest`, `AppNavigationChromeJvmTest`) passed with `--rerun-tasks` (`BUILD SUCCESSFUL in 20s`; 155 tasks executed).
+- The pixel regression checks both ring colors; a contrast-ratio regression checks outline/paper/panel/navigation, paper/ink, onPulse/pulse, and onDanger/danger pairs against the 3:1 threshold for light and dark palettes.
+- `spotlessApply`, separate `spotlessCheck`, separate `detekt`, separate `architectureCheck`, and `:desktopApp:compileKotlin` passed with configuration cache after final edits. No full Shared-suite pass is claimed; its recorded playback-duration failure/timeout remains separate.
+- At the time of this entry, 7.1 was still pending the independent review; the current OpenSpec task file now marks 7.1 complete. Task 7.2 remains open for user-owned GUI acceptance. Orca exposes no accessibility window; keyboard, screen-reader, reduced-motion host setting, large-text, and full light/dark visual acceptance remain unverified. No commit.
+
+## Task 8.1 integrated verification checkpoint — 2026-10-23
+
+Route: approved OpenSpec + Superpowers plan, continuing in `.worktrees/studio-ui-redesign`.
+Owner: implementation / Task 8.1. User-owned Task 7.2 GUI acceptance remains open.
+Input: approved Task 8 brief and OpenSpec tasks 8.1–8.3.
+Output: integration gates are in progress; no product source changes or checkpoint commit.
+
+Verification observed so far:
+- `./gradlew spotlessApply --configuration-cache`, separate `./gradlew spotlessCheck --configuration-cache`, separate `./gradlew detekt --configuration-cache`, and `./gradlew architectureCheck --configuration-cache` passed.
+- `./gradlew :shared:linkDebugFrameworkIosSimulatorArm64 --configuration-cache --console=plain` passed in 36 seconds (148 actionable tasks; 24 executed). Kotlin/Native warned that it could not infer the bundle ID and used `Shared`; linking still succeeded. No signing properties were set in `local.properties`.
+- `/usr/bin/xcrun xcodebuild -version` reported Xcode 27.1, build 27A9275.
+- `openspec validate studio-ui-redesign --strict` reported the change valid.
+- The broad affected Core UI / Core Playback / feature JVM command timed out at its 3600-second limit. Core UI and affected feature XML reports show zero failures; the unchanged Core Playback suite reported the previously recorded baseline failures. This is not a full affected-suite pass.
+- `./init.sh` has reported the existing `PlaybackSessionCoordinatorTest.terminalCompletionFlushPersistsExactNonWholeSecondDurationWithoutProgress` failure (`PlaybackSessionCoordinatorTest.kt:363`) in `:shared:jvmTest`. The Android build also reports `:taglib:buildAndroidTagLibHelper-{arm64-v8a,x86_64,armeabi-v7a}` failures because the configured NDK toolchain file `/Users/eterocell/Library/Android/sdk/ndk/30.0.15729638/build/cmake/android.toolchain.cmake` is absent; CMake also reports no Unix Makefiles program. The harness had not yet returned a final status at this checkpoint. No Android package or full harness pass is claimed.
+
+Limits and next action:
+- Task 8.1 remains unchecked until the harness result and required iOS simulator test outcome are recorded, and every prescribed JVM gate has a bounded result. Do not install or change the missing Android toolchain without authorization.
+- Task 8.2 remains open for the complete real-runtime matrix; Task 7.2 keyboard, screen-reader, reduced-motion, large-text, and light/dark acceptance remains user-owned. Task 8.3 whole-change review and commit are not started.
+- No commit. Next owner: implementation for remaining Task 8.1 evidence; user retains Task 7.2 acceptance.
+
+## Studio UI redesign automatable closeout — 2026-10-23
+
+Route: openspec+superpowers
+Owner: implementation / integrated verification
+Input: user request to finish remaining redesign goals while skipping human-intervention portions; approved eight-task plan.
+Output: all Task 8.1 commands now have bounded outcomes. OpenSpec 8.1 records command execution and blockers, not three-platform acceptance. OpenSpec reports 9/17 tasks complete; mixed GUI/review/commit acceptance items remain unchecked. The original full size/locale/theme/font matrix is preserved, not silently reduced.
+
+Changes in this continuation:
+- Corrected the Shared Settings backup embedding regression to scroll the `settings-list` lazy parent to its backup action before asserting uniqueness/clicking. An offscreen, uncomposed lazy item is not evidence that the production action is absent. The production document-host implementation is unchanged by this correction.
+- Removed trailing whitespace from the existing handoff paragraphs. No dependency, toolchain, playback, scanner or storage changes were made in this continuation.
+
+Fresh verification:
+- `./gradlew :core:ui:jvmTest :feature:library:impl:jvmTest :feature:search:jvmTest :feature:nowplaying:jvmTest :feature:playlists:impl:jvmTest :feature:settings:jvmTest :feature:onboarding:jvmTest :desktopApp:compileKotlin --configuration-cache --console=plain`: `BUILD SUCCESSFUL in 671ms`; 184 tasks, 30 executed.
+- `./gradlew :shared:jvmTest --tests '*LibraryNavigationTest*' --tests '*LibraryAppShellJvmTest*' --tests '*TrackSelectionSemanticsJvmTest*' --tests '*PlaylistBackPolicyJvmTest*' --tests '*AppNavigationChromeJvmTest*' --tests '*SettingsRouteAdapterJvmTest*' --tests '*SettingsPlaylistBackupEmbeddingTest*' --tests '*LibraryRouteAdapterJvmTest*' --tests '*AppOnboardingLifecycleJvmTest*' --configuration-cache --console=plain`: `BUILD SUCCESSFUL in 14s`; 155 tasks, 25 executed.
+- Separate `spotlessApply`, `spotlessCheck`, `detekt`, and `architectureCheck` commands passed; the framework-link and Xcode version results remain recorded in the preceding checkpoint. Strict OpenSpec validation passed. `git diff --check` produced no errors after the handoff whitespace correction.
+- Full `./gradlew :shared:jvmTest --rerun-tasks --configuration-cache --console=plain`: timed out at 3600 seconds after `CarPlayFacadeTest.transportCommandsRouteThroughTheSharedPlaybackController` (wrapper line 402) and `PlaybackSessionCoordinatorTest.terminalCompletionFlushPersistsExactNonWholeSecondDurationWithoutProgress` (line 363) assertion failures. The duration failure has earlier baseline proof; the CarPlay failure does not. A scoped diff against base `670485e9dfa61ef0d7d2ba22dcdb6fee794d3888` is empty for CarPlay production/tests and `core/playback`; this is scope evidence, not proof that every failure is pre-existing. Attempting a post-timeout JVM thread dump failed because the worker could no longer participate in the attach handshake.
+- Latest `./init.sh`: exit 1, `BUILD FAILED in 1s`, three Android TagLib helper failures. Configured NDK `30.0.15729638` lacks `build/cmake/android.toolchain.cmake`; CMake additionally reports no Unix Makefiles program. The script did not reach its iOS test stage. No installation or toolchain substitution was attempted.
+- Standalone `./gradlew :shared:iosSimulatorArm64Test --configuration-cache --console=plain`: test compilation and native linking completed; timeout at 3600 seconds after reaching `:shared:iosSimulatorArm64Test`, with no successful summary. Do not claim an iOS test pass.
+- The earlier broad Core Playback-inclusive run timed out. Its previously recorded failures remain unresolved; unchanged files alone do not prove baseline provenance for all of them.
+
+Real runtime:
+- `xcrun xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/rhythhaus-studio-ui-simulator-20261023 CODE_SIGNING_ALLOWED=NO build`: `BUILD SUCCEEDED`, 26.20s. This builds the actual Swift/Compose host, not only the Kotlin framework. Use `-hideShellScriptEnvironment` for future Xcode captures; raw logs contain environment values and must not be published or copied into the repository.
+- Booted the previously shut-down iOS 27.1 iPhone Duo simulator, installed the real host, and launched `com.eterocell.RhythHaus` (PID 37329). Boot status reported `Data Migration Failed`; nevertheless installation and launch succeeded. The settled screenshot `/tmp/rhythhaus-studio-ios-settled-20261023.png` visibly shows the Chinese dark empty library, source action, browse selectors, Settings, and Library/Search/Playlists navigation without a current track at 466×678 points. The immediate first screenshot showed SpringBoard and is not accepted as app evidence. Simulator logs show the Compose scene becoming active. The smoke app was terminated and the simulator returned to shutdown; no application data was erased.
+- `adb devices -l` found no Android target. Existing desktop smoke limitations remain recorded above. This launch smoke does not substitute for interaction, audio, full-matrix or native-test acceptance.
+
+Ruling: user-only GUI/device/audio/system acceptance is deferred under the explicit user instruction, not passed or deleted. Every prescribed cell in `{360×640,390×844,800×600,1280×800} × {EN,ZH} × {light,dark} × {default,200% font}` remains unaccepted for each platform. Existing physical/system-media roadmap acceptance stays unchanged. Cost if wrong: a visual/input defect may remain until that acceptance is exercised.
+
+Review: fresh whole-change read-only `StudioRedesignReview` completed against the base plus current tracked/untracked worktree, approved design/plan and all eight delta specs. It found one Important defect: active timer state reached setup but not the compact/wide player Controls. Reproduced RED through the real timer/controller boundary; propagated state to Controls, reused the localized summary below the secondary action row and exposed it as Timer accessibility state. A long label inside the Timer button was rejected because it could crowd Queue. The same regression passed after the fix, covering timed arm/return, completion-count replacement, cancellation and both compact/wide layouts. Fresh independent re-review found no blocker. The SDD ledger contains the eight-spec scenario-to-production/regression map; it is source review, not full-matrix runtime acceptance.
+
+Post-review proof:
+- `./gradlew :feature:nowplaying:jvmTest :desktopApp:compileKotlin --configuration-cache --console=plain`: `BUILD SUCCESSFUL in 23s`, 148 tasks, 31 executed. Separate post-fix `spotlessApply`, `spotlessCheck`, and `detekt` passed (7s, 12s, 2s).
+- Rebuilt the real Swift/Compose simulator host with the prior Xcode command plus `-hideShellScriptEnvironment`: `BUILD SUCCEEDED`, 40.72s.
+- Created a new isolated iOS 27.1 iPhone Duo simulator and sandbox-local 180-second PCM WAV. Completed four English onboarding pages through Finish, including iOS-specific Files.app guidance; the real scanner indexed one track. In the actual player: armed 15 minutes, returned to Controls, observed the visible summary and Timer accessibility value; replaced with three completions/fade-on and observed replacement; cancelled and confirmed both status surfaces cleared. A subsequently re-armed count/fade-off status is visible in `/tmp/rhythhaus-studio-timer-active-primary-20261023.png` (primary display 1; 466×678 points, English/light). The inactive-display black screenshot was deleted, not accepted.
+- The WAV fixture entered a playback error, with real Retry/Skip/Remove affordances visible. This proves timer/recovery presentation, not audible playback or seek success. The optional post-relaunch Settings-gear probe activated simulator system controls, so no Settings interaction acceptance is claimed from it. Onboarding did not reappear after relaunch; the immediate library snapshot was still empty and is not catalog-restoration proof.
+- iOS Orca attach/tap/AX work independently of the macOS Java accessibility problem; its passthrough `exec help` failed with an unexpected `-d` option and was reported to tool QA. The isolated simulator/helper/media sandbox were shut down and deleted; existing simulator data was not erased.
+
+Next owner: platform/test-environment maintenance for missing configured Android native toolchain and non-green full Shared/Core Playback/native iOS tests. Human-only checks remain deferred without requesting intervention. No remaining actionable redesign code finding is known after fresh review/re-review.
+Blockers: full Shared/Core Playback results, iOS test timeout, missing configured Android native toolchain, and user-deferred manual acceptance. OpenSpec remains 9/17 complete; no overall completion, archive or final checkpoint commit is claimed. No commit was made in this continuation because mixed acceptance/commit tasks still fail their completion gate.

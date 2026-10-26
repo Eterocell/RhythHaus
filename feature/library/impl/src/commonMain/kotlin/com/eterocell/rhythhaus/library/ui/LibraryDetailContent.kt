@@ -158,6 +158,7 @@ public fun DrillDownView(
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().leftEdgeSwipeBack(onBack),
     ) {
+        val desktopDensity = maxWidth >= 720.dp
         val drillDownStatusBarHeight = rememberSystemBarTopPadding()
         val drillDownBackdrop = rememberRhythHausBackdrop()
         val listState = rememberLazyListState()
@@ -327,6 +328,7 @@ public fun DrillDownView(
                                             onEditTrackMetadata?.let { edit ->
                                                 { edit(track.id) }
                                             },
+                                        desktopDensity = desktopDensity,
                                     )
                                 }
                             }
@@ -358,6 +360,7 @@ public fun DrillDownView(
                                         onEditTrackMetadata?.let { edit ->
                                             { edit(track.id) }
                                         },
+                                    desktopDensity = desktopDensity,
                                 )
                             }
                             item {
@@ -422,6 +425,7 @@ private fun DrillDownTrackRow(
     favorite: Boolean,
     onSetFavorite: (Boolean) -> Unit,
     onEditMetadata: (() -> Unit)?,
+    desktopDensity: Boolean,
 ) {
     TrackRow(
         track = track,
@@ -443,5 +447,6 @@ private fun DrillDownTrackRow(
         favorite = favorite,
         onSetFavorite = onSetFavorite,
         onEditMetadata = onEditMetadata,
+        desktopDensity = desktopDensity,
     )
 }

@@ -21,6 +21,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
@@ -46,6 +47,7 @@ import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.library.LibraryPlatformKind
 import com.eterocell.rhythhaus.library.LibrarySource
 import com.eterocell.rhythhaus.library.LibrarySourceAccessStatus
+import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlatformFolderPickerLauncher
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistImportMutation
@@ -59,7 +61,7 @@ import com.eterocell.rhythhaus.library.ui.LibraryAppState
 import com.eterocell.rhythhaus.library.ui.LibraryBackBeginResult
 import com.eterocell.rhythhaus.library.ui.LibraryBackTarget
 import com.eterocell.rhythhaus.library.ui.LibraryRoute
-import com.eterocell.rhythhaus.library.ui.LibraryRouteOverlays
+import com.eterocell.rhythhaus.library.ui.LibraryRouteScreen
 import com.eterocell.rhythhaus.library.ui.OnboardingLaunchMode
 import com.eterocell.rhythhaus.library.ui.PlaylistFeatureDestination
 import com.eterocell.rhythhaus.library.ui.PlaylistState
@@ -322,6 +324,7 @@ class SettingsRouteAdapterJvmTest {
                     sources = listOf(authoritativeSource),
                     hasTracks = true,
                     folderPickerLauncher = picker,
+                    playlistState = PlaylistState(hasConfirmedSnapshot = true),
                     scanProgress = scanProgress.value,
                     playlistBackupState = backupState.value,
                     onPlaylistBackupAction = { backupActions += it },
@@ -377,7 +380,9 @@ class SettingsRouteAdapterJvmTest {
             val scanCancel =
                 clickableText(requireNotNull(resolvedLabels).cancel)
             onAllNodes(scanCancel, useUnmergedTree = false).assertCountEquals(1)
-            onNode(scanCancel, useUnmergedTree = false).performClick()
+            onNode(scanCancel, useUnmergedTree = false)
+                .performScrollTo()
+                .performClick()
             assertEquals(1, cancelCalls)
 
             scanProgress.value = null
@@ -518,6 +523,90 @@ class SettingsRouteAdapterJvmTest {
         assertEquals(listOf(source), removals)
         assertSame(sentinel, failure)
     }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun clearConfirmationWaitsForMutationGate() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val route = mutableStateOf<LibraryRoute>(LibraryRoute.Settings)
+                val source = source("source")
+                var mutationsEnabled by mutableStateOf(true)
+                var failClear by mutableStateOf(true)
+                var clearCalls = 0
+                val clearFailure =
+                    IllegalStateException("clear admission sentinel")
+                setContent {
+                    Harness(
+                        route = route,
+                        sources = listOf(source),
+                        hasTracks = true,
+                        mutationsEnabled = mutationsEnabled,
+                        onClear = {
+                            if (failClear) throw clearFailure
+                            clearCalls++
+                        },
+                    )
+                }
+
+                settingsControl("settings-clear")
+                    .performScrollTo()
+                    .performClick()
+                onNodeWithTag("settings-clear-counts", useUnmergedTree = true)
+                    .assert(hasText("Sources to remove: 1", substring = true))
+                    .assert(hasText("Tracks to remove: 1", substring = true))
+                onNode(
+                        hasText(
+                            "Your music files are not deleted.",
+                            substring = true),
+                        useUnmergedTree = true)
+                    .assertExists()
+                onNode(
+                        hasText(
+                            "Add sources again to scan available files.",
+                            substring = true),
+                        useUnmergedTree = true)
+                    .assertExists()
+                onNodeWithTag("settings-clear-dismiss", useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                assertEquals(0, clearCalls)
+
+                settingsControl("settings-clear")
+                    .performScrollTo()
+                    .performClick()
+                val confirm =
+                    onNodeWithTag(
+                        "settings-clear-confirm", useUnmergedTree = true)
+                confirm.assertExists().assertIsEnabled()
+
+                mutationsEnabled = false
+                waitForIdle()
+                confirm.assertIsNotEnabled()
+                assertEquals(0, clearCalls)
+
+                mutationsEnabled = true
+                waitForIdle()
+                val failure =
+                    assertFailsWith<IllegalStateException> {
+                        confirm.performSemanticsAction(SemanticsActions.OnClick)
+                    }
+                assertSame(clearFailure, failure)
+                confirm.assertExists().assertIsEnabled()
+
+                failClear = false
+                waitForIdle()
+                val confirmClick =
+                    confirm
+                        .fetchSemanticsNode()
+                        .config[SemanticsActions.OnClick]
+                        .action
+                        ?: error("Clear confirmation has no click action")
+                confirmClick()
+                confirmClick()
+                assertEquals(1, clearCalls)
+            }
+        }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -820,11 +909,52 @@ class SettingsRouteAdapterJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun clearConfirmationDisablesWhileMutationIsPending() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val clearCalls = mutableListOf<Unit>()
+                val sharedLabels = mutableStateOf<SharedSettingsLabels?>(null)
+                var mutationsEnabled by mutableStateOf(true)
+                setContent {
+                    Box(Modifier.size(500.dp, 1_400.dp)) {
+                        Harness(
+                            hasTracks = true,
+                            mutationsEnabled = mutationsEnabled,
+                            onClear = { clearCalls += Unit },
+                            onSharedLabelsResolved = {
+                                sharedLabels.value = it
+                            },
+                        )
+                    }
+                }
+                waitForIdle()
+                val labels =
+                    sharedLabels.value
+                        ?: error("Shared labels were not resolved")
+
+                settingsControl("settings-clear").performClick()
+                mutationsEnabled = false
+                waitForIdle()
+                onNode(
+                        clickableText(labels.clearAction),
+                        useUnmergedTree = false)
+                    .assertIsNotEnabled()
+                assertEquals(emptyList(), clearCalls)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun settingsRendersTerminalOutcomeWithReportRescanAndRemoveMissing() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
                 val source = source("source", scanned = true)
-                val session = scanSession(ScanStatus.Completed)
+                val session =
+                    scanSession(ScanStatus.Completed)
+                        .copy(
+                            changeSummary =
+                                com.eterocell.rhythhaus.library
+                                    .ScanChangeSummary(missingCount = 2))
                 val rescanned = mutableListOf<LibrarySource>()
                 val missingRemoved =
                     mutableListOf<Pair<LibrarySource, ScanSession>>()
@@ -833,6 +963,7 @@ class SettingsRouteAdapterJvmTest {
                         Harness(
                             sources = listOf(source),
                             scanProgress = ScanProgress(session),
+                            latestCompletedScanSession = session,
                             scanErrors = listOf(scanError(session)),
                             onRescan = { rescanned += it },
                             onRemoveMissingTracks = { s, sess ->
@@ -843,15 +974,302 @@ class SettingsRouteAdapterJvmTest {
                 }
                 waitForIdle()
 
+                scrollSettingsTo(hasText("Scan complete"))
                 onNode(hasText("Scan complete")).assertExists()
+                scrollSettingsTo(hasText("View scan report"))
                 onNode(hasText("View scan report")).performClick()
+                scrollSettingsTo(hasText("broken.mp3: Unsupported file"))
                 onNode(hasText("broken.mp3: Unsupported file")).assertExists()
+                scrollSettingsTo(hasText("Rescan"))
                 onAllNodes(hasText("Rescan"))[0].performClick()
+                scrollSettingsTo(hasText("Remove missing files"))
                 onNode(hasText("Remove missing files")).performClick()
                 waitForIdle()
 
+                assertEquals(emptyList(), missingRemoved)
+                onNodeWithTag(
+                        "settings-remove-missing-source",
+                        useUnmergedTree = true)
+                    .assert(hasText(source.displayName))
+                onNodeWithTag(
+                        "settings-remove-missing-count", useUnmergedTree = true)
+                    .assert(hasText("Missing tracks: 2", substring = true))
+                onNode(
+                        hasText(
+                            "It does not delete music files.",
+                            substring = true),
+                        useUnmergedTree = true)
+                    .assertExists()
+                onNode(
+                        hasText(
+                            "Records can return only if the files become available " +
+                                "in this source and are scanned again.",
+                            substring = true),
+                        useUnmergedTree = true)
+                    .assertExists()
+                onNodeWithTag(
+                        "settings-remove-missing-dismiss",
+                        useUnmergedTree = true)
+                    .performClick()
+                waitForIdle()
+                assertEquals(emptyList(), missingRemoved)
+
+                onNode(hasText("Remove missing files")).performClick()
+                val confirmClick =
+                    onNodeWithTag(
+                            "settings-remove-missing-confirm",
+                            useUnmergedTree = true)
+                        .fetchSemanticsNode()
+                        .config[SemanticsActions.OnClick]
+                        .action
+                        ?: error("Missing-tracks confirmation has no click")
+                confirmClick()
+                confirmClick()
+
                 assertEquals(listOf(source), rescanned)
                 assertEquals(listOf(source to session), missingRemoved)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun sourceRemovalShowsCurrentTrackCountBeforeConfirming() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val source = source("source", name = "Music")
+                val removed = mutableListOf<LibrarySource>()
+                setContent {
+                    Box(Modifier.size(500.dp, 1200.dp)) {
+                        Harness(
+                            sources = listOf(source),
+                            libraryTracks =
+                                listOf(
+                                    libraryTrack("one", source.id),
+                                    libraryTrack("other", "other-source")),
+                            onRemove = { removed += it },
+                        )
+                    }
+                }
+
+                settingsControl("settings-remove-source").performClick()
+                assertEquals(emptyList(), removed)
+                onNodeWithTag(
+                        "settings-source-removal-name", useUnmergedTree = true)
+                    .assert(hasText("Music"))
+                onNodeWithTag(
+                        "settings-source-removal-count", useUnmergedTree = true)
+                    .assert(hasText("Scanned tracks: 1", substring = true))
+                onNode(
+                        hasText(
+                            "Your music files will not be deleted.",
+                            substring = true),
+                        useUnmergedTree = true)
+                    .assertExists()
+                onNode(
+                        hasText(
+                            "Re-add the source to scan available files.",
+                            substring = true),
+                        useUnmergedTree = true)
+                    .assertExists()
+                onNodeWithTag("settings-remove-dismiss", useUnmergedTree = true)
+                    .performClick()
+                assertEquals(emptyList(), removed)
+
+                settingsControl("settings-remove-source").performClick()
+                onNodeWithTag("settings-remove-confirm", useUnmergedTree = true)
+                    .performClick()
+                assertEquals(listOf(source), removed)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun removeMissingConfirmationPreservesPendingAfterAdmissionFailure() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val source = source("source", scanned = true)
+                val session =
+                    scanSession(ScanStatus.Completed)
+                        .copy(
+                            changeSummary =
+                                com.eterocell.rhythhaus.library
+                                    .ScanChangeSummary(missingCount = 2))
+                val failure = IllegalStateException("remove admission sentinel")
+                var failAdmission = true
+                val removed = mutableListOf<Pair<LibrarySource, ScanSession>>()
+                setContent {
+                    Box(Modifier.size(500.dp, 1200.dp)) {
+                        Harness(
+                            sources = listOf(source),
+                            scanProgress = ScanProgress(session),
+                            latestCompletedScanSession = session,
+                            onRemoveMissingTracks = {
+                                requestedSource,
+                                requestedSession ->
+                                if (failAdmission) throw failure
+                                removed += requestedSource to requestedSession
+                            },
+                        )
+                    }
+                }
+
+                scrollSettingsTo(hasText("Remove missing files"))
+                val openFailure = runCatching {
+                    onNode(hasText("Remove missing files")).performClick()
+                }
+                    .exceptionOrNull()
+                assertNull(
+                    openFailure,
+                    "Opening remove-missing confirmation must not admit removal",
+                )
+                assertEquals(emptyList(), removed)
+
+                val confirm =
+                    onNodeWithTag(
+                        "settings-remove-missing-confirm",
+                        useUnmergedTree = true)
+                val thrown =
+                    assertFailsWith<IllegalStateException> {
+                        confirm.performSemanticsAction(SemanticsActions.OnClick)
+                    }
+                assertSame(failure, thrown)
+                confirm.assertExists().assertIsEnabled()
+
+                failAdmission = false
+                waitForIdle()
+                val confirmClick =
+                    confirm
+                        .fetchSemanticsNode()
+                        .config[SemanticsActions.OnClick]
+                        .action
+                        ?: error("Missing-tracks confirmation has no click")
+                confirmClick()
+                confirmClick()
+                assertEquals(listOf(source to session), removed)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun pendingRemoveMissingConfirmationDisablesWhenNewerScanCompletes() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val source = source("source", scanned = true)
+                val originalSession =
+                    scanSession(ScanStatus.Completed, id = "original")
+                        .copy(
+                            changeSummary =
+                                com.eterocell.rhythhaus.library
+                                    .ScanChangeSummary(missingCount = 2))
+                val newerSession =
+                    scanSession(ScanStatus.Completed, id = "newer")
+                        .copy(
+                            changeSummary =
+                                com.eterocell.rhythhaus.library
+                                    .ScanChangeSummary(missingCount = 1))
+                var scanProgress by
+                    mutableStateOf(ScanProgress(originalSession))
+                var latestCompleted by
+                    mutableStateOf<ScanSession?>(originalSession)
+                val removed = mutableListOf<Pair<LibrarySource, ScanSession>>()
+                setContent {
+                    Box(Modifier.size(500.dp, 1200.dp)) {
+                        Harness(
+                            sources = listOf(source),
+                            scanProgress = scanProgress,
+                            latestCompletedScanSession = latestCompleted,
+                            onRemoveMissingTracks = { requestedSource, session
+                                ->
+                                removed += requestedSource to session
+                            },
+                        )
+                    }
+                }
+
+                scrollSettingsTo(hasText("Remove missing files"))
+                onNode(hasText("Remove missing files")).performClick()
+                val confirm =
+                    onNodeWithTag(
+                        "settings-remove-missing-confirm",
+                        useUnmergedTree = true)
+                confirm.assertIsEnabled()
+                val staleConfirmClick =
+                    confirm
+                        .fetchSemanticsNode()
+                        .config[SemanticsActions.OnClick]
+                        .action
+                        ?: error("Missing-tracks confirmation has no click")
+
+                scanProgress = ScanProgress(newerSession)
+                latestCompleted = newerSession
+                waitForIdle()
+
+                confirm.assertIsNotEnabled()
+                staleConfirmClick()
+                assertEquals(emptyList(), removed)
+                onNodeWithTag(
+                        "settings-remove-missing-dismiss",
+                        useUnmergedTree = true)
+                    .performClick()
+                assertEquals(emptyList(), removed)
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun clearConfirmationShowsCurrentSourceAndTrackCountsBeforeConfirming() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val snapshotTracks =
+                    List(3) { tracks(hasTracks = true).single() }
+                setContent {
+                    Harness(
+                        sources = listOf(source("one"), source("two")),
+                        snapshotTracks = snapshotTracks,
+                    )
+                }
+
+                settingsControl("settings-clear").performClick()
+
+                onNodeWithTag("settings-clear-counts", useUnmergedTree = true)
+                    .assert(hasText("Sources to remove: 2", substring = true))
+                    .assert(hasText("Tracks to remove: 3", substring = true))
+                onNode(
+                        hasText(
+                            "Your music files are not deleted.",
+                            substring = true),
+                        useUnmergedTree = true)
+                    .assertExists()
+                onNode(
+                        hasText(
+                            "Add sources again to scan available files.",
+                            substring = true),
+                        useUnmergedTree = true)
+                    .assertExists()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun configuredEmptySourceRemainsClearable() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                var clearCalls = 0
+                setContent {
+                    Harness(
+                        sources = listOf(source("empty-source")),
+                        snapshotTracks = emptyList(),
+                        onClear = { clearCalls++ },
+                    )
+                }
+
+                settingsControl("settings-clear").performClick()
+                onNodeWithTag("settings-clear-counts", useUnmergedTree = true)
+                    .assert(hasText("Sources to remove: 1", substring = true))
+                    .assert(hasText("Tracks to remove: 0", substring = true))
+                onNodeWithTag("settings-clear-confirm", useUnmergedTree = true)
+                    .performClick()
+                assertEquals(1, clearCalls)
             }
         }
 
@@ -889,6 +1307,7 @@ class SettingsRouteAdapterJvmTest {
                 }
                 waitForIdle()
 
+                scrollSettingsTo(hasText("Scan failed"))
                 onNode(hasText("Scan failed")).assertExists()
                 onNode(hasText("Latest completed scan: Music (completed-scan)"))
                     .assertExists()
@@ -965,6 +1384,7 @@ class SettingsRouteAdapterJvmTest {
                 }
                 waitForIdle()
 
+                scrollSettingsTo(hasText("View scan report"))
                 onNode(hasText("View scan report")).performClick()
                 onNode(hasText("Hide scan report")).assertExists()
                 displayedSession =
@@ -994,14 +1414,19 @@ class SettingsRouteAdapterJvmTest {
                 }
                 waitForIdle()
 
+                scrollSettingsTo(hasText("Scan complete"))
                 onNode(hasText("Scan complete")).assertExists()
                 status = ScanStatus.Failed
                 waitForIdle()
+                scrollSettingsTo(hasText("Scan failed"))
                 onNode(hasText("Scan failed")).assertExists()
+                scrollSettingsTo(hasText("Retry scan"))
                 onNode(hasText("Retry scan")).performClick()
                 status = ScanStatus.Cancelled
                 waitForIdle()
+                scrollSettingsTo(hasText("Scan cancelled"))
                 onNode(hasText("Scan cancelled")).assertExists()
+                scrollSettingsTo(hasText("Retry scan"))
                 onNode(hasText("Retry scan")).performClick()
 
                 assertEquals(listOf(source, source), rescanned)
@@ -1026,8 +1451,11 @@ class SettingsRouteAdapterJvmTest {
                 }
                 waitForIdle()
 
+                scrollSettingsTo(hasText("View scan report"))
                 onNode(hasText("View scan report")).performClick()
+                scrollSettingsTo(hasText("Rescan"))
                 onAllNodes(hasText("Rescan"))[0].assertIsNotEnabled()
+                scrollSettingsTo(hasText("Remove missing files"))
                 onNode(hasText("Remove missing files")).assertIsNotEnabled()
             }
         }
@@ -1057,9 +1485,7 @@ class SettingsRouteAdapterJvmTest {
                             onRescan = { rescanned += it })
                     }
                 }
-                onNodeWithTag(
-                        "settings-recover-" + dropped.id,
-                        useUnmergedTree = true)
+                settingsControl("settings-recover-" + dropped.id)
                     .performScrollTo()
                     .performClick()
                 assertEquals(listOf(dropped), rescanned)
@@ -1091,8 +1517,7 @@ class SettingsRouteAdapterJvmTest {
                 }
                 waitForIdle()
 
-                onNodeWithTag(
-                        "settings-recover-recover-me", useUnmergedTree = true)
+                settingsControl("settings-recover-recover-me")
                     .performScrollTo()
                     .performClick()
                 assertEquals(1, picker.launchCalls)
@@ -1217,8 +1642,10 @@ class SettingsRouteAdapterJvmTest {
         appState: LibraryAppState? = null,
         sources: List<LibrarySource> = emptyList(),
         hasTracks: Boolean = false,
+        snapshotTracks: List<Track>? = null,
         scanProgress: ScanProgress? = null,
         latestCompletedScanSession: ScanSession? = null,
+        libraryTracks: List<LibraryTrack> = emptyList(),
         scanErrors: List<ScanError> = emptyList(),
         scanJob: Job? = null,
         mutationsEnabled: Boolean = true,
@@ -1227,6 +1654,7 @@ class SettingsRouteAdapterJvmTest {
         onRequestNotificationPermission: () -> Unit = {},
         onOpenNotificationSettings: () -> Unit = {},
         folderPickerLauncher: PlatformFolderPickerLauncher = unavailablePicker,
+        playlistState: PlaylistState = PlaylistState(),
         playlistBackupState: PlaylistBackupUiState = PlaylistBackupUiState(),
         onPlaylistBackupAction: (PlaylistBackupUiAction) -> Unit = {},
         onClear: () -> Unit = {},
@@ -1271,14 +1699,16 @@ class SettingsRouteAdapterJvmTest {
             onSharedLabelsResolved(labels)
             onCoreBackLabelResolved(backLabel)
         }
-        LibraryRouteOverlays(
+        LibraryRouteScreen(
             route = route.value,
-            snapshot = LibrarySnapshot("Library", "", tracks(hasTracks), null),
-            libraryTracks = emptyList(),
+            snapshot =
+                LibrarySnapshot(
+                    "Library", "", snapshotTracks ?: tracks(hasTracks), null),
+            libraryTracks = libraryTracks,
             playbackController = PlaybackController(FakePlaybackEngine()),
             playbackState = PlaybackState(),
             playlistRepository = EmptyPlaylistRepository,
-            playlistState = PlaylistState(),
+            playlistState = playlistState,
             playlistBackupState = playlistBackupState,
             backupDocumentAvailable = true,
             destinationId = state.activeDestinationId,
@@ -1377,6 +1807,24 @@ class SettingsRouteAdapterJvmTest {
         } else {
             emptyList()
         }
+
+    private fun libraryTrack(id: String, sourceId: String) =
+        LibraryTrack(
+            id = id,
+            sourceId = sourceId,
+            sourceLocalKey = id,
+            audioSource = AudioSource.FilePath("/$id.mp3"),
+            displayName = "$id.mp3",
+            title = id,
+            artist = "",
+            album = "",
+            durationMillis = null,
+            sizeBytes = null,
+            modifiedAtEpochMillis = null,
+            lastSeenScanId = "scan",
+            createdAtEpochMillis = 1L,
+            updatedAtEpochMillis = 1L,
+        )
 
     private fun source(
         id: String,

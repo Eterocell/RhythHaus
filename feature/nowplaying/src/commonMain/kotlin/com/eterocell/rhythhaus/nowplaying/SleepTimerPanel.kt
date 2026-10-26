@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -109,12 +112,14 @@ internal fun SleepTimerPanel(
 
     Card(
         modifier =
-            modifier.fillMaxWidth().testTag(NowPlayingSleepTimerPanelTestTag),
+            modifier.fillMaxSize().testTag(NowPlayingSleepTimerPanelTestTag),
         cornerRadius = 20.dp,
         colors = CardDefaults.defaultColors(color = HausColors.current.panel),
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(16.dp),
+            Modifier.fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
@@ -252,7 +257,16 @@ private fun SleepTimerFadeToggle(
     onClick: () -> Unit,
 ) {
     val interactionModifier =
-        if (interactive) Modifier.hausClickable(onClick) else Modifier
+        if (interactive) {
+            Modifier.hausClickable(
+                onClick = onClick,
+                focusColor =
+                    if (fadeEnabled) HausColors.current.paper
+                    else HausColors.current.outline,
+                outerColor =
+                    if (fadeEnabled) HausColors.current.outline else null,
+            )
+        } else Modifier
     Box(
         Modifier.fillMaxWidth()
             .height(44.dp)
@@ -320,7 +334,7 @@ private fun SleepTimerActionButton(
 }
 
 @Composable
-private fun sleepTimerActiveSummary(
+internal fun sleepTimerActiveSummary(
     state: SleepTimerState,
     fadeOn: String,
     fadeOff: String,

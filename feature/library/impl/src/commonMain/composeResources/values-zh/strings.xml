@@ -8,6 +8,7 @@
     <string name="artist_accessibility_format">艺术家 %1$s</string>
     <string name="album_track_count_format">%1$d 张专辑 · %2$d 首曲目</string>
     <string name="track_count_format">%1$d 首曲目</string>
+    <string name="track_more_actions_format">%1$s 的更多操作</string>
     <string name="album_detail_subtitle_format">%1$d 首曲目 · %2$s</string>
     <string name="artist_detail_subtitle_format">%1$d 张专辑 · %2$d 首曲目</string>
     <string name="artist_album_tracks_format">%1$s · %2$d 首曲目</string>
@@ -17,6 +18,8 @@
     <string name="browse_mode_favorites">收藏</string>
     <string name="browse_mode_recently_played">最近播放</string>
     <string name="browse_mode_recently_added">最近添加</string>
+    <string name="browse_mode_more">更多</string>
+    <string name="browse_mode_more_views">更多资料库视图</string>
     <string name="favorites_empty">暂无收藏曲目。</string>
     <string name="recently_played_empty">暂无最近播放的曲目。</string>
     <string name="recently_added_empty">暂无最近添加的曲目。</string>
@@ -37,6 +40,13 @@
     <string name="metadata_cancel">取消</string>
     <string name="metadata_failure">无法保存更改，曲目可能已移除；请重试或取消。</string>
     <string name="browse_controls_heading">排序和筛选</string>
+    <string name="browse_controls_sort">排序</string>
+    <string name="browse_controls_order">顺序</string>
+    <string name="browse_controls_filters">筛选</string>
+    <string name="browse_controls_source">来源</string>
+    <string name="browse_controls_sort_value_format">排序：%1$s</string>
+    <string name="browse_controls_direction_value_format">方向：%1$s</string>
+    <string name="browse_controls_source_value_format">来源：%1$s</string>
     <string name="browse_sort_title">标题</string>
     <string name="browse_sort_artist">艺术家</string>
     <string name="browse_sort_album">专辑</string>
@@ -51,6 +61,9 @@
     <string name="browse_filter_artwork">仅有封面</string>
     <string name="browse_filter_source">来源</string>
     <string name="browse_filter_all_sources">所有来源</string>
+    <string name="browse_filter_source_unavailable">来源不可用</string>
+    <string name="browse_filter_clear_all">清除所有筛选</string>
+    <string name="browse_filter_remove_format">移除%1$s筛选</string>
     <string name="browse_selected_state">已选择</string>
     <string name="browse_unselected_state">未选择</string>
     <string name="browse_source_format">来源 %1$s</string>

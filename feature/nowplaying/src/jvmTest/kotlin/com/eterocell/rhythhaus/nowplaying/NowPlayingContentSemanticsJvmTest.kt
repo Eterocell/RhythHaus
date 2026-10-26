@@ -2,19 +2,23 @@ package com.eterocell.rhythhaus.nowplaying
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
@@ -22,6 +26,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -45,6 +50,7 @@ import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
 import com.eterocell.rhythhaus.theme.DarkHausPalette
+import com.eterocell.rhythhaus.theme.LightHausPalette
 import com.eterocell.rhythhaus.theme.LocalHausColors
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
@@ -97,6 +103,49 @@ public class NowPlayingContentSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    public fun focusedPulseControlsUseTwoToneContrastBoundary(): Unit =
+        runComposeUiTest {
+            val palette = DarkHausPalette
+            setContent {
+                CompositionLocalProvider(LocalHausColors provides palette) {
+                    mountedRecoveryNowPlaying(
+                        displayTrack(),
+                        PlaybackState(
+                            status = PlaybackStatus.Playing,
+                            repeatMode = RepeatMode.RepeatPlaylist,
+                            shuffleMode = ShuffleMode.On,
+                        ),
+                        PlaybackController(ImmediatePlaybackEngine()),
+                    )
+                }
+            }
+
+            for (testTag in
+                listOf(
+                    NowPlayingPlayPauseTestTag,
+                    NowPlayingShuffleTestTag,
+                    NowPlayingRepeatTestTag,
+                )) {
+                val action = onNodeWithTag(testTag)
+                action.performSemanticsAction(SemanticsActions.RequestFocus)
+                action.assertIsFocused()
+                val pixels = action.captureToImage().toPixelMap()
+                val centerY = pixels.height / 2
+                assertEquals(
+                    palette.outline.toArgb(),
+                    pixels[1, centerY].toArgb(),
+                    "$testTag should draw an outer boundary contrasting its surface",
+                )
+                assertEquals(
+                    palette.onPulse.toArgb(),
+                    pixels[3, centerY].toArgb(),
+                    "$testTag should draw an inner boundary contrasting its pulse fill",
+                )
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     public fun lyricsActionIsAbsentWhenCurrentTrackHasNoLyrics(): Unit =
         runComposeUiTest {
             setContent {
@@ -129,6 +178,7 @@ public class NowPlayingContentSemanticsJvmTest {
                     lyrics = "[00:01.00]First line\n[00:02.00]Second line",
                 )
         val before = controller.state.value
+        val panel = mutableStateOf(NowPlayingPanel.Controls)
         setContent {
             Box(Modifier.size(390.dp, 844.dp)) {
                 NowPlayingContent(
@@ -142,6 +192,9 @@ public class NowPlayingContentSemanticsJvmTest {
                     onArmSleepTimer = { _, _ -> },
                     onArmSleepTimerAfterCompletions = { _, _ -> },
                     onCancelSleepTimer = {},
+                    activePanel = panel.value,
+                    onPanelChange = { panel.value = it },
+                    queueContent = { TestQueueContent {} },
                 )
             }
         }
@@ -173,8 +226,10 @@ public class NowPlayingContentSemanticsJvmTest {
         runComposeUiTest {
             val lyrics = List(30) { "Plain line ${it + 1}" }.joinToString("\n")
             val track = displayTrack().copy(lyrics = lyrics)
+            val panel = mutableStateOf(NowPlayingPanel.Controls)
             for ((width, height) in
-                listOf(390.dp to 844.dp, 600.dp to 400.dp)) {
+                listOf(390.dp to 844.dp, 800.dp to 600.dp)) {
+                panel.value = NowPlayingPanel.Controls
                 setContent {
                     Box(Modifier.size(width, height)) {
                         NowPlayingContent(
@@ -189,6 +244,9 @@ public class NowPlayingContentSemanticsJvmTest {
                             onArmSleepTimer = { _, _ -> },
                             onArmSleepTimerAfterCompletions = { _, _ -> },
                             onCancelSleepTimer = {},
+                            activePanel = panel.value,
+                            onPanelChange = { panel.value = it },
+                            queueContent = { TestQueueContent {} },
                         )
                     }
                 }
@@ -236,6 +294,9 @@ public class NowPlayingContentSemanticsJvmTest {
                         requests += id to favorite
                     },
                     isCurrentTrackAvailableInLibrary = true,
+                    activePanel = NowPlayingPanel.Controls,
+                    onPanelChange = {},
+                    queueContent = { TestQueueContent {} },
                 )
             }
         }
@@ -271,6 +332,9 @@ public class NowPlayingContentSemanticsJvmTest {
                         requests += id to favorite
                     },
                     isCurrentTrackAvailableInLibrary = true,
+                    activePanel = NowPlayingPanel.Controls,
+                    onPanelChange = {},
+                    queueContent = { TestQueueContent {} },
                 )
             }
         }
@@ -313,6 +377,9 @@ public class NowPlayingContentSemanticsJvmTest {
                             error("unavailable action invoked")
                         },
                         isCurrentTrackAvailableInLibrary = false,
+                        activePanel = NowPlayingPanel.Controls,
+                        onPanelChange = {},
+                        queueContent = { TestQueueContent {} },
                     )
                 }
             }
@@ -344,6 +411,9 @@ public class NowPlayingContentSemanticsJvmTest {
                             requests += id to favorite
                         },
                         isCurrentTrackAvailableInLibrary = true,
+                        activePanel = NowPlayingPanel.Controls,
+                        onPanelChange = {},
+                        queueContent = { TestQueueContent {} },
                     )
                 }
             }
@@ -386,6 +456,9 @@ public class NowPlayingContentSemanticsJvmTest {
                     onArmSleepTimer = { _, _ -> },
                     onArmSleepTimerAfterCompletions = { _, _ -> },
                     onCancelSleepTimer = {},
+                    activePanel = NowPlayingPanel.Controls,
+                    onPanelChange = {},
+                    queueContent = { TestQueueContent {} },
                 )
             }
         }
@@ -467,6 +540,9 @@ public class NowPlayingContentSemanticsJvmTest {
                     onArmSleepTimer = { _, _ -> },
                     onArmSleepTimerAfterCompletions = { _, _ -> },
                     onCancelSleepTimer = {},
+                    activePanel = NowPlayingPanel.Controls,
+                    onPanelChange = {},
+                    queueContent = { TestQueueContent {} },
                 )
             }
         }
@@ -487,12 +563,83 @@ public class NowPlayingContentSemanticsJvmTest {
                     onArmSleepTimer = { _, _ -> },
                     onArmSleepTimerAfterCompletions = { _, _ -> },
                     onCancelSleepTimer = {},
+                    activePanel = NowPlayingPanel.Controls,
+                    onPanelChange = {},
+                    queueContent = { TestQueueContent {} },
                 )
             }
         }
         onNodeWithTag(NowPlayingSplitLayoutTestTag).assertExists()
         onNodeWithTag(NowPlayingCompactLayoutTestTag).assertDoesNotExist()
     }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun queuePanelSharesWidePlayerSpaceAndBackRestoresControls(): Unit =
+        runComposeUiTest {
+            val controller = PlaybackController(ImmediatePlaybackEngine())
+            val panel = mutableStateOf(NowPlayingPanel.Queue)
+            val queueContent: @Composable () -> Unit = {
+                TestQueueContent {
+                    panel.value = NowPlayingPanel.Controls
+                }
+            }
+
+            setContent {
+                Box(Modifier.size(1_280.dp, 800.dp)) {
+                    NowPlayingContent(
+                        track = displayTrack(),
+                        playbackState = PlaybackState(),
+                        playbackController = controller,
+                        labels = recoveryLabels,
+                        artworkLoader = { null },
+                        onBack = {},
+                        sleepTimerState = SleepTimerState(),
+                        onArmSleepTimer = { _, _ -> },
+                        onArmSleepTimerAfterCompletions = { _, _ -> },
+                        onCancelSleepTimer = {},
+                        activePanel = panel.value,
+                        onPanelChange = { panel.value = it },
+                        queueContent = queueContent,
+                    )
+                }
+            }
+
+            onAllNodes(hasText("Queue fixture")).assertCountEquals(1)
+            onAllNodes(hasTestTag(NowPlayingPlayPauseTestTag))
+                .assertCountEquals(1)
+            onAllNodes(hasTestTag(NowPlayingContentRootTestTag))
+                .assertCountEquals(1)
+            onAllNodes(hasText("Back to player"))[0].performClick()
+            waitForIdle()
+            onAllNodes(hasText("Queue fixture")).assertCountEquals(0)
+            onAllNodes(hasTestTag(NowPlayingPlayPauseTestTag))
+                .assertCountEquals(1)
+
+            panel.value = NowPlayingPanel.Queue
+            setContent {
+                Box(Modifier.size(800.dp, 600.dp)) {
+                    NowPlayingContent(
+                        track = displayTrack(),
+                        playbackState = PlaybackState(),
+                        playbackController = controller,
+                        labels = recoveryLabels,
+                        artworkLoader = { null },
+                        onBack = {},
+                        sleepTimerState = SleepTimerState(),
+                        onArmSleepTimer = { _, _ -> },
+                        onArmSleepTimerAfterCompletions = { _, _ -> },
+                        onCancelSleepTimer = {},
+                        activePanel = panel.value,
+                        onPanelChange = { panel.value = it },
+                        queueContent = queueContent,
+                    )
+                }
+            }
+            onAllNodes(hasText("Queue fixture")).assertCountEquals(1)
+            onAllNodes(hasTestTag(NowPlayingPlayPauseTestTag))
+                .assertCountEquals(0)
+        }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -514,6 +661,9 @@ public class NowPlayingContentSemanticsJvmTest {
                     onArmSleepTimer = { _, _ -> },
                     onArmSleepTimerAfterCompletions = { _, _ -> },
                     onCancelSleepTimer = {},
+                    activePanel = NowPlayingPanel.Controls,
+                    onPanelChange = {},
+                    queueContent = { TestQueueContent {} },
                 )
             }
         }
@@ -563,6 +713,54 @@ public class NowPlayingContentSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    public fun focusedInkBackedRecoveryActionUsesPaperInnerAndOutlineOuterBands():
+        Unit = withEnglishLocale {
+        runComposeUiTest {
+            val engine = RecoveryPlaybackEngine()
+            val controller = PlaybackController(engine)
+            engine.failLoadWith =
+                PlaybackError(
+                    "Unavailable locally",
+                    kind = PlaybackFailureKind.MissingFile,
+                )
+            controller.setQueue(playableTracks(), selectedTrackId = "second")
+            setContent {
+                CompositionLocalProvider(
+                    LocalHausColors provides LightHausPalette,
+                ) {
+                    mountedRecoveryNowPlaying(
+                        track = displayTrack(),
+                        playbackState = controller.state.collectAsState().value,
+                        controller = controller,
+                        width = 1_200.dp,
+                        height = 800.dp,
+                    )
+                }
+            }
+            waitUntil(timeoutMillis = 5_000) {
+                controller.state.value.status == PlaybackStatus.Error
+            }
+
+            val retry = onNodeWithTag(NowPlayingRetryFailureTestTag)
+            retry.performSemanticsAction(SemanticsActions.RequestFocus)
+            retry.assertIsFocused()
+            val pixels = retry.captureToImage().toPixelMap()
+            val centerY = pixels.height / 2
+            assertEquals(
+                LightHausPalette.outline.toArgb(),
+                pixels[0, centerY].toArgb(),
+                "Primary action should draw an outer boundary against its surface",
+            )
+            assertEquals(
+                LightHausPalette.paper.toArgb(),
+                pixels[3, centerY].toArgb(),
+                "Primary action should draw an inner boundary against its ink fill",
+            )
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     public fun splitErrorStateKeepsRecoveryAndTransportControlsReachableAtShortViewport():
         Unit = withEnglishLocale {
         runComposeUiTest {
@@ -579,8 +777,8 @@ public class NowPlayingContentSemanticsJvmTest {
                     track = displayTrack(),
                     playbackState = controller.state.collectAsState().value,
                     controller = controller,
-                    width = 600.dp,
-                    height = 400.dp,
+                    width = 800.dp,
+                    height = 600.dp,
                 )
             }
             waitUntil(timeoutMillis = 5_000) {
@@ -1122,6 +1320,7 @@ private fun mountedRecoveryNowPlaying(
     width: Dp = 390.dp,
     height: Dp = 844.dp,
 ): Unit {
+    val panel = remember { mutableStateOf(NowPlayingPanel.Controls) }
     Box(Modifier.size(width, height)) {
         NowPlayingContent(
             track = track,
@@ -1134,6 +1333,9 @@ private fun mountedRecoveryNowPlaying(
             onArmSleepTimer = { _, _ -> },
             onArmSleepTimerAfterCompletions = { _, _ -> },
             onCancelSleepTimer = {},
+            activePanel = panel.value,
+            onPanelChange = { panel.value = it },
+            queueContent = { TestQueueContent {} },
         )
     }
 }

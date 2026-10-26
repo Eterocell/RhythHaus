@@ -13,6 +13,7 @@ import androidx.navigationevent.NavigationEventDispatcher
 import androidx.navigationevent.NavigationEventHandler
 import androidx.navigationevent.NavigationEventInfo
 import com.eterocell.rhythhaus.LibrarySnapshot
+import com.eterocell.rhythhaus.nowplaying.NowPlayingPanel as NowPlayingPanelKind
 
 internal class LibraryAppState(
     initialSelectedTrackId: String?,
@@ -34,6 +35,14 @@ internal class LibraryAppState(
         private set
 
     private var nowPlayingAppearanceToken by mutableStateOf(0L)
+
+    var nowPlayingPanel by mutableStateOf(NowPlayingPanelKind.Controls)
+        private set
+
+    private var nowPlayingPanelTrackId: String? by mutableStateOf(null)
+    private var nowPlayingPanelDestinationId: LibraryDestinationId? by
+        mutableStateOf(null)
+    private var nowPlayingPanelToken by mutableStateOf(0L)
 
     var isNowPlayingBarVisible by mutableStateOf(true)
         private set
@@ -61,6 +70,8 @@ internal class LibraryAppState(
 
     private var acceptedBackSurface: RegisteredBackSurface? by
         mutableStateOf(null)
+    private var registeredBackSurfaces by
+        mutableStateOf<List<RegisteredBackSurface>>(emptyList())
     private var nextBackSurfaceRegistrationToken = 0L
     internal val hasExclusiveFeatureSurface: Boolean
         get() =
@@ -81,15 +92,15 @@ internal class LibraryAppState(
         private set
 
     /**
-     * Accepts one feature-owned foremost action for the currently presented
-     * destination only. A disposer may clear only the registration that created
-     * it.
+     * Keeps destination-scoped feature surfaces concurrently registered. The
+     * accepted surface is selected by presentation priority, so an unrelated
+     * null dismissal cannot displace a player panel and a modal can cover it.
      */
     internal fun registerBackSurface(port: LibraryBackSurfacePort): () -> Unit {
         val target = port.foremostFeatureTarget
         if (port.destinationId != activeDestinationId ||
-            target?.id?.destinationId != null &&
-                target.id.destinationId != port.destinationId) {
+            target == null ||
+            target.id.destinationId != port.destinationId) {
             return {}
         }
         val registration =
@@ -98,11 +109,15 @@ internal class LibraryAppState(
                 port = port,
                 target = target,
             )
-        acceptedBackSurface = registration
+        registeredBackSurfaces = registeredBackSurfaces + registration
+        updateAcceptedBackSurface()
         reconcileBackSession()
         return {
-            if (acceptedBackSurface === registration) {
-                acceptedBackSurface = null
+            if (registeredBackSurfaces.any { it.token == registration.token }) {
+                registeredBackSurfaces = registeredBackSurfaces.filterNot {
+                    it.token == registration.token
+                }
+                updateAcceptedBackSurface()
                 reconcileBackSession()
             }
         }
@@ -127,17 +142,11 @@ internal class LibraryAppState(
         if (selectionPort != null) publishSelectionPort(selectionPort)
         if (pendingBackSession != null) return LibraryBackBeginResult.Suppressed
         val destination = activeDestinationId
-        val surface =
-            acceptedBackSurface
-                ?.takeIf {
-                    it.port.destinationId == destination
-                }
-                ?.port
         val resolution =
             resolveLibraryBack(
                 LibraryBackResolutionInput(
                     activeDestinationId = destination,
-                    backSurfacePorts = listOfNotNull(surface),
+                    backSurfacePorts = registeredBackSurfacePorts(destination),
                     browseMode = browseMode,
                     isNowPlayingExpanded = showNowPlaying,
                     navigation = navigation,
@@ -171,15 +180,11 @@ internal class LibraryAppState(
         selectionPort: LibraryBackSelectionPort? = null
     ): Boolean {
         val destination = activeDestinationId
-        val surface =
-            acceptedBackSurface
-                ?.takeIf { it.port.destinationId == destination }
-                ?.port
         val resolution =
             resolveLibraryBack(
                 LibraryBackResolutionInput(
                     activeDestinationId = destination,
-                    backSurfacePorts = listOfNotNull(surface),
+                    backSurfacePorts = registeredBackSurfacePorts(destination),
                     browseMode = browseMode,
                     isNowPlayingExpanded = showNowPlaying,
                     navigation = navigation,
@@ -213,8 +218,14 @@ internal class LibraryAppState(
     }
 
     fun syncSelectedTrackWithPlayback(playbackTrackId: String?) {
-        selectedTrackIdState =
+        val nextTrackId =
             selectedTrackIdForPlaybackChange(selectedTrackId, playbackTrackId)
+        selectedTrackIdState = nextTrackId
+        if (showNowPlaying && nowPlayingPanelTrackId != nextTrackId) {
+            nowPlayingPanelTrackId = nextTrackId
+            nowPlayingPanelDestinationId = activeDestinationId
+            setNowPlayingPanel(NowPlayingPanelKind.Controls)
+        }
     }
 
     fun reconcileInitialOnboarding(initialOnboarding: OnboardingLaunchMode?) {
@@ -267,13 +278,75 @@ internal class LibraryAppState(
         replaceTopRoute(LibraryRoute.PlaylistHub)
     }
 
-    fun showNowPlaying() {
-        if (!showNowPlaying) nowPlayingAppearanceToken += 1
+    fun showNowPlaying(
+        initialPanel: NowPlayingPanelKind = NowPlayingPanelKind.Controls,
+        trackId: String? = selectedTrackId,
+        destinationId: LibraryDestinationId = activeDestinationId,
+    ) {
+        val opening = !showNowPlaying
+        val contextChanged =
+            nowPlayingPanelTrackId != trackId ||
+                nowPlayingPanelDestinationId != destinationId
+        if (opening) nowPlayingAppearanceToken += 1
         showNowPlaying = true
+        if (opening || contextChanged) {
+            nowPlayingPanelTrackId = trackId
+            nowPlayingPanelDestinationId = destinationId
+            setNowPlayingPanel(initialPanel)
+        } else if (initialPanel != NowPlayingPanelKind.Controls) {
+            setNowPlayingPanel(initialPanel)
+        }
+        updateAcceptedBackSurface()
+        reconcileBackSession()
     }
 
     fun hideNowPlaying() {
+        if (!showNowPlaying && nowPlayingPanel == NowPlayingPanelKind.Controls)
+            return
         showNowPlaying = false
+        nowPlayingPanelTrackId = null
+        nowPlayingPanelDestinationId = null
+        setNowPlayingPanel(NowPlayingPanelKind.Controls)
+        updateAcceptedBackSurface()
+        reconcileBackSession()
+    }
+
+    internal fun setNowPlayingPanel(panel: NowPlayingPanelKind) {
+        if (nowPlayingPanel == panel) return
+        nowPlayingPanel = panel
+        nowPlayingPanelToken++
+        updateAcceptedBackSurface()
+        reconcileBackSession()
+    }
+
+    internal fun nowPlayingPanelBackTarget():
+        LibraryBackTarget.NowPlayingPanel? {
+        val trackId = nowPlayingPanelTrackId ?: return null
+        if (!showNowPlaying ||
+            nowPlayingPanel == NowPlayingPanelKind.Controls ||
+            nowPlayingPanelDestinationId != activeDestinationId) {
+            return null
+        }
+        return LibraryBackTarget.NowPlayingPanel(
+            id =
+                LibraryBackTargetId(
+                    activeDestinationId,
+                    "now-playing-panel-$nowPlayingPanelToken",
+                ),
+            panel = nowPlayingPanel,
+            trackId = trackId,
+        )
+    }
+
+    internal fun dismissNowPlayingPanel(
+        target: LibraryBackTarget.NowPlayingPanel,
+    ): Boolean {
+        if (!isNowPlayingPanelTargetCurrent(target) ||
+            acceptedBackSurface?.target != target) {
+            return false
+        }
+        setNowPlayingPanel(NowPlayingPanelKind.Controls)
+        return true
     }
 
     fun pushRoute(route: LibraryRoute) {
@@ -327,10 +400,10 @@ internal class LibraryAppState(
         origin: LibraryNavigationEntry,
     ) {
         val invalidatedDestination = origin.destinationId
-        if (acceptedBackSurface?.port?.destinationId ==
-            invalidatedDestination) {
-            acceptedBackSurface = null
+        registeredBackSurfaces = registeredBackSurfaces.filterNot {
+            it.port.destinationId == invalidatedDestination
         }
+        updateAcceptedBackSurface()
         if (activeSelectionPort?.destinationId == invalidatedDestination) {
             activeSelectionPort = null
         }
@@ -364,6 +437,8 @@ internal class LibraryAppState(
     fun completePredictivePop(next: LibraryNavigationStack) {
         lastNavigationTransition = LibraryNavigationTransition.None
         navigation = next
+        resetNowPlayingPanelForDestinationChange()
+        updateAcceptedBackSurface()
         reconcileBackSession()
     }
 
@@ -380,7 +455,17 @@ internal class LibraryAppState(
         lastNavigationTransition =
             transitionForNavigationAction(navigation, action)
         navigation = applyNavigationAction(navigation, action)
+        resetNowPlayingPanelForDestinationChange()
+        updateAcceptedBackSurface()
         reconcileBackSession()
+    }
+
+    private fun resetNowPlayingPanelForDestinationChange() {
+        if (showNowPlaying &&
+            nowPlayingPanelDestinationId != activeDestinationId) {
+            nowPlayingPanelDestinationId = activeDestinationId
+            setNowPlayingPanel(NowPlayingPanelKind.Controls)
+        }
     }
 
     private fun completeBackSession(session: LibraryBackSession) {
@@ -393,6 +478,7 @@ internal class LibraryAppState(
         when (val target = session.target) {
             is LibraryBackTarget.FeatureModal,
             is LibraryBackTarget.FeatureEdit,
+            is LibraryBackTarget.NowPlayingPanel,
             ->
                 when (acceptedBackSurface?.port?.dispatch?.invoke(target)) {
                     LibraryBackFeatureRequestResult.Started -> Unit
@@ -441,6 +527,12 @@ internal class LibraryAppState(
                         registration.target == target
                 } == true
 
+            is LibraryBackTarget.NowPlayingPanel ->
+                acceptedBackSurface?.let { registration ->
+                    registration.port.destinationId == destination &&
+                        registration.target == target
+                } == true && isNowPlayingPanelTargetCurrent(target)
+
             is LibraryBackTarget.PageSelection ->
                 selectionPort?.destinationId == destination &&
                     selectionPort.target == target &&
@@ -464,6 +556,76 @@ internal class LibraryAppState(
             port.target.id.destinationId == activeDestinationId &&
             port.target.pageKey ==
                 trackSelectionPageKeyFor(navigation.current, browseMode)
+
+    private fun isNowPlayingPanelTargetCurrent(
+        target: LibraryBackTarget.NowPlayingPanel,
+    ): Boolean =
+        target.id.destinationId == activeDestinationId &&
+            showNowPlaying &&
+            target.panel == nowPlayingPanel &&
+            target.trackId == nowPlayingPanelTrackId &&
+            nowPlayingPanelDestinationId == activeDestinationId &&
+            target.id.instanceToken == "now-playing-panel-$nowPlayingPanelToken"
+
+    private fun isRegisteredBackSurfaceCurrent(
+        target: LibraryBackTarget,
+    ): Boolean =
+        target.id.destinationId == activeDestinationId &&
+            when (target) {
+                is LibraryBackTarget.FeatureModal,
+                is LibraryBackTarget.FeatureEdit,
+                -> true
+
+                is LibraryBackTarget.NowPlayingPanel ->
+                    isNowPlayingPanelTargetCurrent(target)
+
+                else -> false
+            }
+
+    private fun backSurfacePriority(target: LibraryBackTarget): Int =
+        when (target) {
+            is LibraryBackTarget.FeatureModal,
+            is LibraryBackTarget.FeatureEdit,
+            -> 2
+
+            is LibraryBackTarget.NowPlayingPanel -> 1
+            else -> 0
+        }
+
+    private fun updateAcceptedBackSurface() {
+        var selected: RegisteredBackSurface? = null
+        var selectedPriority = -1
+        for (registration in registeredBackSurfaces) {
+            val target = registration.target ?: continue
+            if (registration.port.destinationId != activeDestinationId ||
+                !isRegisteredBackSurfaceCurrent(target)) {
+                continue
+            }
+            val priority = backSurfacePriority(target)
+            val current = selected
+            if (priority > selectedPriority ||
+                priority == selectedPriority &&
+                    (current == null || registration.token > current.token)) {
+                selected = registration
+                selectedPriority = priority
+            }
+        }
+        acceptedBackSurface = selected
+    }
+
+    private fun registeredBackSurfacePorts(
+        destination: LibraryDestinationId,
+    ): List<LibraryBackSurfacePort> {
+        val ports = ArrayList<LibraryBackSurfacePort>()
+        for (registration in registeredBackSurfaces) {
+            val target = registration.target ?: continue
+            if (registration.port.destinationId == destination &&
+                isRegisteredBackSurfaceCurrent(target)) {
+                ports += registration.port
+            }
+        }
+        return ports
+    }
 
     private data class RegisteredBackSurface(
         val token: Long,

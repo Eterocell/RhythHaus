@@ -72,9 +72,9 @@ resource namespace is `rhythhaus.feature.search.generated.resources`. Its only p
 are explicit-public, declaration-specific-KDoc `SearchSharedLabels` and callback-first
 `SearchContent`: Library API tracks, primitive playback state, plain Shared labels and a composable
 selection-label formatter that resolves `select_track_format` through structured Compose
-`stringResource` during row composition without a generated resource handle, selection/visible-ID/
-scroll/play/dismiss callbacks, a playing-indicator slot, and
-only `Dp`/`Modifier` layout defaults. No Shared/generated-resource/playback-controller-or-state/
+`stringResource` during row composition without a generated resource handle, primitive initial
+scroll position values, selection/visible-ID/scroll/play/dismiss callbacks, a playing-indicator
+slot, and only `Dp`/`Modifier` layout defaults. No Shared/generated-resource/playback-controller-or-state/
 queue/repository/Koin/platform/database/TagLib/other-implementation type is public. Library API
 and required Compose runtime/UI are public dependencies; core UI, Foundation, resources, and Miuix
 are implementation-only. Shared declares exactly `implementation(projects.feature.search)`, never
@@ -106,13 +106,15 @@ export, and has no Library API dependency.
 
 Settings exposes only KDoc-complete `SettingsSharedLabels(title, addMusicFolder,
 folderPickerUnavailable, clearLibrary, cancel, remove)`, `SettingsSourceItem(id, displayName,
-accessAvailable, hasBeenScanned)`, `SettingsScreen`, `SettingsAboutScreen`, and
+accessAvailable, hasBeenScanned, trackCount)`, `SettingsScreen`, `SettingsAboutScreen`, and
 `OpenSourceLibrariesScreen(readCatalogJson: suspend () -> String, ...)`. Shared maps authoritative
-Library sources to the primitive projection and owns source-ID adaptation, mutation guards/errors,
-scanner/folder-picker/clear-library policy, routes/Back/dismissal, and clear-library content.
+Library sources and current per-source track counts to the primitive projection and owns source-ID
+adaptation, mutation guards/errors, scanner/folder-picker/clear-library and remove-missing
+confirmation policy, routes/Back/dismissal, and library-maintenance confirmation content.
 `SettingsScreen` receives scalar state, projections, callbacks, playlist-backup and nullable scan
 slots, `sourcePickerActionVisible`, `sourcePickerAvailable`, `mutationsEnabled`,
-`hasImportedTracks`, `onRequestClearLibrary`, and a nullable clear-library-dialog slot. Settings owns leaf rendering, source-removal dialog
+`hasImportedTracks`, `onRequestClearLibrary`, and a nullable library-maintenance-confirmation slot.
+Settings owns leaf rendering, source-removal dialog
 visibility, and About retry generation only; this Task-6.4 ruling introduces no Presenter/ViewModel/
 Event/Effect scaffold. Playlist backup stays playlists implementation-owned and is embedded by
 Shared. ThemePreferenceStore, Android/iOS/JVM actuals, system dark preference, Koin binding,
@@ -121,8 +123,9 @@ palettes stay core UI.
 
 Settings owns appearance/theme, source-management-only, About/AboutLibraries, logo, and
 remove-source-dialog resources. Shared retains/injects `settings`, `add_music_folder`,
-`folder_picker_unavailable`, `clear_library`, generic `cancel`/`remove`, and clear-library strings
-because Shared renders that dialog. No generated resource handle crosses the boundary.
+`folder_picker_unavailable`, `clear_library`, generic `cancel`/`remove`, clear-library count/copy,
+and remove-missing confirmation strings because Shared renders those dialogs. No generated resource
+handle crosses the boundary.
 `RhythHausBuildInfo` generation/model/verification is owned by the
 `build-logic.build-info` convention, which `:feature:settings` applies. AboutLibraries generation,
 configuration, manual TagLib attribution, and checked-in Shared catalog JSON remain Shared;

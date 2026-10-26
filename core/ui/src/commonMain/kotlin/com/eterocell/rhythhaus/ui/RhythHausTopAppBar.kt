@@ -10,10 +10,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.HausSpacing
+import com.eterocell.rhythhaus.ui.HausIconButton as IconButton
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.core.ui.generated.resources.Res
 import rhythhaus.core.ui.generated.resources.back
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 
 /** Renders the standard small RhythHaus top app bar. */

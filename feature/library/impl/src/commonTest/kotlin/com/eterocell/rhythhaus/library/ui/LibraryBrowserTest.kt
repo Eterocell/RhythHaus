@@ -59,6 +59,21 @@ class LibraryBrowserTest {
     }
 
     @Test
+    fun albumGridColumnsRespectCompactAndWideCardBoundaries() {
+        assertEquals(16f, albumGridGapDp(compact = true))
+        assertEquals(20f, albumGridGapDp(compact = false))
+        assertEquals(2, albumGridColumnsForWidth(415f, compact = true))
+        assertEquals(3, albumGridColumnsForWidth(416f, compact = true))
+        assertEquals(4, albumGridColumnsForWidth(679f, compact = true))
+        assertEquals(3, albumGridColumnsForWidth(679f, compact = false))
+        assertEquals(3, albumGridColumnsForWidth(699f, compact = false))
+        assertEquals(4, albumGridColumnsForWidth(700f, compact = false))
+        assertEquals(4, albumGridColumnsForWidth(879f, compact = false))
+        assertEquals(5, albumGridColumnsForWidth(880f, compact = false))
+        assertEquals(4, albumGridColumnsForWidth(720f))
+    }
+
+    @Test
     fun favoritesPreserveStandardOrderAndExcludeUnfavoritedTracks() {
         val tracks =
             listOf(
@@ -146,24 +161,6 @@ class LibraryBrowserTest {
                 )
                 .map { it.id },
         )
-    }
-
-    @Test
-    fun albumGridUsesTwoColumnsBelowTabletWidth() {
-        assertEquals(2, albumGridColumnsForWidth(0f))
-        assertEquals(2, albumGridColumnsForWidth(559f))
-    }
-
-    @Test
-    fun albumGridUsesThreeColumnsForTabletWidth() {
-        assertEquals(3, albumGridColumnsForWidth(560f))
-        assertEquals(3, albumGridColumnsForWidth(899f))
-    }
-
-    @Test
-    fun albumGridUsesFourColumnsForDesktopWidth() {
-        assertEquals(4, albumGridColumnsForWidth(900f))
-        assertEquals(4, albumGridColumnsForWidth(1400f))
     }
 
     private fun testTrack(
