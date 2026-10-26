@@ -10,7 +10,9 @@
 
 **Spec:** [已批准系统设计](../specs/2026-10-19-studio-ui-redesign-design.md)；[OpenSpec技术设计](../../../openspec/changes/studio-ui-redesign/design.md)；[规格集合](../../../openspec/changes/studio-ui-redesign/specs/)。执行者必须同时阅读三者。
 
-**Approval:** 系统设计全文与本计划已于2026-10-19获用户批准。下面所有代码接口、测试名和命令仍是待执行要求，不是已实现/已通过证据。现按1→8顺序实施；不提前归档。
+**Approval:** 系统设计全文与本计划已于2026-10-19获用户批准。下面所有代码接口、测试名和命令仍是待执行要求，不是已实现/已通过证据。按1→8顺序实施；不提前归档。
+
+**Manual acceptance status (2026-10-26):** At the user's request, all manual verification and acceptance for this redesign is postponed, including acceptance inferred from earlier limited runtime smoke. Those historical observations remain factual and keep their narrow scope, but do not count as acceptance or a pass. The visual/interaction matrix, keyboard and screen-reader checks, reduced-motion and large-text checks, system-picker flows, audible playback, physical route-loss, and system-media checks remain unverified—not removed from scope. Manual criteria stay open in the OpenSpec task tracker; this postponement does not close mixed implementation/verification tasks or authorize archival.
 
 ## Global Constraints
 
@@ -70,7 +72,7 @@
 - [x] **Step 1: 建立必要颜色性质回归。** 在`ThemeTest`保留主题解析行为，删除仅复制旧色值的断言；增加`activePalettesMeetReadableActionContrast`，对两套palette的正文/页面、次字/导航、`onPulse/pulse`、`onDanger/danger`断言≥4.5，对`outline/panel`（包含焦点边界用途）断言≥3。不测试setter回显或属性存在。
 - [x] **Step 2: 观察RED。** 运行`./gradlew :core:ui:jvmTest --tests '*ThemeTest*' --configuration-cache`；应因缺少新角色/旧色对不足而失败，记录实际输出，不把无关构建失败当目标RED。
 - [x] **Step 3: 实现token和公共呈现。** 按获批设计第4节逐项写入14角色浅深值；正文/歌曲16sp/22、次字14/20、标签12/16、区块18/24、页标题28/34、紧凑24/30。`RhythHausTheme`按钮底色用pulse、其上文字用onPulse；dialog保持当前dismiss语义与深色exterior，圆角20。返回、顶栏、输入/按钮消费者改用共享值；不导入新UI库。
-- [x] **Step 4: 运行与实际观察。** 运行`./gradlew :core:ui:jvmTest :feature:library:impl:jvmTest :feature:search:jvmTest :feature:nowplaying:jvmTest :feature:playlists:impl:jvmTest :feature:settings:jvmTest :feature:onboarding:jvmTest :desktopApp:compileKotlin --configuration-cache`。启动`./gradlew :desktopApp:run --configuration-cache`，浅/深遍历现有屏幕与一个危险确认，确认无不可读的强调文字或亮色scrim。仅为受影响既有行为修复测试，移除纯旧样式断言。全任务命令曾超时；本任务各feature/core suites及desktop compile fresh通过，Shared danger-dialog专项通过。浅/深Settings和source-removal确认、playlist空态经真实桌面截图观察；Now Playing变更控件通过渲染像素回归。3个Shared shell Settings/report断言仍失败且不在本任务修改的shell/routes文件中，具体证据记录于worktree `progress.md`。未宣称全Shared suite通过或全部页面密度完成。
+- [x] **Step 4: 运行与实际观察。** 运行`./gradlew :core:ui:jvmTest :feature:library:impl:jvmTest :feature:search:jvmTest :feature:nowplaying:jvmTest :feature:playlists:impl:jvmTest :feature:settings:jvmTest :feature:onboarding:jvmTest :desktopApp:compileKotlin --configuration-cache`。启动`./gradlew :desktopApp:run --configuration-cache`，浅/深遍历现有屏幕与一个危险确认，确认无不可读的强调文字或亮色scrim。仅为受影响既有行为修复测试，移除纯旧样式断言。
 - [x] **Step 5: 审查并记录checkpoint。** 记录运行证据到progress、roadmap的Studio条目和OpenSpec第1组；独立review后仅提交本任务文件，消息`feat(ui): establish Studio design tokens`。
 
 ## Task 2: Atomic shell and mini-player separation
@@ -207,10 +209,10 @@ public fun HausSongRow(
 | §7无障碍/输入/动效 | 各任务自身；7统一收口 | 200%字体、键盘/读屏、inactive与减少动态效果 |
 | §9矩阵、§10证据边界 | 8 | 原生执行与mockup证据分开，设备/听感不冒领 |
 
-依赖固定`1→2→3→4→5→6→7→8`；公开接口在生产者任务内部同时迁移全部消费者，不把不能编译的“合约先行”留给下任务。每个task有独立review门，纯研究可并行但不同时修改Shared。计划已获用户批准；对照规格逐项实施并按每个task的证据门提交检查点。
+依赖固定`1→2→3→4→5→6→7→8`；公开接口在生产者任务内部同时迁移全部消费者，不把不能编译的“合约先行”留给下任务。每个task有独立review门，纯研究可并行但不同时修改Shared。计划已于2026-10-19获用户批准并按该顺序实施；Remaining manual acceptance is governed by the status above and the OpenSpec task tracker.
 
 ## Workflow follow-up
 
-- 用户已批准计划；按1→8顺序逐任务实施。OpenSpec planning complete不代表产品任务已完成。
+- 用户已批准计划；implemented work is being committed and integrated at the user's explicit request. Remaining manual acceptance stays postponed, unverified, and open; this does not authorize marking incomplete OpenSpec tasks complete.
 - 全部任务证据和独立review齐备后，由OpenSpec按archive流程同步六个新增规格及两个完整修改块；归档不是本计划中的已完成实施项。
 - 用户设备/听感/系统控制验收保持其既有独立记录；自动UI烟测不可代签这些验收。

@@ -1,27 +1,36 @@
-## Handoff - 2026-10-20 Studio UI redesign Task 1 complete; Task 2 next
+## Handoff - 2026-10-26 Studio UI Task 1 integrated into main
 
-Route: openspec+superpowers, inline `executing-plans` in the isolated worktree
-Owner: implementation / Task 2.1
-Input: user-approved Studio design, eight-task plan, and Task 1 brief at `.superpowers/sdd/2026-10-19-studio-ui-redesign/task-1-brief.md`.
-Output: Task 1.2 is complete and committed as `feat(ui): establish Studio design tokens`: palette roles, shared typography/spacing/shapes/metrics, common-surface token usage, selected/playing row metadata contrast, and explicit danger-role migration. Both post-review fixes are included: dark pulse-backed Now Playing icons use `onPulse`, and the Settings clear-action screenshot regression covers enabled/disabled branches in both palettes. The original `ThemeTest` RED trace remains unavailable; the actual Shared dialog, Settings action, and Now Playing control regressions have observed RED/GREEN evidence. Task 2.1 is the next approved plan item.
+Route: openspec+superpowers / integration of the committed Task 1 checkpoint
+Owner: implementation / existing Studio redesign worktree
+Input: user request to merge `feat/studio-ui-redesign`; checkpoint commit `0114d908`
+Output:
+- `main` fast-forwarded from `670485e9` to `0114d908`; no new merge commit was created.
+- Task 1 design tokens and common-surface changes are integrated. Later uncommitted redesign work remains untouched in `.worktrees/studio-ui-redesign`; the feature branch/worktree was not removed.
+- Main's pre-existing local plan, design, OpenSpec, progress, roadmap, and `WATCHDOG.yml` changes were preserved. The local plan/OpenSpec task status now records the approved plan and completed Task 1 only.
 Verification:
-- Focused `:core:ui:jvmTest` and `:feature:library:impl:jvmTest` regression run: `BUILD SUCCESSFUL`; XML reports show `ThemeTest` 8/8, `HausDialogSemanticsJvmTest` 1/1, and `TrackRowColorPolicyJvmTest` 1/1, with zero failures/errors.
-- `SettingsScreenSemanticsJvmTest.clearLibraryActionUsesDangerPanelInBothPalettes` failed with the original pulse styling, then passed for the enabled danger action in both palettes. The expanded image check also renders `mutations=false` in both palettes and asserts the existing neutral disabled surface (`#FFF2F2F2`) plus disabled semantics; its initial `dangerPanel` expectation was corrected because the disabled Miuix button renders its neutral disabled color. The full `:feature:settings:jvmTest` suite passed.
-- The new `NowPlayingContentSemanticsJvmTest.pulseBackedControlsUseDarkPaletteOnPulseForeground` regression failed on the dark play/pause icon while it was white. Full-player play/pause and selected shuffle/repeat icons now use `HausColors.current.onPulse`; the pixel-capture test passed for all three controls.
-- Final affected check after formatting, `./gradlew :feature:nowplaying:jvmTest :feature:settings:jvmTest :desktopApp:compileKotlin --configuration-cache`: `BUILD SUCCESSFUL` (7s; 154 tasks, 34 executed, 120 up-to-date). `spotlessApply`, standalone `spotlessCheck`, and standalone `detekt` also passed after the review fixes.
-- Fresh `./gradlew :feature:library:impl:jvmTest :feature:search:jvmTest :feature:playlists:impl:jvmTest :feature:onboarding:jvmTest --rerun-tasks --configuration-cache`: `BUILD SUCCESSFUL` (17s; 124 tasks executed).
-- Fresh `./gradlew :core:ui:jvmTest :feature:library:impl:jvmTest :feature:search:jvmTest :feature:nowplaying:jvmTest :feature:playlists:impl:jvmTest :feature:settings:jvmTest :feature:onboarding:jvmTest :desktopApp:compileKotlin --rerun-tasks --configuration-cache`: `BUILD SUCCESSFUL` (21s; 184 tasks executed).
-- Fresh `./gradlew :shared:jvmTest --tests '*LibraryDialogDangerColorJvmTest*' --rerun-tasks --configuration-cache`: `BUILD SUCCESSFUL` (15s; 146 tasks executed). The broader Shared shell suite still has the three recorded Settings/report failures below; no full Shared-suite pass is claimed.
-- Fresh `./gradlew :shared:jvmTest --tests '*LibraryAppShellJvmTest*' --configuration-cache`: failed in 22s, 15 tests/3 failures. `settingsReviewRestoresDestinationScrollState` and `settingsReviewRestoresStateAcrossAdaptiveWidthChange` cannot find the `View scan report` action; `compactAndWideBranchesRenderEquivalentSettingsTerminalOutcome` cannot find the expanded `broken.mp3: Unsupported file` semantics node. These same Settings-semantics failures were recorded in prior broad-suite evidence before this Task 1 continuation. `LibraryAppShellJvmTest.kt` and `LibraryRoutes.kt` are not in the current Task 1 diff. Do not change unrelated Settings/report behavior without a separate root-cause task.
-- An earlier pre-review broad Task 1 run passed (`BUILD SUCCESSFUL in 7s`, 184 tasks). The latest broad affected JVM/desktop run timed out after 900s and reported five previously recorded failures: three `LibraryAppShellJvmTest` Settings semantics cases, `SearchRouteAdapterJvmTest.currentTrackRestartsBeforeDismissal`, and `PlaybackSessionCoordinatorTest.terminalCompletionFlushPersistsExactNonWholeSecondDurationWithoutProgress`. No current broad-suite success is claimed. After the final Settings color edit, `./gradlew :desktopApp:compileKotlin --configuration-cache` passed (`BUILD SUCCESSFUL` in 7s; 151 tasks, 23 executed, 128 up-to-date).
-- A second multi-module `--tests` invocation for Theme/dialog/row/Settings also timed out after 900s. `:core:ui:jvmTest` and `:feature:library:impl:jvmTest` were up-to-date; `:shared:jvmTest` reported three previously recorded `LibraryAppShellJvmTest` failures and the known playback-duration failure. It did not return `BUILD SUCCESSFUL`; the separately completed full Settings suite is the passing evidence.
-- `git diff --check` passed.
-- `:shared:iosSimulatorArm64Test` compiled Kotlin/Native sources and linked the test binary, then timed out after 3600s during the test task. No iOS test pass is claimed.
-- Real desktop smoke through Orca captured Settings in light and dark palettes, source-removal confirmation in both palettes, and playlist empty-state at 861×541. The latter leaves an empty Playlists detail area beside Library, a concrete Task 2 before-state. The full-player route was not opened live; the modified play/pause and selected shuffle/repeat controls are verified by the rendered-pixel regression.
-- The same single configured source, `JMetal`, is visible before and after the picker interaction. The scan report changed from 10 folders/104 files/97 added to 11 folders/105 files/98 added; this is not a source count and does not identify why the scan result changed. No source was removed, and no new configured source is visible.
-- The read-only post-fix review returned no findings and confirmed both prior findings resolved. The initial `ThemeTest` RED trace remains unavailable and is not claimed.
-Next owner: implementation / Task 2.1, after the Task 1 checkpoint commit.
-Blockers: no Task 1 blocker prevents continuing. The full affected JVM/desktop run timed out after 900s; the isolated Shared shell suite still has three recorded Settings/report failures outside this task's shell/routes diff, so no full Shared-suite pass is claimed. The full-player route was not opened live; changed controls have rendered-pixel coverage. All page-density work remains out of scope for Task 1.
+- Post-merge `./gradlew :core:ui:jvmTest :feature:library:impl:jvmTest :feature:search:jvmTest :feature:nowplaying:jvmTest :feature:playlists:impl:jvmTest :feature:settings:jvmTest :feature:onboarding:jvmTest :desktopApp:compileKotlin --configuration-cache`: `BUILD SUCCESSFUL` (7s; 193 actionable tasks).
+- Post-merge `./gradlew :shared:jvmTest --tests '*LibraryDialogDangerColorJvmTest*' --configuration-cache`: `BUILD SUCCESSFUL` (3s; 155 actionable tasks).
+- Separate `spotlessCheck`, `detekt`, and `architectureCheck` with `--configuration-cache` passed in a clean clone at `0114d908` (285, 12, and 10 actionable tasks respectively). Root `spotlessCheck` scans generated Android manifests under the preserved `.worktrees/studio-ui-redesign` build tree; do not treat that workspace contamination as a source-format failure.
+- `openspec validate studio-ui-redesign --strict` reported the change valid; `git diff --check` passed.
+- The clean-checkout `./init.sh` did not pass: `:taglib:buildAndroidTagLibHelper-arm64-v8a`, `armeabi-v7a`, and `x86_64` failed. `ANDROID_NDK_VERSION` is unset; `taglib/build.gradle.kts` defaults to `30.0.15729638`, and `$ANDROID_HOME/ndk/30.0.15729638/build/cmake/android.toolchain.cmake` is absent. No Android package or iOS simulator pass is claimed.
+- The prior Task 1 handoff records a post-fix read-only review with no findings and real desktop smoke for Settings, source-removal confirmation, and playlist empty state in light/dark palettes. The live full-player route was not opened; changed controls have rendered-pixel coverage.
+Next owner: implementation in `.worktrees/studio-ui-redesign`; re-read that worktree's `progress.md` and OpenSpec status, then continue the remaining dependency-ordered work without resetting it.
+Blockers: Android packaging awaits the configured NDK; Task 7.2 keyboard, screen-reader, reduced-motion, large-text, and full light/dark manual acceptance remains open.
+
+## Handoff - 2026-10-19 Studio UI system design (awaiting full-design approval)
+
+Route: openspec+superpowers
+Owner: Superpowers / system design
+Input: user requested systematic analysis and redesign of the overall UI; after comparing two throwaway browser directions, user explicitly chose A / Studio.
+Output: `docs/superpowers/specs/2026-10-19-studio-ui-redesign-design.md` proposes information architecture, compact/medium/wide layouts, light/dark semantic tokens, type/spacing/density, every feature surface, state/accessibility matrix, ownership constraints and dependency-ordered delivery boundaries. Direction A is approved; the full design and implementation plan are not. No product code, dependencies, data or native playback behavior changed; no commit or implementation permission is implied.
+Verification:
+- Initial real desktop 800x600 observation informed the audit; source review distinguished observed problems from aesthetic judgments.
+- Throwaway HTML A/B and selected-A system boards under `.superpowers/brainstorm/6989-1792396057/content/` were exercised in Chromium at 1500x1050 and 390x844: surface/theme toggles, demo playback/favorite state, three added screen layouts and six state cards; no observed horizontal overflow or browser errors in the recorded runs. Selected-A board is `studio-system-design-prototype-v2.html`; it is not production Compose or real-media verification.
+- Selected-A dark screenshots show separate crossfade/gapless rows and Settings Back without root navigation; 390px browser document remained 390px wide.
+- Proposed text/button/boundary color pairs were numerically checked; ratios and limits are in design section 10.
+- Independent builder review found primary-entry history and selection-retention ambiguities. Source inspection of current `LibraryNavigationStack.push/popToRoot` and `LibraryAppShell.pushRoute/openDetailRoute` resolved them explicitly as existing Home-rooted single-stack navigation and destination-scoped selection. Capability review clarified conditional lyrics, concrete preferences and distinct backup/interoperability flows. No native builds or tests were run for this design-only change.
+Next owner: user reviews complete Studio design; after approval, OpenSpec requirements/tasks and writing-plans implementation plan, then plan approval before product implementation.
+Blockers: full-design and plan approval pending. Existing roadmap release/device acceptance remains independent and is not marked passed by browser mockups.
 
 ## Handoff - 2026-09-09 Android notification-permission recovery
 
@@ -4784,16 +4793,14 @@ Post-merge verification:
 Acceptance: this integration request does not close OpenSpec 4.2 or authorize claiming CarPlay-display, signed-device, vehicle, or listening acceptance. The active change remains unarchived. Existing broad-suite failures and Android packaging/toolchain limits remain recorded above; no full-suite success is claimed.
 Next owner: user — interactive CarPlay-display acceptance and Apple capability/provisioning; implementation — consume real 4.2 evidence before archival. Local merge and worktree cleanup are complete.
 
-## Studio UI redesign implementation handoff — 2026-10-19
+## Studio UI redesign planning handoff — 2026-10-19
 
 Route: openspec+superpowers
-Owner: implementation
-Input: user-approved A / Studio system design and eight-task plan at `docs/superpowers/plans/2026-10-19-studio-ui-redesign.md`.
-Output: OpenSpec change `openspec/changes/studio-ui-redesign/` and all 13 plan/spec artifacts were transferred byte-for-byte to `.worktrees/studio-ui-redesign` on branch `feat/studio-ui-redesign`; the original `main` checkout remains untouched. User explicitly approved the implementation plan. OpenSpec reports 0/17 product tasks complete; implementation begins with Task 1 and remains dependency ordered.
-Planning verification: the prior planning session recorded `openspec validate studio-ui-redesign --strict` as valid and all four planning artifacts complete. Independent reviewer jobs returned HTTP 403 `insufficient_user_quota`; no independent plan-review result is claimed.
-Review: Task 2 must preserve scroll when adaptive layout moves a destination. Existing `LibraryHomeContent` owns a local `rememberLazyListState`, while compact and wide shell branches mount it separately. Task 2 implementation must retain state by destination (or hoist the list state) and include a production-shell resize regression for the visible item and offset.
-LSP: `xd://lsp` reports no language servers configured. Before the public `HausColorPalette` change, targeted repository search found its only constructors in `Theme.kt` (`LightHausPalette` and `DarkHausPalette`); all references are being migrated in the same Task 1.
-Verification: no product code, builds, tests, formatter, commit, or archive have been performed in this worktree yet.
-Approval boundary: plan approved; implementation authorized. Preserve existing manual device, listening, and system-media acceptance as separate release evidence; do not archive until all implementation task gates pass.
-Next owner: implementation — execute Task 1, complete its regression, smoke, review, documentation, and commit gate, then continue through Task 8.
-Blockers: none identified for implementation; platform manual acceptance remains independent and is not claimed passed.
+Owner: user plan approval → OpenSpec apply
+Input: user-approved A / Studio system design at `docs/superpowers/specs/2026-10-19-studio-ui-redesign-design.md`.
+Output: OpenSpec change `openspec/changes/studio-ui-redesign/` contains the proposal, technical design, task checklist, six new capability deltas (`ui-design-system`, `adaptive-app-shell`, `music-library-presentation`, `player-presentation`, `playlist-presentation`, `settings-presentation`) and two modifications (`saved-playlists`, `playlist-scroll-chrome`). Executable eight-task plan: `docs/superpowers/plans/2026-10-19-studio-ui-redesign.md`. Planning self-review tightened exact size-token values, mini-player minimum heights, desktop row secondary-action coverage, and non-drag queue reordering alternatives.
+Review: inspected the plan against current Shared navigation/shell, Now Playing, Playlist hub/queue and backup-host contracts and the approved design/spec scenarios. Independent reviewer jobs could not return findings: both gateways rejected the requested run with HTTP 403 `insufficient_user_quota`; no reviewer result is claimed. This is planning evidence, not product code review or acceptance.
+Verification: after the final plan/checklist edits, `openspec validate studio-ui-redesign --strict` returned `Change 'studio-ui-redesign' is valid`; `openspec status --change studio-ui-redesign` reported 4/4 artifacts complete (`proposal`, `specs`, `design`, `tasks`). No Gradle build, test, formatter, product-code edit, commit, or archive was performed. Working-tree edits include earlier user/context changes; they were preserved.
+Approval boundary: complete design approved; executable implementation plan awaits user approval. Do not begin product implementation, `openspec apply`, or commit until the user approves the plan. Preserve existing manual device/listening/system-media acceptance and Phase 2–4 capabilities.
+Next owner: user — review `docs/superpowers/plans/2026-10-19-studio-ui-redesign.md`; after approval, explicitly initiate implementation.
+Blockers: plan approval pending. No Compose/native implementation or platform validation is claimed; independent plan-review agents were unavailable due quota.

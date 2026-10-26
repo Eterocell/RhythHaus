@@ -1,8 +1,8 @@
 # Studio UI 系统重设计
 
-> 状态：完整设计与八任务实施计划均已于2026-10-19获用户批准。A · Studio为唯一设计方向；产品实施按已批准计划进行。
+> 状态：系统设计全文与八任务实施计划均于2026-10-19获用户批准。A · Studio为唯一设计方向；实施已按计划完成并进入集成。用户要求将所有手动验证与验收延期，未通过且未从范围删除；此前有限运行观察仅是其狭窄范围内的事实记录，不构成验收通过。
 >
-> Route: openspec+superpowers。当前 owner: implementation。变更为`openspec/changes/studio-ui-redesign/`；不得扩展到数据库、依赖、持久化或原生播放器改造。
+> Route: openspec+superpowers。当前 owner: implementation / integration。变更为`openspec/changes/studio-ui-redesign/`；不扩展到数据库、依赖、持久化或原生播放器改造。
 
 ## 1. 目标与已确认方向
 
@@ -272,5 +272,5 @@ Studio 的主线：音乐内容优先、导航稳定、表面克制、操作有�
 
 规划源码校正：`core/playback/.../Playback.kt`公开的是内部`setPlaybackGain`引擎能力，当前NowPlaying/Shared没有用户音量状态或操作接口；Android的内部Media3音量转接也不是跨平台用户音量能力。因此原文“现有音量能力”不构成新增应用内音量滑杆的授权，本次不显示未接通控制，也不借呈现改造扩展播放引擎。桌面仍使用系统音量；新增应用音量需另行设计。
 
-Next owner: implementation — 按已批准的八任务计划完成自动化验证、真实UI烟测与独立审查。
-Blockers: 实施已获批准并开始；设备、听感与系统媒体验收仍按既有roadmap独立记录，不由浏览器或自动UI烟测代签。
+Next owner: OpenSpec closeout after automation and independent review; user-performed manual acceptance remains deferred until rescheduled.
+Blockers: the full manual matrix, accessibility, system-picker, audible playback, route-loss, and system-media acceptance remains unverified and unaccepted; the OpenSpec change stays active and unarchived.

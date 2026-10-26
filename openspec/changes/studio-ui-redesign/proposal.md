@@ -35,4 +35,4 @@ RhythHaus 已具备完整的本地音乐能力，但现有页面的空间分配�
 - 修改 `:core:ui`、`:shared` 外壳及 Library/Search/Now Playing/Playlists/Settings/Onboarding 的呈现、所属 EN/ZH 资源及受影响的现有测试。
 - 所有跨 feature 装配仍归 Shared；Core 行原语不依赖 Library/Playback 类型，feature 不依赖其他 feature 实现。UI 合约的每次修改与所有调用方在同一可编译任务中迁移。
 - 不修改数据库/迁移、媒体文件、扫描/播放事务、权限适配、iOS ABI、原生引擎或 CarPlay 模板；不增加依赖、字体、联网能力或工具链升级。
-- 不接纳未完成的 Miuix 导航替换提案；与既有 release/device 验收分别记录。实施计划已于2026-10-19获用户批准，产品修改按八个依赖有序任务执行。
+- 不接纳未完成的 Miuix 导航替换提案；与既有 release/device 验收分别记录。实施计划已获批；implemented work is being integrated at the user's request. All manual verification and acceptance is postponed, unverified, and still in scope. Earlier limited runtime observations are narrow factual evidence only, not acceptance. This change is not archived.

@@ -2,7 +2,7 @@
 
 ## Context
 
-动机见 [proposal.md](proposal.md)。用户已于2026-10-19批准[Studio设计全文](../../../docs/superpowers/specs/2026-10-19-studio-ui-redesign-design.md)与[实施计划](../../../docs/superpowers/plans/2026-10-19-studio-ui-redesign.md)。下面的新增 Kotlin 接口是设计决定；实现与验证状态以任务清单为准。
+动机见 [proposal.md](proposal.md)。用户已批准 [Studio 设计全文](../../../docs/superpowers/specs/2026-10-19-studio-ui-redesign-design.md)与[实施计划](../../../docs/superpowers/plans/2026-10-19-studio-ui-redesign.md)；实现已完成并按用户请求进入集成。All manual verification and acceptance is postponed and remains unverified, not passed or removed from scope. Earlier limited runtime observations remain narrow factual evidence only. OpenSpec items stay open and the change remains unarchived.
 
 现状：`Theme.kt/HausColors.kt` 只有七色；Shared `App.kt::RhythHausTheme`装配Miuix与Haus palette。`LibraryAppShell.kt`使用42/58双栏，`LibraryNavigation.kt::libraryAdaptiveLayoutModeFor`在840dp或横向600dp就展开。Search有独立歌曲行；Queue及保存草稿藏在`PlaylistScreens.kt::PlaylistHubScreen`；`NowPlayingContent`本地记忆歌词弹层。Settings已有中立投影、scan/backup插槽与操作门禁。所有这些均保留领域所有者，不以新UI复制状态。
 

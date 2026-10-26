@@ -2,6 +2,10 @@
 
 设计全文与[实施计划](../../../docs/superpowers/plans/2026-10-19-studio-ui-redesign.md)已于2026-10-19获用户批准。这里记录实施进度，不把规划完成记作产品完成。按1→8顺序一次执行一个任务，每组自身完成回归、真实烟测、文档与独立审查；具体文件/接口/命令以计划对应任务为准。
 
+## Manual acceptance status — 2026-10-26
+
+At the user's request, all manual Studio UI verification and acceptance is postponed, including acceptance inferred from earlier limited runtime smoke. Those observations remain factual and narrow, but do not count as acceptance or a pass. The full visual/interaction matrix, keyboard and screen-reader acceptance, reduced-motion and large-text acceptance, system-picker flows, audible playback, physical route-loss, and system-media checks remain unverified—not removed from scope. Keep the manual/mixed items (2.2–6.2, 7.2, 8.2, and 8.3) unchecked; postponement does not complete them or authorize archiving.
+
 ## 1. Studio tokens and common surfaces
 
 - [x] 1.1 扩展现有palette和排版/尺寸token、Miuix桥及现有公共弹层/顶栏/返回；把既有pulse危险/失败用途迁移到danger角色，维持选中/播放行正文对比度；按计划Task 1观察颜色性质回归RED/GREEN，验证正文/动作≥4.5:1及必要边界≥3:1，保留主题与dismiss行为。
@@ -45,6 +49,6 @@
 
 ## Workflow follow-up
 
-- 用户已批准实施计划；按任务顺序执行并保留独立审查与验证证据。
+- 用户已批准实施计划；实现变更按用户指示提交并集成。剩余手动验收已延期而非通过，相关任务保持未勾选；不得因提交或合并归档此OpenSpec变更。
 - 全部实施验收与独立review齐备后按OpenSpec archive流程同步六个新增spec及两个完整修改块，不把归档本身列作提前勾选的实施任务。
 - 原Phase 1实体设备/系统媒体验收与本呈现重设计分别保留；不得因mockup或编译通过改变其状态。
