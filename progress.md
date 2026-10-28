@@ -5073,7 +5073,7 @@ Route: openspec+superpowers (systematic-debugging for verification-fixture defec
 Owner: implementation
 Input: approved remediation plan and Task 5.1 handoff; partial playback-test edits audited before continuation
 Output: Android packaging, full Shared JVM and iOS simulator gates restored; production playback unchanged; reviewed implementation committed as dff74b35 and remediation archived
-Next owner: user — integration decision for feat/studio-ui-review-remediation; isolated branch/worktree retained, with original redesign manual acceptance still open
+Next owner: user — integration complete; original redesign GUI/device/audio acceptance remains user-owned and open
 Blockers: none for remediation closure. Optional global strict-spec long-description warnings remain recorded; original redesign GUI/device/audio acceptance remains user-owned, postponed, and open.
 
 - Root cause: the terminal-duration fixture completed an engine run it never started. Delayed-checkpoint fixtures blocked shuffle computation while holding controller ownership, then waited for newer state requiring that ownership. The test-only repair starts a genuine run, delays checkpoint delivery rather than locked computation, and releases blocked mutation computation before awaiting serialized queue replacement. Exact durable-state assertions remain; no production playback behavior was changed.
@@ -5085,3 +5085,13 @@ Blockers: none for remediation closure. Optional global strict-spec long-descrip
 - Both affected changes pass strict named validation; canonical `openspec validate --specs` passes 28/28. Optional global `--specs --strict` remains non-green only for long-description warnings in six existing specs; no claim of that gate passing. ArchitectureCheck and focused Settings/Library ownership tests pass.
 - Final independent correction review (`SpecClosureReview`) accepted both specifications and the test fixture as correct; no P0–P2 findings remain. The reviewer verified scenario-union preservation, current UI authority, actual resource ownership, real stale-checkpoint/watermark assertions, active-run terminal completion, and serialized shuffle replacement. Its P3 observation is explicit: the replacement-start signal proves coroutine dispatch, not an exact controller lock-acquisition interleaving. This does not change the asserted final-order contract or establish a production defect; no additional test refactor was added. The cancelled fixture-only lane produced no verdict; acceptance comes from this completed review, not that lane.
 - Closure: implementation commit `dff74b35` (`fix(ui): close Studio review remediation findings`); all four canonical specs synchronized before moving the completed change to `openspec/changes/archive/2026-10-28-studio-ui-review-remediation/`. The active-change listing no longer includes this remediation and still shows `studio-ui-redesign` at 9/17 tasks. Planning links now target the archive. No merge, push, worktree removal, or unrelated main-checkout mutation was performed.
+
+## Studio UI review-remediation — merged to main — 2026-10-28
+
+Route: openspec+superpowers; requested local integration and worktree cleanup
+Owner: user / remaining Studio UI redesign manual acceptance
+Input: `feat/studio-ui-review-remediation` with implementation/archive commits `dff74b35`, `35ef3c90`
+Output: fast-forwarded `main` from `8ef6c272` to `35ef3c90`; change and four canonical specs are present on main. `./init.sh` passed on main (41s JVM/desktop/Android stage, Xcode 27.1, 27s iOS simulator stage). Generated test XML: Shared JVM 535 tests, 0 failures/errors/skipped; iOS simulator 340 tests, 0 failures/errors/skipped. `openspec validate --specs`: 28 passed, 0 failed; `openspec validate studio-ui-redesign --strict`: valid.
+Local state: the pre-existing staged `WATCHDOG.yml` was restored unchanged after the integration check. The original 11-line progress addition is included in the merged progress history. No push was performed; after this handoff record, `main` is ahead of `origin/main` by eight commits.
+Cleanup: removed `.worktrees/studio-ui-review-remediation` after the successful merged verification and deleted the merged local feature branch. The unrelated locked detached Orca preparation worktree was left untouched.
+Remaining: original `studio-ui-redesign` GUI/device/audio acceptance remains postponed and open. Optional global strict-spec validation still reports long-description warnings in six specs; the canonical non-strict and named redesign strict validations pass.

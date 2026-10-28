@@ -41,7 +41,7 @@ Task 7.1's automated focus/input/motion implementation and independent review ar
 
 The Queue save-lifetime, accessible-row/action, responsive-density/target-size, and canonical API/resource-ownership findings are implemented and independently reviewed. On 2026-10-28, test-only playback fixture repairs removed the false terminal-completion setup and checkpoint-gating lock inversion; production playback is unchanged. With the pinned NDK now available, `./init.sh` passes, including Android assembly, desktop compilation, 535 Shared JVM tests and 340 iOS simulator tests. The integrated affected JVM suites and final formatting/Detekt also pass. Final independent spec/fixture review accepted the closure; all four canonical specs are synchronized, with strict named validation passing. Optional global strict-spec validation still reports existing long-description warnings. Detailed evidence is in `.superpowers/sdd/2026-10-26-studio-ui-review-remediation/task-5-1-report.md`. Original `studio-ui-redesign` GUI/device/audio acceptance remains user-owned, postponed, and open; desktop automation could not read the launched window.
 
-Implementation committed as `dff74b35`; completed remediation archived under `openspec/changes/archive/2026-10-28-studio-ui-review-remediation/`. The isolated branch/worktree is retained without merge or push; the four deferred P3 refactors remain out of scope.
+Implementation committed as `dff74b35`; completed remediation archived under `openspec/changes/archive/2026-10-28-studio-ui-review-remediation/` and fast-forwarded to `main` at `35ef3c90` on 2026-10-28. No push was performed. The four deferred P3 refactors remain out of scope.
 
 ### iOS import decision and constraints
 
