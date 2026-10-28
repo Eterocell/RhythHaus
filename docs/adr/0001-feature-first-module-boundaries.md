@@ -78,11 +78,12 @@ generation/model/verification will move to Settings, while app-wide AboutLibrari
 manual TagLib attribution, and checked-in Shared catalog JSON remain Shared. Settings will parse and
 render supplied JSON, retry read/parse failures, and rethrow cancellation.
 
-The planned Shared resource set will retain `scanning`, `scan_progress_format`,
-`scan_complete_format`, `folder_picker_error_access`, `folder_picker_error_select`,
-`folder_picker_error_prepare`, and `folder_picker_no_folder_selected` for scanning-card, App, and
-platform-picker consumers; these keys will not cross into Settings. Settings will own
-`manage_music` with the feature-only source-management resources, subject to EN/ZH parity and
+The current Shared resource set retains `scan_complete_format` and `folder_picker_error_prepare`
+for App and platform-import consumers. Library owns `scanning`, `scan_progress_format`,
+`folder_picker_error_access`, `folder_picker_error_select`, and `folder_picker_no_folder_selected`
+for its scanning-card and picker consumers; neither owner's keys cross into Settings. Settings owns the
+feature-only source-management resources under the current `settings_section_sources` section
+key, whose user-facing copy is unchanged, subject to EN/ZH parity and
 missing/wrong-owner/duplicate/logo controls.
 
 The approved playlists implementation is unexported `:feature:playlists:impl`, targeting
@@ -290,8 +291,9 @@ contract is added. The explicit resource ledger, exact scanner/picker/UI contrac
 intentional removal of the formerly Swift-consumed metadata ABI are binding as written in the
 dedicated design.
 
-That design's literal UI declarations are the only Slice 6 public UI authority: `BrowseMode`,
-`LibrarySelectionPage`, `LibrarySharedLabels`, `LibraryHomeContent`, and `DrillDownView`. No
+That design's literal UI declarations are the Slice 6 public UI authority: `BrowseMode`,
+`LibrarySelectionPage`, `LibraryDetailSummary`, `LibrarySharedLabels`, `LibraryHomeContent`, and
+`DrillDownView`, as restated by the review-remediation amendment below. No
 generalized parameter-group reading is permitted. It fixes local versus Shared state, duplicate
 occurrence identity, primitive report callbacks, required one-spacer clearance, resolved-unavailable
 detail Back behavior, and internal `formatDuration`. Its exhaustive EN/ZH ledger distinguishes all
@@ -303,8 +305,10 @@ the exact forbidden/retained generated-header symbols and the exact single core-
 
 ### Third-Review Literal Amendment
 
-The dedicated design controls every alternative: Home and Detail have only its required no-default
-parameters, use `currentTrackId` only, omit `isPlaying` and `onPlayPause`, and receive the required
+The dedicated design controls every alternative: Home and Detail use exactly its parameter names,
+types, and order, all of them required except the single nullable `onEditTrackMetadata:
+((String) -> Unit)? = null` default each declares, use `currentTrackId` only, omit `isPlaying` and
+`onPlayPause`, and receive the required
 artwork loader. Public core-model/core-UI/Compose signature dependencies are API; other UI libraries
 are implementation-only. Its precise authoritative-sequence/group ordering, duplicate occurrence,
 state/reset, one-spacer, resource resolver table, Koin all-single/same-concrete-role graph, Android
@@ -350,6 +354,44 @@ Koin Compose and all other Koin/UI dependencies absent from public signatures re
 only. The dedicated signature authority is pseudocode, while production-source KDoc is mandatory on
 every public declaration/member/constructor property/function and uses `@param` entries for each
 callable parameter/callback; KSP checks source, rejecting missing or placeholder documentation.
+
+### Review-Remediation Amendment: Current Library UI, Settings Key, And Queue Overlay
+
+The [2026-10-26 Studio UI review remediation design](../superpowers/specs/2026-10-26-studio-ui-review-remediation-design.md)
+supersedes the 2026-08-10 design only for the Library UI declarations and the injected-label
+resolver table; the 2026-08-10 design remains historically authoritative for every other boundary
+above. `docs/architecture.md` carries the binding declaration ledger copied from current source:
+`BrowseMode` (`Albums`, `Artists`, `Songs`, `Favorites`, `RecentlyPlayed`, `RecentlyAdded`),
+`LibrarySelectionPage` (`HomeSongs`, `Album(name)`, `Artist(name)`), `LibraryDetailSummary`
+(`Album(trackCount, artist?)`, `Artist(albumCount, trackCount)`), `LibrarySharedLabels`,
+`LibraryHomeContent`, and `DrillDownView`.
+
+`LibrarySharedLabels` has exactly twelve members: Shared supplies `addMusicFolder`,
+`folderPickerUnavailable`, `clearLibrary`, `cancel`, `libraryTitle`, `albumArt`, `albumArtwork`, and
+`nowPlayingBadge` as `String` values, and `selectTrack`/`trackArtistAlbum` as
+`@Composable (String) -> String` and `@Composable (String, String) -> String`; the feature owns the
+default `addFavorite` and `removeFavorite` formatters (`@Composable (String) -> String`).
+No playlist-only label and no old Home `title`, `subtitle`, or `onShowPlaylists` compatibility
+parameter returns; the current `DrillDownView(title: String, ...)` parameter remains binding.
+
+Both composables keep the accepted parameter names, types, order, and defaults. The sole default in
+either declaration is the trailing `onEditTrackMetadata: ((String) -> Unit)? = null`, so neither
+declaration is default-free; both take `currentTrackId`, and neither adds `isPlaying` or a Detail
+`onPlayPause`.
+
+The Settings source-management ledger names the current `settings_section_sources` section key
+rather than its retired predecessor; Settings feature ownership and the user-facing copy are
+unchanged, and this correction renames no resource or persistence key.
+
+The Queue overlay is an explicit composition seam, not a CompositionLocal lookup.
+`:feature:playlists:impl` `PlaybackQueueContent` takes
+`windowOverlayPublisher: HausWindowOverlayPublisher?`; Shared reads
+`LocalHausWindowOverlayPublisher.current` in its own composition and supplies the value, and no
+feature production source reads that CompositionLocal. A `null` publisher composes the queue's modal
+content inline rather than publishing to the window host, so the parameter governs host-modal
+presentation only and never Back or dismissal authority. `HausWindowOverlayPublisher` is public
+`:core:ui` API, the feature's `core:ui` edge stays implementation-scoped, and Shared keeps its own
+direct `core:ui` dependency; no facade, dependency change, or new public surface follows.
 
 ## Slice 7 — Thin Shared And Completion
 

@@ -210,13 +210,14 @@ render the nullable slot.
 
 The Shared EN/ZH ledger SHALL retain `settings`, `add_music_folder`,
 `folder_picker_unavailable`, `clear_library`, `clear_library_message`, `clear`, `cancel`, `remove`,
-and `close`, plus `scanning`, `scan_progress_format`, `scan_complete_format`,
-`folder_picker_error_access`, `folder_picker_error_select`, `folder_picker_error_prepare`, and
-`folder_picker_no_folder_selected` for Shared scanning-card, App, and platform-picker consumers;
-those keys SHALL NOT cross into Settings. Labels carry `settings`, `add_music_folder`,
+and `close`, plus `scan_complete_format` and `folder_picker_error_prepare` for Shared App and
+platform-import consumers. Library SHALL own `scanning`, `scan_progress_format`,
+`folder_picker_error_access`, `folder_picker_error_select`, and `folder_picker_no_folder_selected`
+for its scanning-card and picker consumers; neither owner's keys SHALL cross into Settings.
+Labels carry `settings`, `add_music_folder`,
 `folder_picker_unavailable`, `clear_library`, `cancel`, and `remove`, while Shared resolves playlist
 `close` and clear-dialog strings internally. Settings SHALL own exactly once in each locale
-`manage_music`, all appearance/theme, source-row/remove-dialog, About/AboutLibraries keys, and
+`settings_section_sources`, all appearance/theme, source-row/remove-dialog, About/AboutLibraries keys, and
 `rhythhaus_logo` listed by the approved Settings design. Architecture controls SHALL reject parity,
 missing, wrong-owner, duplicate, and logo violations. Non-empty catalog parsing is required; the
 fixture has a top-level `libraries` array and `licenses` map, and malformed/empty data is the same
@@ -368,10 +369,12 @@ package/name/public setter or application-before-Koin initialization order. The 
 ledger, `selected` unused-removal proof, public KDoc/boundary controls, and intentional metadata
 ABI contraction based on the documented `f4ae104`/`30f89ff` consumer history SHALL be enforced.
 
-The exact public UI declarations SHALL be the dedicated design's Kotlin declarations for
-`BrowseMode`, `LibrarySelectionPage`, `LibrarySharedLabels`, `LibraryHomeContent`, and
-`DrillDownView`, including every parameter name/type/default. They SHALL NOT be generalized into
-unnamed parameter groups. Home/detail SHALL use only `Track`, `RhythHausBackdrop`, Compose,
+The exact public UI declarations for `BrowseMode`, `LibrarySelectionPage`, `LibrarySharedLabels`,
+`LibraryHomeContent`, and `DrillDownView`, including every parameter name/type/default and label
+ownership, SHALL follow the current Studio remediation authority in `Library literal authority has
+no selectable alternatives`. That authority supersedes only the 2026-08-10 design's UI declarations
+and injected-label membership/ownership; its other contracts remain binding. The declarations SHALL
+NOT be generalized into unnamed parameter groups. Home/detail SHALL use only `Track`, `RhythHausBackdrop`, Compose,
 feature values, and primitive callbacks; private occurrence-index-plus-ID keys preserve duplicate
 rendering and ordered visible reports; each emits primitive index/offset and has exactly one
 required-padding terminal spacer. Shared SHALL resolve unavailable detail before composition and
@@ -402,8 +405,8 @@ perform existing route-level Back, while local state follows the exact dedicated
   or callback-payload redesign is introduced, and browser overlays may retain `List<LibraryTrack>`
   metadata input.
 
-The ledger SHALL list exactly the twelve injected label keys, all Shared-only non-injected keys, all
-Library-moved keys, and core UI `back`; it SHALL require EN/ZH multiset equality plus duplicate,
+The ledger SHALL list the twelve label members with their Shared-supplied or Library-default
+ownership, all Shared-only non-injected keys, all Library-moved keys, and core UI `back`; it SHALL require EN/ZH multiset equality plus duplicate,
 missing, wrong-owner, foreign-key, rendered-resource, and selected-absence controls. Metadata SHALL
 be internal at `com.eterocell.rhythhaus.library.impl`; headers SHALL omit `SharedAudioMetadata`,
 `SharedAudioMetadataReader`, `SharedAudioMetadataKt`, `readAudioMetadata(path:)`, and
@@ -420,27 +423,45 @@ direct-impl-dependency/init-order negatives.
 
 ### Requirement: Library literal authority has no selectable alternatives
 
-The dedicated Library design's Kotlin declarations SHALL apply exactly. Every Home/Detail parameter
-SHALL be required with no default; use `currentTrackId` and no `isPlaying` or `onPlayPause`; both
-SHALL accept the required suspend artwork loader and preserve its documented behavior. Impl SHALL
-use API core-model/core-UI/Compose signature dependencies and implementation-only remaining UI
-dependencies; Shared SHALL use implementation-only impl dependency and no export. The authoritative
-track/group ordering, occurrence keys, state/reset, one-spacer, routes, KDoc controls, and twelve
-field resource resolver table SHALL apply.
+The Studio UI review remediation design's Kotlin declarations SHALL apply exactly and SHALL
+supersede the 2026-08-10 Library extraction design only for the Library UI declarations, their
+defaults, and the injected-label membership and ownership represented by the current twelve-member
+`LibrarySharedLabels` contract. Every Home/Detail API SHALL use `currentTrackId` and no `isPlaying`
+or `onPlayPause`; every parameter SHALL be required except the single trailing nullable
+`onEditTrackMetadata: ((String) -> Unit)? = null` default; both SHALL accept the required suspend
+artwork loader and preserve its documented behavior. The exact parameter names, types, defaults,
+callbacks, and the twelve `LibrarySharedLabels` members SHALL match
+`docs/superpowers/specs/2026-10-26-studio-ui-review-remediation-design.md`. The current label
+members SHALL be `addMusicFolder`, `folderPickerUnavailable`, `clearLibrary`, `cancel`,
+`libraryTitle`, `albumArt`, `albumArtwork`, `nowPlayingBadge`, `selectTrack`, `trackArtistAlbum`,
+`addFavorite`, and `removeFavorite`; Shared SHALL provide the first ten, and Library SHALL own the
+default `addFavorite`/`removeFavorite` formatters. The removed `playlists`, `playlistsAccessibility`,
+and `libraryQueue` members, other removed playlist-only labels, and the old Home `title`, `subtitle`,
+and `onShowPlaylists` parameters SHALL NOT remain as compatibility aliases.
+
+Impl SHALL use API core-model/core-UI/Compose signature dependencies and implementation-only
+remaining UI dependencies; Shared SHALL use implementation-only impl dependency and no export. The
+authoritative track/group ordering, occurrence keys, state/reset, one-spacer, routes, KDoc controls,
+and the retained 2026-08-10 consumer resolver mapping SHALL apply. That mapping retains the
+album-artwork and track-artist-album consumer rows plus Shared-only `play`/`pause`; its former
+library-queue heading row is superseded, and the Queue heading is playlists-owned `queue_title`,
+never a `LibrarySharedLabels` member or injected label.
 
 `libraryImplementationModule()` SHALL be the only public Koin-shaped declaration; all stated
 bindings SHALL be singletons and use one concrete platform object for public access/internal scan
 roles. Metadata retirement is intentional after the documented f4ae104/30f89ff history, not an
-accidental-export claim. Android holder compilation/transitivity/direct-androidMain dependency/sole
-path/init ordering and exact header absence/retention controls SHALL apply.
+accidental-export claim. Android holder compilation/transitivity/direct-impl dependency/init-order/
+sole-path controls and exact header absence/retention controls SHALL apply.
 
 #### Scenario: Literal Library boundary rejects substituted plumbing
-- **WHEN** implementation supplies a defaulted or renamed UI parameter, an `isPlaying` or
-  `onPlayPause` leaf argument, a second scanner/access/TagLib singleton, nonliteral artwork loading,
-  or an alternative holder/export path
+- **WHEN** implementation adds or renames a UI parameter, changes an explicitly declared default,
+  retains an old playlist-only UI parameter as a compatibility alias, restores a removed label
+  member, adds an `isPlaying` or `onPlayPause` leaf argument, introduces a second
+  scanner/access/TagLib singleton, changes the artwork-loading contract, or uses an alternative
+  holder/export path
 - **THEN** public-surface, production-composable, Koin, Gradle, and ABI controls fail
-- **AND** only the dedicated declarations, singleton graph, holder path/order, and intentional
-  metadata-retirement symbols are accepted.
+- **AND** only the current Studio declarations, the twelve-member injected-label ledger, singleton
+  graph, holder path/order, and intentional metadata-retirement symbols are accepted
 
 ### Requirement: Library detail formatting and exposed dependency graph are exact
 
@@ -448,8 +469,9 @@ Impl SHALL declare `api` dependencies on Library API, core model, core UI, and C
 needed by public signatures. `DrillDownView` SHALL accept required `LibraryDetailSummary`, never a
 formatted subtitle; Shared SHALL supply only raw title/route/tracks/counts and feature SHALL resolve
 the moved unknown-artist/detail subtitle keys. The dedicated internal scanner/event/access/metadata
-signatures, all-single Koin declarations with `===` identity, 12-field resource resolver table,
-public metadata retirement, and retained Shared consumers SHALL apply exactly.
+signatures, all-single Koin declarations with `===` identity, the retained 2026-08-10 consumer
+resolver mapping for album-artwork and track-artist-album plus Shared-only `play`/`pause`, public
+metadata retirement, and retained Shared consumers SHALL apply exactly.
 
 Because the sole public factory returns Koin `Module`, impl SHALL declare exactly
 `api(libs.koin.core)`; Koin Compose and non-signature Koin/UI dependencies SHALL remain
@@ -498,3 +520,10 @@ Dependency Analysis Gradle Plugin evaluation SHALL remain deferred.
 - **THEN** it produces only the requested module skeleton (build.gradle.kts, source dirs, package
   root, README, KDoc placeholder) with no speculative packages or full Gradle plugin
 - **AND** package renames and Dependency Analysis Gradle Plugin evaluation remain deferred.
+
+### Requirement: Queue overlay publishing is an explicit feature contract
+The Queue feature SHALL receive the shell-owned window-overlay publisher through its Shared composition entry point. It SHALL NOT resolve `LocalHausWindowOverlayPublisher` or another shell-owned capability through a CompositionLocal service locator.
+
+#### Scenario: Queue presents a host-level modal
+- **WHEN** Shared composes Queue content that needs a dialog outside its pane
+- **THEN** Shared SHALL supply the required overlay publisher and the Queue feature SHALL present the dialog without reading a shell CompositionLocal

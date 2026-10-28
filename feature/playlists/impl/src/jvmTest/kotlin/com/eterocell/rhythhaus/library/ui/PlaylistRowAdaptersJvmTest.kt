@@ -4,12 +4,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
@@ -32,6 +35,7 @@ import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.library.PlaylistEntry
 import com.eterocell.rhythhaus.library.PlaylistSummary
+import com.eterocell.rhythhaus.ui.LocalHausDesktopDensity
 import java.util.Locale
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -185,6 +189,7 @@ class PlaylistRowAdaptersJvmTest {
                     appearanceSource =
                         rememberPlaylistFeatureAppearanceSource(destination),
                     dismissalPublisher = silentPublisher(),
+                    windowOverlayPublisher = null,
                     onClose = { closeCalls++ },
                     onSaveQueueAsPlaylist = { _, _, _ -> },
                     onReorderUpcoming = { occurrenceId, targetIndex ->
@@ -320,6 +325,31 @@ class PlaylistRowAdaptersJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun savedRowsNameTheRowWithTheirMetadataAndKeepSelectSeparate() =
+        runComposeUiTest {
+            setContent {
+                Box(Modifier.size(360.dp, 640.dp)) {
+                    SavedPlaylistDetail(
+                        entries = duplicateEntries().take(1),
+                        initialEditMode = false,
+                        onPlayEntry = {},
+                    )
+                }
+            }
+            waitForIdle()
+
+            val row =
+                onAllNodes(hasContentDescription("Track, Artist, Album, 0:01"))
+                    .fetchSemanticsNodes()
+                    .single()
+            assertEquals(
+                "Track, Artist, Album, 0:01",
+                row.config.getOrNull(SemanticsActions.OnLongClick)?.label,
+            )
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun narrowSavedRowsKeepAccessibleDragAndMutationActions() =
         runComposeUiTest {
             setContent {
@@ -388,35 +418,38 @@ class PlaylistRowAdaptersJvmTest {
         val playlist =
             PlaylistSummary("playlist", "Saved", entries.size.toLong(), 1L)
         val destination = PlaylistFeatureDestination("detail-adapters")
-        Box(Modifier.size(width, height)) {
-            PlaylistDetailScreen(
-                playlist = playlist,
-                entries = entries,
-                playableTracksById = mapOf(track.id to track),
-                artworkLoader = { null },
-                state =
-                    PlaylistState(
-                        confirmedSnapshot =
-                            PlaylistSnapshot(playlists = listOf(playlist)),
-                        hasConfirmedSnapshot = true,
-                    ),
-                destination = destination,
-                appearanceSource =
-                    rememberPlaylistFeatureAppearanceSource(destination),
-                dismissalPublisher = silentPublisher(),
-                mutationFailedLabel = "Could not save playlist changes",
-                onBack = {},
-                onRetry = {},
-                onRename = { _, _ -> },
-                onDelete = {},
-                onDeleteConfirmed = {},
-                onOpenBrowser = {},
-                onPlayEntry = onPlayEntry,
-                onRemoveEntry = {},
-                onReorder = {},
-                initialEditMode = initialEditMode,
-                desktopDensity = desktopDensity,
-            )
+        CompositionLocalProvider(
+            LocalHausDesktopDensity provides desktopDensity,
+        ) {
+            Box(Modifier.size(width, height)) {
+                PlaylistDetailScreen(
+                    playlist = playlist,
+                    entries = entries,
+                    playableTracksById = mapOf(track.id to track),
+                    artworkLoader = { null },
+                    state =
+                        PlaylistState(
+                            confirmedSnapshot =
+                                PlaylistSnapshot(playlists = listOf(playlist)),
+                            hasConfirmedSnapshot = true,
+                        ),
+                    destination = destination,
+                    appearanceSource =
+                        rememberPlaylistFeatureAppearanceSource(destination),
+                    dismissalPublisher = silentPublisher(),
+                    mutationFailedLabel = "Could not save playlist changes",
+                    onBack = {},
+                    onRetry = {},
+                    onRename = { _, _ -> },
+                    onDelete = {},
+                    onDeleteConfirmed = {},
+                    onOpenBrowser = {},
+                    onPlayEntry = onPlayEntry,
+                    onRemoveEntry = {},
+                    onReorder = {},
+                    initialEditMode = initialEditMode,
+                )
+            }
         }
     }
 

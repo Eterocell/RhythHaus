@@ -141,11 +141,12 @@ per-locale parity, missing/wrong-owner/duplicate/logo controls. About requires n
 retry-generation Loading/current-loader behavior on `Dispatchers.Default`, exact cancellation
 rethrow, replacement-loader use, and stale-generation suppression.
 
-Shared retains `scanning`, `scan_progress_format`, `scan_complete_format`,
-`folder_picker_error_access`, `folder_picker_error_select`, `folder_picker_error_prepare`, and
-`folder_picker_no_folder_selected` because Shared scanning-card, App, and platform-picker consumers
-render them; they do not cross into Settings. Settings owns `manage_music` with its source-management
-resource set under the same EN/ZH parity and ownership controls.
+Shared retains `scan_complete_format` and `folder_picker_error_prepare` for App and platform-import
+consumers. Library owns `scanning`, `scan_progress_format`, `folder_picker_error_access`,
+`folder_picker_error_select`, and `folder_picker_no_folder_selected` for its scanning-card and picker
+consumers; neither owner's keys cross into Settings. Settings owns `settings_section_sources`, the current
+source-management section key whose user-facing copy and Settings feature ownership are unchanged,
+with its source-management resource set under the same EN/ZH parity and ownership controls.
 
 Shared owns the process-singleton crossfade preference owner and its dedicated
 `crossfade.preferences_pb` DataStore. The store's initial Off StateFlow value is
@@ -171,6 +172,16 @@ UI-only modules use composable/function entry points and do not create empty mod
 Only `:shared` assembles and starts Koin. Features receive required contracts through
 entry points and must not reach `:shared` through a service locator or dependency-
 reversing callback.
+
+Host-owned shell capabilities cross the Shared-to-feature composition seam as explicit entry-point
+parameters. `:feature:playlists:impl` `PlaybackQueueContent` therefore takes
+`windowOverlayPublisher: HausWindowOverlayPublisher?`; Shared reads
+`LocalHausWindowOverlayPublisher.current` in its own composition and passes the value, while no
+feature production source reads that CompositionLocal. A `null` publisher composes the queue's
+modal content inline instead of publishing to the window host, so the parameter governs host-modal
+presentation only and never Back or dismissal authority. `HausWindowOverlayPublisher` is public
+`:core:ui` API, the feature keeps its `core:ui` edge implementation-scoped, and Shared keeps its own
+direct `core:ui` dependency; no facade, dependency change, or new public surface follows.
 
 API/implementation splits are demand-driven and require a real stable contract.
 Do not create `:core:network`, speculative modules, or empty state/event/effect/
@@ -309,7 +320,11 @@ stabilization and a separately approved version and KMP compatibility evaluation
 
 The approved Library boundary is [the 2026-08-10 Library design](superpowers/specs/2026-08-10-library-feature-extraction-design.md).
 It creates exactly one unexported `:feature:library:impl` plus the `:feature:library:api`
-module. The API remains the `:core:model`-only domain/repository contract; the
+module. The [2026-10-26 remediation design](superpowers/specs/2026-10-26-studio-ui-review-remediation-design.md)
+supersedes it only for the current Library UI declarations in
+[Home And Detail Declarations](#home-and-detail-declarations) and the injected-label ownership
+recorded in [Resources And Metadata](#resources-and-metadata); every other
+boundary below stays authoritative. The API remains the `:core:model`-only domain/repository contract; the
 implementation removes `LibraryTrack.toPlayableTrack()` and every playback type, and
 Shared owns that conversion. The implementation targets Android-KMP with host
 tests/resources, JVM, `iosArm64`, and `iosSimulatorArm64`, preserves current Kotlin
@@ -350,11 +365,126 @@ Android Context contract; old-path/duplicate/header/ordering controls apply.
 
 ### Home And Detail Declarations
 
-The design's literal `BrowseMode`, `LibrarySelectionPage`, `LibrarySharedLabels`,
-`LibraryHomeContent`, and `DrillDownView` declarations are binding, not illustrative.
-Every Home/Detail parameter is required with no default; both use `currentTrackId`, not
-`selectedTrackId`, and neither receives `isPlaying` or a Detail `onPlayPause`. Both
-receive the required suspend artwork loader with the documented eager/key/off-main/
+The literal declarations below are the current binding authority, copied from the
+[2026-10-26 remediation design](superpowers/specs/2026-10-26-studio-ui-review-remediation-design.md)
+and current production source; they are not illustrative. The 2026-08-10 design remains
+historically authoritative for the extraction boundary and is superseded only here and for the
+injected-label resolver table.
+
+```kotlin
+public enum class BrowseMode {
+    Albums,
+    Artists,
+    Songs,
+    Favorites,
+    RecentlyPlayed,
+    RecentlyAdded,
+}
+
+public sealed interface LibrarySelectionPage {
+    public data object HomeSongs : LibrarySelectionPage
+    public data class Album(public val name: String) : LibrarySelectionPage
+    public data class Artist(public val name: String) : LibrarySelectionPage
+}
+
+public sealed interface LibraryDetailSummary {
+    public data class Album(
+        public val trackCount: Int,
+        public val artist: String?,
+    ) : LibraryDetailSummary
+
+    public data class Artist(
+        public val albumCount: Int,
+        public val trackCount: Int,
+    ) : LibraryDetailSummary
+}
+```
+
+`LibrarySharedLabels` has exactly twelve members, and no playlist-only label returns. Shared
+supplies `addMusicFolder`, `folderPickerUnavailable`, `clearLibrary`, `cancel`, `libraryTitle`,
+`albumArt`, `albumArtwork`, and `nowPlayingBadge` as `String` values, and
+`selectTrack: @Composable (String) -> String` plus
+`trackArtistAlbum: @Composable (String, String) -> String`; the feature owns the default
+`addFavorite: @Composable (String) -> String` and `removeFavorite: @Composable (String) -> String`
+formatters, which resolve `favorite_add`/`favorite_remove` from the feature catalog.
+
+Home and Detail keep the accepted parameter names, types, order, and defaults. Both are
+`@Composable public`, both take `currentTrackId` rather than `selectedTrackId`, and neither receives
+`isPlaying` or a Detail `onPlayPause`. Each declaration ends with the same sole nullable default
+`onEditTrackMetadata: ((String) -> Unit)? = null`; every other parameter of either declaration,
+including both artwork loaders, is required.
+
+```kotlin
+@Composable
+public fun LibraryHomeContent(
+    tracks: List<Track>,
+    browseMode: BrowseMode,
+    playHistory: Map<String, TrackPlayHistory>,
+    createdAtByTrackId: Map<String, Long>,
+    folderPickerLauncher: PlatformFolderPickerLauncher,
+    sourcePickerActionVisible: Boolean,
+    importMessage: String?,
+    scanProgress: ScanProgress?,
+    mutationsEnabled: Boolean,
+    currentTrackId: String?,
+    selectionModeActive: Boolean,
+    selectedTrackIds: Set<String>,
+    labels: LibrarySharedLabels,
+    homeBackdrop: RhythHausBackdrop?,
+    artworkLoader: suspend (String) -> ByteArray?,
+    onBrowseModeChange: (BrowseMode) -> Unit,
+    onClearLibrary: () -> Unit,
+    onCancelScan: () -> Unit,
+    onOpenAlbum: (String) -> Unit,
+    onOpenArtist: (String) -> Unit,
+    onPlayTrack: (orderedTracks: List<Track>, selectedTrack: Track) -> Unit,
+    onToggleSelection: (trackId: String) -> Unit,
+    onStartSelection: (trackId: String) -> Unit,
+    onVisibleTrackIdsChanged: (List<String>) -> Unit,
+    onScrollPositionChanged: (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
+    bottomContentPadding: Dp,
+    favoriteTrackIds: Set<String>,
+    artworkTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
+    browseQuery: LibraryBrowseQuery,
+    sourceOptions: List<LibraryBrowseSourceOption>,
+    sourceIdByTrackId: Map<String, String?>,
+    modifiedAtByTrackId: Map<String, Long?>,
+    onBrowseSortChange: (LibrarySort) -> Unit,
+    onBrowseSortDirectionChange: (LibrarySortDirection) -> Unit,
+    onBrowseFavoriteOnlyChange: (Boolean) -> Unit,
+    onBrowseArtworkOnlyChange: (Boolean) -> Unit,
+    onBrowseSourceIdChange: (String?) -> Unit,
+    onEditTrackMetadata: ((String) -> Unit)? = null,
+)
+
+@Composable
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
+public fun DrillDownView(
+    title: String,
+    summary: LibraryDetailSummary,
+    tracks: List<Track>,
+    topBarArtworkTrack: Track?,
+    currentTrackId: String?,
+    selectionPage: LibrarySelectionPage,
+    selectionModeActive: Boolean,
+    selectedTrackIds: Set<String>,
+    labels: LibrarySharedLabels,
+    artworkLoader: suspend (String) -> ByteArray?,
+    onBack: () -> Unit,
+    onPlayTrack: (orderedTracks: List<Track>, selectedTrack: Track) -> Unit,
+    onToggleSelection: (trackId: String) -> Unit,
+    onStartSelection: (trackId: String) -> Unit,
+    onVisibleTrackIdsChanged: (List<String>) -> Unit,
+    onScrollPositionChanged: (firstVisibleItemIndex: Int, firstVisibleItemScrollOffset: Int) -> Unit,
+    bottomContentPadding: Dp,
+    favoriteTrackIds: Set<String>,
+    onSetTrackFavorite: (String, Boolean) -> Unit,
+    onEditTrackMetadata: ((String) -> Unit)? = null,
+)
+```
+
+Both receive the artwork loader with the documented eager/key/off-main/
 cancellation/stale-result behavior. Home and detail expose only core-model `Track`,
 core-UI `RhythHausBackdrop`, Compose types, feature values, and primitive callbacks;
 groups, snapshots, `LibraryTrack`, controller/state, Job, Shared state/routes, and
@@ -377,11 +507,15 @@ selection/browse/visible/scroll/bottom-bar policy, and playback queue/restart be
 The exhaustive resource ledger separates the twelve labels injected through
 `LibrarySharedLabels` from Shared-only resolver keys, names all moved Library keys, and
 requires EN/ZH multiset/absence controls; `selected` is removed from both final catalogs
-only if no production/test consumer exists. The design's twelve-row resolver table,
-including retained album-artwork and track-artist-album consumers, the no-action library
-queue heading, and Shared-only `play`/`pause`, is exhaustive and normative. The design's
-exact UI/picker/scanner declarations, intentional ABI contraction, and causal controls
-are normative.
+only if no production/test consumer exists. The 2026-08-10 design's twelve-row consumer
+resolver mapping remains the authority for its retained album-artwork and track-artist-album
+consumers and for Shared-only `play`/`pause`; its former library-queue heading row is
+superseded, and the Queue heading is playlists-owned `queue_title`. The remediation design
+supersedes only injected-label membership and ownership, as represented by the current
+twelve-member `LibrarySharedLabels` contract: it removes the `playlists`, `playlistsAccessibility`,
+and `libraryQueue` members and adds `libraryTitle`, `addFavorite`, and `removeFavorite`.
+The 2026-08-10 design's exact picker/scanner declarations, intentional ABI contraction, and
+causal controls remain normative.
 
 Metadata source declarations are retired from the public API but move internally to
 `com.eterocell.rhythhaus.library.impl`; no accidental-export characterization remains

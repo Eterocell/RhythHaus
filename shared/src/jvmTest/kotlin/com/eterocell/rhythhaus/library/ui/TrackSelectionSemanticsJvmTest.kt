@@ -12,6 +12,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertWidthIsAtLeast
@@ -161,7 +162,6 @@ class TrackSelectionSemanticsJvmTest {
                     favorite = false,
                     onSetFavorite = {},
                     onEditMetadata = {},
-                    desktopDensity = false,
                 )
             }
 
@@ -202,7 +202,6 @@ class TrackSelectionSemanticsJvmTest {
                 favorite = false,
                 onSetFavorite = {},
                 onEditMetadata = {},
-                desktopDensity = false,
             )
         }
 
@@ -223,7 +222,9 @@ class TrackSelectionSemanticsJvmTest {
                         .isNullOrBlank()
                 },
             )
-        onNodeWithTag("track-row-more-actions").assertDoesNotExist()
+        onNodeWithTag("track-row-more-actions").performClick()
+        onNodeWithTag("track-row-select").assertDoesNotExist()
+        onNodeWithTag("track-row-edit-metadata").assertIsDisplayed()
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -246,7 +247,6 @@ class TrackSelectionSemanticsJvmTest {
                     favorite = false,
                     onSetFavorite = {},
                     onEditMetadata = { editCount++ },
-                    desktopDensity = false,
                 )
             }
 
@@ -295,7 +295,6 @@ class TrackSelectionSemanticsJvmTest {
                     favorite = false,
                     onSetFavorite = {},
                     onEditMetadata = {},
-                    desktopDensity = false,
                 )
             }
 
@@ -307,7 +306,7 @@ class TrackSelectionSemanticsJvmTest {
                         SemanticsMatcher.expectValue(
                             SemanticsProperties.ToggleableState,
                             ToggleableState.Off) and
-                        hasAnyAncestor(hasContentDescription("Select Song")),
+                        hasAnyAncestor(hasContentDescription("Song")),
                     useUnmergedTree = true,
                 )
                 .performClick()
@@ -337,7 +336,6 @@ class TrackSelectionSemanticsJvmTest {
                     favorite = false,
                     onSetFavorite = {},
                     onEditMetadata = {},
-                    desktopDensity = false,
                 )
             }
 

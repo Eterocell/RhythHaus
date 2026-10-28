@@ -52,6 +52,11 @@ public val LocalHausDesktopDensity: ProvidableCompositionLocal<Boolean> =
  * and the primary/long-press gesture boundary. In selection mode, the checkbox
  * invokes the same primary action as the row; [onSelect] is reserved for
  * long-press selection behavior.
+ *
+ * [rowContentDescription] is the row's accessible name and defaults to the
+ * visible title. Adapters whose rows carry more identifying metadata than the
+ * title may pass the richer description, independently of [selectLabel], which
+ * labels only the long-press Select action.
  */
 @Composable
 public fun HausSongRow(
@@ -64,13 +69,14 @@ public fun HausSongRow(
     onActivate: () -> Unit,
     onSelect: (() -> Unit)?,
     selectLabel: String?,
+    rowContentDescription: String = title,
     playingLabel: String?,
-    desktopDensity: Boolean,
     artwork: @Composable () -> Unit,
     indicator: @Composable () -> Unit,
     trailing: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val desktopDensity = LocalHausDesktopDensity.current
     val rowClickModifier =
         when {
             !interactive -> Modifier
@@ -109,7 +115,7 @@ public fun HausSongRow(
                     Modifier.weight(1f)
                         .heightIn(min = rowHeight)
                         .semantics {
-                            contentDescription = selectLabel ?: title
+                            contentDescription = rowContentDescription
                             if (selectionMode && onSelect != null) {
                                 toggleableState =
                                     if (selected) ToggleableState.On

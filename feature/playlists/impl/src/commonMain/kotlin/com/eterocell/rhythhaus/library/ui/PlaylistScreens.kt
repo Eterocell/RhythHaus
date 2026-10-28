@@ -68,6 +68,7 @@ import com.eterocell.rhythhaus.ui.HausButton as Button
 import com.eterocell.rhythhaus.ui.HausDialog
 import com.eterocell.rhythhaus.ui.HausIconButton as IconButton
 import com.eterocell.rhythhaus.ui.HausSongRow
+import com.eterocell.rhythhaus.ui.LocalHausDesktopDensity
 import com.eterocell.rhythhaus.ui.hausClickable
 import com.eterocell.rhythhaus.ui.songArtistAlbumSubtitle
 import org.jetbrains.compose.resources.stringResource
@@ -663,7 +664,6 @@ public fun PlaylistHubScreen(
     onRetry: () -> Unit,
     documentActions: @Composable () -> Unit,
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
-    desktopDensity: Boolean = false,
 ) {
     var createDraft by remember { mutableStateOf<PlaylistNameDraft?>(null) }
     var createTypeAppearance by remember {
@@ -929,11 +929,7 @@ private fun PlaylistRowArtwork(
     }
 }
 
-/**
- * Renders one playlist detail route while Shared controls navigation.
- *
- * @param desktopDensity Whether saved-track rows use the wider desktop density.
- */
+/** Renders one playlist detail route while Shared controls navigation. */
 @Composable
 public fun PlaylistDetailScreen(
     playlist: PlaylistSummary,
@@ -958,8 +954,8 @@ public fun PlaylistDetailScreen(
     listState: LazyListState = rememberLazyListState(),
     onScrollPositionChanged: (Int, Int) -> Unit = { _, _ -> },
     initialEditMode: Boolean = false,
-    desktopDensity: Boolean = false,
 ) {
+    val desktopDensity = LocalHausDesktopDensity.current
     val tracksById = playableTracksById
     val model =
         playlistDetailModel(playlist.id, playlist.name, entries, tracksById)
@@ -1441,11 +1437,8 @@ internal fun PlaylistTrackBrowser(
                                 onActivate = toggle,
                                 onSelect = toggle,
                                 selectLabel = description,
+                                rowContentDescription = description,
                                 playingLabel = null,
-                                desktopDensity =
-                                    com.eterocell.rhythhaus.ui
-                                        .LocalHausDesktopDensity
-                                        .current,
                                 artwork = {
                                     PlaylistRowArtwork(
                                         track.id,
@@ -1824,8 +1817,8 @@ private fun PlaylistEntryRow(
                 onActivate = onClick,
                 onSelect = onLongClick,
                 selectLabel = rowDescription,
+                rowContentDescription = rowDescription,
                 playingLabel = null,
-                desktopDensity = desktopDensity,
                 artwork = {
                     PlaylistRowArtwork(
                         trackId = row.track.id,

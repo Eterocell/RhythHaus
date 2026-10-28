@@ -211,6 +211,7 @@ class PlaylistFeatureDismissalTest {
                     appearanceSource =
                         rememberPlaylistFeatureAppearanceSource(destination),
                     dismissalPublisher = publisher,
+                    windowOverlayPublisher = null,
                     modifier = Modifier.fillMaxSize(),
                     onClose = {},
                     onSaveQueueAsPlaylist = { _, _, _ ->

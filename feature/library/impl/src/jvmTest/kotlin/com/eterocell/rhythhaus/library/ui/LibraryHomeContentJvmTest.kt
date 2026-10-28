@@ -3,11 +3,14 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
@@ -34,6 +37,7 @@ import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
 import com.eterocell.rhythhaus.library.TrackPlayHistory
+import com.eterocell.rhythhaus.ui.LocalHausDesktopDensity
 import com.eterocell.rhythhaus.ui.songArtistAlbumSubtitle
 import java.util.Locale
 import kotlin.test.Test
@@ -149,10 +153,207 @@ class LibraryHomeContentJvmTest {
                 visibleReports.last(),
             )
 
-            onAllNodes(hasContentDescription("Select Two"))[0].performClick()
+            onAllNodes(hasContentDescription("Two"))[0].performClick()
             waitForIdle()
             assertEquals(queryProjectedTracks, plays.last().first)
             assertEquals(tracks()[0].id, plays.last().second.id)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun namedRowMenuStartsSelectionWithoutPlayback() = runComposeUiTest {
+        val selectionStarts = mutableListOf<String>()
+        var playRequests = 0
+        setContent {
+            Box(Modifier.size(420.dp, 900.dp)) {
+                LibraryHomeContent(
+                    tracks = tracks(),
+                    browseMode = BrowseMode.Songs,
+                    playHistory = emptyMap(),
+                    createdAtByTrackId = emptyMap(),
+                    folderPickerLauncher = StubPicker,
+                    sourcePickerActionVisible = false,
+                    importMessage = null,
+                    scanProgress = null,
+                    mutationsEnabled = true,
+                    currentTrackId = null,
+                    selectionModeActive = false,
+                    selectedTrackIds = emptySet(),
+                    labels = labels(),
+                    homeBackdrop = null,
+                    artworkLoader = { null },
+                    onBrowseModeChange = {},
+                    onClearLibrary = {},
+                    onCancelScan = {},
+                    onOpenAlbum = {},
+                    onOpenArtist = {},
+                    onPlayTrack = { _, _ -> playRequests++ },
+                    onToggleSelection = {},
+                    onStartSelection = { selectionStarts += it },
+                    onVisibleTrackIdsChanged = {},
+                    onScrollPositionChanged = { _, _ -> },
+                    bottomContentPadding = 0.dp,
+                    favoriteTrackIds = emptySet(),
+                    artworkTrackIds = emptySet(),
+                    onSetTrackFavorite = { _, _ -> },
+                    browseQuery = LibraryBrowseQuery(),
+                    sourceOptions = emptyList(),
+                    sourceIdByTrackId = emptyMap(),
+                    modifiedAtByTrackId = emptyMap(),
+                    onBrowseSortChange = {},
+                    onBrowseSortDirectionChange = {},
+                    onBrowseFavoriteOnlyChange = {},
+                    onBrowseArtworkOnlyChange = {},
+                    onBrowseSourceIdChange = {},
+                )
+            }
+        }
+
+        onNode(hasContentDescription("More actions for One")).performClick()
+        onNodeWithTag("track-row-select").performClick()
+        waitForIdle()
+
+        assertEquals(listOf("t-2"), selectionStarts)
+        assertEquals(0, playRequests)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun playableRowsNameTheirTrackAndKeepSelectAsALongPressLabel() =
+        runComposeUiTest {
+            setContent {
+                Box(Modifier.size(420.dp, 900.dp)) {
+                    LibraryHomeContent(
+                        tracks = tracks(),
+                        browseMode = BrowseMode.Songs,
+                        playHistory = emptyMap(),
+                        createdAtByTrackId = emptyMap(),
+                        folderPickerLauncher = StubPicker,
+                        sourcePickerActionVisible = false,
+                        importMessage = null,
+                        scanProgress = null,
+                        mutationsEnabled = true,
+                        currentTrackId = null,
+                        selectionModeActive = false,
+                        selectedTrackIds = emptySet(),
+                        labels = labels(),
+                        homeBackdrop = null,
+                        artworkLoader = { null },
+                        onBrowseModeChange = {},
+                        onClearLibrary = {},
+                        onCancelScan = {},
+                        onOpenAlbum = {},
+                        onOpenArtist = {},
+                        onPlayTrack = { _, _ -> },
+                        onToggleSelection = {},
+                        onStartSelection = {},
+                        onVisibleTrackIdsChanged = {},
+                        onScrollPositionChanged = { _, _ -> },
+                        bottomContentPadding = 0.dp,
+                        favoriteTrackIds = emptySet(),
+                        artworkTrackIds = emptySet(),
+                        onSetTrackFavorite = { _, _ -> },
+                        browseQuery = LibraryBrowseQuery(),
+                        sourceOptions = emptyList(),
+                        sourceIdByTrackId = emptyMap(),
+                        modifiedAtByTrackId = emptyMap(),
+                        onBrowseSortChange = {},
+                        onBrowseSortDirectionChange = {},
+                        onBrowseFavoriteOnlyChange = {},
+                        onBrowseArtworkOnlyChange = {},
+                        onBrowseSourceIdChange = {},
+                    )
+                }
+            }
+            waitForIdle()
+
+            val row =
+                onNode(
+                        SemanticsMatcher.expectValue(
+                            SemanticsProperties.ContentDescription,
+                            listOf("One"),
+                        ),
+                    )
+                    .fetchSemanticsNode()
+            assertEquals(
+                "Select One",
+                row.config.getOrNull(SemanticsActions.OnLongClick)?.label,
+            )
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun rowDensityUsesRootProjectionWhenHomeContentIsNarrow() =
+        runComposeUiTest {
+            var desktopDensity by mutableStateOf(true)
+            setContent {
+                CompositionLocalProvider(
+                    LocalHausDesktopDensity provides desktopDensity,
+                ) {
+                    Box(Modifier.size(672.dp, 900.dp)) {
+                        LibraryHomeContent(
+                            tracks = tracks().take(1),
+                            browseMode = BrowseMode.Songs,
+                            playHistory = emptyMap(),
+                            createdAtByTrackId = emptyMap(),
+                            folderPickerLauncher = StubPicker,
+                            sourcePickerActionVisible = false,
+                            importMessage = null,
+                            scanProgress = null,
+                            mutationsEnabled = true,
+                            currentTrackId = null,
+                            selectionModeActive = false,
+                            selectedTrackIds = emptySet(),
+                            labels = labels(),
+                            homeBackdrop = null,
+                            artworkLoader = { null },
+                            onBrowseModeChange = {},
+                            onClearLibrary = {},
+                            onCancelScan = {},
+                            onOpenAlbum = {},
+                            onOpenArtist = {},
+                            onPlayTrack = { _, _ -> },
+                            onToggleSelection = {},
+                            onStartSelection = {},
+                            onVisibleTrackIdsChanged = {},
+                            onScrollPositionChanged = { _, _ -> },
+                            bottomContentPadding = 0.dp,
+                            favoriteTrackIds = emptySet(),
+                            artworkTrackIds = emptySet(),
+                            onSetTrackFavorite = { _, _ -> },
+                            browseQuery = LibraryBrowseQuery(),
+                            sourceOptions = emptyList(),
+                            sourceIdByTrackId = emptyMap(),
+                            modifiedAtByTrackId = emptyMap(),
+                            onBrowseSortChange = {},
+                            onBrowseSortDirectionChange = {},
+                            onBrowseFavoriteOnlyChange = {},
+                            onBrowseArtworkOnlyChange = {},
+                            onBrowseSourceIdChange = {},
+                        )
+                    }
+                }
+            }
+            waitForIdle()
+
+            val desktopRowHeight =
+                onNode(hasContentDescription("Two"))
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+                    .height
+            desktopDensity = false
+            waitForIdle()
+            val compactRowHeight =
+                onNode(hasContentDescription("Two"))
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+                    .height
+
+            assertTrue(
+                desktopRowHeight < compactRowHeight,
+                "desktop root density must control rows in a 672dp Home pane; " +
+                    "heights were $desktopRowHeight and $compactRowHeight px",
+            )
         }
 
     @OptIn(ExperimentalTestApi::class)
@@ -380,12 +581,12 @@ class LibraryHomeContentJvmTest {
         assertEquals(emptyList(), plays)
         assertEquals(emptyList(), selectionStarts)
 
-        onNode(hasContentDescription("Select Two")).performClick()
+        onNode(hasContentDescription("Two")).performClick()
         waitForIdle()
         assertEquals(listOf("t-1"), plays.single().first.map(Track::id))
         assertEquals("t-1", plays.single().second.id)
 
-        onNode(hasContentDescription("Select Two")).performTouchInput {
+        onNode(hasContentDescription("Two")).performTouchInput {
             longClick()
         }
         waitForIdle()
@@ -410,7 +611,6 @@ class LibraryHomeContentJvmTest {
                     favorite = false,
                     onSetFavorite = {},
                     onEditMetadata = {},
-                    desktopDensity = false,
                 )
             }
         }
@@ -543,7 +743,7 @@ class LibraryHomeContentJvmTest {
             onAllNodes(hasText("Solo")).assertCountEquals(1)
             onAllNodes(hasText("Two")).assertCountEquals(0)
 
-            onAllNodes(hasContentDescription("Select One"))[0].performClick()
+            onAllNodes(hasContentDescription("One"))[0].performClick()
             waitForIdle()
             assertEquals(
                 listOf("t-2", "t-3"), plays.single().first.map { it.id })
@@ -608,7 +808,7 @@ class LibraryHomeContentJvmTest {
             }
         }
         waitForIdle()
-        onNode(hasContentDescription("Select One")).performClick()
+        onNode(hasContentDescription("One")).performClick()
         waitForIdle()
         assertEquals(
             listOf("t-2", "t-3", "t-1"), plays.single().first.map { it.id })
@@ -1275,7 +1475,6 @@ class LibraryHomeContentJvmTest {
                     onStartSelection = {},
                     favorite = false,
                     onSetFavorite = {},
-                    desktopDensity = false,
                 )
             }
         }

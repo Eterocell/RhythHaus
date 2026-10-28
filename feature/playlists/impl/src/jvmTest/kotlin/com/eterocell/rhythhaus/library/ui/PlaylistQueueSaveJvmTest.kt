@@ -33,6 +33,8 @@ import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.ui.HausWindowOverlayHost
+import com.eterocell.rhythhaus.ui.HausWindowOverlayPublisher
+import com.eterocell.rhythhaus.ui.LocalHausWindowOverlayPublisher
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -70,6 +72,8 @@ class PlaylistQueueSaveJvmTest {
                                         "upcoming" to "b",
                                     ),
                                 destinationId = "wide-queue-modal",
+                                windowOverlayPublisher =
+                                    LocalHausWindowOverlayPublisher.current,
                                 onSaveQueueAsPlaylist = { _, _, _ -> },
                             )
                         }
@@ -459,6 +463,7 @@ class PlaylistQueueSaveJvmTest {
     private fun QueueContentTestHost(
         playbackState: PlaybackState,
         destinationId: String,
+        windowOverlayPublisher: HausWindowOverlayPublisher? = null,
         onSaveQueueAsPlaylist:
             (String, List<String>, (PlaylistStateAction) -> Unit) -> Unit,
         onReorderUpcoming: suspend (String, Int) -> QueueMutationFeedback =
@@ -476,6 +481,7 @@ class PlaylistQueueSaveJvmTest {
             appearanceSource =
                 rememberPlaylistFeatureAppearanceSource(destination),
             dismissalPublisher = noDismissalPublisher(),
+            windowOverlayPublisher = windowOverlayPublisher,
             onClose = {},
             modifier = Modifier.fillMaxSize().testTag("queue-content"),
             onSaveQueueAsPlaylist = onSaveQueueAsPlaylist,

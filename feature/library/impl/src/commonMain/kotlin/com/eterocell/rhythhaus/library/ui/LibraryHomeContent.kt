@@ -403,7 +403,6 @@ public fun LibraryHomeContent(
                                             onEditTrackMetadata?.let { edit ->
                                                 { edit(track.id) }
                                             },
-                                        desktopDensity = !compact,
                                     )
                                 }
                             }

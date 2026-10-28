@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -70,7 +71,8 @@ internal fun AnimatedClearLibraryDialogRoute(
             Button(
                 onClick = onDismiss,
                 modifier =
-                    Modifier.height(36.dp).testTag("settings-clear-dismiss"),
+                    Modifier.heightIn(min = 48.dp)
+                        .testTag("settings-clear-dismiss"),
                 cornerRadius = 12.dp,
                 insideMargin =
                     PaddingValues(horizontal = 16.dp, vertical = 9.dp),
@@ -90,7 +92,8 @@ internal fun AnimatedClearLibraryDialogRoute(
                 onClick = onClearLibrary,
                 enabled = confirmEnabled,
                 modifier =
-                    Modifier.height(36.dp).testTag("settings-clear-confirm"),
+                    Modifier.heightIn(min = 48.dp)
+                        .testTag("settings-clear-confirm"),
                 cornerRadius = 12.dp,
                 insideMargin =
                     PaddingValues(horizontal = 16.dp, vertical = 9.dp),
@@ -164,7 +167,7 @@ internal fun AnimatedRemoveMissingTracksDialogRoute(
             Button(
                 onClick = onDismiss,
                 modifier =
-                    Modifier.height(36.dp)
+                    Modifier.heightIn(min = 48.dp)
                         .testTag("settings-remove-missing-dismiss"),
                 cornerRadius = 12.dp,
                 insideMargin =
@@ -186,7 +189,7 @@ internal fun AnimatedRemoveMissingTracksDialogRoute(
                 onClick = onRemoveMissingTracks,
                 enabled = confirmEnabled,
                 modifier =
-                    Modifier.height(36.dp)
+                    Modifier.heightIn(min = 48.dp)
                         .testTag("settings-remove-missing-confirm"),
                 cornerRadius = 12.dp,
                 insideMargin =

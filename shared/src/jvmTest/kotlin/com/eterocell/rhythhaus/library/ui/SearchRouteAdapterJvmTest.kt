@@ -10,6 +10,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onNodeWithTag
@@ -123,9 +124,46 @@ class SearchRouteAdapterJvmTest {
             .assert(
                 SemanticsMatcher.expectValue(
                     SemanticsProperties.ContentDescription,
-                    listOf("选择曲目 song selected"),
+                    listOf("song selected"),
                 ),
             )
+            .assert(
+                SemanticsMatcher(
+                    "Search retains a separately localized Select action") {
+                        it.config
+                            .getOrNull(SemanticsActions.OnLongClick)
+                            ?.label == "选择曲目 song selected"
+                    },
+            )
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun namedSearchMenuStartsSelectionWithoutPlayback() = runComposeUiTest {
+        val selectionActions = mutableListOf<TrackSelectionAction>()
+        val controller = PlaybackController(FakePlaybackEngine())
+        setContent {
+            searchOverlay(
+                TrackSelectionState(),
+                selectionActions,
+                tracks = listOf(track("selected")),
+                playbackController = controller,
+            )
+        }
+        onNode(hasSetTextAction()).performTextInput("song selected")
+        waitForIdle()
+
+        onNodeWithTag("search-result-more-actions").performClick()
+        onNodeWithTag("search-result-select").performClick()
+        waitForIdle()
+
+        assertEquals(
+            TrackSelectionAction.Start(
+                TrackSelectionPageKey.Search, "selected"),
+            selectionActions.last(),
+        )
+        assertEquals(null, controller.state.value.currentTrack)
+        onNode(hasSetTextAction()).assertTextContains("song selected")
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -266,12 +304,14 @@ class SearchRouteAdapterJvmTest {
         tracks: List<LibraryTrack> =
             listOf(track("selected"), track("duplicate"), track("duplicate")),
         playbackState: PlaybackState = PlaybackState(),
+        playbackController: PlaybackController =
+            PlaybackController(FakePlaybackEngine()),
     ) {
         LibraryRouteScreen(
             route = LibraryRoute.Search,
             snapshot = LibrarySnapshot("Library", "", emptyList(), null),
             libraryTracks = tracks,
-            playbackController = PlaybackController(FakePlaybackEngine()),
+            playbackController = playbackController,
             playbackState = playbackState,
             playlistRepository = EmptyPlaylistRepository,
             playlistState = PlaylistState(),
@@ -348,7 +388,7 @@ class SearchRouteAdapterJvmTest {
     private fun searchRow(title: String) =
         SemanticsMatcher.expectValue(
             SemanticsProperties.ContentDescription,
-            listOf("选择曲目 $title"),
+            listOf(title),
         )
 
     private fun track(id: String) =

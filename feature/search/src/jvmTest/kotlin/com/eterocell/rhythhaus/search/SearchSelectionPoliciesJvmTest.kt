@@ -79,7 +79,7 @@ class SearchSelectionPoliciesJvmTest {
                 onToggle = { toggles++ })
         }
         enterQuery("Song")
-        onNode(hasContentDescription("Select Song")).performClick()
+        onNode(hasContentDescription("Song")).performClick()
         assertEquals(1, plays)
         assertEquals(0, toggles)
     }
@@ -139,8 +139,29 @@ class SearchSelectionPoliciesJvmTest {
                 onStart = { starts++ })
         }
         enterQuery("Song")
-        onNode(hasContentDescription("Select Song"))
+        onNode(hasContentDescription("Song"))
             .performSemanticsAction(SemanticsActions.OnLongClick)
+        assertEquals(1, starts)
+        assertEquals(0, plays)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun namedSearchMenuStartsSelectionWithoutPlayback() = runComposeUiTest {
+        var starts = 0
+        var plays = 0
+        setContent {
+            content(
+                tracks = listOf(track()),
+                onPlay = { _, _ -> plays++ },
+                onStart = { starts++ },
+            )
+        }
+        enterQuery("Song")
+
+        onNodeWithTag("search-result-more-actions").performClick()
+        onNodeWithTag("search-result-select").performClick()
+
         assertEquals(1, starts)
         assertEquals(0, plays)
     }
@@ -161,7 +182,7 @@ class SearchSelectionPoliciesJvmTest {
                     onToggle = { toggles++ })
             }
             enterQuery("Song")
-            onNode(hasContentDescription("Select Song")).performClick()
+            onNode(hasContentDescription("Song")).performClick()
             assertEquals(1, toggles)
             assertEquals(0, plays)
             assertEquals(0, starts)
@@ -174,7 +195,7 @@ class SearchSelectionPoliciesJvmTest {
                         SemanticsMatcher.expectValue(
                             SemanticsProperties.ToggleableState,
                             ToggleableState.Off) and
-                        hasAnyAncestor(hasContentDescription("Select Song")),
+                        hasAnyAncestor(hasContentDescription("Song")),
                     useUnmergedTree = true)
                 .performClick()
             assertEquals(2, toggles)
@@ -425,7 +446,7 @@ class SearchSelectionPoliciesJvmTest {
         }
         enterQuery("Song")
         onNode(
-                hasContentDescription("Select Song") and
+                hasContentDescription("Song") and
                     SemanticsMatcher.expectValue(
                         SemanticsProperties.ToggleableState,
                         ToggleableState.On))
@@ -439,7 +460,7 @@ class SearchSelectionPoliciesJvmTest {
     fun emptyMetadataIsRetained() = runComposeUiTest {
         setContent { content(tracks = listOf(track("empty", "Empty", "", ""))) }
         enterQuery("Empty")
-        onNode(hasContentDescription("Select Empty")).fetchSemanticsNode()
+        onNode(hasContentDescription("Empty")).fetchSemanticsNode()
         onAllNodes(hasText(" · ", substring = false)).assertCountEquals(0)
     }
 

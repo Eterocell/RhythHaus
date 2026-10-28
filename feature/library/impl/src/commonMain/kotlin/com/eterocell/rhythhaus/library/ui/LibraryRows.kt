@@ -355,7 +355,6 @@ internal fun SectionLabel(title: String, subtitle: String?) {
  * @param favorite whether this track is currently favorited.
  * @param onSetFavorite requests the desired favorite state.
  * @param onEditMetadata requests editing app-local metadata for this track.
- * @param desktopDensity whether to use the wider desktop row density.
  */
 @Composable
 public fun TrackRow(
@@ -371,7 +370,6 @@ public fun TrackRow(
     favorite: Boolean,
     onSetFavorite: (Boolean) -> Unit,
     onEditMetadata: (() -> Unit)? = null,
-    desktopDensity: Boolean,
 ) {
     val selectTrackContentDescription = labels.selectTrack(track.title)
     var moreActionsExpanded by remember(track.id) { mutableStateOf(false) }
@@ -396,7 +394,6 @@ public fun TrackRow(
         onSelect = { activate(TrackRowGesture.LongClick) },
         selectLabel = selectTrackContentDescription,
         playingLabel = labels.nowPlayingBadge,
-        desktopDensity = desktopDensity,
         artwork = {
             AlbumMark(
                 track = track,
@@ -414,38 +411,51 @@ public fun TrackRow(
             )
         },
         trailing = {
-            if (!selectionModeActive) {
-                if (onEditMetadata != null) {
-                    val moreLabel =
-                        stringResource(
-                            Res.string.track_more_actions_format,
-                            track.title,
-                        )
-                    Box {
-                        Button(
-                            onClick = { moreActionsExpanded = true },
-                            modifier =
-                                Modifier.size(48.dp)
-                                    .testTag("track-row-more-actions")
-                                    .semantics {
-                                        contentDescription = moreLabel
-                                    },
-                            cornerRadius = HausShapes.control,
-                            insideMargin = PaddingValues(0.dp),
-                            colors =
-                                ButtonDefaults.buttonColors(
-                                    color = HausColors.current.panel,
-                                    contentColor = HausColors.current.ink,
-                                ),
-                        ) {
-                            Icon(
-                                Icons.Outlined.MoreVert,
-                                contentDescription = null)
+            if (!selectionModeActive || onEditMetadata != null) {
+                val moreLabel =
+                    stringResource(
+                        Res.string.track_more_actions_format,
+                        track.title,
+                    )
+                Box {
+                    Button(
+                        onClick = { moreActionsExpanded = true },
+                        modifier =
+                            Modifier.size(48.dp)
+                                .testTag("track-row-more-actions")
+                                .semantics {
+                                    contentDescription = moreLabel
+                                },
+                        cornerRadius = HausShapes.control,
+                        insideMargin = PaddingValues(0.dp),
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                color = HausColors.current.panel,
+                                contentColor = HausColors.current.ink,
+                            ),
+                    ) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = null)
+                    }
+                    DropdownMenu(
+                        expanded = moreActionsExpanded,
+                        onDismissRequest = { moreActionsExpanded = false },
+                    ) {
+                        if (!selectionModeActive) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        selectTrackContentDescription,
+                                        color = HausColors.current.ink,
+                                    )
+                                },
+                                onClick = {
+                                    moreActionsExpanded = false
+                                    onStartSelection()
+                                },
+                                modifier = Modifier.testTag("track-row-select"),
+                            )
                         }
-                        DropdownMenu(
-                            expanded = moreActionsExpanded,
-                            onDismissRequest = { moreActionsExpanded = false },
-                        ) {
+                        onEditMetadata?.let { editMetadata ->
                             DropdownMenuItem(
                                 text = {
                                     Text(
@@ -458,7 +468,7 @@ public fun TrackRow(
                                 },
                                 onClick = {
                                     moreActionsExpanded = false
-                                    onEditMetadata()
+                                    editMetadata()
                                 },
                                 modifier =
                                     Modifier.testTag("track-row-edit-metadata"),
@@ -466,6 +476,8 @@ public fun TrackRow(
                         }
                     }
                 }
+            }
+            if (!selectionModeActive) {
                 Button(
                     onClick = { onSetFavorite(!favorite) },
                     modifier =

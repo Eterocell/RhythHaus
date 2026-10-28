@@ -5,4 +5,6 @@
     <string name="search_results_count_many">%1$d results</string>
     <string name="search_no_tracks_match_format">No tracks match "%1$s"</string>
     <string name="search_blank_query_guidance">Search across titles, artists, and albums.</string>
+    <string name="search_more_actions_format">More actions for %1$s</string>
+    <string name="search_edit_metadata_action_format">Edit metadata for %1$s</string>
 </resources>

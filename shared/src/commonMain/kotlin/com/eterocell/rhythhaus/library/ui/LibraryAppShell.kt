@@ -107,6 +107,7 @@ import com.eterocell.rhythhaus.toPlayableTrack
 import com.eterocell.rhythhaus.ui.HausButton
 import com.eterocell.rhythhaus.ui.HausWindowOverlayHost
 import com.eterocell.rhythhaus.ui.LocalHausDesktopDensity
+import com.eterocell.rhythhaus.ui.LocalHausWindowOverlayPublisher
 import com.eterocell.rhythhaus.ui.LocalHausWindowOverlayVisible
 import com.eterocell.rhythhaus.ui.recordRhythHausBackdrop
 import com.eterocell.rhythhaus.ui.rememberHausReducedMotion
@@ -829,6 +830,7 @@ fun LibraryHomeScreen(
             trackSelectionState = trackSelectionState,
             onTrackSelectionAction = ::dispatchTrackSelection,
             bottomContentPadding = bottomContentPadding,
+            onEditTrackMetadata = editAction,
         )
     }
 
@@ -836,7 +838,6 @@ fun LibraryHomeScreen(
     fun RouteContent(
         entry: LibraryNavigationEntry,
         bottomContentPadding: Dp,
-        desktopDensity: Boolean,
         onOpenDetailRoute: (LibraryRoute) -> Unit = ::pushRoute,
     ) {
         val route = entry.route
@@ -883,7 +884,6 @@ fun LibraryHomeScreen(
             onSetTrackFavorite = onSetTrackFavorite,
             onEditTrackMetadata = editAction,
             metadataEditorOpen = metadataEditor != null,
-            desktopDensity = desktopDensity,
             documentActions = {
                 if (route == LibraryRoute.PlaylistHub &&
                     playlistState.hasConfirmedSnapshot) {
@@ -1004,7 +1004,6 @@ fun LibraryHomeScreen(
     fun RenderEntry(
         entry: LibraryNavigationEntry,
         bottomContentPadding: Dp,
-        desktopDensity: Boolean,
     ) {
         val interactive = entry == appState.navigation.currentEntry
         val routeInteractive =
@@ -1031,7 +1030,6 @@ fun LibraryHomeScreen(
                         RouteContent(
                             entry,
                             bottomContentPadding,
-                            desktopDensity,
                         )
                         RouteScreen(
                             entry.route,
@@ -1045,7 +1043,6 @@ fun LibraryHomeScreen(
                         RouteContent(
                             entry,
                             bottomContentPadding,
-                            desktopDensity,
                         )
                 }
             }
@@ -1155,7 +1152,6 @@ fun LibraryHomeScreen(
                                         RenderEntry(
                                             appState.navigation.currentEntry,
                                             routeBottomContentPadding,
-                                            desktopDensity,
                                         )
 
                                     adaptiveLayoutMode ==
@@ -1183,7 +1179,6 @@ fun LibraryHomeScreen(
                                                                     RouteContent(
                                                                         homeEntry,
                                                                         routeBottomContentPadding,
-                                                                        desktopDensity,
                                                                         ::
                                                                             openDetailRoute,
                                                                     )
@@ -1208,7 +1203,6 @@ fun LibraryHomeScreen(
                                                             appState.navigation
                                                                 .currentEntry,
                                                             routeBottomContentPadding,
-                                                            desktopDensity,
                                                         )
                                                     }
                                             }
@@ -1220,7 +1214,6 @@ fun LibraryHomeScreen(
                                             RenderEntry(
                                                 previousEntry,
                                                 routeBottomContentPadding,
-                                                desktopDensity,
                                             )
                                         }
                                         AnimatedContent(
@@ -1248,7 +1241,6 @@ fun LibraryHomeScreen(
                                             RenderEntry(
                                                 currentEntry,
                                                 routeBottomContentPadding,
-                                                desktopDensity,
                                             )
                                         }
                                     }
@@ -1712,6 +1704,8 @@ private fun NowPlayingExpandOverlay(
                                 destination = playlistDestination,
                                 appearanceSource = playlistAppearanceSource,
                                 dismissalPublisher = queueDismissalPublisher,
+                                windowOverlayPublisher =
+                                    LocalHausWindowOverlayPublisher.current,
                                 onClose = {
                                     panelPresentation.onPanelChange(
                                         NowPlayingPanel.Controls,

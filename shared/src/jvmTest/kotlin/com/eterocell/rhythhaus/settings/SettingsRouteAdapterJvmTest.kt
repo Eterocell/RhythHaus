@@ -21,6 +21,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
@@ -568,6 +569,7 @@ class SettingsRouteAdapterJvmTest {
                         useUnmergedTree = true)
                     .assertExists()
                 onNodeWithTag("settings-clear-dismiss", useUnmergedTree = true)
+                    .assertHeightIsAtLeast(48.dp)
                     .performClick()
                 waitForIdle()
                 assertEquals(0, clearCalls)
@@ -578,7 +580,10 @@ class SettingsRouteAdapterJvmTest {
                 val confirm =
                     onNodeWithTag(
                         "settings-clear-confirm", useUnmergedTree = true)
-                confirm.assertExists().assertIsEnabled()
+                confirm
+                    .assertExists()
+                    .assertIsEnabled()
+                    .assertHeightIsAtLeast(48.dp)
 
                 mutationsEnabled = false
                 waitForIdle()
@@ -1010,15 +1015,19 @@ class SettingsRouteAdapterJvmTest {
                 onNodeWithTag(
                         "settings-remove-missing-dismiss",
                         useUnmergedTree = true)
+                    .assertHeightIsAtLeast(48.dp)
                     .performClick()
                 waitForIdle()
                 assertEquals(emptyList(), missingRemoved)
 
                 onNode(hasText("Remove missing files")).performClick()
-                val confirmClick =
+                val confirm =
                     onNodeWithTag(
-                            "settings-remove-missing-confirm",
-                            useUnmergedTree = true)
+                        "settings-remove-missing-confirm",
+                        useUnmergedTree = true)
+                confirm.assertHeightIsAtLeast(48.dp)
+                val confirmClick =
+                    confirm
                         .fetchSemanticsNode()
                         .config[SemanticsActions.OnClick]
                         .action

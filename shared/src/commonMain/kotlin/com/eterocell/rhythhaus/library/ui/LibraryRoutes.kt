@@ -209,6 +209,7 @@ internal fun LibraryRouteScreen(
     bottomContentPadding: Dp = 0.dp,
     searchFirstVisibleItemIndex: Int = 0,
     searchFirstVisibleItemScrollOffset: Int = 0,
+    onEditTrackMetadata: ((String) -> Unit)? = null,
 ) {
     when (route) {
         LibraryRoute.Settings -> {
@@ -724,6 +725,7 @@ internal fun LibraryRouteScreen(
                         selectedTrack,
                         onDismiss)
                 },
+                onEditTrackMetadata = onEditTrackMetadata,
                 onDismiss = onDismiss,
                 playingIndicator = {
                     Box(Modifier.testTag("shared-search-equalizer")) {
@@ -907,7 +909,6 @@ internal fun LibraryRouteContent(
     playHistory: Map<String, TrackPlayHistory> = emptyMap(),
     onEditTrackMetadata: ((String) -> Unit)? = null,
     metadataEditorOpen: Boolean = false,
-    desktopDensity: Boolean = false,
 ) {
     val playlistDestinationId =
         destinationId ?: LibraryDestinationId(route, "unpresented")
@@ -1090,7 +1091,6 @@ internal fun LibraryRouteContent(
                     onPlaylistMutation({ create(name) }, onSuccess)
                 },
                 bottomContentPadding = bottomContentPadding,
-                desktopDensity = desktopDensity,
                 documentActions = documentActions,
             )
         }
@@ -1218,7 +1218,6 @@ internal fun LibraryRouteContent(
                         },
                         bottomContentPadding = bottomContentPadding,
                         onScrollPositionChanged = onScrollPositionChanged,
-                        desktopDensity = desktopDensity,
                     )
 
                 is SharedPlaylistDetailResolution.ReturnToHub ->
@@ -1289,7 +1288,6 @@ internal fun PlaylistDetailRouteContent(
     onReorder: (List<String>) -> Unit,
     bottomContentPadding: Dp = 0.dp,
     onScrollPositionChanged: (LibraryScrollPosition) -> Unit = {},
-    desktopDensity: Boolean = false,
 ) {
     PlaylistDetailScreen(
         playlist = playlist,
@@ -1311,7 +1309,6 @@ internal fun PlaylistDetailRouteContent(
         onRemoveEntry = onRemoveEntry,
         onReorder = onReorder,
         bottomContentPadding = bottomContentPadding,
-        desktopDensity = desktopDensity,
         onScrollPositionChanged = { index, offset ->
             onScrollPositionChanged(LibraryScrollPosition(index, offset))
         },

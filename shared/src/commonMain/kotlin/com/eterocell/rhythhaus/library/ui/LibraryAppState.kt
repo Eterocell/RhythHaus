@@ -224,7 +224,10 @@ internal class LibraryAppState(
         if (showNowPlaying && nowPlayingPanelTrackId != nextTrackId) {
             nowPlayingPanelTrackId = nextTrackId
             nowPlayingPanelDestinationId = activeDestinationId
-            setNowPlayingPanel(NowPlayingPanelKind.Controls)
+            if (nextTrackId == null ||
+                nowPlayingPanel != NowPlayingPanelKind.Queue) {
+                setNowPlayingPanel(NowPlayingPanelKind.Controls)
+            }
         }
     }
 

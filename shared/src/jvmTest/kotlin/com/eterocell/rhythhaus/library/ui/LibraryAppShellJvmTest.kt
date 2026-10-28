@@ -84,6 +84,8 @@ import com.eterocell.rhythhaus.library.ScanError
 import com.eterocell.rhythhaus.library.ScanProgress
 import com.eterocell.rhythhaus.library.ScanSession
 import com.eterocell.rhythhaus.library.ScanStatus
+import com.eterocell.rhythhaus.library.TrackMetadataEditorData
+import com.eterocell.rhythhaus.library.TrackMetadataOverride
 import com.eterocell.rhythhaus.library.TrackPlayHistory
 import com.eterocell.rhythhaus.onboarding.OnboardingCloseTestTag
 import com.eterocell.rhythhaus.onboarding.OnboardingRootTestTag
@@ -1250,6 +1252,100 @@ class LibraryAppShellJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun rowDensityUsesAppWindowWidthWhenRailReducesContentBelowBreakpoint() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                var width by mutableStateOf(800.dp)
+                val track =
+                    Track(
+                        id = "density-window-track",
+                        title = "Density window track",
+                        artist = "Density artist",
+                        album = "Density album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF000000, 0xFFFFFFFF),
+                        source =
+                            AudioSource.FilePath("/density-window-track.mp3"),
+                    )
+                mount(
+                    width = { width },
+                    height = 800.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "density-window",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    tracks = listOf(track),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                )
+
+                onNodeWithTag("AppNavigationRail").assertIsDisplayed()
+                val contentRegion =
+                    onNodeWithTag(AppShellContentRegionTestTag)
+                        .fetchSemanticsNode()
+                val density = contentRegion.layoutInfo.density.density
+                assertTrue(
+                    contentRegion.boundsInRoot.width < 720f * density,
+                    "800dp app window should leave less than 720dp content " +
+                        "after rail and margins",
+                )
+
+                onNodeWithContentDescription("Songs").performClick()
+                waitForIdle()
+                val desktopHomeRowHeight =
+                    onNodeWithContentDescription(track.title)
+                        .fetchSemanticsNode()
+                        .boundsInRoot
+                        .height
+                width = 600.dp
+                waitForIdle()
+                onNodeWithTag("AppNavigationBottom").assertIsDisplayed()
+                val compactHomeRowHeight =
+                    onNodeWithContentDescription(track.title)
+                        .fetchSemanticsNode()
+                        .boundsInRoot
+                        .height
+                assertTrue(
+                    desktopHomeRowHeight < compactHomeRowHeight,
+                    "800dp desktop Home row must be denser than the 600dp " +
+                        "compact Home row; heights were $desktopHomeRowHeight " +
+                        "and $compactHomeRowHeight px",
+                )
+
+                onNodeWithContentDescription("Albums").performClick()
+                waitForIdle()
+                onNode(hasContentDescription("Album Density album"))
+                    .performClick()
+                waitForIdle()
+                width = 800.dp
+                waitForIdle()
+                val desktopDetailRowHeight =
+                    onNodeWithContentDescription(track.title)
+                        .fetchSemanticsNode()
+                        .boundsInRoot
+                        .height
+                width = 600.dp
+                waitForIdle()
+                val compactDetailRowHeight =
+                    onNodeWithContentDescription(track.title)
+                        .fetchSemanticsNode()
+                        .boundsInRoot
+                        .height
+                assertTrue(
+                    desktopDetailRowHeight < compactDetailRowHeight,
+                    "800dp desktop detail row must be denser than the 600dp " +
+                        "compact detail row; heights were " +
+                        "$desktopDetailRowHeight and $compactDetailRowHeight px",
+                )
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun desktopDetailKeepsHomeBesideItAtMinimumNetWidthAndReturnsToHome() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
@@ -2283,7 +2379,166 @@ class LibraryAppShellJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun playerDialogRestoresItsInvokerAndTrackReplacementReturnsFocusToPlayer() =
+    fun sharedQueueMutationReordersAuthoritativeOccurrenceIds() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                fun track(id: String, title: String) =
+                    Track(
+                        id = id,
+                        title = title,
+                        artist = "Artist",
+                        album = "Album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF123456, 0xFF654321),
+                        source = AudioSource.FilePath("/$id.mp3"),
+                    )
+
+                val currentTrack = track("current", "Current")
+                val firstTrack = track("first", "First")
+                val secondTrack = track("second", "Second")
+                val controller = PlaybackController(FakePlaybackEngine())
+                runBlocking {
+                    controller.setOccurrenceQueue(
+                        listOf(
+                            QueueOccurrence(
+                                "current",
+                                currentTrack.toPlayableTrack(),
+                            ),
+                            QueueOccurrence(
+                                "first", firstTrack.toPlayableTrack()),
+                            QueueOccurrence(
+                                "second", secondTrack.toPlayableTrack()),
+                        ),
+                        "current",
+                    )
+                }
+
+                try {
+                    mount(
+                        width = 1280.dp,
+                        height = 800.dp,
+                        source = source(),
+                        scanSession =
+                            ScanSession(
+                                id = "shared-queue-mutation",
+                                sourceId = "source",
+                                status = ScanStatus.Completed,
+                                startedAtEpochMillis = 1L,
+                            ),
+                        tracks = listOf(currentTrack, firstTrack, secondTrack),
+                        picker = CountingPicker(),
+                        callbacks = CallbackRecorder(),
+                        playbackController = controller,
+                    )
+
+                    onNodeWithContentDescription("Queue").performClick()
+                    onNodeWithContentDescription("Move Second up in queue")
+                        .performClick()
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.queue.map { it.id } ==
+                            listOf("current", "second", "first")
+                    }
+                    assertEquals(
+                        listOf("current", "second", "first"),
+                        controller.state.value.queue.map { it.id },
+                    )
+                } finally {
+                    controller.release()
+                }
+            }
+        }
+
+    @Test
+    fun sharedQueueMutationRejectionRefreshesFromAuthoritativeState() =
+        runBlocking {
+            fun track(id: String, title: String) =
+                Track(
+                    id = id,
+                    title = title,
+                    artist = "Artist",
+                    album = "Album",
+                    durationSeconds = 180,
+                    accent = TrackAccent(0xFF123456, 0xFF654321),
+                    source = AudioSource.FilePath("/$id.mp3"),
+                )
+
+            val currentTrack = track("stale-current", "Current")
+            val staleTrack = track("stale-removed", "Removed")
+            val remainingTrack = track("stale-remaining", "Remaining")
+            val controller = PlaybackController(FakePlaybackEngine())
+            try {
+                controller.setOccurrenceQueue(
+                    listOf(
+                        QueueOccurrence(
+                            "stale-current",
+                            currentTrack.toPlayableTrack(),
+                        ),
+                        QueueOccurrence(
+                            "stale-removed",
+                            staleTrack.toPlayableTrack(),
+                        ),
+                        QueueOccurrence(
+                            "stale-remaining",
+                            remainingTrack.toPlayableTrack(),
+                        ),
+                    ),
+                    "stale-current",
+                )
+                val dispatcher =
+                    QueueMutationDispatcher(
+                        state = controller.state,
+                        reorderCommand = controller::reorderUpcoming,
+                        removeCommand = controller::removeUpcoming,
+                        clearCommand = controller::clearUpcoming,
+                    )
+                assertEquals(
+                    listOf("stale-current", "stale-removed", "stale-remaining"),
+                    controller.state.value.queue.map { it.id },
+                )
+
+                // The authoritative queue drops the upcoming occurrence the
+                // dispatcher is about to address.
+                controller.setOccurrenceQueue(
+                    listOf(
+                        QueueOccurrence(
+                            "stale-current",
+                            currentTrack.toPlayableTrack(),
+                        ),
+                        QueueOccurrence(
+                            "stale-remaining",
+                            remainingTrack.toPlayableTrack(),
+                        ),
+                    ),
+                    "stale-current",
+                )
+
+                val feedback = dispatcher.remove("stale-removed")
+
+                assertTrue(
+                    feedback.showQueueChanged,
+                    "A rejected queue mutation must report that the queue changed",
+                )
+                assertEquals(
+                    listOf("stale-current", "stale-remaining"),
+                    feedback.refreshedState.queue.map { it.id },
+                    "Rejected mutation must refresh from the authoritative queue",
+                )
+                assertEquals(
+                    controller.state.value.queue.map { it.id },
+                    feedback.refreshedState.queue.map { it.id },
+                )
+                assertEquals(
+                    controller.state.value.currentOccurrenceId,
+                    feedback.refreshedState.currentOccurrenceId,
+                )
+            } finally {
+                controller.release()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun playerDialogRestoresItsInvokerAndQueueSaveDraftSurvivesTrackReplacement() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
                 fun track(id: String, title: String) =
@@ -2488,17 +2743,16 @@ class LibraryAppShellJvmTest {
 
                     saveQueueButton.performClick()
                     dialog.assertIsFocused()
+                    onNode(hasSetTextAction())
+                        .performTextInput(
+                            "Keep this draft",
+                        )
                     controller.skipToNext()
                     waitUntil(timeoutMillis = 5_000) {
                         controller.state.value.currentTrack?.id == third.id
                     }
-                    dialog.assertDoesNotExist()
-                    onNodeWithTag("NowPlayingContentRoot").assertIsDisplayed()
-                    onNodeWithTag(
-                            "NowPlayingFocusTarget",
-                            useUnmergedTree = true,
-                        )
-                        .assertIsFocused()
+                    dialog.assertIsDisplayed()
+                    onNode(hasText("Keep this draft")).assertIsDisplayed()
                 } finally {
                     controller.release()
                 }
@@ -2539,6 +2793,7 @@ class LibraryAppShellJvmTest {
                 }
                 val before = controller.state.value
                 val savedEntries = mutableListOf<PlaylistEntry>()
+                var mutationAttempts = 0
                 val repository =
                     object : PlaylistRepository by EmptyPlaylistRepository {
                         private var savedPlaylist: PlaylistSummary? = null
@@ -2604,9 +2859,16 @@ class LibraryAppShellJvmTest {
                                 hasConfirmedSnapshot = true,
                             ),
                         onPlaylistMutation = { mutation, onOutcome ->
+                            mutationAttempts++
                             onOutcome(
-                                runBlocking {
-                                    owner.mutate(mutation = mutation)
+                                if (mutationAttempts == 1) {
+                                    PlaylistStateAction.MutationFailed(
+                                        "temporary failure",
+                                    )
+                                } else {
+                                    runBlocking {
+                                        owner.mutate(mutation = mutation)
+                                    }
                                 },
                             )
                         },
@@ -2664,11 +2926,42 @@ class LibraryAppShellJvmTest {
                         .assertIsDisplayed()
                     onNode(hasContentDescription("Back to player"))
                         .assertIsDisplayed()
+                    assertEquals(0, mutationAttempts)
+                    assertTrue(savedEntries.isEmpty())
+
+                    onNode(hasText("Save queue as playlist")).performClick()
+                    onNode(hasSetTextAction()).performTextInput("Cancel this")
+                    onNode(hasText("Cancel")).performClick()
+                    waitForIdle()
+                    assertEquals(0, mutationAttempts)
+                    assertTrue(savedEntries.isEmpty())
 
                     onNode(hasText("Save queue as playlist")).performClick()
                     onNode(hasSetTextAction()).performTextInput("Trip")
+                    controller.skipToNext()
+                    waitUntil(timeoutMillis = 5_000) {
+                        controller.state.value.currentOccurrenceId == "next"
+                    }
+                    onNode(hasText("Save queue as playlist"))
+                        .assertIsDisplayed()
+                    onNode(hasText("Trip")).assertIsDisplayed()
+                    onNode(
+                            hasContentDescription("Back to player"),
+                            useUnmergedTree = true,
+                        )
+                        .assertExists()
+
                     onNode(hasText("Create playlist")).performClick()
                     waitForIdle()
+                    assertEquals(1, mutationAttempts)
+                    onNode(hasText("Could not save playlist changes"))
+                        .assertIsDisplayed()
+                    onNode(hasText("Trip")).assertIsDisplayed()
+                    assertTrue(savedEntries.isEmpty())
+
+                    onNode(hasText("Create playlist")).performClick()
+                    waitForIdle()
+                    assertEquals(2, mutationAttempts)
                     assertEquals(
                         listOf("a", "b", "a"),
                         savedEntries.map { it.trackId },
@@ -2677,7 +2970,7 @@ class LibraryAppShellJvmTest {
                         listOf(0, 1, 2), savedEntries.map { it.position })
                     assertEquals(before.queue, controller.state.value.queue)
                     assertEquals(
-                        before.currentOccurrenceId,
+                        "next",
                         controller.state.value.currentOccurrenceId,
                     )
                     onNode(hasContentDescription("Back to player"))
@@ -2923,6 +3216,83 @@ class LibraryAppShellJvmTest {
     }
 
     @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun searchMetadataMenuOpensEditorAndCancelPreservesQuery() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val selectedTrack =
+                    LibraryTrack(
+                        id = "search-target",
+                        sourceId = "source",
+                        sourceLocalKey = "search-target.mp3",
+                        audioSource =
+                            AudioSource.FilePath("/music/search-target.mp3"),
+                        displayName = "search-target.mp3",
+                        title = "Search target",
+                        artist = "Artist",
+                        album = "Album",
+                        durationMillis = 1,
+                        sizeBytes = null,
+                        modifiedAtEpochMillis = null,
+                        lastSeenScanId = "scan",
+                        createdAtEpochMillis = 1L,
+                        updatedAtEpochMillis = 1L,
+                    )
+                val loadedTrackIds = mutableListOf<String>()
+                val saveRequests =
+                    mutableListOf<Pair<String, TrackMetadataOverride>>()
+
+                mount(
+                    width = { 390.dp },
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            "search-metadata",
+                            "source",
+                            ScanStatus.Completed,
+                            1L,
+                        ),
+                    libraryTracks = listOf(selectedTrack),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                    onLoadTrackMetadata = { trackId ->
+                        loadedTrackIds += trackId
+                        TrackMetadataEditorData(
+                            scannedTrack = selectedTrack,
+                            overrides = TrackMetadataOverride(),
+                        )
+                    },
+                    onSetTrackMetadataOverride = { trackId, override ->
+                        saveRequests += trackId to override
+                        true
+                    },
+                )
+                onNodeWithTag("AppNavigationSearch").performClick()
+                onNode(hasSetTextAction()).performTextInput("Search target")
+                waitForIdle()
+
+                onNodeWithTag("search-result-more-actions").performClick()
+                onNodeWithTag("search-result-edit-metadata").performClick()
+                waitUntil(timeoutMillis = 5_000) {
+                    runCatching {
+                        onNodeWithTag("metadata-title").assertIsDisplayed()
+                    }
+                        .isSuccess
+                }
+                onNodeWithTag("metadata-title").assertIsDisplayed()
+                assertTrue(loadedTrackIds.isNotEmpty())
+                assertTrue(loadedTrackIds.all { it == selectedTrack.id })
+
+                onNodeWithText("Cancel").performClick()
+                waitForIdle()
+
+                assertTrue(saveRequests.isEmpty())
+                onNode(hasSetTextAction()).assertTextContains("Search target")
+                onNodeWithTag("search-result-more-actions").assertIsDisplayed()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
     private fun androidx.compose.ui.test.ComposeUiTest.mount(
         width: Dp,
         height: Dp = 900.dp,
@@ -2957,6 +3327,11 @@ class LibraryAppShellJvmTest {
         desktopDropTarget: () -> DesktopDropTargetPresentation = {
             DesktopDropTargetPresentation.Disabled
         },
+        onLoadTrackMetadata: (suspend (String) -> TrackMetadataEditorData?)? =
+            null,
+        onSetTrackMetadataOverride:
+            (suspend (String, TrackMetadataOverride) -> Boolean)? =
+            null,
     ) {
         mount(
             width = { width },
@@ -2982,6 +3357,8 @@ class LibraryAppShellJvmTest {
             onOpenPlaylistBackup = onOpenPlaylistBackup,
             onPlaylistBackupAction = onPlaylistBackupAction,
             desktopDropTarget = desktopDropTarget,
+            onLoadTrackMetadata = onLoadTrackMetadata,
+            onSetTrackMetadataOverride = onSetTrackMetadataOverride,
         )
     }
 
@@ -3021,6 +3398,11 @@ class LibraryAppShellJvmTest {
         desktopDropTarget: () -> DesktopDropTargetPresentation = {
             DesktopDropTargetPresentation.Disabled
         },
+        onLoadTrackMetadata: (suspend (String) -> TrackMetadataEditorData?)? =
+            null,
+        onSetTrackMetadataOverride:
+            (suspend (String, TrackMetadataOverride) -> Boolean)? =
+            null,
     ) {
         setContent {
             CompositionLocalProvider(
@@ -3094,6 +3476,8 @@ class LibraryAppShellJvmTest {
                         createdAtByTrackId = createdAtByTrackId,
                         onSetTrackFavorite = onSetTrackFavorite,
                         desktopDropTarget = desktopDropTarget(),
+                        onLoadTrackMetadata = onLoadTrackMetadata,
+                        onSetTrackMetadataOverride = onSetTrackMetadataOverride,
                     )
                 }
             }

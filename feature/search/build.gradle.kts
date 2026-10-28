@@ -34,6 +34,7 @@ kotlin {
             implementation(projects.core.ui)
             implementation(libs.compose.foundation)
             implementation(libs.compose.components.resources)
+            implementation(libs.compose.material3)
             implementation(libs.miuix.ui)
         }
         commonTest.dependencies { implementation(libs.kotlin.test) }

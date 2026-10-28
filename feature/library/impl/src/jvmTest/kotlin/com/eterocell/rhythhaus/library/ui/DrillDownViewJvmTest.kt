@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
+import com.eterocell.rhythhaus.ui.LocalHausDesktopDensity
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -80,6 +82,67 @@ class DrillDownViewJvmTest {
         assertEquals(tracks().map(Track::id), visibleReports.last())
         assertEquals(listOf(0, 0), scrolls.first().toList())
     }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun rowDensityUsesRootProjectionWhenDetailContentIsNarrow() =
+        runComposeUiTest {
+            var desktopDensity by mutableStateOf(true)
+            setContent {
+                CompositionLocalProvider(
+                    LocalHausDesktopDensity provides desktopDensity,
+                ) {
+                    Box(Modifier.size(672.dp, 520.dp)) {
+                        DrillDownView(
+                            title = "Album B",
+                            summary =
+                                LibraryDetailSummary.Album(
+                                    trackCount = 1,
+                                    artist = "Artist",
+                                ),
+                            tracks = tracks().take(1),
+                            topBarArtworkTrack = null,
+                            currentTrackId = null,
+                            selectionPage =
+                                LibrarySelectionPage.Album("Album B"),
+                            selectionModeActive = false,
+                            selectedTrackIds = emptySet(),
+                            labels = labels(),
+                            artworkLoader = { null },
+                            onBack = {},
+                            onPlayTrack = { _, _ -> },
+                            onToggleSelection = {},
+                            onStartSelection = {},
+                            onVisibleTrackIdsChanged = {},
+                            onScrollPositionChanged = { _, _ -> },
+                            bottomContentPadding = 0.dp,
+                            favoriteTrackIds = emptySet(),
+                            onSetTrackFavorite = { _, _ -> },
+                        )
+                    }
+                }
+            }
+            waitForIdle()
+
+            val desktopRowHeight =
+                onNode(hasContentDescription("Two"))
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+                    .height
+            desktopDensity = false
+            waitForIdle()
+            val compactRowHeight =
+                onNode(hasContentDescription("Two"))
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+                    .height
+
+            assertTrue(
+                desktopRowHeight < compactRowHeight,
+                "desktop root density must control rows in a 672dp detail pane; " +
+                    "heights were $desktopRowHeight and $compactRowHeight px",
+            )
+        }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
@@ -213,13 +276,14 @@ class DrillDownViewJvmTest {
             }
             waitForIdle()
 
-            onAllNodes(hasContentDescription("Select Two"))[0].performClick()
+            onAllNodes(hasContentDescription("Two"))[0].performClick()
             waitForIdle()
             assertEquals(tracks(), plays.last().first)
             assertEquals("t-1", plays.last().second.id)
 
-            onAllNodes(hasContentDescription("Select Two"))[0]
-                .performTouchInput { longClick() }
+            onAllNodes(hasContentDescription("Two"))[0].performTouchInput {
+                longClick()
+            }
             waitForIdle()
             assertEquals(listOf("t-1"), selectionStarts)
         }
@@ -261,7 +325,7 @@ class DrillDownViewJvmTest {
             selectionModeActive = true
             waitForIdle()
 
-            onAllNodes(hasContentDescription("Select Two"))[0].performClick()
+            onAllNodes(hasContentDescription("Two"))[0].performClick()
             waitForIdle()
             assertEquals(listOf("t-1"), toggles)
         }

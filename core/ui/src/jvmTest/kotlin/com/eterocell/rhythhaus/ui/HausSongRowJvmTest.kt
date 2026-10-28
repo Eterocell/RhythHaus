@@ -11,8 +11,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsFocused
@@ -46,7 +48,6 @@ class HausSongRowJvmTest {
                 onSelect = {},
                 selectLabel = "Select Track",
                 playingLabel = null,
-                desktopDensity = false,
                 artwork = {},
                 indicator = {},
                 trailing = {},
@@ -67,6 +68,85 @@ class HausSongRowJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun playableRowNamesItsTrackAndKeepsSelectAsSeparateAction() =
+        runComposeUiTest {
+            setContent {
+                HausSongRow(
+                    title = "Track",
+                    subtitle = "Artist",
+                    selectionMode = false,
+                    selected = false,
+                    playing = false,
+                    interactive = true,
+                    onActivate = {},
+                    onSelect = {},
+                    selectLabel = "Select Track",
+                    playingLabel = null,
+                    artwork = {},
+                    indicator = {},
+                    trailing = {},
+                )
+            }
+
+            onNode(
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.ContentDescription,
+                        listOf("Track"),
+                    ),
+                )
+                .assert(
+                    SemanticsMatcher(
+                        "Select remains the separately named long-click action",
+                    ) { node ->
+                        node.config
+                            .getOrNull(SemanticsActions.OnLongClick)
+                            ?.label == "Select Track"
+                    },
+                )
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun explicitRowDescriptionNamesTheRowAndLeavesSelectSeparate() =
+        runComposeUiTest {
+            setContent {
+                HausSongRow(
+                    title = "Track",
+                    subtitle = "Artist",
+                    selectionMode = false,
+                    selected = false,
+                    playing = false,
+                    interactive = true,
+                    onActivate = {},
+                    onSelect = {},
+                    selectLabel = "Select Track",
+                    rowContentDescription = "Track, Artist, Album, 0:01",
+                    playingLabel = null,
+                    artwork = {},
+                    indicator = {},
+                    trailing = {},
+                )
+            }
+
+            onNode(
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.ContentDescription,
+                        listOf("Track, Artist, Album, 0:01"),
+                    ),
+                )
+                .assert(
+                    SemanticsMatcher(
+                        "Select keeps its own long-click label",
+                    ) { node ->
+                        node.config
+                            .getOrNull(SemanticsActions.OnLongClick)
+                            ?.label == "Select Track"
+                    },
+                )
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun focusedSelectionCheckboxShowsThemeOutline() = runComposeUiTest {
         setContent {
             CompositionLocalProvider(
@@ -82,7 +162,6 @@ class HausSongRowJvmTest {
                         onSelect = {},
                         selectLabel = "Select Track",
                         playingLabel = null,
-                        desktopDensity = false,
                         artwork = {},
                         indicator = {},
                         trailing = {},
@@ -135,7 +214,6 @@ class HausSongRowJvmTest {
                             onSelect = null,
                             selectLabel = null,
                             playingLabel = null,
-                            desktopDensity = false,
                             artwork = {},
                             indicator = {},
                             trailing = {},

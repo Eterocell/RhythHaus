@@ -15,11 +15,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,6 +38,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -46,12 +50,13 @@ import com.eterocell.rhythhaus.library.LibraryTrack
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.HausIconButton as IconButton
 import com.eterocell.rhythhaus.ui.HausSongRow
-import com.eterocell.rhythhaus.ui.LocalHausDesktopDensity
 import com.eterocell.rhythhaus.ui.RhythHausTopAppBar
 import com.eterocell.rhythhaus.ui.songArtistAlbumSubtitle
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.search.generated.resources.Res
 import rhythhaus.feature.search.generated.resources.search_blank_query_guidance
+import rhythhaus.feature.search.generated.resources.search_edit_metadata_action_format
+import rhythhaus.feature.search.generated.resources.search_more_actions_format
 import rhythhaus.feature.search.generated.resources.search_no_tracks_match_format
 import rhythhaus.feature.search.generated.resources.search_placeholder
 import rhythhaus.feature.search.generated.resources.search_results_count_many
@@ -115,6 +120,8 @@ public data class SearchSharedLabels(
  *   offset.
  * @param onPlayTrack Requests playback of ordered filtered results at the
  *   selected result.
+ * @param onEditTrackMetadata Requests app-local metadata editing by track ID,
+ *   or null when editing is unavailable.
  * @param onDismiss Requests Shared route dismissal.
  * @param playingIndicator Composes Shared-owned current-playing indication in a
  *   playing row.
@@ -151,6 +158,7 @@ public fun SearchContent(
     initialFirstVisibleItemIndex: Int = 0,
     initialFirstVisibleItemScrollOffset: Int = 0,
     interactive: Boolean = true,
+    onEditTrackMetadata: ((String) -> Unit)? = null,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
@@ -340,7 +348,11 @@ public fun SearchContent(
                                                             onStartSelection(
                                                                 track.id)
                                                         },
-                                                        playingIndicator)
+                                                        onEditTrackMetadata =
+                                                            onEditTrackMetadata,
+                                                        playingIndicator =
+                                                            playingIndicator,
+                                                    )
                                                 }
                                             item {
                                                 Spacer(
@@ -391,9 +403,12 @@ internal fun SearchResultRow(
     onPlay: () -> Unit,
     onToggleSelection: () -> Unit,
     onStartSelection: () -> Unit,
+    onEditTrackMetadata: ((String) -> Unit)?,
     playingIndicator: @Composable () -> Unit,
 ) {
     val selectionLabel = selectTrackLabel(track.title)
+    var moreActionsExpanded by remember(track.id) { mutableStateOf(false) }
+    val hasMoreActions = !selectionModeActive || onEditTrackMetadata != null
     HausSongRow(
         title = track.title,
         subtitle = songArtistAlbumSubtitle(track.artist, track.album),
@@ -407,10 +422,72 @@ internal fun SearchResultRow(
         onSelect = onStartSelection,
         selectLabel = selectionLabel,
         playingLabel = nowPlayingLabel,
-        desktopDensity = LocalHausDesktopDensity.current,
         artwork = { SearchNeutralArtwork() },
         indicator = { if (isPlaying) playingIndicator() },
-        trailing = {},
+        trailing = {
+            if (hasMoreActions) {
+                val moreLabel =
+                    stringResource(
+                        Res.string.search_more_actions_format,
+                        track.title,
+                    )
+                Box {
+                    IconButton(
+                        onClick = { moreActionsExpanded = true },
+                        modifier =
+                            Modifier.size(48.dp)
+                                .testTag("search-result-more-actions")
+                                .semantics {
+                                    contentDescription = moreLabel
+                                },
+                        backgroundColor = Color.Transparent,
+                        minHeight = 48.dp,
+                        minWidth = 48.dp,
+                    ) {
+                        Text(
+                            text = "⋮",
+                            color = HausColors.current.muted,
+                            fontSize = 20.sp,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = moreActionsExpanded,
+                        onDismissRequest = { moreActionsExpanded = false },
+                    ) {
+                        if (!selectionModeActive) {
+                            DropdownMenuItem(
+                                text = { Text(selectionLabel) },
+                                onClick = {
+                                    moreActionsExpanded = false
+                                    onStartSelection()
+                                },
+                                modifier =
+                                    Modifier.testTag("search-result-select"),
+                            )
+                        }
+                        onEditTrackMetadata?.let { editTrackMetadata ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            Res.string
+                                                .search_edit_metadata_action_format,
+                                            track.title,
+                                        ))
+                                },
+                                onClick = {
+                                    moreActionsExpanded = false
+                                    editTrackMetadata(track.id)
+                                },
+                                modifier =
+                                    Modifier.testTag(
+                                        "search-result-edit-metadata"),
+                            )
+                        }
+                    }
+                }
+            }
+        },
     )
 }
 

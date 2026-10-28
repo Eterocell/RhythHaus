@@ -191,6 +191,7 @@ class PlaylistArtworkJvmTest {
                 appearanceSource =
                     rememberPlaylistFeatureAppearanceSource(destination),
                 dismissalPublisher = silentPublisher(),
+                windowOverlayPublisher = null,
                 modifier = Modifier.testTag("queue-artwork-surface"),
                 onClose = {},
                 onSaveQueueAsPlaylist = { _, _, _ -> },

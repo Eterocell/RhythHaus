@@ -5,4 +5,6 @@
     <string name="search_results_count_many">%1$d 个结果</string>
     <string name="search_no_tracks_match_format">没有匹配“%1$s”的曲目</string>
     <string name="search_blank_query_guidance">搜索标题、艺术家和专辑。</string>
+    <string name="search_more_actions_format">%1$s 的更多操作</string>
+    <string name="search_edit_metadata_action_format">编辑 %1$s 的元数据</string>
 </resources>

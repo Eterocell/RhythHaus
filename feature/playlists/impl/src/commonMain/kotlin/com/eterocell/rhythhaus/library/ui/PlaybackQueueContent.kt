@@ -47,7 +47,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.PlayableTrack
 import com.eterocell.rhythhaus.PlaybackState
-import com.eterocell.rhythhaus.QueueMutationResult
 import com.eterocell.rhythhaus.QueueOccurrence
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.ui.ArtworkImageRole
@@ -55,9 +54,8 @@ import com.eterocell.rhythhaus.ui.BackChip
 import com.eterocell.rhythhaus.ui.HausButton as Button
 import com.eterocell.rhythhaus.ui.HausIconButton as IconButton
 import com.eterocell.rhythhaus.ui.HausSongRow
+import com.eterocell.rhythhaus.ui.HausWindowOverlayPublisher
 import com.eterocell.rhythhaus.ui.LocalHausDesktopDensity
-import com.eterocell.rhythhaus.ui.LocalHausWindowOverlayPublisher
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.playlists.generated.resources.Res
@@ -110,7 +108,6 @@ internal enum class QueueActionPlacement {
 
 internal data class QueueRowLayoutPolicy(
     val actionPlacement: QueueActionPlacement,
-    val reservesMetadataWidth: Boolean = true,
     val minimumInteractiveTarget: Dp = 44.dp,
 )
 
@@ -254,17 +251,6 @@ public data class QueueMutationFeedback(
     val showQueueChanged: Boolean,
 )
 
-internal suspend fun executeQueueMutation(
-    state: StateFlow<PlaybackState>,
-    command: suspend () -> QueueMutationResult,
-): QueueMutationFeedback {
-    val result = command()
-    return QueueMutationFeedback(
-        refreshedState = state.value,
-        showQueueChanged = result is QueueMutationResult.Rejected,
-    )
-}
-
 private data class QueueSaveDraft(
     val name: PlaylistNameDraft,
     val trackIds: List<String>,
@@ -284,6 +270,7 @@ public fun PlaybackQueueContent(
     destination: PlaylistFeatureDestination,
     appearanceSource: PlaylistFeatureAppearanceSource,
     dismissalPublisher: PlaylistFeatureDismissalPublisher,
+    windowOverlayPublisher: HausWindowOverlayPublisher?,
     onClose: () -> Unit,
     onSaveQueueAsPlaylist:
         (String, List<String>, (PlaylistStateAction) -> Unit) -> Unit,
@@ -310,7 +297,6 @@ public fun PlaybackQueueContent(
         }
     LaunchedEffect(presentation.upcomingOccurrenceIds) { rowCenters.clear() }
     val backDescription = stringResource(Res.string.queue_back_to_player)
-    val windowOverlayPublisher = LocalHausWindowOverlayPublisher.current
     val saveQueueFocusRequester = remember { FocusRequester() }
     val queueSurfaceAttached = remember { mutableStateOf(true) }
     DisposableEffect(queueSurfaceAttached) {
@@ -712,7 +698,6 @@ private fun PlaybackQueueOccurrenceRow(
                 onSelect = null,
                 selectLabel = null,
                 playingLabel = rowState,
-                desktopDensity = desktopDensity,
                 artwork = {
                     PlaybackQueueArtwork(row.occurrence.track, artworkLoader)
                 },
