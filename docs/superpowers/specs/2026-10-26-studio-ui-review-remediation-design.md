@@ -2,7 +2,7 @@
 
 > **Status:** User-approved design and implementation plan. Implementation and automated evidence are recorded in `progress.md` and the OpenSpec tasks; original redesign manual acceptance remains postponed and open.
 >
-> Route: `openspec+superpowers`. Change: `openspec/changes/studio-ui-review-remediation/`. Input: independent review of the completed Studio UI redesign and the user's request to plan remediation. Manual GUI/device/audio acceptance for `studio-ui-redesign` remains postponed, unverified, and open.
+> Route: `openspec+superpowers`. Archived change: `openspec/changes/archive/2026-10-28-studio-ui-review-remediation/`. Input: independent review of the completed Studio UI redesign and the user's request to plan remediation. Manual GUI/device/audio acceptance for `studio-ui-redesign` remains postponed, unverified, and open.
 
 ## 1. Goal and review basis
 

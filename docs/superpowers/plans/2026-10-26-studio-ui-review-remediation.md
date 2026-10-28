@@ -8,7 +8,7 @@
 
 **Tech stack:** Existing Kotlin Multiplatform, Compose Multiplatform, Gradle, and current UI modules. No dependencies, toolchains, database schemas, or platform APIs added.
 
-**Specs:** [Approved design](../specs/2026-10-26-studio-ui-review-remediation-design.md); [OpenSpec proposal](../../../openspec/changes/studio-ui-review-remediation/proposal.md); [OpenSpec design](../../../openspec/changes/studio-ui-review-remediation/design.md); [OpenSpec specs](../../../openspec/changes/studio-ui-review-remediation/specs/); [OpenSpec tasks](../../../openspec/changes/studio-ui-review-remediation/tasks.md).
+**Specs:** [Approved design](../specs/2026-10-26-studio-ui-review-remediation-design.md); [Archived OpenSpec proposal](../../../openspec/changes/archive/2026-10-28-studio-ui-review-remediation/proposal.md); [Archived OpenSpec design](../../../openspec/changes/archive/2026-10-28-studio-ui-review-remediation/design.md); [Archived OpenSpec specs](../../../openspec/changes/archive/2026-10-28-studio-ui-review-remediation/specs/); [Archived OpenSpec tasks](../../../openspec/changes/archive/2026-10-28-studio-ui-review-remediation/tasks.md).
 
 **Approval:** The user approved both this plan and its design; implementation and verification are recorded in `progress.md` and the OpenSpec task evidence. The Library API decision is to update the binding architecture contract to the current redesigned signatures; no old-signature aliases or dead fields.
 
