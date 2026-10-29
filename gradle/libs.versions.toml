@@ -1,6 +1,6 @@
 [versions]
 aboutlibraries = "15.3.0"
-agp = "9.4.1"
+agp = "9.5.0"
 android-compileSdk = "37"
 android-minSdk = "29"
 android-targetSdk = "37"
