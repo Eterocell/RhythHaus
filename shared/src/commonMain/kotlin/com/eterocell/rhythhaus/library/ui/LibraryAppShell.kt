@@ -402,7 +402,7 @@ fun LibraryHomeScreen(
         rememberSaveable(searchDestinationToken) { mutableStateOf(0) }
     var settingsExclusiveModal by
         remember(settingsDestinationToken) { mutableStateOf(false) }
-    var desktopBannerHeight by remember { mutableFloatStateOf(0f) }
+    var desktopDropSurfaceHeight by remember { mutableFloatStateOf(0f) }
     var settingsReportVisible by
         remember(settingsDestinationToken, scanProgress?.session?.id) {
             mutableStateOf(false)
@@ -614,6 +614,17 @@ fun LibraryHomeScreen(
             metadataEditor == null &&
             !appState.hasExclusiveFeatureSurface &&
             !appState.showNowPlaying
+    val desktopDropBannerVisible =
+        desktopDropTarget.isAvailable &&
+            desktopModalFree &&
+            snapshot.tracks.isEmpty()
+    val desktopDropStatusVisible =
+        desktopDropTarget.isAvailable &&
+            desktopModalFree &&
+            !desktopDropBannerVisible &&
+            (desktopDropTarget.isActive || desktopDropTarget.feedback != null)
+    val desktopDropSurfaceVisible =
+        desktopDropBannerVisible || desktopDropStatusVisible
     val foregroundLayerVisible =
         appState.showNowPlaying ||
             settingsExclusiveModal ||
@@ -1096,9 +1107,8 @@ fun LibraryHomeScreen(
                 Modifier.fillMaxSize()
                     .padding(
                         top =
-                            if (desktopDropTarget.isAvailable &&
-                                desktopModalFree)
-                                with(density) { desktopBannerHeight.toDp() }
+                            if (desktopDropSurfaceVisible)
+                                with(density) { desktopDropSurfaceHeight.toDp() }
                             else 0.dp)) {
                     ForegroundInteractionBoundary(
                         interactive = appShellInteractive,
@@ -1288,7 +1298,7 @@ fun LibraryHomeScreen(
                         )
                     }
                 }
-            if (desktopDropTarget.isAvailable && desktopModalFree) {
+            if (desktopDropSurfaceVisible) {
                 val title = stringResource(Res.string.desktop_drop_title)
                 val hint =
                     stringResource(
@@ -1297,41 +1307,66 @@ fun LibraryHomeScreen(
                         else Res.string.desktop_drop_hint)
                 val choose =
                     stringResource(Res.string.desktop_drop_choose_folder)
+                val feedback = desktopDropTarget.feedback
+                val statusDescription =
+                    feedback?.let {
+                        if (desktopDropTarget.isActive) "$hint $it" else it
+                    } ?: hint.takeIf { desktopDropTarget.isActive }
                 Surface(
                     modifier =
                         Modifier.align(Alignment.TopCenter)
                             .onSizeChanged {
-                                desktopBannerHeight = it.height.toFloat()
+                                desktopDropSurfaceHeight = it.height.toFloat()
                             }
                             .padding(8.dp)) {
                         Column(
                             modifier =
                                 Modifier.padding(12.dp).semantics {
-                                    contentDescription = "$title $hint"
-                                    stateDescription = hint
+                                    if (desktopDropBannerVisible) {
+                                        contentDescription = "$title $hint"
+                                        stateDescription = hint
+                                    } else {
+                                        val status =
+                                            requireNotNull(statusDescription)
+                                        contentDescription = status
+                                        stateDescription = status
+                                    }
                                 }) {
-                                Text(title)
-                                Text(hint)
-                                desktopDropTarget.feedback?.let { feedback ->
+                                if (desktopDropBannerVisible) {
+                                    Text(title)
+                                    Text(hint)
+                                }
+                                if (!desktopDropBannerVisible &&
+                                    desktopDropTarget.isActive) {
                                     Text(
-                                        feedback,
+                                        hint,
                                         modifier =
                                             Modifier.semantics {
                                                 liveRegion =
                                                     LiveRegionMode.Polite
                                             })
                                 }
-                                HausButton(
-                                    onClick = folderPickerLauncher::launch,
-                                    enabled =
-                                        coordinatorMutationsEnabled &&
-                                            folderPickerLauncher.isAvailable,
-                                    modifier =
+                                feedback?.let { message ->
+                                    Text(
+                                        message,
                                         Modifier.semantics {
-                                            contentDescription = choose
-                                        },
-                                ) {
-                                    Text(choose)
+                                            liveRegion =
+                                                LiveRegionMode.Polite
+                                        })
+                                }
+                                if (desktopDropBannerVisible) {
+                                    HausButton(
+                                        onClick = folderPickerLauncher::launch,
+                                        enabled =
+                                            coordinatorMutationsEnabled &&
+                                                folderPickerLauncher.isAvailable,
+                                        modifier =
+                                            Modifier.semantics {
+                                                contentDescription = choose
+                                            },
+                                    ) {
+                                        Text(choose)
+                                    }
                                 }
                             }
                     }

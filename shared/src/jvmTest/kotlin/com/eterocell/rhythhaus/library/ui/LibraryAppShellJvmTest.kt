@@ -3202,6 +3202,84 @@ class LibraryAppShellJvmTest {
             }
         }
 
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun desktopBannerIsHiddenForNonemptyLibraryWhileDropRemainsAvailable() =
+        withDefaultLocale(Locale.ENGLISH) {
+            runComposeUiTest {
+                val track =
+                    Track(
+                        id = "existing-track",
+                        title = "Existing track",
+                        artist = "Artist",
+                        album = "Album",
+                        durationSeconds = 180,
+                        accent = TrackAccent(0xFF123456, 0xFF654321),
+                        source = AudioSource.FilePath("/existing-track.mp3"),
+                    )
+                var dropTargetAvailable by mutableStateOf(true)
+                var dropTargetActive by mutableStateOf(false)
+                var nativeDropAvailable = false
+                mount(
+                    width = 600.dp,
+                    height = 400.dp,
+                    source = source(),
+                    scanSession =
+                        ScanSession(
+                            id = "populated-drop-search",
+                            sourceId = "source",
+                            status = ScanStatus.Completed,
+                            startedAtEpochMillis = 1L,
+                        ),
+                    tracks = listOf(track),
+                    picker = CountingPicker(),
+                    callbacks = CallbackRecorder(),
+                    desktopDropTarget = {
+                        DesktopDropTargetPresentation(
+                            dropTargetAvailable, dropTargetActive)
+                    },
+                    onDesktopDropAvailabilityChanged = {
+                        nativeDropAvailable = it
+                    },
+                )
+
+                onNodeWithTag("AppNavigationSearch", useUnmergedTree = true)
+                    .performClick()
+                val searchField = onNode(hasSetTextAction())
+                searchField.assertIsDisplayed()
+                onNodeWithText("Drop music files here.", useUnmergedTree = true)
+                    .assertDoesNotExist()
+                onNodeWithContentDescription("Choose music folder")
+                    .assertDoesNotExist()
+                assertTrue(nativeDropAvailable)
+
+                val searchFieldTopWithoutBanner =
+                    searchField.fetchSemanticsNode().boundsInRoot.top
+                runOnIdle { dropTargetActive = true }
+                onNodeWithText(
+                        "Release to add folders or audio files.",
+                        useUnmergedTree = true,
+                    )
+                    .assertIsDisplayed()
+                onNodeWithText("Drop music files here.", useUnmergedTree = true)
+                    .assertDoesNotExist()
+                onNodeWithContentDescription("Choose music folder")
+                    .assertDoesNotExist()
+                runOnIdle {
+                    dropTargetActive = false
+                    dropTargetAvailable = false
+                }
+                waitForIdle()
+                val searchFieldTopWithoutDropTarget =
+                    searchField.fetchSemanticsNode().boundsInRoot.top
+                assertEquals(
+                    searchFieldTopWithoutBanner,
+                    searchFieldTopWithoutDropTarget,
+                    "A populated library must not reserve space for the import banner",
+                )
+            }
+        }
+
     private inline fun <T> withDefaultLocale(
         locale: Locale,
         block: () -> T,
@@ -3327,6 +3405,7 @@ class LibraryAppShellJvmTest {
         desktopDropTarget: () -> DesktopDropTargetPresentation = {
             DesktopDropTargetPresentation.Disabled
         },
+        onDesktopDropAvailabilityChanged: (Boolean) -> Unit = {},
         onLoadTrackMetadata: (suspend (String) -> TrackMetadataEditorData?)? =
             null,
         onSetTrackMetadataOverride:
@@ -3357,6 +3436,8 @@ class LibraryAppShellJvmTest {
             onOpenPlaylistBackup = onOpenPlaylistBackup,
             onPlaylistBackupAction = onPlaylistBackupAction,
             desktopDropTarget = desktopDropTarget,
+            onDesktopDropAvailabilityChanged =
+                onDesktopDropAvailabilityChanged,
             onLoadTrackMetadata = onLoadTrackMetadata,
             onSetTrackMetadataOverride = onSetTrackMetadataOverride,
         )
@@ -3398,6 +3479,7 @@ class LibraryAppShellJvmTest {
         desktopDropTarget: () -> DesktopDropTargetPresentation = {
             DesktopDropTargetPresentation.Disabled
         },
+        onDesktopDropAvailabilityChanged: (Boolean) -> Unit = {},
         onLoadTrackMetadata: (suspend (String) -> TrackMetadataEditorData?)? =
             null,
         onSetTrackMetadataOverride:
@@ -3476,6 +3558,8 @@ class LibraryAppShellJvmTest {
                         createdAtByTrackId = createdAtByTrackId,
                         onSetTrackFavorite = onSetTrackFavorite,
                         desktopDropTarget = desktopDropTarget(),
+                        onDesktopDropAvailabilityChanged =
+                            onDesktopDropAvailabilityChanged,
                         onLoadTrackMetadata = onLoadTrackMetadata,
                         onSetTrackMetadataOverride = onSetTrackMetadataOverride,
                     )
