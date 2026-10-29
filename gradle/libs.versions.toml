@@ -1,13 +1,13 @@
 [versions]
 aboutlibraries = "15.3.0"
-agp = "9.4.1"
+agp = "9.5.0"
 android-compileSdk = "37"
 android-minSdk = "29"
 android-targetSdk = "37"
 androidx-activity = "1.13.0"
 androidx-appcompat = "1.8.0"
 androidx-core = "1.19.1"
-androidx-datastore = "1.2.1"
+androidx-datastore = "1.3.0"
 androidx-documentfile = "1.1.0"
 androidx-espresso = "3.7.0"
 androidx-lifecycle = "2.11.0"
@@ -30,7 +30,7 @@ miuix = "0.9.4"
 navigationevent = "1.1.0"
 spotless = "8.10.4"
 sqldelight = "2.4.1"
-version-catalog-update = "1.1.1"
+version-catalog-update = "1.1.2"
 
 [libraries]
 aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlibraries" }
