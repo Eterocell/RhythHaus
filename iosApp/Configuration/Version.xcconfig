@@ -1,4 +1,4 @@
 // Generated from root gradle.properties by ./gradlew syncIosVersionXcconfig.
 // Edit rhythhaus.versionName and rhythhaus.versionCode in ../../gradle.properties.
-RHYTHHAUS_VERSION_NAME = 0.1.8
-RHYTHHAUS_VERSION_CODE = 000108
+RHYTHHAUS_VERSION_NAME = 0.2.0
+RHYTHHAUS_VERSION_CODE = 000200
