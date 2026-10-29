@@ -30,7 +30,7 @@ miuix = "0.9.4"
 navigationevent = "1.1.0"
 spotless = "8.10.4"
 sqldelight = "2.4.1"
-version-catalog-update = "1.1.1"
+version-catalog-update = "1.1.2"
 
 [libraries]
 aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlibraries" }
