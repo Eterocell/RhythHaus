@@ -90,7 +90,7 @@ internal fun AppNavigationChrome(
                     modifier
                         .fillMaxWidth()
                         .height(BottomNavigationHeight)
-                        .background(HausColors.current.paper)
+                        .background(HausColors.current.background)
                         .testTag(AppNavigationBottomTestTag)
                         .padding(
                             horizontal = HausSpacing.sm,
@@ -141,7 +141,7 @@ internal fun AppNavigationChrome(
                     modifier
                         .width(AppNavigationLayout.Rail.navigationWidthDp.dp)
                         .fillMaxHeight()
-                        .background(HausColors.current.paper)
+                        .background(HausColors.current.background)
                         .testTag(AppNavigationRailTestTag)
                         .padding(horizontal = 6.dp, vertical = HausSpacing.md),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -198,7 +198,7 @@ internal fun AppNavigationChrome(
                     modifier
                         .width(AppNavigationLayout.Sidebar.navigationWidthDp.dp)
                         .fillMaxHeight()
-                        .background(HausColors.current.paper)
+                        .background(HausColors.current.background)
                         .testTag(AppNavigationSidebarTestTag)
                         .padding(
                             horizontal = HausSpacing.lg,
@@ -243,7 +243,7 @@ internal fun AppNavigationChrome(
                 Box(
                     Modifier.fillMaxWidth()
                         .height(1.dp)
-                        .background(HausColors.current.line))
+                        .background(HausColors.current.divider))
                 BrowseNavigationItem(
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     label = favoritesLabel,
@@ -337,12 +337,13 @@ private fun NavigationItem(
     onClick: () -> Unit,
 ) {
     val contentColor =
-        if (selected) HausColors.current.pulse else HausColors.current.muted
+        if (selected) HausColors.current.primaryAction
+        else HausColors.current.textSecondary
     val itemModifier =
         modifier
             .clip(RoundedCornerShape(HausShapes.control))
             .background(
-                if (selected) HausColors.current.panelStrong
+                if (selected) HausColors.current.raisedSurface
                 else Color.Transparent)
             .hausFocusIndicator(shape = RoundedCornerShape(HausShapes.control))
             .selectable(
@@ -420,10 +421,10 @@ private fun ToolNavigationItem(
             Icon(
                 icon,
                 contentDescription = null,
-                tint = HausColors.current.muted)
+                tint = HausColors.current.textSecondary)
             Text(
                 text = label,
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = HausTypography.label.fontSize,
                 fontWeight = HausTypography.label.fontWeight,
                 maxLines = 1,
@@ -439,10 +440,10 @@ private fun ToolNavigationItem(
             Icon(
                 icon,
                 contentDescription = null,
-                tint = HausColors.current.muted)
+                tint = HausColors.current.textSecondary)
             Text(
                 text = label,
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = HausTypography.secondary.fontSize,
                 fontWeight = HausTypography.secondary.fontWeight,
                 maxLines = 1,

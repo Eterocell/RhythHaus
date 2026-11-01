@@ -90,8 +90,8 @@ public fun HausSongRow(
         }
     val activeBackground =
         when {
-            selected -> HausColors.current.panelStrong
-            playing -> HausColors.current.panel.copy(alpha = 0.58f)
+            selected -> HausColors.current.raisedSurface
+            playing -> HausColors.current.surface.copy(alpha = 0.58f)
             else -> Color.Transparent
         }
     val rowHeight =
@@ -181,7 +181,7 @@ public fun HausSongRow(
                 Box(
                     Modifier.size(artworkSize)
                         .clip(RoundedCornerShape(HausShapes.artwork))
-                        .background(HausColors.current.panel),
+                        .background(HausColors.current.surface),
                     contentAlignment = Alignment.Center,
                 ) {
                     artwork()
@@ -192,13 +192,13 @@ public fun HausSongRow(
                 ) {
                     Text(
                         text = title,
-                        color = HausColors.current.ink,
+                        color = HausColors.current.textPrimary,
                         style = HausTypography.title,
                     )
                     if (subtitle.isNotEmpty()) {
                         Text(
                             text = subtitle,
-                            color = HausColors.current.muted,
+                            color = HausColors.current.textSecondary,
                             style = HausTypography.secondary,
                             maxLines = 1,
                         )
@@ -211,7 +211,7 @@ public fun HausSongRow(
         androidx.compose.foundation.layout.Box(
             Modifier.fillMaxWidth()
                 .height(1.dp)
-                .background(HausColors.current.line.copy(alpha = 0.48f)),
+                .background(HausColors.current.divider.copy(alpha = 0.48f)),
         )
     }
 }

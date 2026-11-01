@@ -21,10 +21,13 @@ import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.PlaybackState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
+import com.eterocell.rhythhaus.theme.hausPalette
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+
+private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
 
 public class NowPlayingBarSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -107,12 +110,12 @@ public class NowPlayingBarSemanticsJvmTest {
             val pixels = playPause.captureToImage().toPixelMap()
             val centerY = pixels.height / 2
             assertEquals(
-                LightHausPalette.outline.toArgb(),
+                lightHausPalette.essentialBoundary.toArgb(),
                 pixels[1, centerY].toArgb(),
                 "Mini-player action should draw an outer focus boundary",
             )
             assertEquals(
-                LightHausPalette.paper.toArgb(),
+                lightHausPalette.background.toArgb(),
                 pixels[3, centerY].toArgb(),
                 "Mini-player action should contrast with its ink fill",
             )

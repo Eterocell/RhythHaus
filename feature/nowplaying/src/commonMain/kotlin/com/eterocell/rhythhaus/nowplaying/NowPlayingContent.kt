@@ -256,7 +256,7 @@ public fun NowPlayingContent(
                 .fillMaxSize()
                 .testTag(NowPlayingContentRootTestTag)
                 .leftEdgeSwipeBack(onBack),
-        color = HausColors.current.paper) {
+        color = HausColors.current.background) {
             BoxWithConstraints(
                 Modifier.fillMaxSize()
                     .focusRestorer()
@@ -383,7 +383,9 @@ private fun NowPlayingArtworkPane(
     Card(
         modifier = modifier,
         cornerRadius = 32.dp,
-        colors = CardDefaults.defaultColors(color = HausColors.current.ink)) {
+        colors =
+            CardDefaults.defaultColors(
+                color = HausColors.current.textPrimary)) {
             Box(
                 Modifier.fillMaxWidth().aspectRatio(1f).background(brush),
                 contentAlignment = Alignment.Center) {
@@ -433,7 +435,7 @@ private fun NowPlayingControlsPane(
             Text(
                 track.title,
                 modifier = Modifier.testTag(NowPlayingTitleTestTag),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Black,
                 maxLines = 2,
@@ -441,7 +443,7 @@ private fun NowPlayingControlsPane(
             Text(
                 labels.currentTrackArtistAlbum,
                 modifier = Modifier.testTag(NowPlayingSubtitleTestTag),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
@@ -450,7 +452,7 @@ private fun NowPlayingControlsPane(
                 Text(
                     stringResource(Res.string.track_number_format, it),
                     modifier = Modifier.testTag(NowPlayingTrackNumberTestTag),
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium)
             }
@@ -485,7 +487,7 @@ private fun NowPlayingControlsPane(
             timerSummary?.let { summary ->
                 Text(
                     summary,
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                 )
@@ -514,7 +516,7 @@ private fun NowPlayingControlsPane(
                             if (checked) Icons.Filled.Favorite
                             else Icons.Filled.FavoriteBorder,
                             null,
-                            tint = HausColors.current.pulse,
+                            tint = HausColors.current.primaryAction,
                             modifier = Modifier.size(26.dp))
                     }
             }
@@ -523,7 +525,7 @@ private fun NowPlayingControlsPane(
         Text(
             uiState.statusText,
             modifier = Modifier.testTag(NowPlayingStatusTestTag),
-            color = HausColors.current.muted,
+            color = HausColors.current.textSecondary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1)
@@ -532,7 +534,7 @@ private fun NowPlayingControlsPane(
             Spacer(Modifier.height(10.dp))
             Text(
                 recoveryFailureSummary(failureError.kind),
-                color = HausColors.current.danger,
+                color = HausColors.current.error,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
@@ -590,8 +592,8 @@ private fun NowPlayingControlsPane(
                             null,
                             tint =
                                 if (uiState.shuffleEnabled)
-                                    HausColors.current.onPulse
-                                else HausColors.current.ink,
+                                    HausColors.current.onPrimaryAction
+                                else HausColors.current.textPrimary,
                             modifier = Modifier.size(22.dp))
                     }
                 Spacer(Modifier.width(12.dp))
@@ -614,8 +616,9 @@ private fun NowPlayingControlsPane(
                             icon,
                             null,
                             tint =
-                                if (repeatSelected) HausColors.current.onPulse
-                                else HausColors.current.ink,
+                                if (repeatSelected)
+                                    HausColors.current.onPrimaryAction
+                                else HausColors.current.textPrimary,
                             modifier = Modifier.size(22.dp))
                     }
             }
@@ -627,7 +630,7 @@ private fun NowPlayingControlsPane(
                 TransportButton(
                     48.dp,
                     RoundedCornerShape(14.dp),
-                    HausColors.current.panel,
+                    HausColors.current.surface,
                     Icons.Filled.SkipPrevious,
                     stringResource(Res.string.previous_track),
                     playbackController::skipToPrevious,
@@ -635,20 +638,20 @@ private fun NowPlayingControlsPane(
                 TransportButton(
                     64.dp,
                     CircleShape,
-                    HausColors.current.pulse,
+                    HausColors.current.primaryAction,
                     if (uiState.isPlaying) Icons.Filled.Pause
                     else Icons.Filled.PlayArrow,
                     if (uiState.isPlaying) labels.pause else labels.play,
                     playbackController::togglePlayPause,
-                    HausColors.current.onPulse,
+                    HausColors.current.onPrimaryAction,
                     34.dp,
-                    focusColor = HausColors.current.onPulse,
-                    outerColor = HausColors.current.outline,
+                    focusColor = HausColors.current.onPrimaryAction,
+                    outerColor = HausColors.current.essentialBoundary,
                     testTag = NowPlayingPlayPauseTestTag)
                 TransportButton(
                     48.dp,
                     RoundedCornerShape(14.dp),
-                    HausColors.current.panel,
+                    HausColors.current.surface,
                     Icons.Filled.SkipNext,
                     stringResource(Res.string.next_track),
                     playbackController::skipToNext,
@@ -665,9 +668,9 @@ private fun TransportButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     description: String,
     onClick: () -> Unit,
-    tint: Color = HausColors.current.ink,
+    tint: Color = HausColors.current.textPrimary,
     iconSize: androidx.compose.ui.unit.Dp = 26.dp,
-    focusColor: Color = HausColors.current.outline,
+    focusColor: Color = HausColors.current.essentialBoundary,
     outerColor: Color? = null,
     testTag: String? = null,
 ) {
@@ -705,24 +708,25 @@ private fun RecoveryActionButton(
 ) {
     val background =
         when {
-            destructive -> HausColors.current.dangerPanel
-            primary -> HausColors.current.ink
-            else -> HausColors.current.panel
+            destructive -> HausColors.current.errorContainer
+            primary -> HausColors.current.textPrimary
+            else -> HausColors.current.surface
         }
     val contentColor =
         when {
-            destructive -> HausColors.current.danger
-            primary -> HausColors.current.paper
-            else -> HausColors.current.ink
+            destructive -> HausColors.current.error
+            primary -> HausColors.current.background
+            else -> HausColors.current.textPrimary
         }
     val focusColor =
         when {
-            destructive -> HausColors.current.danger
-            primary -> HausColors.current.paper
-            else -> HausColors.current.outline
+            destructive -> HausColors.current.error
+            primary -> HausColors.current.background
+            else -> HausColors.current.essentialBoundary
         }
     val outerColor =
-        if (destructive || primary) HausColors.current.outline else null
+        if (destructive || primary) HausColors.current.essentialBoundary
+        else null
     Box(
         modifier
             .height(44.dp)
@@ -908,7 +912,7 @@ private fun LyricsPanel(
                 .padding(20.dp)
                 .testTag(NowPlayingLyricsDialogTestTag),
         cornerRadius = 24.dp,
-        colors = CardDefaults.defaultColors(color = HausColors.current.panel),
+        colors = CardDefaults.defaultColors(color = HausColors.current.surface),
     ) {
         Column(
             Modifier.fillMaxSize().padding(20.dp),
@@ -922,7 +926,7 @@ private fun LyricsPanel(
                 val closeLabel = stringResource(Res.string.lyrics_close)
                 Text(
                     stringResource(Res.string.lyrics_title),
-                    color = HausColors.current.ink,
+                    color = HausColors.current.textPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black,
                 )
@@ -958,8 +962,8 @@ private fun LyricsPanel(
                                     }
                                 },
                         color =
-                            if (active) HausColors.current.pulse
-                            else HausColors.current.ink,
+                            if (active) HausColors.current.primaryAction
+                            else HausColors.current.textPrimary,
                         fontSize = if (active) 18.sp else 16.sp,
                         fontWeight =
                             if (active) FontWeight.Bold else FontWeight.Medium,
@@ -992,7 +996,7 @@ private fun PlayerSubpanel(
             )
             Text(
                 title,
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Black,
             )
@@ -1011,7 +1015,7 @@ private fun PanelActionButton(
         modifier
             .height(44.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(HausColors.current.panel)
+            .background(HausColors.current.surface)
             .hausClickable(onClick)
             .semantics { contentDescription = label }
             .padding(horizontal = 12.dp),
@@ -1019,7 +1023,7 @@ private fun PanelActionButton(
     ) {
         Text(
             label,
-            color = HausColors.current.pulse,
+            color = HausColors.current.primaryAction,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -1046,14 +1050,16 @@ private fun PlaybackModeButton(
             .size(44.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(
-                if (selected) HausColors.current.pulse
-                else HausColors.current.panel)
+                if (selected) HausColors.current.primaryAction
+                else HausColors.current.surface)
             .hausClickable(
                 onClick = onClick,
                 focusColor =
-                    if (selected) HausColors.current.onPulse
-                    else HausColors.current.outline,
-                outerColor = if (selected) HausColors.current.outline else null,
+                    if (selected) HausColors.current.onPrimaryAction
+                    else HausColors.current.essentialBoundary,
+                outerColor =
+                    if (selected) HausColors.current.essentialBoundary
+                    else null,
             )
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,

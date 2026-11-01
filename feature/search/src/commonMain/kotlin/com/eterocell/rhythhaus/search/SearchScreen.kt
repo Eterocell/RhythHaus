@@ -193,11 +193,11 @@ public fun SearchContent(
     Box(
         modifier
             .fillMaxSize()
-            .background(HausColors.current.paper)
+            .background(HausColors.current.background)
             .clickable(enabled = false, onClick = {})) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = HausColors.current.paper) {
+                color = HausColors.current.background) {
                     Column(
                         Modifier.fillMaxSize()
                             .windowInsetsPadding(
@@ -212,7 +212,7 @@ public fun SearchContent(
                                 Modifier.fillMaxWidth()
                                     .border(
                                         1.dp,
-                                        HausColors.current.muted.copy(
+                                        HausColors.current.textSecondary.copy(
                                             alpha = 0.3f),
                                         RoundedCornerShape(12.dp))) {
                                     TextField(
@@ -225,9 +225,11 @@ public fun SearchContent(
                                         colors =
                                             TextFieldDefaults.textFieldColors(
                                                 backgroundColor =
-                                                    HausColors.current.paper,
+                                                    HausColors.current
+                                                        .background,
                                                 labelColor =
-                                                    HausColors.current.muted,
+                                                    HausColors.current
+                                                        .textSecondary,
                                                 borderColor =
                                                     Color.Transparent),
                                         cornerRadius = 12.dp,
@@ -238,11 +240,14 @@ public fun SearchContent(
                                         singleLine = true,
                                         textStyle =
                                             TextStyle(
-                                                color = HausColors.current.ink,
+                                                color =
+                                                    HausColors.current
+                                                        .textPrimary,
                                                 fontSize = 15.sp),
                                         cursorBrush =
                                             SolidColor(
-                                                HausColors.current.pulse),
+                                                HausColors.current
+                                                    .primaryAction),
                                         trailingIcon =
                                             if (query.isNotEmpty()) {
                                                 {
@@ -259,7 +264,7 @@ public fun SearchContent(
                                                                 color =
                                                                     HausColors
                                                                         .current
-                                                                        .pulse,
+                                                                        .primaryAction,
                                                                 fontSize =
                                                                     12.sp,
                                                                 fontWeight =
@@ -275,7 +280,7 @@ public fun SearchContent(
                                         Res.string.search_blank_query_guidance)
                                 Text(
                                     guidance,
-                                    color = HausColors.current.muted,
+                                    color = HausColors.current.textSecondary,
                                     fontSize = 15.sp,
                                     modifier =
                                         Modifier.testTag(
@@ -286,7 +291,7 @@ public fun SearchContent(
                                     searchResultCountLabel(filtered.size)
                                 Text(
                                     resultCount,
-                                    color = HausColors.current.muted,
+                                    color = HausColors.current.textSecondary,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium,
                                     modifier =
@@ -304,7 +309,8 @@ public fun SearchContent(
                                             query)
                                     Text(
                                         noMatch,
-                                        color = HausColors.current.muted,
+                                        color =
+                                            HausColors.current.textSecondary,
                                         fontSize = 15.sp,
                                         modifier =
                                             Modifier.padding(top = 24.dp)
@@ -446,7 +452,7 @@ internal fun SearchResultRow(
                     ) {
                         Text(
                             text = "⋮",
-                            color = HausColors.current.muted,
+                            color = HausColors.current.textSecondary,
                             fontSize = 20.sp,
                         )
                     }
@@ -495,7 +501,7 @@ internal fun SearchResultRow(
 private fun SearchNeutralArtwork() {
     Text(
         text = "♪",
-        color = HausColors.current.muted,
+        color = HausColors.current.textSecondary,
         fontSize = 18.sp,
         modifier = Modifier.clearAndSetSemantics {},
     )

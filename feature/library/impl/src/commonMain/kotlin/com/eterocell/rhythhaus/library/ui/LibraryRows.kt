@@ -184,7 +184,9 @@ internal fun trackRowMetadataColor(
     palette: HausColorPalette,
     isNowPlaying: Boolean,
     isSelected: Boolean,
-): Color = if (isNowPlaying || isSelected) palette.ink else palette.muted
+): Color =
+    if (isNowPlaying || isSelected) palette.textPrimary
+    else palette.textSecondary
 
 @Composable
 internal fun HeaderSection(title: String, subtitle: String) {
@@ -194,12 +196,12 @@ internal fun HeaderSection(title: String, subtitle: String) {
     ) {
         Text(
             text = title,
-            color = HausColors.current.ink,
+            color = HausColors.current.textPrimary,
             style = HausTypography.pageTitle,
         )
         Text(
             text = subtitle,
-            color = HausColors.current.muted,
+            color = HausColors.current.textSecondary,
             style = HausTypography.body,
         )
     }
@@ -217,7 +219,7 @@ internal fun ImportAudioCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = HausShapes.group,
-        colors = CardDefaults.defaultColors(color = HausColors.current.panel),
+        colors = CardDefaults.defaultColors(color = HausColors.current.surface),
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -228,14 +230,14 @@ internal fun ImportAudioCard(
                     if (hasImportedTracks)
                         stringResource(Res.string.import_card_title_with_tracks)
                     else stringResource(Res.string.import_card_title),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 style = HausTypography.section,
             )
             Text(
                 text =
                     importMessage
                         ?: stringResource(Res.string.import_card_description),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 style = HausTypography.secondary,
             )
             Button(
@@ -248,11 +250,12 @@ internal fun ImportAudioCard(
                 cornerRadius = HausShapes.control,
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.ink,
-                        contentColor = HausColors.current.paper,
+                        color = HausColors.current.textPrimary,
+                        contentColor = HausColors.current.background,
                         disabledColor =
-                            HausColors.current.muted.copy(alpha = 0.28f),
-                        disabledContentColor = HausColors.current.muted,
+                            HausColors.current.textSecondary.copy(
+                                alpha = 0.28f),
+                        disabledContentColor = HausColors.current.textSecondary,
                     ),
             ) {
                 Text(
@@ -271,8 +274,8 @@ internal fun ImportAudioCard(
                         PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                     colors =
                         ButtonDefaults.buttonColors(
-                            color = HausColors.current.dangerPanel,
-                            contentColor = HausColors.current.danger,
+                            color = HausColors.current.errorContainer,
+                            contentColor = HausColors.current.error,
                         ),
                 ) {
                     Text(
@@ -324,13 +327,13 @@ internal fun SectionLabel(title: String, subtitle: String?) {
     ) {
         Text(
             text = title,
-            color = HausColors.current.ink,
+            color = HausColors.current.textPrimary,
             style = HausTypography.section,
         )
         if (subtitle != null) {
             Text(
                 text = subtitle,
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 style = HausTypography.label,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -406,7 +409,7 @@ public fun TrackRow(
         indicator = {
             Text(
                 text = labels.nowPlayingBadge,
-                color = HausColors.current.pulse,
+                color = HausColors.current.primaryAction,
                 style = HausTypography.label,
             )
         },
@@ -430,8 +433,8 @@ public fun TrackRow(
                         insideMargin = PaddingValues(0.dp),
                         colors =
                             ButtonDefaults.buttonColors(
-                                color = HausColors.current.panel,
-                                contentColor = HausColors.current.ink,
+                                color = HausColors.current.surface,
+                                contentColor = HausColors.current.textPrimary,
                             ),
                     ) {
                         Icon(Icons.Outlined.MoreVert, contentDescription = null)
@@ -445,7 +448,7 @@ public fun TrackRow(
                                 text = {
                                     Text(
                                         selectTrackContentDescription,
-                                        color = HausColors.current.ink,
+                                        color = HausColors.current.textPrimary,
                                     )
                                 },
                                 onClick = {
@@ -463,7 +466,7 @@ public fun TrackRow(
                                             Res.string.metadata_edit_action,
                                             track.title,
                                         ),
-                                        color = HausColors.current.ink,
+                                        color = HausColors.current.textPrimary,
                                     )
                                 },
                                 onClick = {
@@ -491,8 +494,8 @@ public fun TrackRow(
                     insideMargin = PaddingValues(0.dp),
                     colors =
                         ButtonDefaults.buttonColors(
-                            color = HausColors.current.panel,
-                            contentColor = HausColors.current.ink,
+                            color = HausColors.current.surface,
+                            contentColor = HausColors.current.textPrimary,
                         ),
                 ) {
                     Text(if (favorite) "♥" else "♡", fontSize = 20.sp)
@@ -500,7 +503,7 @@ public fun TrackRow(
             }
             Text(
                 text = formatDuration(track.durationSeconds),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 style = HausTypography.label,
             )
         },
@@ -604,13 +607,13 @@ internal fun BrowseModePicker(
                     colors =
                         if (selectedMode) {
                             ButtonDefaults.buttonColors(
-                                color = HausColors.current.ink,
-                                contentColor = HausColors.current.paper,
+                                color = HausColors.current.textPrimary,
+                                contentColor = HausColors.current.background,
                             )
                         } else {
                             ButtonDefaults.buttonColors(
-                                color = HausColors.current.panel,
-                                contentColor = HausColors.current.ink,
+                                color = HausColors.current.surface,
+                                contentColor = HausColors.current.textPrimary,
                             )
                         },
                 ) {
@@ -638,7 +641,9 @@ internal fun BrowseModePicker(
                             )
                         DropdownMenuItem(
                             text = {
-                                Text(label, color = HausColors.current.ink)
+                                Text(
+                                    label,
+                                    color = HausColors.current.textPrimary)
                             },
                             onClick = {
                                 moreExpanded = false
@@ -723,7 +728,7 @@ internal fun LibraryBrowseControls(
     ) {
         Text(
             text = stringResource(Res.string.browse_controls_heading),
-            color = HausColors.current.ink,
+            color = HausColors.current.textPrimary,
             style = HausTypography.section,
         )
         Row(
@@ -895,8 +900,8 @@ internal fun LibraryBrowseControls(
                 insideMargin = PaddingValues(horizontal = HausSpacing.md),
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.panel,
-                        contentColor = HausColors.current.ink,
+                        color = HausColors.current.surface,
+                        contentColor = HausColors.current.textPrimary,
                     ),
             ) {
                 Text(
@@ -930,8 +935,8 @@ private fun BrowseControlMenuButton(
             insideMargin = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
             colors =
                 ButtonDefaults.buttonColors(
-                    color = HausColors.current.panel,
-                    contentColor = HausColors.current.ink,
+                    color = HausColors.current.surface,
+                    contentColor = HausColors.current.textPrimary,
                 ),
         ) {
             Text(
@@ -966,7 +971,7 @@ private fun BrowseControlMenuItem(
         text = {
             Text(
                 text = label,
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 style = HausTypography.secondary,
                 maxLines = 2,
             )
@@ -997,7 +1002,7 @@ private fun BrowseControlToggleItem(
         text = {
             Text(
                 text = label,
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 style = HausTypography.secondary,
             )
         },
@@ -1030,8 +1035,8 @@ private fun ActiveBrowseFilter(
         insideMargin = PaddingValues(horizontal = HausSpacing.md),
         colors =
             ButtonDefaults.buttonColors(
-                color = HausColors.current.panel,
-                contentColor = HausColors.current.ink,
+                color = HausColors.current.surface,
+                contentColor = HausColors.current.textPrimary,
             ),
     ) {
         Text("$label ×", style = HausTypography.label, maxLines = 1)
@@ -1080,13 +1085,13 @@ private fun BrowseModeButton(
         colors =
             if (isSelected) {
                 ButtonDefaults.buttonColors(
-                    color = HausColors.current.ink,
-                    contentColor = HausColors.current.paper,
+                    color = HausColors.current.textPrimary,
+                    contentColor = HausColors.current.background,
                 )
             } else {
                 ButtonDefaults.buttonColors(
-                    color = HausColors.current.panel,
-                    contentColor = HausColors.current.ink,
+                    color = HausColors.current.surface,
+                    contentColor = HausColors.current.textPrimary,
                 )
             },
     ) {
@@ -1128,7 +1133,7 @@ internal fun AlbumCard(
                 .hausClickable(onClick = onClick)
                 .semantics { contentDescription = albumContentDescription },
         cornerRadius = HausShapes.group,
-        colors = CardDefaults.defaultColors(color = HausColors.current.panel),
+        colors = CardDefaults.defaultColors(color = HausColors.current.surface),
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -1144,8 +1149,8 @@ internal fun AlbumCard(
                         .background(
                             Brush.linearGradient(
                                 listOf(
-                                    HausColors.current.ink,
-                                    HausColors.current.pulse),
+                                    HausColors.current.textPrimary,
+                                    HausColors.current.primaryAction),
                             ),
                         ),
                 contentAlignment = Alignment.Center,
@@ -1169,7 +1174,7 @@ internal fun AlbumCard(
             }
             Text(
                 text = album.album,
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 style = HausTypography.title,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -1184,7 +1189,7 @@ internal fun AlbumCard(
                     else
                         stringResource(
                             Res.string.track_count_format, album.tracks.size),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 style = HausTypography.label,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1206,10 +1211,10 @@ internal fun ArtistRow(
         modifier =
             Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(HausShapes.group))
-                .background(HausColors.current.panel.copy(alpha = 0.54f))
+                .background(HausColors.current.surface.copy(alpha = 0.54f))
                 .border(
                     1.dp,
-                    HausColors.current.line,
+                    HausColors.current.divider,
                     RoundedCornerShape(HausShapes.group),
                 )
                 .hausClickable(onClick = onClick)
@@ -1227,8 +1232,8 @@ internal fun ArtistRow(
                     .background(
                         Brush.linearGradient(
                             listOf(
-                                HausColors.current.ink,
-                                HausColors.current.pulse),
+                                HausColors.current.textPrimary,
+                                HausColors.current.primaryAction),
                         ),
                     ),
             contentAlignment = Alignment.Center,
@@ -1255,7 +1260,7 @@ internal fun ArtistRow(
             verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
                     text = artist.artist,
-                    color = HausColors.current.ink,
+                    color = HausColors.current.textPrimary,
                     style = HausTypography.title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1266,7 +1271,7 @@ internal fun ArtistRow(
                             Res.string.album_track_count_format,
                             artist.albumCount,
                             artist.tracks.size),
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     style = HausTypography.secondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1297,14 +1302,14 @@ public fun ScanningCard(
     Card(
         modifier = Modifier.fillMaxWidth().padding(12.dp),
         cornerRadius = HausShapes.group,
-        colors = CardDefaults.defaultColors(color = HausColors.current.panel),
+        colors = CardDefaults.defaultColors(color = HausColors.current.surface),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 stringResource(Res.string.scanning),
                 style = HausTypography.secondary,
                 fontWeight = FontWeight.SemiBold,
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
             )
             Spacer(Modifier.height(6.dp))
             Text(
@@ -1314,13 +1319,13 @@ public fun ScanningCard(
                     filesVisited,
                     tracksAdded),
                 style = HausTypography.label,
-                color = HausColors.current.ink.copy(alpha = 0.7f))
+                color = HausColors.current.textPrimary.copy(alpha = 0.7f))
             if (!latestItem.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     latestItem,
                     style = HausTypography.label,
-                    color = HausColors.current.ink.copy(alpha = 0.56f),
+                    color = HausColors.current.textPrimary.copy(alpha = 0.56f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis)
             }
@@ -1380,7 +1385,7 @@ public fun ScanOutcomePanel(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             title,
-            color = HausColors.current.ink,
+            color = HausColors.current.textPrimary,
             style = HausTypography.title,
         )
         Text(
@@ -1392,7 +1397,7 @@ public fun ScanOutcomePanel(
                 session.tracksUpdated,
                 session.filesSkipped,
             ),
-            color = HausColors.current.muted,
+            color = HausColors.current.textSecondary,
             style = HausTypography.label,
         )
         val summarySession =
@@ -1407,7 +1412,7 @@ public fun ScanOutcomePanel(
                             ?: summarySession.sourceId,
                         summarySession.id,
                     ),
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     style = HausTypography.label,
                 )
             }
@@ -1419,7 +1424,7 @@ public fun ScanOutcomePanel(
                     summary.unchangedCount,
                     summary.missingCount,
                 ),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 style = HausTypography.label,
                 modifier = Modifier.semantics { heading() },
             )
@@ -1430,13 +1435,13 @@ public fun ScanOutcomePanel(
             if (details.isNotEmpty()) {
                 Text(
                     stringResource(Res.string.scan_changes_details),
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     style = HausTypography.label,
                 )
                 details.take(100).forEach { detail ->
                     Text(
                         detail,
-                        color = HausColors.current.muted,
+                        color = HausColors.current.textSecondary,
                         style = HausTypography.label,
                     )
                 }
@@ -1447,9 +1452,9 @@ public fun ScanOutcomePanel(
                 it,
                 color =
                     if (session.status == ScanStatus.Failed) {
-                        HausColors.current.danger
+                        HausColors.current.error
                     } else {
-                        HausColors.current.muted
+                        HausColors.current.textSecondary
                     },
                 style = HausTypography.label,
             )
@@ -1489,7 +1494,7 @@ public fun ScanOutcomePanel(
             if (errors.isEmpty()) {
                 Text(
                     stringResource(Res.string.scan_report_empty),
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     style = HausTypography.label,
                 )
             }
@@ -1500,7 +1505,7 @@ public fun ScanOutcomePanel(
                         error.displayPath,
                         error.reason,
                     ),
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     style = HausTypography.label,
                 )
             }
@@ -1530,15 +1535,16 @@ private fun ScanActionButton(
             ButtonDefaults.buttonColors(
                 color =
                     if (destructive) {
-                        HausColors.current.dangerPanel
+                        HausColors.current.errorContainer
                     } else {
-                        HausColors.current.ink
+                        HausColors.current.textPrimary
                     },
                 contentColor =
-                    if (destructive) HausColors.current.danger
-                    else HausColors.current.paper,
-                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                disabledContentColor = HausColors.current.muted),
+                    if (destructive) HausColors.current.error
+                    else HausColors.current.background,
+                disabledColor =
+                    HausColors.current.textSecondary.copy(alpha = 0.28f),
+                disabledContentColor = HausColors.current.textSecondary),
     ) {
         Text(
             label,

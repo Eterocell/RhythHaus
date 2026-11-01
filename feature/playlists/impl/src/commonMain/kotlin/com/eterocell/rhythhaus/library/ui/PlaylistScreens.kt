@@ -700,7 +700,8 @@ public fun PlaylistHubScreen(
                     cornerRadius = 16.dp,
                     colors =
                         ButtonDefaults.buttonColors(
-                            HausColors.current.ink, HausColors.current.paper),
+                            HausColors.current.textPrimary,
+                            HausColors.current.background),
                 ) {
                     Text(
                         stringResource(Res.string.playlist_create),
@@ -923,7 +924,7 @@ private fun PlaylistRowArtwork(
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
                 title.firstOrNull()?.uppercase() ?: "♪",
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontWeight = FontWeight.Black)
         }
     }
@@ -1291,13 +1292,13 @@ internal fun AddToPlaylistPicker(
             ) {
                 Text(
                     title,
-                    color = HausColors.current.ink,
+                    color = HausColors.current.textPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black)
                 ModalFailureNotice(currentNotice.value)
                 Text(
                     stringResource(Res.string.playlist_choose_existing),
-                    color = HausColors.current.ink,
+                    color = HausColors.current.textPrimary,
                     fontWeight = FontWeight.Bold)
                 currentPlaylists.value.forEach { playlist ->
                     CompactAction(
@@ -1315,7 +1316,7 @@ internal fun AddToPlaylistPicker(
                 }
                 Text(
                     stringResource(Res.string.playlist_create_inline),
-                    color = HausColors.current.ink,
+                    color = HausColors.current.textPrimary,
                     fontWeight = FontWeight.Bold)
                 PlaylistTextField(
                     currentState.value.enteredName,
@@ -1393,7 +1394,7 @@ internal fun PlaylistTrackBrowser(
             ) {
                 Text(
                     playlistName,
-                    color = HausColors.current.ink,
+                    color = HausColors.current.textPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black)
                 ModalFailureNotice(currentNotice.value)
@@ -1640,7 +1641,8 @@ internal fun PlaylistScreenFrame(
         playlistSystemBarTopPadding() +
             PlaylistScreenLayoutPolicy.additionalTopPadding
     Surface(
-        modifier = Modifier.fillMaxSize(), color = HausColors.current.paper) {
+        modifier = Modifier.fillMaxSize(),
+        color = HausColors.current.background) {
             Column(
                 modifier =
                     Modifier.fillMaxSize()
@@ -1665,7 +1667,7 @@ internal fun PlaylistScreenFrame(
                             Text(
                                 "‹",
                                 fontSize = 30.sp,
-                                color = HausColors.current.ink)
+                                color = HausColors.current.textPrimary)
                         }
                         Box(
                             Modifier.weight(1f)
@@ -1682,7 +1684,7 @@ internal fun PlaylistScreenFrame(
                         ) {
                             Text(
                                 title,
-                                color = HausColors.current.ink,
+                                color = HausColors.current.textPrimary,
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.Black,
                                 maxLines = 1,
@@ -1729,22 +1731,24 @@ private fun PlaylistHubRow(
                 .hausClickable(onClick)
                 .semantics { contentDescription = label },
         cornerRadius = 20.dp,
-        colors = CardDefaults.defaultColors(HausColors.current.panel)) {
+        colors = CardDefaults.defaultColors(HausColors.current.surface)) {
             Row(
                 Modifier.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(
                             playlist.name,
-                            color = HausColors.current.ink,
+                            color = HausColors.current.textPrimary,
                             fontWeight = FontWeight.Black)
                         Text(
                             entryCount.toString(),
-                            color = HausColors.current.muted,
+                            color = HausColors.current.textSecondary,
                             fontSize = 12.sp)
                     }
                     Text(
-                        "›", color = HausColors.current.pulse, fontSize = 24.sp)
+                        "›",
+                        color = HausColors.current.primaryAction,
+                        fontSize = 24.sp)
                 }
         }
 }
@@ -1831,7 +1835,7 @@ private fun PlaylistEntryRow(
                 trailing = {
                     Text(
                         duration,
-                        color = HausColors.current.muted,
+                        color = HausColors.current.textSecondary,
                         fontSize = 12.sp)
                     if (editing &&
                         layoutPolicy.actionPlacement ==
@@ -1927,7 +1931,7 @@ private fun PlaylistEntryDragHandle(
                         })
                 }
                 .semantics { contentDescription = drag },
-        color = HausColors.current.muted,
+        color = HausColors.current.textSecondary,
         fontSize = 24.sp,
     )
 }
@@ -1954,7 +1958,7 @@ private fun PlaylistEntryMutationActions(
                 if (!availability.canMoveUp) disabled()
             },
     ) {
-        Text("↑", color = HausColors.current.ink)
+        Text("↑", color = HausColors.current.textPrimary)
     }
     IconButton(
         onClick = { onMove(1) },
@@ -1968,7 +1972,7 @@ private fun PlaylistEntryMutationActions(
                 if (!availability.canMoveDown) disabled()
             },
     ) {
-        Text("↓", color = HausColors.current.ink)
+        Text("↓", color = HausColors.current.textPrimary)
     }
     IconButton(
         onClick = onRemove,
@@ -1976,7 +1980,7 @@ private fun PlaylistEntryMutationActions(
         minHeight = targetSize,
         backgroundColor = Color.Transparent,
         modifier = Modifier.semantics { contentDescription = remove }) {
-            Text("×", color = HausColors.current.danger)
+            Text("×", color = HausColors.current.error)
         }
 }
 
@@ -1998,8 +2002,8 @@ internal fun CompactAction(
         insideMargin = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
         colors =
             ButtonDefaults.buttonColors(
-                color = HausColors.current.panel,
-                contentColor = HausColors.current.ink,
+                color = HausColors.current.surface,
+                contentColor = HausColors.current.textPrimary,
             ),
     ) {
         Text(
@@ -2019,7 +2023,7 @@ internal fun EmptyPlaylistMessage(text: String) {
     Text(
         text,
         modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-        color = HausColors.current.muted,
+        color = HausColors.current.textSecondary,
         fontSize = 15.sp)
 }
 
@@ -2028,7 +2032,7 @@ internal fun PlaylistNotice(state: PlaylistState, mutationFailedLabel: String) {
     if (state.mutationErrorMessage != null)
         Text(
             mutationFailedLabel,
-            color = HausColors.current.danger,
+            color = HausColors.current.error,
             fontSize = 13.sp)
 }
 
@@ -2053,7 +2057,7 @@ internal fun PlaylistNameDialog(
             ) {
                 Text(
                     title,
-                    color = HausColors.current.ink,
+                    color = HausColors.current.textPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black)
                 PlaylistTextField(
@@ -2065,7 +2069,7 @@ internal fun PlaylistNameDialog(
                 if (draft.showFailure)
                     Text(
                         stringResource(Res.string.playlist_create_name),
-                        color = HausColors.current.danger,
+                        color = HausColors.current.error,
                         fontSize = 12.sp)
                 ModalFailureNotice(notice)
             }
@@ -2108,7 +2112,7 @@ private fun PlaylistCreateTypeDialog(
             ) {
                 Text(
                     stringResource(Res.string.playlist_create_type_prompt),
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     fontSize = 14.sp,
                 )
                 CompactAction(
@@ -2134,7 +2138,7 @@ private fun ModalFailureNotice(notice: PlaylistModalNotice?) {
     if (notice == PlaylistModalNotice.MutationFailed) {
         Text(
             stringResource(Res.string.playlist_modal_mutation_failed),
-            color = HausColors.current.danger,
+            color = HausColors.current.error,
             fontSize = 13.sp)
     }
 }
@@ -2144,7 +2148,7 @@ internal fun ReadFailureNotice(onRetry: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             stringResource(Res.string.playlist_retained_load_failed),
-            color = HausColors.current.muted,
+            color = HausColors.current.textSecondary,
             fontSize = 13.sp)
         CompactAction(
             stringResource(Res.string.playlist_retained_retry),
@@ -2172,11 +2176,13 @@ internal fun ConfirmationDialog(
             ) {
                 Text(
                     title,
-                    color = HausColors.current.ink,
+                    color = HausColors.current.textPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black)
                 Text(
-                    message, color = HausColors.current.muted, fontSize = 14.sp)
+                    message,
+                    color = HausColors.current.textSecondary,
+                    fontSize = 14.sp)
                 ModalFailureNotice(notice)
             }
         },
@@ -2217,13 +2223,14 @@ private fun PlaylistTextField(
         singleLine = true,
         insideMargin = DpSize(14.dp, 12.dp),
         cornerRadius = 12.dp,
-        textStyle = TextStyle(color = HausColors.current.ink, fontSize = 15.sp),
-        cursorBrush = SolidColor(HausColors.current.pulse),
+        textStyle =
+            TextStyle(color = HausColors.current.textPrimary, fontSize = 15.sp),
+        cursorBrush = SolidColor(HausColors.current.primaryAction),
         colors =
             TextFieldDefaults.textFieldColors(
-                backgroundColor = HausColors.current.paper,
-                borderColor = HausColors.current.line,
-                labelColor = HausColors.current.muted))
+                backgroundColor = HausColors.current.background,
+                borderColor = HausColors.current.divider,
+                labelColor = HausColors.current.textSecondary))
 }
 
 // Library extraction

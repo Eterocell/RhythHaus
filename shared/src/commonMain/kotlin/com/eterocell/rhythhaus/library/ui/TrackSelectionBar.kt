@@ -61,7 +61,7 @@ fun TrackSelectionBar(
                     bottom = HausSpacing.md,
                 )
                 .background(
-                    HausColors.current.panel,
+                    HausColors.current.surface,
                     RoundedCornerShape(HausShapes.overlay),
                 )
                 .padding(HausSpacing.md),
@@ -73,7 +73,7 @@ fun TrackSelectionBar(
                 Modifier.semantics {
                     contentDescription = countDescription
                 },
-            color = HausColors.current.ink,
+            color = HausColors.current.textPrimary,
             fontSize = HausTypography.title.fontSize,
             fontWeight = HausTypography.title.fontWeight,
             maxLines = 1,
@@ -134,11 +134,11 @@ private fun SelectionBarButton(
         colors =
             ButtonDefaults.buttonColors(
                 color =
-                    if (emphasized) HausColors.current.pulse
-                    else HausColors.current.panelStrong,
+                    if (emphasized) HausColors.current.primaryAction
+                    else HausColors.current.raisedSurface,
                 contentColor =
-                    if (emphasized) HausColors.current.onPulse
-                    else HausColors.current.ink,
+                    if (emphasized) HausColors.current.onPrimaryAction
+                    else HausColors.current.textPrimary,
             ),
     ) {
         Text(

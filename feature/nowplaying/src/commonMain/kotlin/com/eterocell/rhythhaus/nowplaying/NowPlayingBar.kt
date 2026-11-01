@@ -93,7 +93,7 @@ public fun NowPlayingBar(
             .testTag(NowPlayingBarRootTestTag)
             .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
             .clip(barShape)
-            .background(HausColors.current.panel)
+            .background(HausColors.current.surface)
             .then(
                 if (interactive) Modifier.hausClickable(onExpand) else Modifier)
             .then(
@@ -107,11 +107,11 @@ public fun NowPlayingBar(
             Box(
                 Modifier.fillMaxWidth()
                     .height(3.dp)
-                    .background(HausColors.current.line)) {
+                    .background(HausColors.current.divider)) {
                     Box(
                         Modifier.fillMaxWidth(playbackState.progressFraction)
                             .fillMaxHeight()
-                            .background(HausColors.current.pulse))
+                            .background(HausColors.current.primaryAction))
                 }
             Row(
                 Modifier.fillMaxWidth()
@@ -122,14 +122,14 @@ public fun NowPlayingBar(
                     Column(Modifier.weight(1f)) {
                         Text(
                             track.title,
-                            color = HausColors.current.ink,
+                            color = HausColors.current.textPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis)
                         Text(
                             labels.currentTrackArtistAlbum,
-                            color = HausColors.current.muted,
+                            color = HausColors.current.textSecondary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
@@ -153,13 +153,16 @@ public fun NowPlayingBar(
                         Modifier.size(48.dp)
                             .testTag(NowPlayingBarPlayPauseTestTag)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(HausColors.current.ink)
+                            .background(HausColors.current.textPrimary)
                             .then(
                                 if (interactive)
                                     Modifier.hausClickable(
                                         onClick = onPlayPause,
-                                        focusColor = HausColors.current.paper,
-                                        outerColor = HausColors.current.outline,
+                                        focusColor =
+                                            HausColors.current.background,
+                                        outerColor =
+                                            HausColors.current
+                                                .essentialBoundary,
                                     )
                                 else Modifier),
                         contentAlignment = Alignment.Center) {
@@ -168,7 +171,7 @@ public fun NowPlayingBar(
                                 if (playing) Icons.Filled.Pause
                                 else Icons.Filled.PlayArrow,
                                 if (playing) labels.pause else labels.play,
-                                tint = HausColors.current.paper,
+                                tint = HausColors.current.background,
                                 modifier = Modifier.size(20.dp))
                         }
                 }
@@ -199,7 +202,7 @@ private fun MiniPlayerActionButton(
         Icon(
             icon,
             contentDescription = null,
-            tint = HausColors.current.ink,
+            tint = HausColors.current.textPrimary,
             modifier = Modifier.size(22.dp),
         )
     }

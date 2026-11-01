@@ -62,11 +62,11 @@ private fun SmartChoice(
         colors =
             ButtonDefaults.buttonColors(
                 color =
-                    if (selected) HausColors.current.pulse
-                    else HausColors.current.panel,
+                    if (selected) HausColors.current.primaryAction
+                    else HausColors.current.surface,
                 contentColor =
-                    if (selected) HausColors.current.onPulse
-                    else HausColors.current.ink,
+                    if (selected) HausColors.current.onPrimaryAction
+                    else HausColors.current.textPrimary,
             ),
     ) {
         Text(label, style = HausTypography.secondary)
@@ -265,7 +265,7 @@ internal fun SmartRuleDialog(
                             Text(
                                 stringResource(
                                     Res.string.playlist_modal_mutation_failed),
-                                color = HausColors.current.danger)
+                                color = HausColors.current.error)
                     }
             },
             actions = {

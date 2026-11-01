@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.theme.HausColors
-import com.eterocell.rhythhaus.theme.HausPulse
 
 /**
  * Draws a focus boundary. Place before the modifier that creates the focus
@@ -31,7 +30,7 @@ import com.eterocell.rhythhaus.theme.HausPulse
  */
 @Composable
 public fun Modifier.hausFocusIndicator(
-    color: Color = HausColors.current.outline,
+    color: Color = HausColors.current.essentialBoundary,
     shape: Shape = RectangleShape,
     includeDescendants: Boolean = false,
     outerColor: Color? = null,
@@ -89,7 +88,8 @@ private fun DrawScope.drawFocusStroke(
 /** Applies the standard bounded RhythHaus click and focus indication. */
 @Composable
 public fun Modifier.hausClickable(onClick: () -> Unit): Modifier =
-    hausClickable(onClick = onClick, focusColor = HausColors.current.outline)
+    hausClickable(
+        onClick = onClick, focusColor = HausColors.current.essentialBoundary)
 
 /**
  * Applies the standard bounded RhythHaus click indication with an explicit
@@ -120,7 +120,9 @@ public fun Modifier.hausClickable(
     return hausFocusIndicator(color = focusColor, outerColor = outerColor)
         .clickable(
             interactionSource = interactionSource,
-            indication = ripple(bounded = true, color = HausPulse),
+            indication =
+                ripple(
+                    bounded = true, color = HausColors.current.primaryAction),
             onClick = onClick)
 }
 
@@ -139,7 +141,7 @@ public fun Modifier.hausCombinedClickable(
         onClick = onClick,
         onLongClick = onLongClick,
         onLongClickLabel = onLongClickLabel,
-        focusColor = HausColors.current.outline,
+        focusColor = HausColors.current.essentialBoundary,
     )
 
 /**
@@ -158,7 +160,9 @@ public fun Modifier.hausCombinedClickable(
     return hausFocusIndicator(color = focusColor)
         .combinedClickable(
             interactionSource = interactionSource,
-            indication = ripple(bounded = true, color = HausPulse),
+            indication =
+                ripple(
+                    bounded = true, color = HausColors.current.primaryAction),
             onClick = onClick,
             onLongClick = onLongClick,
             onLongClickLabel = onLongClickLabel)

@@ -204,7 +204,7 @@ public fun LibraryHomeContent(
         ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = HausColors.current.paper) {
+                color = HausColors.current.background) {
                     LazyColumn(
                         state = homeListState,
                         modifier =
@@ -283,7 +283,7 @@ public fun LibraryHomeContent(
                             item {
                                 Text(
                                     text = emptyBrowseMessage,
-                                    color = HausColors.current.muted,
+                                    color = HausColors.current.textSecondary,
                                     fontSize = 15.sp,
                                     modifier =
                                         Modifier.fillMaxWidth()

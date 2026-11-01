@@ -36,10 +36,13 @@ import com.eterocell.rhythhaus.SleepTimerMode
 import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
+import com.eterocell.rhythhaus.theme.hausPalette
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
+
+private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
 
 public class SleepTimerPanelSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -126,12 +129,12 @@ public class SleepTimerPanelSemanticsJvmTest {
                 val pixels = fadeToggle.captureToImage().toPixelMap()
                 val centerY = pixels.height / 2
                 assertEquals(
-                    LightHausPalette.outline.toArgb(),
+                    lightHausPalette.essentialBoundary.toArgb(),
                     pixels[1, centerY].toArgb(),
                     "Fade toggle should draw an outer boundary against its parent",
                 )
                 assertEquals(
-                    LightHausPalette.paper.toArgb(),
+                    lightHausPalette.background.toArgb(),
                     pixels[3, centerY].toArgb(),
                     "Fade toggle should draw an inner boundary against its pulse fill",
                 )

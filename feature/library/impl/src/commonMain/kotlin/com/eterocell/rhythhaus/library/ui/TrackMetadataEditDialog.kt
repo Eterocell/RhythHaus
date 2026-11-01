@@ -164,7 +164,7 @@ public fun TrackMetadataEditDialog(
             if (data != null && draft.toOverrideOrNull() == null)
                 Text(
                     invalidNumberText,
-                    color = HausColors.current.danger,
+                    color = HausColors.current.error,
                     modifier =
                         Modifier.semantics {
                             error(invalidNumberText)
@@ -173,7 +173,7 @@ public fun TrackMetadataEditDialog(
             if (failed)
                 Text(
                     stringResource(Res.string.metadata_failure),
-                    color = HausColors.current.danger)
+                    color = HausColors.current.error)
         },
         actions = {
             Row(

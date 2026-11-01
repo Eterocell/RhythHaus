@@ -44,7 +44,7 @@ internal fun AnimatedClearLibraryDialogRoute(
         body = {
             Text(
                 text = dialogTitle,
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 style = HausTypography.section,
             )
             Spacer(Modifier.height(12.dp))
@@ -55,14 +55,14 @@ internal fun AnimatedClearLibraryDialogRoute(
                         sourceCount,
                         trackCount),
                 modifier = Modifier.testTag("settings-clear-counts"),
-                color = HausColors.current.danger,
+                color = HausColors.current.error,
                 style = HausTypography.secondary,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 text = stringResource(Res.string.clear_library_message),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 style = HausTypography.secondary,
             )
         },
@@ -78,8 +78,10 @@ internal fun AnimatedClearLibraryDialogRoute(
                     PaddingValues(horizontal = 16.dp, vertical = 9.dp),
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.muted.copy(alpha = 0.15f),
-                        contentColor = HausColors.current.muted,
+                        color =
+                            HausColors.current.textSecondary.copy(
+                                alpha = 0.15f),
+                        contentColor = HausColors.current.textSecondary,
                     ),
             ) {
                 Text(
@@ -99,10 +101,10 @@ internal fun AnimatedClearLibraryDialogRoute(
                     PaddingValues(horizontal = 16.dp, vertical = 9.dp),
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.danger,
-                        contentColor = HausColors.current.onDanger,
-                        disabledColor = HausColors.current.dangerPanel,
-                        disabledContentColor = HausColors.current.danger,
+                        color = HausColors.current.error,
+                        contentColor = HausColors.current.onError,
+                        disabledColor = HausColors.current.errorContainer,
+                        disabledContentColor = HausColors.current.error,
                     ),
             ) {
                 Text(
@@ -130,14 +132,14 @@ internal fun AnimatedRemoveMissingTracksDialogRoute(
         body = {
             Text(
                 text = dialogTitle,
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 style = HausTypography.section,
             )
             Spacer(Modifier.height(12.dp))
             Text(
                 text = sourceName,
                 modifier = Modifier.testTag("settings-remove-missing-source"),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 style = HausTypography.secondary,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
@@ -149,7 +151,7 @@ internal fun AnimatedRemoveMissingTracksDialogRoute(
                         Res.string.remove_missing_confirmation_count,
                         trackCount),
                 modifier = Modifier.testTag("settings-remove-missing-count"),
-                color = HausColors.current.danger,
+                color = HausColors.current.error,
                 style = HausTypography.secondary,
                 fontWeight = FontWeight.Bold,
             )
@@ -158,7 +160,7 @@ internal fun AnimatedRemoveMissingTracksDialogRoute(
                 text =
                     stringResource(
                         Res.string.remove_missing_confirmation_message),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 style = HausTypography.secondary,
             )
         },
@@ -174,8 +176,10 @@ internal fun AnimatedRemoveMissingTracksDialogRoute(
                     PaddingValues(horizontal = 16.dp, vertical = 9.dp),
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.muted.copy(alpha = 0.15f),
-                        contentColor = HausColors.current.muted,
+                        color =
+                            HausColors.current.textSecondary.copy(
+                                alpha = 0.15f),
+                        contentColor = HausColors.current.textSecondary,
                     ),
             ) {
                 Text(
@@ -196,11 +200,11 @@ internal fun AnimatedRemoveMissingTracksDialogRoute(
                     PaddingValues(horizontal = 16.dp, vertical = 9.dp),
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.danger,
-                        contentColor = HausColors.current.onDanger,
+                        color = HausColors.current.error,
+                        contentColor = HausColors.current.onError,
                         disabledColor =
-                            HausColors.current.muted.copy(alpha = .28f),
-                        disabledContentColor = HausColors.current.muted,
+                            HausColors.current.textSecondary.copy(alpha = .28f),
+                        disabledContentColor = HausColors.current.textSecondary,
                     ),
             ) {
                 Text(

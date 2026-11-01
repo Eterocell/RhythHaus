@@ -166,10 +166,10 @@ public fun SettingsAboutScreen(
 ) {
     val policy = CompactSettingsLayoutPolicy
     val uriHandler = LocalUriHandler.current
-    Surface(modifier.fillMaxSize(), color = HausColors.current.paper) {
+    Surface(modifier.fillMaxSize(), color = HausColors.current.background) {
         Scaffold(
             Modifier.fillMaxSize(),
-            containerColor = HausColors.current.paper,
+            containerColor = HausColors.current.background,
             contentWindowInsets = WindowInsets(0.dp)) {
                 Box(
                     Modifier.fillMaxSize()
@@ -219,14 +219,17 @@ public fun SettingsAboutScreen(
                                         colors =
                                             ButtonDefaults.buttonColors(
                                                 color =
-                                                    HausColors.current.panel,
+                                                    HausColors.current.surface,
                                                 contentColor =
-                                                    HausColors.current.ink)) {
+                                                    HausColors.current
+                                                        .textPrimary)) {
                                             Icon(
                                                 Icons.AutoMirrored.Filled
                                                     .OpenInNew,
                                                 null,
-                                                tint = HausColors.current.ink,
+                                                tint =
+                                                    HausColors.current
+                                                        .textPrimary,
                                                 modifier = Modifier.size(20.dp))
                                             Text(
                                                 stringResource(
@@ -250,14 +253,19 @@ public fun SettingsAboutScreen(
                                         cornerRadius = HausShapes.control,
                                         colors =
                                             ButtonDefaults.buttonColors(
-                                                color = HausColors.current.ink,
+                                                color =
+                                                    HausColors.current
+                                                        .textPrimary,
                                                 contentColor =
-                                                    HausColors.current.paper)) {
+                                                    HausColors.current
+                                                        .background)) {
                                             Icon(
                                                 Icons.AutoMirrored.Filled
                                                     .LibraryBooks,
                                                 null,
-                                                tint = HausColors.current.paper,
+                                                tint =
+                                                    HausColors.current
+                                                        .background,
                                                 modifier = Modifier.size(20.dp))
                                             Text(
                                                 stringResource(
@@ -283,7 +291,7 @@ private fun AboutIdentityBlock() {
             Box(
                 Modifier.size(88.dp)
                     .background(
-                        HausColors.current.panel,
+                        HausColors.current.surface,
                         androidx.compose.foundation.shape.RoundedCornerShape(
                             HausShapes.overlay)),
                 contentAlignment = Alignment.Center) {
@@ -295,13 +303,13 @@ private fun AboutIdentityBlock() {
                 }
             Text(
                 stringResource(Res.string.about_app_name),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 style = HausTypography.section)
             Text(
                 stringResource(
                     Res.string.about_version_format,
                     RhythHausBuildInfo.versionName),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 style = HausTypography.label)
         }
 }
@@ -365,10 +373,10 @@ internal fun OpenSourceLibrariesContent(
                 }
             }
     val visibleState = retryState ?: state
-    Surface(modifier.fillMaxSize(), color = HausColors.current.paper) {
+    Surface(modifier.fillMaxSize(), color = HausColors.current.background) {
         Scaffold(
             Modifier.fillMaxSize(),
-            containerColor = HausColors.current.paper,
+            containerColor = HausColors.current.background,
             contentWindowInsets = WindowInsets(0.dp)) {
                 Box(
                     Modifier.fillMaxSize()
@@ -404,7 +412,8 @@ internal fun OpenSourceLibrariesContent(
                                                     .testTag(
                                                         AboutLoadingTestTag),
                                                 color =
-                                                    HausColors.current.muted,
+                                                    HausColors.current
+                                                        .textSecondary,
                                                 style =
                                                     HausTypography.secondary)
                                         is AboutLibrariesLoadState.Failed ->
@@ -426,7 +435,7 @@ internal fun OpenSourceLibrariesContent(
                                                                 .open_source_libraries_error),
                                                         color =
                                                             HausColors.current
-                                                                .muted,
+                                                                .textSecondary,
                                                         style =
                                                             HausTypography
                                                                 .secondary,
@@ -452,11 +461,11 @@ internal fun OpenSourceLibrariesContent(
                                                                     color =
                                                                         HausColors
                                                                             .current
-                                                                            .ink,
+                                                                            .textPrimary,
                                                                     contentColor =
                                                                         HausColors
                                                                             .current
-                                                                            .paper)) {
+                                                                            .background)) {
                                                             Text(
                                                                 stringResource(
                                                                     Res.string
@@ -491,23 +500,23 @@ internal fun OpenSourceLibrariesContent(
                                                                     libraryBackgroundColor =
                                                                         HausColors
                                                                             .current
-                                                                            .paper,
+                                                                            .background,
                                                                     libraryContentColor =
                                                                         HausColors
                                                                             .current
-                                                                            .ink,
+                                                                            .textPrimary,
                                                                     dialogBackgroundColor =
                                                                         HausColors
                                                                             .current
-                                                                            .panel,
+                                                                            .surface,
                                                                     dialogContentColor =
                                                                         HausColors
                                                                             .current
-                                                                            .ink,
+                                                                            .textPrimary,
                                                                     dialogConfirmButtonColor =
                                                                         HausColors
                                                                             .current
-                                                                            .pulse))
+                                                                            .primaryAction))
                                                 }
                                     }
                                 }

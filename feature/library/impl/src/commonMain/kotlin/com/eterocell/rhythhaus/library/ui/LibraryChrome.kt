@@ -132,7 +132,7 @@ public fun DrillDownMiuixScrollChrome(
                         backdrop = backdrop,
                         shape = RoundedCornerShape(0.dp),
                         fallbackColor =
-                            HausColors.current.panel.copy(
+                            HausColors.current.surface.copy(
                                 alpha = RhythHausGlassSurfaceAlpha),
                         blurStyle = DrillDownMiuixScrollChromeBlurStyle,
                     ),
@@ -143,8 +143,8 @@ public fun DrillDownMiuixScrollChrome(
                 subtitle = "",
                 modifier = Modifier.fillMaxWidth(),
                 color = Color.Transparent,
-                titleColor = HausColors.current.ink.copy(alpha = 0.90f),
-                largeTitleColor = HausColors.current.ink,
+                titleColor = HausColors.current.textPrimary.copy(alpha = 0.90f),
+                largeTitleColor = HausColors.current.textPrimary,
                 defaultWindowInsetsPadding = false,
                 titlePadding = 20.dp,
                 navigationIconPadding = navigationStartPadding,
@@ -161,7 +161,7 @@ public fun DrillDownMiuixScrollChrome(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription =
                                 stringResource(CoreUiRes.string.back),
-                            tint = HausColors.current.ink,
+                            tint = HausColors.current.textPrimary,
                         )
                     }
                 },
@@ -171,7 +171,7 @@ public fun DrillDownMiuixScrollChrome(
                             Modifier.fillMaxWidth()
                                 .height(1.dp)
                                 .background(
-                                    HausColors.current.line.copy(
+                                    HausColors.current.divider.copy(
                                         alpha =
                                             0.42f *
                                                 scrollBehavior.state
@@ -247,7 +247,7 @@ internal fun DrillDownArtworkStickySlice(
             modifier =
                 Modifier.matchParentSize()
                     .background(
-                        HausColors.current.paper.copy(
+                        HausColors.current.background.copy(
                             alpha = artworkChromeSolidAlpha(progress))),
         )
         TitleChip(
@@ -326,14 +326,15 @@ internal fun DrillDownArtworkBackButton(
                 )
                 .size(44.dp),
         backgroundColor =
-            HausColors.current.paper.copy(alpha = 0.78f * solidBackgroundAlpha),
+            HausColors.current.background.copy(
+                alpha = 0.78f * solidBackgroundAlpha),
         minWidth = 44.dp,
         minHeight = 44.dp,
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = stringResource(CoreUiRes.string.back),
-            tint = HausColors.current.ink,
+            tint = HausColors.current.textPrimary,
         )
     }
 }
@@ -346,13 +347,13 @@ private fun TitleChip(
     Text(
         text = title,
         fontWeight = FontWeight.Black,
-        color = HausColors.current.ink,
+        color = HausColors.current.textPrimary,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier =
             modifier
                 .clip(RoundedCornerShape(999.dp))
-                .background(HausColors.current.paper.copy(alpha = 0.82f))
+                .background(HausColors.current.background.copy(alpha = 0.82f))
                 .padding(horizontal = 14.dp, vertical = 8.dp),
     )
 }
@@ -425,7 +426,8 @@ internal fun DrillDownScrollbar(
                     .width(6.dp)
                     .height(thumbHeight)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(HausColors.current.muted.copy(alpha = 0.42f)),
+                    .background(
+                        HausColors.current.textSecondary.copy(alpha = 0.42f)),
         )
     }
 }

@@ -39,7 +39,7 @@ public fun BackChip(onClick: () -> Unit, modifier: Modifier = Modifier): Unit {
             Box(
                 modifier =
                     Modifier.background(
-                            HausColors.current.navigation, BackChipShape)
+                            HausColors.current.navigationSurface, BackChipShape)
                         .padding(
                             horizontal = HausSpacing.md,
                             vertical = HausSpacing.sm,
@@ -47,7 +47,7 @@ public fun BackChip(onClick: () -> Unit, modifier: Modifier = Modifier): Unit {
                 contentAlignment = Alignment.Center) {
                     Text(
                         text = stringResource(Res.string.back_button),
-                        color = HausColors.current.ink,
+                        color = HausColors.current.textPrimary,
                         fontSize = HausTypography.label.fontSize,
                         fontWeight = HausTypography.label.fontWeight)
                 }

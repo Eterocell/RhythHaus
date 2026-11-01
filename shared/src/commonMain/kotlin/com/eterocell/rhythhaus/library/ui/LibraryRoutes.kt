@@ -1342,13 +1342,13 @@ private fun PlaylistRoutePlaceholder(
                 state.isLoading ->
                     Text(
                         text = stringResource(Res.string.playlist_loading),
-                        color = HausColors.current.muted,
+                        color = HausColors.current.textSecondary,
                     )
 
                 state.readErrorMessage != null -> {
                     Text(
                         text = stringResource(Res.string.playlist_load_failed),
-                        color = HausColors.current.muted,
+                        color = HausColors.current.textSecondary,
                     )
                     Button(
                         onClick = onRetry,
@@ -1360,8 +1360,8 @@ private fun PlaylistRoutePlaceholder(
                         cornerRadius = 16.dp,
                         colors =
                             ButtonDefaults.buttonColors(
-                                color = HausColors.current.ink,
-                                contentColor = HausColors.current.paper,
+                                color = HausColors.current.textPrimary,
+                                contentColor = HausColors.current.background,
                             ),
                     ) {
                         Text(retryLabel)
@@ -1372,7 +1372,7 @@ private fun PlaylistRoutePlaceholder(
                 SharedPlaylistRouteNotice.PlaylistChanged ->
                     Text(
                         text = stringResource(Res.string.playlist_changed),
-                        color = HausColors.current.muted,
+                        color = HausColors.current.textSecondary,
                         modifier = Modifier.padding(top = 12.dp),
                     )
 
@@ -1380,7 +1380,7 @@ private fun PlaylistRoutePlaceholder(
                     Text(
                         text =
                             stringResource(Res.string.playlist_mutation_failed),
-                        color = HausColors.current.muted,
+                        color = HausColors.current.textSecondary,
                         modifier = Modifier.padding(top = 12.dp),
                     )
 

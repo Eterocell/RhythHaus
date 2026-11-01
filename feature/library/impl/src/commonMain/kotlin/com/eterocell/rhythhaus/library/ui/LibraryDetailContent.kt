@@ -237,7 +237,7 @@ public fun DrillDownView(
         ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = HausColors.current.paper) {
+                color = HausColors.current.background) {
                     LazyColumn(
                         state = listState,
                         overscrollEffect = overscrollEffect,

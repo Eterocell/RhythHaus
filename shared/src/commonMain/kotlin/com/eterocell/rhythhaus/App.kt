@@ -68,11 +68,11 @@ import com.eterocell.rhythhaus.playlistbackup.rememberPlaylistTrackReadability
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import com.eterocell.rhythhaus.settings.deviceAudioSourceDisplayName
 import com.eterocell.rhythhaus.taglib.TagLibReader
-import com.eterocell.rhythhaus.theme.DarkHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.LocalHausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.theme.ThemePreferenceStore
-import com.eterocell.rhythhaus.theme.resolveHausPalette
+import com.eterocell.rhythhaus.theme.resolveHausTheme
 import com.eterocell.rhythhaus.theme.systemPrefersDarkTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -2132,45 +2132,51 @@ private fun RhythHausTheme(
     selectedThemeMode: RhythHausThemeMode,
     content: @Composable () -> Unit,
 ) {
-    val colors =
-        resolveHausPalette(
+    val resolved =
+        resolveHausTheme(
             mode = selectedThemeMode,
+            paletteId = HausPaletteId.Moss,
             systemIsDark = systemPrefersDarkTheme(),
         )
+    val colors = resolved.colors
     val colorScheme =
-        if (colors == DarkHausPalette) {
+        if (resolved.isDark) {
             darkColorScheme(
-                primary = colors.pulse,
-                onPrimary = colors.onPulse,
-                secondary = colors.pulse,
-                onSecondary = colors.onPulse,
-                background = colors.paper,
-                onBackground = colors.ink,
-                surface = colors.panel,
-                onSurface = colors.ink,
-                surfaceContainer = colors.panel,
-                onSurfaceContainer = colors.ink,
-                secondaryVariant = colors.pulse,
-                onSecondaryVariant = colors.onPulse,
-                disabledSecondaryVariant = colors.pulse.copy(alpha = 0.28f),
-                disabledOnSecondaryVariant = colors.onPulse.copy(alpha = 0.28f),
+                primary = colors.primaryAction,
+                onPrimary = colors.onPrimaryAction,
+                secondary = colors.primaryAction,
+                onSecondary = colors.onPrimaryAction,
+                background = colors.background,
+                onBackground = colors.textPrimary,
+                surface = colors.surface,
+                onSurface = colors.textPrimary,
+                surfaceContainer = colors.surface,
+                onSurfaceContainer = colors.textPrimary,
+                secondaryVariant = colors.primaryAction,
+                onSecondaryVariant = colors.onPrimaryAction,
+                disabledSecondaryVariant =
+                    colors.primaryAction.copy(alpha = 0.28f),
+                disabledOnSecondaryVariant =
+                    colors.onPrimaryAction.copy(alpha = 0.28f),
             )
         } else {
             lightColorScheme(
-                primary = colors.pulse,
-                onPrimary = colors.onPulse,
-                secondary = colors.pulse,
-                onSecondary = colors.onPulse,
-                background = colors.paper,
-                onBackground = colors.ink,
-                surface = colors.panel,
-                onSurface = colors.ink,
-                surfaceContainer = colors.panel,
-                onSurfaceContainer = colors.ink,
-                secondaryVariant = colors.pulse,
-                onSecondaryVariant = colors.onPulse,
-                disabledSecondaryVariant = colors.pulse.copy(alpha = 0.28f),
-                disabledOnSecondaryVariant = colors.onPulse.copy(alpha = 0.28f),
+                primary = colors.primaryAction,
+                onPrimary = colors.onPrimaryAction,
+                secondary = colors.primaryAction,
+                onSecondary = colors.onPrimaryAction,
+                background = colors.background,
+                onBackground = colors.textPrimary,
+                surface = colors.surface,
+                onSurface = colors.textPrimary,
+                surfaceContainer = colors.surface,
+                onSurfaceContainer = colors.textPrimary,
+                secondaryVariant = colors.primaryAction,
+                onSecondaryVariant = colors.onPrimaryAction,
+                disabledSecondaryVariant =
+                    colors.primaryAction.copy(alpha = 0.28f),
+                disabledOnSecondaryVariant =
+                    colors.onPrimaryAction.copy(alpha = 0.28f),
             )
         }
 

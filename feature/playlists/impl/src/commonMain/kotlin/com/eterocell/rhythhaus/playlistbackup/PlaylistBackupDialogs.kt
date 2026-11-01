@@ -140,7 +140,7 @@ public fun PlaylistBackupSettingsSection(
             )
             Text(
                 stringResource(Res.string.smart_backup_note),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
             )
             DialogTitle(
                 stringResource(Res.string.playlist_backup_interoperability),
@@ -152,7 +152,7 @@ public fun PlaylistBackupSettingsSection(
             )
             Text(
                 stringResource(Res.string.playlist_backup_static_playlist),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
             )
             if (staticPlaylists.isEmpty()) {
                 CountLine(
@@ -256,19 +256,21 @@ private fun PlaylistDocumentFormatSelector(
                     ButtonDefaults.buttonColors(
                         color =
                             if (selected) {
-                                HausColors.current.ink
+                                HausColors.current.textPrimary
                             } else {
-                                HausColors.current.muted.copy(alpha = 0.15f)
+                                HausColors.current.textSecondary.copy(
+                                    alpha = 0.15f)
                             },
                         contentColor =
                             if (selected) {
-                                HausColors.current.paper
+                                HausColors.current.background
                             } else {
-                                HausColors.current.muted
+                                HausColors.current.textSecondary
                             },
                         disabledColor =
-                            HausColors.current.muted.copy(alpha = 0.28f),
-                        disabledContentColor = HausColors.current.muted,
+                            HausColors.current.textSecondary.copy(
+                                alpha = 0.28f),
+                        disabledContentColor = HausColors.current.textSecondary,
                     ),
             ) {
                 Text(
@@ -308,18 +310,19 @@ private fun PlaylistStaticSelectionButton(
             ButtonDefaults.buttonColors(
                 color =
                     if (selected) {
-                        HausColors.current.ink
+                        HausColors.current.textPrimary
                     } else {
-                        HausColors.current.muted.copy(alpha = 0.15f)
+                        HausColors.current.textSecondary.copy(alpha = 0.15f)
                     },
                 contentColor =
                     if (selected) {
-                        HausColors.current.paper
+                        HausColors.current.background
                     } else {
-                        HausColors.current.muted
+                        HausColors.current.textSecondary
                     },
-                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                disabledContentColor = HausColors.current.muted,
+                disabledColor =
+                    HausColors.current.textSecondary.copy(alpha = 0.28f),
+                disabledContentColor = HausColors.current.textSecondary,
             ),
     ) {
         Text(playlist.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
@@ -345,13 +348,14 @@ private fun SettingsSectionButton(
         colors =
             ButtonDefaults.buttonColors(
                 color =
-                    if (primary) HausColors.current.ink
-                    else HausColors.current.muted.copy(alpha = 0.15f),
+                    if (primary) HausColors.current.textPrimary
+                    else HausColors.current.textSecondary.copy(alpha = 0.15f),
                 contentColor =
-                    if (primary) HausColors.current.paper
-                    else HausColors.current.muted,
-                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                disabledContentColor = HausColors.current.muted),
+                    if (primary) HausColors.current.background
+                    else HausColors.current.textSecondary,
+                disabledColor =
+                    HausColors.current.textSecondary.copy(alpha = 0.28f),
+                disabledContentColor = HausColors.current.textSecondary),
     ) {
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
@@ -524,7 +528,7 @@ public fun PlaylistBackupPreviewDialog(
                     modifier =
                         Modifier.fillMaxWidth()
                             .background(
-                                HausColors.current.paper,
+                                HausColors.current.background,
                                 RoundedCornerShape(12.dp))
                             .semantics(mergeDescendants = true) {
                                 contentDescription = accessibility
@@ -534,13 +538,13 @@ public fun PlaylistBackupPreviewDialog(
                 ) {
                     Text(
                         text = issue.entry.title,
-                        color = HausColors.current.ink,
+                        color = HausColors.current.textPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
                         text = "$playlistName · $kind",
-                        color = HausColors.current.muted,
+                        color = HausColors.current.textSecondary,
                         fontSize = 13.sp,
                     )
                 }
@@ -557,7 +561,7 @@ public fun PlaylistBackupPreviewDialog(
                             modifier =
                                 Modifier.testTag(
                                     "playlist-backup-preview-error"),
-                            color = HausColors.current.danger,
+                            color = HausColors.current.error,
                         )
                     }
                     DialogButton(
@@ -703,7 +707,7 @@ private val PlaylistBackupUiError.resource
 private fun DialogTitle(title: String) {
     Text(
         text = title,
-        color = HausColors.current.ink,
+        color = HausColors.current.textPrimary,
         fontSize = 18.sp,
         fontWeight = FontWeight.Black,
     )
@@ -715,8 +719,8 @@ private fun CountLine(text: String, emphasized: Boolean = false) {
         text = text,
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         color =
-            if (emphasized) HausColors.current.ink
-            else HausColors.current.muted,
+            if (emphasized) HausColors.current.textPrimary
+            else HausColors.current.textSecondary,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         fontWeight = if (emphasized) FontWeight.Bold else FontWeight.Medium,
@@ -745,13 +749,14 @@ private fun DialogButton(
         colors =
             ButtonDefaults.buttonColors(
                 color =
-                    if (primary) HausColors.current.ink
-                    else HausColors.current.muted.copy(alpha = 0.15f),
+                    if (primary) HausColors.current.textPrimary
+                    else HausColors.current.textSecondary.copy(alpha = 0.15f),
                 contentColor =
-                    if (primary) HausColors.current.paper
-                    else HausColors.current.muted,
-                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                disabledContentColor = HausColors.current.muted,
+                    if (primary) HausColors.current.background
+                    else HausColors.current.textSecondary,
+                disabledColor =
+                    HausColors.current.textSecondary.copy(alpha = 0.28f),
+                disabledContentColor = HausColors.current.textSecondary,
             ),
     ) {
         Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium)

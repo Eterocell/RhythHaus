@@ -318,7 +318,7 @@ private fun AppShellMainRegion(
                             imageVector = Icons.Filled.Settings,
                             contentDescription =
                                 stringResource(Res.string.settings),
-                            tint = HausColors.current.ink,
+                            tint = HausColors.current.textPrimary,
                         )
                     }
                 }

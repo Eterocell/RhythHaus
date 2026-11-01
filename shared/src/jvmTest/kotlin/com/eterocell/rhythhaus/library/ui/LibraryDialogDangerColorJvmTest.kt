@@ -15,13 +15,16 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import com.eterocell.rhythhaus.theme.DarkHausPalette
-import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.LocalHausColors
+import com.eterocell.rhythhaus.theme.hausPalette
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+
+private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
+private val darkHausPalette = hausPalette(HausPaletteId.Moss, isDark = true)
 
 class LibraryDialogDangerColorJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -29,7 +32,7 @@ class LibraryDialogDangerColorJvmTest {
     fun clearConfirmationRetainsDangerContrastForBothStatesAndPalettes() =
         withEnglishLocale {
             runComposeUiTest {
-                for (palette in listOf(LightHausPalette, DarkHausPalette)) {
+                for (palette in listOf(lightHausPalette, darkHausPalette)) {
                     for (confirmEnabled in listOf(true, false)) {
                         setContent {
                             CompositionLocalProvider(
@@ -64,14 +67,14 @@ class LibraryDialogDangerColorJvmTest {
                         val dominantColor = colorCounts.maxBy { it.value }.key
 
                         assertEquals(
-                            if (confirmEnabled) palette.danger.toArgb()
-                            else palette.dangerPanel.toArgb(),
+                            if (confirmEnabled) palette.error.toArgb()
+                            else palette.errorContainer.toArgb(),
                             dominantColor,
                             "Clear confirmation should retain its danger surface",
                         )
                         val expectedText =
-                            if (confirmEnabled) palette.onDanger
-                            else palette.danger
+                            if (confirmEnabled) palette.onError
+                            else palette.error
                         assertTrue(
                             colorCounts.containsKey(expectedText.toArgb()),
                             "Clear confirmation should retain contrasting danger text",

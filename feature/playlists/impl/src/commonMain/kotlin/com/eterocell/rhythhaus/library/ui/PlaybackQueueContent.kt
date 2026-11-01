@@ -321,7 +321,7 @@ public fun PlaybackQueueContent(
             Text(
                 stringResource(Res.string.queue_title),
                 modifier = Modifier.weight(1f),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
                 fontSize = 18.sp,
             )
@@ -351,8 +351,8 @@ public fun PlaybackQueueContent(
                         cornerRadius = 16.dp,
                         colors =
                             ButtonDefaults.buttonColors(
-                                HausColors.current.ink,
-                                HausColors.current.paper,
+                                HausColors.current.textPrimary,
+                                HausColors.current.background,
                             ),
                     ) {
                         Text(stringResource(Res.string.queue_save_as_playlist))
@@ -462,7 +462,7 @@ public fun PlaybackQueueContent(
                 item(key = "queue-changed") {
                     Text(
                         stringResource(Res.string.queue_changed),
-                        color = HausColors.current.pulse,
+                        color = HausColors.current.primaryAction,
                         fontSize = 13.sp,
                     )
                 }
@@ -631,7 +631,7 @@ private fun PlaybackQueueSectionLabel(
     Text(
         text = text,
         modifier = modifier.padding(vertical = 4.dp),
-        color = HausColors.current.ink,
+        color = HausColors.current.textPrimary,
         fontSize = 13.sp,
         fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
     )
@@ -703,7 +703,9 @@ private fun PlaybackQueueOccurrenceRow(
                 },
                 indicator = {
                     Text(
-                        "▶", color = HausColors.current.pulse, fontSize = 14.sp)
+                        "▶",
+                        color = HausColors.current.primaryAction,
+                        fontSize = 14.sp)
                 },
                 trailing = {
                     if (layoutPolicy.actionPlacement ==
@@ -792,7 +794,7 @@ private fun PlaybackQueueDragHandle(
                     )
                 }
                 .semantics { this.contentDescription = contentDescription },
-        color = HausColors.current.muted,
+        color = HausColors.current.textSecondary,
         fontSize = 24.sp,
     )
 }
@@ -814,7 +816,7 @@ private fun PlaybackQueueArtwork(
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
                 track.title.firstOrNull()?.uppercase() ?: "♪",
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
             )
         }
@@ -841,7 +843,7 @@ private fun PlaybackQueueMutationActions(
         modifier =
             Modifier.semantics { contentDescription = moveUpDescription },
     ) {
-        Text("↑", color = HausColors.current.ink)
+        Text("↑", color = HausColors.current.textPrimary)
     }
     IconButton(
         onClick = { onMove(1) },
@@ -852,7 +854,7 @@ private fun PlaybackQueueMutationActions(
         modifier =
             Modifier.semantics { contentDescription = moveDownDescription },
     ) {
-        Text("↓", color = HausColors.current.ink)
+        Text("↓", color = HausColors.current.textPrimary)
     }
     IconButton(
         onClick = onRemove,
@@ -862,6 +864,6 @@ private fun PlaybackQueueMutationActions(
         modifier =
             Modifier.semantics { contentDescription = removeDescription },
     ) {
-        Text("×", color = HausColors.current.danger)
+        Text("×", color = HausColors.current.error)
     }
 }

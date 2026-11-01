@@ -1064,7 +1064,7 @@ fun LibraryHomeScreen(
         BoxWithConstraints(
             modifier =
                 Modifier.fillMaxSize()
-                    .background(HausColors.current.paper)
+                    .background(HausColors.current.background)
                     .onSizeChanged { screenHeightPx = it.height.toFloat() },
         ) {
             val rootBackdrop = rememberRhythHausBackdrop()
@@ -1108,7 +1108,9 @@ fun LibraryHomeScreen(
                     .padding(
                         top =
                             if (desktopDropSurfaceVisible)
-                                with(density) { desktopDropSurfaceHeight.toDp() }
+                                with(density) {
+                                    desktopDropSurfaceHeight.toDp()
+                                }
                             else 0.dp)) {
                     ForegroundInteractionBoundary(
                         interactive = appShellInteractive,
@@ -1350,8 +1352,7 @@ fun LibraryHomeScreen(
                                     Text(
                                         message,
                                         Modifier.semantics {
-                                            liveRegion =
-                                                LiveRegionMode.Polite
+                                            liveRegion = LiveRegionMode.Polite
                                         })
                                 }
                                 if (desktopDropBannerVisible) {
@@ -1359,7 +1360,8 @@ fun LibraryHomeScreen(
                                         onClick = folderPickerLauncher::launch,
                                         enabled =
                                             coordinatorMutationsEnabled &&
-                                                folderPickerLauncher.isAvailable,
+                                                folderPickerLauncher
+                                                    .isAvailable,
                                         modifier =
                                             Modifier.semantics {
                                                 contentDescription = choose
@@ -1713,7 +1715,7 @@ private fun NowPlayingExpandOverlay(
                         bottomStart = 0.dp,
                         bottomEnd = 0.dp,
                     ),
-                color = HausColors.current.paper,
+                color = HausColors.current.background,
             ) {
                 DestinationInteractionBoundary(
                     interactive = playerInteractive,

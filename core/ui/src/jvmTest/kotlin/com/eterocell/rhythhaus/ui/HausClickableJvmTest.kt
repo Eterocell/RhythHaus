@@ -21,24 +21,27 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
-import com.eterocell.rhythhaus.theme.DarkHausPalette
-import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.LocalHausColors
+import com.eterocell.rhythhaus.theme.hausPalette
 import kotlin.test.Test
 import kotlin.test.assertTrue
+
+private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
+private val darkHausPalette = hausPalette(HausPaletteId.Moss, isDark = true)
 
 class HausClickableJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun focusedClickableDrawsTheActivePaletteOutline() = runComposeUiTest {
         val focusRequester = FocusRequester()
-        var palette by mutableStateOf(LightHausPalette)
+        var palette by mutableStateOf(lightHausPalette)
         setContent {
             CompositionLocalProvider(LocalHausColors provides palette) {
                 Box(
                     Modifier.testTag("focusable-action")
                         .size(48.dp)
-                        .background(palette.panel)
+                        .background(palette.surface)
                         .focusRequester(focusRequester)
                         .hausClickable {},
                 )
@@ -48,11 +51,13 @@ class HausClickableJvmTest {
         runOnIdle { focusRequester.requestFocus() }
         val focusedAction = onNodeWithTag("focusable-action")
         focusedAction.assertIsFocused()
-        assertContainsFocusColor(focusedAction, LightHausPalette.outline)
+        assertContainsFocusColor(
+            focusedAction, lightHausPalette.essentialBoundary)
 
-        runOnIdle { palette = DarkHausPalette }
+        runOnIdle { palette = darkHausPalette }
         waitForIdle()
-        assertContainsFocusColor(focusedAction, DarkHausPalette.outline)
+        assertContainsFocusColor(
+            focusedAction, darkHausPalette.essentialBoundary)
     }
 
     private fun assertContainsFocusColor(

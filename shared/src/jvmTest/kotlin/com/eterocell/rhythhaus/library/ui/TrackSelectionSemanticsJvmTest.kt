@@ -27,13 +27,16 @@ import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.AudioSource
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.theme.DarkHausPalette
-import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.LocalHausColors
+import com.eterocell.rhythhaus.theme.hausPalette
 import kotlin.math.pow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+
+private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
+private val darkHausPalette = hausPalette(HausPaletteId.Moss, isDark = true)
 
 class TrackSelectionSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -41,7 +44,7 @@ class TrackSelectionSemanticsJvmTest {
     fun focusingSelectionActionShowsContrastingOutline() = runComposeUiTest {
         setContent {
             CompositionLocalProvider(
-                LocalHausColors provides LightHausPalette) {
+                LocalHausColors provides lightHausPalette) {
                     TrackSelectionBar(
                         selectedCount = 1,
                         onCancel = {},
@@ -59,7 +62,7 @@ class TrackSelectionSemanticsJvmTest {
         val unfocusedPixels = addAction.captureToImage().toPixelMap()
         val edgeY = unfocusedPixels.height / 2
         assertTrue(
-            unfocusedPixels[0, edgeY] != LightHausPalette.onPulse,
+            unfocusedPixels[0, edgeY] != lightHausPalette.onPrimaryAction,
             "Unfocused selection action should not show the focus outline",
         )
         addAction.performSemanticsAction(SemanticsActions.RequestFocus)
@@ -67,12 +70,12 @@ class TrackSelectionSemanticsJvmTest {
         waitForIdle()
         val focusedPixels = addAction.captureToImage().toPixelMap()
         assertEquals(
-            LightHausPalette.outline,
+            lightHausPalette.essentialBoundary,
             focusedPixels[0, focusedPixels.height / 2],
             "Focused pulse action should draw the outer focus boundary at its edge",
         )
         assertEquals(
-            LightHausPalette.onPulse,
+            lightHausPalette.onPrimaryAction,
             focusedPixels[3, focusedPixels.height / 2],
             "Focused pulse action should contrast with its pulse surface",
         )
@@ -80,37 +83,39 @@ class TrackSelectionSemanticsJvmTest {
 
     @Test
     fun focusBoundaryPalettePairsMeetThreeToOneInBothAppearances() {
-        listOf(LightHausPalette, DarkHausPalette).forEach { palette ->
+        listOf(lightHausPalette, darkHausPalette).forEach { palette ->
             listOf(
-                    palette.paper,
-                    palette.panel,
-                    palette.panelStrong,
-                    palette.navigation,
+                    palette.background,
+                    palette.surface,
+                    palette.raisedSurface,
+                    palette.navigationSurface,
                 )
                 .forEach { surface ->
                     assertTrue(
-                        contrastRatio(palette.outline, surface) >= 3.0,
+                        contrastRatio(palette.essentialBoundary, surface) >=
+                            3.0,
                         "Focus outline must contrast with its outer surface",
                     )
                 }
             assertTrue(
-                contrastRatio(palette.paper, palette.ink) >= 3.0,
+                contrastRatio(palette.background, palette.textPrimary) >= 3.0,
                 "Selected setting focus band must contrast with its ink surface",
             )
             assertTrue(
-                contrastRatio(palette.onPulse, palette.pulse) >= 3.0,
+                contrastRatio(palette.onPrimaryAction, palette.primaryAction) >=
+                    3.0,
                 "Pulse-action focus band must contrast with its fill",
             )
             assertTrue(
-                contrastRatio(palette.paper, palette.pulse) >= 3.0,
+                contrastRatio(palette.background, palette.primaryAction) >= 3.0,
                 "Sleep-timer focus band must contrast with its pulse fill",
             )
             assertTrue(
-                contrastRatio(palette.onDanger, palette.danger) >= 3.0,
+                contrastRatio(palette.onError, palette.error) >= 3.0,
                 "Destructive-action focus band must contrast with its fill",
             )
             assertTrue(
-                contrastRatio(palette.danger, palette.dangerPanel) >= 3.0,
+                contrastRatio(palette.error, palette.errorContainer) >= 3.0,
                 "Destructive-panel focus band must contrast with its fill",
             )
         }

@@ -132,7 +132,7 @@ public fun OnboardingScreen(
     val backAvailable = reviewMode || page > 0
     val title = stringResource(Res.string.onboarding_title)
     Surface(
-        color = HausColors.current.paper,
+        color = HausColors.current.background,
         modifier = modifier.fillMaxSize().testTag(OnboardingRootTestTag)) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().safeContentPadding(),
@@ -155,7 +155,7 @@ public fun OnboardingScreen(
                                     page + 1,
                                     onboardingPages.size),
                                 Modifier.testTag(OnboardingProgressTestTag),
-                                color = HausColors.current.muted,
+                                color = HausColors.current.textSecondary,
                                 style = HausTypography.label)
                             Text(
                                 pageHeading(page),
@@ -165,12 +165,12 @@ public fun OnboardingScreen(
                                         heading()
                                         liveRegion = LiveRegionMode.Polite
                                     },
-                                color = HausColors.current.ink,
+                                color = HausColors.current.textPrimary,
                                 style = HausTypography.pageTitle)
                             Text(
                                 pageBody(page, platform),
                                 Modifier.padding(top = HausSpacing.sm),
-                                color = HausColors.current.ink,
+                                color = HausColors.current.textPrimary,
                                 style = HausTypography.body)
                             if (onboardingPages[page] ==
                                 OnboardingPage.AddMusic) {
@@ -180,7 +180,7 @@ public fun OnboardingScreen(
                                     Modifier.fillMaxWidth()
                                         .padding(top = HausSpacing.md)
                                         .background(
-                                            HausColors.current.panel,
+                                            HausColors.current.surface,
                                             RoundedCornerShape(
                                                 HausShapes.group),
                                         )
@@ -189,7 +189,7 @@ public fun OnboardingScreen(
                                         .semantics {
                                             contentDescription = guidance
                                         },
-                                    color = HausColors.current.muted,
+                                    color = HausColors.current.textSecondary,
                                     style = HausTypography.secondary)
                             }
                         }
@@ -200,18 +200,18 @@ public fun OnboardingScreen(
                             Modifier.fillMaxWidth()
                                 .padding(horizontal = HausSpacing.xl)
                                 .background(
-                                    HausColors.current.dangerPanel,
+                                    HausColors.current.errorContainer,
                                     RoundedCornerShape(HausShapes.group),
                                 )
                                 .padding(HausSpacing.md)
                                 .testTag(OnboardingErrorTestTag)) {
                                 Text(
                                     stringResource(Res.string.error_save),
-                                    color = HausColors.current.danger,
+                                    color = HausColors.current.error,
                                     style = HausTypography.title)
                                 Text(
                                     completionError,
-                                    color = HausColors.current.danger,
+                                    color = HausColors.current.error,
                                     style = HausTypography.secondary)
                                 action(
                                     onFinish,
@@ -309,21 +309,22 @@ private fun action(
         colors =
             ButtonDefaults.buttonColors(
                 color =
-                    if (primary) HausColors.current.ink
-                    else HausColors.current.panel,
+                    if (primary) HausColors.current.textPrimary
+                    else HausColors.current.surface,
                 contentColor =
-                    if (primary) HausColors.current.paper
-                    else HausColors.current.ink,
-                disabledColor = HausColors.current.muted.copy(alpha = 0.28f),
-                disabledContentColor = HausColors.current.muted),
+                    if (primary) HausColors.current.background
+                    else HausColors.current.textPrimary,
+                disabledColor =
+                    HausColors.current.textSecondary.copy(alpha = 0.28f),
+                disabledContentColor = HausColors.current.textSecondary),
     ) {
         Text(
             label,
             color =
                 if (enabled) {
-                    if (primary) HausColors.current.paper
-                    else HausColors.current.ink
-                } else HausColors.current.muted,
+                    if (primary) HausColors.current.background
+                    else HausColors.current.textPrimary
+                } else HausColors.current.textSecondary,
             style = HausTypography.secondary)
     }
 }

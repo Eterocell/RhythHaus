@@ -114,7 +114,7 @@ internal fun SleepTimerPanel(
         modifier =
             modifier.fillMaxSize().testTag(NowPlayingSleepTimerPanelTestTag),
         cornerRadius = 20.dp,
-        colors = CardDefaults.defaultColors(color = HausColors.current.panel),
+        colors = CardDefaults.defaultColors(color = HausColors.current.surface),
     ) {
         Column(
             Modifier.fillMaxSize()
@@ -124,7 +124,7 @@ internal fun SleepTimerPanel(
         ) {
             Text(
                 stringResource(Res.string.sleep_timer_title),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black,
             )
@@ -136,7 +136,7 @@ internal fun SleepTimerPanel(
                             Modifier.testTag(
                                     NowPlayingSleepTimerActiveSummaryTestTag)
                                 .semantics { contentDescription = summary },
-                        color = HausColors.current.muted,
+                        color = HausColors.current.textSecondary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         lineHeight = 18.sp,
@@ -159,7 +159,7 @@ internal fun SleepTimerPanel(
             )
             Text(
                 stringResource(Res.string.sleep_timer_stop_in),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -203,7 +203,7 @@ internal fun SleepTimerPanel(
             }
             Text(
                 stringResource(Res.string.sleep_timer_stop_after),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -261,10 +261,11 @@ private fun SleepTimerFadeToggle(
             Modifier.hausClickable(
                 onClick = onClick,
                 focusColor =
-                    if (fadeEnabled) HausColors.current.paper
-                    else HausColors.current.outline,
+                    if (fadeEnabled) HausColors.current.background
+                    else HausColors.current.essentialBoundary,
                 outerColor =
-                    if (fadeEnabled) HausColors.current.outline else null,
+                    if (fadeEnabled) HausColors.current.essentialBoundary
+                    else null,
             )
         } else Modifier
     Box(
@@ -272,8 +273,8 @@ private fun SleepTimerFadeToggle(
             .height(44.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(
-                if (fadeEnabled) HausColors.current.pulse
-                else HausColors.current.paper,
+                if (fadeEnabled) HausColors.current.primaryAction
+                else HausColors.current.background,
             )
             .testTag(NowPlayingSleepTimerFadeTestTag)
             .semantics {
@@ -290,8 +291,8 @@ private fun SleepTimerFadeToggle(
             stringResource(
                 Res.string.sleep_timer_fade_format, label, stateLabel),
             color =
-                if (fadeEnabled) HausColors.current.paper
-                else HausColors.current.ink,
+                if (fadeEnabled) HausColors.current.background
+                else HausColors.current.textPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -311,8 +312,8 @@ private fun SleepTimerActionButton(
             .height(44.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(
-                if (destructive) HausColors.current.dangerPanel
-                else HausColors.current.paper,
+                if (destructive) HausColors.current.errorContainer
+                else HausColors.current.background,
             )
             .semantics { contentDescription = label }
             .hausClickable(onClick)
@@ -322,8 +323,8 @@ private fun SleepTimerActionButton(
         Text(
             label,
             color =
-                if (destructive) HausColors.current.danger
-                else HausColors.current.ink,
+                if (destructive) HausColors.current.error
+                else HausColors.current.textPrimary,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,

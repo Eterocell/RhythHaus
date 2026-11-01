@@ -36,7 +36,6 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.eterocell.rhythhaus.theme.DarkHausPalette
 import com.eterocell.rhythhaus.theme.HausColorPalette
 import com.eterocell.rhythhaus.theme.HausColors
 import com.eterocell.rhythhaus.theme.HausShapes
@@ -52,16 +51,12 @@ internal data class HausDialogPresentation(
     val maxPanelHeight: Dp = 480.dp
 )
 
-private const val DarkHausDialogScrimAlpha = 0.72f
-
 internal fun hausDialogPresentation(
     palette: HausColorPalette
 ): HausDialogPresentation =
     HausDialogPresentation(
-        palette.panel,
-        if (palette == DarkHausPalette)
-            palette.paper.copy(alpha = DarkHausDialogScrimAlpha)
-        else palette.ink.copy(alpha = 0.36f))
+        panelColor = palette.surface,
+        scrimColor = palette.scrimColor.copy(alpha = palette.scrimAlpha))
 
 /**
  * Presents a standard RhythHaus dialog while retaining its established dismiss

@@ -1,16 +1,19 @@
 package com.eterocell.rhythhaus.library.ui
 
-import com.eterocell.rhythhaus.theme.DarkHausPalette
-import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
+import com.eterocell.rhythhaus.theme.hausPalette
 import kotlin.test.Test
 import kotlin.test.assertEquals
+
+private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
+private val darkHausPalette = hausPalette(HausPaletteId.Moss, isDark = true)
 
 class TrackRowColorPolicyJvmTest {
     @Test
     fun selectedAndPlayingMetadataUsesHighContrastInk() {
-        listOf(LightHausPalette, DarkHausPalette).forEach { palette ->
+        listOf(lightHausPalette, darkHausPalette).forEach { palette ->
             assertEquals(
-                palette.ink,
+                palette.textPrimary,
                 trackRowMetadataColor(
                     palette = palette,
                     isNowPlaying = false,
@@ -18,7 +21,7 @@ class TrackRowColorPolicyJvmTest {
                 ),
             )
             assertEquals(
-                palette.ink,
+                palette.textPrimary,
                 trackRowMetadataColor(
                     palette = palette,
                     isNowPlaying = true,
@@ -26,7 +29,7 @@ class TrackRowColorPolicyJvmTest {
                 ),
             )
             assertEquals(
-                palette.muted,
+                palette.textSecondary,
                 trackRowMetadataColor(
                     palette = palette,
                     isNowPlaying = false,

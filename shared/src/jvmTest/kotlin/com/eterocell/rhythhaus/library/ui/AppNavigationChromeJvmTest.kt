@@ -10,10 +10,13 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.v2.runComposeUiTest
-import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.LocalHausColors
+import com.eterocell.rhythhaus.theme.hausPalette
 import kotlin.test.Test
 import kotlin.test.assertTrue
+
+private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
 
 class AppNavigationChromeJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -21,7 +24,7 @@ class AppNavigationChromeJvmTest {
     fun focusedPrimaryDestinationShowsThemeOutline() = runComposeUiTest {
         setContent {
             CompositionLocalProvider(
-                LocalHausColors provides LightHausPalette) {
+                LocalHausColors provides lightHausPalette) {
                     AppNavigationChrome(
                         layout = AppNavigationLayout.Bottom,
                         selectedDestination = null,
@@ -37,7 +40,7 @@ class AppNavigationChromeJvmTest {
         destination.performSemanticsAction(SemanticsActions.RequestFocus)
         destination.assertIsFocused()
         val pixels = destination.captureToImage().toPixelMap()
-        val outline = LightHausPalette.outline.toArgb()
+        val outline = lightHausPalette.essentialBoundary.toArgb()
         assertTrue(
             (0 until pixels.height).any { y ->
                 (0 until pixels.width).any { x ->

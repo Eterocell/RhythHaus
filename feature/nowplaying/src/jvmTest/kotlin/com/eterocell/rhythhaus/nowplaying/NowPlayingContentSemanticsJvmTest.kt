@@ -49,21 +49,24 @@ import com.eterocell.rhythhaus.ShuffleMode
 import com.eterocell.rhythhaus.SleepTimerState
 import com.eterocell.rhythhaus.Track
 import com.eterocell.rhythhaus.TrackAccent
-import com.eterocell.rhythhaus.theme.DarkHausPalette
-import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.LocalHausColors
+import com.eterocell.rhythhaus.theme.hausPalette
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
+private val darkHausPalette = hausPalette(HausPaletteId.Moss, isDark = true)
+
 public class NowPlayingContentSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
     @Test
     public fun pulseBackedControlsUseDarkPaletteOnPulseForeground(): Unit =
         runComposeUiTest {
-            val palette = DarkHausPalette
+            val palette = darkHausPalette
             setContent {
                 CompositionLocalProvider(LocalHausColors provides palette) {
                     mountedRecoveryNowPlaying(
@@ -89,7 +92,8 @@ public class NowPlayingContentSemanticsJvmTest {
                 var onPulsePixels = 0
                 for (y in 0 until pixels.height) {
                     for (x in 0 until pixels.width) {
-                        if (pixels[x, y].toArgb() == palette.onPulse.toArgb()) {
+                        if (pixels[x, y].toArgb() ==
+                            palette.onPrimaryAction.toArgb()) {
                             onPulsePixels += 1
                         }
                     }
@@ -105,7 +109,7 @@ public class NowPlayingContentSemanticsJvmTest {
     @Test
     public fun focusedPulseControlsUseTwoToneContrastBoundary(): Unit =
         runComposeUiTest {
-            val palette = DarkHausPalette
+            val palette = darkHausPalette
             setContent {
                 CompositionLocalProvider(LocalHausColors provides palette) {
                     mountedRecoveryNowPlaying(
@@ -132,12 +136,12 @@ public class NowPlayingContentSemanticsJvmTest {
                 val pixels = action.captureToImage().toPixelMap()
                 val centerY = pixels.height / 2
                 assertEquals(
-                    palette.outline.toArgb(),
+                    palette.essentialBoundary.toArgb(),
                     pixels[1, centerY].toArgb(),
                     "$testTag should draw an outer boundary contrasting its surface",
                 )
                 assertEquals(
-                    palette.onPulse.toArgb(),
+                    palette.onPrimaryAction.toArgb(),
                     pixels[3, centerY].toArgb(),
                     "$testTag should draw an inner boundary contrasting its pulse fill",
                 )
@@ -726,7 +730,7 @@ public class NowPlayingContentSemanticsJvmTest {
             controller.setQueue(playableTracks(), selectedTrackId = "second")
             setContent {
                 CompositionLocalProvider(
-                    LocalHausColors provides LightHausPalette,
+                    LocalHausColors provides lightHausPalette,
                 ) {
                     mountedRecoveryNowPlaying(
                         track = displayTrack(),
@@ -747,12 +751,12 @@ public class NowPlayingContentSemanticsJvmTest {
             val pixels = retry.captureToImage().toPixelMap()
             val centerY = pixels.height / 2
             assertEquals(
-                LightHausPalette.outline.toArgb(),
+                lightHausPalette.essentialBoundary.toArgb(),
                 pixels[0, centerY].toArgb(),
                 "Primary action should draw an outer boundary against its surface",
             )
             assertEquals(
-                LightHausPalette.paper.toArgb(),
+                lightHausPalette.background.toArgb(),
                 pixels[3, centerY].toArgb(),
                 "Primary action should draw an inner boundary against its ink fill",
             )

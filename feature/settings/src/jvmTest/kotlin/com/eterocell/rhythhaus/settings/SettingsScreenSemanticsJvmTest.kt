@@ -60,10 +60,10 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
-import com.eterocell.rhythhaus.theme.DarkHausPalette
-import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.LocalHausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.theme.hausPalette
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -86,6 +86,9 @@ import rhythhaus.feature.settings.generated.resources.source_never_scanned
 import rhythhaus.feature.settings.generated.resources.source_status_format
 import rhythhaus.feature.settings.generated.resources.theme_dark_label
 import rhythhaus.feature.settings.generated.resources.unnamed_folder
+
+private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
+private val darkHausPalette = hausPalette(HausPaletteId.Moss, isDark = true)
 
 public class SettingsScreenSemanticsJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -770,7 +773,7 @@ public class SettingsScreenSemanticsJvmTest {
     @Test
     public fun clearLibraryActionUsesDangerPanelInBothPalettes(): Unit =
         runComposeUiTest {
-            for (palette in listOf(LightHausPalette, DarkHausPalette)) {
+            for (palette in listOf(lightHausPalette, darkHausPalette)) {
                 for (mutations in listOf(true, false)) {
                     setContent {
                         CompositionLocalProvider(
@@ -797,24 +800,24 @@ public class SettingsScreenSemanticsJvmTest {
 
                     if (mutations) {
                         assertEquals(
-                            palette.dangerPanel.toArgb(),
+                            palette.errorContainer.toArgb(),
                             dominantColor,
                             "Clear-library action should use the danger panel",
                         )
                         assertTrue(
-                            palette.danger.toArgb() in colorCounts,
+                            palette.error.toArgb() in colorCounts,
                             "Clear-library label should use the danger foreground",
                         )
                     } else {
                         actionNode.assertIsNotEnabled()
                         assertEquals(
-                            palette.dangerPanel.toArgb(),
+                            palette.errorContainer.toArgb(),
                             dominantColor,
                             "Disabled clear-library action should retain the " +
                                 "danger-panel tint",
                         )
                         assertTrue(
-                            palette.danger.toArgb() in colorCounts,
+                            palette.error.toArgb() in colorCounts,
                             "Disabled clear-library label should retain the " +
                                 "danger foreground",
                         )
@@ -1113,7 +1116,7 @@ public class SettingsScreenSemanticsJvmTest {
         runComposeUiTest {
             setContent {
                 CompositionLocalProvider(
-                    LocalHausColors provides LightHausPalette) {
+                    LocalHausColors provides lightHausPalette) {
                         Box(Modifier.size(600.dp, 1_200.dp)) { content() }
                     }
             }
@@ -1126,7 +1129,7 @@ public class SettingsScreenSemanticsJvmTest {
             option.performSemanticsAction(SemanticsActions.RequestFocus)
             option.assertIsFocused()
             val pixels = option.captureToImage().toPixelMap()
-            val outline = LightHausPalette.outline.toArgb()
+            val outline = lightHausPalette.essentialBoundary.toArgb()
             assertTrue(
                 (0 until pixels.height).any { y ->
                     (0 until pixels.width).any { x ->

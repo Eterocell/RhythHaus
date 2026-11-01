@@ -16,12 +16,15 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
-import com.eterocell.rhythhaus.theme.LightHausPalette
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.LocalHausColors
+import com.eterocell.rhythhaus.theme.hausPalette
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+
+private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
 
 class NavigationPrimitivesJvmTest {
     @OptIn(ExperimentalTestApi::class)
@@ -71,7 +74,7 @@ class NavigationPrimitivesJvmTest {
         runComposeUiTest {
             setContent {
                 CompositionLocalProvider(
-                    LocalHausColors provides LightHausPalette) {
+                    LocalHausColors provides lightHausPalette) {
                         RhythHausTopAppBar(title = "Title", onBack = {})
                     }
             }
@@ -80,7 +83,7 @@ class NavigationPrimitivesJvmTest {
             back.performSemanticsAction(SemanticsActions.RequestFocus)
             back.assertIsFocused()
             val pixels = back.captureToImage().toPixelMap()
-            val outline = LightHausPalette.outline.toArgb()
+            val outline = lightHausPalette.essentialBoundary.toArgb()
             assertTrue(
                 (0 until pixels.height).any { y ->
                     (0 until pixels.width).any { x ->

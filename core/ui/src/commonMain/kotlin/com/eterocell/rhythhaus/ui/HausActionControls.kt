@@ -44,7 +44,7 @@ public fun HausButton(
                     if (enabled) colors.contentColor
                     else colors.disabledContentColor,
                 shape = RoundedCornerShape(cornerRadius),
-                outerColor = HausColors.current.outline,
+                outerColor = HausColors.current.essentialBoundary,
             ),
         enabled = enabled,
         cornerRadius = cornerRadius,
@@ -69,7 +69,7 @@ public fun HausIconButton(
     cornerRadius: Dp = IconButtonDefaults.CornerRadius,
     minHeight: Dp = IconButtonDefaults.MinHeight,
     minWidth: Dp = IconButtonDefaults.MinWidth,
-    focusColor: Color = HausColors.current.outline,
+    focusColor: Color = HausColors.current.essentialBoundary,
     content: @Composable () -> Unit,
 ) {
     val disabledSemantics =

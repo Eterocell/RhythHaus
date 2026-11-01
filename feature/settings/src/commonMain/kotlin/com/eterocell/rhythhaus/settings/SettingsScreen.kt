@@ -471,7 +471,7 @@ public fun SettingsScreen(
     Box(
         modifier
             .fillMaxSize()
-            .background(HausColors.current.paper)
+            .background(HausColors.current.background)
             .testTag(SettingsRootTestTag)) {
             Box(
                 Modifier.matchParentSize()
@@ -489,10 +489,10 @@ public fun SettingsScreen(
                     })
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = HausColors.current.paper) {
+                color = HausColors.current.background) {
                     Scaffold(
                         modifier = Modifier.fillMaxSize(),
-                        containerColor = HausColors.current.paper,
+                        containerColor = HausColors.current.background,
                         contentWindowInsets = WindowInsets(0.dp)) {
                             LazyColumn(
                                 state = effectiveListState,
@@ -605,7 +605,9 @@ public fun SettingsScreen(
                                             Arrangement.spacedBy(4.dp)) {
                                             Text(
                                                 labels.outputStatusTitle,
-                                                color = HausColors.current.ink,
+                                                color =
+                                                    HausColors.current
+                                                        .textPrimary,
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold)
                                             Text(
@@ -616,7 +618,8 @@ public fun SettingsScreen(
                                                     Modifier.testTag(
                                                         "settings-output-status"),
                                                 color =
-                                                    HausColors.current.muted,
+                                                    HausColors.current
+                                                        .textSecondary,
                                                 fontSize = 13.sp)
                                         }
                                 }
@@ -649,7 +652,9 @@ public fun SettingsScreen(
                                         Text(
                                             stringResource(
                                                 Res.string.configured_folders),
-                                            color = HausColors.current.muted,
+                                            color =
+                                                HausColors.current
+                                                    .textSecondary,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold)
                                     }
@@ -712,22 +717,22 @@ public fun SettingsScreen(
                                                                     color =
                                                                         HausColors
                                                                             .current
-                                                                            .ink,
+                                                                            .textPrimary,
                                                                     contentColor =
                                                                         HausColors
                                                                             .current
-                                                                            .paper,
+                                                                            .background,
                                                                     disabledColor =
                                                                         HausColors
                                                                             .current
-                                                                            .muted
+                                                                            .textSecondary
                                                                             .copy(
                                                                                 alpha =
                                                                                     .28f),
                                                                     disabledContentColor =
                                                                         HausColors
                                                                             .current
-                                                                            .muted)) {
+                                                                            .textSecondary)) {
                                                             Text(
                                                                 pickerLabel,
                                                                 fontSize =
@@ -749,19 +754,19 @@ public fun SettingsScreen(
                                                     ButtonDefaults.buttonColors(
                                                         color =
                                                             HausColors.current
-                                                                .ink,
+                                                                .textPrimary,
                                                         contentColor =
                                                             HausColors.current
-                                                                .paper,
+                                                                .background,
                                                         disabledColor =
                                                             HausColors.current
-                                                                .muted
+                                                                .textSecondary
                                                                 .copy(
                                                                     alpha =
                                                                         .28f),
                                                         disabledContentColor =
                                                             HausColors.current
-                                                                .muted)) {
+                                                                .textSecondary)) {
                                                     Text(
                                                         pickerLabel,
                                                         fontSize = 14.sp,
@@ -773,7 +778,9 @@ public fun SettingsScreen(
                                     item {
                                         Text(
                                             message,
-                                            color = HausColors.current.muted,
+                                            color =
+                                                HausColors.current
+                                                    .textSecondary,
                                             fontSize = 13.sp,
                                             lineHeight = 18.sp,
                                             fontWeight = FontWeight.Medium)
@@ -816,19 +823,19 @@ public fun SettingsScreen(
                                                                     color =
                                                                         HausColors
                                                                             .current
-                                                                            .dangerPanel,
+                                                                            .errorContainer,
                                                                     contentColor =
                                                                         HausColors
                                                                             .current
-                                                                            .danger,
+                                                                            .error,
                                                                     disabledColor =
                                                                         HausColors
                                                                             .current
-                                                                            .dangerPanel,
+                                                                            .errorContainer,
                                                                     disabledContentColor =
                                                                         HausColors
                                                                             .current
-                                                                            .danger)) {
+                                                                            .error)) {
                                                             Text(
                                                                 labels
                                                                     .clearLibrary,
@@ -851,10 +858,10 @@ public fun SettingsScreen(
                                                     ButtonDefaults.buttonColors(
                                                         color =
                                                             HausColors.current
-                                                                .dangerPanel,
+                                                                .errorContainer,
                                                         contentColor =
                                                             HausColors.current
-                                                                .danger)) {
+                                                                .error)) {
                                                     Text(
                                                         labels.clearLibrary,
                                                         fontSize = 14.sp,
@@ -866,12 +873,12 @@ public fun SettingsScreen(
                                     Column(
                                         Modifier.fillMaxWidth()
                                             .background(
-                                                HausColors.current.panel.copy(
+                                                HausColors.current.surface.copy(
                                                     alpha = .54f),
                                                 RoundedCornerShape(16.dp))
                                             .border(
                                                 1.dp,
-                                                HausColors.current.line,
+                                                HausColors.current.divider,
                                                 RoundedCornerShape(16.dp))
                                             .padding(14.dp),
                                         verticalArrangement =
@@ -880,7 +887,9 @@ public fun SettingsScreen(
                                                 stringResource(
                                                     Res.string
                                                         .clear_artwork_cache),
-                                                color = HausColors.current.ink,
+                                                color =
+                                                    HausColors.current
+                                                        .textPrimary,
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold)
                                             Text(
@@ -888,7 +897,8 @@ public fun SettingsScreen(
                                                     Res.string
                                                         .clear_artwork_cache_explanation),
                                                 color =
-                                                    HausColors.current.muted,
+                                                    HausColors.current
+                                                        .textSecondary,
                                                 fontSize = 12.sp)
                                             Button(
                                                 onClick = {
@@ -939,7 +949,7 @@ public fun SettingsScreen(
                                                         },
                                                     color =
                                                         HausColors.current
-                                                            .muted,
+                                                            .textSecondary,
                                                     fontSize = 12.sp)
                                             }
                                         }
@@ -1010,7 +1020,7 @@ private fun SettingsSectionHeading(label: String, tag: String) {
                 .padding(top = HausSpacing.lg)
                 .testTag(tag)
                 .semantics { heading() },
-        color = HausColors.current.ink,
+        color = HausColors.current.textPrimary,
         style = HausTypography.section)
 }
 
@@ -1033,19 +1043,19 @@ private fun ReviewOnboardingRow(onClick: () -> Unit) {
         Icon(
             Icons.Default.Info,
             null,
-            tint = HausColors.current.ink,
+            tint = HausColors.current.textPrimary,
             modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(12.dp))
         Text(
             label,
             Modifier.weight(1f),
-            HausColors.current.ink,
+            HausColors.current.textPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold)
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             null,
-            tint = HausColors.current.muted,
+            tint = HausColors.current.textSecondary,
             modifier = Modifier.size(22.dp))
     }
 }
@@ -1065,19 +1075,19 @@ private fun AboutRow(onClick: () -> Unit) =
         Icon(
             Icons.Default.Info,
             null,
-            tint = HausColors.current.ink,
+            tint = HausColors.current.textPrimary,
             modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(12.dp))
         Text(
             stringResource(Res.string.about),
             Modifier.weight(1f),
-            HausColors.current.ink,
+            HausColors.current.textPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold)
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             null,
-            tint = HausColors.current.muted,
+            tint = HausColors.current.textSecondary,
             modifier = Modifier.size(22.dp))
     }
 
@@ -1109,9 +1119,9 @@ private fun ConfiguredSourceRow(
         Modifier.fillMaxWidth()
             .heightIn(min = 72.dp)
             .background(
-                HausColors.current.panel.copy(alpha = .54f),
+                HausColors.current.surface.copy(alpha = .54f),
                 RoundedCornerShape(16.dp))
-            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.divider, RoundedCornerShape(16.dp))
             .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1120,7 +1130,7 @@ private fun ConfiguredSourceRow(
                 verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         displayName,
-                        color = HausColors.current.ink,
+                        color = HausColors.current.textPrimary,
                         fontSize = 15.sp,
                         lineHeight = 20.sp,
                         fontWeight = FontWeight.Black,
@@ -1129,7 +1139,7 @@ private fun ConfiguredSourceRow(
                     Text(
                         stringResource(
                             Res.string.source_status_format, access, scan),
-                        color = HausColors.current.muted,
+                        color = HausColors.current.textSecondary,
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
                         fontWeight = FontWeight.Medium,
@@ -1156,7 +1166,8 @@ private fun ConfiguredSourceRow(
                             if (lostAccess) Res.string.recover_source_format
                             else Res.string.rescan_source_format,
                             displayName),
-                        tint = HausColors.current.ink.copy(alpha = alpha),
+                        tint =
+                            HausColors.current.textPrimary.copy(alpha = alpha),
                         modifier = Modifier.size(20.dp))
                 }
             IconButton(
@@ -1174,7 +1185,7 @@ private fun ConfiguredSourceRow(
                         Icons.Default.DeleteOutline,
                         stringResource(
                             Res.string.remove_source_format, displayName),
-                        tint = HausColors.current.danger.copy(alpha = alpha),
+                        tint = HausColors.current.error.copy(alpha = alpha),
                         modifier = Modifier.size(20.dp))
                 }
         }
@@ -1203,20 +1214,20 @@ private fun MediaNotificationRecoveryCard(
     Column(
         Modifier.fillMaxWidth()
             .background(
-                HausColors.current.panel.copy(alpha = .54f),
+                HausColors.current.surface.copy(alpha = .54f),
                 RoundedCornerShape(16.dp))
-            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.divider, RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 stringResource(Res.string.notification_permission_title),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 15.sp,
                 lineHeight = 20.sp,
                 fontWeight = FontWeight.Black)
             Text(
                 stringResource(Res.string.notification_permission_body),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
                 fontWeight = FontWeight.Medium)
@@ -1229,11 +1240,12 @@ private fun MediaNotificationRecoveryCard(
                 cornerRadius = 16.dp,
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.ink,
-                        contentColor = HausColors.current.paper,
+                        color = HausColors.current.textPrimary,
+                        contentColor = HausColors.current.background,
                         disabledColor =
-                            HausColors.current.muted.copy(alpha = .28f),
-                        disabledContentColor = HausColors.current.muted)) {
+                            HausColors.current.textSecondary.copy(alpha = .28f),
+                        disabledContentColor =
+                            HausColors.current.textSecondary)) {
                     Text(
                         actionLabel,
                         fontSize = 14.sp,
@@ -1268,19 +1280,19 @@ private fun MediaStoreAudioRecoveryCard(
     Column(
         Modifier.fillMaxWidth()
             .background(
-                HausColors.current.panel.copy(alpha = .54f),
+                HausColors.current.surface.copy(alpha = .54f),
                 RoundedCornerShape(16.dp))
-            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.divider, RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 stringResource(Res.string.device_audio),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Black)
             Text(
                 stringResource(Res.string.device_audio_unavailable),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
                 fontWeight = FontWeight.Medium)
@@ -1294,8 +1306,8 @@ private fun MediaStoreAudioRecoveryCard(
                 cornerRadius = 16.dp,
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.ink,
-                        contentColor = HausColors.current.paper)) {
+                        color = HausColors.current.textPrimary,
+                        contentColor = HausColors.current.background)) {
                     Text(
                         actionLabel,
                         fontSize = 14.sp,
@@ -1323,7 +1335,7 @@ private fun RemoveSourceDialog(
         body = {
             Text(
                 stringResource(Res.string.remove_source),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Black)
             Spacer(Modifier.height(12.dp))
@@ -1331,7 +1343,7 @@ private fun RemoveSourceDialog(
                 visibleName,
                 Modifier.semantics { contentDescription = fullName }
                     .testTag("settings-source-removal-name"),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 fontWeight = FontWeight.Bold,
@@ -1343,13 +1355,13 @@ private fun RemoveSourceDialog(
                     Res.string.source_scanned_track_count_format,
                     source.trackCount),
                 Modifier.testTag("settings-source-removal-count"),
-                color = HausColors.current.danger,
+                color = HausColors.current.error,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Text(
                 stringResource(Res.string.remove_source_message),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = 14.sp,
                 lineHeight = 20.sp)
         },
@@ -1365,8 +1377,9 @@ private fun RemoveSourceDialog(
                     PaddingValues(horizontal = 16.dp, vertical = 9.dp),
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.muted.copy(alpha = .15f),
-                        contentColor = HausColors.current.muted)) {
+                        color =
+                            HausColors.current.textSecondary.copy(alpha = .15f),
+                        contentColor = HausColors.current.textSecondary)) {
                     Text(
                         labels.cancel,
                         fontSize = 13.sp,
@@ -1384,11 +1397,12 @@ private fun RemoveSourceDialog(
                     PaddingValues(horizontal = 16.dp, vertical = 9.dp),
                 colors =
                     ButtonDefaults.buttonColors(
-                        color = HausColors.current.danger,
-                        contentColor = HausColors.current.onDanger,
+                        color = HausColors.current.error,
+                        contentColor = HausColors.current.onError,
                         disabledColor =
-                            HausColors.current.muted.copy(alpha = .28f),
-                        disabledContentColor = HausColors.current.muted)) {
+                            HausColors.current.textSecondary.copy(alpha = .28f),
+                        disabledContentColor =
+                            HausColors.current.textSecondary)) {
                     Text(
                         labels.remove,
                         fontSize = 13.sp,
@@ -1408,15 +1422,15 @@ private fun ReplayGainPreference(
     Column(
         Modifier.fillMaxWidth()
             .background(
-                HausColors.current.panel.copy(alpha = .54f),
+                HausColors.current.surface.copy(alpha = .54f),
                 RoundedCornerShape(16.dp))
-            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.divider, RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
                 stringResource(Res.string.replaygain_title),
                 modifier = Modifier.semantics { heading() },
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black)
             Row(
@@ -1444,16 +1458,20 @@ private fun ReplayGainPreference(
                                 .heightIn(min = 48.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
-                                    if (isSelected) HausColors.current.ink
-                                    else HausColors.current.paper)
+                                    if (isSelected)
+                                        HausColors.current.textPrimary
+                                    else HausColors.current.background)
                                 .hausFocusIndicator(
                                     color =
-                                        if (isSelected) HausColors.current.paper
-                                        else HausColors.current.outline,
+                                        if (isSelected)
+                                            HausColors.current.background
+                                        else
+                                            HausColors.current
+                                                .essentialBoundary,
                                     shape = RoundedCornerShape(12.dp),
                                     outerColor =
                                         if (isSelected)
-                                            HausColors.current.outline
+                                            HausColors.current.essentialBoundary
                                         else null,
                                 )
                                 .testTag(mode.testTag())
@@ -1463,8 +1481,9 @@ private fun ReplayGainPreference(
                             horizontalArrangement =
                                 Arrangement.spacedBy(6.dp)) {
                                 val color =
-                                    (if (isSelected) HausColors.current.paper
-                                        else HausColors.current.ink)
+                                    (if (isSelected)
+                                            HausColors.current.background
+                                        else HausColors.current.textPrimary)
                                         .copy(
                                             alpha =
                                                 if (busy || modalVisible) .5f
@@ -1488,7 +1507,7 @@ private fun ReplayGainPreference(
                 stringResource(Res.string.replaygain_explanation),
                 modifier =
                     Modifier.testTag(SettingsReplayGainExplanationTestTag),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = 12.sp,
                 lineHeight = 17.sp)
             if (busy) {
@@ -1497,7 +1516,7 @@ private fun ReplayGainPreference(
                     modifier =
                         Modifier.testTag(SettingsReplayGainSavingTestTag)
                             .semantics { liveRegion = LiveRegionMode.Polite },
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     fontSize = 12.sp,
                     lineHeight = 17.sp)
             }
@@ -1511,7 +1530,7 @@ private fun ReplayGainPreference(
                                 liveRegion = LiveRegionMode.Polite
                                 error(message)
                             },
-                    color = HausColors.current.danger,
+                    color = HausColors.current.error,
                     fontSize = 12.sp,
                     lineHeight = 17.sp)
             }
@@ -1546,15 +1565,15 @@ private fun CrossfadePreference(
     Column(
         Modifier.fillMaxWidth()
             .background(
-                HausColors.current.panel.copy(alpha = .54f),
+                HausColors.current.surface.copy(alpha = .54f),
                 RoundedCornerShape(16.dp))
-            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.divider, RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
                 stringResource(Res.string.crossfade_title),
                 modifier = Modifier.semantics { heading() },
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black)
             Column(
@@ -1593,21 +1612,25 @@ private fun CrossfadePreference(
                                             .clip(RoundedCornerShape(12.dp))
                                             .background(
                                                 if (isSelected)
-                                                    HausColors.current.ink
-                                                else HausColors.current.paper)
+                                                    HausColors.current
+                                                        .textPrimary
+                                                else
+                                                    HausColors.current
+                                                        .background)
                                             .hausFocusIndicator(
                                                 color =
                                                     if (isSelected)
-                                                        HausColors.current.paper
+                                                        HausColors.current
+                                                            .background
                                                     else
                                                         HausColors.current
-                                                            .outline,
+                                                            .essentialBoundary,
                                                 shape =
                                                     RoundedCornerShape(12.dp),
                                                 outerColor =
                                                     if (isSelected)
                                                         HausColors.current
-                                                            .outline
+                                                            .essentialBoundary
                                                     else null,
                                             )
                                             .testTag(duration.testTag())
@@ -1621,8 +1644,11 @@ private fun CrossfadePreference(
                                             Arrangement.spacedBy(6.dp)) {
                                             val color =
                                                 (if (isSelected)
-                                                        HausColors.current.paper
-                                                    else HausColors.current.ink)
+                                                        HausColors.current
+                                                            .background
+                                                    else
+                                                        HausColors.current
+                                                            .textPrimary)
                                                     .copy(
                                                         alpha =
                                                             if (interactionEnabled)
@@ -1652,7 +1678,7 @@ private fun CrossfadePreference(
                 stringResource(Res.string.crossfade_explanation),
                 modifier =
                     Modifier.testTag(SettingsCrossfadeExplanationTestTag),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = 12.sp,
                 lineHeight = 17.sp)
             if (busy) {
@@ -1661,7 +1687,7 @@ private fun CrossfadePreference(
                     modifier =
                         Modifier.testTag(SettingsCrossfadeSavingTestTag)
                             .semantics { liveRegion = LiveRegionMode.Polite },
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     fontSize = 12.sp,
                     lineHeight = 17.sp)
             }
@@ -1675,7 +1701,7 @@ private fun CrossfadePreference(
                                 liveRegion = LiveRegionMode.Polite
                                 error(message)
                             },
-                    color = HausColors.current.danger,
+                    color = HausColors.current.error,
                     fontSize = 12.sp,
                     lineHeight = 17.sp)
             }
@@ -1694,20 +1720,20 @@ private fun GaplessPreference(
     Column(
         Modifier.fillMaxWidth()
             .background(
-                HausColors.current.panel.copy(alpha = .54f),
+                HausColors.current.surface.copy(alpha = .54f),
                 RoundedCornerShape(16.dp))
-            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.divider, RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
                 stringResource(Res.string.gapless_title),
                 modifier = Modifier.semantics { heading() },
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black)
             Text(
                 stringResource(Res.string.gapless_explanation),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = 13.sp)
             Row(
                 Modifier.fillMaxWidth().selectableGroup(),
@@ -1724,15 +1750,19 @@ private fun GaplessPreference(
                                 .heightIn(min = 48.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
-                                    if (selected) HausColors.current.ink
-                                    else HausColors.current.paper)
+                                    if (selected) HausColors.current.textPrimary
+                                    else HausColors.current.background)
                                 .hausFocusIndicator(
                                     color =
-                                        if (selected) HausColors.current.paper
-                                        else HausColors.current.outline,
+                                        if (selected)
+                                            HausColors.current.background
+                                        else
+                                            HausColors.current
+                                                .essentialBoundary,
                                     shape = RoundedCornerShape(12.dp),
                                     outerColor =
-                                        if (selected) HausColors.current.outline
+                                        if (selected)
+                                            HausColors.current.essentialBoundary
                                         else null,
                                 )
                                 .testTag(
@@ -1758,8 +1788,8 @@ private fun GaplessPreference(
                             horizontalArrangement =
                                 Arrangement.spacedBy(6.dp)) {
                                 val tint =
-                                    (if (selected) HausColors.current.paper
-                                        else HausColors.current.ink)
+                                    (if (selected) HausColors.current.background
+                                        else HausColors.current.textPrimary)
                                         .copy(alpha = if (enabled) 1f else .5f)
                                 Icon(
                                     if (selected)
@@ -1782,7 +1812,7 @@ private fun GaplessPreference(
                     Modifier.testTag("settings-gapless-saving").semantics {
                         liveRegion = LiveRegionMode.Polite
                     },
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     fontSize = 12.sp)
             if (saveFailed) {
                 val message = stringResource(Res.string.gapless_error)
@@ -1792,7 +1822,7 @@ private fun GaplessPreference(
                         liveRegion = LiveRegionMode.Assertive
                         error(message)
                     },
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     fontSize = 12.sp)
             }
         }
@@ -1811,20 +1841,20 @@ private fun AutomaticResumePreference(
     Column(
         Modifier.fillMaxWidth()
             .background(
-                HausColors.current.panel.copy(alpha = .54f),
+                HausColors.current.surface.copy(alpha = .54f),
                 RoundedCornerShape(16.dp))
-            .border(1.dp, HausColors.current.line, RoundedCornerShape(16.dp))
+            .border(1.dp, HausColors.current.divider, RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
                 sectionTitle,
                 modifier = Modifier.semantics { heading() },
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black)
             Text(
                 stringResource(Res.string.automatic_resume_title),
-                color = HausColors.current.ink,
+                color = HausColors.current.textPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold)
             Row(
@@ -1843,15 +1873,19 @@ private fun AutomaticResumePreference(
                                 .heightIn(min = 48.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
-                                    if (selected) HausColors.current.ink
-                                    else HausColors.current.paper)
+                                    if (selected) HausColors.current.textPrimary
+                                    else HausColors.current.background)
                                 .hausFocusIndicator(
                                     color =
-                                        if (selected) HausColors.current.paper
-                                        else HausColors.current.outline,
+                                        if (selected)
+                                            HausColors.current.background
+                                        else
+                                            HausColors.current
+                                                .essentialBoundary,
                                     shape = RoundedCornerShape(12.dp),
                                     outerColor =
-                                        if (selected) HausColors.current.outline
+                                        if (selected)
+                                            HausColors.current.essentialBoundary
                                         else null,
                                 )
                                 .testTag("settings-auto-resume-${policy.name}")
@@ -1875,8 +1909,8 @@ private fun AutomaticResumePreference(
                             horizontalArrangement =
                                 Arrangement.spacedBy(6.dp)) {
                                 val tint =
-                                    (if (selected) HausColors.current.paper
-                                        else HausColors.current.ink)
+                                    (if (selected) HausColors.current.background
+                                        else HausColors.current.textPrimary)
                                         .copy(alpha = if (enabled) 1f else .5f)
                                 Icon(
                                     if (selected)
@@ -1895,7 +1929,7 @@ private fun AutomaticResumePreference(
                 }
             Text(
                 stringResource(Res.string.automatic_resume_explanation),
-                color = HausColors.current.muted,
+                color = HausColors.current.textSecondary,
                 fontSize = 12.sp,
                 lineHeight = 17.sp)
             if (busy) {
@@ -1905,7 +1939,7 @@ private fun AutomaticResumePreference(
                         Modifier.semantics {
                             liveRegion = LiveRegionMode.Polite
                         },
-                    color = HausColors.current.muted,
+                    color = HausColors.current.textSecondary,
                     fontSize = 12.sp)
             }
             if (saveFailed) {
@@ -1917,7 +1951,7 @@ private fun AutomaticResumePreference(
                             liveRegion = LiveRegionMode.Polite
                             error(message)
                         },
-                    color = HausColors.current.danger,
+                    color = HausColors.current.error,
                     fontSize = 12.sp,
                     lineHeight = 17.sp)
             }
