@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "document": "RhythHaus platform-adaptive redesign color tokens",
+  "status": "Design values proposed for joint design and implementation-plan approval",
+  "version": 1,
+  "appearanceModes": ["system", "light", "dark"],
+  "defaultPalette": "moss",
+  "defaultDynamicColor": false,
+  "dynamicColor": {
+    "platform": "Android",
+    "minimumApi": 31,
+    "source": "platform dynamic color scheme",
+    "fallback": "last-selected-curated-palette",
+    "statusCopy": "当前使用精选色板"
+  },
+  "contrastRequirements": {
+    "primaryTextAndSecondaryTextOnTheirSurface": 4.5,
+    "actionContentOnAction": 4.5,
+    "selectedContentOnSelectedSurface": 4.5,
+    "semanticStatusContentOnContainer": 4.5,
+    "focusAndEssentialBoundaryAgainstAdjacentSurface": 3.0,
+    "alphaComposites": "Evaluate against the final rendered background"
+  },
+  "canonicalResolution": {
+    "authority": "One resolved Haus scheme containing paletteId, requested appearance mode, resolved isDark, effective source, and the complete semantic roles below",
+    "modeResolution": "Resolve system/light/dark once. Reuse resolved isDark for the selected curated palette or Android dynamic light/dark scheme; never infer darkness by comparing palette colors.",
+    "dynamicResolution": "Android dynamic colors are an input to this same Haus scheme. Preserve the last curated palette as fallback. Warning and success semantics remain curated and do not change with wallpaper colors."
+  },
+  "androidDynamicSchemeToHaus": {
+    "background": "background",
+    "surface": "surface",
+    "surfaceContainerHigh": "raisedSurface",
+    "surfaceContainerLow": "navigationSurface",
+    "onSurface": "textPrimary",
+    "onSurfaceVariant": "textSecondary",
+    "inverseOnSurface": "textInverse",
+    "primary": "primaryAction",
+    "onPrimary": "onPrimaryAction",
+    "primaryContainer": "selectedSurface",
+    "onPrimaryContainer": "onSelectedSurface",
+    "outlineVariant": "divider",
+    "outline": "essentialBoundary",
+    "primary (focus indicator)": "focus",
+    "error": "error",
+    "onError": "onError",
+    "errorContainer": "errorContainer",
+    "onErrorContainer": "onErrorContainer",
+    "warning and success roles": "Use the fixed semantic status roles from the selected curated palette; do not derive these from wallpaper hues."
+  },
+  "miuixColorSchemeMapping": {
+    "primary": "primaryAction",
+    "onPrimary": "onPrimaryAction",
+    "secondary": "primaryAction",
+    "onSecondary": "onPrimaryAction",
+    "background": "background",
+    "onBackground": "textPrimary",
+    "surface": "surface",
+    "onSurface": "textPrimary",
+    "surfaceContainer": "raisedSurface",
+    "onSurfaceContainer": "textPrimary",
+    "secondaryVariant": "primaryAction",
+    "onSecondaryVariant": "onPrimaryAction",
+    "disabledSecondaryVariant": "disabledSurface",
+    "disabledOnSecondaryVariant": "disabledContent"
+  },
+  "material3ColorSchemeMapping": {
+    "primary/onPrimary": "primaryAction/onPrimaryAction",
+    "primaryContainer/onPrimaryContainer": "selectedSurface/onSelectedSurface",
+    "secondary/onSecondary": "primaryAction/onPrimaryAction",
+    "secondaryContainer/onSecondaryContainer": "raisedSurface/textPrimary",
+    "tertiary/onTertiary": "primaryAction/onPrimaryAction",
+    "tertiaryContainer/onTertiaryContainer": "selectedSurface/onSelectedSurface",
+    "background/onBackground": "background/textPrimary",
+    "surface/onSurface": "surface/textPrimary",
+    "surfaceVariant/onSurfaceVariant": "raisedSurface/textSecondary",
+    "surfaceTint": "primaryAction",
+    "surfaceDim/surfaceBright": "background/surface",
+    "surfaceContainerLowest/surfaceContainerLow": "background/surface",
+    "surfaceContainer/surfaceContainerHigh/surfaceContainerHighest": "raisedSurface",
+    "outline/outlineVariant": "essentialBoundary/divider",
+    "scrim": "scrimColor (consumers apply scrimAlpha)",
+    "error/onError": "error/onError",
+    "errorContainer/onErrorContainer": "errorContainer/onErrorContainer",
+    "inverseSurface/inverseOnSurface": "textPrimary/textInverse",
+    "inversePrimary": "primaryAction"
+  },
+  "contrastEvidence": {
+    "method": "Computed from the opaque sRGB hex role values using WCAG relative luminance. Alpha overlays and Android dynamic colors require separate composited/device validation.",
+    "metrics": [
+      "minimum textPrimary/textSecondary across background, surface, raisedSurface, navigationSurface",
+      "textInverse on textPrimary (inverse surface)",
+      "onPrimaryAction on primaryAction",
+      "onSelectedSurface on selectedSurface",
+      "minimum status content on each semantic container",
+      "minimum error/warning/success text on background or surface",
+      "disabledContent on disabledSurface (informative)",
+      "focus against base surfaces",
+      "essentialBoundary against base surfaces"
+    ],
+    "minimumRatios": {
+      "moss": {
+        "light": [6.26, 14.74, 7.59, 11.05, 9.56, 6.12, 5.23, 6.52, 3.50],
+        "dark": [7.51, 12.98, 9.61, 9.57, 8.39, 9.26, 5.83, 8.24, 3.49]
+      },
+      "bay": {
+        "light": [6.49, 14.95, 7.04, 11.38, 9.56, 6.13, 5.11, 6.08, 3.48],
+        "dark": [7.16, 12.82, 9.08, 9.17, 8.39, 9.16, 5.92, 7.95, 3.54]
+      },
+      "clay": {
+        "light": [6.77, 15.10, 6.47, 11.59, 9.56, 6.15, 5.43, 5.39, 3.47],
+        "dark": [6.87, 12.86, 10.85, 10.42, 8.39, 9.28, 6.15, 9.40, 3.72]
+      },
+      "iris": {
+        "light": [6.99, 14.83, 6.80, 11.57, 9.56, 6.11, 5.43, 5.70, 3.59],
+        "dark": [7.29, 12.82, 9.06, 10.11, 8.39, 9.26, 6.14, 8.20, 3.57]
+      }
+    }
+  },
+  "roles": [
+    "background", "surface", "raisedSurface", "navigationSurface",
+    "textPrimary", "textSecondary", "textInverse",
+    "primaryAction", "onPrimaryAction", "selectedSurface", "onSelectedSurface",
+    "divider", "essentialBoundary", "focus",
+    "disabledSurface", "disabledContent",
+    "error", "onError", "errorContainer", "onErrorContainer",
+    "warning", "onWarning", "warningContainer", "onWarningContainer",
+    "success", "onSuccess", "successContainer", "onSuccessContainer",
+    "scrimColor", "scrimAlpha"
+  ],
+  "palettes": {
+    "moss": {
+      "label": "苔绿",
+      "light": {
+        "background": "#F4F7F2", "surface": "#FFFFFF", "raisedSurface": "#EAF1E8", "navigationSurface": "#E8F0E6",
+        "textPrimary": "#1E2720", "textSecondary": "#4C5A4E", "textInverse": "#F8FBF8",
+        "primaryAction": "#315D3E", "onPrimaryAction": "#FFFFFF", "selectedSurface": "#DDEADE", "onSelectedSurface": "#1C3222",
+        "divider": "#758176", "essentialBoundary": "#758176", "focus": "#315D3E",
+        "disabledSurface": "#E7EAE6", "disabledContent": "#58625A",
+        "error": "#A32835", "onError": "#FFFFFF", "errorContainer": "#FCE9E8", "onErrorContainer": "#64161E",
+        "warning": "#795700", "onWarning": "#FFFFFF", "warningContainer": "#FFF1C5", "onWarningContainer": "#4E3B00",
+        "success": "#23613A", "onSuccess": "#FFFFFF", "successContainer": "#E4F1E5", "onSuccessContainer": "#173E25",
+        "scrimColor": "#07100A", "scrimAlpha": 0.54
+      },
+      "dark": {
+        "background": "#151B16", "surface": "#1D251E", "raisedSurface": "#263128", "navigationSurface": "#202B22",
+        "textPrimary": "#E9EFE9", "textSecondary": "#B9C4B9", "textInverse": "#202820",
+        "primaryAction": "#98D9A4", "onPrimaryAction": "#0C2817", "selectedSurface": "#304437", "onSelectedSurface": "#EFF7EF",
+        "divider": "#77857A", "essentialBoundary": "#77857A", "focus": "#98D9A4",
+        "disabledSurface": "#303932", "disabledContent": "#ADB8AE",
+        "error": "#FFB4AB", "onError": "#641219", "errorContainer": "#67272B", "onErrorContainer": "#FFE1DD",
+        "warning": "#FFE18E", "onWarning": "#352800", "warningContainer": "#544000", "onWarningContainer": "#FFEAB8",
+        "success": "#A5E2A7", "onSuccess": "#12391D", "successContainer": "#204B2A", "onSuccessContainer": "#D4F4D0",
+        "scrimColor": "#000000", "scrimAlpha": 0.64
+      }
+    },
+    "bay": {
+      "label": "海湾蓝",
+      "light": {
+        "background": "#F2F7FA", "surface": "#FFFFFF", "raisedSurface": "#E9F2F7", "navigationSurface": "#E6F0F5",
+        "textPrimary": "#1C252B", "textSecondary": "#465761", "textInverse": "#F7FBFD",
+        "primaryAction": "#285D83", "onPrimaryAction": "#FFFFFF", "selectedSurface": "#DCEBF4", "onSelectedSurface": "#162F40",
+        "divider": "#71818A", "essentialBoundary": "#71818A", "focus": "#285D83",
+        "disabledSurface": "#E5EAEC", "disabledContent": "#56636A",
+        "error": "#A32835", "onError": "#FFFFFF", "errorContainer": "#FCE9E8", "onErrorContainer": "#64161E",
+        "warning": "#795700", "onWarning": "#FFFFFF", "warningContainer": "#FFF1C5", "onWarningContainer": "#4E3B00",
+        "success": "#23613A", "onSuccess": "#FFFFFF", "successContainer": "#E4F1E5", "onSuccessContainer": "#173E25",
+        "scrimColor": "#07100A", "scrimAlpha": 0.54
+      },
+      "dark": {
+        "background": "#121A20", "surface": "#1B252E", "raisedSurface": "#25333E", "navigationSurface": "#1D2B34",
+        "textPrimary": "#E7EDF4", "textSecondary": "#B7C2CD", "textInverse": "#20272D",
+        "primaryAction": "#98D1FF", "onPrimaryAction": "#102A3D", "selectedSurface": "#2B4558", "onSelectedSurface": "#EDF6FD",
+        "divider": "#778895", "essentialBoundary": "#778895", "focus": "#98D1FF",
+        "disabledSurface": "#303A42", "disabledContent": "#AEBBC5",
+        "error": "#FFB4AB", "onError": "#641219", "errorContainer": "#67272B", "onErrorContainer": "#FFE1DD",
+        "warning": "#FFE18E", "onWarning": "#352800", "warningContainer": "#544000", "onWarningContainer": "#FFEAB8",
+        "success": "#A5E2A7", "onSuccess": "#12391D", "successContainer": "#204B2A", "onSuccessContainer": "#D4F4D0",
+        "scrimColor": "#000000", "scrimAlpha": 0.64
+      }
+    },
+    "clay": {
+      "label": "陶土",
+      "light": {
+        "background": "#FBF6F0", "surface": "#FFFFFF", "raisedSurface": "#F5ECE3", "navigationSurface": "#F2E9E0",
+        "textPrimary": "#29221D", "textSecondary": "#5B4D43", "textInverse": "#FFFAF5",
+        "primaryAction": "#89502C", "onPrimaryAction": "#FFFFFF", "selectedSurface": "#F2E2D4", "onSelectedSurface": "#382417",
+        "divider": "#877A6F", "essentialBoundary": "#877A6F", "focus": "#89502C",
+        "disabledSurface": "#ECE7E2", "disabledContent": "#665A51",
+        "error": "#A32835", "onError": "#FFFFFF", "errorContainer": "#FCE9E8", "onErrorContainer": "#64161E",
+        "warning": "#795700", "onWarning": "#FFFFFF", "warningContainer": "#FFF1C5", "onWarningContainer": "#4E3B00",
+        "success": "#23613A", "onSuccess": "#FFFFFF", "successContainer": "#E4F1E5", "onSuccessContainer": "#173E25",
+        "scrimColor": "#140C06", "scrimAlpha": 0.54
+      },
+      "dark": {
+        "background": "#1D1714", "surface": "#2A211C", "raisedSurface": "#3A2D24", "navigationSurface": "#30251F",
+        "textPrimary": "#F2E9E2", "textSecondary": "#C6B8AC", "textInverse": "#2B231F",
+        "primaryAction": "#FFD0AB", "onPrimaryAction": "#36200F", "selectedSurface": "#4C3527", "onSelectedSurface": "#FFF3E8",
+        "divider": "#93857A", "essentialBoundary": "#93857A", "focus": "#FFD0AB",
+        "disabledSurface": "#3D332C", "disabledContent": "#C3B5A9",
+        "error": "#FFB4AB", "onError": "#641219", "errorContainer": "#67272B", "onErrorContainer": "#FFE1DD",
+        "warning": "#FFE18E", "onWarning": "#352800", "warningContainer": "#544000", "onWarningContainer": "#FFEAB8",
+        "success": "#A5E2A7", "onSuccess": "#12391D", "successContainer": "#204B2A", "onSuccessContainer": "#D4F4D0",
+        "scrimColor": "#000000", "scrimAlpha": 0.64
+      }
+    },
+    "iris": {
+      "label": "鸢尾紫",
+      "light": {
+        "background": "#F7F5FB", "surface": "#FFFFFF", "raisedSurface": "#F0EBF7", "navigationSurface": "#EEE9F5",
+        "textPrimary": "#25222C", "textSecondary": "#514B5E", "textInverse": "#FAF8FF",
+        "primaryAction": "#635091", "onPrimaryAction": "#FFFFFF", "selectedSurface": "#E9E3F3", "onSelectedSurface": "#2E2442",
+        "divider": "#7F778A", "essentialBoundary": "#7F778A", "focus": "#635091",
+        "disabledSurface": "#EAE7EE", "disabledContent": "#605A68",
+        "error": "#A32835", "onError": "#FFFFFF", "errorContainer": "#FCE9E8", "onErrorContainer": "#64161E",
+        "warning": "#795700", "onWarning": "#FFFFFF", "warningContainer": "#FFF1C5", "onWarningContainer": "#4E3B00",
+        "success": "#23613A", "onSuccess": "#FFFFFF", "successContainer": "#E4F1E5", "onSuccessContainer": "#173E25",
+        "scrimColor": "#0D0714", "scrimAlpha": 0.54
+      },
+      "dark": {
+        "background": "#191720", "surface": "#242130", "raisedSurface": "#322D40", "navigationSurface": "#292537",
+        "textPrimary": "#EEEAF6", "textSecondary": "#C4BDD2", "textInverse": "#28242F",
+        "primaryAction": "#D5C2FF", "onPrimaryAction": "#2D2050", "selectedSurface": "#3F3651", "onSelectedSurface": "#F5F0FF",
+        "divider": "#898198", "essentialBoundary": "#898198", "focus": "#D5C2FF",
+        "disabledSurface": "#383440", "disabledContent": "#BDB5CB",
+        "error": "#FFB4AB", "onError": "#641219", "errorContainer": "#67272B", "onErrorContainer": "#FFE1DD",
+        "warning": "#FFE18E", "onWarning": "#352800", "warningContainer": "#544000", "onWarningContainer": "#FFEAB8",
+        "success": "#A5E2A7", "onSuccess": "#12391D", "successContainer": "#204B2A", "onSuccessContainer": "#D4F4D0",
+        "scrimColor": "#000000", "scrimAlpha": 0.64
+      }
+    }
+  }
+}
