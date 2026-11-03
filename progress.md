@@ -18,6 +18,7 @@ Verification:
 - A fresh live desktop pass verified the Settings route, all four palette choices, one Appearance heading, and selected Iris semantics plus the visible Iris scheme. This pass did not independently verify restart persistence.
 - The unfiltered Android host suite ran 337 tests and had six failures (one CarPlay seek assertion and five DI tests); the focused Monet provider filter passed. See the Task 3 report; playback/DI code was not changed.
 - A combined verification invocation that included `qualityCheck` and the iOS simulator task failed at `architectureCheck` on a generated SwiftPM metadata configuration's `:shared -> :shared` edge. The configuration is marked non-resolvable; standalone `qualityCheck` and the separately run iOS suite pass. [INFERENCE] This is an architecture-check input interaction with generated SwiftPM metadata, not a source module cycle; build logic was not changed.
+Commit: `6e6ddae1` (`feat(theme): add selectable palettes and Android Monet`) on `feature/theme-selection-palettes`.
 Next owner: user — choose the theme-selection branch integration option and perform the user-only appearance/device acceptance when available. The adaptive redesign remains next, in its own worktree, after the theme-selection dependency is integrated.
 Blockers: Android API 29/30 runtime and physical Android/iOS appearance/accessibility acceptance remain user-owned and unverified. Desktop smoke and simulator tests do not substitute for those checks. No merge has been performed.
 
