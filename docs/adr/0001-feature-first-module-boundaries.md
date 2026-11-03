@@ -71,6 +71,13 @@ core UI. The planned `SettingsScreen` will include picker visibility/availabilit
 imported-track booleans, `onRequestClearLibrary`, and a nullable library-maintenance-confirmation slot. Shared will
 resolve source IDs against current authority at invocation, no-op stale IDs, and recheck guards.
 
+Appearance crosses the same callback-first boundary as immutable `SettingsAppearanceState`, with
+no platform or Shared types. Shared alone persists mode, palette, and Monet intent through the
+serialized `ThemePreferenceOwner`, resolves one `ResolvedHausTheme` for Miuix and Material3, and
+passes explicit mode/palette/Monet/retry actions to Settings. Failed writes leave the last persisted
+projection active; Android's API-gated dynamic-color provider remains Shared-owned. Settings owns
+rendering only and does not resolve dependencies through a service locator.
+
 Settings will own its appearance/theme, source-management-only, About/AboutLibraries, logo, and
 remove-source-dialog resources. Shared will retain/inject Settings route/add-folder/picker-unavailable/
 clear-library/generic cancel/remove/clear-library-dialog wording. `RhythHausBuildInfo`

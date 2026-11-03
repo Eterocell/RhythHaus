@@ -320,8 +320,22 @@ class SettingsPlaylistBackupEmbeddingTest {
                 scanProgress = null,
                 latestCompletedScanSession = null,
                 scanJob = null,
-                currentThemeMode =
-                    com.eterocell.rhythhaus.theme.RhythHausThemeMode.System,
+                settingsAppearance =
+                    com.eterocell.rhythhaus.settings.SettingsAppearanceState(
+                        themeMode =
+                            com.eterocell.rhythhaus.theme.RhythHausThemeMode
+                                .System,
+                        paletteId =
+                            com.eterocell.rhythhaus.theme.HausPaletteId.Moss,
+                        isDark = false,
+                        dynamicColorAvailable = false,
+                        dynamicColorEnabled = false,
+                        colorSource =
+                            com.eterocell.rhythhaus.theme.HausThemeColorSource
+                                .Curated,
+                        isSaving = false,
+                        saveFailed = false,
+                    ),
                 replayGainState =
                     com.eterocell.rhythhaus.playback.ReplayGainPreferenceState(
                         isBusy = false),
@@ -331,6 +345,9 @@ class SettingsPlaylistBackupEmbeddingTest {
                         isBusy = false),
                 onCrossfadeDurationSelected = {},
                 onThemeModeSelected = {},
+                onPaletteSelected = {},
+                onDynamicColorSelected = {},
+                onRetryAppearanceSave = {},
                 onClearLibrary = {},
                 onRescanSource = {},
                 onRemoveSource = {},

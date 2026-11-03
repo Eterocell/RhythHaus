@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -16,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PixelMap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -36,10 +38,13 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
@@ -61,6 +66,7 @@ import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.eterocell.rhythhaus.theme.HausPaletteId
+import com.eterocell.rhythhaus.theme.HausThemeColorSource
 import com.eterocell.rhythhaus.theme.LocalHausColors
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.theme.hausPalette
@@ -74,6 +80,10 @@ import org.jetbrains.compose.resources.stringResource
 import rhythhaus.core.ui.generated.resources.Res as CoreUiRes
 import rhythhaus.core.ui.generated.resources.back
 import rhythhaus.feature.settings.generated.resources.Res as SettingsRes
+import rhythhaus.feature.settings.generated.resources.appearance_palette_moss
+import rhythhaus.feature.settings.generated.resources.appearance_save_error
+import rhythhaus.feature.settings.generated.resources.appearance_source_fallback
+import rhythhaus.feature.settings.generated.resources.appearance_source_monet
 import rhythhaus.feature.settings.generated.resources.notification_permission_body
 import rhythhaus.feature.settings.generated.resources.notification_permission_request
 import rhythhaus.feature.settings.generated.resources.notification_permission_settings
@@ -84,7 +94,6 @@ import rhythhaus.feature.settings.generated.resources.source_access_lost
 import rhythhaus.feature.settings.generated.resources.source_last_scanned
 import rhythhaus.feature.settings.generated.resources.source_never_scanned
 import rhythhaus.feature.settings.generated.resources.source_status_format
-import rhythhaus.feature.settings.generated.resources.theme_dark_label
 import rhythhaus.feature.settings.generated.resources.unnamed_folder
 
 private val lightHausPalette = hausPalette(HausPaletteId.Moss, isDark = false)
@@ -1090,29 +1099,274 @@ public class SettingsScreenSemanticsJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    public fun themeSelectionDispatchesSelectedMode(): Unit = runComposeUiTest {
-        val selections = mutableListOf<RhythHausThemeMode>()
-        var darkLabel = ""
-        setContent {
-            darkLabel = stringResource(SettingsRes.string.theme_dark_label)
-            content(onTheme = { selections += it })
+    public fun themeModeChoicesExposeSelectionAndDispatch(): Unit =
+        runComposeUiTest {
+            val selections = mutableListOf<RhythHausThemeMode>()
+            setContent {
+                CompositionLocalProvider(
+                    LocalHausColors provides lightHausPalette) {
+                        Box(Modifier.size(600.dp, 1_200.dp)) {
+                            content(
+                                appearance = settingsAppearance(),
+                                onTheme = { selections += it },
+                            )
+                        }
+                    }
+            }
+
+            onNodeWithTag("settings-theme-mode-system", useUnmergedTree = true)
+                .assertIsSelected()
+            onNodeWithTag("settings-theme-mode-light", useUnmergedTree = true)
+                .assertIsNotSelected()
+            onNodeWithTag("settings-theme-mode-dark", useUnmergedTree = true)
+                .assertHasClickAction()
+                .performClick()
+
+            assertEquals(listOf(RhythHausThemeMode.Dark), selections)
+            onNodeWithTag("settings-theme-mode-system", useUnmergedTree = true)
+                .assertIsSelected()
         }
-        onNodeWithTag(SettingsThemeTestTag, useUnmergedTree = true)
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun palettePreviewsExposeSelectionAndDispatchWithoutOptimism():
+        Unit = runComposeUiTest {
+        val selections = mutableListOf<HausPaletteId>()
+        setContent {
+            CompositionLocalProvider(
+                LocalHausColors provides lightHausPalette) {
+                    Box(Modifier.size(600.dp, 1_200.dp)) {
+                        content(
+                            appearance = settingsAppearance(),
+                            onPalette = { selections += it },
+                        )
+                    }
+                }
+        }
+
+        onNodeWithTag("settings-palette-moss", useUnmergedTree = true)
+            .assertIsSelected()
+        onNodeWithTag("settings-palette-iris", useUnmergedTree = true)
+            .assertIsNotSelected()
+
+        val preview =
+            onNodeWithTag(
+                    "settings-palette-iris-primary-swatch",
+                    useUnmergedTree = true,
+                )
+                .captureToImage()
+                .toPixelMap()
+        assertEquals(
+            hausPalette(HausPaletteId.Iris, isDark = false)
+                .primaryAction
+                .toArgb(),
+            preview[preview.width / 2, preview.height / 2].toArgb(),
+        )
+
+        onNodeWithTag("settings-palette-iris", useUnmergedTree = true)
             .assertHasClickAction()
             .performClick()
-        waitForIdle()
-        waitUntil(timeoutMillis = 1_000) {
-            onAllNodesWithText(darkLabel, useUnmergedTree = true)
-                .fetchSemanticsNodes()
-                .isNotEmpty()
-        }
-        onNodeWithText(darkLabel, useUnmergedTree = true).performClick()
-        assertEquals(listOf(RhythHausThemeMode.Dark), selections)
+        assertEquals(listOf(HausPaletteId.Iris), selections)
+        onNodeWithTag("settings-palette-moss", useUnmergedTree = true)
+            .assertIsSelected()
+        onNodeWithTag("settings-palette-iris", useUnmergedTree = true)
+            .assertIsNotSelected()
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    public fun focusedPlaybackPreferenceShowsThemeOutline(): Unit =
+    public fun monetControlIsHiddenUntilSupportedAndReportsFallback(): Unit =
+        runComposeUiTest {
+            val appearance =
+                mutableStateOf(
+                    settingsAppearance(
+                        dynamicColorEnabled = true,
+                        dynamicColorAvailable = false,
+                    ),
+                )
+            var fallbackText = ""
+            var monetText = ""
+            setContent {
+                val paletteName =
+                    stringResource(SettingsRes.string.appearance_palette_moss)
+                fallbackText =
+                    stringResource(
+                        SettingsRes.string.appearance_source_fallback,
+                        paletteName,
+                    )
+                monetText =
+                    stringResource(SettingsRes.string.appearance_source_monet)
+                CompositionLocalProvider(
+                    LocalHausColors provides lightHausPalette) {
+                        Box(Modifier.size(600.dp, 1_200.dp)) {
+                            content(appearance = appearance.value)
+                        }
+                    }
+            }
+
+            onAllNodesWithTag("settings-monet-switch", useUnmergedTree = true)
+                .assertCountEquals(0)
+            onAllNodesWithText(fallbackText).assertCountEquals(0)
+
+            appearance.value =
+                appearance.value.copy(dynamicColorAvailable = true)
+            waitForIdle()
+            onNodeWithTag("settings-monet-switch", useUnmergedTree = true)
+                .assertIsOn()
+            onNodeWithTag("settings-appearance-source")
+                .assert(hasText(fallbackText))
+
+            appearance.value =
+                appearance.value.copy(
+                    colorSource = HausThemeColorSource.AndroidDynamic)
+            waitForIdle()
+            onNodeWithTag("settings-appearance-source")
+                .assert(hasText(monetText))
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun monetToggleDispatchesWithoutOptimisticallyChangingRequest():
+        Unit = runComposeUiTest {
+        val selections = mutableListOf<Boolean>()
+        setContent {
+            CompositionLocalProvider(
+                LocalHausColors provides lightHausPalette) {
+                    Box(Modifier.size(600.dp, 1_200.dp)) {
+                        content(
+                            appearance =
+                                settingsAppearance(
+                                    dynamicColorAvailable = true),
+                            onDynamicColor = { selections += it },
+                        )
+                    }
+                }
+        }
+
+        onNodeWithTag("settings-monet-switch", useUnmergedTree = true)
+            .assertIsOff()
+            .performClick()
+        assertEquals(listOf(true), selections)
+        onNodeWithTag("settings-monet-switch", useUnmergedTree = true)
+            .assertIsOff()
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun appearanceSaveFailureKeepsStoredSelectionAndOffersRetry(): Unit =
+        runComposeUiTest {
+            var retries = 0
+            var errorText = ""
+            setContent {
+                errorText =
+                    stringResource(SettingsRes.string.appearance_save_error)
+                CompositionLocalProvider(
+                    LocalHausColors provides lightHausPalette) {
+                        Box(Modifier.size(600.dp, 1_200.dp)) {
+                            content(
+                                appearance =
+                                    settingsAppearance(saveFailed = true),
+                                onRetryAppearanceSave = { retries++ },
+                            )
+                        }
+                    }
+            }
+
+            onNodeWithTag("settings-palette-moss", useUnmergedTree = true)
+                .assertIsSelected()
+            onNodeWithTag("settings-palette-iris", useUnmergedTree = true)
+                .assertIsNotSelected()
+            onNodeWithTag("settings-appearance-save-error")
+                .assert(hasText(errorText))
+                .assert(
+                    SemanticsMatcher.expectValue(
+                        SemanticsProperties.LiveRegion,
+                        LiveRegionMode.Assertive,
+                    ),
+                )
+            onNodeWithTag("settings-appearance-retry", useUnmergedTree = true)
+                .assertHasClickAction()
+                .performClick()
+
+            assertEquals(1, retries)
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun appearanceWriteInFlightDisablesAllSelectionActions(): Unit =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(
+                    LocalHausColors provides lightHausPalette) {
+                        Box(Modifier.size(600.dp, 1_200.dp)) {
+                            content(
+                                appearance =
+                                    settingsAppearance(
+                                        dynamicColorAvailable = true,
+                                        isSaving = true,
+                                    ),
+                            )
+                        }
+                    }
+            }
+
+            onNodeWithTag("settings-theme-mode-dark", useUnmergedTree = true)
+                .assertIsNotEnabled()
+            onNodeWithTag("settings-palette-iris", useUnmergedTree = true)
+                .assertIsNotEnabled()
+            onNodeWithTag("settings-monet-switch", useUnmergedTree = true)
+                .assertIsNotEnabled()
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun appearanceChangeKeepsSettingsScrollPosition(): Unit =
+        runComposeUiTest {
+            val appearance = mutableStateOf(settingsAppearance())
+            var listState: LazyListState? = null
+            setContent {
+                val state = rememberLazyListState()
+                listState = state
+                CompositionLocalProvider(
+                    LocalHausColors provides lightHausPalette) {
+                        Box(Modifier.size(600.dp, 1_200.dp)) {
+                            content(
+                                appearance = appearance.value,
+                                listState = state,
+                            )
+                        }
+                    }
+            }
+
+            onNodeWithTag("settings-list", useUnmergedTree = true)
+                .performScrollToNode(
+                    hasTestTag(SettingsReviewOnboardingTestTag),
+                )
+            val firstVisibleItemIndex = listState!!.firstVisibleItemIndex
+            appearance.value =
+                appearance.value.copy(paletteId = HausPaletteId.Iris)
+            waitForIdle()
+
+            assertEquals(firstVisibleItemIndex, listState.firstVisibleItemIndex)
+            onNodeWithTag("settings-review-onboarding").assertIsDisplayed()
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun paletteNamesAreLocalizedInEnglishAndChinese(): Unit {
+        verifyAppearancePaletteLabels(
+            Locale.ENGLISH,
+            listOf("Moss", "Bay", "Clay", "Iris"),
+        )
+        verifyAppearancePaletteLabels(
+            Locale.CHINA,
+            listOf("苔", "海湾", "陶土", "鸢尾"),
+        )
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun everyConfiguredPaletteChoiceIsRendered(): Unit =
         runComposeUiTest {
             setContent {
                 CompositionLocalProvider(
@@ -1121,22 +1375,115 @@ public class SettingsScreenSemanticsJvmTest {
                     }
             }
 
-            val option =
+            HausPaletteId.settingsOptions.forEach { paletteId ->
+                val tag = "settings-palette-${paletteId.serialized}"
+                onNodeWithTag(SettingsListTestTag)
+                    .performScrollToNode(hasTestTag(tag))
+                onNodeWithTag(tag, useUnmergedTree = true).assertIsDisplayed()
+            }
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun focusedPlaybackPreferenceUsesFocusAndBoundaryRoles(): Unit =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(
+                    LocalHausColors provides lightHausPalette) {
+                        Box(Modifier.size(600.dp, 1_200.dp)) { content() }
+                    }
+            }
+
+            val unselectedOption =
+                onNodeWithTag(
+                    SettingsReplayGainPrefix + "track",
+                    useUnmergedTree = true,
+                )
+            unselectedOption.performSemanticsAction(
+                SemanticsActions.RequestFocus)
+            unselectedOption.assertIsFocused()
+            val focusPixels = unselectedOption.captureToImage().toPixelMap()
+            val focus = lightHausPalette.focus.toArgb()
+            assertTrue(
+                (0 until focusPixels.height).any { y ->
+                    (0 until focusPixels.width).any { x ->
+                        focusPixels[x, y].toArgb() == focus
+                    }
+                },
+                "Unselected Settings option should use the focus color",
+            )
+
+            val selectedOption =
                 onNodeWithTag(
                     SettingsReplayGainPrefix + "off",
                     useUnmergedTree = true,
                 )
-            option.performSemanticsAction(SemanticsActions.RequestFocus)
-            option.assertIsFocused()
-            val pixels = option.captureToImage().toPixelMap()
-            val outline = lightHausPalette.essentialBoundary.toArgb()
+            selectedOption.performSemanticsAction(SemanticsActions.RequestFocus)
+            selectedOption.assertIsFocused()
+            val selectedPixels = selectedOption.captureToImage().toPixelMap()
+            val boundary = lightHausPalette.essentialBoundary.toArgb()
             assertTrue(
-                (0 until pixels.height).any { y ->
-                    (0 until pixels.width).any { x ->
-                        pixels[x, y].toArgb() == outline
+                (0 until selectedPixels.height).any { y ->
+                    (0 until selectedPixels.width).any { x ->
+                        selectedPixels[x, y].toArgb() == boundary
                     }
                 },
-                "Focused Settings option should show the theme outline",
+                "Selected Settings option should retain its contrasting boundary",
+            )
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    public fun paletteAndMonetControlsShowVisibleKeyboardFocus(): Unit =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(
+                    LocalHausColors provides lightHausPalette) {
+                        Box(Modifier.size(600.dp, 1_200.dp)) {
+                            content(
+                                appearance =
+                                    settingsAppearance(
+                                        dynamicColorAvailable = true,
+                                    ),
+                            )
+                        }
+                    }
+            }
+
+            val focus = lightHausPalette.focus.toArgb()
+            val palette =
+                onNodeWithTag(
+                    "settings-palette-moss",
+                    useUnmergedTree = true,
+                )
+            val unfocusedPaletteFocusPixels =
+                palette.captureToImage().toPixelMap().countPixels(focus)
+            palette.performSemanticsAction(SemanticsActions.RequestFocus)
+            palette.assertIsFocused()
+            val focusedPaletteFocusPixels =
+                palette.captureToImage().toPixelMap().countPixels(focus)
+            assertTrue(
+                focusedPaletteFocusPixels > unfocusedPaletteFocusPixels,
+                "Focused palette choice should add keyboard focus pixels:" +
+                    " unfocused=$unfocusedPaletteFocusPixels," +
+                    " focused=$focusedPaletteFocusPixels",
+            )
+
+            val monet =
+                onNodeWithTag(
+                    "settings-monet-switch",
+                    useUnmergedTree = true,
+                )
+            monet.performSemanticsAction(SemanticsActions.RequestFocus)
+            monet.assertIsFocused()
+            val monetPixels = monet.captureToImage().toPixelMap()
+            assertTrue(
+                (0 until monetPixels.height).any { y ->
+                    (0 until monetPixels.width).any { x ->
+                        monetPixels[x, y].toArgb() == focus
+                    }
+                },
+                "Monet switch should show the keyboard focus color",
             )
         }
 
@@ -1352,6 +1699,7 @@ private fun content(
     mutations: Boolean = true,
     hasTracks: Boolean = true,
     sources: List<SettingsSourceItem> = emptyList(),
+    appearance: SettingsAppearanceState = settingsAppearance(),
     listState: LazyListState? = null,
     playlistSlot: @Composable () -> Unit = {},
     scanSlot: (@Composable () -> Unit)? = null,
@@ -1363,6 +1711,9 @@ private fun content(
     onOpenAudioSettings: () -> Unit = {},
     onAddAudio: () -> Unit = {},
     onTheme: (RhythHausThemeMode) -> Unit = {},
+    onPalette: (HausPaletteId) -> Unit = {},
+    onDynamicColor: (Boolean) -> Unit = {},
+    onRetryAppearanceSave: () -> Unit = {},
     onReplayGain: (SettingsReplayGainMode) -> Unit = {},
     onCrossfade: (SettingsCrossfadeDuration) -> Unit = {},
     onGapless: (SettingsGaplessMode) -> Unit = {},
@@ -1380,7 +1731,7 @@ private fun content(
 ): Unit =
     SettingsScreen(
         labels = labels(),
-        currentThemeMode = RhythHausThemeMode.System,
+        appearance = appearance,
         replayGainMode = replayGainMode,
         replayGainBusy = replayGainBusy,
         replayGainError = replayGainError,
@@ -1408,6 +1759,9 @@ private fun content(
         onOpenMediaStoreSettings = onOpenAudioSettings,
         onAddMediaStoreAudio = onAddAudio,
         onThemeModeSelected = onTheme,
+        onPaletteSelected = onPalette,
+        onDynamicColorSelected = onDynamicColor,
+        onRetryAppearanceSave = onRetryAppearanceSave,
         onReplayGainModeSelected = onReplayGain,
         onCrossfadeDurationSelected = onCrossfade,
         onGaplessModeSelected = onGapless,
@@ -1423,6 +1777,51 @@ private fun content(
         onOpenNotificationSettings = onOpenNotificationSettings,
         onDismiss = onDismiss,
         listState = listState)
+
+private fun settingsAppearance(
+    themeMode: RhythHausThemeMode = RhythHausThemeMode.System,
+    paletteId: HausPaletteId = HausPaletteId.Moss,
+    isDark: Boolean = false,
+    dynamicColorAvailable: Boolean = false,
+    dynamicColorEnabled: Boolean = false,
+    colorSource: HausThemeColorSource = HausThemeColorSource.Curated,
+    isSaving: Boolean = false,
+    saveFailed: Boolean = false,
+): SettingsAppearanceState =
+    SettingsAppearanceState(
+        themeMode = themeMode,
+        paletteId = paletteId,
+        isDark = isDark,
+        dynamicColorAvailable = dynamicColorAvailable,
+        dynamicColorEnabled = dynamicColorEnabled,
+        colorSource = colorSource,
+        isSaving = isSaving,
+        saveFailed = saveFailed,
+    )
+
+@OptIn(ExperimentalTestApi::class)
+private fun verifyAppearancePaletteLabels(
+    locale: Locale,
+    labels: List<String>,
+) {
+    val previousLocale = Locale.getDefault()
+    try {
+        Locale.setDefault(locale)
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(
+                    LocalHausColors provides lightHausPalette) {
+                        Box(Modifier.size(600.dp, 1_200.dp)) { content() }
+                    }
+            }
+            labels.forEach { label ->
+                onNodeWithText(label).assert(hasText(label))
+            }
+        }
+    } finally {
+        Locale.setDefault(previousLocale)
+    }
+}
 
 @OptIn(ExperimentalTestApi::class)
 private fun verifySettingsGroupLabels(
@@ -1444,6 +1843,7 @@ private fun verifySettingsGroupLabels(
             setContent {
                 Box(Modifier.size(600.dp, 1_200.dp)) { content() }
             }
+            onAllNodesWithText(labels.first()).assertCountEquals(1)
             sectionTags.zip(labels).forEach { (tag, label) ->
                 onNodeWithTag(SettingsListTestTag)
                     .performScrollToNode(hasTestTag(tag))
@@ -1475,3 +1875,15 @@ private fun SemanticsNodeInteraction.assertNoClickOrFocusSemantics(): Unit {
 private fun SemanticsNode.renderedTexts(): List<String> =
     (config.getOrNull(SemanticsProperties.Text)?.map { it.text }
         ?: emptyList()) + children.flatMap(SemanticsNode::renderedTexts)
+
+private fun PixelMap.countPixels(argb: Int): Int {
+    var count = 0
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            if (this[x, y].toArgb() == argb) {
+                count++
+            }
+        }
+    }
+    return count
+}

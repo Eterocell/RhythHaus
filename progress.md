@@ -1,3 +1,61 @@
+## Handoff - 2026-11-03 theme-selection final review and verification
+
+Route: openspec+superpowers
+Owner: implementation / user acceptance
+Input: user-approved plans `docs/superpowers/plans/2026-10-30-theme-selection-palettes.md` and `docs/superpowers/plans/2026-10-30-platform-adaptive-ui-redesign.md`; theme-selection implementation in `.worktrees/theme-selection-palettes/`.
+Output:
+- Theme-selection tasks 5.1–5.6 implement four semantic palettes, independent mode/palette/Monet persistence, the API-gated Android Monet provider, one Shared `ResolvedHausTheme` for Miuix and Material3, and accessible localized Settings controls with non-optimistic save/retry behavior.
+- Task 4 review is clean after two scoped fix rounds: both palette and Monet controls draw visible keyboard focus; the palette regression now distinguishes the focus stroke from its same-color swatch.
+- Independent whole-change review completed with no findings and a ready-to-merge verdict; the report is `.superpowers/sdd/2026-10-30-theme-selection-palettes/task-5.7-final-review.md`.
+- OpenSpec tasks 5.1–5.6 are checked. Task 5.7 remains unchecked solely for user-only appearance/device acceptance; every automatable verification gate now passes.
+- SDD evidence and review records are under `.superpowers/sdd/2026-10-30-theme-selection-palettes/`.
+Verification:
+- Generated XML totals: Core UI JVM 44, Now Playing JVM 56, Settings JVM 53, Shared JVM 544, and iOS simulator 340; zero failures, errors, or skips in each suite.
+- Android dynamic-color provider filter passed 5 tests; `:shared:compileAndroidMain`, `:desktopApp:compileKotlin`, standalone `qualityCheck`, and `openspec validate theme-selection --strict` passed.
+- After explicit authorization, installed NDK `30.0.15729638`; the subsequent full `./init.sh` passed, including Android debug assembly and the iOS simulator suite. The final `qualityCheck` also passed after correcting formatter-only changes in the test fix.
+- A forced iOS rerun exposed a race in `PlaybackSessionCoordinatorTest`: the test sent `Playing` before the asynchronously loaded track owned the fake engine generation. The test now waits for the selected track's `Paused` state before sending `Playing`; the regression passes on iOS (1/1 targeted, 31/31 class) and JVM (31/31 class). No playback production code changed.
+- Desktop GUI smoke verified one Appearance heading, non-optimistic palette selection, Iris scheme application, and Iris persistence after restarting with the same isolated temporary home.
+- A fresh live desktop pass verified the Settings route, all four palette choices, one Appearance heading, and selected Iris semantics plus the visible Iris scheme. This pass did not independently verify restart persistence.
+- The unfiltered Android host suite ran 337 tests and had six failures (one CarPlay seek assertion and five DI tests); the focused Monet provider filter passed. See the Task 3 report; playback/DI code was not changed.
+- A combined verification invocation that included `qualityCheck` and the iOS simulator task failed at `architectureCheck` on a generated SwiftPM metadata configuration's `:shared -> :shared` edge. The configuration is marked non-resolvable; standalone `qualityCheck` and the separately run iOS suite pass. [INFERENCE] This is an architecture-check input interaction with generated SwiftPM metadata, not a source module cycle; build logic was not changed.
+Next owner: user — choose the theme-selection branch integration option and perform the user-only appearance/device acceptance when available. The adaptive redesign remains next, in its own worktree, after the theme-selection dependency is integrated.
+Blockers: Android API 29/30 runtime and physical Android/iOS appearance/accessibility acceptance remain user-owned and unverified. Desktop smoke and simulator tests do not substitute for those checks. No merge has been performed.
+
+## Handoff - 2026-10-30 adaptive redesign planning checkpoint
+
+Route: openspec+superpowers
+Owner: design / planning
+Input: user-directed full adaptive redesign; approved brief `docs/superpowers/specs/2026-10-29-platform-adaptive-ui-redesign-design.md`.
+Output:
+- Completed the adaptive OpenSpec proposal, design, tasks, and three capability deltas under `openspec/changes/platform-adaptive-ui-redesign/` for the responsive shell, complete screen presentation, and Controls-only player dismissal.
+- Kept appearance in the separate `openspec/changes/theme-selection/` change. Its palette/Monet contract and the adaptive redesign each have an executable plan: `docs/superpowers/plans/2026-10-30-theme-selection-palettes.md` and `docs/superpowers/plans/2026-10-30-platform-adaptive-ui-redesign.md`.
+- Both plans share one user-approval gate. After approval, implement theme-selection first in `.worktrees/theme-selection-palettes/`, integrate it, then execute the adaptive plan in `.worktrees/platform-adaptive-ui-redesign/`.
+- The interactive browser package and token evidence are complete. Production Kotlin/UI implementation has not started; no code or tests changed.
+Verification:
+- `openspec validate theme-selection --strict` and `openspec validate platform-adaptive-ui-redesign --strict` both reported valid changes.
+- Checked 17 Markdown links with no broken targets. All existing repository paths referenced by the plans resolve; the planned new source/test files are explicitly marked `Create`.
+- Browser prototype smoke selected and rendered all 51 named states; separately exercised responsive device presets, Android Monet intent/API fallback/restore, Controls dismissal, Queue handle/body gesture separation, and visible Settings Appearance. The managed-Chromium recording shows the final localized Appearance route; browser errors were empty during the captured checks.
+- Browser and token checks do not verify Compose rendering, native system Insets, actual wallpaper Monet, device accessibility, or audio. `./init.sh` and platform builds/tests were not run because production code was unchanged.
+Next owner: user reviews and approves both linked plans at the single design/plan gate. Implementation remains ordered and isolated as described above.
+Blockers: joint plan approval. Native/device/manual acceptance remains unverified and user-performed when implementation is available; no commit or product implementation has started.
+
+## Historical handoff - 2026-10-29 C platform-adaptive full redesign design
+
+Route: openspec+superpowers
+Owner: Superpowers / design
+Input: user reported inconsistent Insets during settled/animated routes, unavailable player swipe dismissal, and insufficient theme choices; selected C platform-adaptive mockups and explicitly requested a complete visual redesign, not targeted patches.
+Output:
+- New full design: `docs/superpowers/specs/2026-10-29-platform-adaptive-ui-redesign-design.md`. Covers safety-boundary ownership/transition settlement, full-page player dismissal and input competition, four complete light/dark palettes plus optional Android API 31+ Monet, all feature pages/states, accessibility, module ownership and acceptance evidence.
+- User approved the direction and full scope, not this newly written document or an implementation plan. The document labels designer proposals separately and retains existing business and single-stack behavior. All remaining high-fidelity page/state mockups, eight semantic palette tables and consumed component-theme mappings must be delivered before plan approval, not invented inside implementation slices; there is one upfront design/plan gate, not repeated per-slice user check-ins.
+- Two independent builder checks returned thirteen material questions across interaction/page coverage and platform foundations. The document now specifies common Shared top-bar ownership, tablet/landscape layout classes, tool-route chrome, active-layer IME and system-bar appearance ownership, canonical theme representation and observable Monet availability, player/subpanel drag precedence, reorder gestures, fixed named player entries, system-sourced reduced motion, and OS-owned vs application-owned visual scope.
+- Both reviewers re-read the resolutions and confirmed their original questions were answered. Their final notes are also incorporated: retain the existing app-level left-edge return gestures (do not confuse no new native interactive Back with removal), and measure a route-independent single-line common top bar for each layout/text-scale configuration so long titles cannot create a second transition baseline.
+- C throwaway prototypes are in `.superpowers/brainstorm/30460-1793265987/content/`; they are not native Compose or real Monet/media evidence. The prior Studio design/OpenSpec/manual-acceptance records are preserved unchanged.
+Verification:
+- A Python pathlib/reference check resolved all eight document-relative links and both referenced C prototype paths; ten top-level design sections and explicit pending-approval status were confirmed.
+- No product code, dependencies, database schema, or toolchains changed. No Gradle/native checks were run for this design-only handoff; no fix, native build, device acceptance or full visual-matrix pass is claimed.
+Next owner: user approval of the full design; after approval create the new OpenSpec follow-up, complete high-fidelity designs and writing-plans implementation plan, which also need approval before implementation.
+Blockers: full design and implementation plan approval pending; complete per-page high-fidelity mockups and native regression/acceptance remain outstanding. No commit: workflow has not completed.
+
 ## Handoff - 2026-10-26 Studio UI integration; manual acceptance postponed
 
 Route: openspec+superpowers / user-directed integration with outstanding manual acceptance deferred

@@ -121,6 +121,14 @@ Shared. ThemePreferenceStore, Android/iOS/JVM actuals, system dark preference, K
 selected-mode persistence/collection, and root theme application stay Shared; theme mode and
 palettes stay core UI.
 
+The feature boundary receives appearance as an immutable `SettingsAppearanceState` containing the
+requested mode and palette, resolved light/dark state, Monet availability/intent, applied color
+source, and write status. It contains no platform or Shared types. Shared remains the sole
+DataStore writer and resolves one `ResolvedHausTheme` for Miuix and Material3; Settings only renders
+that projection and emits explicit mode, palette, Monet, and retry callbacks. The serialized
+`ThemePreferenceOwner` retains the persisted projection on failed writes, and the API-gated dynamic
+color provider remains Shared-owned.
+
 Settings owns appearance/theme, source-management-only, About/AboutLibraries, logo, and
 remove-source-dialog resources. Shared retains/injects `settings`, `add_music_folder`,
 `folder_picker_unavailable`, `clear_library`, generic `cancel`/`remove`, clear-library count/copy,

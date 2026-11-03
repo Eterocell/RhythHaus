@@ -35,6 +35,16 @@ public val RhythHausThemeMode.serialized: String
             RhythHausThemeMode.Dark -> "dark"
         }
 
+/**
+ * Resolves this mode to dark appearance, consulting the system when requested.
+ */
+public fun RhythHausThemeMode.resolveIsDark(systemIsDark: Boolean): Boolean =
+    when (this) {
+        RhythHausThemeMode.System -> systemIsDark
+        RhythHausThemeMode.Light -> false
+        RhythHausThemeMode.Dark -> true
+    }
+
 /** Human-readable theme mode label. */
 public val RhythHausThemeMode.displayLabel: String
     get() =
@@ -347,10 +357,10 @@ public enum class HausPaletteId(
         /** Parses a persisted palette identity, falling back to Moss. */
         public fun fromSerialized(value: String?): HausPaletteId =
             when (value) {
-                "bay" -> Bay
-                "clay" -> Clay
-                "iris" -> Iris
-                "moss" -> Moss
+                Moss.serialized -> Moss
+                Bay.serialized -> Bay
+                Clay.serialized -> Clay
+                Iris.serialized -> Iris
                 else -> Moss
             }
     }
@@ -506,12 +516,7 @@ public fun resolveHausTheme(
     dynamicColorRequested: Boolean = false,
     dynamicRoles: HausDynamicColorRoles? = null,
 ): ResolvedHausTheme {
-    val isDark =
-        when (mode) {
-            RhythHausThemeMode.System -> systemIsDark
-            RhythHausThemeMode.Light -> false
-            RhythHausThemeMode.Dark -> true
-        }
+    val isDark = mode.resolveIsDark(systemIsDark)
     val curated = hausPalette(paletteId, isDark)
     val dynamic = dynamicRoles.takeIf { dynamicColorRequested }
     val colors =

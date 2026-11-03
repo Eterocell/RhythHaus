@@ -184,7 +184,7 @@ class HausSongRowJvmTest {
         checkbox.assertIsFocused()
         val pixels =
             onNodeWithTag("selection-row").captureToImage().toPixelMap()
-        val outline = lightHausPalette.essentialBoundary.toArgb()
+        val outline = lightHausPalette.focus.toArgb()
         assertTrue(
             (0 until pixels.height).any { y ->
                 (0 until pixels.width).any { x ->

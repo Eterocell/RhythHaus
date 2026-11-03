@@ -25,6 +25,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.runBlocking
@@ -147,8 +148,14 @@ class PlaybackSessionCoordinatorTest {
     fun newerPlayingProgressSurvivesDelayedMutationCheckpoint() = runBlocking {
         assertNewerSnapshotSurvivesDelayedMutation(
             prepare = { controller, engine ->
+                controller.state.first {
+                    it.currentOccurrenceId == "current-a" &&
+                        it.status == PlaybackStatus.Paused
+                }
                 engine.listener?.onPlaybackStatus(
                     engine.activeGenerationForTest(), PlaybackStatus.Playing)
+                assertEquals(
+                    PlaybackStatus.Playing, controller.state.value.status)
             },
             applyNewerState = { _, engine, _ ->
                 engine.listener?.onPlaybackProgress(
@@ -931,7 +938,9 @@ class PlaybackSessionCoordinatorTest {
 
     private suspend fun CoroutineScope
         .assertNewerSnapshotSurvivesDelayedMutation(
-        prepare: (PlaybackController, FakePlaybackEngine) -> Unit = { _, _ -> },
+        prepare: suspend (PlaybackController, FakePlaybackEngine) -> Unit =
+            { _, _ ->
+            },
         applyNewerState:
             (
                 PlaybackController,

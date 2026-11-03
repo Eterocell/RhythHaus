@@ -3,6 +3,7 @@ package com.eterocell.rhythhaus.library.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -1865,8 +1866,9 @@ class LibraryAppShellJvmTest {
     fun settingsReviewRestoresDestinationScrollState() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
+                val appearance = mutableStateOf(defaultSettingsAppearance())
                 mount(
-                    width = 420.dp,
+                    width = { 420.dp },
                     height = 400.dp,
                     source = source(),
                     scanSession =
@@ -1878,6 +1880,7 @@ class LibraryAppShellJvmTest {
                         ),
                     picker = CountingPicker(),
                     callbacks = CallbackRecorder(),
+                    settingsAppearanceProvider = { appearance.value },
                 )
                 onNodeWithTag("AppSettingsTopBar", useUnmergedTree = true)
                     .performClick()
@@ -1894,6 +1897,13 @@ class LibraryAppShellJvmTest {
                         .fetchSemanticsNode()
                         .boundsInRoot
                         .top
+                appearance.value =
+                    appearance.value.copy(
+                        paletteId =
+                            com.eterocell.rhythhaus.theme.HausPaletteId.Iris,
+                    )
+                waitForIdle()
+                onNode(hasText("View scan report")).assertIsDisplayed()
                 assertTrue(
                     settingsBottom <= navigationTop + 1f,
                     "Settings viewport must end before bottom navigation",
@@ -2538,7 +2548,7 @@ class LibraryAppShellJvmTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
-    fun playerDialogRestoresItsInvokerAndQueueSaveDraftSurvivesTrackReplacement() =
+    fun playerDialogAndQueueDraftSurviveAppearanceChangeAndTrackReplacement() =
         withDefaultLocale(Locale.ENGLISH) {
             runComposeUiTest {
                 fun track(id: String, title: String) =
@@ -2556,6 +2566,7 @@ class LibraryAppShellJvmTest {
                 val second = track("dialog-focus-second", "Second")
                 val third = track("dialog-focus-third", "Third")
                 val controller = PlaybackController(FakePlaybackEngine())
+                val appearance = mutableStateOf(defaultSettingsAppearance())
                 controller.setQueue(
                     listOf(
                         first.toPlayableTrack(),
@@ -2569,7 +2580,7 @@ class LibraryAppShellJvmTest {
                 }
                 try {
                     mount(
-                        width = 1280.dp,
+                        width = { 1280.dp },
                         height = 800.dp,
                         source = source(),
                         scanSession =
@@ -2588,16 +2599,13 @@ class LibraryAppShellJvmTest {
                                 confirmedSnapshot = PlaylistSnapshot(),
                                 hasConfirmedSnapshot = true,
                             ),
+                        settingsAppearanceProvider = { appearance.value },
                     )
 
                     onNodeWithTag("NowPlayingShellPlacement").performClick()
                     onNodeWithTag("NowPlayingPlayPause")
                         .performSemanticsAction(SemanticsActions.RequestFocus)
                         .assertIsFocused()
-                    controller.skipToNext()
-                    waitUntil(timeoutMillis = 5_000) {
-                        controller.state.value.currentTrack?.id == second.id
-                    }
                     onNodeWithTag("NowPlayingPlayPause").assertIsFocused()
                     onNodeWithTag("NowPlayingQueueButton").performClick()
                     val saveQueueButton =
@@ -2747,9 +2755,22 @@ class LibraryAppShellJvmTest {
                         .performTextInput(
                             "Keep this draft",
                         )
+                    appearance.value =
+                        appearance.value.copy(
+                            paletteId =
+                                com.eterocell.rhythhaus.theme.HausPaletteId
+                                    .Iris,
+                        )
+                    waitForIdle()
+                    dialog.assertIsDisplayed()
+                    onNode(hasText("Keep this draft")).assertIsDisplayed()
+                    assertEquals(
+                        first.id,
+                        controller.state.value.currentTrack?.id,
+                    )
                     controller.skipToNext()
                     waitUntil(timeoutMillis = 5_000) {
-                        controller.state.value.currentTrack?.id == third.id
+                        controller.state.value.currentTrack?.id == second.id
                     }
                     dialog.assertIsDisplayed()
                     onNode(hasText("Keep this draft")).assertIsDisplayed()
@@ -3411,6 +3432,9 @@ class LibraryAppShellJvmTest {
         onSetTrackMetadataOverride:
             (suspend (String, TrackMetadataOverride) -> Boolean)? =
             null,
+        settingsAppearanceProvider:
+            (() -> com.eterocell.rhythhaus.settings.SettingsAppearanceState)? =
+            null,
     ) {
         mount(
             width = { width },
@@ -3436,10 +3460,10 @@ class LibraryAppShellJvmTest {
             onOpenPlaylistBackup = onOpenPlaylistBackup,
             onPlaylistBackupAction = onPlaylistBackupAction,
             desktopDropTarget = desktopDropTarget,
-            onDesktopDropAvailabilityChanged =
-                onDesktopDropAvailabilityChanged,
+            onDesktopDropAvailabilityChanged = onDesktopDropAvailabilityChanged,
             onLoadTrackMetadata = onLoadTrackMetadata,
             onSetTrackMetadataOverride = onSetTrackMetadataOverride,
+            settingsAppearanceProvider = settingsAppearanceProvider,
         )
     }
 
@@ -3485,6 +3509,9 @@ class LibraryAppShellJvmTest {
         onSetTrackMetadataOverride:
             (suspend (String, TrackMetadataOverride) -> Boolean)? =
             null,
+        settingsAppearanceProvider:
+            (() -> com.eterocell.rhythhaus.settings.SettingsAppearanceState)? =
+            null,
     ) {
         setContent {
             CompositionLocalProvider(
@@ -3493,6 +3520,9 @@ class LibraryAppShellJvmTest {
             ) {
                 Box(Modifier.size(width(), height)) {
                     val displayedPlaylistState = playlistStateProvider()
+                    val settingsAppearance =
+                        settingsAppearanceProvider?.invoke()
+                            ?: defaultSettingsAppearance()
                     Box(
                         Modifier.size(1.dp).semantics {
                             this[SemanticsProperties.ContentDescription] =
@@ -3501,68 +3531,100 @@ class LibraryAppShellJvmTest {
                                 )
                         },
                     )
-                    LibraryHomeScreen(
-                        snapshot =
-                            LibrarySnapshot(
-                                "Library",
-                                "",
-                                tracks,
-                                playbackController.state.value.currentTrack?.id,
-                            ),
-                        libraryTracks = libraryTracks,
-                        tagLibReader = UnusedTagLibReader,
-                        playbackController = playbackController,
-                        playlistRepository = playlistRepository,
-                        playlistState = displayedPlaylistState,
-                        playlistBackupState = playlistBackupState(),
-                        backupDocumentAvailable = backupDocumentAvailable,
-                        onPlaylistStateAction = onPlaylistStateAction,
-                        onRefreshPlaylists = {},
-                        onPlaylistMutation = onPlaylistMutation,
-                        onExportPlaylists = {},
-                        onOpenPlaylistBackup = onOpenPlaylistBackup,
-                        onExportPlaylistFormat = { _, _: PlaylistDocumentFormat
-                            ->
-                        },
-                        onOpenPlaylistFormat = { _: PlaylistDocumentFormat -> },
-                        onConfirmPlaylistBackup = {},
-                        onPlaylistBackupAction = onPlaylistBackupAction,
-                        sources = listOf(source),
-                        folderPickerLauncher = picker,
-                        sourcePickerActionVisible = true,
-                        importMessage = null,
-                        scanProgress = ScanProgress(scanSession),
-                        latestCompletedScanSession = null,
-                        scanErrors = scanErrors,
-                        scanJob = null,
-                        coordinatorMutationsEnabled = true,
-                        currentThemeMode = RhythHausThemeMode.System,
-                        replayGainState =
-                            com.eterocell.rhythhaus.playback
-                                .ReplayGainPreferenceState(isBusy = false),
-                        onReplayGainModeSelected = {},
-                        crossfadeState =
-                            com.eterocell.rhythhaus.playback
-                                .CrossfadePreferenceState(isBusy = false),
-                        onCrossfadeDurationSelected = {},
-                        onThemeModeSelected = {},
-                        onClearLibrary = {},
-                        onRescanSource = {},
-                        onRemoveSource = {},
-                        onRemoveMissingTracks = { _, _ -> },
-                        onCancelScan = { callbacks.cancelCalls++ },
-                        sourceIdByTrackId = emptyMap(),
-                        modifiedAtByTrackId = emptyMap(),
-                        favoriteTrackIds = favoriteTrackIds(),
-                        playHistory = playHistory,
-                        createdAtByTrackId = createdAtByTrackId,
-                        onSetTrackFavorite = onSetTrackFavorite,
-                        desktopDropTarget = desktopDropTarget(),
-                        onDesktopDropAvailabilityChanged =
-                            onDesktopDropAvailabilityChanged,
-                        onLoadTrackMetadata = onLoadTrackMetadata,
-                        onSetTrackMetadataOverride = onSetTrackMetadataOverride,
-                    )
+                    val renderShell: @Composable () -> Unit = {
+                        LibraryHomeScreen(
+                            snapshot =
+                                LibrarySnapshot(
+                                    "Library",
+                                    "",
+                                    tracks,
+                                    playbackController.state.value.currentTrack
+                                        ?.id,
+                                ),
+                            libraryTracks = libraryTracks,
+                            tagLibReader = UnusedTagLibReader,
+                            playbackController = playbackController,
+                            playlistRepository = playlistRepository,
+                            playlistState = displayedPlaylistState,
+                            playlistBackupState = playlistBackupState(),
+                            backupDocumentAvailable = backupDocumentAvailable,
+                            onPlaylistStateAction = onPlaylistStateAction,
+                            onRefreshPlaylists = {},
+                            onPlaylistMutation = onPlaylistMutation,
+                            onExportPlaylists = {},
+                            onOpenPlaylistBackup = onOpenPlaylistBackup,
+                            onExportPlaylistFormat = {
+                                _,
+                                _: PlaylistDocumentFormat ->
+                            },
+                            onOpenPlaylistFormat = { _: PlaylistDocumentFormat
+                                ->
+                            },
+                            onConfirmPlaylistBackup = {},
+                            onPlaylistBackupAction = onPlaylistBackupAction,
+                            sources = listOf(source),
+                            folderPickerLauncher = picker,
+                            sourcePickerActionVisible = true,
+                            importMessage = null,
+                            scanProgress = ScanProgress(scanSession),
+                            latestCompletedScanSession = null,
+                            scanErrors = scanErrors,
+                            scanJob = null,
+                            coordinatorMutationsEnabled = true,
+                            settingsAppearance = settingsAppearance,
+                            replayGainState =
+                                com.eterocell.rhythhaus.playback
+                                    .ReplayGainPreferenceState(isBusy = false),
+                            onReplayGainModeSelected = {},
+                            crossfadeState =
+                                com.eterocell.rhythhaus.playback
+                                    .CrossfadePreferenceState(isBusy = false),
+                            onCrossfadeDurationSelected = {},
+                            onThemeModeSelected = {},
+                            onPaletteSelected = {},
+                            onDynamicColorSelected = {},
+                            onRetryAppearanceSave = {},
+                            onClearLibrary = {},
+                            onRescanSource = {},
+                            onRemoveSource = {},
+                            onRemoveMissingTracks = { _, _ -> },
+                            onCancelScan = { callbacks.cancelCalls++ },
+                            sourceIdByTrackId = emptyMap(),
+                            modifiedAtByTrackId = emptyMap(),
+                            favoriteTrackIds = favoriteTrackIds(),
+                            playHistory = playHistory,
+                            createdAtByTrackId = createdAtByTrackId,
+                            onSetTrackFavorite = onSetTrackFavorite,
+                            desktopDropTarget = desktopDropTarget(),
+                            onDesktopDropAvailabilityChanged =
+                                onDesktopDropAvailabilityChanged,
+                            onLoadTrackMetadata = onLoadTrackMetadata,
+                            onSetTrackMetadataOverride =
+                                onSetTrackMetadataOverride,
+                        )
+                    }
+                    if (settingsAppearanceProvider != null) {
+                        val preferences =
+                            com.eterocell.rhythhaus.theme.ThemePreferenceState(
+                                mode = settingsAppearance.themeMode,
+                                paletteId = settingsAppearance.paletteId,
+                                dynamicColorEnabled =
+                                    settingsAppearance.dynamicColorEnabled,
+                            )
+                        val resolvedTheme =
+                            com.eterocell.rhythhaus.resolveSharedHausTheme(
+                                preferences = preferences,
+                                systemIsDark = settingsAppearance.isDark,
+                                dynamicColorAvailable =
+                                    settingsAppearance.dynamicColorAvailable,
+                                dynamicRoles = null,
+                            )
+                        com.eterocell.rhythhaus.RhythHausTheme(resolvedTheme) {
+                            renderShell()
+                        }
+                    } else {
+                        renderShell()
+                    }
                 }
             }
         }
@@ -3585,6 +3647,19 @@ class LibraryAppShellJvmTest {
             displayName = "Music",
             handle = "/music",
             createdAtEpochMillis = 1L,
+        )
+
+    private fun defaultSettingsAppearance() =
+        com.eterocell.rhythhaus.settings.SettingsAppearanceState(
+            themeMode = RhythHausThemeMode.System,
+            paletteId = com.eterocell.rhythhaus.theme.HausPaletteId.Moss,
+            isDark = false,
+            dynamicColorAvailable = false,
+            dynamicColorEnabled = false,
+            colorSource =
+                com.eterocell.rhythhaus.theme.HausThemeColorSource.Curated,
+            isSaving = false,
+            saveFailed = false,
         )
 
     private fun libraryTrack(track: Track) =

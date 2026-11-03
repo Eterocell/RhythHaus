@@ -2,6 +2,9 @@ package com.eterocell.rhythhaus
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme as darkMaterial3ColorScheme
+import androidx.compose.material3.lightColorScheme as lightMaterial3ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -66,13 +69,22 @@ import com.eterocell.rhythhaus.playlistbackup.createPlaylistBackupController
 import com.eterocell.rhythhaus.playlistbackup.rememberPlatformPlaylistBackupDocumentLauncher
 import com.eterocell.rhythhaus.playlistbackup.rememberPlaylistTrackReadability
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
+import com.eterocell.rhythhaus.settings.SettingsAppearanceState
 import com.eterocell.rhythhaus.settings.deviceAudioSourceDisplayName
 import com.eterocell.rhythhaus.taglib.TagLibReader
+import com.eterocell.rhythhaus.theme.HausColorPalette
+import com.eterocell.rhythhaus.theme.HausDynamicColorRoles
 import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.LocalHausColors
+import com.eterocell.rhythhaus.theme.ResolvedHausTheme
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.theme.ThemePreferenceOwner
+import com.eterocell.rhythhaus.theme.ThemePreferenceState
 import com.eterocell.rhythhaus.theme.ThemePreferenceStore
+import com.eterocell.rhythhaus.theme.isPlatformDynamicColorAvailable
+import com.eterocell.rhythhaus.theme.platformDynamicColorRoles
 import com.eterocell.rhythhaus.theme.resolveHausTheme
+import com.eterocell.rhythhaus.theme.resolveIsDark
 import com.eterocell.rhythhaus.theme.systemPrefersDarkTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -189,6 +201,8 @@ fun App(
     val platformAccess = koinInject<PlatformSourceAccess>()
     val scanner = koinInject<LibraryScanner>()
     val themePreferenceStore = koinInject<ThemePreferenceStore>()
+    val themePreferenceOwner = koinInject<ThemePreferenceOwner>()
+    val themePreferenceWriteState by themePreferenceOwner.state.collectAsState()
     val replayGainPreferenceOwner =
         koinInject<com.eterocell.rhythhaus.playback.ReplayGainPreferenceOwner>()
     val replayGainState by replayGainPreferenceOwner.state.collectAsState()
@@ -274,9 +288,44 @@ fun App(
         stringResource(Res.string.ios_import_summary_format)
     val importedSuffix =
         stringResource(Res.string.playlist_backup_imported_suffix)
-    val selectedThemeMode by
-        themePreferenceStore.selectedThemeMode.collectAsState(
-            RhythHausThemeMode.System)
+    val themePreferenceState by
+        themePreferenceStore.state.collectAsState(
+            ThemePreferenceState(
+                mode = RhythHausThemeMode.System,
+                paletteId = HausPaletteId.Moss,
+                dynamicColorEnabled = false,
+            ),
+        )
+    val dynamicColorAvailable = isPlatformDynamicColorAvailable()
+    val systemIsDark = systemPrefersDarkTheme()
+    val dynamicColorRequested =
+        themePreferenceState.dynamicColorEnabled && dynamicColorAvailable
+    val dynamicColorRoles =
+        if (dynamicColorRequested) {
+            platformDynamicColorRoles(
+                themePreferenceState.mode.resolveIsDark(systemIsDark),
+            )
+        } else {
+            null
+        }
+    val resolvedTheme =
+        resolveSharedHausTheme(
+            preferences = themePreferenceState,
+            systemIsDark = systemIsDark,
+            dynamicColorAvailable = dynamicColorAvailable,
+            dynamicRoles = dynamicColorRoles,
+        )
+    val settingsAppearance =
+        SettingsAppearanceState(
+            themeMode = themePreferenceState.mode,
+            paletteId = themePreferenceState.paletteId,
+            isDark = resolvedTheme.isDark,
+            dynamicColorAvailable = dynamicColorAvailable,
+            dynamicColorEnabled = themePreferenceState.dynamicColorEnabled,
+            colorSource = resolvedTheme.source,
+            isSaving = themePreferenceWriteState.isBusy,
+            saveFailed = themePreferenceWriteState.saveFailed,
+        )
     val notificationPermissionState by
         notificationPermissionController.state.collectAsState()
     val mediaStorePermissionState by
@@ -906,7 +955,7 @@ fun App(
         remember(libraryContent.tracks) {
             librarySnapshot(libraryContent.tracks)
         }
-    RhythHausTheme(selectedThemeMode = selectedThemeMode) {
+    RhythHausTheme(resolved = resolvedTheme) {
         CompositionLocalProvider(
             LocalTrackArtworkLoader provides
                 { trackId ->
@@ -1059,7 +1108,7 @@ fun App(
                             modalFree && mutationsEnabled)
                     },
                     coordinatorMutationsEnabled = mutationsEnabled,
-                    currentThemeMode = selectedThemeMode,
+                    settingsAppearance = settingsAppearance,
                     replayGainState = replayGainState,
                     onReplayGainModeSelected = { mode ->
                         scope.launch { replayGainPreferenceOwner.select(mode) }
@@ -1083,8 +1132,21 @@ fun App(
                     },
                     onThemeModeSelected = { mode ->
                         scope.launch {
-                            themePreferenceStore.setSelectedThemeMode(mode)
+                            themePreferenceOwner.selectMode(mode)
                         }
+                    },
+                    onPaletteSelected = { paletteId ->
+                        scope.launch {
+                            themePreferenceOwner.selectPalette(paletteId)
+                        }
+                    },
+                    onDynamicColorSelected = { enabled ->
+                        scope.launch {
+                            themePreferenceOwner.selectDynamicColor(enabled)
+                        }
+                    },
+                    onRetryAppearanceSave = {
+                        scope.launch { themePreferenceOwner.retry() }
                     },
                     onClearLibrary = {
                         if (mutationsEnabled) {
@@ -2127,64 +2189,169 @@ private fun ScanSession.terminalAfterFailure(failure: Throwable): ScanSession =
         this
     }
 
+internal fun resolveSharedHausTheme(
+    preferences: ThemePreferenceState,
+    systemIsDark: Boolean,
+    dynamicColorAvailable: Boolean,
+    dynamicRoles: HausDynamicColorRoles?,
+): ResolvedHausTheme =
+    resolveHausTheme(
+        mode = preferences.mode,
+        paletteId = preferences.paletteId,
+        systemIsDark = systemIsDark,
+        dynamicColorRequested =
+            preferences.dynamicColorEnabled && dynamicColorAvailable,
+        dynamicRoles = dynamicRoles,
+    )
+
 @Composable
-private fun RhythHausTheme(
-    selectedThemeMode: RhythHausThemeMode,
+internal fun RhythHausTheme(
+    resolved: ResolvedHausTheme,
     content: @Composable () -> Unit,
 ) {
-    val resolved =
-        resolveHausTheme(
-            mode = selectedThemeMode,
-            paletteId = HausPaletteId.Moss,
-            systemIsDark = systemPrefersDarkTheme(),
-        )
     val colors = resolved.colors
-    val colorScheme =
-        if (resolved.isDark) {
-            darkColorScheme(
-                primary = colors.primaryAction,
-                onPrimary = colors.onPrimaryAction,
-                secondary = colors.primaryAction,
-                onSecondary = colors.onPrimaryAction,
-                background = colors.background,
-                onBackground = colors.textPrimary,
-                surface = colors.surface,
-                onSurface = colors.textPrimary,
-                surfaceContainer = colors.surface,
-                onSurfaceContainer = colors.textPrimary,
-                secondaryVariant = colors.primaryAction,
-                onSecondaryVariant = colors.onPrimaryAction,
-                disabledSecondaryVariant =
-                    colors.primaryAction.copy(alpha = 0.28f),
-                disabledOnSecondaryVariant =
-                    colors.onPrimaryAction.copy(alpha = 0.28f),
-            )
-        } else {
-            lightColorScheme(
-                primary = colors.primaryAction,
-                onPrimary = colors.onPrimaryAction,
-                secondary = colors.primaryAction,
-                onSecondary = colors.onPrimaryAction,
-                background = colors.background,
-                onBackground = colors.textPrimary,
-                surface = colors.surface,
-                onSurface = colors.textPrimary,
-                surfaceContainer = colors.surface,
-                onSurfaceContainer = colors.textPrimary,
-                secondaryVariant = colors.primaryAction,
-                onSecondaryVariant = colors.onPrimaryAction,
-                disabledSecondaryVariant =
-                    colors.primaryAction.copy(alpha = 0.28f),
-                disabledOnSecondaryVariant =
-                    colors.onPrimaryAction.copy(alpha = 0.28f),
-            )
+    val miuixScheme =
+        remember(colors, resolved.isDark) {
+            hausMiuixColorScheme(colors, resolved.isDark)
+        }
+    val material3Scheme =
+        remember(colors, resolved.isDark) {
+            hausMaterial3ColorScheme(colors, resolved.isDark)
         }
 
-    MiuixTheme(
-        colors = colorScheme,
-    ) {
-        CompositionLocalProvider(LocalHausColors provides colors) {
-            content()
+    MaterialTheme(colorScheme = material3Scheme) {
+        MiuixTheme(colors = miuixScheme) {
+            CompositionLocalProvider(LocalHausColors provides colors) {
+                content()
+            }
         }
     }
 }
+
+/**
+ * Maps the effective Haus roles into the Miuix scheme for one resolved mode.
+ */
+internal fun hausMiuixColorScheme(
+    colors: HausColorPalette,
+    isDark: Boolean,
+) =
+    if (isDark) {
+        darkColorScheme(
+            primary = colors.primaryAction,
+            onPrimary = colors.onPrimaryAction,
+            secondary = colors.primaryAction,
+            onSecondary = colors.onPrimaryAction,
+            background = colors.background,
+            onBackground = colors.textPrimary,
+            surface = colors.surface,
+            onSurface = colors.textPrimary,
+            surfaceContainer = colors.raisedSurface,
+            onSurfaceContainer = colors.textPrimary,
+            secondaryVariant = colors.primaryAction,
+            onSecondaryVariant = colors.onPrimaryAction,
+            disabledSecondaryVariant = colors.disabledSurface,
+            disabledOnSecondaryVariant = colors.disabledContent,
+        )
+    } else {
+        lightColorScheme(
+            primary = colors.primaryAction,
+            onPrimary = colors.onPrimaryAction,
+            secondary = colors.primaryAction,
+            onSecondary = colors.onPrimaryAction,
+            background = colors.background,
+            onBackground = colors.textPrimary,
+            surface = colors.surface,
+            onSurface = colors.textPrimary,
+            surfaceContainer = colors.raisedSurface,
+            onSurfaceContainer = colors.textPrimary,
+            secondaryVariant = colors.primaryAction,
+            onSecondaryVariant = colors.onPrimaryAction,
+            disabledSecondaryVariant = colors.disabledSurface,
+            disabledOnSecondaryVariant = colors.disabledContent,
+        )
+    }
+
+/** Maps the canonical Haus roles into Material3 for one resolved mode. */
+internal fun hausMaterial3ColorScheme(
+    colors: HausColorPalette,
+    isDark: Boolean,
+) =
+    if (isDark) {
+        darkMaterial3ColorScheme(
+            primary = colors.primaryAction,
+            onPrimary = colors.onPrimaryAction,
+            primaryContainer = colors.selectedSurface,
+            onPrimaryContainer = colors.onSelectedSurface,
+            inversePrimary = colors.primaryAction,
+            secondary = colors.primaryAction,
+            onSecondary = colors.onPrimaryAction,
+            secondaryContainer = colors.raisedSurface,
+            onSecondaryContainer = colors.textPrimary,
+            tertiary = colors.primaryAction,
+            onTertiary = colors.onPrimaryAction,
+            tertiaryContainer = colors.selectedSurface,
+            onTertiaryContainer = colors.onSelectedSurface,
+            background = colors.background,
+            onBackground = colors.textPrimary,
+            surface = colors.surface,
+            onSurface = colors.textPrimary,
+            surfaceVariant = colors.raisedSurface,
+            onSurfaceVariant = colors.textSecondary,
+            surfaceTint = colors.primaryAction,
+            inverseSurface = colors.textPrimary,
+            inverseOnSurface = colors.textInverse,
+            error = colors.error,
+            onError = colors.onError,
+            errorContainer = colors.errorContainer,
+            onErrorContainer = colors.onErrorContainer,
+            outline = colors.essentialBoundary,
+            outlineVariant = colors.divider,
+            scrim = colors.scrimColor,
+            surfaceBright = colors.surface,
+            surfaceDim = colors.background,
+            surfaceContainer = colors.raisedSurface,
+            surfaceContainerHigh = colors.raisedSurface,
+            surfaceContainerHighest = colors.raisedSurface,
+            surfaceContainerLow = colors.surface,
+            surfaceContainerLowest = colors.background,
+        )
+    } else {
+        lightMaterial3ColorScheme(
+            primary = colors.primaryAction,
+            onPrimary = colors.onPrimaryAction,
+            primaryContainer = colors.selectedSurface,
+            onPrimaryContainer = colors.onSelectedSurface,
+            inversePrimary = colors.primaryAction,
+            secondary = colors.primaryAction,
+            onSecondary = colors.onPrimaryAction,
+            secondaryContainer = colors.raisedSurface,
+            onSecondaryContainer = colors.textPrimary,
+            tertiary = colors.primaryAction,
+            onTertiary = colors.onPrimaryAction,
+            tertiaryContainer = colors.selectedSurface,
+            onTertiaryContainer = colors.onSelectedSurface,
+            background = colors.background,
+            onBackground = colors.textPrimary,
+            surface = colors.surface,
+            onSurface = colors.textPrimary,
+            surfaceVariant = colors.raisedSurface,
+            onSurfaceVariant = colors.textSecondary,
+            surfaceTint = colors.primaryAction,
+            inverseSurface = colors.textPrimary,
+            inverseOnSurface = colors.textInverse,
+            error = colors.error,
+            onError = colors.onError,
+            errorContainer = colors.errorContainer,
+            onErrorContainer = colors.onErrorContainer,
+            outline = colors.essentialBoundary,
+            outlineVariant = colors.divider,
+            scrim = colors.scrimColor,
+            surfaceBright = colors.surface,
+            surfaceDim = colors.background,
+            surfaceContainer = colors.raisedSurface,
+            surfaceContainerHigh = colors.raisedSurface,
+            surfaceContainerHighest = colors.raisedSurface,
+            surfaceContainerLow = colors.surface,
+            surfaceContainerLowest = colors.background,
+        )
+    }

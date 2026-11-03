@@ -195,7 +195,17 @@ public class SettingsResourceOwnershipJvmTest {
     private companion object {
         val featureKeys =
             setOf(
-                "appearance",
+                "appearance_palette_moss",
+                "appearance_palette_bay",
+                "appearance_palette_clay",
+                "appearance_palette_iris",
+                "appearance_monet_title",
+                "appearance_monet_explanation",
+                "appearance_saving",
+                "appearance_save_error",
+                "appearance_retry",
+                "appearance_source_fallback",
+                "appearance_source_monet",
                 "theme_system_label",
                 "theme_light_label",
                 "theme_dark_label",

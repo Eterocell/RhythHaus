@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -27,6 +28,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -70,9 +73,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.HausSpacing
+import com.eterocell.rhythhaus.theme.HausThemeColorSource
 import com.eterocell.rhythhaus.theme.HausTypography
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
+import com.eterocell.rhythhaus.theme.hausPalette
 import com.eterocell.rhythhaus.ui.ArtworkCacheClearResult
 import com.eterocell.rhythhaus.ui.HausButton as Button
 import com.eterocell.rhythhaus.ui.HausDialog
@@ -85,7 +91,17 @@ import org.jetbrains.compose.resources.stringResource
 import rhythhaus.feature.settings.generated.resources.Res
 import rhythhaus.feature.settings.generated.resources.about
 import rhythhaus.feature.settings.generated.resources.add_device_audio
-import rhythhaus.feature.settings.generated.resources.appearance
+import rhythhaus.feature.settings.generated.resources.appearance_monet_explanation
+import rhythhaus.feature.settings.generated.resources.appearance_monet_title
+import rhythhaus.feature.settings.generated.resources.appearance_palette_bay
+import rhythhaus.feature.settings.generated.resources.appearance_palette_clay
+import rhythhaus.feature.settings.generated.resources.appearance_palette_iris
+import rhythhaus.feature.settings.generated.resources.appearance_palette_moss
+import rhythhaus.feature.settings.generated.resources.appearance_retry
+import rhythhaus.feature.settings.generated.resources.appearance_save_error
+import rhythhaus.feature.settings.generated.resources.appearance_saving
+import rhythhaus.feature.settings.generated.resources.appearance_source_fallback
+import rhythhaus.feature.settings.generated.resources.appearance_source_monet
 import rhythhaus.feature.settings.generated.resources.automatic_resume_error
 import rhythhaus.feature.settings.generated.resources.automatic_resume_explanation
 import rhythhaus.feature.settings.generated.resources.automatic_resume_follow
@@ -154,7 +170,8 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+
+private val SettingsAppearanceShape = RoundedCornerShape(12.dp)
 
 /** Shared-owned wording and actions injected into [SettingsScreen]. */
 public data class SettingsSharedLabels(
@@ -339,7 +356,7 @@ internal const val SettingsSectionInformationTag =
  * caller-owned slots.
  *
  * @param labels Shared-owned wording and actions injected into this screen.
- * @param currentThemeMode the theme mode currently in effect.
+ * @param appearance the authoritative persisted and resolved appearance.
  * @param replayGainMode the last restored or durably accepted normalization
  *   mode.
  * @param replayGainBusy excludes normalization input during restoration or
@@ -366,7 +383,13 @@ internal const val SettingsSectionInformationTag =
  * @param notificationRecovery the actionable denied host media-notification
  *   permission to recover, or null when no card, action, or accessibility node
  *   may be rendered.
- * @param onThemeModeSelected dispatches the selected theme mode.
+ * @param onThemeModeSelected requests a theme mode without changing selection
+ *   optimistically.
+ * @param onPaletteSelected requests a curated palette without changing the
+ *   persisted projection optimistically.
+ * @param onDynamicColorSelected requests a Monet preference write without
+ *   changing the persisted projection optimistically.
+ * @param onRetryAppearanceSave retries the failed appearance preference write.
  * @param onReplayGainModeSelected requests a mode without changing selection
  *   optimistically; the caller publishes only a successfully saved mode.
  * @param onCrossfadeDurationSelected requests a duration without changing the
@@ -390,7 +413,7 @@ internal const val SettingsSectionInformationTag =
 @Composable
 public fun SettingsScreen(
     labels: SettingsSharedLabels,
-    currentThemeMode: RhythHausThemeMode,
+    appearance: SettingsAppearanceState,
     replayGainMode: SettingsReplayGainMode,
     replayGainBusy: Boolean,
     replayGainError: Boolean,
@@ -418,6 +441,9 @@ public fun SettingsScreen(
     notificationRecovery: MediaNotificationRecovery?,
     mediaStoreAudioRecovery: MediaStoreAudioRecovery? = null,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
+    onPaletteSelected: (HausPaletteId) -> Unit,
+    onDynamicColorSelected: (Boolean) -> Unit,
+    onRetryAppearanceSave: () -> Unit,
     onReplayGainModeSelected: (SettingsReplayGainMode) -> Unit,
     onCrossfadeDurationSelected: (SettingsCrossfadeDuration) -> Unit,
     onGaplessModeSelected: (SettingsGaplessMode) -> Unit = {},
@@ -531,9 +557,18 @@ public fun SettingsScreen(
                                         SettingsSectionAppearanceTag)
                                 }
                                 item {
-                                    AppearanceDropdown(
-                                        currentThemeMode,
-                                        onThemeModeSelected,
+                                    AppearancePreferences(
+                                        appearance = appearance,
+                                        onThemeModeSelected =
+                                            onThemeModeSelected,
+                                        onPaletteSelected = onPaletteSelected,
+                                        onDynamicColorSelected =
+                                            onDynamicColorSelected,
+                                        onRetryAppearanceSave =
+                                            onRetryAppearanceSave,
+                                        modalVisible =
+                                            clearLibraryDialog != null ||
+                                                sourcePendingRemoval != null,
                                         policy
                                             .appearanceHorizontalInsidePadding,
                                         policy.appearanceVerticalInsidePadding)
@@ -1465,9 +1500,7 @@ private fun ReplayGainPreference(
                                     color =
                                         if (isSelected)
                                             HausColors.current.background
-                                        else
-                                            HausColors.current
-                                                .essentialBoundary,
+                                        else HausColors.current.focus,
                                     shape = RoundedCornerShape(12.dp),
                                     outerColor =
                                         if (isSelected)
@@ -1624,7 +1657,7 @@ private fun CrossfadePreference(
                                                             .background
                                                     else
                                                         HausColors.current
-                                                            .essentialBoundary,
+                                                            .focus,
                                                 shape =
                                                     RoundedCornerShape(12.dp),
                                                 outerColor =
@@ -1756,9 +1789,7 @@ private fun GaplessPreference(
                                     color =
                                         if (selected)
                                             HausColors.current.background
-                                        else
-                                            HausColors.current
-                                                .essentialBoundary,
+                                        else HausColors.current.focus,
                                     shape = RoundedCornerShape(12.dp),
                                     outerColor =
                                         if (selected)
@@ -1879,9 +1910,7 @@ private fun AutomaticResumePreference(
                                     color =
                                         if (selected)
                                             HausColors.current.background
-                                        else
-                                            HausColors.current
-                                                .essentialBoundary,
+                                        else HausColors.current.focus,
                                     shape = RoundedCornerShape(12.dp),
                                     outerColor =
                                         if (selected)
@@ -1977,24 +2006,327 @@ private fun SettingsCrossfadeDuration.testTag(): String =
     }
 
 @Composable
-private fun AppearanceDropdown(
-    current: RhythHausThemeMode,
-    onSelected: (RhythHausThemeMode) -> Unit,
+private fun AppearancePreferences(
+    appearance: SettingsAppearanceState,
+    onThemeModeSelected: (RhythHausThemeMode) -> Unit,
+    onPaletteSelected: (HausPaletteId) -> Unit,
+    onDynamicColorSelected: (Boolean) -> Unit,
+    onRetryAppearanceSave: () -> Unit,
+    modalVisible: Boolean,
     horizontal: Dp,
-    vertical: Dp
+    vertical: Dp,
 ) {
-    val options = RhythHausThemeMode.settingsOptions
-    OverlayDropdownPreference(
-        items = options.map { it.label() },
-        selectedIndex = options.indexOf(current).coerceAtLeast(0),
-        title = stringResource(Res.string.appearance),
-        summary = current.description(),
-        modifier = Modifier.fillMaxWidth().testTag(SettingsThemeTestTag),
-        insideMargin =
-            PaddingValues(horizontal = horizontal, vertical = vertical),
-        renderInRootScaffold = false,
-        onSelectedIndexChange = { options.getOrNull(it)?.let(onSelected) })
+    val interactionEnabled = !appearance.isSaving && !modalVisible
+    val paletteName = appearance.paletteId.label()
+    Column(
+        Modifier.fillMaxWidth()
+            .background(
+                HausColors.current.surface.copy(alpha = .54f),
+                RoundedCornerShape(16.dp),
+            )
+            .border(1.dp, HausColors.current.divider, RoundedCornerShape(16.dp))
+            .testTag(SettingsThemeTestTag)
+            .padding(horizontal = horizontal, vertical = vertical),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            RhythHausThemeMode.settingsOptions.forEach { mode ->
+                val selected = mode == appearance.themeMode
+                val shape = SettingsAppearanceShape
+                Column(
+                    Modifier.weight(1f)
+                        .heightIn(min = 62.dp)
+                        .clip(shape)
+                        .background(
+                            if (selected) HausColors.current.textPrimary
+                            else HausColors.current.background,
+                        )
+                        .hausFocusIndicator(
+                            color =
+                                if (selected) HausColors.current.background
+                                else HausColors.current.focus,
+                            shape = shape,
+                            outerColor =
+                                if (selected) {
+                                    HausColors.current.essentialBoundary
+                                } else {
+                                    null
+                                },
+                        )
+                        .selectable(
+                            selected = selected,
+                            enabled = interactionEnabled,
+                            role = Role.RadioButton,
+                        ) {
+                            onThemeModeSelected(mode)
+                        }
+                        .testTag("settings-theme-mode-${mode.name.lowercase()}")
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        mode.label(),
+                        color =
+                            if (selected) HausColors.current.background
+                            else HausColors.current.textPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        mode.description(),
+                        color =
+                            if (selected) HausColors.current.background
+                            else HausColors.current.textSecondary,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        Column(
+            Modifier.fillMaxWidth().selectableGroup(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val paletteOptions = HausPaletteId.settingsOptions
+            for (rowStartIndex in paletteOptions.indices step 2) {
+                val rowEndIndex = minOf(rowStartIndex + 2, paletteOptions.size)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for (paletteIndex in rowStartIndex until rowEndIndex) {
+                        val paletteId = paletteOptions[paletteIndex]
+                        PalettePreviewChoice(
+                            paletteId = paletteId,
+                            isDark = appearance.isDark,
+                            selected = paletteId == appearance.paletteId,
+                            enabled = interactionEnabled,
+                            onSelected = onPaletteSelected,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (rowEndIndex - rowStartIndex == 1) {
+                        Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        if (appearance.dynamicColorAvailable) {
+            MonetPreference(
+                checked = appearance.dynamicColorEnabled,
+                enabled = interactionEnabled,
+                onCheckedChange = onDynamicColorSelected,
+            )
+        }
+        val sourceStatus =
+            when {
+                !appearance.dynamicColorEnabled ||
+                    !appearance.dynamicColorAvailable -> null
+                appearance.colorSource == HausThemeColorSource.AndroidDynamic ->
+                    stringResource(Res.string.appearance_source_monet)
+                else ->
+                    stringResource(
+                        Res.string.appearance_source_fallback,
+                        paletteName,
+                    )
+            }
+        sourceStatus?.let { status ->
+            Text(
+                status,
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .testTag("settings-appearance-source")
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                color = HausColors.current.textSecondary,
+                fontSize = 13.sp,
+            )
+        }
+        if (appearance.isSaving) {
+            Text(
+                stringResource(Res.string.appearance_saving),
+                modifier =
+                    Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                color = HausColors.current.textSecondary,
+                fontSize = 13.sp,
+            )
+        }
+        if (appearance.saveFailed) {
+            val errorMessage = stringResource(Res.string.appearance_save_error)
+            Text(
+                errorMessage,
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .testTag("settings-appearance-save-error")
+                        .semantics {
+                            liveRegion = LiveRegionMode.Assertive
+                            error(errorMessage)
+                        },
+                color = HausColors.current.error,
+                fontSize = 13.sp,
+            )
+            Button(
+                onClick = onRetryAppearanceSave,
+                enabled = !modalVisible,
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .testTag("settings-appearance-retry"),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        color = HausColors.current.textPrimary,
+                        contentColor = HausColors.current.background,
+                    ),
+            ) {
+                Text(
+                    stringResource(Res.string.appearance_retry),
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
 }
+
+@Composable
+private fun PalettePreviewChoice(
+    paletteId: HausPaletteId,
+    isDark: Boolean,
+    selected: Boolean,
+    enabled: Boolean,
+    onSelected: (HausPaletteId) -> Unit,
+    modifier: Modifier,
+) {
+    val colors = hausPalette(paletteId, isDark)
+    val shape = SettingsAppearanceShape
+    Column(
+        modifier
+            .heightIn(min = 68.dp)
+            .clip(shape)
+            .background(
+                if (selected) colors.selectedSurface else colors.surface,
+            )
+            .border(
+                1.dp,
+                if (selected) colors.primaryAction
+                else HausColors.current.divider,
+                shape,
+            )
+            .hausFocusIndicator(color = colors.focus, shape = shape)
+            .selectable(
+                selected = selected,
+                enabled = enabled,
+                role = Role.RadioButton,
+            ) {
+                onSelected(paletteId)
+            }
+            .testTag("settings-palette-${paletteId.serialized}")
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            paletteId.label(),
+            color =
+                if (selected) colors.onSelectedSurface else colors.textPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            PaletteSwatch(
+                colors.primaryAction,
+                "settings-palette-${paletteId.serialized}-primary-swatch",
+            )
+            PaletteSwatch(colors.selectedSurface)
+            PaletteSwatch(colors.raisedSurface)
+            PaletteSwatch(colors.background)
+        }
+    }
+}
+
+@Composable
+private fun PaletteSwatch(color: Color, testTag: String? = null) {
+    Box(
+        Modifier.size(18.dp)
+            .clip(CircleShape)
+            .background(color)
+            .then(
+                if (testTag != null) Modifier.testTag(testTag) else Modifier,
+            ),
+    )
+}
+
+@Composable
+private fun MonetPreference(
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(SettingsAppearanceShape)
+            .background(HausColors.current.background)
+            .hausFocusIndicator(shape = SettingsAppearanceShape)
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+            ) {
+                onCheckedChange(it)
+            }
+            .testTag("settings-monet-switch")
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(
+            Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    stringResource(Res.string.appearance_monet_title),
+                    color = HausColors.current.textPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    stringResource(Res.string.appearance_monet_explanation),
+                    color = HausColors.current.textSecondary,
+                    fontSize = 12.sp,
+                )
+            }
+        Box(
+            Modifier.size(width = 46.dp, height = 28.dp)
+                .clip(CircleShape)
+                .background(
+                    if (checked) HausColors.current.primaryAction
+                    else HausColors.current.disabledSurface,
+                ),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Box(
+                Modifier.offset(x = if (checked) 20.dp else 3.dp)
+                    .size(22.dp)
+                    .background(
+                        if (checked) HausColors.current.onPrimaryAction
+                        else HausColors.current.disabledContent,
+                        CircleShape,
+                    ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HausPaletteId.label(): String =
+    stringResource(
+        when (this) {
+            HausPaletteId.Moss -> Res.string.appearance_palette_moss
+            HausPaletteId.Bay -> Res.string.appearance_palette_bay
+            HausPaletteId.Clay -> Res.string.appearance_palette_clay
+            HausPaletteId.Iris -> Res.string.appearance_palette_iris
+        },
+    )
 
 /** Localized system-owned source name for Shared source presentations. */
 @Composable

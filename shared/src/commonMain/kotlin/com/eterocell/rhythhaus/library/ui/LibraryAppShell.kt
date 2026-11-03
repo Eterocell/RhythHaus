@@ -99,8 +99,10 @@ import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupSettingsSection
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiAction
 import com.eterocell.rhythhaus.playlistbackup.PlaylistBackupUiState
 import com.eterocell.rhythhaus.playlistbackup.PlaylistDocumentFormat
+import com.eterocell.rhythhaus.settings.SettingsAppearanceState
 import com.eterocell.rhythhaus.taglib.TagLibReader
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.HausShapes
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.toPlayableTrack
@@ -288,8 +290,11 @@ fun LibraryHomeScreen(
     scanErrors: List<ScanError>,
     scanJob: Job?,
     coordinatorMutationsEnabled: Boolean,
-    currentThemeMode: RhythHausThemeMode,
+    settingsAppearance: SettingsAppearanceState,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
+    onPaletteSelected: (HausPaletteId) -> Unit,
+    onDynamicColorSelected: (Boolean) -> Unit,
+    onRetryAppearanceSave: () -> Unit,
     replayGainState: com.eterocell.rhythhaus.playback.ReplayGainPreferenceState,
     onReplayGainModeSelected: (com.eterocell.rhythhaus.ReplayGainMode) -> Unit,
     crossfadeState: com.eterocell.rhythhaus.playback.CrossfadePreferenceState,
@@ -784,8 +789,11 @@ fun LibraryHomeScreen(
             scanErrors = scanErrors,
             scanJob = scanJob,
             mutationsEnabled = coordinatorMutationsEnabled,
-            currentThemeMode = currentThemeMode,
+            settingsAppearance = settingsAppearance,
             onThemeModeSelected = onThemeModeSelected,
+            onPaletteSelected = onPaletteSelected,
+            onDynamicColorSelected = onDynamicColorSelected,
+            onRetryAppearanceSave = onRetryAppearanceSave,
             replayGainState = replayGainState,
             onReplayGainModeSelected = onReplayGainModeSelected,
             crossfadeState = crossfadeState,

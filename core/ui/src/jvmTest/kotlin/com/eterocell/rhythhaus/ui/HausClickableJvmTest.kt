@@ -51,13 +51,11 @@ class HausClickableJvmTest {
         runOnIdle { focusRequester.requestFocus() }
         val focusedAction = onNodeWithTag("focusable-action")
         focusedAction.assertIsFocused()
-        assertContainsFocusColor(
-            focusedAction, lightHausPalette.essentialBoundary)
+        assertContainsFocusColor(focusedAction, lightHausPalette.focus)
 
         runOnIdle { palette = darkHausPalette }
         waitForIdle()
-        assertContainsFocusColor(
-            focusedAction, darkHausPalette.essentialBoundary)
+        assertContainsFocusColor(focusedAction, darkHausPalette.focus)
     }
 
     private fun assertContainsFocusColor(

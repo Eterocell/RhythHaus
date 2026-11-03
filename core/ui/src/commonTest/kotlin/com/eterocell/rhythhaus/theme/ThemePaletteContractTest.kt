@@ -11,11 +11,17 @@ import kotlin.test.assertTrue
 
 class ThemePaletteContractTest {
     @Test
-    fun paletteIdsHaveStableValuesAndUnknownValuesFallBackToMoss() {
+    fun paletteIdsParseStableValuesAndUnknownValuesFallBackToMoss() {
         assertEquals("moss", HausPaletteId.Moss.serialized)
         assertEquals("bay", HausPaletteId.Bay.serialized)
         assertEquals("clay", HausPaletteId.Clay.serialized)
         assertEquals("iris", HausPaletteId.Iris.serialized)
+        HausPaletteId.entries.forEach { paletteId ->
+            assertEquals(
+                paletteId,
+                HausPaletteId.fromSerialized(paletteId.serialized),
+            )
+        }
         assertEquals(HausPaletteId.Moss, HausPaletteId.fromSerialized(null))
         assertEquals(HausPaletteId.Moss, HausPaletteId.fromSerialized(""))
         assertEquals(
@@ -48,44 +54,305 @@ class ThemePaletteContractTest {
     }
 
     @Test
-    fun curatedSchemesUseTheApprovedPaletteAndModeTokens() {
+    fun curatedSchemesMatchEveryApprovedTokenRole() {
         val expected =
             listOf(
-                Triple(HausPaletteId.Moss, false, Color(0xFFF4F7F2)) to
-                    (Color(0xFF315D3E) to 0.54f),
-                Triple(HausPaletteId.Moss, true, Color(0xFF151B16)) to
-                    (Color(0xFF98D9A4) to 0.64f),
-                Triple(HausPaletteId.Bay, false, Color(0xFFF2F7FA)) to
-                    (Color(0xFF285D83) to 0.54f),
-                Triple(HausPaletteId.Bay, true, Color(0xFF121A20)) to
-                    (Color(0xFF98D1FF) to 0.64f),
-                Triple(HausPaletteId.Clay, false, Color(0xFFFBF6F0)) to
-                    (Color(0xFF89502C) to 0.54f),
-                Triple(HausPaletteId.Clay, true, Color(0xFF1D1714)) to
-                    (Color(0xFFFFD0AB) to 0.64f),
-                Triple(HausPaletteId.Iris, false, Color(0xFFF7F5FB)) to
-                    (Color(0xFF635091) to 0.54f),
-                Triple(HausPaletteId.Iris, true, Color(0xFF191720)) to
-                    (Color(0xFFD5C2FF) to 0.64f),
+                ExpectedPalette(
+                    HausPaletteId.Moss,
+                    false,
+                    HausColorPalette(
+                        background = Color(0xFFF4F7F2),
+                        surface = Color(0xFFFFFFFF),
+                        raisedSurface = Color(0xFFEAF1E8),
+                        navigationSurface = Color(0xFFE8F0E6),
+                        textPrimary = Color(0xFF1E2720),
+                        textSecondary = Color(0xFF4C5A4E),
+                        textInverse = Color(0xFFF8FBF8),
+                        primaryAction = Color(0xFF315D3E),
+                        onPrimaryAction = Color(0xFFFFFFFF),
+                        selectedSurface = Color(0xFFDDEADE),
+                        onSelectedSurface = Color(0xFF1C3222),
+                        divider = Color(0xFF758176),
+                        essentialBoundary = Color(0xFF758176),
+                        focus = Color(0xFF315D3E),
+                        disabledSurface = Color(0xFFE7EAE6),
+                        disabledContent = Color(0xFF58625A),
+                        error = Color(0xFFA32835),
+                        onError = Color(0xFFFFFFFF),
+                        errorContainer = Color(0xFFFCE9E8),
+                        onErrorContainer = Color(0xFF64161E),
+                        warning = Color(0xFF795700),
+                        onWarning = Color(0xFFFFFFFF),
+                        warningContainer = Color(0xFFFFF1C5),
+                        onWarningContainer = Color(0xFF4E3B00),
+                        success = Color(0xFF23613A),
+                        onSuccess = Color(0xFFFFFFFF),
+                        successContainer = Color(0xFFE4F1E5),
+                        onSuccessContainer = Color(0xFF173E25),
+                        scrimColor = Color(0xFF07100A),
+                        scrimAlpha = 0.54f,
+                    ),
+                ),
+                ExpectedPalette(
+                    HausPaletteId.Moss,
+                    true,
+                    HausColorPalette(
+                        background = Color(0xFF151B16),
+                        surface = Color(0xFF1D251E),
+                        raisedSurface = Color(0xFF263128),
+                        navigationSurface = Color(0xFF202B22),
+                        textPrimary = Color(0xFFE9EFE9),
+                        textSecondary = Color(0xFFB9C4B9),
+                        textInverse = Color(0xFF202820),
+                        primaryAction = Color(0xFF98D9A4),
+                        onPrimaryAction = Color(0xFF0C2817),
+                        selectedSurface = Color(0xFF304437),
+                        onSelectedSurface = Color(0xFFEFF7EF),
+                        divider = Color(0xFF77857A),
+                        essentialBoundary = Color(0xFF77857A),
+                        focus = Color(0xFF98D9A4),
+                        disabledSurface = Color(0xFF303932),
+                        disabledContent = Color(0xFFADB8AE),
+                        error = Color(0xFFFFB4AB),
+                        onError = Color(0xFF641219),
+                        errorContainer = Color(0xFF67272B),
+                        onErrorContainer = Color(0xFFFFE1DD),
+                        warning = Color(0xFFFFE18E),
+                        onWarning = Color(0xFF352800),
+                        warningContainer = Color(0xFF544000),
+                        onWarningContainer = Color(0xFFFFEAB8),
+                        success = Color(0xFFA5E2A7),
+                        onSuccess = Color(0xFF12391D),
+                        successContainer = Color(0xFF204B2A),
+                        onSuccessContainer = Color(0xFFD4F4D0),
+                        scrimColor = Color(0xFF000000),
+                        scrimAlpha = 0.64f,
+                    ),
+                ),
+                ExpectedPalette(
+                    HausPaletteId.Bay,
+                    false,
+                    HausColorPalette(
+                        background = Color(0xFFF2F7FA),
+                        surface = Color(0xFFFFFFFF),
+                        raisedSurface = Color(0xFFE9F2F7),
+                        navigationSurface = Color(0xFFE6F0F5),
+                        textPrimary = Color(0xFF1C252B),
+                        textSecondary = Color(0xFF465761),
+                        textInverse = Color(0xFFF7FBFD),
+                        primaryAction = Color(0xFF285D83),
+                        onPrimaryAction = Color(0xFFFFFFFF),
+                        selectedSurface = Color(0xFFDCEBF4),
+                        onSelectedSurface = Color(0xFF162F40),
+                        divider = Color(0xFF71818A),
+                        essentialBoundary = Color(0xFF71818A),
+                        focus = Color(0xFF285D83),
+                        disabledSurface = Color(0xFFE5EAEC),
+                        disabledContent = Color(0xFF56636A),
+                        error = Color(0xFFA32835),
+                        onError = Color(0xFFFFFFFF),
+                        errorContainer = Color(0xFFFCE9E8),
+                        onErrorContainer = Color(0xFF64161E),
+                        warning = Color(0xFF795700),
+                        onWarning = Color(0xFFFFFFFF),
+                        warningContainer = Color(0xFFFFF1C5),
+                        onWarningContainer = Color(0xFF4E3B00),
+                        success = Color(0xFF23613A),
+                        onSuccess = Color(0xFFFFFFFF),
+                        successContainer = Color(0xFFE4F1E5),
+                        onSuccessContainer = Color(0xFF173E25),
+                        scrimColor = Color(0xFF07100A),
+                        scrimAlpha = 0.54f,
+                    ),
+                ),
+                ExpectedPalette(
+                    HausPaletteId.Bay,
+                    true,
+                    HausColorPalette(
+                        background = Color(0xFF121A20),
+                        surface = Color(0xFF1B252E),
+                        raisedSurface = Color(0xFF25333E),
+                        navigationSurface = Color(0xFF1D2B34),
+                        textPrimary = Color(0xFFE7EDF4),
+                        textSecondary = Color(0xFFB7C2CD),
+                        textInverse = Color(0xFF20272D),
+                        primaryAction = Color(0xFF98D1FF),
+                        onPrimaryAction = Color(0xFF102A3D),
+                        selectedSurface = Color(0xFF2B4558),
+                        onSelectedSurface = Color(0xFFEDF6FD),
+                        divider = Color(0xFF778895),
+                        essentialBoundary = Color(0xFF778895),
+                        focus = Color(0xFF98D1FF),
+                        disabledSurface = Color(0xFF303A42),
+                        disabledContent = Color(0xFFAEBBC5),
+                        error = Color(0xFFFFB4AB),
+                        onError = Color(0xFF641219),
+                        errorContainer = Color(0xFF67272B),
+                        onErrorContainer = Color(0xFFFFE1DD),
+                        warning = Color(0xFFFFE18E),
+                        onWarning = Color(0xFF352800),
+                        warningContainer = Color(0xFF544000),
+                        onWarningContainer = Color(0xFFFFEAB8),
+                        success = Color(0xFFA5E2A7),
+                        onSuccess = Color(0xFF12391D),
+                        successContainer = Color(0xFF204B2A),
+                        onSuccessContainer = Color(0xFFD4F4D0),
+                        scrimColor = Color(0xFF000000),
+                        scrimAlpha = 0.64f,
+                    ),
+                ),
+                ExpectedPalette(
+                    HausPaletteId.Clay,
+                    false,
+                    HausColorPalette(
+                        background = Color(0xFFFBF6F0),
+                        surface = Color(0xFFFFFFFF),
+                        raisedSurface = Color(0xFFF5ECE3),
+                        navigationSurface = Color(0xFFF2E9E0),
+                        textPrimary = Color(0xFF29221D),
+                        textSecondary = Color(0xFF5B4D43),
+                        textInverse = Color(0xFFFFFAF5),
+                        primaryAction = Color(0xFF89502C),
+                        onPrimaryAction = Color(0xFFFFFFFF),
+                        selectedSurface = Color(0xFFF2E2D4),
+                        onSelectedSurface = Color(0xFF382417),
+                        divider = Color(0xFF877A6F),
+                        essentialBoundary = Color(0xFF877A6F),
+                        focus = Color(0xFF89502C),
+                        disabledSurface = Color(0xFFECE7E2),
+                        disabledContent = Color(0xFF665A51),
+                        error = Color(0xFFA32835),
+                        onError = Color(0xFFFFFFFF),
+                        errorContainer = Color(0xFFFCE9E8),
+                        onErrorContainer = Color(0xFF64161E),
+                        warning = Color(0xFF795700),
+                        onWarning = Color(0xFFFFFFFF),
+                        warningContainer = Color(0xFFFFF1C5),
+                        onWarningContainer = Color(0xFF4E3B00),
+                        success = Color(0xFF23613A),
+                        onSuccess = Color(0xFFFFFFFF),
+                        successContainer = Color(0xFFE4F1E5),
+                        onSuccessContainer = Color(0xFF173E25),
+                        scrimColor = Color(0xFF140C06),
+                        scrimAlpha = 0.54f,
+                    ),
+                ),
+                ExpectedPalette(
+                    HausPaletteId.Clay,
+                    true,
+                    HausColorPalette(
+                        background = Color(0xFF1D1714),
+                        surface = Color(0xFF2A211C),
+                        raisedSurface = Color(0xFF3A2D24),
+                        navigationSurface = Color(0xFF30251F),
+                        textPrimary = Color(0xFFF2E9E2),
+                        textSecondary = Color(0xFFC6B8AC),
+                        textInverse = Color(0xFF2B231F),
+                        primaryAction = Color(0xFFFFD0AB),
+                        onPrimaryAction = Color(0xFF36200F),
+                        selectedSurface = Color(0xFF4C3527),
+                        onSelectedSurface = Color(0xFFFFF3E8),
+                        divider = Color(0xFF93857A),
+                        essentialBoundary = Color(0xFF93857A),
+                        focus = Color(0xFFFFD0AB),
+                        disabledSurface = Color(0xFF3D332C),
+                        disabledContent = Color(0xFFC3B5A9),
+                        error = Color(0xFFFFB4AB),
+                        onError = Color(0xFF641219),
+                        errorContainer = Color(0xFF67272B),
+                        onErrorContainer = Color(0xFFFFE1DD),
+                        warning = Color(0xFFFFE18E),
+                        onWarning = Color(0xFF352800),
+                        warningContainer = Color(0xFF544000),
+                        onWarningContainer = Color(0xFFFFEAB8),
+                        success = Color(0xFFA5E2A7),
+                        onSuccess = Color(0xFF12391D),
+                        successContainer = Color(0xFF204B2A),
+                        onSuccessContainer = Color(0xFFD4F4D0),
+                        scrimColor = Color(0xFF000000),
+                        scrimAlpha = 0.64f,
+                    ),
+                ),
+                ExpectedPalette(
+                    HausPaletteId.Iris,
+                    false,
+                    HausColorPalette(
+                        background = Color(0xFFF7F5FB),
+                        surface = Color(0xFFFFFFFF),
+                        raisedSurface = Color(0xFFF0EBF7),
+                        navigationSurface = Color(0xFFEEE9F5),
+                        textPrimary = Color(0xFF25222C),
+                        textSecondary = Color(0xFF514B5E),
+                        textInverse = Color(0xFFFAF8FF),
+                        primaryAction = Color(0xFF635091),
+                        onPrimaryAction = Color(0xFFFFFFFF),
+                        selectedSurface = Color(0xFFE9E3F3),
+                        onSelectedSurface = Color(0xFF2E2442),
+                        divider = Color(0xFF7F778A),
+                        essentialBoundary = Color(0xFF7F778A),
+                        focus = Color(0xFF635091),
+                        disabledSurface = Color(0xFFEAE7EE),
+                        disabledContent = Color(0xFF605A68),
+                        error = Color(0xFFA32835),
+                        onError = Color(0xFFFFFFFF),
+                        errorContainer = Color(0xFFFCE9E8),
+                        onErrorContainer = Color(0xFF64161E),
+                        warning = Color(0xFF795700),
+                        onWarning = Color(0xFFFFFFFF),
+                        warningContainer = Color(0xFFFFF1C5),
+                        onWarningContainer = Color(0xFF4E3B00),
+                        success = Color(0xFF23613A),
+                        onSuccess = Color(0xFFFFFFFF),
+                        successContainer = Color(0xFFE4F1E5),
+                        onSuccessContainer = Color(0xFF173E25),
+                        scrimColor = Color(0xFF0D0714),
+                        scrimAlpha = 0.54f,
+                    ),
+                ),
+                ExpectedPalette(
+                    HausPaletteId.Iris,
+                    true,
+                    HausColorPalette(
+                        background = Color(0xFF191720),
+                        surface = Color(0xFF242130),
+                        raisedSurface = Color(0xFF322D40),
+                        navigationSurface = Color(0xFF292537),
+                        textPrimary = Color(0xFFEEEAF6),
+                        textSecondary = Color(0xFFC4BDD2),
+                        textInverse = Color(0xFF28242F),
+                        primaryAction = Color(0xFFD5C2FF),
+                        onPrimaryAction = Color(0xFF2D2050),
+                        selectedSurface = Color(0xFF3F3651),
+                        onSelectedSurface = Color(0xFFF5F0FF),
+                        divider = Color(0xFF898198),
+                        essentialBoundary = Color(0xFF898198),
+                        focus = Color(0xFFD5C2FF),
+                        disabledSurface = Color(0xFF383440),
+                        disabledContent = Color(0xFFBDB5CB),
+                        error = Color(0xFFFFB4AB),
+                        onError = Color(0xFF641219),
+                        errorContainer = Color(0xFF67272B),
+                        onErrorContainer = Color(0xFFFFE1DD),
+                        warning = Color(0xFFFFE18E),
+                        onWarning = Color(0xFF352800),
+                        warningContainer = Color(0xFF544000),
+                        onWarningContainer = Color(0xFFFFEAB8),
+                        success = Color(0xFFA5E2A7),
+                        onSuccess = Color(0xFF12391D),
+                        successContainer = Color(0xFF204B2A),
+                        onSuccessContainer = Color(0xFFD4F4D0),
+                        scrimColor = Color(0xFF000000),
+                        scrimAlpha = 0.64f,
+                    ),
+                ),
             )
 
-        expected.forEach { (scheme, expectedAction) ->
-            val (paletteId, isDark, expectedBackground) = scheme
-            val (expectedActionColor, expectedScrimAlpha) = expectedAction
-            val palette = hausPalette(paletteId, isDark)
-
+        expected.forEach { (paletteId, isDark, expectedPalette) ->
             assertEquals(
-                expectedBackground,
-                palette.background,
-                "$paletteId/$isDark background")
-            assertEquals(
-                expectedActionColor,
-                palette.primaryAction,
-                "$paletteId/$isDark action")
-            assertEquals(
-                expectedScrimAlpha,
-                palette.scrimAlpha,
-                "$paletteId/$isDark scrim")
+                expectedPalette,
+                hausPalette(paletteId, isDark),
+                "$paletteId/${if (isDark) "dark" else "light"} tokens",
+            )
         }
     }
 
@@ -361,6 +628,12 @@ class ThemePaletteContractTest {
         assertColorNear(Color(0xFF797E7B), composite)
     }
 }
+
+private data class ExpectedPalette(
+    val paletteId: HausPaletteId,
+    val isDark: Boolean,
+    val palette: HausColorPalette,
+)
 
 private fun HausColorPalette.semanticColorRoles(): List<Color> =
     listOf(

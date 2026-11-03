@@ -670,7 +670,7 @@ private fun TransportButton(
     onClick: () -> Unit,
     tint: Color = HausColors.current.textPrimary,
     iconSize: androidx.compose.ui.unit.Dp = 26.dp,
-    focusColor: Color = HausColors.current.essentialBoundary,
+    focusColor: Color = HausColors.current.focus,
     outerColor: Color? = null,
     testTag: String? = null,
 ) {
@@ -722,7 +722,7 @@ private fun RecoveryActionButton(
         when {
             destructive -> HausColors.current.error
             primary -> HausColors.current.background
-            else -> HausColors.current.essentialBoundary
+            else -> HausColors.current.focus
         }
     val outerColor =
         if (destructive || primary) HausColors.current.essentialBoundary
@@ -1056,7 +1056,7 @@ private fun PlaybackModeButton(
                 onClick = onClick,
                 focusColor =
                     if (selected) HausColors.current.onPrimaryAction
-                    else HausColors.current.essentialBoundary,
+                    else HausColors.current.focus,
                 outerColor =
                     if (selected) HausColors.current.essentialBoundary
                     else null,

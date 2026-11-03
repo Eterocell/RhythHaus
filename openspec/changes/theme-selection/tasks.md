@@ -29,9 +29,9 @@
 ## 5. Curated palettes and Android dynamic color
 
 - [x] 5.1 Add stable palette IDs and all 29 semantic color roles plus scrim alpha to `:core:ui`; encode Moss/Bay/Clay/Iris light/dark values from the approved token file, migrate all existing Haus palette consumers to canonical roles without aliases, and add common contrast/resolution tests before implementation.
-- [ ] 5.2 Extend `ThemePreferenceStore` with independently parsed/persisted palette ID and Monet intent; verify default/invalid values and restart behavior in `ThemePreferenceStoreJvmTest`.
-- [ ] 5.3 Add an Android API 31+ dynamic-color provider and fallback projection; map only the specified Material roles, retain curated warning/success roles, and test provider absence/API 29–30 fallback without leaking Android types into common code.
-- [ ] 5.4 Extend Shared theme resolution and app-state wiring to consume mode, palette, dynamic intent, effective source, and recoverable persistence errors; verify settings writes do not change unrelated playback/navigation state.
-- [ ] 5.5 Update the explicit `:feature:settings` appearance entry point and Shared callers; render accessible mode segments, four palette previews, API-gated Monet and fallback status, with EN/ZH resources and selected-state tests.
-- [ ] 5.6 Update `docs/architecture.md` and `docs/adr/0001-feature-first-module-boundaries.md` for the changed public Settings appearance contract; preserve feature-to-shell dependency direction and add no service locator.
+- [x] 5.2 Extend `ThemePreferenceStore` with independently parsed/persisted palette ID and Monet intent; verify default/invalid values and restart behavior in `ThemePreferenceStoreJvmTest`.
+- [x] 5.3 Add an Android API 31+ dynamic-color provider and fallback projection; map only the specified Material roles, retain curated warning/success roles, and test provider absence/API 29–30 fallback without leaking Android types into common code.
+- [x] 5.4 Extend Shared theme resolution and app-state wiring to consume mode, palette, dynamic intent, effective source, and recoverable persistence errors; verify settings writes do not change unrelated playback/navigation state.
+- [x] 5.5 Update the explicit `:feature:settings` appearance entry point and Shared callers; render accessible mode segments, four palette previews, API-gated Monet and fallback status, with EN/ZH resources and selected-state tests.
+- [x] 5.6 Update `docs/architecture.md` and `docs/adr/0001-feature-first-module-boundaries.md` for the changed public Settings appearance contract; preserve feature-to-shell dependency direction and add no service locator.
 - [ ] 5.7 Run focused Core UI, Settings, and Shared tests; Android/desktop compilation; iOS simulator tests for touched common actuals; then run `./init.sh`, strict OpenSpec validation, independent review, and user-only appearance/device acceptance without claiming unperformed checks.

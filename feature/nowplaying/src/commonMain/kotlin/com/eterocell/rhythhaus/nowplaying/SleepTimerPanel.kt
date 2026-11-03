@@ -262,7 +262,7 @@ private fun SleepTimerFadeToggle(
                 onClick = onClick,
                 focusColor =
                     if (fadeEnabled) HausColors.current.background
-                    else HausColors.current.essentialBoundary,
+                    else HausColors.current.focus,
                 outerColor =
                     if (fadeEnabled) HausColors.current.essentialBoundary
                     else null,

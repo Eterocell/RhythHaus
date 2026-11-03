@@ -40,7 +40,7 @@ class AppNavigationChromeJvmTest {
         destination.performSemanticsAction(SemanticsActions.RequestFocus)
         destination.assertIsFocused()
         val pixels = destination.captureToImage().toPixelMap()
-        val outline = lightHausPalette.essentialBoundary.toArgb()
+        val outline = lightHausPalette.focus.toArgb()
         assertTrue(
             (0 until pixels.height).any { y ->
                 (0 until pixels.width).any { x ->

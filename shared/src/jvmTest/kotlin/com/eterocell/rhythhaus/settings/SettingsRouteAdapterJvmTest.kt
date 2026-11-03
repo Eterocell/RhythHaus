@@ -1744,7 +1744,20 @@ class SettingsRouteAdapterJvmTest {
             mediaNotificationPermission = mediaNotificationPermission,
             onRequestNotificationPermission = onRequestNotificationPermission,
             onOpenNotificationSettings = onOpenNotificationSettings,
-            currentThemeMode = RhythHausThemeMode.System,
+            settingsAppearance =
+                com.eterocell.rhythhaus.settings.SettingsAppearanceState(
+                    themeMode = RhythHausThemeMode.System,
+                    paletteId =
+                        com.eterocell.rhythhaus.theme.HausPaletteId.Moss,
+                    isDark = false,
+                    dynamicColorAvailable = false,
+                    dynamicColorEnabled = false,
+                    colorSource =
+                        com.eterocell.rhythhaus.theme.HausThemeColorSource
+                            .Curated,
+                    isSaving = false,
+                    saveFailed = false,
+                ),
             replayGainState =
                 com.eterocell.rhythhaus.playback.ReplayGainPreferenceState(
                     isBusy = false),
@@ -1752,6 +1765,9 @@ class SettingsRouteAdapterJvmTest {
             crossfadeState = crossfadeState,
             onCrossfadeDurationSelected = onCrossfadeDurationSelected,
             onThemeModeSelected = {},
+            onPaletteSelected = {},
+            onDynamicColorSelected = {},
+            onRetryAppearanceSave = {},
             onClearLibrary = onClear,
             onRescanSource = onRescan,
             onRemoveMissingTracks = onRemoveMissingTracks,

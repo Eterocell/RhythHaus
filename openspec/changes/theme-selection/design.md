@@ -79,3 +79,31 @@ When the user taps a mode, the UI updates and the mode is persisted. Failed pers
 - `openspec validate theme-selection --strict`.
 - `./gradlew :shared:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug --configuration-cache`.
 - `/usr/bin/xcrun xcodebuild -version` and `./gradlew :shared:iosSimulatorArm64Test --configuration-cache` if iOS actuals are touched.
+
+## Approved extension — selectable palettes and Android Monet
+
+This extension adds the theme-selection surface required by the approved platform-adaptive redesign. It supersedes only the earlier single light/dark palette and orange-accent limit, the Appearance dropdown presentation, the no-dynamic-color limitation, and the no-Settings-layout-redesign limit. DataStore remains the preference owner; SQLDelight, playback, scanning, library navigation, and native Settings screens remain out of scope. Theme selection stays separate from the `platform-adaptive-ui-redesign` change.
+
+### Appearance model and resolution
+
+- Keep `RhythHausThemeMode` (`System`, `Light`, `Dark`) as an independent persisted preference; its default remains `System`.
+- Add stable palette IDs `moss`, `bay`, `clay`, and `iris`; default to `moss`. Every curated palette has a complete Light and Dark value set.
+- Persist the selected curated palette independently from theme mode and Android dynamic-color intent. Invalid/missing palette IDs resolve to Moss; invalid/missing mode remains System.
+- Android Monet is opt-in and available only on Android API 31+. Resolve wallpaper colors through an Android-owned provider; common UI and feature modules receive only immutable semantic palette data, never `Context` or Android color APIs. iOS, macOS/JVM, and API 29–30 resolve the selected curated palette.
+- The effective Android palette uses the system's current light/dark dynamic scheme when Monet is enabled. Re-resolve when the active Android configuration/system appearance changes. If dynamic colors cannot be supplied, render the selected curated palette, expose a recoverable unavailable state on supported Android, and retain the user's Monet intent.
+- Selecting a curated palette disables Monet. Turning Monet off restores the previously selected curated palette; changing mode never changes palette identity or Monet intent.
+- Persisted appearance changes publish only after the preference write succeeds. A failed write keeps the last persisted theme visible and exposes a retryable Settings error state; it does not crash or discard unrelated Settings state.
+
+### Presentation and ownership
+
+- Settings presents System/Light/Dark as one accessible segmented control, four palette previews with an unmistakable selected state, and a Monet switch only when supported. The active source and fallback state are announced semantically, not by color alone.
+- `:core:ui` owns the palette IDs, semantic color roles, deterministic resolution, and composition-local values. `:shared` owns preference persistence, Android host resolution, and composition. `:feature:settings` owns only the controls and receives immutable state/actions through its explicit public entry point.
+- Because the Settings feature entry-point parameters change, update `docs/architecture.md` and `docs/adr/0001-feature-first-module-boundaries.md` in the same implementation change. Do not add a service locator or a second theme owner.
+
+### Tokens and accessibility evidence
+
+The authoritative color values, Miuix/Material3 role mappings, four-palette light/dark samples, WCAG contrast evidence, and Monet role mapping are in [the design token file](../../../docs/superpowers/designs/2026-10-29-platform-adaptive-ui-redesign.tokens.json). It contains 29 color roles plus `scrimAlpha` (30 fields) per palette/mode. All eight curated combinations meet 4.5:1 text/action/status pairs and 3:1 focus/essential-boundary pairs in the recorded surfaces. Dynamic samples are illustrative only; device/wallpaper and failure-path acceptance remains an Android runtime check.
+
+### Implementation dependency
+
+Complete this appearance contract before the adaptive shell consumes its tokens. The later redesign may change presentation of these values but does not redefine persistence, palette identity, Monet fallback, or selection semantics.

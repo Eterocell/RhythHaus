@@ -61,12 +61,14 @@ import com.eterocell.rhythhaus.settings.MediaNotificationRecovery
 import com.eterocell.rhythhaus.settings.MediaStoreAudioRecovery
 import com.eterocell.rhythhaus.settings.OpenSourceLibrariesScreen
 import com.eterocell.rhythhaus.settings.SettingsAboutScreen
+import com.eterocell.rhythhaus.settings.SettingsAppearanceState
 import com.eterocell.rhythhaus.settings.SettingsCrossfadeDuration
 import com.eterocell.rhythhaus.settings.SettingsGaplessMode
 import com.eterocell.rhythhaus.settings.SettingsScreen
 import com.eterocell.rhythhaus.settings.SettingsSharedLabels
 import com.eterocell.rhythhaus.settings.SettingsSourceItem
 import com.eterocell.rhythhaus.theme.HausColors
+import com.eterocell.rhythhaus.theme.HausPaletteId
 import com.eterocell.rhythhaus.theme.RhythHausThemeMode
 import com.eterocell.rhythhaus.ui.HausButton as Button
 import kotlinx.coroutines.Job
@@ -152,8 +154,11 @@ internal fun LibraryRouteScreen(
     scanErrors: List<ScanError> = emptyList(),
     scanJob: Job?,
     mutationsEnabled: Boolean = true,
-    currentThemeMode: RhythHausThemeMode,
+    settingsAppearance: SettingsAppearanceState,
     onThemeModeSelected: (RhythHausThemeMode) -> Unit,
+    onPaletteSelected: (HausPaletteId) -> Unit,
+    onDynamicColorSelected: (Boolean) -> Unit,
+    onRetryAppearanceSave: () -> Unit,
     replayGainState: com.eterocell.rhythhaus.playback.ReplayGainPreferenceState,
     onReplayGainModeSelected: (com.eterocell.rhythhaus.ReplayGainMode) -> Unit,
     crossfadeState: com.eterocell.rhythhaus.playback.CrossfadePreferenceState,
@@ -344,7 +349,10 @@ internal fun LibraryRouteScreen(
                             stringResource(
                                 Res.string.output_status_unavailable),
                     ),
-                currentThemeMode = currentThemeMode,
+                appearance = settingsAppearance,
+                onPaletteSelected = onPaletteSelected,
+                onDynamicColorSelected = onDynamicColorSelected,
+                onRetryAppearanceSave = onRetryAppearanceSave,
                 replayGainMode =
                     com.eterocell.rhythhaus.settings.SettingsReplayGainMode
                         .valueOf(replayGainState.selectedMode.name),

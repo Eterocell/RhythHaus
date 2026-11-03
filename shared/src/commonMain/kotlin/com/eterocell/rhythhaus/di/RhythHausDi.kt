@@ -17,6 +17,7 @@ import com.eterocell.rhythhaus.session.PlaybackSessionPhase
 import com.eterocell.rhythhaus.session.PlaybackSessionReconciler
 import com.eterocell.rhythhaus.session.PlaybackSessionStore
 import com.eterocell.rhythhaus.session.createPlaybackSessionStore
+import com.eterocell.rhythhaus.theme.ThemePreferenceOwner
 import com.eterocell.rhythhaus.theme.ThemePreferenceStore
 import com.eterocell.rhythhaus.theme.createThemePreferenceStore
 import kotlinx.coroutines.CoroutineScope
@@ -108,6 +109,7 @@ fun rhythHausModule(): Module = module {
         )
     }
     single<ThemePreferenceStore> { createThemePreferenceStore() }
+    single { ThemePreferenceOwner(store = get()) }
     single<com.eterocell.rhythhaus.playback.ReplayGainPreferenceStore> {
         com.eterocell.rhythhaus.playback.createReplayGainPreferenceStore()
     }
